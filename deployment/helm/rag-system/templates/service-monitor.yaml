@@ -17,23 +17,3 @@ spec:
     interval: {{ .Values.backend.serviceMonitor.interval | default "30s" }}
     path: {{ .Values.backend.serviceMonitor.path | default "/metrics" }}
 {{- end }}
-
-{{- if .Values.ui.enabled }}
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: {{ include "rag-system.fullname" . }}-ui
-  namespace: {{ include "rag-system.namespace" . }}
-  labels:
-    {{- include "rag-system.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ui
-spec:
-  selector:
-    matchLabels:
-      {{- include "rag-system.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: ui
-  endpoints:
-  - port: http
-    interval: {{ .Values.ui.serviceMonitor.interval | default "30s" }}
-    path: {{ .Values.ui.serviceMonitor.path | default "/metrics" }}
-{{- end }}

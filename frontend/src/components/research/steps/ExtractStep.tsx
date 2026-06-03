@@ -33,14 +33,14 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
           <h3 className="text-lg font-mono font-semibold text-white">
             Extract Data
           </h3>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Create an extraction matrix to systematically extract data from your
             documents. You can skip this step if not needed.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Grid3X3 className="h-4 w-4 text-brand-cyan" />
-          <span className="text-xs font-mono text-gray-500 bg-brand-cyan/10 px-2 py-0.5 rounded border border-brand-cyan/20">
+          <span className="text-xs font-mono text-muted-foreground bg-brand-cyan/10 px-2 py-0.5 rounded border border-brand-cyan/20">
             Optional
           </span>
         </div>
@@ -59,7 +59,7 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
       <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white font-mono text-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -67,7 +67,7 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onSkip}
-            className="flex items-center gap-2 px-4 py-2 text-gray-400 border border-gray-700 rounded font-mono text-sm hover:text-white hover:border-gray-500 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-muted-foreground border border-border rounded font-mono text-sm hover:text-white hover:border-border transition-colors"
           >
             <SkipForward className="h-4 w-4" />
             Skip

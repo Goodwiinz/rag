@@ -5,14 +5,16 @@ const DashboardPage: React.FC = () => {
     <div className="px-4 sm:px-6 lg:px-8">
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-sm text-gray-700">
+          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+          <p className="mt-2 text-sm text-foreground">
             Overview of system metrics and performance
           </p>
         </div>
       </div>
       <div className="mt-8">
-        <p className="text-gray-500">Dashboard implementation coming soon...</p>
+        <p className="text-muted-foreground">
+          Dashboard implementation coming soon...
+        </p>
       </div>
     </div>
   );

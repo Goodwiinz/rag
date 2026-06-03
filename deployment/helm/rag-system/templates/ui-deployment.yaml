@@ -1,4 +1,0 @@
-{{- if .Values.ui.enabled }}
-{{- include "rag-system.labels" . | set "app" "rag-ui" | set "version" "v1.0.0" | nindent 0 }}
-{{- include "rag-system.deployment" . | set "Values" (dict "ui" .Values.ui "container" (dict "repository" .Values.ui.image.repository "tag" .Values.ui.image.tag "port" .Values.ui.service.targetPort)) | nindent 0 }}
-{{- end }}

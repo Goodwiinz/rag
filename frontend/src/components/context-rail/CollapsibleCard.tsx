@@ -6,21 +6,16 @@ import { ReactNode, useState } from 'react';
 
 interface CollapsibleCardProps {
   title: string;
-  /** Optional right-aligned text in the header (e.g. "4 of 4", source count). */
+  icon?: ReactNode;
   badge?: ReactNode;
-  /** Start collapsed. Defaults to open. */
   defaultCollapsed?: boolean;
   children: ReactNode;
   className?: string;
 }
 
-/**
- * Cowork-style rounded card with a bold title and a chevron that
- * collapses/expands the body. Used by every panel in the ContextRail
- * so the sidebar reads as a stack of uniform cards.
- */
 export function CollapsibleCard({
   title,
+  icon,
   badge,
   defaultCollapsed = false,
   children,
@@ -30,44 +25,62 @@ export function CollapsibleCard({
 
   return (
     <section
-      className={cn('rounded-xl border', className)}
-      style={{
-        borderColor: 'var(--nous-border-1)',
-        background: 'var(--nous-bg-2)',
-        fontFamily: 'var(--nous-font-ui)',
-      }}
+      className={cn(
+        'border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] rounded-lg',
+        'dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]',
+        className
+      )}
     >
       <button
         type="button"
         onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 group"
+        className="w-full flex items-center justify-between px-3 py-2.5 group hover:bg-[var(--nous-aurum)]/30 dark:hover:bg-[var(--nous-ember)]/30 rounded-t-lg transition-colors"
         aria-expanded={!collapsed}
       >
         <div className="flex items-center gap-2 min-w-0">
+          {icon && (
+            <span
+              className="grid place-items-center w-4 h-4 shrink-0 text-[var(--nous-fg-3)]"
+              aria-hidden
+            >
+              {icon}
+            </span>
+          )}
           <span
-            className="text-[15px] font-semibold truncate"
-            style={{ color: 'var(--nous-fg-1)' }}
+            className="text-[10px] font-bold uppercase truncate text-[var(--nous-fg-3)] group-hover:text-[var(--nous-fg-2)] transition-colors"
+            style={{
+              fontFamily: 'var(--nous-font-mono)',
+              letterSpacing: '0.18em',
+            }}
           >
             {title}
           </span>
-          {badge && (
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {badge != null && (
             <span
-              className="text-[11px] tabular-nums"
-              style={{ color: 'var(--nous-fg-3)' }}
+              className="px-1.5 py-[1px] rounded text-[9px] tabular-nums bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[var(--nous-fg-2)] dark:bg-[var(--nous-nyx)] dark:border-[var(--nous-shade)]"
+              style={{
+                fontFamily: 'var(--nous-font-mono)',
+                letterSpacing: '0.04em',
+              }}
             >
               {badge}
             </span>
           )}
+          <ChevronDown
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 transition-transform text-[var(--nous-fg-3)]',
+              collapsed && '-rotate-90'
+            )}
+          />
         </div>
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 shrink-0 transition-transform',
-            collapsed && '-rotate-90'
-          )}
-          style={{ color: 'var(--nous-fg-3)' }}
-        />
       </button>
-      {!collapsed && <div className="px-4 pb-4">{children}</div>}
+      {!collapsed && (
+        <div className="px-3 pb-3 pt-1 border-t border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]">
+          {children}
+        </div>
+      )}
     </section>
   );
 }

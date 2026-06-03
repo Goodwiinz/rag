@@ -63,7 +63,7 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         with correlation_context(correlation_id, user_id, tenant_id, request_id):
             # Start span for HTTP request
             span_name = f"HTTP {request.method} {request.url.path}"
-            with async_trace_span(
+            async with async_trace_span(
                 span_name,
                 attributes={
                     "http.method": request.method,
@@ -471,7 +471,7 @@ def trace_async_business_operation(
             if business_id:
                 attributes["business.id"] = business_id
 
-            with async_trace_span(f"business.{operation_name}", attributes=attributes):
+            async with async_trace_span(f"business.{operation_name}", attributes=attributes):
                 with track_performance(f"business_{operation_name}"):
                     try:
                         start_time = time.time()

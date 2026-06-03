@@ -13,10 +13,14 @@ export const CompareEvaluationsPage: React.FC = () => {
         >
           &larr; Back to Evaluations
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Compare Evaluations</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          Compare Evaluations
+        </h1>
       </div>
       <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">Compare multiple evaluation results side-by-side.</p>
+        <p className="text-foreground">
+          Compare multiple evaluation results side-by-side.
+        </p>
       </div>
     </div>
   );

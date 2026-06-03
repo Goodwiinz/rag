@@ -11,7 +11,10 @@ export function AppNavbar() {
   const pathname = usePathname();
 
   // Hide navbar on dashboard routes
-  if (pathname?.startsWith('/chat') || pathname?.startsWith('/documents/upload')) {
+  if (
+    pathname?.startsWith('/chat') ||
+    pathname?.startsWith('/documents/upload')
+  ) {
     return null;
   }
 
@@ -20,20 +23,23 @@ export function AppNavbar() {
       href: '/search',
       label: 'Semantic Search',
       icon: 'Search',
-      description: 'Ask complex questions and retrieve answers with semantic understanding.'
+      description:
+        'Ask complex questions and retrieve answers with semantic understanding.',
     },
     {
       href: '/chat',
       label: 'WebLLM Chat',
       icon: 'MessageSquare',
-      description: 'Chat with browser-hosted LLMs to synthesize insights from your corpus.'
+      description:
+        'Chat with browser-hosted LLMs to synthesize insights from your corpus.',
     },
     {
       href: '/documents/upload',
       label: 'Document Upload',
       icon: 'FileText',
-      description: 'Ingest PDFs, images, audio, and video into your knowledge base.'
-    }
+      description:
+        'Ingest PDFs, images, audio, and video into your knowledge base.',
+    },
   ];
 
   const accountItems: Navbar02NavItem['items'] = isAuthenticated
@@ -42,22 +48,24 @@ export function AppNavbar() {
           href: '/documents/upload',
           label: 'Workspace Hub',
           icon: 'Upload',
-          description: 'Jump directly into managing and monitoring your documents.'
-        }
+          description:
+            'Jump directly into managing and monitoring your documents.',
+        },
       ]
     : [
         {
           href: '/login',
           label: 'Sign In',
           icon: 'LogIn',
-          description: 'Access your existing workspace and continue where you left off.'
+          description:
+            'Access your existing workspace and continue where you left off.',
         },
         {
           href: '/register',
           label: 'Create Account',
           icon: 'UserPlus',
-          description: 'Set up a new organization workspace in minutes.'
-        }
+          description: 'Set up a new organization workspace in minutes.',
+        },
       ];
 
   const navLinks: Navbar02NavItem[] = [
@@ -66,7 +74,7 @@ export function AppNavbar() {
       label: 'Workspace',
       submenu: true,
       type: 'icon',
-      items: workspaceItems
+      items: workspaceItems,
     },
     ...(isAuthenticated
       ? []
@@ -75,29 +83,29 @@ export function AppNavbar() {
       label: 'Account',
       submenu: true,
       type: 'icon',
-      items: accountItems
-    }
+      items: accountItems,
+    },
   ];
 
   return (
-    <Navbar02 
+    <Navbar02
       logo={
         <div className="flex items-center gap-2 font-bold text-xl">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
             R
           </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">
-            RAG System
-          </span>
+          <span className="text-primary">RAG System</span>
         </div>
       }
       logoHref="/"
-      ctaText={isAuthenticated ? "Workspace" : "Get Started"}
-      ctaHref={isAuthenticated ? "/documents/upload" : "/register"}
-      signInText={isAuthenticated ? "Sign Out" : "Login"}
-      signInHref={isAuthenticated ? "#" : "/login"}
+      ctaText={isAuthenticated ? 'Workspace' : 'Get Started'}
+      ctaHref={isAuthenticated ? '/documents/upload' : '/register'}
+      signInText={isAuthenticated ? 'Sign Out' : 'Login'}
+      signInHref={isAuthenticated ? '#' : '/login'}
       onSignInClick={isAuthenticated ? logout : () => router.push('/login')}
-      onCtaClick={() => router.push(isAuthenticated ? '/documents/upload' : '/register')}
+      onCtaClick={() =>
+        router.push(isAuthenticated ? '/documents/upload' : '/register')
+      }
       navigationLinks={navLinks}
     />
   );

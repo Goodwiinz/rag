@@ -22,7 +22,9 @@ interface BreakpointConfig {
 }
 
 interface ResponsiveGraphLayoutProps {
-  children: (config: BreakpointConfig & { dimensions: { width: number; height: number } }) => React.ReactNode;
+  children: (
+    config: BreakpointConfig & { dimensions: { width: number; height: number } }
+  ) => React.ReactNode;
   className?: string;
 }
 
@@ -37,7 +39,7 @@ const breakpointConfigs: Record<string, BreakpointConfig> = {
     layout: 'circular',
     fontSize: 12,
     nodeSize: 20,
-    edgeWidth: 1
+    edgeWidth: 1,
   },
   tablet: {
     maxVisibleNodes: 200,
@@ -48,7 +50,7 @@ const breakpointConfigs: Record<string, BreakpointConfig> = {
     layout: 'force',
     fontSize: 14,
     nodeSize: 25,
-    edgeWidth: 2
+    edgeWidth: 2,
   },
   desktop: {
     maxVisibleNodes: 500,
@@ -59,7 +61,7 @@ const breakpointConfigs: Record<string, BreakpointConfig> = {
     layout: 'force',
     fontSize: 16,
     nodeSize: 30,
-    edgeWidth: 2
+    edgeWidth: 2,
   },
   large: {
     maxVisibleNodes: 1000,
@@ -70,17 +72,19 @@ const breakpointConfigs: Record<string, BreakpointConfig> = {
     layout: 'force',
     fontSize: 16,
     nodeSize: 35,
-    edgeWidth: 3
-  }
+    edgeWidth: 3,
+  },
 };
 
 export const ResponsiveGraphLayout: React.FC<ResponsiveGraphLayoutProps> = ({
   children,
-  className = ''
+  className = '',
 }) => {
   const [breakpoint, setBreakpoint] = useState<string>('desktop');
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(
+    'landscape'
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Determine current breakpoint based on container width
@@ -175,7 +179,7 @@ export const ResponsiveGraphControls: React.FC<{
   onTogglePhysics,
   showLabels,
   enablePhysics,
-  className = ''
+  className = '',
 }) => {
   const [breakpoint, setBreakpoint] = useState<string>('desktop');
 
@@ -196,41 +200,81 @@ export const ResponsiveGraphControls: React.FC<{
     <>
       <IconButton
         onClick={onZoomIn}
-        className="p-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
         label="Zoom in"
         icon={
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+            />
           </svg>
         }
       />
       <IconButton
         onClick={onZoomOut}
-        className="p-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
         label="Zoom out"
         icon={
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M20 12H4"
+            />
           </svg>
         }
       />
       <IconButton
         onClick={onFit}
-        className="p-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
         label="Fit to screen"
         icon={
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+            />
           </svg>
         }
       />
       <IconButton
         onClick={onReset}
-        className="p-2 bg-white border border-gray-300 rounded hover:bg-gray-50"
+        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
         label="Reset view"
         icon={
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
         }
       />
@@ -245,12 +289,22 @@ export const ResponsiveGraphControls: React.FC<{
           className={`p-2 border rounded ${
             showLabels
               ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white border-gray-300 hover:bg-gray-50'
+              : 'bg-white border-border hover:bg-gray-50'
           }`}
           aria-label={showLabels ? 'Hide labels' : 'Show labels'}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
         </button>
       )}
@@ -260,12 +314,22 @@ export const ResponsiveGraphControls: React.FC<{
           className={`p-2 border rounded ${
             enablePhysics
               ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white border-gray-300 hover:bg-gray-50'
+              : 'bg-white border-border hover:bg-gray-50'
           }`}
           aria-label={enablePhysics ? 'Disable physics' : 'Enable physics'}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
           </svg>
         </button>
       )}
@@ -284,12 +348,8 @@ export const ResponsiveGraphControls: React.FC<{
       case 'tablet':
         return (
           <div className="flex justify-between items-center p-4 bg-white border-b">
-            <div className="flex space-x-2">
-              {baseControls}
-            </div>
-            <div className="flex space-x-2">
-              {toggleControls}
-            </div>
+            <div className="flex space-x-2">{baseControls}</div>
+            <div className="flex space-x-2">{toggleControls}</div>
           </div>
         );
 
@@ -298,12 +358,8 @@ export const ResponsiveGraphControls: React.FC<{
         return (
           <div className="absolute top-4 left-4 z-10">
             <div className="bg-white rounded-lg shadow-lg border p-2 space-y-2">
-              <div className="flex space-x-2">
-                {baseControls}
-              </div>
-              <div className="flex space-x-2">
-                {toggleControls}
-              </div>
+              <div className="flex space-x-2">{baseControls}</div>
+              <div className="flex space-x-2">{toggleControls}</div>
             </div>
           </div>
         );
@@ -348,8 +404,18 @@ export const ResponsiveFilterPanel: React.FC<{
             onClick={() => setIsCollapsed(true)}
             className="p-1 hover:bg-gray-100 rounded"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
         </div>
@@ -364,7 +430,11 @@ export const ResponsiveFilterPanel: React.FC<{
           <select
             className="px-3 py-2 border rounded text-sm"
             value={filters.entity_types?.[0] || ''}
-            onChange={(e) => onFiltersChange({ entity_types: e.target.value ? [e.target.value] : undefined })}
+            onChange={(e) =>
+              onFiltersChange({
+                entity_types: e.target.value ? [e.target.value] : undefined,
+              })
+            }
           >
             <option value="">All Types</option>
             <option value="person">Person</option>
@@ -391,7 +461,11 @@ export const ResponsiveFilterPanel: React.FC<{
           <select
             className="px-3 py-2 border rounded"
             value={filters.entity_types?.[0] || ''}
-            onChange={(e) => onFiltersChange({ entity_types: e.target.value ? [e.target.value] : undefined })}
+            onChange={(e) =>
+              onFiltersChange({
+                entity_types: e.target.value ? [e.target.value] : undefined,
+              })
+            }
           >
             <option value="">All Types</option>
             <option value="person">Person</option>
@@ -408,7 +482,11 @@ export const ResponsiveFilterPanel: React.FC<{
             step="0.1"
             className="px-3 py-2 border rounded"
             value={filters.min_confidence || ''}
-            onChange={(e) => onFiltersChange({ min_confidence: parseFloat(e.target.value) || undefined })}
+            onChange={(e) =>
+              onFiltersChange({
+                min_confidence: parseFloat(e.target.value) || undefined,
+              })
+            }
           />
         </div>
       </div>
@@ -432,7 +510,14 @@ export const ResponsiveFilterPanel: React.FC<{
         <div>
           <label className="block text-sm font-medium mb-1">Entity Types</label>
           <div className="space-y-2">
-            {['person', 'organization', 'location', 'event', 'concept', 'document'].map(type => (
+            {[
+              'person',
+              'organization',
+              'location',
+              'event',
+              'concept',
+              'document',
+            ].map((type) => (
               <label key={type} className="flex items-center">
                 <input
                   type="checkbox"
@@ -443,7 +528,9 @@ export const ResponsiveFilterPanel: React.FC<{
                     if (e.target.checked) {
                       onFiltersChange({ entity_types: [...current, type] });
                     } else {
-                      onFiltersChange({ entity_types: current.filter(t => t !== type) });
+                      onFiltersChange({
+                        entity_types: current.filter((t) => t !== type),
+                      });
                     }
                   }}
                 />
@@ -454,7 +541,9 @@ export const ResponsiveFilterPanel: React.FC<{
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Min Confidence</label>
+            <label className="block text-sm font-medium mb-1">
+              Min Confidence
+            </label>
             <input
               type="range"
               min="0"
@@ -462,12 +551,18 @@ export const ResponsiveFilterPanel: React.FC<{
               step="0.1"
               className="w-full"
               value={filters.min_confidence || 0.5}
-              onChange={(e) => onFiltersChange({ min_confidence: parseFloat(e.target.value) })}
+              onChange={(e) =>
+                onFiltersChange({ min_confidence: parseFloat(e.target.value) })
+              }
             />
-            <span className="text-xs text-gray-500">{((filters.min_confidence || 0.5) * 100).toFixed(0)}%</span>
+            <span className="text-xs text-muted-foreground">
+              {((filters.min_confidence || 0.5) * 100).toFixed(0)}%
+            </span>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Max Results</label>
+            <label className="block text-sm font-medium mb-1">
+              Max Results
+            </label>
             <input
               type="number"
               min="10"
@@ -475,7 +570,9 @@ export const ResponsiveFilterPanel: React.FC<{
               step="10"
               className="w-full px-3 py-2 border rounded"
               value={filters.limit || 100}
-              onChange={(e) => onFiltersChange({ limit: parseInt(e.target.value) })}
+              onChange={(e) =>
+                onFiltersChange({ limit: parseInt(e.target.value) })
+              }
             />
           </div>
         </div>
@@ -490,8 +587,18 @@ export const ResponsiveFilterPanel: React.FC<{
           onClick={() => setIsCollapsed(false)}
           className="bg-blue-600 text-white p-3 rounded-full shadow-lg"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
           </svg>
         </button>
       </div>

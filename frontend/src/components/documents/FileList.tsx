@@ -65,7 +65,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
       case 'video/mp4':
         return <VideoCameraIcon className={cn(iconClass, 'text-orange-600')} />;
       default:
-        return <DocumentIcon className={cn(iconClass, 'text-gray-600')} />;
+        return <DocumentIcon className={cn(iconClass, 'text-foreground')} />;
     }
   };
 
@@ -80,7 +80,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
       case 'failed':
         return STATUS_COLORS.failed;
       default:
-        return 'text-gray-500';
+        return 'text-muted-foreground';
     }
   };
 
@@ -139,7 +139,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
                 e.stopPropagation();
                 onSelect(e.target.checked);
               }}
-              className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+              className="h-4 w-4 text-primary border-border rounded focus:ring-primary"
             />
           </div>
         )}
@@ -381,7 +381,7 @@ export const FileList: React.FC<FileListProps> = ({
                   documents.length > 0
                 }
                 onChange={(e) => handleSelectAll(e.target.checked)}
-                className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                className="h-4 w-4 text-primary border-border rounded focus:ring-primary"
               />
               <label
                 htmlFor="select-all-docs"

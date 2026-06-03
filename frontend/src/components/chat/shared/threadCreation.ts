@@ -3,6 +3,7 @@ import type { ThreadCreate } from '@/types/workspace';
 interface BuildThreadCreateRequestParams {
   conversationId: string;
   title: string;
+  projectId?: string;
 }
 
 /**
@@ -15,9 +16,11 @@ interface BuildThreadCreateRequestParams {
 export function buildThreadCreateRequest({
   conversationId,
   title,
+  projectId,
 }: BuildThreadCreateRequestParams): ThreadCreate {
   return {
     conversation_id: conversationId,
     title,
+    ...(projectId ? { project_id: projectId } : {}),
   };
 }

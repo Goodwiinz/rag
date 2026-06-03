@@ -6,7 +6,10 @@ import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  () =>
+    import('react-syntax-highlighter/dist/esm/prism').then(
+      (mod) => mod.default
+    ),
   {
     loading: () => (
       <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
@@ -47,7 +50,7 @@ import {
   MoreVertical,
   MessageSquare,
   Clock,
-  Zap,
+  Sparkles,
 } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -135,15 +138,23 @@ export function MessageBubble({
         className
       )}
     >
-      {/* Avatar — smaller on mobile */}
       <Avatar className="w-7 h-7 sm:w-8 sm:h-8 shrink-0">
         <AvatarFallback
-          className={cn(
-            'text-xs font-medium transition-colors',
+          className="text-xs font-medium transition-colors text-white"
+          style={
             isUser
-              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground'
-              : 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground'
-          )}
+              ? {
+                  background: 'var(--nous-bg-2)',
+                  color: 'var(--nous-fg-2)',
+                  border: '1px solid var(--nous-border-1)',
+                }
+              : {
+                  background:
+                    'linear-gradient(135deg, var(--nous-sol), var(--nous-helios))',
+                  boxShadow:
+                    '0 0 0 3px var(--nous-bg-1), 0 2px 6px rgba(212,160,57,0.18)',
+                }
+          }
         >
           {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
         </AvatarFallback>
@@ -166,7 +177,7 @@ export function MessageBubble({
             <HoverCard>
               <HoverCardTrigger>
                 <Badge variant="secondary" className="text-xs">
-                  <Zap className="w-3 h-3 mr-1" />
+                  <Sparkles className="w-3 h-3 mr-1" />
                   {modelInfo.name}
                 </Badge>
               </HoverCardTrigger>
@@ -199,24 +210,24 @@ export function MessageBubble({
           )}
         </div>
 
-        {/* Message Bubble */}
         <div
           className={cn(
-            'relative rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md',
+            'relative transition-all',
             isUser
-              ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ml-auto max-w-[92%] sm:max-w-[80%] shadow-[0_0_15px_hsl(var(--primary)/0.15)]'
-              : 'bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] max-w-[95%] sm:max-w-[90%] hover:border-[var(--nous-sol)]/30'
+              ? 'inline-block ml-auto px-4 py-2.5 max-w-[92%] sm:max-w-[540px] bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] text-[var(--nous-fg-1)] shadow-sm hover:shadow-md'
+              : 'max-w-[95%] sm:max-w-[90%]'
           )}
+          style={isUser ? { borderRadius: '14px 14px 4px 14px' } : undefined}
         >
           {isTyping ? (
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60" />
+              <span className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60" />
               <span
-                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
                 style={{ animationDelay: '0.2s' }}
               />
               <span
-                className="w-2 h-2 bg-current rounded-full animate-bounce opacity-60"
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
                 style={{ animationDelay: '0.4s' }}
               />
               <span className="text-xs ml-2 opacity-70">
@@ -226,8 +237,9 @@ export function MessageBubble({
           ) : (
             <div
               className={cn(
-                'text-sm leading-relaxed',
-                isUser ? 'text-white' : 'text-foreground'
+                isUser
+                  ? 'text-sm leading-relaxed text-[var(--nous-fg-1)]'
+                  : 'font-nous-body text-[15px] leading-[1.7] text-[var(--nous-fg-1)]'
               )}
             >
               {isUser ? (
@@ -297,7 +309,7 @@ export function MessageBubble({
                       </a>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-sol/30 pl-4 italic text-[#a1a1aa]">
+                      <blockquote className="rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] px-4 py-2 italic text-[var(--nous-fg-2)]">
                         {children}
                       </blockquote>
                     ),

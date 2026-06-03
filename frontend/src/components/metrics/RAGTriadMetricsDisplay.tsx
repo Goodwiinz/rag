@@ -4,26 +4,26 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/theme/constants';
 import {
-    ArrowTrendingDownIcon,
-    ArrowTrendingUpIcon,
-    ChartBarIcon,
-    MinusIcon
+  ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
+  ChartBarIcon,
+  MinusIcon,
 } from '@heroicons/react/24/outline';
 import React from 'react';
 import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Cell,
-    Legend,
-    Line,
-    LineChart,
-    Pie,
-    PieChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 
 interface RAGTriadMetricsDisplayProps {
@@ -59,13 +59,13 @@ const COLORS = [
   THEME.colors.secondary,
   THEME.colors.accent,
   THEME.colors.info,
-  THEME.colors.success
+  THEME.colors.success,
 ];
 
 export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
   metrics,
   timeRange = '24h',
-  className
+  className,
 }) => {
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -85,7 +85,7 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
       case 'down':
         return 'text-red-600';
       default:
-        return 'text-gray-600';
+        return 'text-foreground';
     }
   };
 
@@ -95,10 +95,15 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
     return 'text-red-600 bg-red-50';
   };
 
-  const formatHistoryData = (history: Array<{ timestamp: number; value: number }>) => {
-    return history.map(item => ({
-      time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      value: Math.round(item.value * 100) / 100
+  const formatHistoryData = (
+    history: Array<{ timestamp: number; value: number }>
+  ) => {
+    return history.map((item) => ({
+      time: new Date(item.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      value: Math.round(item.value * 100) / 100,
     }));
   };
 
@@ -115,18 +120,37 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
       const contextualRelevancy = metrics.contextualRelevancy.history[i];
 
       return {
-        time: answerRelevancy ? new Date(answerRelevancy.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
-              faithfulness ? new Date(faithfulness.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
-              contextualRelevancy ? new Date(contextualRelevancy.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        answerRelevancy: answerRelevancy ? Math.round(answerRelevancy.value * 100) / 100 : null,
-        faithfulness: faithfulness ? Math.round(faithfulness.value * 100) / 100 : null,
-        contextualRelevancy: contextualRelevancy ? Math.round(contextualRelevancy.value * 100) / 100 : null,
+        time: answerRelevancy
+          ? new Date(answerRelevancy.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : faithfulness
+            ? new Date(faithfulness.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : contextualRelevancy
+              ? new Date(contextualRelevancy.timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '',
+        answerRelevancy: answerRelevancy
+          ? Math.round(answerRelevancy.value * 100) / 100
+          : null,
+        faithfulness: faithfulness
+          ? Math.round(faithfulness.value * 100) / 100
+          : null,
+        contextualRelevancy: contextualRelevancy
+          ? Math.round(contextualRelevancy.value * 100) / 100
+          : null,
       };
-    }).filter(item => item.time);
+    }).filter((item) => item.time);
   }, [metrics]);
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn('space-y-6', className)}>
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Answer Relevancy */}
@@ -135,10 +159,21 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
             <CardTitle className="flex items-center justify-between">
               <span className="text-sm font-medium">Answer Relevancy</span>
               <div className="flex items-center space-x-1">
-                {React.createElement(getTrendIcon(metrics.answerRelevancy.trend), {
-                  className: cn("h-4 w-4", getTrendColor(metrics.answerRelevancy.trend))
-                })}
-                <Badge className={getMetricStatus(metrics.answerRelevancy.current, metrics.answerRelevancy.target)}>
+                {React.createElement(
+                  getTrendIcon(metrics.answerRelevancy.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(metrics.answerRelevancy.trend)
+                    ),
+                  }
+                )}
+                <Badge
+                  className={getMetricStatus(
+                    metrics.answerRelevancy.current,
+                    metrics.answerRelevancy.target
+                  )}
+                >
                   {metrics.answerRelevancy.current}%
                 </Badge>
               </div>
@@ -147,10 +182,17 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Target: {metrics.answerRelevancy.target}%</span>
-                <span className="text-gray-600">Current: {metrics.answerRelevancy.current}%</span>
+                <span className="text-foreground">
+                  Target: {metrics.answerRelevancy.target}%
+                </span>
+                <span className="text-foreground">
+                  Current: {metrics.answerRelevancy.current}%
+                </span>
               </div>
-              <Progress value={metrics.answerRelevancy.current} className="h-2" />
+              <Progress
+                value={metrics.answerRelevancy.current}
+                className="h-2"
+              />
 
               {/* Distribution Chart */}
               <div className="h-32">
@@ -167,9 +209,14 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                         `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(0)}%`
                       }
                     >
-                      {metrics.answerRelevancy.distribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                      {metrics.answerRelevancy.distribution.map(
+                        (entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        )
+                      )}
                     </Pie>
                     <Tooltip />
                   </PieChart>
@@ -186,9 +233,17 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
               <span className="text-sm font-medium">Faithfulness</span>
               <div className="flex items-center space-x-1">
                 {React.createElement(getTrendIcon(metrics.faithfulness.trend), {
-                  className: cn("h-4 w-4", getTrendColor(metrics.faithfulness.trend))
+                  className: cn(
+                    'h-4 w-4',
+                    getTrendColor(metrics.faithfulness.trend)
+                  ),
                 })}
-                <Badge className={getMetricStatus(metrics.faithfulness.current, metrics.faithfulness.target)}>
+                <Badge
+                  className={getMetricStatus(
+                    metrics.faithfulness.current,
+                    metrics.faithfulness.target
+                  )}
+                >
                   {metrics.faithfulness.current}%
                 </Badge>
               </div>
@@ -197,8 +252,12 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Target: {metrics.faithfulness.target}%</span>
-                <span className="text-gray-600">Current: {metrics.faithfulness.current}%</span>
+                <span className="text-foreground">
+                  Target: {metrics.faithfulness.target}%
+                </span>
+                <span className="text-foreground">
+                  Current: {metrics.faithfulness.current}%
+                </span>
               </div>
               <Progress value={metrics.faithfulness.current} className="h-2" />
 
@@ -218,7 +277,10 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                       }
                     >
                       {metrics.faithfulness.distribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -235,10 +297,21 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
             <CardTitle className="flex items-center justify-between">
               <span className="text-sm font-medium">Contextual Relevancy</span>
               <div className="flex items-center space-x-1">
-                {React.createElement(getTrendIcon(metrics.contextualRelevancy.trend), {
-                  className: cn("h-4 w-4", getTrendColor(metrics.contextualRelevancy.trend))
-                })}
-                <Badge className={getMetricStatus(metrics.contextualRelevancy.current, metrics.contextualRelevancy.target)}>
+                {React.createElement(
+                  getTrendIcon(metrics.contextualRelevancy.trend),
+                  {
+                    className: cn(
+                      'h-4 w-4',
+                      getTrendColor(metrics.contextualRelevancy.trend)
+                    ),
+                  }
+                )}
+                <Badge
+                  className={getMetricStatus(
+                    metrics.contextualRelevancy.current,
+                    metrics.contextualRelevancy.target
+                  )}
+                >
                   {metrics.contextualRelevancy.current}%
                 </Badge>
               </div>
@@ -247,10 +320,17 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Target: {metrics.contextualRelevancy.target}%</span>
-                <span className="text-gray-600">Current: {metrics.contextualRelevancy.current}%</span>
+                <span className="text-foreground">
+                  Target: {metrics.contextualRelevancy.target}%
+                </span>
+                <span className="text-foreground">
+                  Current: {metrics.contextualRelevancy.current}%
+                </span>
               </div>
-              <Progress value={metrics.contextualRelevancy.current} className="h-2" />
+              <Progress
+                value={metrics.contextualRelevancy.current}
+                className="h-2"
+              />
 
               {/* Distribution Chart */}
               <div className="h-32">
@@ -267,9 +347,14 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
                         `${String(name ?? '')}: ${((percent ?? 0) * 100).toFixed(0)}%`
                       }
                     >
-                      {metrics.contextualRelevancy.distribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                      {metrics.contextualRelevancy.distribution.map(
+                        (entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={COLORS[index % COLORS.length]}
+                          />
+                        )
+                      )}
                     </Pie>
                     <Tooltip />
                   </PieChart>
@@ -291,17 +376,17 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={allHistoryData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <LineChart
+                data={allHistoryData}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="time"
                   tick={{ fontSize: 12 }}
                   interval="preserveStartEnd"
                 />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  domain={[0, 100]}
-                />
+                <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
                 <Tooltip />
                 <Legend />
                 <Line
@@ -341,7 +426,9 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Answer Relevancy Distribution</CardTitle>
+            <CardTitle className="text-sm">
+              Answer Relevancy Distribution
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-40">
@@ -391,7 +478,9 @@ export const RAGTriadMetricsDisplay: React.FC<RAGTriadMetricsDisplayProps> = ({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Contextual Relevancy Distribution</CardTitle>
+            <CardTitle className="text-sm">
+              Contextual Relevancy Distribution
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-40">

@@ -2,16 +2,16 @@
 
 import { cn } from '@/lib/utils';
 import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
-import { RAGToggle } from './RAGToggle';
 import { motion } from 'framer-motion';
-import { ArrowUp, Bot, Mic, Paperclip, Square } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  ArrowRight,
+  Bot,
+  Image as ImageIcon,
+  Mic,
+  Paperclip,
+  Square,
+} from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface ChatInputProps {
   value: string;
@@ -71,10 +71,6 @@ export function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  // Defer the Web Speech API feature check to after mount. Running it during
-  // render produces an SSR/client mismatch (server: window is undefined →
-  // false; client: browser supports it → true). Start `false`, flip after
-  // hydration so the first server and client renders match.
   const [voiceSupported, setVoiceSupported] = useState(false);
   useEffect(() => {
     setVoiceSupported(getSpeechRecognition() !== null);
@@ -122,9 +118,9 @@ export function ChatInput({
       textareaRef.current.style.height =
         Math.min(textareaRef.current.scrollHeight, 200) + 'px';
     }
-  }, [value]);
+  }, [value, textareaRef]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isLoading && value.trim()) {
@@ -136,37 +132,135 @@ export function ChatInput({
   const isDisabled = isLoading;
   const charCount = value.length;
   const maxChars = 4000;
+  const fillPct = Math.min(100, Math.round((charCount / maxChars) * 100));
   const isNearLimit = charCount > maxChars * 0.8;
 
   return (
-    <div className="z-40 pt-2 pb-[80px] md:pb-4 px-2 sm:px-4">
-      <div className="max-w-4xl mx-auto">
+    <div
+      className="z-40 px-2 sm:px-6 pt-3 pb-[80px] md:pb-4 border-t"
+      style={{
+        background: 'var(--nous-bg-1)',
+        borderColor: 'var(--nous-border-1)',
+      }}
+    >
+      <div className="max-w-[820px] mx-auto">
         <motion.div
-          className={cn(
-            'nous-glass nous-composer-glow relative rounded-2xl overflow-visible',
-            isFocused && 'nous-composer-glow'
-          )}
-          animate={isFocused ? { y: -2 } : { y: 0 }}
+          className="rounded-[14px] overflow-hidden"
+          style={{
+            background: 'var(--nous-bg-2)',
+            border: `1px solid ${
+              isFocused ? 'rgba(212, 160, 57, 0.4)' : 'var(--nous-border-1)'
+            }`,
+            boxShadow: isFocused
+              ? '0 0 0 3px rgba(212, 160, 57, 0.10), 0 8px 24px rgba(10,10,14,0.06)'
+              : '0 1px 2px rgba(10,10,14,0.04)',
+            transition:
+              'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
+          }}
+          animate={isFocused ? { y: -1 } : { y: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
-          {/* Toolbar row */}
-          <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[var(--nous-border-1)] gap-2 overflow-x-auto">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/20 shrink-0">
-                <Bot className="w-3.5 h-3.5 text-[var(--nous-sol)]" />
+          {/* Top strip — agent badge, RAG toggle, model, counter */}
+          <div
+            className="flex items-center justify-between gap-2 px-3 py-2 border-b overflow-x-auto"
+            style={{
+              background: 'var(--nous-bg-1)',
+              borderColor: 'var(--nous-border-1)',
+            }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                className="inline-flex items-center gap-[7px] rounded-md shrink-0"
+                style={{
+                  padding: '4px 9px 4px 7px',
+                  background: 'var(--nous-bg-2)',
+                  border: '1px solid var(--nous-border-1)',
+                }}
+              >
                 <span
-                  className="text-[var(--nous-fg-1)] text-[11px] font-medium hidden sm:inline"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: 'var(--nous-terra)',
+                    boxShadow: '0 0 0 2px rgba(52, 211, 153, 0.15)',
+                    animation: 'nous-pulse 2s ease-in-out infinite',
+                  }}
+                />
+                <Bot
+                  className="w-3 h-3"
+                  style={{ color: 'var(--nous-fg-1)' }}
+                  strokeWidth={1.7}
+                />
+                <span
+                  className="font-nous-mono text-[10px] font-semibold"
+                  style={{
+                    color: 'var(--nous-fg-1)',
+                    letterSpacing: '0.04em',
+                  }}
                 >
-                  NOUS
+                  nous-agent
+                </span>
+                <span
+                  className="font-nous-mono font-bold uppercase rounded-sm"
+                  style={{
+                    padding: '1px 5px',
+                    fontSize: '8px',
+                    letterSpacing: '0.12em',
+                    background: 'var(--nous-aurum)',
+                    color: 'var(--nous-sol-safe)',
+                  }}
+                >
+                  Agent
                 </span>
               </div>
-              <RAGToggle
-                enabled={enableRAG}
-                onToggle={onRAGToggle}
-                isLoading={isRAGLoading}
+
+              <button
+                type="button"
+                onClick={() => onRAGToggle(!enableRAG)}
                 disabled={isLoading}
-              />
+                aria-pressed={enableRAG}
+                aria-label={
+                  enableRAG ? 'Disable RAG context' : 'Enable RAG context'
+                }
+                title={
+                  enableRAG
+                    ? 'RAG enabled — click to disable'
+                    : 'RAG disabled — click to enable'
+                }
+                className="inline-flex items-center gap-[7px] rounded-md shrink-0 transition-all disabled:opacity-50"
+                style={{
+                  padding: '4px 9px 4px 7px',
+                  background: enableRAG ? 'var(--nous-aurum)' : 'transparent',
+                  border: `1px solid ${
+                    enableRAG
+                      ? 'rgba(212, 160, 57, 0.25)'
+                      : 'var(--nous-border-1)'
+                  }`,
+                }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{
+                    background: enableRAG
+                      ? 'var(--nous-sol)'
+                      : 'var(--nous-fg-3)',
+                    boxShadow: enableRAG
+                      ? '0 0 5px rgba(212,160,57,0.5)'
+                      : 'none',
+                  }}
+                />
+                <span
+                  className="font-nous-mono text-[10px] font-semibold"
+                  style={{
+                    letterSpacing: '0.04em',
+                    color: enableRAG
+                      ? 'var(--nous-sol-safe)'
+                      : 'var(--nous-fg-3)',
+                  }}
+                >
+                  {isRAGLoading ? 'RETRIEVING' : enableRAG ? 'RAG' : 'RAG OFF'}
+                </span>
+              </button>
+
               {onModelChange && (
                 <div className="hidden sm:block">
                   <ModelSelector
@@ -177,31 +271,44 @@ export function ChatInput({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {isRAGLoading && (
-                <span
-                  className="text-[9px] text-[var(--nous-sol)] animate-pulse hidden sm:inline"
-                  style={{ fontFamily: 'var(--nous-font-mono)' }}
-                >
-                  RETRIEVING
-                </span>
-              )}
-              <span
-                className={cn(
-                  'text-[9px] transition-colors whitespace-nowrap',
-                  isNearLimit
-                    ? 'text-[var(--nous-corona)]'
-                    : 'text-[var(--nous-fg-3)]'
-                )}
-                style={{ fontFamily: 'var(--nous-font-mono)' }}
-              >
+
+            <div
+              className="inline-flex items-center gap-2 font-nous-mono text-[10px] tabular-nums whitespace-nowrap shrink-0"
+              style={{
+                color: isNearLimit ? 'var(--nous-corona)' : 'var(--nous-fg-3)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <span>
                 {charCount}/{maxChars}
+              </span>
+              <span
+                className="block rounded-sm overflow-hidden"
+                style={{
+                  width: '36px',
+                  height: '3px',
+                  background: 'var(--nous-border-1)',
+                }}
+              >
+                <span
+                  className="block h-full w-full origin-left rounded-sm"
+                  style={{
+                    transform: `scaleX(${fillPct / 100})`,
+                    background: isNearLimit
+                      ? 'var(--nous-corona)'
+                      : 'var(--nous-sol)',
+                    transition: 'transform 200ms ease-out',
+                  }}
+                />
               </span>
             </div>
           </div>
 
-          {/* Textarea */}
-          <div className="p-3 sm:p-4">
+          {/* Body — serif input */}
+          <div
+            className="px-4 pt-3.5 pb-3"
+            style={{ background: 'var(--nous-bg-2)' }}
+          >
             <textarea
               ref={textareaRef}
               value={value}
@@ -209,112 +316,244 @@ export function ChatInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="Message NOUS…"
+              placeholder="Ask anything, or paste a passage to discuss…"
               rows={1}
-              className="w-full bg-transparent text-[var(--nous-fg-1)] text-base resize-none outline-none placeholder:text-[var(--nous-fg-3)]/60 selection:bg-[var(--nous-sol)]/20"
+              disabled={isDisabled}
+              className="w-full bg-transparent resize-none outline-none font-nous-body text-[15px]"
               style={{
-                fontFamily: 'var(--nous-font-body)',
+                color: 'var(--nous-fg-1)',
                 lineHeight: '1.6',
-                minHeight: '44px',
+                minHeight: '48px',
                 maxHeight: '200px',
               }}
-              disabled={isDisabled}
             />
 
-            {/* Action row */}
-            <div className="flex items-center justify-between mt-2 pt-1">
+            <div
+              className="flex items-center justify-between mt-2.5 pt-2.5 border-t"
+              style={{ borderColor: 'var(--nous-border-1)' }}
+            >
               <div className="flex items-center gap-0.5">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <label
-                        className="p-2.5 sm:p-2 rounded-xl hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] transition-colors group cursor-pointer inline-flex"
-                        aria-label="Attach artifact"
-                      >
-                        <Paperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] group-hover:text-[var(--nous-sol)] transition-colors" />
-                        <input
-                          type="file"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => {
-                            const files = e.target.files;
-                            if (files && files.length > 0 && onAttach) {
-                              onAttach(files);
-                            }
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    </TooltipTrigger>
-                    <TooltipContent>Attach artifact</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={toggleVoice}
-                        disabled={!voiceSupported}
-                        aria-pressed={isListening}
-                        className={cn(
-                          'p-2.5 sm:p-2 rounded-xl transition-colors group',
-                          voiceSupported
-                            ? 'hover:bg-[var(--nous-sol)]/8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]'
-                            : 'text-[var(--nous-fg-3)]/40 cursor-not-allowed',
-                          isListening &&
-                            'bg-[var(--nous-sol)]/10 text-[var(--nous-sol)]'
-                        )}
-                        aria-label={
-                          !voiceSupported
-                            ? 'Voice input not supported'
-                            : isListening
-                              ? 'Stop voice input'
-                              : 'Voice input'
-                        }
-                      >
-                        <Mic
-                          className={cn(
-                            'w-5 h-5 sm:w-[18px] sm:h-[18px] transition-colors',
-                            isListening
-                              ? 'text-[var(--nous-sol)] animate-pulse'
-                              : 'group-hover:text-[var(--nous-sol)]'
-                          )}
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {!voiceSupported
-                        ? 'Voice input not supported'
-                        : isListening
-                          ? 'Stop voice input'
-                          : 'Voice input'}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <label
+                  className="grid place-items-center w-[30px] h-[30px] rounded-md cursor-pointer transition-all"
+                  style={{ color: 'var(--nous-fg-3)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--nous-aurum)';
+                    e.currentTarget.style.color = 'var(--nous-sol-safe)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--nous-fg-3)';
+                  }}
+                  aria-label="Attach file"
+                  title="Attach file"
+                >
+                  <Paperclip className="w-3.5 h-3.5" strokeWidth={1.7} />
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files && files.length > 0 && onAttach) {
+                        onAttach(files);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <label
+                  className="grid place-items-center w-[30px] h-[30px] rounded-md cursor-pointer transition-all"
+                  style={{ color: 'var(--nous-fg-3)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--nous-aurum)';
+                    e.currentTarget.style.color = 'var(--nous-sol-safe)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--nous-fg-3)';
+                  }}
+                  aria-label="Attach image"
+                  title="Attach image"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.7} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files && files.length > 0 && onAttach) {
+                        onAttach(files);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  disabled={!voiceSupported}
+                  aria-pressed={isListening}
+                  aria-label={
+                    !voiceSupported
+                      ? 'Voice input not supported'
+                      : isListening
+                        ? 'Stop voice input'
+                        : 'Voice input'
+                  }
+                  title={
+                    !voiceSupported
+                      ? 'Voice input not supported'
+                      : isListening
+                        ? 'Stop voice input'
+                        : 'Voice input'
+                  }
+                  className={cn(
+                    'grid place-items-center w-[30px] h-[30px] rounded-md transition-all',
+                    !voiceSupported && 'opacity-40 cursor-not-allowed'
+                  )}
+                  style={{
+                    color: isListening
+                      ? 'var(--nous-sol-safe)'
+                      : 'var(--nous-fg-3)',
+                    background: isListening
+                      ? 'var(--nous-aurum)'
+                      : 'transparent',
+                  }}
+                >
+                  <Mic
+                    className={cn(
+                      'w-3.5 h-3.5',
+                      isListening && 'animate-pulse'
+                    )}
+                    strokeWidth={1.7}
+                  />
+                </button>
+
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 font-nous-mono text-[10px] select-none cursor-default"
+                  style={{
+                    padding: '4px 8px 4px 6px',
+                    border: '1px dashed var(--nous-border-2)',
+                    color: 'var(--nous-fg-3)',
+                  }}
+                  aria-label="Slash commands hint"
+                  title="Type / to open commands"
+                >
+                  <kbd
+                    className="font-nous-mono font-bold rounded-sm"
+                    style={{
+                      fontSize: '9px',
+                      padding: '1px 4px',
+                      background: 'var(--nous-bg-1)',
+                      border: '1px solid var(--nous-border-1)',
+                      color: 'var(--nous-fg-2)',
+                    }}
+                  >
+                    /
+                  </kbd>
+                  Commands
+                </span>
               </div>
 
               {isLoading ? (
                 <button
                   onClick={onStop}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/40 text-[var(--nous-mars)] text-[11px] font-semibold hover:bg-[var(--nous-mars)]/20 transition-all h-10 sm:h-9"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  className="inline-flex items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    letterSpacing: '0.01em',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    color: 'var(--nous-mars)',
+                  }}
                 >
-                  <Square className="w-3 h-3" />
+                  <Square className="w-3 h-3" strokeWidth={2.2} />
                   Stop
                 </button>
               ) : (
                 <button
                   onClick={onSubmit}
                   disabled={!value.trim() || isDisabled}
-                  title="Send message (Enter)"
-                  className="nous-send-pill flex items-center justify-center gap-1.5 h-10 w-10 sm:h-9 sm:w-auto sm:px-5 text-[12px]"
+                  title="Send (Enter)"
+                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    letterSpacing: '0.01em',
+                    background: 'var(--nous-erebus)',
+                    color: 'white',
+                    boxShadow: '0 1px 2px rgba(10,10,14,0.1)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.boxShadow =
+                        '0 4px 12px rgba(10,10,14,0.12)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow =
+                      '0 1px 2px rgba(10,10,14,0.1)';
+                  }}
                 >
-                  <ArrowUp className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                  <span className="hidden sm:inline">Send</span>
+                  Send
+                  <ArrowRight
+                    className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                    strokeWidth={2}
+                  />
                 </button>
               )}
             </div>
           </div>
         </motion.div>
+
+        <div
+          className="font-nous-mono text-[10px] text-center mt-2 opacity-60 hidden sm:block"
+          style={{ color: 'var(--nous-fg-3)' }}
+        >
+          <kbd
+            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
+            style={{
+              background: 'var(--nous-bg-2)',
+              border: '1px solid var(--nous-border-1)',
+            }}
+          >
+            ↵
+          </kbd>{' '}
+          to send ·{' '}
+          <kbd
+            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
+            style={{
+              background: 'var(--nous-bg-2)',
+              border: '1px solid var(--nous-border-1)',
+            }}
+          >
+            shift
+          </kbd>
+          +
+          <kbd
+            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
+            style={{
+              background: 'var(--nous-bg-2)',
+              border: '1px solid var(--nous-border-1)',
+            }}
+          >
+            ↵
+          </kbd>{' '}
+          for newline ·{' '}
+          <kbd
+            className="px-1.5 py-0.5 rounded-sm font-nous-mono text-[9px]"
+            style={{
+              background: 'var(--nous-bg-2)',
+              border: '1px solid var(--nous-border-1)',
+            }}
+          >
+            /
+          </kbd>{' '}
+          for commands
+        </div>
       </div>
     </div>
   );

@@ -157,13 +157,6 @@ Return the DNS zone
 {{- end }}
 
 {{/*
-Create the frontend host
-*/}}
-{{- define "knowledge-graph-analytics.frontendHost" -}}
-{{- printf "analytics.%s" (include "knowledge-graph-analytics.dnsZone" .) -}}
-{{- end }}
-
-{{/*
 Create the backend host
 */}}
 {{- define "knowledge-graph-analytics.backendHost" -}}
@@ -316,8 +309,6 @@ spec:
             matchLabels:
               {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 14 }}
       ports:
-        - protocol: TCP
-          port: {{ .Values.frontend.service.port }}
         - protocol: TCP
           port: {{ .Values.backend.service.port }}
   egress:

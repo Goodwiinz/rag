@@ -4,6 +4,8 @@ import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
+import { useProjectStore } from '@/store/projectStore';
+import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -16,7 +18,14 @@ import {
   Share2,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 // ============================================
 // TYPES
@@ -167,7 +176,7 @@ function CommandPalette({
         onClick={onClose}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-[var(--nous-erebus)]/50" />
 
         {/* Palette */}
         <motion.div
@@ -176,33 +185,33 @@ function CommandPalette({
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl terminal-window overflow-hidden"
+          className="relative w-full max-w-2xl overflow-hidden rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-[var(--nous-shadow-lg)]"
         >
           {/* Search Input */}
-          <div className="flex items-center gap-3 px-4 py-4 border-b border-[var(--terminal-border)]">
-            <Search className="w-5 h-5 text-[var(--phosphor-green)]" />
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-[var(--nous-border-1)]">
+            <Search className="w-5 h-5 text-[var(--nous-sol)]" />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 bg-transparent text-[var(--terminal-text)] text-sm outline-none"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="flex-1 bg-transparent text-[var(--nous-fg-1)] text-sm outline-none"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             />
             <kbd
-              className="px-2 py-1 rounded bg-[var(--terminal-border)] text-[10px] text-[var(--terminal-text-dim)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="px-2 py-1 rounded bg-[var(--nous-border-1)] text-[10px] text-[var(--nous-fg-3)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               ESC
             </kbd>
           </div>
 
           {/* Results */}
-          <div className="max-h-[60vh] overflow-y-auto terminal-scrollbar p-2">
+          <div className="max-h-[60vh] overflow-y-auto nous-scrollbar p-2">
             {Object.entries(groupedCommands).map(([category, cmds]) => (
               <div key={category} className="mb-4">
                 <div
-                  className="px-3 py-2 text-[10px] text-[var(--terminal-text-muted)] uppercase tracking-wider"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="px-3 py-2 text-[10px] text-[var(--nous-fg-3)] uppercase tracking-wider"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   {category === 'actions' ? '⚡ Quick Actions' : '🔗 Navigate'}
                 </div>
@@ -214,8 +223,8 @@ function CommandPalette({
                       className={cn(
                         'w-full flex items-center gap-3 px-3 py-3 rounded transition-all',
                         globalIdx === selectedIndex
-                          ? 'bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/30'
-                          : 'hover:bg-[var(--terminal-elevated)]'
+                          ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
+                          : 'hover:bg-[var(--nous-bg-3)]'
                       )}
                       onClick={() => {
                         onExecute?.(cmd.id);
@@ -226,25 +235,25 @@ function CommandPalette({
                         className={cn(
                           'w-4 h-4',
                           globalIdx === selectedIndex
-                            ? 'text-[var(--phosphor-green)]'
-                            : 'text-[var(--terminal-text-dim)]'
+                            ? 'text-[var(--nous-sol)]'
+                            : 'text-[var(--nous-fg-3)]'
                         )}
                       />
                       <span
                         className={cn(
                           'flex-1 text-left text-sm',
                           globalIdx === selectedIndex
-                            ? 'text-[var(--phosphor-green)]'
-                            : 'text-[var(--terminal-text)]'
+                            ? 'text-[var(--nous-sol)]'
+                            : 'text-[var(--nous-fg-1)]'
                         )}
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                        style={{ fontFamily: 'var(--nous-font-ui)' }}
                       >
                         {cmd.label}
                       </span>
                       {cmd.shortcut && (
                         <kbd
-                          className="px-1.5 py-0.5 rounded bg-[var(--terminal-border)] text-[10px] text-[var(--terminal-text-muted)]"
-                          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                          className="px-1.5 py-0.5 rounded bg-[var(--nous-border-1)] text-[10px] text-[var(--nous-fg-3)]"
+                          style={{ fontFamily: 'var(--nous-font-ui)' }}
                         >
                           {cmd.shortcut}
                         </kbd>
@@ -257,10 +266,10 @@ function CommandPalette({
 
             {filteredCommands.length === 0 && (
               <div className="text-center py-8">
-                <Search className="w-8 h-8 text-[var(--terminal-border)] mx-auto mb-2" />
+                <Search className="w-8 h-8 text-[var(--nous-border-1)] mx-auto mb-2" />
                 <p
-                  className="text-sm text-[var(--terminal-text-muted)]"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                  className="text-sm text-[var(--nous-fg-3)]"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   No results found
                 </p>
@@ -269,27 +278,23 @@ function CommandPalette({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
             <div
-              className="flex items-center gap-4 text-[10px] text-[var(--terminal-text-muted)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="flex items-center gap-4 text-[10px] text-[var(--nous-fg-3)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-[var(--terminal-border)]">
-                  ↑↓
-                </kbd>{' '}
+                <kbd className="px-1 rounded bg-[var(--nous-border-1)]">↑↓</kbd>{' '}
                 Navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-[var(--terminal-border)]">
-                  ↵
-                </kbd>{' '}
+                <kbd className="px-1 rounded bg-[var(--nous-border-1)]">↵</kbd>{' '}
                 Select
               </span>
             </div>
             <span
-              className="text-[10px] text-[var(--terminal-text-muted)]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+              className="text-[10px] text-[var(--nous-fg-3)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {filteredCommands.length} results
             </span>
@@ -307,13 +312,37 @@ function CommandPalette({
 function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const projectId = searchParams.get('projectId') ?? undefined;
-  const { currentThreadId } = useChatPersistence();
-  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
-  const workspaces = useChatStore((s) => s.workspaces);
-  const workspaceName =
-    workspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null;
+  const projectStoreProjects = useProjectStore((s) => s.projects);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const fetchProject = useProjectStore((s) => s.fetchProject);
+  const resolvedProjectName = projectId
+    ? currentProject?.id === projectId
+      ? currentProject.name
+      : (projectStoreProjects.find((p) => p.id === projectId)?.name ?? null)
+    : null;
+  const { currentThreadId, currentWorkspaceId } = useChatPersistence();
+  const storeWorkspaces = useChatStore((s) => s.workspaces);
+  const workspaceName = isAuthenticated
+    ? (storeWorkspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null)
+    : null;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  useEffect(() => {
+    if (projectId && !resolvedProjectName) {
+      fetchProject(projectId);
+    }
+  }, [projectId, resolvedProjectName, fetchProject]);
+
+  const handleProjectBound = useCallback(
+    (boundProjectId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('projectId', boundProjectId);
+      router.replace(`/chat?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   // Global keyboard shortcut for command palette
   useEffect(() => {
@@ -329,33 +358,41 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col star-field terminal-grid noise-texture overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--nous-bg-1)] overflow-hidden">
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
 
         {/* Right-rail: stacked Agent Activity, Related Results, Citations */}
-        <ContextRail
-          threadId={currentThreadId ?? null}
-          workspaceName={workspaceName}
-          ragEnabled={true}
-          projectId={projectId}
-          onSelect={(node) => {
-            // Per design + Task 1 verification: note/draft detail routes don't
-            // exist yet, so navigate to the project page as a stable fallback.
-            // Document previews (kind: 'document' | 'external') are still a
-            // follow-up wiring through the chat page's CitationPanel state.
-            if ((node.kind === 'note' || node.kind === 'draft') && projectId) {
-              router.push(`/projects/${projectId}`);
-              return;
-            }
-            // TODO(follow-up): open CitationPanel with a synthetic citation
-            // for kind === 'document' | 'external'.
-            console.log('[ContextRail] preview', node);
-          }}
-          className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
-        />
+        {isAuthenticated && (
+          <ContextRail
+            threadId={currentThreadId ?? null}
+            workspaceName={workspaceName}
+            workspaceId={currentWorkspaceId ?? undefined}
+            ragEnabled={true}
+            projectId={projectId}
+            projectName={resolvedProjectName}
+            onProjectBound={handleProjectBound}
+            onSelect={(node) => {
+              // Per design + Task 1 verification: note/draft detail routes don't
+              // exist yet, so navigate to the project page as a stable fallback.
+              // Document previews (kind: 'document' | 'external') are still a
+              // follow-up wiring through the chat page's CitationPanel state.
+              if (
+                (node.kind === 'note' || node.kind === 'draft') &&
+                projectId
+              ) {
+                router.push(`/projects/${projectId}`);
+                return;
+              }
+              // TODO(follow-up): open CitationPanel with a synthetic citation
+              // for kind === 'document' | 'external'.
+              console.log('[ContextRail] preview', node);
+            }}
+            className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
+          />
+        )}
       </div>
 
       {/* Command Palette */}

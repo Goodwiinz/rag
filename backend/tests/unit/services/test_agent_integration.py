@@ -674,6 +674,7 @@ class TestSSEStreamPersistence:
 
         snapshot = SimpleNamespace(
             values={
+                "user_id": "user-aaa",
                 "messages": [
                     HumanMessage(content="ingest this paper"),
                     AIMessage(content="The paper was ingested."),
@@ -723,3 +724,45 @@ class TestSSEStreamPersistence:
         assert persisted_request.messages[0].role == "user"
         assert persisted_request.messages[0].content == "ingest this paper"
         assert persisted_request.page_context.project_name == "Atlas"
+
+    def test_stream_confirm_rejects_snapshot_without_user_id(self, client):
+        """SSE /stream/confirm must not resume legacy ownerless checkpoints."""
+        thread_id = str(uuid4())
+        payload = {"thread_id": thread_id, "confirmed": True}
+
+        snapshot = SimpleNamespace(
+            values={
+                "messages": [],
+                "tool_executions": [],
+                "page_context": {"type": "general"},
+            },
+            tasks=(),
+        )
+
+        with (
+            patch(
+                "src.services.agent.checkpointer.get_checkpointer",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "src.services.agent.graph.compile_agent_graph",
+            ) as mock_compile,
+            patch(
+                "src.api.agent.streaming._persist_thread_messages",
+                new_callable=AsyncMock,
+            ) as mock_persist,
+        ):
+            mock_graph = MagicMock()
+            mock_graph.astream_events = Mock()
+            mock_graph.aget_state = AsyncMock(return_value=snapshot)
+            mock_compile.return_value = mock_graph
+
+            with client.stream(
+                "POST", "/api/v1/agent/stream/confirm", json=payload
+            ) as response:
+                body = "".join(response.iter_text())
+
+        assert response.status_code == 200
+        assert "Thread not found" in body
+        mock_graph.astream_events.assert_not_called()
+        mock_persist.assert_not_called()

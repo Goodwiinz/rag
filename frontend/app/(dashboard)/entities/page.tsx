@@ -13,7 +13,7 @@ import React, {
   Suspense,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, MotionConfig } from 'framer-motion';
 import {
   Plus,
   Download,
@@ -590,579 +590,585 @@ function EntityManagementContent() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex flex-col">
-      <div className="p-6 space-y-4 flex-1 overflow-y-auto terminal-scrollbar">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-6 shadow-xl"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center">
-                <Network className="w-6 h-6 text-[var(--phosphor-green)]" />
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-border bg-card p-6 shadow-sm"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Network
+                    aria-hidden="true"
+                    className="w-6 h-6 text-primary"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">
+                    Entities
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Browse and manage your knowledge-graph entities
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
-                  NEURAL_ENTITY_REGISTRY
-                </h1>
-                <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
-                  Knowledge Graph Nodes Management
-                </p>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  fetchEntities();
-                  if (activeTab === 'graph') fetchRelationships();
-                }}
-                disabled={loading}
-                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
-              >
-                <RefreshCw
-                  className={cn(
-                    'h-3.5 w-3.5 mr-1.5',
-                    loading && 'animate-spin'
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    fetchEntities();
+                    if (activeTab === 'graph') fetchRelationships();
+                  }}
+                  disabled={loading}
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={cn('h-4 w-4 mr-1.5', loading && 'animate-spin')}
+                  />
+                  Refresh
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportEntities}>
+                  <Download aria-hidden="true" className="h-4 w-4 mr-1.5" />
+                  Export
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSelectedEntity(null);
+                    setEditDialogOpen(true);
+                  }}
+                  disabled={!canCreate}
+                >
+                  <Plus aria-hidden="true" className="h-4 w-4 mr-1.5" />
+                  New entity
+                  {!canCreate && (
+                    <span className="ml-1 text-xs opacity-80">(admin)</span>
                   )}
-                />
-                REFRESH
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportEntities}
-                className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
-              >
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                EXPORT
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSelectedEntity(null);
-                  setEditDialogOpen(true);
-                }}
-                disabled={!canCreate}
-                className="font-mono text-[10px] font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_15px_var(--phosphor-green-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                NEW_NODE {!canCreate && '(ADMIN)'}
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Service Unavailable Banner */}
-        {serviceUnavailable && (
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-              <div>
-                <p className="font-mono text-sm text-amber-400 font-bold">
-                  Knowledge Graph Unavailable
-                </p>
-                <p className="font-mono text-xs text-[var(--terminal-text-dim)] mt-1">
-                  The graph database is currently unreachable. Entity data
-                  cannot be loaded.
-                </p>
+                </Button>
               </div>
-              <Button
-                onClick={() => {
-                  setServiceUnavailable(false);
-                  fetchEntities();
-                  if (activeTab === 'graph') fetchRelationships();
-                }}
-                variant="outline"
-                size="sm"
-                className="ml-auto shrink-0 font-mono text-xs border-amber-500/30 hover:bg-amber-500/10"
-              >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                RETRY
-              </Button>
+            </div>
+          </motion.div>
+
+          {/* Service Unavailable Banner */}
+          {serviceUnavailable && (
+            <Card
+              role="alert"
+              className="border-destructive/40 bg-destructive/5"
+            >
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="w-5 h-5 text-destructive shrink-0"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Knowledge graph unavailable
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    The graph database is currently unreachable, so entity data
+                    cannot be loaded.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setServiceUnavailable(false);
+                    fetchEntities();
+                    if (activeTab === 'graph') fetchRelationships();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="sm:ml-auto shrink-0"
+                >
+                  <RefreshCw aria-hidden="true" className="w-4 h-4 mr-1.5" />
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Filters */}
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="p-4">
+              <EntityFilters
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                selectedTypes={selectedTypes}
+                onTypesChange={handleTypesChange}
+                confidenceRange={confidenceRange}
+                onConfidenceChange={setConfidenceRange}
+                sortField={sortField}
+                sortOrder={sortOrder}
+                onSortChange={handleSortChange}
+                onClearFilters={handleClearFilters}
+                totalCount={totalEntities}
+                filteredCount={filteredEntities.length}
+                availableTypes={
+                  availableEntityTypes.length > 0
+                    ? availableEntityTypes
+                    : undefined
+                }
+                typeCounts={typeCounts}
+              />
             </CardContent>
           </Card>
-        )}
 
-        {/* Filters */}
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-          <CardContent className="p-4">
-            <EntityFilters
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              selectedTypes={selectedTypes}
-              onTypesChange={handleTypesChange}
-              confidenceRange={confidenceRange}
-              onConfidenceChange={setConfidenceRange}
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onSortChange={handleSortChange}
-              onClearFilters={handleClearFilters}
-              totalCount={totalEntities}
-              filteredCount={filteredEntities.length}
-              availableTypes={
-                availableEntityTypes.length > 0
-                  ? availableEntityTypes
-                  : undefined
-              }
-              typeCounts={typeCounts}
-            />
-          </CardContent>
-        </Card>
+          {/* Workspace Area */}
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
+            <div className="mb-4 space-y-2">
+              {/* View group */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-medium text-muted-foreground w-16 shrink-0">
+                  View
+                </span>
+                <TabsList className="bg-muted/40 border border-border p-1 rounded-lg">
+                  <TabsTrigger
+                    value="list"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <List aria-hidden="true" className="h-3.5 w-3.5" />
+                    List
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="graph"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <Network aria-hidden="true" className="h-3.5 w-3.5" />
+                    Graph
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="pathfinder"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <Route aria-hidden="true" className="h-3.5 w-3.5" />
+                    Path finder
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="search"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <Search aria-hidden="true" className="h-3.5 w-3.5" />
+                    Search
+                  </TabsTrigger>
+                </TabsList>
 
-        {/* Workspace Area */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="mb-4 space-y-2">
-            {/* View group */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                {'// View'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="list"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <List className="h-3.5 w-3.5" />
-                  List
-                </TabsTrigger>
-                <TabsTrigger
-                  value="graph"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Network className="h-3.5 w-3.5" />
-                  Graph
-                </TabsTrigger>
-                <TabsTrigger
-                  value="pathfinder"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Route className="h-3.5 w-3.5" />
-                  Path Finder
-                </TabsTrigger>
-                <TabsTrigger
-                  value="search"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                  Search
-                </TabsTrigger>
-              </TabsList>
+                {/* Actions group */}
+                <span className="text-xs font-medium text-muted-foreground w-16 shrink-0 ml-2">
+                  Actions
+                </span>
+                <TabsList className="bg-muted/40 border border-border p-1 rounded-lg">
+                  <TabsTrigger
+                    value="bulk"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <Layers aria-hidden="true" className="h-3.5 w-3.5" />
+                    Bulk
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="extractor"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <FileSearch aria-hidden="true" className="h-3.5 w-3.5" />
+                    Extract
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="merge"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <GitMerge aria-hidden="true" className="h-3.5 w-3.5" />
+                    Merge
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-              {/* Actions group */}
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0 ml-2">
-                {'// Actions'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="bulk"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  Bulk Ops
-                </TabsTrigger>
-                <TabsTrigger
-                  value="extractor"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <FileSearch className="h-3.5 w-3.5" />
-                  Extract
-                </TabsTrigger>
-                <TabsTrigger
-                  value="merge"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <GitMerge className="h-3.5 w-3.5" />
-                  Merge
-                </TabsTrigger>
-              </TabsList>
+              {/* Monitor group */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-medium text-muted-foreground w-16 shrink-0">
+                  Monitor
+                </span>
+                <TabsList className="bg-muted/40 border border-border p-1 rounded-lg">
+                  <TabsTrigger
+                    value="statistics"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <TrendingUp aria-hidden="true" className="h-3.5 w-3.5" />
+                    Metrics
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="analytics"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <BarChart3 aria-hidden="true" className="h-3.5 w-3.5" />
+                    Analytics
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="health"
+                    className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-xs gap-1.5"
+                  >
+                    <HeartPulse aria-hidden="true" className="h-3.5 w-3.5" />
+                    Health
+                  </TabsTrigger>
+                </TabsList>
+              </div>
             </div>
 
-            {/* Monitor group */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[9px] text-primary uppercase tracking-wider w-14 shrink-0">
-                {'// Monitor'}
-              </span>
-              <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-lg">
-                <TabsTrigger
-                  value="statistics"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  Metrics
-                </TabsTrigger>
-                <TabsTrigger
-                  value="analytics"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Analytics
-                </TabsTrigger>
-                <TabsTrigger
-                  value="health"
-                  className="rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary font-mono text-xs gap-1.5"
-                >
-                  <HeartPulse className="h-3.5 w-3.5" />
-                  Health
-                </TabsTrigger>
-              </TabsList>
-            </div>
-          </div>
-
-          <TabsContent value="list" className="mt-0 outline-none">
-            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl">
-              <EntityList
-                entities={filteredEntities}
-                loading={loading}
-                onEdit={(entity) => {
-                  setSelectedEntity(entity);
-                  setEditDialogOpen(true);
-                }}
-                onView={(entity) => {
-                  setSelectedEntity(entity);
-                  setDetailDialogOpen(true);
-                }}
-                onDelete={handleEntityDelete}
-              />
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                pageSize={pageSize}
-                totalItems={totalEntities}
-                onPageChange={handlePageChange}
-                onPageSizeChange={handlePageSizeChange}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="graph" className="mt-0 outline-none">
-            <div className="rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-surface)] overflow-hidden shadow-xl p-4">
-              {relationshipsLoading ? (
-                <div className="flex items-center justify-center h-[600px]">
-                  <div className="flex flex-col items-center gap-6">
-                    {/* Animated network visualization skeleton */}
-                    <div className="relative">
-                      <div className="w-20 h-20 rounded-full border-2 border-[var(--terminal-border)] bg-[var(--terminal-bg)] flex items-center justify-center">
-                        <Network className="w-8 h-8 text-[var(--phosphor-green)] animate-pulse" />
-                      </div>
-                      {/* Orbiting nodes */}
-                      <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-[var(--terminal-border)] animate-pulse" />
-                      <div className="absolute -bottom-1 -left-3 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-150" />
-                      <div className="absolute top-1/2 -right-6 w-3 h-3 rounded-full bg-[var(--terminal-border)] animate-pulse delay-300" />
-                      <div className="absolute -top-4 left-1/2 w-2 h-2 rounded-full bg-[var(--terminal-border)] animate-pulse delay-500" />
-                    </div>
-
-                    {/* Loading spinner */}
-                    <Loader2 className="w-6 h-6 text-[var(--phosphor-green)] animate-spin" />
-
-                    {/* Status text */}
-                    <div className="text-center space-y-2">
-                      <p className="font-mono text-sm text-[var(--terminal-text)]">
-                        LOADING_GRAPH_DATA...
-                      </p>
-                      <p className="font-mono text-xs text-[var(--terminal-text-dim)]">
-                        Fetching connected nodes and relationships
-                      </p>
-                    </div>
-
-                    {/* Progress skeleton bars */}
-                    <div className="w-48 space-y-2">
-                      <div className="h-1 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
-                        <div className="h-full w-2/3 bg-[var(--phosphor-green)]/50 rounded-full animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <EntityGraph
-                  entities={graphEntities}
-                  relationships={relationships}
-                  onEntityClick={(entity) => {
+            <TabsContent value="list" className="mt-0 outline-none">
+              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+                <EntityList
+                  entities={filteredEntities}
+                  loading={loading}
+                  onEdit={(entity) => {
+                    setSelectedEntity(entity);
+                    setEditDialogOpen(true);
+                  }}
+                  onView={(entity) => {
                     setSelectedEntity(entity);
                     setDetailDialogOpen(true);
                   }}
-                  height={600}
+                  onDelete={handleEntityDelete}
                 />
-              )}
-            </div>
-          </TabsContent>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  totalItems={totalEntities}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                />
+              </div>
+            </TabsContent>
 
-          <TabsContent
-            value="statistics"
-            className="mt-0 outline-none space-y-6"
-          >
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {[
-                {
-                  label: 'Total Entities',
-                  value: statistics.totalEntities.toLocaleString(),
-                  icon: Database,
-                  color: 'var(--phosphor-green)',
-                },
-                {
-                  label: 'Unique Types',
-                  value: statistics.uniqueTypes,
-                  icon: Filter,
-                  color: 'var(--cyan)',
-                },
-                {
-                  label: 'Avg Confidence',
-                  value: `${(statistics.averageConfidence * 100).toFixed(1)}%`,
-                  icon: TrendingUp,
-                  color: 'var(--amber-gold)',
-                },
-                {
-                  label: 'Relationships',
-                  value: statistics.totalRelationships.toLocaleString(),
-                  icon: Network,
-                  color: 'var(--purple)',
-                },
-              ].map((stat) => (
-                <Card
-                  key={stat.label}
-                  className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden relative group"
-                >
+            <TabsContent value="graph" className="mt-0 outline-none">
+              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm p-4">
+                {relationshipsLoading ? (
                   <div
-                    className="absolute top-0 left-0 w-1 h-full opacity-20 group-hover:opacity-100 transition-opacity"
-                    style={{ backgroundColor: stat.color }}
-                  />
-                  <CardHeader className="p-4 pb-1">
-                    <CardTitle className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest flex items-center gap-2">
-                      <stat.icon
-                        className="w-3 h-3"
-                        style={{ color: stat.color }}
-                      />
-                      {stat.label}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <p className="text-2xl font-mono font-bold text-[var(--terminal-text)]">
-                      {stat.value}
+                    role="status"
+                    aria-label="Loading graph data"
+                    className="space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="h-4 w-40 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    </div>
+                    <div className="h-[600px] rounded-lg border border-border bg-muted/30 animate-pulse" />
+                    <p className="text-sm text-muted-foreground">
+                      Loading connected nodes and relationships…
                     </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+                ) : (
+                  <EntityGraph
+                    entities={graphEntities}
+                    relationships={relationships}
+                    onEntityClick={(entity) => {
+                      setSelectedEntity(entity);
+                      setDetailDialogOpen(true);
+                    }}
+                    height={600}
+                  />
+                )}
+              </div>
+            </TabsContent>
 
-            {/* Type Distribution */}
-            <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-              <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" />
-                  Type Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {Object.entries(statistics.typeDistribution)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([type, count]) => {
-                      const percentage = (count / entities.length) * 100;
-                      return (
-                        <div key={type} className="space-y-1">
-                          <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[var(--terminal-text)]">
-                              {type}
-                            </span>
-                            <span className="text-[var(--terminal-text-dim)]">
-                              {count} ({percentage.toFixed(1)}%)
-                            </span>
-                          </div>
-                          <div className="h-2 bg-[var(--terminal-bg)] rounded-full overflow-hidden border border-[var(--terminal-border)]">
-                            <div
-                              className="h-full bg-[var(--phosphor-green)] rounded-full transition-all duration-500"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent
+              value="statistics"
+              className="mt-0 outline-none space-y-6"
+            >
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: 'Total entities',
+                    value: statistics.totalEntities.toLocaleString(),
+                    icon: Database,
+                  },
+                  {
+                    label: 'Unique types',
+                    value: statistics.uniqueTypes,
+                    icon: Filter,
+                  },
+                  {
+                    label: 'Avg confidence',
+                    value: `${(statistics.averageConfidence * 100).toFixed(1)}%`,
+                    icon: TrendingUp,
+                  },
+                  {
+                    label: 'Relationships',
+                    value: statistics.totalRelationships.toLocaleString(),
+                    icon: Network,
+                  },
+                ].map((stat) => (
+                  <Card
+                    key={stat.label}
+                    className="border-border bg-card shadow-sm"
+                  >
+                    <CardHeader className="p-4 pb-1">
+                      <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                        <stat.icon
+                          aria-hidden="true"
+                          className="w-3.5 h-3.5 text-primary"
+                        />
+                        {stat.label}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <p className="text-2xl font-semibold text-foreground tabular-nums">
+                        {stat.value}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
 
-          {/* Path Finder Tab */}
-          <TabsContent value="pathfinder" className="mt-0 outline-none">
-            <PathFinder
-              entities={entities}
-              onEntityClick={(entityId) => {
-                const entity = entities.find((e) => e.id === entityId);
-                if (entity) {
-                  setSelectedEntity(entity);
-                  setDetailDialogOpen(true);
-                }
-              }}
-            />
-          </TabsContent>
+              {/* Type Distribution */}
+              <Card className="border-border bg-card shadow-sm">
+                <CardHeader className="border-b border-border py-3 bg-muted/30">
+                  <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <BarChart3
+                      aria-hidden="true"
+                      className="w-4 h-4 text-muted-foreground"
+                    />
+                    Type distribution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {Object.keys(statistics.typeDistribution).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No entities loaded yet. Create an entity or adjust your
+                      filters to see how types are distributed.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {Object.entries(statistics.typeDistribution)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([type, count]) => {
+                          const percentage = (count / entities.length) * 100;
+                          return (
+                            <div key={type} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-foreground">{type}</span>
+                                <span className="text-muted-foreground tabular-nums">
+                                  {count} ({percentage.toFixed(1)}%)
+                                </span>
+                              </div>
+                              <div
+                                className="h-2 bg-border rounded-full overflow-hidden"
+                                role="progressbar"
+                                aria-valuenow={Math.round(percentage)}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={`${type} share of entities`}
+                              >
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${percentage}%` }}
+                                  transition={{ duration: 0.25 }}
+                                  className="h-full bg-primary rounded-full"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          {/* Enhanced Search Tab */}
-          <TabsContent value="search" className="mt-0 outline-none">
-            <EntitySearch
-              onEntityClick={(entityId) => {
-                const entity = entities.find((e) => e.id === entityId);
-                if (entity) {
-                  setSelectedEntity(entity);
-                  setDetailDialogOpen(true);
-                }
-              }}
-            />
-          </TabsContent>
-
-          {/* Analytics Dashboard Tab */}
-          <TabsContent value="analytics" className="mt-0 outline-none">
-            <GraphAnalyticsDashboard
-              onTypeClick={(entityType) => {
-                // Filter by clicked entity type
-                setSelectedTypes([entityType]);
-                setCurrentPage(1);
-                // Switch to list tab to show filtered results
-                setActiveTab('list');
-                toast.success(`Filtered by ${entityType}`);
-              }}
-            />
-          </TabsContent>
-
-          {/* Bulk Operations Tab */}
-          <TabsContent value="bulk" className="mt-0 outline-none">
-            <BulkOperations />
-          </TabsContent>
-
-          {/* Document Entity Extractor Tab */}
-          <TabsContent value="extractor" className="mt-0 outline-none">
-            <DocumentEntityExtractor />
-          </TabsContent>
-
-          {/* Entity Merge Tool Tab */}
-          <TabsContent value="merge" className="mt-0 outline-none">
-            <EntityMergeTool />
-          </TabsContent>
-
-          {/* Graph Health Monitor Tab */}
-          <TabsContent value="health" className="mt-0 outline-none">
-            <GraphHealthMonitor />
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Edit/Create Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
-            <DialogTitle className="text-lg font-bold tracking-tight">
-              {selectedEntity ? 'EDIT_NODE_PARAMETERS' : 'PROVISION_NEW_NODE'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <EntityForm
-              entity={selectedEntity}
-              onSubmit={async (data) => {
-                if (selectedEntity) {
-                  handleEntityUpdate(selectedEntity.id, data);
-                } else {
-                  try {
-                    // Map form data to API format
-                    const createRequest = {
-                      name: data.name!,
-                      entity_type: data.type!,
-                      confidence_score: data.confidence || 0.8,
-                      extraction_method: 'manual',
-                      metadata: data.metadata || {},
-                    };
-                    await entityService.createEntity(createRequest);
-                    toast.success('Entity created successfully');
-                    setEditDialogOpen(false);
-                    fetchEntities();
-                  } catch (error) {
-                    logEntityPageError('Error creating entity', error);
-                    toast.error('Failed to create entity');
+            {/* Path Finder Tab */}
+            <TabsContent value="pathfinder" className="mt-0 outline-none">
+              <PathFinder
+                entities={entities}
+                onEntityClick={(entityId) => {
+                  const entity = entities.find((e) => e.id === entityId);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setDetailDialogOpen(true);
                   }
-                }
-              }}
-              onCancel={() => setEditDialogOpen(false)}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Detail Dialog */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
-            <DialogTitle className="text-lg font-bold tracking-tight uppercase">
-              Node_Analysis_Dump
-            </DialogTitle>
-          </DialogHeader>
-          {selectedEntity && (
-            <div className="py-4">
-              <EntityDetail
-                entity={selectedEntity}
-                onEdit={() => {
-                  setDetailDialogOpen(false);
-                  setEditDialogOpen(true);
                 }}
-                onClose={() => setDetailDialogOpen(false)}
-                onEntityClick={(entity) => {
-                  // Re-center neighborhood exploration on clicked entity
-                  setSelectedEntity(entity);
+              />
+            </TabsContent>
+
+            {/* Enhanced Search Tab */}
+            <TabsContent value="search" className="mt-0 outline-none">
+              <EntitySearch
+                onEntityClick={(entityId) => {
+                  const entity = entities.find((e) => e.id === entityId);
+                  if (entity) {
+                    setSelectedEntity(entity);
+                    setDetailDialogOpen(true);
+                  }
+                }}
+              />
+            </TabsContent>
+
+            {/* Analytics Dashboard Tab */}
+            <TabsContent value="analytics" className="mt-0 outline-none">
+              <GraphAnalyticsDashboard
+                onTypeClick={(entityType) => {
+                  // Filter by clicked entity type
+                  setSelectedTypes([entityType]);
+                  setCurrentPage(1);
+                  // Switch to list tab to show filtered results
+                  setActiveTab('list');
+                  toast.success(`Filtered by ${entityType}`);
+                }}
+              />
+            </TabsContent>
+
+            {/* Bulk Operations Tab */}
+            <TabsContent value="bulk" className="mt-0 outline-none">
+              <BulkOperations />
+            </TabsContent>
+
+            {/* Document Entity Extractor Tab */}
+            <TabsContent value="extractor" className="mt-0 outline-none">
+              <DocumentEntityExtractor />
+            </TabsContent>
+
+            {/* Entity Merge Tool Tab */}
+            <TabsContent value="merge" className="mt-0 outline-none">
+              <EntityMergeTool />
+            </TabsContent>
+
+            {/* Graph Health Monitor Tab */}
+            <TabsContent value="health" className="mt-0 outline-none">
+              <GraphHealthMonitor />
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Edit/Create Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl bg-card border-border text-foreground">
+            <DialogHeader className="border-b border-border pb-4">
+              <DialogTitle className="text-lg font-semibold">
+                {selectedEntity ? 'Edit entity' : 'New entity'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <EntityForm
+                entity={selectedEntity}
+                onSubmit={async (data) => {
+                  if (selectedEntity) {
+                    handleEntityUpdate(selectedEntity.id, data);
+                  } else {
+                    try {
+                      // Map form data to API format
+                      const createRequest = {
+                        name: data.name!,
+                        entity_type: data.type!,
+                        confidence_score: data.confidence || 0.8,
+                        extraction_method: 'manual',
+                        metadata: data.metadata || {},
+                      };
+                      await entityService.createEntity(createRequest);
+                      toast.success('Entity created successfully');
+                      setEditDialogOpen(false);
+                      fetchEntities();
+                    } catch (error) {
+                      logEntityPageError('Error creating entity', error);
+                      toast.error('Failed to create entity');
+                    }
+                  }
+                }}
+                onCancel={() => setEditDialogOpen(false)}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Detail Dialog */}
+        <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
+            <DialogHeader className="border-b border-border pb-4">
+              <DialogTitle className="text-lg font-semibold">
+                Entity details
+              </DialogTitle>
+            </DialogHeader>
+            {selectedEntity && (
+              <div className="py-4">
+                <EntityDetail
+                  entity={selectedEntity}
+                  onEdit={() => {
+                    setDetailDialogOpen(false);
+                    setEditDialogOpen(true);
+                  }}
+                  onClose={() => setDetailDialogOpen(false)}
+                  onEntityClick={(entity) => {
+                    // Re-center neighborhood exploration on clicked entity
+                    setSelectedEntity(entity);
+                  }}
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Relationship Creation Dialog */}
+        <Dialog
+          open={relationshipDialogOpen}
+          onOpenChange={(open) => {
+            setRelationshipDialogOpen(open);
+            if (!open) setSourceEntityId(null);
+          }}
+        >
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border text-foreground">
+            <DialogHeader className="border-b border-border pb-4">
+              <DialogTitle className="text-lg font-semibold">
+                New relationship
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <RelationshipForm
+                sourceEntityId={sourceEntityId || undefined}
+                onSubmit={handleCreateRelationship}
+                onCancel={() => {
+                  setRelationshipDialogOpen(false);
+                  setSourceEntityId(null);
                 }}
               />
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
-      {/* Relationship Creation Dialog */}
-      <Dialog
-        open={relationshipDialogOpen}
-        onOpenChange={(open) => {
-          setRelationshipDialogOpen(open);
-          if (!open) setSourceEntityId(null);
-        }}
-      >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[var(--terminal-surface)] border-[var(--terminal-border)] text-[var(--terminal-text)] font-mono">
-          <DialogHeader className="border-b border-[var(--terminal-border)] pb-4">
-            <DialogTitle className="text-lg font-bold tracking-tight uppercase">
-              ESTABLISH_NEW_LINK
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <RelationshipForm
-              sourceEntityId={sourceEntityId || undefined}
-              onSubmit={handleCreateRelationship}
-              onCancel={() => {
-                setRelationshipDialogOpen(false);
-                setSourceEntityId(null);
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Keyboard Shortcuts Dialog */}
-      <KeyboardShortcutsDialog
-        open={shortcutsDialogOpen}
-        onOpenChange={setShortcutsDialogOpen}
-      />
-    </div>
+        {/* Keyboard Shortcuts Dialog */}
+        <KeyboardShortcutsDialog
+          open={shortcutsDialogOpen}
+          onOpenChange={setShortcutsDialogOpen}
+        />
+      </div>
+    </MotionConfig>
   );
 }
 
 // Loading fallback component
 function EntityPageLoading() {
   return (
-    <div className="min-h-screen bg-[var(--terminal-bg)] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 text-[var(--phosphor-green)] animate-spin" />
-        <p className="font-mono text-sm text-[var(--terminal-text-dim)]">
-          LOADING_ENTITY_REGISTRY...
-        </p>
+    <div
+      role="status"
+      aria-label="Loading entities"
+      className="min-h-screen bg-background p-6 space-y-4"
+    >
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-lg bg-muted animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-64 rounded bg-muted animate-pulse" />
+          </div>
+        </div>
       </div>
+      <div className="h-20 rounded-xl border border-border bg-card animate-pulse" />
+      <div className="h-96 rounded-xl border border-border bg-card animate-pulse" />
     </div>
   );
 }

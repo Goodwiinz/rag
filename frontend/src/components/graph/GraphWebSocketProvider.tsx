@@ -5,8 +5,18 @@
  * Consumes WebSocket events from backend and updates frontend state.
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { websocketService, WebSocketStatus } from '../../services/websocketService';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
+import {
+  websocketService,
+  WebSocketStatus,
+} from '../../services/websocketService';
 import { useGraphStore } from '../../stores/graphStore';
 import { WebSocketGraphUpdate } from '../../types/graph-api';
 
@@ -31,41 +41,54 @@ interface GraphWebSocketProviderProps {
 export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
   children,
   autoConnect = true,
-  reconnectOnMount = true
+  reconnectOnMount = true,
 }) => {
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<WebSocketGraphUpdate | null>(null);
+  const [lastMessage, setLastMessage] = useState<WebSocketGraphUpdate | null>(
+    null
+  );
   const [messageCount, setMessageCount] = useState(0);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
   const setWebSocketStatus = useGraphStore((state) => state.setWebSocketStatus);
-  const setWebSocketConnected = useGraphStore((state) => state.setWebSocketConnected);
-  const handleWebSocketMessage = useGraphStore((state) => state.handleWebSocketMessage);
+  const setWebSocketConnected = useGraphStore(
+    (state) => state.setWebSocketConnected
+  );
+  const handleWebSocketMessage = useGraphStore(
+    (state) => state.handleWebSocketMessage
+  );
 
   const connectionRef = useRef<string>('graph-updates');
   const analyticsConnectionRef = useRef<string>('analytics-updates');
   const mountedRef = useRef(false);
 
   // Handle incoming WebSocket messages
-  const handleIncomingMessage = useCallback((message: WebSocketGraphUpdate) => {
-    setLastMessage(message);
-    setMessageCount(prev => prev + 1);
+  const handleIncomingMessage = useCallback(
+    (message: WebSocketGraphUpdate) => {
+      setLastMessage(message);
+      setMessageCount((prev) => prev + 1);
 
-    // Update store with message data
-    handleWebSocketMessage(message);
+      // Update store with message data
+      handleWebSocketMessage(message);
 
-    // Log message for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log('WebSocket message received:', message.type, message.timestamp);
-    }
-  }, [handleWebSocketMessage]);
+      // Log message for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          'WebSocket message received:',
+          message.type,
+          message.timestamp
+        );
+      }
+    },
+    [handleWebSocketMessage]
+  );
 
   // Connect to WebSocket services
   const connect = useCallback(async () => {
     try {
       setStatus('connecting');
-      setReconnectAttempts(prev => prev + 1);
+      setReconnectAttempts((prev) => prev + 1);
 
       // Connect to main graph updates
       const graphConnection = await websocketService.connectToGraphUpdates();
@@ -78,7 +101,8 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
       );
 
       // Connect to analytics updates
-      const analyticsConnection = await websocketService.connectToAnalyticsUpdates();
+      const analyticsConnection =
+        await websocketService.connectToAnalyticsUpdates();
 
       // Subscribe to analytics updates
       const unsubscribeAnalytics = websocketService.subscribe(
@@ -98,7 +122,6 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
         websocketService.disconnect(connectionRef.current);
         websocketService.disconnect(analyticsConnectionRef.current);
       };
-
     } catch (error) {
       console.error('WebSocket connection failed:', error);
       setStatus('error');
@@ -130,7 +153,7 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
       mountedRef.current = true;
 
       if (autoConnect) {
-        connect().catch(error => {
+        connect().catch((error) => {
           console.error('Initial WebSocket connection failed:', error);
         });
       }
@@ -153,7 +176,9 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
   // Periodic status check
   useEffect(() => {
     const interval = setInterval(() => {
-      const currentStatus = websocketService.getConnectionStatus(connectionRef.current);
+      const currentStatus = websocketService.getConnectionStatus(
+        connectionRef.current
+      );
       if (currentStatus !== status) {
         setStatus(currentStatus || 'disconnected');
         setIsConnected(currentStatus === 'connected');
@@ -170,7 +195,7 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
     messageCount,
     reconnectAttempts,
     manuallyReconnect,
-    disconnect
+    disconnect,
   };
 
   return (
@@ -184,13 +209,17 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
 export const useGraphWebSocket = () => {
   const context = useContext(WebSocketContext);
   if (!context) {
-    throw new Error('useGraphWebSocket must be used within a GraphWebSocketProvider');
+    throw new Error(
+      'useGraphWebSocket must be used within a GraphWebSocketProvider'
+    );
   }
   return context;
 };
 
 // Hook for specific message types
-export const useGraphWebSocketMessages = <T extends WebSocketGraphUpdate['type']>(
+export const useGraphWebSocketMessages = <
+  T extends WebSocketGraphUpdate['type'],
+>(
   messageType: T
 ) => {
   const [messages, setMessages] = useState<WebSocketGraphUpdate[]>([]);
@@ -198,7 +227,7 @@ export const useGraphWebSocketMessages = <T extends WebSocketGraphUpdate['type']
 
   useEffect(() => {
     if (lastMessage && lastMessage.type === messageType) {
-      setMessages(prev => [...prev.slice(-99), lastMessage]); // Keep last 100 messages
+      setMessages((prev) => [...prev.slice(-99), lastMessage]); // Keep last 100 messages
     }
   }, [lastMessage, messageType]);
 
@@ -214,25 +243,36 @@ export const WebSocketStatusIndicator: React.FC<{
   className?: string;
   showDetails?: boolean;
 }> = ({ className = '', showDetails = false }) => {
-  const { status, isConnected, reconnectAttempts, manuallyReconnect } = useGraphWebSocket();
+  const { status, isConnected, reconnectAttempts, manuallyReconnect } =
+    useGraphWebSocket();
 
   const getStatusColor = () => {
     switch (status) {
-      case 'connected': return 'bg-green-500';
-      case 'connecting': return 'bg-yellow-500';
-      case 'error': return 'bg-red-500';
-      case 'disconnected': return 'bg-gray-500';
-      default: return 'bg-gray-500';
+      case 'connected':
+        return 'bg-green-500';
+      case 'connecting':
+        return 'bg-yellow-500';
+      case 'error':
+        return 'bg-red-500';
+      case 'disconnected':
+        return 'bg-gray-500';
+      default:
+        return 'bg-gray-500';
     }
   };
 
   const getStatusText = () => {
     switch (status) {
-      case 'connected': return 'Connected';
-      case 'connecting': return 'Connecting...';
-      case 'error': return 'Error';
-      case 'disconnected': return 'Disconnected';
-      default: return 'Unknown';
+      case 'connected':
+        return 'Connected';
+      case 'connecting':
+        return 'Connecting...';
+      case 'error':
+        return 'Error';
+      case 'disconnected':
+        return 'Disconnected';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -240,7 +280,7 @@ export const WebSocketStatusIndicator: React.FC<{
     return (
       <div className={`flex items-center space-x-2 ${className}`}>
         <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
-        <span className="text-xs text-gray-600">{getStatusText()}</span>
+        <span className="text-xs text-foreground">{getStatusText()}</span>
       </div>
     );
   }
@@ -253,17 +293,19 @@ export const WebSocketStatusIndicator: React.FC<{
       </div>
       <div className="space-y-1 text-xs">
         <div className="flex justify-between">
-          <span className="text-gray-600">Status:</span>
+          <span className="text-foreground">Status:</span>
           <span className="font-medium">{getStatusText()}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Connected:</span>
-          <span className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+          <span className="text-foreground">Connected:</span>
+          <span
+            className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}
+          >
             {isConnected ? 'Yes' : 'No'}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Reconnect Attempts:</span>
+          <span className="text-foreground">Reconnect Attempts:</span>
           <span className="font-medium">{reconnectAttempts}</span>
         </div>
         {status === 'error' && (

@@ -53,8 +53,8 @@ const sectionLabels: Record<
   },
   custom: {
     label: 'Custom',
-    color: 'text-gray-400',
-    bg: 'bg-gray-400/10 border-gray-400/30',
+    color: 'text-muted-foreground',
+    bg: 'bg-gray-400/10 border-border/30',
   },
 };
 
@@ -80,7 +80,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#1a1a1a] px-4 py-3">
         <div className="flex items-center gap-3">
-          <h3 className="font-mono text-sm font-bold text-gray-200">
+          <h3 className="font-mono text-sm font-bold text-muted-foreground">
             Generated Content
           </h3>
           {section && (
@@ -91,7 +91,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
         </div>
         <div className="flex items-center gap-4">
           {citationsUsed.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Quote className="h-3 w-3" />
               <span>
                 {citationsUsed.length} citation
@@ -113,7 +113,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
 
       {/* Content */}
       <div className="max-h-[400px] overflow-y-auto p-4">
-        <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-300">
+        <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-muted-foreground">
           {generated}
         </div>
       </div>
@@ -123,7 +123,7 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
+          className="gap-1.5 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
           onClick={onDiscard}
           aria-label="Discard generated content"
         >

@@ -1,5 +1,12 @@
 const path = require('path');
 const { withSentryConfig } = require('@sentry/nextjs');
+const { resolveBackendUrl } = require('./config/resolveBackendUrl');
+
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+const shouldUploadSentrySourceMaps = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && sentryOrg && sentryProject
+);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -20,13 +27,6 @@ const nextConfig = {
     ignoreBuildErrors: process.env.NODE_ENV !== 'production',
   },
 
-  // Next.js build lint integration still passes legacy CLI options that do not
-  // work with the flat ESLint config used by this app. Keep linting in the
-  // dedicated npm script instead.
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Experimental features for better performance
   experimental: {
     // Optimize CSS
@@ -41,18 +41,6 @@ const nextConfig = {
     ],
   },
 
-  // Tree-shaking for utility libraries
-  modularizeImports: {
-    'lodash-es': {
-      transform: 'lodash-es/{{member}}',
-      preventFullImport: true,
-    },
-    'date-fns': {
-      transform: 'date-fns/{{member}}',
-      preventFullImport: true,
-    },
-  },
-
   // Image optimization
   // WARNING: Add your production domains here. External images from unlisted
   // domains will not be optimized by Next.js and may break in production.
@@ -63,7 +51,12 @@ const nextConfig = {
         hostname: 'localhost',
       },
       ...(process.env.NEXT_PUBLIC_APP_URL
-        ? [{ protocol: 'https', hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname }]
+        ? [
+            {
+              protocol: 'https',
+              hostname: new URL(process.env.NEXT_PUBLIC_APP_URL).hostname,
+            },
+          ]
         : []),
     ],
     formats: ['image/webp', 'image/avif'],
@@ -130,8 +123,9 @@ const nextConfig = {
 
   // API configuration
   async rewrites() {
-    // Use BACKEND_URL env var if set (for Docker), otherwise default to localhost
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    // Vercel/standalone rewrites are server-side; never silently point remote
+    // deployments at localhost when the backend endpoint is missing.
+    const backendUrl = resolveBackendUrl();
     return [
       // API rewrites for backend integration
       {
@@ -212,11 +206,20 @@ const nextConfig = {
 };
 
 module.exports = withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG || 'goodwiinz-uk',
-  project: process.env.SENTRY_PROJECT || 'nous-frontend',
+  org: sentryOrg,
+  project: sentryProject,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
 
   // Quiet local builds; CI surfaces logs.
   silent: !process.env.CI,
+
+  // Only upload source maps when Sentry release settings are explicitly set.
+  sourcemaps: {
+    disable: !shouldUploadSentrySourceMaps,
+  },
+  errorHandler: (error) => {
+    console.warn('Sentry source map upload skipped:', error.message);
+  },
 
   // Upload a larger set of source maps so client errors symbolicate cleanly.
   widenClientFileUpload: true,
@@ -224,9 +227,10 @@ module.exports = withSentryConfig(nextConfig, {
   // Route Sentry events through /monitoring to bypass adblockers.
   tunnelRoute: '/monitoring',
 
-  // Strip Sentry SDK logger statements to shrink the client bundle.
-  disableLogger: true,
-
-  // Vercel-specific cron monitoring — off (we deploy to DOKS).
-  automaticVercelMonitors: false,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+    automaticVercelMonitors: false,
+  },
 });

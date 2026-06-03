@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Multimodal Enterprise RAG System - Monorepo Root",
   "private": true,
+  "packageManager": "pnpm@10.18.2",
   "workspaces": [
     "frontend",
     "tests/e2e"
@@ -21,7 +22,7 @@
     "trigger:deploy": "pnpm dlx trigger.dev@latest deploy"
   },
   "engines": {
-    "node": ">=18.17.0",
+    "node": "24.x",
     "npm": ">=9.6.7"
   },
   "repository": {
@@ -37,29 +38,9 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "@radix-ui/react-label": "^2.1.7",
-    "@radix-ui/react-progress": "^1.1.7",
-    "@radix-ui/react-switch": "^1.2.6",
-    "@trigger.dev/sdk": "^4.4.5",
-    "ccusage": "^17.2.0",
-    "critters": "^0.0.25",
-    "nanoid": "^5.1.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
   "overrides": {
-    "undici": "^7.0.0",
     "@isaacs/brace-expansion": "^5.0.1",
     "jsonpath": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.26.0"
-  },
-  "devDependencies": {
-    "@trigger.dev/build": "^4.4.5",
-    "@types/d3": "^7.4.3",
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
-    "shadcn": "^3.6.1",
-    "tailwindcss": "^4.1.18"
   }
 }

@@ -16,10 +16,14 @@ export const EvaluationDetailsPage: React.FC = () => {
           >
             &larr; Back to Evaluations
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Evaluation Not Found</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Evaluation Not Found
+          </h1>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-red-600">Evaluation ID is missing. Please select a valid evaluation.</p>
+          <p className="text-red-600">
+            Evaluation ID is missing. Please select a valid evaluation.
+          </p>
         </div>
       </div>
     );
@@ -34,11 +38,15 @@ export const EvaluationDetailsPage: React.FC = () => {
         >
           &larr; Back to Evaluations
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Evaluation Details</h1>
-        <p className="text-gray-600">ID: {id}</p>
+        <h1 className="text-2xl font-bold text-foreground">
+          Evaluation Details
+        </h1>
+        <p className="text-foreground">ID: {id}</p>
       </div>
       <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-600">View detailed evaluation results and metrics.</p>
+        <p className="text-foreground">
+          View detailed evaluation results and metrics.
+        </p>
       </div>
     </div>
   );

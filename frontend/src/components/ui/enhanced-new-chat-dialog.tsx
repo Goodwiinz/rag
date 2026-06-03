@@ -405,7 +405,7 @@ export function EnhancedNewChatDialog({
               >
                 <Sparkles className="h-8 w-8" />
               </motion.div>
-              <DialogTitle className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+              <DialogTitle className="text-3xl font-bold text-foreground">
                 Start a New Conversation
               </DialogTitle>
               <DialogDescription className="text-base mt-2">

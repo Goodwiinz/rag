@@ -50,7 +50,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
           <h3 className="text-lg font-mono font-semibold text-white">
             Manage Citations
           </h3>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Review and manage citations extracted from your documents. At least
             one citation is needed to continue.
           </p>
@@ -60,14 +60,16 @@ export const CiteStep: React.FC<CiteStepProps> = ({
       {/* Format selector + download */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 font-mono">Format:</span>
+          <span className="text-sm text-muted-foreground font-mono">
+            Format:
+          </span>
           <select
             value={bibFormat}
             onChange={(e) => {
               const format = e.target.value as typeof bibFormat;
               setBibFormat(format);
             }}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-gray-300 focus:outline-none focus:border-sol"
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
           >
             <option value="bibtex">BibTeX</option>
             <option value="ieee">IEEE</option>
@@ -95,23 +97,25 @@ export const CiteStep: React.FC<CiteStepProps> = ({
       ) : bibliography ? (
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-gray-500 font-mono">
+            <span className="text-sm text-muted-foreground font-mono">
               {bibliography.citation_count} citation
               {bibliography.citation_count !== 1 ? 's' : ''}
             </span>
-            <span className="text-xs text-gray-600 font-mono">
+            <span className="text-xs text-foreground font-mono">
               Generated {new Date(bibliography.generated_at).toLocaleString()}
             </span>
           </div>
-          <pre className="text-sm text-gray-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[350px] overflow-y-auto">
+          <pre className="text-sm text-muted-foreground font-mono overflow-x-auto whitespace-pre-wrap max-h-[350px] overflow-y-auto">
             {bibliography.content}
           </pre>
         </div>
       ) : (
         <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-          <BookOpen className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400 font-mono">No citations available</p>
-          <p className="text-sm text-gray-500 mt-2">
+          <BookOpen className="h-12 w-12 text-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground font-mono">
+            No citations available
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
             Citations are automatically extracted from your project documents
           </p>
         </div>
@@ -120,7 +124,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
       <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-white font-mono text-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back

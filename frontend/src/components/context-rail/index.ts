@@ -3,6 +3,8 @@ export { CollapsibleCard } from './CollapsibleCard';
 export { AgentActivityPanel } from './AgentActivityPanel';
 export { AllCitationsPanel } from './AllCitationsPanel';
 export { ContextPanel } from './ContextPanel';
+export { ProjectBindingCard } from './ProjectBindingCard';
+export { ProjectPickerPopover } from './ProjectPickerPopover';
 export { ProgressPanel } from './ProgressPanel';
 export { RelatedResultsPanel } from './RelatedResultsPanel';
 export { WorkingFoldersPanel } from './WorkingFoldersPanel';
