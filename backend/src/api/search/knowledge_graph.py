@@ -432,7 +432,7 @@ async def get_relationship(
     except Exception as e:
         logger.error(f"Error getting relationship {relationship_id}: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve relationship: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
