@@ -1,5 +1,6 @@
 const path = require('path');
 const { withSentryConfig } = require('@sentry/nextjs');
+const { resolveBackendUrl } = require('./config/resolveBackendUrl');
 
 const sentryOrg = process.env.SENTRY_ORG;
 const sentryProject = process.env.SENTRY_PROJECT;
@@ -122,8 +123,9 @@ const nextConfig = {
 
   // API configuration
   async rewrites() {
-    // Use BACKEND_URL env var if set (for Docker), otherwise default to localhost
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    // Vercel/standalone rewrites are server-side; never silently point remote
+    // deployments at localhost when the backend endpoint is missing.
+    const backendUrl = resolveBackendUrl();
     return [
       // API rewrites for backend integration
       {
