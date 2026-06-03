@@ -152,7 +152,7 @@ async def evaluate_search_quality(
     except Exception as e:
         logger.error(f"Error evaluating search quality: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to evaluate search quality: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -194,7 +194,7 @@ async def submit_user_feedback(
     except Exception as e:
         logger.error(f"Error recording user feedback: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to record feedback: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -231,7 +231,7 @@ async def get_quality_analytics(
     except Exception as e:
         logger.error(f"Error getting quality analytics: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve analytics: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
@@ -322,7 +322,7 @@ async def run_quality_benchmark(
     except Exception as e:
         logger.error(f"Error running quality benchmark: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to run benchmark: {str(e)}"
+            status_code=500, detail="Internal server error"
         )
 
 
