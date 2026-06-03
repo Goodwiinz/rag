@@ -26,17 +26,23 @@ Visual: `.impeccable/screenshots/chat-redesign-preview.png` (standalone preview,
 - **Hover affordance is honest.** Icon Sol-tints, `↵` reveals. Both convey "this is clickable and submits-on-Enter," nothing decorative.
 - **HITL banner names the choice.** "Approve to let it continue, or deny to stop here." Replaces ambiguous shouted label with a sentence that tells the user what each button does.
 
+## Pass 2 (2026-06-03): brief follow-ups landed
+
+1. **HITL arg preview — DONE.** `app/(dashboard)/chat/page.tsx` now extracts `tool_name`/`tool_args` (or nested `tools[0].{name,args}`) from the confirmation payload and renders args as a mono KV `<dl>` under the tool chip. Long values truncate to 140 chars with ellipsis. Handles flat-SSE and nested-polling shapes defensively.
+2. **Inline citation peek — ALREADY BUILT, defect fixed.** `CitationLink.tsx` had used Radix `HoverCard` for hover/tap source-passage preview since the migration; the only impeccable defect was a `text-[9px] uppercase tracking-wider font-mono` "PREVIEW" decorative label. Replaced with sentence-case Inter `Preview` + neutral icon, bumped preview to 4 lines / 240 chars.
+3. **Auth de-costume — DONE in pass 1.5.** See commit `8c664e51`.
+4. **Thread rail receded — DONE.** `ChatSidebar.tsx`: dropped the gold side-stripe active accent (was `absolute left-[-10px] w-0.5 bg-sol` — borderline anti-ref). Active state is now the only gold mark, via the aurum/ember background tint alone. Non-active hover switched from warm `bg-aurum/umber` to neutral `bg-bg-2/obsidian`. Section labels, filter chip labels, and workspace subtitle migrated from `font-mono uppercase tracking-[0.18em]` to Inter sentence-case. Dropped decorative `hover:translate-y` on the "New chat" button.
+5. **Tool-status microcopy — DONE.** Added `toolStatusLabel(tool, status)` to `context-rail/toolLabels.ts` with present-progressive ("Searching documents…", "Querying the knowledge graph…") and past tense ("Searched documents", "Created project") variants. `InlineAgentSummary.tsx` summary line now reads the latest active step's microcopy while running; expanded list renders status-aware labels per step. Step list font flipped from mono to Inter.
+
 ## What's still missing (against the brief)
 
-These are real gaps, not nits. Each = a candidate next craft pass.
-
-1. **Inline citation peek.** Brief's Layout Strategy #3: promote provenance from afterthought to inline. Today citations still resolve to the side panel only. Inline marker → hover/tap source-passage preview is not built.
-2. **HITL doesn't show what the tool touches.** Brief: "name the tool + what it touches." Banner names the tool (`ingest_arxiv_paper`); it does not preview the _arguments_ (which paper, which doc IDs, which note title). High-value defect — the choice is uninformed without it.
-3. **Auth surfaces still costume.** `app/(auth)/{forgot-password,reset-password,verify-email,cli-auth}/page.tsx` carry ~30 `font-mono uppercase tracking-[0.15em]` labels and ALL CAPS headings ("RESET LINK SENT", "ACCESS TERMINAL"). PRODUCT.md anti-ref #3. Color migrated, typography costume left.
-4. **Thread rail not yet receded.** Brief's Layout Strategy #1: rail uses a cooler neutral; current thread is the only gold mark. Not touched this pass.
-5. **Composer not retouched.** Pinned/calm is mostly there post-migration; brief's "single-family type" + Raycast-focus aesthetic not deliberately revisited.
-6. **Tool-status microcopy.** Streaming surfaces tool_start/tool_end events but the brief asks for plain-present-tense quiet inline lines ("Searching documents…", "Reading 3 sources"). Implementation in `useChatStreaming` + `ChatMessageList` not audited this pass.
-7. **Virtualization.** Long threads — brief says virtualized, scroll-anchored. Existing `VirtualizedConversationList` exists; not confirmed wired in the default path.
+1. **Composer single-family pass.** Pinned + calm post-migration; the deliberate Raycast-focus typography pass hasn't happened.
+2. **Long-thread virtualization — NOT IMPLEMENTED.** Honest audit:
+   - `VirtualizedConversationList.tsx` virtualizes **threads in the sidebar**, not messages in a thread.
+   - It's wired only into the legacy `ConversationSidebar`, not the in-use `ChatSidebar`.
+   - The active message column (`ChatMessageList.tsx`, 199 lines) uses plain `messages.map()` with no virtual scroller and no scroll anchoring.
+   - Building this properly = react-virtuoso or `@tanstack/react-virtual`, dynamic measured row heights, scroll-anchor preservation on streaming append, and citation-hover-card portal compatibility. 2-4 hour implementation with regression risk; deferred to a focused craft pass.
+3. **Score-badge color literals.** `CitationLink.tsx` still uses Tailwind emerald/amber/orange/red literals for the relevance score badge. Semantic mapping is honest but bypasses the theme token layer; minor.
 
 ## Concrete TODO for next pass
 
