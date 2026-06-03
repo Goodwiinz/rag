@@ -25,10 +25,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ children }) => {
     <div className="min-h-screen bg-gray-50">
       {/* Dashboard content will be implemented in later tasks */}
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        <h1 className="text-2xl font-bold text-foreground mb-4">
           Multimodal RAG System Dashboard
         </h1>
-        <p className="text-gray-600">
+        <p className="text-foreground">
           Welcome! The dashboard interface is being built.
         </p>
         {children}

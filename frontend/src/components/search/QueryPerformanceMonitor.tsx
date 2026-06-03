@@ -71,7 +71,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
       case 'high':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
@@ -89,7 +89,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav role="tablist" className="flex space-x-8">
             {['overview', 'latency', 'quality', 'resources', 'bottlenecks'].map(
               (tab) => (
@@ -102,7 +102,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                     'py-2 px-1 border-b-2 font-medium text-sm capitalize',
                     activeTab === tab
                       ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   )}
                 >
                   {tab}
@@ -168,20 +168,22 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   <div className="text-sm text-green-700">Answer Relevancy</div>
                 </div>
 
-                <div className="p-4 bg-purple-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <CircleStackIcon className="h-5 w-5 text-purple-600" />
-                    <span className="text-sm font-medium text-purple-900">
+                    <CircleStackIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <span className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                       {metrics.cache_performance.cache_hit_rate >= 0.5
                         ? 'Good'
                         : 'Poor'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-purple-900">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {Math.round(metrics.cache_performance.cache_hit_rate * 100)}
                     %
                   </div>
-                  <div className="text-sm text-purple-700">Cache Hit Rate</div>
+                  <div className="text-sm text-muted-foreground">
+                    Cache Hit Rate
+                  </div>
                 </div>
 
                 <div className="p-4 bg-orange-50 rounded-lg">
@@ -207,13 +209,13 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
               {/* RAG Triad Compliance */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                <h3 className="text-lg font-semibold text-foreground mb-3">
                   RAG Triad Compliance
                 </h3>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="p-4 border border-border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Answer Relevancy</span>
+                      <span className="text-foreground">Answer Relevancy</span>
                       <Badge
                         className={getScoreBackground(
                           metrics.quality_metrics.rag_triad_compliance
@@ -246,9 +248,9 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="p-4 border border-border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">Faithfulness</span>
+                      <span className="text-foreground">Faithfulness</span>
                       <Badge
                         className={getScoreBackground(
                           metrics.quality_metrics.rag_triad_compliance
@@ -281,9 +283,9 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="p-4 border border-border rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-700">
+                      <span className="text-foreground">
                         Contextual Relevancy
                       </span>
                       <Badge
@@ -323,12 +325,14 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               {/* Additional Metrics */}
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">
+                  <h4 className="font-medium text-foreground mb-2">
                     Quality Metrics
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Hallucination Risk:</span>
+                      <span className="text-foreground">
+                        Hallucination Risk:
+                      </span>
                       <span
                         className={cn(
                           'font-medium',
@@ -342,7 +346,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Confidence Score:</span>
+                      <span className="text-foreground">Confidence Score:</span>
                       <span
                         className={cn(
                           'font-medium',
@@ -358,12 +362,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                 </div>
 
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">
+                  <h4 className="font-medium text-foreground mb-2">
                     Resource Usage
                   </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Memory:</span>
+                      <span className="text-foreground">Memory:</span>
                       <span className="font-medium">
                         {formatBytes(
                           metrics.resource_usage.memory_mb * 1024 * 1024
@@ -371,7 +375,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Network Requests:</span>
+                      <span className="text-foreground">Network Requests:</span>
                       <span className="font-medium">
                         {metrics.resource_usage.network_requests}
                       </span>
@@ -385,7 +389,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
           {/* Latency Breakdown Tab */}
           {activeTab === 'latency' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 Stage Latency Breakdown
               </h3>
               <div className="space-y-4">
@@ -393,14 +397,14 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   ([stage, latency]) => (
                     <div
                       key={stage}
-                      className="p-4 border border-gray-200 rounded-lg"
+                      className="p-4 border border-border rounded-lg"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-gray-900 capitalize">
+                        <span className="font-medium text-foreground capitalize">
                           {stage.replace('_', ' ')}
                         </span>
                         <div className="flex items-center space-x-2">
-                          <span className="text-lg font-bold text-gray-900">
+                          <span className="text-lg font-bold text-foreground">
                             {latency}ms
                           </span>
                           <Badge
@@ -435,7 +439,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           }}
                         />
                       </div>
-                      <div className="mt-2 text-sm text-gray-600">
+                      <div className="mt-2 text-sm text-foreground">
                         {Math.round((latency / metrics.total_latency_ms) * 100)}
                         % of total time
                       </div>
@@ -449,13 +453,13 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
           {/* Quality Metrics Tab */}
           {activeTab === 'quality' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 Quality Analysis
               </h3>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-4">
+                  <h4 className="font-medium text-foreground mb-4">
                     RAG Triad Scores
                   </h4>
                   <div className="space-y-3">
@@ -466,7 +470,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         key={metric}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
-                        <span className="font-medium text-gray-900 capitalize">
+                        <span className="font-medium text-foreground capitalize">
                           {metric.replace('_', ' ')}
                         </span>
                         <div className="flex items-center space-x-2">
@@ -498,12 +502,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                 </div>
 
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-4">
+                  <h4 className="font-medium text-foreground mb-4">
                     Additional Quality Metrics
                   </h4>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-foreground">
                         Hallucination Risk
                       </span>
                       <Badge
@@ -516,7 +520,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-foreground">
                         Confidence Score
                       </span>
                       <Badge
@@ -536,7 +540,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
           {/* Resources Tab */}
           {activeTab === 'resources' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 Resource Utilization
               </h3>
 
@@ -586,41 +590,43 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   </div>
                 </div>
 
-                <div className="p-4 bg-purple-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center space-x-2 mb-3">
-                    <ServerIcon className="h-5 w-5 text-purple-600" />
-                    <h4 className="font-medium text-purple-900">Network</h4>
+                    <ServerIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <h4 className="font-medium text-[var(--nous-fg-accent-safe)]">
+                      Network
+                    </h4>
                   </div>
-                  <div className="text-2xl font-bold text-purple-900 mb-2">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)] mb-2">
                     {metrics.resource_usage.network_requests}
                   </div>
-                  <div className="text-sm text-purple-700">Requests</div>
+                  <div className="text-sm text-muted-foreground">Requests</div>
                 </div>
               </div>
 
               {/* Cache Performance */}
               <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">
+                <h4 className="font-medium text-foreground mb-3">
                   Cache Performance
                 </h4>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <div className="text-lg font-bold text-gray-900">
+                    <div className="text-lg font-bold text-foreground">
                       {metrics.cache_performance.cache_hit_rate * 100}%
                     </div>
-                    <div className="text-sm text-gray-600">Hit Rate</div>
+                    <div className="text-sm text-foreground">Hit Rate</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-gray-900">
+                    <div className="text-lg font-bold text-foreground">
                       {metrics.cache_performance.cache_hits}
                     </div>
-                    <div className="text-sm text-gray-600">Hits</div>
+                    <div className="text-sm text-foreground">Hits</div>
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-gray-900">
+                    <div className="text-lg font-bold text-foreground">
                       {metrics.cache_performance.cache_misses}
                     </div>
-                    <div className="text-sm text-gray-600">Misses</div>
+                    <div className="text-sm text-foreground">Misses</div>
                   </div>
                 </div>
               </div>
@@ -630,7 +636,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
           {/* Bottlenecks Tab */}
           {activeTab === 'bottlenecks' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 Performance Bottlenecks
               </h3>
 
@@ -639,13 +645,13 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   {metrics.bottlenecks.map((bottleneck, index) => (
                     <div
                       key={index}
-                      className="p-4 border border-gray-200 rounded-lg"
+                      className="p-4 border border-border rounded-lg"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-foreground">
                               {bottleneck.stage.replace('_', ' ')}
                             </span>
                             <Badge
@@ -654,7 +660,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                               {bottleneck.impact} impact
                             </Badge>
                           </div>
-                          <p className="text-sm text-gray-700 mb-2">
+                          <p className="text-sm text-foreground mb-2">
                             {bottleneck.issue}
                           </p>
                           <p className="text-sm text-blue-700">
@@ -668,10 +674,10 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               ) : (
                 <div className="text-center py-8">
                   <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <h3 className="text-lg font-medium text-foreground mb-2">
                     No bottlenecks detected
                   </h3>
-                  <p className="text-gray-600">
+                  <p className="text-foreground">
                     Performance is optimal across all stages
                   </p>
                 </div>
@@ -818,7 +824,7 @@ export const QueryPerformanceMonitor: React.FC<
       case 'needs-improvement':
         return 'text-red-600';
       default:
-        return 'text-gray-600';
+        return 'text-foreground';
     }
   };
 
@@ -831,7 +837,7 @@ export const QueryPerformanceMonitor: React.FC<
       case 'needs-improvement':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-foreground';
     }
   };
 
@@ -852,9 +858,9 @@ export const QueryPerformanceMonitor: React.FC<
             <ChartBarIcon className="h-5 w-5 text-blue-600" />
           )}
           <div>
-            <h3 className="font-medium text-gray-900">Performance Monitor</h3>
+            <h3 className="font-medium text-foreground">Performance Monitor</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-foreground">
                 {metrics.total_latency_ms}ms total latency
               </span>
               <Badge className={getStatusBackground(performanceStatus)}>
@@ -913,13 +919,13 @@ export const QueryPerformanceMonitor: React.FC<
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
-          <CircleStackIcon className="h-4 w-4 text-purple-600" />
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+          <CircleStackIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
           <div>
-            <div className="text-sm font-medium text-purple-900">
+            <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
               {Math.round(metrics.cache_performance.cache_hit_rate * 100)}%
             </div>
-            <div className="text-xs text-purple-700">Cache Hit</div>
+            <div className="text-xs text-muted-foreground">Cache Hit</div>
           </div>
         </div>
 

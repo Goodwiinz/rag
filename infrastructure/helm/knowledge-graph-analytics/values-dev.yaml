@@ -20,58 +20,8 @@ infisical:
   enabled: true
   envSlug: "dev"
 # ──────────────────────────────────────────────
-# Frontend
-# ──────────────────────────────────────────────
-frontend:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: registry.digitalocean.com/ragsystemregistry/frontend
-    tag: "2c98ce7"
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 3000
-  ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-    hosts:
-      - host: dev-app.gen-text.app
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: rag-dev-app-tls
-        hosts:
-          - dev-app.gen-text.app
-  resources:
-    limits:
-      cpu: 500m
-      memory: 512Mi
-    requests:
-      cpu: 100m
-      memory: 256Mi
-  autoscaling:
-    enabled: false
-  env:
-    - name: NODE_ENV
-      value: "production"
-    - name: NEXT_PUBLIC_ENVIRONMENT
-      value: "dev"
-    - name: BACKEND_URL
-      value: "http://nous-dev-knowledge-graph-analytics-backend.rag-dev.svc.cluster.local:80"
-  healthCheck:
-    enabled: true
-    path: /
-    initialDelaySeconds: 15
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+# Frontend deployed via Vercel — no in-cluster manifests.
+# Host: dev-app.gen-text.app (DNS points at Vercel).
 # ──────────────────────────────────────────────
 # Backend
 # ──────────────────────────────────────────────
@@ -80,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "2c98ce7"
+    tag: "d71bf5f"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -157,6 +107,10 @@ backend:
       value: "2"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
+    # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=dev) → synced into
+    # the `app-secrets` K8s Secret, exposed via envFrom above. Set the regex
+    # there to the project-specific Vercel slug (e.g.
+    # ^https://nous-platform-[a-z0-9-]+\.vercel\.app$). Empty disables.
     # Database pool sizing: tuned for Supabase session-mode pooler limits
     # (Nano=15 connections). Reduce if switching to transaction-mode pooler.
     - name: DB_ASYNC_POOL_SIZE

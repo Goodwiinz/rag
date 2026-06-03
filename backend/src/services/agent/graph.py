@@ -199,16 +199,6 @@ def _safe_json_loads(s: str) -> Any:
         return {"raw": s}
 
 
-def _escape_like(s: str) -> str:
-    """Escape SQL LIKE wildcards in untrusted strings.
-
-    Storage keys come from the DO Knowledge Base API — an external service.
-    Backslash escapes both ``%`` (multi-char wildcard) and ``_`` (single
-    char) so a malformed/malicious key cannot broaden the suffix match.
-    Use with ``Column.like(pattern, escape='\\\\')``.
-    """
-    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
 
 # ---------------------------------------------------------------------------
 # LLM construction

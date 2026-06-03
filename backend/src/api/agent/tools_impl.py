@@ -359,13 +359,18 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "extract_entities",
-            "description": "Extract named entities (people, organizations, concepts, etc.) from a document.",
+            "description": "Extract named entities from a document using LLM analysis. Finds people, organizations, concepts, methods, models, datasets, and more.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "document_id": {
                         "type": "string",
                         "description": "The UUID of the document to extract entities from",
+                    },
+                    "entity_types": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional filter. Allowed types: PERSON, ORGANIZATION, CONCEPT, METHOD, MODEL, DATASET, TECHNOLOGY, METRIC, LOCATION, RESEARCH. Omit for all types.",
                     },
                 },
                 "required": ["document_id"],
@@ -1135,9 +1140,9 @@ async def _tool_do_kb_retrieve(
     if not query:
         return {"error": "Query is required", "chunks": [], "total": 0}
 
-    top_k = max(1, min(int(args.get("top_k", 8)), 20))
-
     from src.core.config import settings as _kb_settings
+
+    top_k = max(1, min(int(args.get("top_k", _kb_settings.DO_KB_DEFAULT_TOP_K)), 20))
 
     if not getattr(_kb_settings, "DO_KB_ENABLED", False):
         return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
@@ -1167,73 +1172,20 @@ async def _tool_do_kb_retrieve(
             "error": f"Retrieval failed: {exc}",
         }
 
-    # Resolve storage-key document_ids back to real Document.id + title so the
-    # agent can cite by title and link to the canonical row. DO KB returns
-    # ``item_name`` as the leaf filename, while Document.storage_path stores
-    # the full canonical key — match both by suffix.
-    title_by_key: dict[str, tuple[str, str]] = {}
-    if db is not None and result.chunks:
-        from sqlalchemy import or_, select
-
-        from src.models.document import Document
-
-        storage_keys = {c.document_id for c in result.chunks if c.document_id}
-        if storage_keys:
-            from src.services.agent.graph import _escape_like
-
-            filters = [Document.storage_path == k for k in storage_keys]
-            filters += [
-                Document.storage_path.like(f"%/{_escape_like(k)}", escape="\\")
-                for k in storage_keys
-            ]
-            rows = await db.execute(
-                select(Document.id, Document.storage_path, Document.title)
-                .where(Document.organization_id == current_user.organization_id)
-                .where(or_(*filters))
-            )
-            for doc_id, storage_path, title in rows:
-                if storage_path in storage_keys:
-                    leaf = storage_path
-                else:
-                    leaf = storage_path.rsplit("/", 1)[-1] if storage_path else ""
-                title_by_key[leaf] = (str(doc_id), title or leaf)
-
-    # Project scoping: drop chunks whose resolved document is not in the
-    # active project. DO KB is org-scoped, so cross-project leakage is
-    # filtered here via the collection_documents association.
+    # Resolve storage-key document_ids back to real Document rows and
+    # optionally filter by project membership.
     project_id = args.get("project_id")
+    title_by_key: dict[str, tuple[str, str]] = {}
     chunks_to_emit = result.chunks
-    if project_id and db is not None and title_by_key:
-        from uuid import UUID as _UUID
+    if db is not None and result.chunks:
+        from src.services.do_kb.resolve import resolve_and_filter_chunks
 
-        from src.models.collection import CollectionDocument
-
-        resolved_doc_ids = {
-            _UUID(doc_id) for doc_id, _ in title_by_key.values() if doc_id
-        }
-        if resolved_doc_ids:
-            try:
-                pid = _UUID(str(project_id))
-            except (ValueError, TypeError):
-                pid = None
-            if pid is not None:
-                from sqlalchemy import select as _select
-
-                membership_rows = await db.execute(
-                    _select(CollectionDocument.document_id).where(
-                        CollectionDocument.collection_id == pid,
-                        CollectionDocument.document_id.in_(resolved_doc_ids),
-                    )
-                )
-                in_project = {str(r[0]) for r in membership_rows}
-                chunks_to_emit = [
-                    c
-                    for c in result.chunks
-                    if (
-                        title_by_key.get(c.document_id or "", (None, None))[0] or ""
-                    )
-                    in in_project
-                ]
+        title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
+            chunks=result.chunks,
+            org_id=current_user.organization_id,
+            session=db,
+            project_id=project_id,
+        )
 
     chunks_payload = []
     for c in chunks_to_emit:
@@ -1368,6 +1320,9 @@ async def _tool_create_project(
                 description=args.get("description") or None,
                 research_goals=args.get("research_goals") or None,
                 tags=list(args.get("tags") or []),
+                deadline=None,
+                color=None,
+                icon=None,
             )
 
             project = await service.create_project(
@@ -1558,7 +1513,7 @@ async def _tool_list_projects(
                 limit=limit,
             )
 
-            projects = result.get("projects", [])
+            projects = list(result.get("projects") or [])
             return {
                 "projects": [
                     {
@@ -1766,16 +1721,18 @@ async def _tool_compare_documents(
 
 async def _tool_extract_entities(
     args: Dict[str, Any],
-    db: Optional[AsyncSession],
+    db: Any,
     current_user: Optional[User],
 ) -> Dict[str, Any]:
-    """Extract named entities from a document."""
+    """Extract named entities from a document using LLM."""
     if not db or not current_user:
         return {"error": "Authentication required"}
 
     document_id = args.get("document_id", "")
     if not document_id:
         return {"error": "document_id is required"}
+
+    entity_types = args.get("entity_types")
 
     try:
         doc = await _resolve_document_id(document_id, db, current_user)
@@ -1792,32 +1749,37 @@ async def _tool_extract_entities(
         if not text or text.startswith("Error"):
             return {"error": "Could not extract text from document"}
 
-        # Truncate for entity extraction
-        text_for_extraction = text[:10000]
-
-        from src.services.documents.enhanced_document_processing_service import (
-            EntityExtractor,
+        from src.services.processing.llm_entity_extraction import (
+            LLMEntityExtractionService,
         )
 
-        extractor = EntityExtractor()
-        result = await extractor.extract_entities(text_for_extraction, str(doc.id))
+        service = LLMEntityExtractionService()
+        result = await service.extract_entities(text, entity_types=entity_types)
 
-        if result.success and result.data:
-            entities = result.data.get("entities", [])
+        if result.entities:
             return {
                 "entities": [
                     {
-                        "text": e.get("text", ""),
-                        "type": e.get("label", "UNKNOWN"),
-                        "confidence": e.get("confidence", 0.0),
+                        "name": e.name,
+                        "type": e.type,
+                        "description": e.description,
+                        "confidence": e.confidence,
+                        "aliases": e.aliases,
                     }
-                    for e in entities[:50]
+                    for e in result.entities[:50]
                 ],
-                "total": len(entities),
+                "total": len(result.entities),
+                "chunks_processed": result.chunks_processed,
                 "document_id": document_id,
                 "title": doc.title or "Untitled",
             }
-        return {"entities": [], "total": 0, "document_id": document_id}
+
+        return {
+            "entities": [],
+            "total": 0,
+            "document_id": document_id,
+            "error": result.error,
+        }
     except Exception as e:
         logger.error("extract_entities tool failed", exc_info=e)
         return {"error": f"Entity extraction failed: {str(e)}"}
@@ -2334,11 +2296,11 @@ async def _tool_search_external_database(args: Dict[str, Any]) -> Dict[str, Any]
         connectors_searched = []
         for connector, result in zip(targets, all_results):
             connectors_searched.append(connector.info.name)
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.warning(
-                    "connector_search_failed",
-                    connector=connector.info.name,
-                    error=str(result),
+                    "connector_search_failed: connector=%s error=%s",
+                    connector.info.name,
+                    str(result),
                 )
                 continue
             for r in result:

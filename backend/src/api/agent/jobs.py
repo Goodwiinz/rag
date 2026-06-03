@@ -347,6 +347,7 @@ async def _persist_assistant_message(
     content: str,
     model_name: Optional[str],
     tool_executions_out: Optional[list],
+    retrieved_contexts: Optional[list] = None,
 ) -> None:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
 
@@ -358,6 +359,7 @@ async def _persist_assistant_message(
     from uuid import UUID
 
     from src.models.chat_message import ChatMessage, MessageRole
+    from src.models.citation import Citation as CitationModel
     from src.models.thread import Thread
 
     tool_exec_data = None
@@ -376,15 +378,31 @@ async def _persist_assistant_message(
             for te in tool_executions_out
         ]
 
-    db.add(
-        ChatMessage(
-            thread_id=UUID(thread_id),
-            role=MessageRole.ASSISTANT,
-            content=content,
-            model_name=model_name,
-            tool_executions=tool_exec_data,
-        )
+    msg = ChatMessage(
+        thread_id=UUID(thread_id),
+        role=MessageRole.ASSISTANT,
+        content=content,
+        model_name=model_name,
+        tool_executions=tool_exec_data,
     )
+    db.add(msg)
+    await db.flush()
+
+    if retrieved_contexts:
+        for ctx in retrieved_contexts:
+            doc_id = ctx.get("document_id")
+            db.add(
+                CitationModel(
+                    message_id=msg.id,
+                    document_id=UUID(doc_id) if doc_id else None,
+                    external_reference_id=ctx.get("external_reference_id"),
+                    document_title=ctx.get("title"),
+                    snippet=ctx.get("content", "")[:2000],
+                    score=ctx.get("score"),
+                    rerank_score=ctx.get("rerank_score"),
+                )
+            )
+
     thread = await db.get(Thread, UUID(thread_id))
     if thread is not None:
         thread.message_count = (thread.message_count or 0) + 1
@@ -398,6 +416,7 @@ async def _persist_assistant_message_safe(
     content: str,
     model_name: Optional[str],
     tool_executions_out: Optional[list],
+    retrieved_contexts: Optional[list] = None,
 ) -> None:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
@@ -417,6 +436,7 @@ async def _persist_assistant_message_safe(
                 content=content,
                 model_name=model_name,
                 tool_executions_out=tool_executions_out,
+                retrieved_contexts=retrieved_contexts,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -448,6 +468,7 @@ async def _persist_thread_messages(
     request: Any,  # AgentExecuteRequest
     assistant_content: str,
     tool_executions_out: Optional[list] = None,
+    retrieved_contexts: Optional[list] = None,
 ) -> tuple[str, str]:
     """Persist thread & messages to the database (deprecated shim).
 
@@ -460,13 +481,8 @@ async def _persist_thread_messages(
     if thread is None:
         return request.thread_id or "", ""
 
-    # Materialize the thread id before any further DB work so the resolved
-    # id is returned even if a later commit fails.
     thread_id = str(thread.id)
 
-    # Mutate the request so the user-write helper targets the just-resolved
-    # thread (the original code path handled both pre-existing and freshly
-    # created threads uniformly).
     if request.thread_id != thread_id:
         request.thread_id = thread_id
 
@@ -477,6 +493,7 @@ async def _persist_thread_messages(
         content=assistant_content,
         model_name=request.model,
         tool_executions_out=tool_executions_out,
+        retrieved_contexts=retrieved_contexts,
     )
 
     return thread_id, conversation_id
@@ -513,6 +530,7 @@ async def _run_agent_graph(
             # assistant row continues to be written after the graph
             # finishes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
             resolved_thread_id: Optional[str] = None
+            thread_obj = None
             try:
                 thread_obj, _conversation_id = await _resolve_thread(
                     db, current_user, request
@@ -546,9 +564,21 @@ async def _run_agent_graph(
                 if m.role == "user"
             ]
 
+            page_context = _page_context_to_dict(request.page_context)
+            if (
+                thread_obj is not None
+                and getattr(thread_obj, "source_project_id", None)
+                and not page_context.get("project_id")
+            ):
+                page_context["project_id"] = str(thread_obj.source_project_id)
+                if hasattr(thread_obj, "source_project") and thread_obj.source_project:
+                    page_context["project_name"] = thread_obj.source_project.name
+                if not page_context.get("type") or page_context["type"] == "chat":
+                    page_context["type"] = "project"
+
             initial_state = {
                 "messages": messages,
-                "page_context": _page_context_to_dict(request.page_context),
+                "page_context": page_context,
                 "retrieved_contexts": [],
                 "tool_executions": [],
                 "thread_id": request.thread_id or "",
@@ -573,7 +603,7 @@ async def _run_agent_graph(
                     "thread_id": request.thread_id or job_id,
                     "db": db,
                     "current_user": current_user,
-                    "page_context": _page_context_to_dict(request.page_context),
+                    "page_context": page_context,
                 }
             }
 
@@ -642,6 +672,7 @@ async def _run_agent_graph(
                         content=assistant_content,
                         model_name=request.model,
                         tool_executions_out=tool_executions_out,
+                        retrieved_contexts=final_state.get("retrieved_contexts"),
                     )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
@@ -689,6 +720,12 @@ async def _run_agent_graph(
             except Exception:
                 logger.exception("Failed to mark cancelled job %s", job_id)
             raise
+        except asyncio.TimeoutError:
+            logger.error("Agent graph execution timed out", extra={"job_id": job_id})
+            await _set_job_async(
+                job_id,
+                {"status": "failed", "error": "Agent execution timed out after 360s"},
+            )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})
@@ -741,11 +778,12 @@ async def _resume_agent_graph(
                 }
             }
 
-            # Verify thread ownership before resuming
+            # Verify thread ownership before resuming. Checkpoints without an
+            # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
             if snapshot and snapshot.values:
-                snapshot_user_id = snapshot.values.get("user_id", "")
-                if snapshot_user_id and snapshot_user_id != str(current_user.id):
+                snapshot_user_id = snapshot.values.get("user_id")
+                if not snapshot_user_id or snapshot_user_id != str(current_user.id):
                     logger.warning(
                         "HITL ownership mismatch: job %s thread owned by %s, requested by %s",
                         job_id,
@@ -853,6 +891,12 @@ async def _resume_agent_graph(
             except Exception:
                 logger.exception("Failed to mark cancelled resume job %s", job_id)
             raise
+        except asyncio.TimeoutError:
+            logger.error("Agent graph resume timed out", extra={"job_id": job_id})
+            await _set_job_async(
+                job_id,
+                {"status": "failed", "error": "Agent execution timed out after 360s"},
+            )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
             await _set_job_async(job_id, {"status": "failed", "error": str(e)})

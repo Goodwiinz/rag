@@ -33,12 +33,12 @@ export const CollectStep: React.FC<CollectStepProps> = ({
           <h3 className="text-lg font-mono font-semibold text-white">
             Collect Documents
           </h3>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Add documents to your project from the Documents page, then continue
             to the next step.
           </p>
         </div>
-        <span className="text-sm font-mono text-gray-500">
+        <span className="text-sm font-mono text-muted-foreground">
           {documents.length} document{documents.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -49,11 +49,11 @@ export const CollectStep: React.FC<CollectStepProps> = ({
         </div>
       ) : documents.length === 0 ? (
         <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-          <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400 font-mono">
+          <FileText className="h-12 w-12 text-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground font-mono">
             No documents in this project
           </p>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-sm text-muted-foreground mt-2">
             Add documents from the Documents page to get started
           </p>
         </div>
@@ -67,12 +67,12 @@ export const CollectStep: React.FC<CollectStepProps> = ({
               <div className="flex items-center gap-3">
                 <FileText className="h-4 w-4 text-sol" />
                 <div>
-                  <p className="font-mono text-sm text-gray-200">
+                  <p className="font-mono text-sm text-muted-foreground">
                     {doc.document?.title ||
                       doc.document?.filename ||
                       'Untitled'}
                   </p>
-                  <p className="text-xs text-gray-500 font-mono">
+                  <p className="text-xs text-muted-foreground font-mono">
                     Added{' '}
                     {new Date(
                       doc.added_at || doc.document?.created_at || Date.now()
@@ -82,7 +82,7 @@ export const CollectStep: React.FC<CollectStepProps> = ({
               </div>
               <button
                 onClick={() => onRemoveDocument(doc.document_id)}
-                className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
                 title="Remove from project"
               >
                 <Trash2 className="h-3.5 w-3.5" />

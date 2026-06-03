@@ -27,7 +27,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
   if (!node) {
     return (
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-        <p className="text-gray-500 font-mono text-sm text-center">
+        <p className="text-muted-foreground font-mono text-sm text-center">
           Click a node to view details
         </p>
       </div>
@@ -55,13 +55,15 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
             {node.title || 'Untitled'}
           </h3>
           {node.year && (
-            <p className="text-xs text-gray-500 mt-1 font-mono">{node.year}</p>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
+              {node.year}
+            </p>
           )}
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close details panel"
           >
             <X className="h-4 w-4" />
@@ -74,10 +76,10 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
         {/* Authors */}
         {node.authors && node.authors.length > 0 && (
           <div>
-            <label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+            <label className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
               Authors
             </label>
-            <p className="text-sm text-gray-300 font-mono mt-1">
+            <p className="text-sm text-muted-foreground font-mono mt-1">
               {node.authors.join(', ')}
             </p>
           </div>
@@ -86,10 +88,12 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
         {/* Venue */}
         {node.venue && (
           <div>
-            <label className="text-xs text-gray-500 font-mono uppercase tracking-wide">
+            <label className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
               Venue
             </label>
-            <p className="text-sm text-gray-300 font-mono mt-1">{node.venue}</p>
+            <p className="text-sm text-muted-foreground font-mono mt-1">
+              {node.venue}
+            </p>
           </div>
         )}
 
@@ -99,14 +103,18 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
             <div className="text-2xl font-mono text-sol">
               {node.citation_count || 0}
             </div>
-            <div className="text-xs text-gray-500 font-mono">Citations</div>
+            <div className="text-xs text-muted-foreground font-mono">
+              Citations
+            </div>
           </div>
           {node.influence_score !== undefined && (
             <div className="bg-[#1a1a1a] rounded p-3">
               <div className="text-2xl font-mono text-helios">
                 {node.influence_score.toFixed(1)}
               </div>
-              <div className="text-xs text-gray-500 font-mono">Influence</div>
+              <div className="text-xs text-muted-foreground font-mono">
+                Influence
+              </div>
             </div>
           )}
         </div>
@@ -116,7 +124,9 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
           {node.doi && (
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded p-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-mono">DOI:</span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  DOI:
+                </span>
                 <a
                   href={`https://doi.org/${node.doi}`}
                   target="_blank"
@@ -129,7 +139,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
               </div>
               <button
                 onClick={handleCopyDoi}
-                className="p-1 text-gray-500 hover:text-gray-300"
+                className="p-1 text-muted-foreground hover:text-foreground"
                 title="Copy DOI"
                 aria-label="Copy DOI to clipboard"
               >
@@ -141,7 +151,9 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
           {node.arxiv_id && (
             <div className="flex items-center justify-between bg-[#1a1a1a] rounded p-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-mono">arXiv:</span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  arXiv:
+                </span>
                 <a
                   href={`https://arxiv.org/abs/${node.arxiv_id}`}
                   target="_blank"
@@ -154,7 +166,7 @@ export const CitationNodeDetails: React.FC<CitationNodeDetailsProps> = ({
               </div>
               <button
                 onClick={handleCopyArxiv}
-                className="p-1 text-gray-500 hover:text-gray-300"
+                className="p-1 text-muted-foreground hover:text-foreground"
                 title="Copy arXiv ID"
                 aria-label="Copy arXiv ID to clipboard"
               >

@@ -733,7 +733,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       >
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-8 w-8 animate-spin text-sol" />
-          <span className="text-sm text-gray-400 font-mono">
+          <span className="text-sm text-muted-foreground font-mono">
             Loading citation graph...
           </span>
         </div>
@@ -748,8 +748,10 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         style={{ height }}
       >
         <div className="text-center">
-          <p className="text-gray-400 font-mono">No citations to display</p>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-muted-foreground font-mono">
+            No citations to display
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
             Extract citations from documents to build the graph
           </p>
         </div>
@@ -818,20 +820,20 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
         <div className="flex items-center gap-4 text-xs font-mono">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-sol" />
-            <span className="text-gray-400">Uploaded</span>
+            <span className="text-muted-foreground">Uploaded</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-full bg-helios" />
-            <span className="text-gray-400">External</span>
+            <span className="text-muted-foreground">External</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-6 h-0.5 bg-[#333]" />
-            <span className="text-gray-400">Cites</span>
+            <span className="text-muted-foreground">Cites</span>
           </div>
           {isClusteredView && (
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-3 rounded border-2 border-dashed border-brand-cyan bg-brand-cyan/20" />
-              <span className="text-gray-400">Cluster</span>
+              <span className="text-muted-foreground">Cluster</span>
             </div>
           )}
         </div>
@@ -840,7 +842,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
       {/* Stats */}
       {data.metadata && (
         <div className="absolute top-4 left-4 bg-[#1a1a1a]/90 border border-[#333] rounded px-3 py-2">
-          <div className="text-xs font-mono text-gray-400">
+          <div className="text-xs font-mono text-muted-foreground">
             <span className="text-sol">
               {data.metadata.total_nodes.toLocaleString()}
             </span>{' '}
@@ -858,7 +860,7 @@ export const CitationGraph: React.FC<CitationGraphProps> = ({
                 <span className="text-brand-cyan">{clusters.length}</span>{' '}
                 clusters
                 {expandedClusters.size > 0 && (
-                  <span className="text-gray-500">
+                  <span className="text-muted-foreground">
                     {' '}
                     ({expandedClusters.size} expanded)
                   </span>

@@ -157,16 +157,16 @@ export const DocumentEntityExtractor: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Document Entity Extraction
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
           <div className="space-y-2">
-            <label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+            <label className="text-xs font-mono text-[var(--nous-fg-3)]">
               Select Document
             </label>
             <Select
@@ -174,17 +174,17 @@ export const DocumentEntityExtractor: React.FC = () => {
               onValueChange={setSelectedDocumentId}
               disabled={loadingDocs || loading}
             >
-              <SelectTrigger className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)]">
+              <SelectTrigger className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]">
                 <SelectValue
                   placeholder={loadingDocs ? 'Loading documents...' : 'Select a document'}
                 />
               </SelectTrigger>
-              <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+              <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
                 {documents.map((doc) => (
                   <SelectItem
                     key={doc.id}
                     value={doc.id}
-                    className="font-mono text-xs text-[var(--terminal-text)]"
+                    className="font-mono text-xs text-[var(--nous-fg-1)]"
                   >
                     {doc.title || doc.filename}
                   </SelectItem>
@@ -195,12 +195,12 @@ export const DocumentEntityExtractor: React.FC = () => {
 
           {loading && progress > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono text-[var(--terminal-text-dim)]">
+              <div className="flex items-center justify-between text-xs font-mono text-[var(--nous-fg-3)]">
                 <span>{jobStep || 'Processing...'}</span>
                 <span>{progress}%</span>
               </div>
               <Progress value={progress} className="h-2" />
-              {activeJobId && <p className="text-[10px] font-mono text-[var(--terminal-text-dim)]">JOB: {activeJobId}</p>}
+              {activeJobId && <p className="text-[10px] font-mono text-[var(--nous-fg-3)]">JOB: {activeJobId}</p>}
             </div>
           )}
 
@@ -208,7 +208,7 @@ export const DocumentEntityExtractor: React.FC = () => {
             <Button
               onClick={handleExtractEntities}
               disabled={loading || !selectedDocumentId}
-              className="font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+              className="font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
             >
               {loading ? (
                 <>
@@ -227,7 +227,7 @@ export const DocumentEntityExtractor: React.FC = () => {
               onClick={handleBatchExtract}
               disabled={loading || documents.length === 0}
               variant="outline"
-              className="font-mono text-xs font-bold border-[var(--terminal-border)]"
+              className="font-mono text-xs font-bold border-[var(--nous-border-1)]"
             >
               {loading ? (
                 <>
@@ -246,42 +246,42 @@ export const DocumentEntityExtractor: React.FC = () => {
       </Card>
 
       {result && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-          <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)]">
               Extraction Results
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2 mb-2">
-                  <FileText className="w-4 h-4 text-[var(--cyan)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">FOUND</span>
+                  <FileText className="w-4 h-4 text-[var(--nous-helios)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">FOUND</span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--cyan)]">{result.entities_found}</p>
+                <p className="text-2xl font-mono font-bold text-[var(--nous-helios)]">{result.entities_found}</p>
               </div>
 
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-4 h-4 text-[var(--phosphor-green)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">CREATED</span>
+                  <CheckCircle className="w-4 h-4 text-[var(--nous-sol)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">CREATED</span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--phosphor-green)]">{result.entities_created}</p>
+                <p className="text-2xl font-mono font-bold text-[var(--nous-sol)]">{result.entities_created}</p>
               </div>
 
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-4 h-4 text-[var(--amber-gold)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">ERRORS</span>
+                  <AlertCircle className="w-4 h-4 text-[var(--nous-helios)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">ERRORS</span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--amber-gold)]">{result.errors}</p>
+                <p className="text-2xl font-mono font-bold text-[var(--nous-helios)]">{result.errors}</p>
               </div>
 
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2 mb-2">
                   <Loader2 className="w-4 h-4 text-[var(--purple)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">DOCS</span>
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">DOCS</span>
                 </div>
                 <p className="text-2xl font-mono font-bold text-[var(--purple)]">{result.document_ids?.length || 0}</p>
               </div>

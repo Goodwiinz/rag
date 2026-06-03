@@ -125,6 +125,7 @@ export interface ThreadCreate {
   conversation_id: string;
   title?: string;
   initial_message?: string;
+  project_id?: string;
 }
 
 export interface ThreadUpdate {
@@ -187,8 +188,8 @@ export interface BulkThreadResponse {
 
 export interface Citation {
   id: string;
-  document_id?: string;  // Optional: may not have a database UUID
-  external_reference_id?: string;  // For non-database references (e.g., arXiv IDs)
+  document_id?: string; // Optional: may not have a database UUID
+  external_reference_id?: string; // For non-database references (e.g., arXiv IDs)
   chunk_index?: number;
   chunk_id?: string;
   snippet?: string;
@@ -212,8 +213,8 @@ export interface MessageAttachment {
 
 // Citation input for creating messages with RAG sources
 export interface CitationCreate {
-  document_id?: string;  // Optional: may not have a database UUID
-  external_reference_id?: string;  // For non-database references (e.g., arXiv IDs)
+  document_id?: string; // Optional: may not have a database UUID
+  external_reference_id?: string; // For non-database references (e.g., arXiv IDs)
   chunk_index?: number;
   chunk_id?: string;
   snippet?: string;
@@ -230,7 +231,7 @@ export interface ChatMessageCreate {
   content: string;
   role?: MessageRole;
   attachment_ids?: string[];
-  citations?: CitationCreate[];  // Citations from RAG retrieval
+  citations?: CitationCreate[]; // Citations from RAG retrieval
 }
 
 export interface ChatMessageUpdate {

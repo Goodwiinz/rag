@@ -50,24 +50,24 @@ export function TrackingTab({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
-          <Sparkles className="h-3 w-3 text-[var(--amber-gold)]" />
+        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
+          <Sparkles className="h-3 w-3 text-[var(--nous-helios)]" />
           Track New and Updated Papers
         </span>
-        <span className="inline-flex items-center rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
+        <span className="inline-flex items-center rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
           {selectedCategories.length} categories selected
         </span>
-        <span className="inline-flex items-center rounded-md border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
+        <span className="inline-flex items-center rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-muted-foreground">
           {daysBack} day depth
         </span>
       </div>
 
       {!isAuthenticated && (
-        <div className="rounded-xl border border-[var(--cyan)]/20 bg-[var(--cyan)]/5 p-4">
+        <div className="rounded-xl border border-[var(--nous-helios)]/20 bg-[var(--nous-helios)]/5 p-4">
           <div className="flex items-start gap-3">
-            <div className="rounded-lg border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 p-2">
+            <div className="rounded-lg border border-[var(--nous-helios)]/20 bg-[var(--nous-bg-1)]/70 p-2">
               <Lock
-                className="h-4 w-4 text-[var(--cyan)]"
+                className="h-4 w-4 text-[var(--nous-helios)]"
                 aria-hidden="true"
               />
             </div>
@@ -81,7 +81,7 @@ export function TrackingTab({
               </p>
               <a
                 href="/login"
-                className="inline-flex items-center gap-2 rounded-md border border-[var(--cyan)]/20 bg-[var(--terminal-bg)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--cyan)] transition-colors hover:bg-[var(--cyan)]/10"
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--nous-helios)]/20 bg-[var(--nous-bg-1)]/70 px-3 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--nous-helios)] transition-colors hover:bg-[var(--nous-helios)]/10"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign In To Run Scans
@@ -93,7 +93,7 @@ export function TrackingTab({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-5 xl:col-span-5">
-          <div className="space-y-4 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
+          <div className="space-y-4 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Category Filter
@@ -109,14 +109,14 @@ export function TrackingTab({
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('all')}
-                  className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)]"
+                  className="rounded-md border border-[var(--nous-border-1)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--nous-bg-2)]"
                 >
                   Select All
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('clear')}
-                  className="rounded-md border border-[var(--terminal-border)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--terminal-surface)]"
+                  className="rounded-md border border-[var(--nous-border-1)] px-2 py-1 text-[9px] font-mono uppercase tracking-wide text-muted-foreground hover:bg-[var(--nous-bg-2)]"
                 >
                   Clear
                 </button>
@@ -157,7 +157,7 @@ export function TrackingTab({
             </div>
           </div>
 
-          <div className="space-y-5 rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)]/50 p-4">
+          <div className="space-y-5 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-4">
             <CustomSlider
               label="Lookback Window (Days)"
               value={daysBack}
@@ -201,7 +201,7 @@ export function TrackingTab({
               type="button"
               onClick={onRefreshMetrics}
               disabled={isAnyOperationRunning || isStatsLoading}
-              className="rounded-lg border border-[var(--terminal-border)] px-5 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground transition-colors hover:bg-[var(--terminal-surface)] disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-lg border border-[var(--nous-border-1)] px-5 py-2.5 text-[11px] font-mono font-bold uppercase text-muted-foreground transition-colors hover:bg-[var(--nous-bg-2)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               Refresh Metrics
             </button>
@@ -209,8 +209,8 @@ export function TrackingTab({
         </div>
 
         <div className="space-y-5 xl:col-span-7">
-          <div className="flex min-h-[320px] flex-col rounded-xl border border-[var(--terminal-border)] bg-[var(--terminal-bg)] p-5">
-            <div className="mb-4 flex items-center justify-between border-b border-[var(--terminal-border)] pb-3">
+          <div className="flex min-h-[320px] flex-col rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] p-5">
+            <div className="mb-4 flex items-center justify-between border-b border-[var(--nous-border-1)] pb-3">
               <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground">
                 Activity Feed
               </span>
@@ -235,12 +235,12 @@ export function TrackingTab({
                     {
                       label: 'Updated',
                       value: trackingResult.result.summary.updated,
-                      color: 'text-[var(--cyan)]',
+                      color: 'text-[var(--nous-helios)]',
                     },
                     {
                       label: 'Deleted',
                       value: trackingResult.result.summary.deleted,
-                      color: 'text-[var(--amber-gold)]',
+                      color: 'text-[var(--nous-helios)]',
                     },
                     {
                       label: 'Errors',
@@ -250,7 +250,7 @@ export function TrackingTab({
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3"
+                      className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-3"
                     >
                       <div
                         className={cn(
@@ -267,7 +267,7 @@ export function TrackingTab({
                   ))}
                 </div>
 
-                <div className="rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-surface)] p-3 text-[10px] font-mono text-muted-foreground">
+                <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-3 text-[10px] font-mono text-muted-foreground">
                   <div className="mb-2 text-[9px] uppercase tracking-wider text-muted-foreground">
                     Sync Summary
                   </div>

@@ -252,6 +252,21 @@ async def test_auth_failure_raises():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_retrieve_uses_config_default_top_k():
+    cfg = _make_settings(DO_KB_DEFAULT_TOP_K=12)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+    payload = {"results": [], "total_results": 0}
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+        await client.retrieve(kb_uuid="kb-123", query="test")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["num_results"] == 12
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_4xx_non_retryable_raises(monkeypatch):
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)
@@ -271,3 +286,103 @@ async def test_4xx_non_retryable_raises(monkeypatch):
 
     assert exc_info.value.status_code == 404
     assert request_mock.await_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_sends_reranking_when_enabled():
+    """When config enables reranking, the request body includes reranking=True."""
+    cfg = _make_settings(DO_KB_RERANKING_ENABLED=True)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["reranking"] is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_omits_reranking_when_none():
+    """When config reranking is None, no reranking key in request body."""
+    cfg = _make_settings(DO_KB_RERANKING_ENABLED=None)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert "reranking" not in sent_body
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_explicit_reranking_overrides_config():
+    """Caller-supplied reranking=False overrides config True."""
+    cfg = _make_settings(DO_KB_RERANKING_ENABLED=True)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test", reranking=False)
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["reranking"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_sends_search_type_when_set():
+    """When config sets search_type, the request body includes it."""
+    cfg = _make_settings(DO_KB_SEARCH_TYPE="keyword")
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert sent_body["search_type"] == "keyword"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_retrieve_omits_search_type_when_none():
+    """When config search_type is None and caller omits it, no search_type in body."""
+    cfg = _make_settings(DO_KB_SEARCH_TYPE=None)
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"results": [], "total_results": 0}
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(200, payload))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        await client.retrieve(kb_uuid="kb-123", query="test")
+
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
+    assert "search_type" not in sent_body

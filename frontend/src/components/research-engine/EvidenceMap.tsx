@@ -37,11 +37,14 @@ interface EvidenceMapProps {
 // Constants
 // --------------------------------------------------------------------------
 
+// Single warm-gold accent family + neutral foreground tones. Node type is
+// also conveyed by radius and by the text labels in the legend, so meaning
+// is never carried by color alone.
 const NODE_COLORS: Record<EvidenceNode['type'], string> = {
-  research_question: 'var(--cyan)',
-  sub_question: 'var(--cyan)',
-  evidence: 'var(--phosphor-green)',
-  source: 'var(--amber-gold)',
+  research_question: 'var(--nous-sol)',
+  sub_question: 'var(--nous-helios)',
+  evidence: 'hsl(var(--muted-foreground))',
+  source: 'var(--nous-parchment)',
 };
 
 const NODE_RADII: Record<EvidenceNode['type'], number> = {
@@ -52,8 +55,8 @@ const NODE_RADII: Record<EvidenceNode['type'], number> = {
 };
 
 const NODE_LABELS: Record<EvidenceNode['type'], string> = {
-  research_question: 'Research Question',
-  sub_question: 'Sub-Question',
+  research_question: 'Research question',
+  sub_question: 'Sub-question',
   evidence: 'Evidence',
   source: 'Source',
 };
@@ -202,20 +205,52 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-gray-500">
-          Loading evidence map...
-        </span>
+      <div aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading evidence map</span>
+        {/* Header skeleton */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-28 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="hidden md:flex items-center gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-3 w-20 rounded bg-muted animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+        {/* Canvas skeleton */}
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="h-[60vh] bg-muted/40 animate-pulse" />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 p-4 bg-red-500/10 border border-red-500/30 rounded">
-        <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-        <span className="text-sm text-red-400 font-mono">{error}</span>
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-5 shadow-sm"
+      >
+        <div className="flex items-center gap-2">
+          <AlertCircle
+            aria-hidden="true"
+            className="h-4 w-4 text-[var(--nous-mars)] shrink-0"
+          />
+          <span className="text-sm font-medium text-foreground">{error}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => fetchGraph()}
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -227,59 +262,63 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <button
+          type="button"
           onClick={() => router.back()}
-          className="p-1.5 rounded hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors"
+          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft aria-hidden="true" className="h-5 w-5" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-mono font-bold text-sol">Evidence Map</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-semibold text-foreground">
+            Evidence map
+          </h1>
           {projectName && (
-            <p className="text-xs font-mono text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {projectName}
             </p>
           )}
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-4">
           {(
             Object.entries(NODE_LABELS) as [EvidenceNode['type'], string][]
           ).map(([type, label]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span
+                aria-hidden="true"
                 className="inline-block rounded-full"
                 style={{
-                  width: Math.max(NODE_RADII[type] * 0.6, 8),
-                  height: Math.max(NODE_RADII[type] * 0.6, 8),
+                  width: Math.max(NODE_RADII[type] * 0.5, 8),
+                  height: Math.max(NODE_RADII[type] * 0.5, 8),
                   backgroundColor: NODE_COLORS[type],
-                  opacity: 0.7,
+                  opacity: 0.85,
                 }}
               />
-              <span className="text-xs font-mono text-gray-500">{label}</span>
+              <span className="text-xs text-muted-foreground">{label}</span>
             </div>
           ))}
         </div>
       </div>
 
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-white/10 rounded">
-          <p className="text-gray-500 font-mono text-sm mb-1">
-            No evidence data available yet.
-          </p>
-          <p className="text-gray-600 font-mono text-xs">
+        <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card py-20 text-center shadow-sm">
+          <p className="text-sm font-medium text-foreground">No evidence yet</p>
+          <p className="text-xs text-muted-foreground">
             Run a research blueprint to start building the evidence graph.
           </p>
         </div>
       ) : (
-        <div className="relative flex gap-4">
+        <div className="relative flex flex-col lg:flex-row gap-4">
           {/* SVG graph */}
-          <div className="flex-1 border border-white/10 rounded bg-black/30 overflow-hidden">
+          <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden shadow-sm">
             <svg
               viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
               className="w-full h-auto"
               style={{ maxHeight: '70vh' }}
+              role="img"
+              aria-label="Evidence graph showing research questions, sub-questions, evidence and sources"
             >
               {/* Edges */}
               {graphData?.edges.map((edge, i) => {
@@ -293,7 +332,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                     y1={src.y}
                     x2={tgt.x}
                     y2={tgt.y}
-                    stroke="rgba(255,255,255,0.1)"
+                    stroke="hsl(var(--border))"
                     strokeWidth={1}
                   />
                 );
@@ -315,21 +354,20 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                       cy={node.y}
                       r={r}
                       fill={color}
-                      fillOpacity={isSelected ? 0.4 : 0.15}
+                      fillOpacity={isSelected ? 0.45 : 0.18}
                       stroke={color}
                       strokeWidth={isSelected ? 2 : 1}
-                      strokeOpacity={isSelected ? 1 : 0.5}
+                      strokeOpacity={isSelected ? 1 : 0.6}
                     />
                     <text
                       x={node.x}
                       y={node.y + r + 14}
                       textAnchor="middle"
-                      className="font-mono"
                       fontSize={10}
-                      fill="rgba(255,255,255,0.6)"
+                      fill="hsl(var(--muted-foreground))"
                     >
                       {node.label.length > 24
-                        ? node.label.slice(0, 22) + '...'
+                        ? node.label.slice(0, 22) + '…'
                         : node.label}
                     </text>
                   </g>
@@ -340,33 +378,30 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
 
           {/* Detail panel */}
           {selectedNode && (
-            <div className="w-80 shrink-0 border border-white/10 rounded bg-black/40 p-4">
+            <div className="w-full lg:w-80 lg:shrink-0 rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start justify-between mb-3">
-                <span
-                  className="px-2 py-0.5 text-xs font-mono rounded border"
-                  style={{
-                    color: NODE_COLORS[selectedNode.type],
-                    borderColor: NODE_COLORS[selectedNode.type] + '40',
-                    backgroundColor: NODE_COLORS[selectedNode.type] + '15',
-                  }}
-                >
+                <span className="px-2 py-0.5 text-xs font-medium rounded-md border bg-muted text-foreground border-border">
                   {NODE_LABELS[selectedNode.type]}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setSelectedNode(null)}
-                  className="p-1 rounded hover:bg-white/5 text-gray-500 hover:text-gray-300 transition-colors"
+                  className="p-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label="Close detail panel"
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                 </button>
               </div>
 
-              <h3 className="text-sm font-mono font-semibold text-gray-200 mb-2">
+              <h3 className="text-sm font-semibold text-foreground mb-2">
                 {selectedNode.label}
               </h3>
 
               {selectedNode.description && (
-                <p className="text-xs font-mono text-gray-400 mb-3">
+                <p
+                  className="text-sm text-muted-foreground mb-3 leading-relaxed"
+                  style={{ fontFamily: 'var(--nous-font-body)' }}
+                >
                   {selectedNode.description}
                 </p>
               )}
@@ -374,7 +409,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
               {selectedNode.metadata &&
                 Object.keys(selectedNode.metadata).length > 0 && (
                   <div>
-                    <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+                    <h4 className="text-xs font-medium text-muted-foreground mb-1.5">
                       Metadata
                     </h4>
                     <div className="space-y-1">
@@ -382,10 +417,10 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                         ([key, value]) => (
                           <div
                             key={key}
-                            className="flex justify-between text-xs font-mono"
+                            className="flex justify-between gap-2 text-xs"
                           >
-                            <span className="text-gray-500">{key}</span>
-                            <span className="text-gray-400 truncate ml-2 max-w-[160px]">
+                            <span className="text-muted-foreground">{key}</span>
+                            <span className="text-foreground truncate max-w-[160px]">
                               {String(value)}
                             </span>
                           </div>

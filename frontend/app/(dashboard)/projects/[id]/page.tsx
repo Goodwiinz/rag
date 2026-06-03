@@ -450,7 +450,7 @@ export default function ProjectDetailPage() {
         );
         await fetchProjectDocuments(projectId);
       } catch {
-        // linking may partially fail — still refresh to show what succeeded
+        // linking may partially fail, still refresh to show what succeeded
         await fetchProjectDocuments(projectId);
       }
     },
@@ -459,8 +459,36 @@ export default function ProjectDetailPage() {
 
   if (!mounted || initialLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Loading project"
+        className="p-3 sm:p-6 pb-20 md:pb-6 max-w-7xl mx-auto"
+      >
+        <div className="mb-4 sm:mb-8 space-y-3 sm:space-y-4">
+          <div className="h-4 w-20 rounded-md bg-muted animate-pulse" />
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-6 space-y-3">
+            <div className="h-6 w-1/2 rounded-md bg-muted animate-pulse" />
+            <div className="h-4 w-3/4 rounded-md bg-muted animate-pulse" />
+            <div className="h-3 w-40 rounded-md bg-muted animate-pulse" />
+          </div>
+        </div>
+        <div className="flex gap-2 border-b border-border pb-2 mb-6">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-8 w-20 rounded-md bg-muted animate-pulse"
+            />
+          ))}
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-16 rounded-lg border border-border bg-card animate-pulse"
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -468,29 +496,67 @@ export default function ProjectDetailPage() {
   if (projectError) {
     const isNotFound = projectError.status === 404;
     return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">
-          {isNotFound
-            ? 'Project not found'
-            : `Failed to load project: ${projectError.message}`}
+      <div
+        role="alert"
+        className="mx-auto mt-10 max-w-md rounded-xl border border-border bg-card p-6 text-center"
+      >
+        <p className="text-base font-medium text-foreground">
+          {isNotFound ? 'Project not found' : 'Could not load this project'}
         </p>
-        <button
-          onClick={() => router.push('/projects')}
-          className="mt-4 text-primary underline text-sm"
-        >
-          Back to projects
-        </button>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {isNotFound
+            ? 'It may have been deleted or you may not have access.'
+            : projectError.message}
+        </p>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          {!isNotFound && (
+            <button
+              onClick={() => {
+                setInitialLoading(true);
+                setProjectError(null);
+                fetchProject(projectId)
+                  .then(() => setProjectError(null))
+                  .catch((err: unknown) => {
+                    const status =
+                      err instanceof APIErrorClass
+                        ? err.error.status_code
+                        : 500;
+                    const message =
+                      err instanceof Error
+                        ? err.message
+                        : 'Failed to load project';
+                    setProjectError({ status, message });
+                  })
+                  .finally(() => setInitialLoading(false));
+              }}
+              className="inline-flex items-center rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Try again
+            </button>
+          )}
+          <button
+            onClick={() => router.push('/projects')}
+            className="inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Back to projects
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!currentProject) {
     return (
-      <div className="p-6 text-center">
-        <p className="text-muted-foreground">Project not found</p>
+      <div className="mx-auto mt-10 max-w-md rounded-xl border border-border bg-card p-6 text-center">
+        <p className="text-base font-medium text-foreground">
+          Project not found
+        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          It may have been deleted or you may not have access.
+        </p>
         <button
           onClick={() => router.push('/projects')}
-          className="mt-4 text-primary underline text-sm"
+          className="mt-5 inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Back to projects
         </button>
@@ -536,11 +602,14 @@ export default function ProjectDetailPage() {
 
       {/* Error Display */}
       {error && (
-        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+        <div
+          role="alert"
+          className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg"
+        >
           <p className="text-destructive text-sm">{error}</p>
           <button
             onClick={clearError}
-            className="mt-2 text-xs text-destructive underline"
+            className="mt-2 text-xs text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
           >
             Dismiss
           </button>
@@ -552,9 +621,9 @@ export default function ProjectDetailPage() {
         <div className="flex items-center gap-2 mb-2 sm:mb-0 sm:float-right">
           <button
             onClick={() => setShowUploadWizard(true)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Upload aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Upload
           </button>
           <button
@@ -562,9 +631,11 @@ export default function ProjectDetailPage() {
               void handleRefresh();
             }}
             disabled={refreshing}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label={refreshing ? 'Refreshing project' : 'Refresh project'}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <RefreshCw
+              aria-hidden="true"
               className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''}`}
             />
             Refresh
@@ -579,13 +650,17 @@ export default function ProjectDetailPage() {
                 )}
                 <button
                   onClick={() => handleTabChange(tab.id)}
-                  className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 ${
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     activeTab === tab.id
                       ? 'text-foreground bg-muted/60 border-b-2 border-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
                   }`}
                 >
-                  <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <tab.icon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                  />
                   <span className="hidden sm:inline">{tab.label}</span>
                   <span className="sm:hidden">{tab.label.slice(0, 4)}</span>
                   {tab.count !== undefined && tab.count > 0 && (
@@ -625,16 +700,30 @@ export default function ProjectDetailPage() {
             <div className="flex justify-end mb-4">
               <button
                 onClick={handleCreateNote}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm hover:bg-primary/20 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Plus className="h-4 w-4" />
-                New Note
+                <Plus aria-hidden="true" className="h-4 w-4" />
+                New note
               </button>
             </div>
 
             {notesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <div
+                role="status"
+                aria-busy="true"
+                aria-label="Loading notes"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-border bg-card p-4 space-y-3"
+                  >
+                    <div className="h-4 w-2/3 rounded-md bg-muted animate-pulse" />
+                    <div className="h-3 w-full rounded-md bg-muted animate-pulse" />
+                    <div className="h-3 w-4/5 rounded-md bg-muted animate-pulse" />
+                  </div>
+                ))}
               </div>
             ) : (
               <NoteList
@@ -661,12 +750,13 @@ export default function ProjectDetailPage() {
                 <span className="text-sm text-muted-foreground">Format:</span>
                 <select
                   value={bibFormat}
+                  aria-label="Citation format"
                   onChange={(e) => {
                     const format = e.target.value as typeof bibFormat;
                     setBibFormat(format);
                     fetchBibliography(projectId, format);
                   }}
-                  className="px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:border-primary"
+                  className="px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="bibtex">BibTeX</option>
                   <option value="ieee">IEEE</option>
@@ -677,16 +767,28 @@ export default function ProjectDetailPage() {
               <button
                 onClick={handleExportBibliography}
                 disabled={!bibliography}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Download className="h-4 w-4" />
+                <Download aria-hidden="true" className="h-4 w-4" />
                 Download
               </button>
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <div
+                role="status"
+                aria-busy="true"
+                aria-label="Loading bibliography"
+                className="rounded-lg border border-border bg-card p-4 space-y-2"
+              >
+                <div className="h-3 w-32 rounded-md bg-muted animate-pulse mb-4" />
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-3 rounded-md bg-muted animate-pulse"
+                    style={{ width: `${90 - (i % 3) * 18}%` }}
+                  />
+                ))}
               </div>
             ) : bibliography ? (
               <div className="bg-card border border-border rounded-lg p-4">
@@ -694,24 +796,27 @@ export default function ProjectDetailPage() {
                   <span className="text-sm text-muted-foreground">
                     {bibliography.citation_count} citations
                   </span>
-                  <span className="text-xs text-muted-foreground/60">
+                  <span className="text-xs text-muted-foreground">
                     Generated{' '}
                     {new Date(bibliography.generated_at).toLocaleString()}
                   </span>
                 </div>
-                <pre className="text-sm text-foreground font-mono overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto">
+                <pre className="text-sm text-foreground font-[var(--nous-font-mono)] overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto rounded-md bg-muted/40 p-3">
                   {bibliography.content}
                 </pre>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-border">
-                <BookOpen className="h-10 w-10 text-muted-foreground/40 mb-3" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  No bibliography available
+                <BookOpen
+                  aria-hidden="true"
+                  className="h-10 w-10 text-muted-foreground/50 mb-3"
+                />
+                <p className="text-sm font-medium text-foreground">
+                  No bibliography yet
                 </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Add documents with extracted citations to generate a
-                  bibliography
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm text-center">
+                  Add documents with extracted citations, then a bibliography
+                  will be generated here.
                 </p>
               </div>
             )}
@@ -809,8 +914,8 @@ export default function ProjectDetailPage() {
 
                     {draftVersions.length > 0 && (
                       <div className="bg-card border border-border rounded-lg p-4">
-                        <h3 className="text-sm text-foreground mb-3">
-                          Draft Versions
+                        <h3 className="text-sm font-medium text-foreground mb-3">
+                          Draft versions
                         </h3>
                         <div className="space-y-2 max-h-[220px] overflow-y-auto">
                           {draftVersions.map((draftVersion) => (
@@ -821,23 +926,23 @@ export default function ProjectDetailPage() {
                                   draftVersion.version
                                 );
                               }}
-                              className={`w-full text-left px-3 py-2 rounded-md border text-xs transition-colors ${
+                              className={`w-full text-left px-3 py-2 rounded-md border text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                 currentDraft?.version === draftVersion.version
                                   ? 'bg-primary/10 border-primary/40 text-primary'
                                   : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/30'
                               }`}
                             >
                               <div className="flex items-center justify-between">
-                                <span className="font-mono">
+                                <span className="font-medium tabular-nums">
                                   Version {draftVersion.version}
                                 </span>
                                 {draftVersion.is_current && (
-                                  <span className="text-[10px] uppercase tracking-wide text-primary">
+                                  <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                                     Current
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-muted-foreground mt-1 font-mono">
+                              <div className="text-[10px] text-muted-foreground mt-1 tabular-nums">
                                 {new Date(
                                   draftVersion.created_at
                                 ).toLocaleString()}
@@ -850,19 +955,20 @@ export default function ProjectDetailPage() {
 
                     {draftVersions.length > 1 && (
                       <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                        <h3 className="text-sm text-foreground">
-                          Compare Versions
+                        <h3 className="text-sm font-medium text-foreground">
+                          Compare versions
                         </h3>
                         <div className="grid grid-cols-2 gap-2">
                           <select
                             value={compareVersionA ?? ''}
+                            aria-label="First version to compare"
                             onChange={(e) => {
                               setCompareVersionA(Number(e.target.value));
                               setDraftComparison(null);
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -875,13 +981,14 @@ export default function ProjectDetailPage() {
                           </select>
                           <select
                             value={compareVersionB ?? ''}
+                            aria-label="Second version to compare"
                             onChange={(e) => {
                               setCompareVersionB(Number(e.target.value));
                               setDraftComparison(null);
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -903,12 +1010,16 @@ export default function ProjectDetailPage() {
                             compareVersionB === null ||
                             compareVersionA === compareVersionB
                           }
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-xs hover:bg-primary/20 transition-colors disabled:opacity-50"
+                          aria-busy={comparisonLoading}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           {comparisonLoading && (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2
+                              aria-hidden="true"
+                              className="h-3.5 w-3.5 animate-spin"
+                            />
                           )}
-                          Compare Drafts
+                          {comparisonLoading ? 'Comparing…' : 'Compare drafts'}
                         </button>
                       </div>
                     )}
@@ -933,13 +1044,16 @@ export default function ProjectDetailPage() {
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-border">
-                        <Sparkles className="h-10 w-10 text-muted-foreground/40 mb-3" />
-                        <p className="text-sm font-medium text-muted-foreground">
-                          No draft generated yet
+                        <Sparkles
+                          aria-hidden="true"
+                          className="h-10 w-10 text-muted-foreground/50 mb-3"
+                        />
+                        <p className="text-sm font-medium text-foreground">
+                          No draft yet
                         </p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">
-                          Configure themes and generate a literature review
-                          draft
+                        <p className="text-xs text-muted-foreground mt-1 max-w-sm text-center">
+                          Choose your themes on the left, then generate a
+                          literature review draft.
                         </p>
                       </div>
                     )}

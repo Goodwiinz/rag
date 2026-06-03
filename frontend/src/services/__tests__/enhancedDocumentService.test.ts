@@ -12,6 +12,27 @@ vi.mock('@/services/api-client', () => ({
 }));
 
 const mockedApi = api as Mocked<typeof api>;
+const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
+const originalWsUrl = process.env.NEXT_PUBLIC_WS_URL;
+const originalWebsocketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+const originalTestOrigin = (
+  globalThis as typeof globalThis & {
+    __TEST_BROWSER_ORIGIN__?: string;
+  }
+).__TEST_BROWSER_ORIGIN__;
+
+type ServiceWithPrivateWebSocketUrl = {
+  getWebSocketUrl(path: string): string;
+};
+
+const restoreEnv = (key: string, value: string | undefined) => {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+};
 
 describe('EnhancedDocumentService', () => {
   beforeEach(() => {
@@ -22,6 +43,30 @@ describe('EnhancedDocumentService', () => {
   afterEach(async () => {
     await vi.runOnlyPendingTimersAsync();
     vi.useRealTimers();
+    restoreEnv('NEXT_PUBLIC_API_URL', originalApiUrl);
+    restoreEnv('NEXT_PUBLIC_WS_URL', originalWsUrl);
+    restoreEnv('NEXT_PUBLIC_WEBSOCKET_URL', originalWebsocketUrl);
+    (
+      globalThis as typeof globalThis & { __TEST_BROWSER_ORIGIN__?: string }
+    ).__TEST_BROWSER_ORIGIN__ = originalTestOrigin;
+  });
+
+  it('derives upload progress WebSocket URLs from the deployed API origin', () => {
+    delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_WS_URL;
+    delete process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+    (
+      globalThis as typeof globalThis & { __TEST_BROWSER_ORIGIN__?: string }
+    ).__TEST_BROWSER_ORIGIN__ = 'https://dev-app.gen-text.app/documents';
+
+    const service =
+      new EnhancedDocumentService() as unknown as ServiceWithPrivateWebSocketUrl;
+
+    expect(
+      service.getWebSocketUrl('/api/v2/documents/upload/progress/abc/ws')
+    ).toBe(
+      'wss://dev-api.gen-text.app/api/v2/documents/upload/progress/abc/ws'
+    );
   });
 
   it('polls document status when upload completes without a websocket', async () => {

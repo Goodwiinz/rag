@@ -4,7 +4,6 @@ export {
   SearchActivitySparkline,
 } from './DashboardCharts';
 export { KeyboardShortcuts } from './KeyboardShortcuts';
-export { QuickActionsGrid } from './QuickActionsGrid';
 export { QuickSearch } from './QuickSearch';
 export {
   StatsCardSkeleton,

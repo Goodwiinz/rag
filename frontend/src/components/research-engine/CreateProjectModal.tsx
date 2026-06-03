@@ -62,7 +62,7 @@ export function CreateProjectModal({
           </h2>
           <button
             onClick={handleClose}
-            className="p-1 text-gray-500 hover:text-gray-300"
+            className="p-1 text-muted-foreground hover:text-foreground"
             aria-label="Close modal"
           >
             <X className="h-5 w-5" />
@@ -77,7 +77,7 @@ export function CreateProjectModal({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Project Name *
             </label>
             <input
@@ -91,7 +91,7 @@ export function CreateProjectModal({
           </div>
 
           <div>
-            <label className="block text-xs text-gray-500 font-mono uppercase tracking-wide mb-1">
+            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
               Description
             </label>
             <textarea
@@ -107,7 +107,7 @@ export function CreateProjectModal({
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-mono text-gray-400 hover:text-gray-300 transition-colors"
+            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>

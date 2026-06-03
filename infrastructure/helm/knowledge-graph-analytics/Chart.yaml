@@ -1,7 +1,7 @@
 # NOUS Platform - Helm Chart
 apiVersion: v2
 name: knowledge-graph-analytics
-description: Helm chart for NOUS Multimodal Intelligence Platform (backend + frontend)
+description: Helm chart for NOUS Multimodal Intelligence Platform (backend; frontend deployed via Vercel)
 type: application
 version: 2.0.0
 appVersion: "2.0.0"

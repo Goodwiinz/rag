@@ -24,7 +24,7 @@ export function PageHeader({
           </div>
         )}
         <div>
-          <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider">
+          <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
             {title}
           </h1>
           {subtitle && (

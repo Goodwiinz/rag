@@ -47,72 +47,115 @@ export function StepProgress({ step }: StepProgressProps) {
     }
   })();
 
+  const statusLabel = (() => {
+    switch (step.status) {
+      case 'pending':
+        return 'Pending';
+      case 'running':
+        return 'Running';
+      case 'complete':
+        return 'Complete';
+      case 'error':
+        return 'Error';
+    }
+  })();
+
   const statusIcon = () => {
     switch (step.status) {
       case 'pending':
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return (
+          <Clock aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+        );
       case 'running':
-        return <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />;
+        return (
+          <Loader2
+            aria-hidden="true"
+            className="h-4 w-4 text-primary motion-safe:animate-spin"
+          />
+        );
       case 'complete':
-        return <Check className="h-4 w-4 text-sol" />;
+        return (
+          <Check
+            aria-hidden="true"
+            className="h-4 w-4 text-[var(--nous-terra)]"
+          />
+        );
       case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-400" />;
+        return (
+          <AlertCircle
+            aria-hidden="true"
+            className="h-4 w-4 text-[var(--nous-mars)]"
+          />
+        );
     }
   };
 
-  const statusColor = () => {
+  const statusBorder = () => {
     switch (step.status) {
       case 'pending':
-        return 'border-gray-700';
+        return 'border-border';
       case 'running':
-        return 'border-brand-cyan/50';
+        return 'border-primary/40';
       case 'complete':
-        return 'border-sol/50';
+        return 'border-[var(--nous-terra)]/40';
       case 'error':
-        return 'border-red-500/50';
+        return 'border-[var(--nous-mars)]/40';
     }
   };
 
   return (
     <div
-      className={`border ${statusColor()} rounded bg-black/30 transition-colors`}
+      className={`rounded-xl border bg-card shadow-sm transition-colors ${statusBorder()}`}
     >
       {/* Header row */}
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronDown
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+          />
         ) : (
-          <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
+          <ChevronRight
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-muted-foreground"
+          />
         )}
 
-        {statusIcon()}
+        <span className="flex shrink-0 items-center" title={statusLabel}>
+          {statusIcon()}
+          <span className="sr-only">{statusLabel}</span>
+        </span>
 
-        <span className="font-mono text-sm text-gray-200 flex-1 truncate">
-          <span className="text-gray-500 mr-2">#{step.stepIndex + 1}</span>
+        <span className="flex-1 truncate text-sm font-medium text-foreground">
+          <span className="mr-2 text-muted-foreground tabular-nums">
+            #{step.stepIndex + 1}
+          </span>
           {step.stepName}
         </span>
 
         {/* Type badge */}
-        <span className="px-2 py-0.5 text-xs font-mono rounded bg-white/5 text-gray-400 border border-white/10">
+        <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           {step.stepType}
         </span>
 
         {/* Mode badge */}
         {step.mode && (
           <span
-            className={`flex items-center gap-1 px-2 py-0.5 text-xs font-mono rounded border ${
+            className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${
               step.mode === 'deterministic'
-                ? 'bg-sol/10 text-sol border-sol/20'
-                : 'bg-helios/10 text-helios border-helios/20'
+                ? 'border-primary/20 bg-primary/10 text-primary'
+                : 'border-[var(--nous-helios)]/20 bg-[var(--nous-helios)]/10 text-[var(--nous-helios)]'
             }`}
           >
             {step.mode === 'deterministic' ? (
-              <Zap className="h-3 w-3" />
+              <Zap aria-hidden="true" className="h-3 w-3" />
             ) : (
-              <Compass className="h-3 w-3" />
+              <Compass aria-hidden="true" className="h-3 w-3" />
             )}
             {step.mode === 'deterministic' ? 'Deterministic' : 'Exploratory'}
           </span>
@@ -127,10 +170,19 @@ export function StepProgress({ step }: StepProgressProps) {
                 title={`${mark.check_type}: ${mark.passed ? 'passed' : 'failed'}${mark.details ? ` - ${mark.details}` : ''}`}
               >
                 {mark.passed ? (
-                  <Check className="h-3.5 w-3.5 text-sol" />
+                  <Check
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 text-[var(--nous-terra)]"
+                  />
                 ) : (
-                  <X className="h-3.5 w-3.5 text-red-400" />
+                  <X
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 text-[var(--nous-mars)]"
+                  />
                 )}
+                <span className="sr-only">
+                  {mark.check_type} {mark.passed ? 'passed' : 'failed'}
+                </span>
               </span>
             ))}
           </div>
@@ -138,7 +190,7 @@ export function StepProgress({ step }: StepProgressProps) {
 
         {/* Token count */}
         {step.tokenCount > 0 && (
-          <span className="text-xs font-mono text-gray-500">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {step.tokenCount.toLocaleString()} tok
           </span>
         )}
@@ -146,11 +198,14 @@ export function StepProgress({ step }: StepProgressProps) {
 
       {/* Expandable details */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-white/5">
+        <div className="space-y-3 border-t border-border px-4 pb-4">
           {/* Error message */}
           {step.errorMessage && (
-            <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded">
-              <p className="text-xs font-mono text-red-400">
+            <div
+              role="alert"
+              className="mt-3 rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-3"
+            >
+              <p className="text-xs text-[var(--nous-mars)]">
                 {step.errorMessage}
               </p>
             </div>
@@ -159,11 +214,11 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Output preview */}
           {outputPreview && (
             <div className="mt-3">
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+              <h4 className="mb-1 text-xs font-medium text-muted-foreground">
                 Output
               </h4>
-              <div className="p-3 bg-black/40 rounded border border-white/5 max-h-40 overflow-auto">
-                <p className="text-xs font-mono text-gray-300 whitespace-pre-wrap">
+              <div className="max-h-40 overflow-auto rounded-lg border border-border bg-muted/40 p-3">
+                <p className="whitespace-pre-wrap font-mono text-xs text-foreground">
                   {outputPreview.length > 500
                     ? outputPreview.slice(0, 500) + '...'
                     : outputPreview}
@@ -175,14 +230,14 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Sources used */}
           {step.sources && step.sources.length > 0 && (
             <div>
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
+              <h4 className="mb-1 text-xs font-medium text-muted-foreground">
                 Sources
               </h4>
               <div className="flex flex-wrap gap-1">
                 {step.sources.map((source, i) => (
                   <span
                     key={i}
-                    className="px-2 py-0.5 text-xs font-mono bg-helios/10 text-helios rounded border border-helios/20"
+                    className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs text-primary"
                   >
                     {source}
                   </span>
@@ -197,23 +252,28 @@ export function StepProgress({ step }: StepProgressProps) {
           {/* Quality check details */}
           {step.qualityMarks.length > 0 && (
             <div>
-              <h4 className="text-xs font-mono text-gray-500 uppercase tracking-wide mb-1">
-                Quality Checks
+              <h4 className="mb-1 text-xs font-medium text-muted-foreground">
+                Quality checks
               </h4>
               <div className="space-y-1">
                 {step.qualityMarks.map((mark, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 text-xs font-mono"
-                  >
+                  <div key={i} className="flex items-center gap-2 text-xs">
                     {mark.passed ? (
-                      <Check className="h-3 w-3 text-sol" />
+                      <Check
+                        aria-hidden="true"
+                        className="h-3 w-3 text-[var(--nous-terra)]"
+                      />
                     ) : (
-                      <X className="h-3 w-3 text-red-400" />
+                      <X
+                        aria-hidden="true"
+                        className="h-3 w-3 text-[var(--nous-mars)]"
+                      />
                     )}
-                    <span className="text-gray-400">{mark.check_type}</span>
+                    <span className="text-foreground">{mark.check_type}</span>
                     {mark.details && (
-                      <span className="text-gray-600">- {mark.details}</span>
+                      <span className="text-muted-foreground">
+                        - {mark.details}
+                      </span>
                     )}
                   </div>
                 ))}
@@ -232,19 +292,21 @@ function PromptSection({ prompt }: { prompt: string }) {
   return (
     <div>
       <button
+        type="button"
         onClick={() => setShowPrompt(!showPrompt)}
-        className="flex items-center gap-1 text-xs font-mono text-gray-500 uppercase tracking-wide hover:text-gray-400 transition-colors"
+        aria-expanded={showPrompt}
+        className="flex items-center gap-1 rounded text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
       >
         {showPrompt ? (
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown aria-hidden="true" className="h-3 w-3" />
         ) : (
-          <ChevronRight className="h-3 w-3" />
+          <ChevronRight aria-hidden="true" className="h-3 w-3" />
         )}
         Prompt
       </button>
       {showPrompt && (
-        <div className="mt-1 p-3 bg-black/40 rounded border border-white/5 max-h-60 overflow-auto">
-          <pre className="text-xs font-mono text-gray-400 whitespace-pre-wrap">
+        <div className="mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-muted/40 p-3">
+          <pre className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
             {prompt}
           </pre>
         </div>
