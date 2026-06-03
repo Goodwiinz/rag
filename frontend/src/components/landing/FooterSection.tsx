@@ -3,11 +3,6 @@
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-const STATS = [
-  { label: 'Median latency', val: '12ms' },
-  { label: 'Uptime', val: '99.99%' },
-] as const;
-
 const FOOTER_COLS = [
   {
     head: 'Product',
@@ -29,41 +24,29 @@ const FOOTER_COLS = [
 export function FooterSection() {
   return (
     <>
-      {/* Closing CTA + metrics */}
+      {/* Closing CTA */}
       <section className="py-24 px-6 border-t border-[var(--nous-shade)] bg-[var(--nous-obsidian)]">
-        <div className="max-w-5xl mx-auto text-center">
+        <div className="max-w-3xl mx-auto text-center">
           <h2
-            className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--nous-ivory)] mb-12"
+            className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--nous-ivory)] mb-5"
             style={{ fontFamily: 'var(--nous-font-heading)' }}
           >
-            Built to scale with what you know.
+            Point it at your corpus and start asking.
           </h2>
-
-          <dl className="flex flex-wrap justify-center gap-x-16 gap-y-8 mb-14">
-            {STATS.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <dt
-                  className="text-3xl md:text-4xl font-bold text-[var(--nous-sol)]"
-                  style={{ fontFamily: 'var(--nous-font-heading)' }}
-                >
-                  {stat.val}
-                </dt>
-                <dd
-                  className="mt-1 text-sm text-[var(--nous-parchment)]"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
-                  {stat.label}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <p
+            className="text-lg text-[var(--nous-parchment)] leading-relaxed mb-10"
+            style={{ fontFamily: 'var(--nous-font-body)' }}
+          >
+            Hybrid search across millions of documents, 12ms median, every
+            answer traceable to its source.
+          </p>
 
           <Link
-            href="/dashboard"
+            href="/register"
             className="group inline-flex items-center gap-2 h-12 px-7 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-obsidian)]"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
-            Open dashboard
+            Get started
             <ArrowRight
               className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
               aria-hidden="true"

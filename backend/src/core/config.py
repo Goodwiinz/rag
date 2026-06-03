@@ -20,68 +20,22 @@ def _generate_dev_secret() -> str:
 
 
 def _longest_literal_hostname_run(pattern: str) -> int:
-    """Longest literal run in the first hostname label (project slug specificity)."""
-    host_pattern = re.sub(r"^\^?https?\??://", "", pattern).removesuffix("$")
-    first_label_chars: list[str] = []
-    escaped = False
-    in_class = False
-    for char in host_pattern:
-        if escaped:
-            if char == ".":
-                break
-            first_label_chars.append(char)
-            escaped = False
-            continue
-        if char == "\\":
-            escaped = True
-            continue
-        if char == "[":
-            in_class = True
-            first_label_chars.append(char)
-            continue
-        if char == "]":
-            in_class = False
-            first_label_chars.append(char)
-            continue
-        if not in_class and char in ".:/":
-            break
-        first_label_chars.append(char)
-
-    runs: list[str] = []
-    current_run: list[str] = []
-    escaped = False
-    in_class = False
-    for char in first_label_chars:
-        if escaped:
-            if char.isalnum() or char == "-":
-                current_run.append(char)
-            elif current_run:
-                runs.append("".join(current_run))
-                current_run = []
-            escaped = False
-            continue
-        if char == "\\":
-            escaped = True
-            continue
-        if char == "[":
-            in_class = True
-            if current_run:
-                runs.append("".join(current_run))
-                current_run = []
-            continue
-        if char == "]":
-            in_class = False
-            continue
-        if in_class:
-            continue
-        if char.isalnum() or char == "-":
-            current_run.append(char)
-        elif current_run:
-            runs.append("".join(current_run))
-            current_run = []
-    if current_run:
-        runs.append("".join(current_run))
+    """Longest contiguous literal hostname segment (project slug specificity)."""
+    pattern = re.sub(r"\[[^\]]+\](?:[+*?]|\{[^}]+\})?", "", pattern)
+    pattern = re.sub(r"\([^)]*\)(?:[+*?]|\{[^}]+\})?", "", pattern)
+    runs = re.findall(r"[A-Za-z0-9-]+", pattern)
     return max((len(run) for run in runs), default=0)
+
+
+def _first_hostname_label(pattern: str) -> str:
+    """Return the first hostname label from an anchored origin regex."""
+    origin_pattern = pattern.removeprefix("^").removesuffix("$")
+    for scheme in ("https://", "http://", "https?://"):
+        if origin_pattern.startswith(scheme):
+            origin_pattern = origin_pattern[len(scheme) :]
+            break
+    hostname_pattern = origin_pattern.split("/", 1)[0].split(":", 1)[0]
+    return re.split(r"\\\.|\.", hostname_pattern, maxsplit=1)[0]
 
 
 def _cors_origin_regex_is_overbroad(pattern: str) -> bool:
@@ -189,7 +143,7 @@ class Settings(BaseSettings):
                 "CORS_ORIGIN_REGEX is too permissive for credentialed CORS"
             )
 
-        if _longest_literal_hostname_run(pattern) < 6:
+        if _longest_literal_hostname_run(_first_hostname_label(pattern)) < 6:
             raise ValueError(
                 "CORS_ORIGIN_REGEX must include a project-specific literal "
                 "hostname segment (at least 6 characters, e.g. nous-platform)"

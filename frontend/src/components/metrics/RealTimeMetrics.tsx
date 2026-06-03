@@ -296,7 +296,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-purple-600">
+              <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                 {currentValues.contextualRelevancy.toFixed(1)}%
               </div>
               <div className="text-sm text-foreground">
@@ -479,7 +479,7 @@ export const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                     {metrics.length}
                   </div>
                   <div className="text-sm text-foreground">Data Points</div>

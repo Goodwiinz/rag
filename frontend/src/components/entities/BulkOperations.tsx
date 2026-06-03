@@ -33,20 +33,20 @@ export const BulkOperations: React.FC = () => {
   // Show admin-only notice if user lacks permissions
   if (!canBulkEdit) {
     return (
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
         <CardHeader>
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Lock className="w-4 h-4" />
             Bulk Operations
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <div className="text-center py-12">
-            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--terminal-text-dim)]" />
-            <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-[var(--nous-fg-3)]" />
+            <p className="text-sm font-mono text-[var(--nous-fg-3)]">
               Bulk operations are restricted to administrators only.
             </p>
-            <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-2">
+            <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-2">
               Contact your system administrator for access.
             </p>
           </div>
@@ -154,16 +154,16 @@ export const BulkOperations: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-        <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+      <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+        <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Upload className="w-4 h-4" />
             Bulk Operations
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <Tabs defaultValue="json" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 bg-[var(--terminal-bg)]">
+            <TabsList className="grid w-full grid-cols-2 bg-[var(--nous-bg-1)]">
               <TabsTrigger value="json" className="font-mono text-xs">
                 JSON Import
               </TabsTrigger>
@@ -175,7 +175,7 @@ export const BulkOperations: React.FC = () => {
             <TabsContent value="json" className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                     JSON Data
                   </Label>
                   <Button
@@ -192,13 +192,13 @@ export const BulkOperations: React.FC = () => {
                   placeholder='{"entities": [{"name": "...", "entity_type": "..."}], "relationships": []}'
                   value={jsonInput}
                   onChange={(e) => setJsonInput(e.target.value)}
-                  className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)] min-h-[200px]"
+                  className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] min-h-[200px]"
                 />
               </div>
               <Button
                 onClick={handleBulkCreateFromJSON}
                 disabled={loading || !jsonInput.trim()}
-                className="w-full font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+                className="w-full font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
               >
                 {loading ? (
                   <>
@@ -217,7 +217,7 @@ export const BulkOperations: React.FC = () => {
             <TabsContent value="csv" className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <Label className="text-xs font-mono text-[var(--nous-fg-3)]">
                     CSV Data
                   </Label>
                   <Button
@@ -234,13 +234,13 @@ export const BulkOperations: React.FC = () => {
                   placeholder="name,entity_type,confidence_score,extraction_method&#10;Entity Name,CONCEPT,0.9,manual"
                   value={csvInput}
                   onChange={(e) => setCsvInput(e.target.value)}
-                  className="font-mono text-xs bg-[var(--terminal-bg)] border-[var(--terminal-border)] text-[var(--terminal-text)] min-h-[200px]"
+                  className="font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] min-h-[200px]"
                 />
               </div>
               <Button
                 onClick={handleBulkCreateFromCSV}
                 disabled={loading || !csvInput.trim()}
-                className="w-full font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)]"
+                className="w-full font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)]"
               >
                 {loading ? (
                   <>
@@ -261,68 +261,68 @@ export const BulkOperations: React.FC = () => {
 
       {/* Results */}
       {result && (
-        <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)]">
-          <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)]">
+        <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
+          <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+            <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)]">
               Bulk Operation Results
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
             {/* Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-[var(--phosphor-green)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <CheckCircle className="w-4 h-4 text-[var(--nous-sol)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     CREATED ENTITIES
                   </span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--phosphor-green)] mt-2">
+                <p className="text-2xl font-mono font-bold text-[var(--nous-sol)] mt-2">
                   {result.created_entities.length}
                 </p>
               </div>
 
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-[var(--cyan)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <CheckCircle className="w-4 h-4 text-[var(--nous-helios)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     CREATED RELATIONSHIPS
                   </span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--cyan)] mt-2">
+                <p className="text-2xl font-mono font-bold text-[var(--nous-helios)] mt-2">
                   {result.created_relationships.length}
                 </p>
               </div>
 
-              <div className="p-3 rounded-lg border border-[var(--terminal-border)] bg-[var(--terminal-bg)]">
+              <div className="p-3 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-[var(--amber-gold)]" />
-                  <span className="text-xs font-mono text-[var(--terminal-text-dim)]">
+                  <AlertCircle className="w-4 h-4 text-[var(--nous-helios)]" />
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     ERRORS
                   </span>
                 </div>
-                <p className="text-2xl font-mono font-bold text-[var(--amber-gold)] mt-2">
+                <p className="text-2xl font-mono font-bold text-[var(--nous-helios)] mt-2">
                   {result.errors.length}
                 </p>
               </div>
             </div>
 
             {/* Processing Time */}
-            <div className="text-xs font-mono text-[var(--terminal-text-dim)]">
+            <div className="text-xs font-mono text-[var(--nous-fg-3)]">
               Processing time: {result.processing_time.toFixed(2)}s
             </div>
 
             {/* Errors */}
             {result.errors.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs font-mono font-bold text-[var(--terminal-text)] uppercase">
+                <div className="text-xs font-mono font-bold text-[var(--nous-fg-1)] uppercase">
                   Errors
                 </div>
                 <div className="space-y-1 max-h-40 overflow-y-auto">
                   {result.errors.map((error, index) => (
                     <div
                       key={index}
-                      className="text-xs font-mono text-[var(--amber-gold)] p-2 rounded bg-[var(--terminal-bg)] border border-[var(--terminal-border)]"
+                      className="text-xs font-mono text-[var(--nous-helios)] p-2 rounded bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]"
                     >
                       {error.error}
                     </div>

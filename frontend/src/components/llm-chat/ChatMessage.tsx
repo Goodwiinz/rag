@@ -34,7 +34,7 @@ export function ChatMessage({
       <div
         className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border shadow-lg \${
         isUser
-          ? 'bg-gradient-to-br from-purple-600 to-purple-700 border-purple-500 text-white shadow-purple-600/30'
+          ? 'bg-[var(--nous-sol)] border-[var(--nous-helios)] text-[var(--nous-erebus)] shadow-[var(--nous-sol)]/30'
           : 'bg-gradient-to-br from-[#1A1A1A] to-[#0E1015] border-[#27272A] text-muted-foreground shadow-black/20'
       }`}
       >
@@ -47,7 +47,7 @@ export function ChatMessage({
         <div
           className={`inline-block rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-lg \${
           isUser
-            ? 'bg-gradient-to-br from-purple-600 to-purple-700 text-white shadow-purple-600/20'
+            ? 'bg-[var(--nous-sol)] text-[var(--nous-erebus)] shadow-[var(--nous-sol)]/20'
             : 'bg-[#1A1A1A] text-muted-foreground border border-[#27272A] shadow-black/20'
         }`}
         >

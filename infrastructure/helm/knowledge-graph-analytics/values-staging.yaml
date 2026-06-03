@@ -23,7 +23,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "f1e1124"
+    tag: "d71bf5f"
     pullPolicy: Always
   service:
     type: ClusterIP

@@ -16,6 +16,11 @@
 // CORE COLOR PALETTE
 // =============================================================================
 
+// NOTE: values remapped onto the NOUS "Observatory" brand palette (2026-05-31).
+// Keys are unchanged so every consumer updates for free. The legacy "phosphor"/
+// "cyan"/"terminal" key names are kept only for backward-compat; the VALUES are
+// brand tokens now (One Voice gold accent, warm-dark surfaces, no pure white,
+// no cold blue-grey). Don't reintroduce the old terminal/cyan hexes.
 export const COLORS = {
   // NOUS brand accent (Sol / Helios / Apollo)
   phosphorGreen: '#D4A039',
@@ -28,45 +33,46 @@ export const COLORS = {
   amberMuted: '#E8B84A33',
   amberSubtle: '#E8B84A1a',
 
-  cyan: '#00d4ff',
-  cyanDim: '#00d4ff80',
-  cyanMuted: '#00d4ff33',
-  cyanSubtle: '#00d4ff1a',
+  // Legacy "cyan" secondary collapsed onto the single gold accent (One Voice).
+  cyan: '#D4A039',
+  cyanDim: '#D4A03980',
+  cyanMuted: '#D4A03933',
+  cyanSubtle: '#D4A0391a',
 
-  // Status colors
-  success: '#22c55e',
-  successMuted: '#22c55e33',
+  // Status colors — brand semantic signal (Terra / Corona / Mars); info → neutral.
+  success: '#34d399',
+  successMuted: '#34d39933',
   warning: '#f59e0b',
   warningMuted: '#f59e0b33',
   error: '#ef4444',
   errorMuted: '#ef444433',
-  info: '#3b82f6',
-  infoMuted: '#3b82f633',
+  info: '#8a8070',
+  infoMuted: '#8a807033',
 
-  // Terminal backgrounds
-  background: '#0a0a0f',
-  surface: '#0d0d12',
-  surfaceHover: '#141419',
-  surfaceActive: '#1a1a20',
-  elevated: '#1a1a20',
+  // Warm-dark surfaces (Nyx → Umber depth stack), not cold blue-grey.
+  background: '#141210',
+  surface: '#1e1b17',
+  surfaceHover: '#28241e',
+  surfaceActive: '#332e26',
+  elevated: '#28241e',
 
-  // Terminal borders
-  border: '#30363d',
-  borderMuted: '#21262d',
-  borderSubtle: '#161b22',
+  // Warm borders (Shade family).
+  border: '#2a261f',
+  borderMuted: '#28241e',
+  borderSubtle: '#1e1b17',
 
-  // Terminal text
-  text: '#ffffff',
-  textMuted: '#8b949e',
-  textSubtle: '#484f58',
-  textDisabled: '#30363d',
+  // Warm ivory text — never pure white.
+  text: '#f5f0e8',
+  textMuted: '#c8bfa8',
+  textSubtle: '#8a8070',
+  textDisabled: '#524c42',
 
-  // Chart colors (for data visualization)
+  // Chart colors (data viz is the one sanctioned multi-hue zone; curated + warm).
   chart1: '#D4A039', // Sol gold
-  chart2: '#00d4ff', // cyan
+  chart2: '#0e7490', // deep teal
   chart3: '#E8B84A', // Helios
-  chart4: '#a855f7', // purple
-  chart5: '#ec4899', // pink
+  chart4: '#b45309', // burnt amber
+  chart5: '#9f1239', // deep rose
 } as const;
 
 // =============================================================================
@@ -115,36 +121,36 @@ export const SEMANTIC_COLORS = {
 
 /**
  * CSS variable names matching the values defined in globals.css
- * Use these for className strings: `text-[var(--phosphor-green)]`
+ * Use these for className strings: `text-[var(--nous-sol)]`
  */
 export const CSS_VARS = {
   // Primary colors
-  phosphorGreen: '--phosphor-green',
-  phosphorGreenDim: '--phosphor-green-dim',
-  phosphorGreenMuted: '--phosphor-green-muted',
+  phosphorGreen: '--nous-sol',
+  phosphorGreenDim: '--nous-helios',
+  phosphorGreenMuted: '--nous-sol-muted',
 
-  amber: '--amber-gold',
-  amberDim: '--amber-gold-dim',
-  amberMuted: '--amber-gold-muted',
+  amber: '--nous-helios',
+  amberDim: '--nous-sol',
+  amberMuted: '--nous-helios-muted',
 
-  cyan: '--cyan',
-  cyanDim: '--cyan-dim',
-  cyanMuted: '--cyan-muted',
+  cyan: '--nous-helios',
+  cyanDim: '--nous-helios-muted',
+  cyanMuted: '--nous-sol-muted',
 
   // Terminal backgrounds
-  terminalBg: '--terminal-bg',
-  terminalSurface: '--terminal-surface',
-  terminalSurfaceHover: '--terminal-surface-hover',
-  terminalElevated: '--terminal-elevated',
+  terminalBg: '--nous-bg-1',
+  terminalSurface: '--nous-bg-2',
+  terminalSurfaceHover: '--nous-bg-3',
+  terminalElevated: '--nous-bg-3',
 
   // Terminal borders
-  terminalBorder: '--terminal-border',
-  terminalBorderMuted: '--terminal-border-muted',
+  terminalBorder: '--nous-border-1',
+  terminalBorderMuted: '--nous-border-2',
 
   // Terminal text
-  terminalText: '--terminal-text',
-  terminalTextMuted: '--terminal-text-muted',
-  terminalTextSubtle: '--terminal-text-subtle',
+  terminalText: '--nous-fg-1',
+  terminalTextMuted: '--nous-fg-3',
+  terminalTextSubtle: '--nous-fg-3',
 } as const;
 
 // =============================================================================
@@ -270,7 +276,7 @@ export const getColor = (color: ThemeColor): string => THEME.colors[color];
 
 /**
  * Get CSS variable reference for use in className strings
- * @example cssVar('phosphorGreen') => 'var(--phosphor-green)'
+ * @example cssVar('phosphorGreen') => 'var(--nous-sol)'
  */
 export const cssVar = (name: keyof typeof CSS_VARS): string =>
   `var(${CSS_VARS[name]})`;
@@ -320,28 +326,19 @@ export const gradient = (
  */
 export const cssVariableDefinitions = {
   // Primary colors
-  '--phosphor-green': COLORS.phosphorGreen,
-  '--phosphor-green-dim': COLORS.phosphorGreenDim,
-  '--phosphor-green-muted': COLORS.phosphorGreenMuted,
+  '--nous-sol': COLORS.phosphorGreen,
+  '--nous-helios': COLORS.phosphorGreenDim,
+  '--nous-sol-muted': COLORS.phosphorGreenMuted,
+  '--nous-helios-muted': COLORS.amberMuted,
 
-  '--amber-gold': COLORS.amber,
-  '--amber-gold-dim': COLORS.amberDim,
-  '--amber-gold-muted': COLORS.amberMuted,
-
-  '--cyan': COLORS.cyan,
-  '--cyan-dim': COLORS.cyanDim,
-  '--cyan-muted': COLORS.cyanMuted,
-
-  // Terminal theme
-  '--terminal-bg': COLORS.background,
-  '--terminal-surface': COLORS.surface,
-  '--terminal-surface-hover': COLORS.surfaceHover,
-  '--terminal-elevated': COLORS.elevated,
-  '--terminal-border': COLORS.border,
-  '--terminal-border-muted': COLORS.borderMuted,
-  '--terminal-text': COLORS.text,
-  '--terminal-text-muted': COLORS.textMuted,
-  '--terminal-text-subtle': COLORS.textSubtle,
+  // Surfaces and text
+  '--nous-bg-1': COLORS.background,
+  '--nous-bg-2': COLORS.surface,
+  '--nous-bg-3': COLORS.elevated,
+  '--nous-border-1': COLORS.border,
+  '--nous-border-2': COLORS.borderMuted,
+  '--nous-fg-1': COLORS.text,
+  '--nous-fg-3': COLORS.textMuted,
 } as const;
 
 // =============================================================================

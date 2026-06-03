@@ -123,31 +123,31 @@ export function BibliographyExport({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-[var(--terminal-text)] font-mono">
+          <h3 className="text-lg font-semibold text-[var(--nous-fg-1)] font-mono">
             Export Bibliography
           </h3>
-          <p className="text-sm text-[var(--terminal-text-muted)] font-mono mt-1">
+          <p className="text-sm text-[var(--nous-fg-3)] font-mono mt-1">
             Select citations and format to export
           </p>
         </div>
-        <FileText className="w-5 h-5 text-[var(--phosphor-green)]" />
+        <FileText className="w-5 h-5 text-[var(--nous-sol)]" />
       </div>
 
       {/* Format Selector */}
       <div className="space-y-2">
-        <label className="text-sm font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider">
+        <label className="text-sm font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider">
           Format
         </label>
         <Select value={selectedFormat} onValueChange={(v) => setSelectedFormat(v as BibliographyFormat)}>
-          <SelectTrigger className="w-full bg-[var(--terminal-surface)] border-[var(--terminal-border)] font-mono">
+          <SelectTrigger className="w-full bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] font-mono">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-[var(--terminal-surface)] border-[var(--terminal-border)]">
+          <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
             {FORMAT_OPTIONS.map((format) => (
               <SelectItem key={format.value} value={format.value} className="font-mono">
                 <div className="flex flex-col">
                   <span className="font-bold">{format.label}</span>
-                  <span className="text-xs text-[var(--terminal-text-muted)]">
+                  <span className="text-xs text-[var(--nous-fg-3)]">
                     {format.description}
                   </span>
                 </div>
@@ -159,14 +159,14 @@ export function BibliographyExport({
 
       {/* Needs Review Warning */}
       {needsReviewCount > 0 && (
-        <div className="p-4 rounded-lg border border-[var(--amber-gold)]/30 bg-[var(--amber-gold)]/5">
+        <div className="p-4 rounded-lg border border-[var(--nous-helios)]/30 bg-[var(--nous-helios)]/5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-[var(--amber-gold)] mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-[var(--nous-helios)] mt-0.5" />
             <div>
-              <p className="text-sm font-mono font-bold text-[var(--amber-gold)]">
+              <p className="text-sm font-mono font-bold text-[var(--nous-helios)]">
                 {needsReviewCount} citation{needsReviewCount > 1 ? 's' : ''} need review
               </p>
-              <p className="text-xs font-mono text-[var(--terminal-text-muted)] mt-1">
+              <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
                 Some citations have incomplete metadata. Review and edit before exporting for best results.
               </p>
             </div>
@@ -177,7 +177,7 @@ export function BibliographyExport({
       {/* Citation Selection */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-mono font-medium text-[var(--terminal-text)] uppercase tracking-wider">
+          <label className="text-sm font-mono font-medium text-[var(--nous-fg-1)] uppercase tracking-wider">
             Citations ({selectedCount}/{citations.length})
           </label>
           <Button
@@ -190,16 +190,16 @@ export function BibliographyExport({
           </Button>
         </div>
 
-        <div className="max-h-64 overflow-y-auto space-y-2 border border-[var(--terminal-border)] rounded-lg p-3 bg-[var(--terminal-surface)]">
+        <div className="max-h-64 overflow-y-auto space-y-2 border border-[var(--nous-border-1)] rounded-lg p-3 bg-[var(--nous-bg-2)]">
           {citations.length === 0 ? (
-            <p className="text-sm text-[var(--terminal-text-muted)] font-mono text-center py-4">
+            <p className="text-sm text-[var(--nous-fg-3)] font-mono text-center py-4">
               No citations available
             </p>
           ) : (
             citations.map((citation) => (
               <div
                 key={citation.id}
-                className="flex items-start gap-3 p-2 rounded hover:bg-[var(--terminal-elevated)] transition-colors"
+                className="flex items-start gap-3 p-2 rounded hover:bg-[var(--nous-bg-3)] transition-colors"
               >
                 <Checkbox
                   checked={selectedCitations.has(citation.id)}
@@ -207,10 +207,10 @@ export function BibliographyExport({
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-mono text-[var(--terminal-text)] line-clamp-2">
+                  <p className="text-sm font-mono text-[var(--nous-fg-1)] line-clamp-2">
                     {citation.documentTitle || 'Untitled'}
                   </p>
-                  <p className="text-xs font-mono text-[var(--terminal-text-muted)] mt-1">
+                  <p className="text-xs font-mono text-[var(--nous-fg-3)] mt-1">
                     {citation.authors && citation.authors.length > 0
                       ? citation.authors.slice(0, 3).join(', ') +
                         (citation.authors.length > 3 ? ', et al.' : '')
@@ -218,7 +218,7 @@ export function BibliographyExport({
                     {citation.year && `(${citation.year})`}
                   </p>
                   {citation.needsReview && (
-                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[var(--amber-gold)]/10 text-[var(--amber-gold)] border border-[var(--amber-gold)]/20">
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border border-[var(--nous-helios)]/20">
                       <AlertTriangle className="w-3 h-3" />
                       Needs Review
                     </span>
@@ -231,14 +231,14 @@ export function BibliographyExport({
       </div>
 
       {/* Export Button */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--terminal-border)]">
-        <p className="text-xs font-mono text-[var(--terminal-text-muted)]">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--nous-border-1)]">
+        <p className="text-xs font-mono text-[var(--nous-fg-3)]">
           {selectedCount} citation{selectedCount !== 1 ? 's' : ''} selected
         </p>
         <Button
           onClick={handleExport}
           disabled={selectedCount === 0 || isExporting}
-          className="font-mono text-xs font-bold bg-[var(--phosphor-green)] text-[var(--terminal-bg)] hover:shadow-[0_0_20px_var(--phosphor-green-glow)] disabled:opacity-50"
+          className="font-mono text-xs font-bold bg-[var(--nous-sol)] text-[var(--nous-bg-1)] hover:shadow-[0_0_20px_var(--nous-sol-glow)] disabled:opacity-50"
         >
           {isExporting ? (
             <>

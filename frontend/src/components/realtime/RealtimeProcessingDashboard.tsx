@@ -633,7 +633,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
     <div
       className={cn(
         'p-4 hover:bg-accent/50 transition-colors cursor-pointer',
-        isSelected && 'bg-accent/50 border-l-4 border-l-primary',
+        isSelected && 'bg-accent/50 ring-1 ring-inset ring-primary/40',
         compact && 'p-3'
       )}
       onClick={onSelect}

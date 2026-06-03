@@ -35,7 +35,7 @@ export function NewChatDialogDemo() {
         'Code review',
         'Documentation',
       ],
-      color: 'from-purple-500 to-pink-500',
+      color: 'from-[var(--nous-sol)] to-[var(--nous-helios)]',
     },
     {
       id: 'writing',
@@ -77,7 +77,7 @@ export function NewChatDialogDemo() {
         'Citation management',
         'Methodology',
       ],
-      color: 'from-indigo-500 to-blue-500',
+      color: 'from-[var(--nous-helios)] to-[var(--nous-sol)]',
     },
     {
       id: 'design',

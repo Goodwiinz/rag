@@ -2,7 +2,7 @@
 
 import { useAuthStore } from '@/stores/authStore';
 import { useDocuments } from '@/hooks/useDocuments';
-import { Upload, RefreshCw, Folder, AlertTriangle } from 'lucide-react';
+import { Upload, RefreshCw, FolderOpen, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
 import { Pagination } from '../../components/Pagination';
@@ -113,48 +113,54 @@ export default function DocumentsPage() {
   if (!mounted) return null;
 
   return (
-    <div className="flex flex-col min-h-full bg-[var(--terminal-bg)]">
+    <div className="flex flex-col min-h-full bg-background">
       <div className="p-4 md:p-6 space-y-6 flex-1">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-[var(--phosphor-green)]/10 border border-[var(--phosphor-green)]/20 flex items-center justify-center relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[var(--phosphor-green)]/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <Folder className="w-6 h-6 text-[var(--phosphor-green)] relative z-10" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-wider flex items-center gap-2">
-                DOCUMENT_REPOSITORY
-                <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--terminal-elevated)] text-[var(--terminal-text-dim)] border border-[var(--terminal-border)]">
-                  v2.0
-                </span>
-              </h1>
-              <p className="text-xs font-mono text-[var(--terminal-text-dim)] mt-0.5 uppercase tracking-widest">
-                Knowledge Base Management System
-              </p>
-            </div>
-          </div>
+        <div className="rounded-xl border border-border bg-card shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <FolderOpen
+                    aria-hidden="true"
+                    className="w-6 h-6 text-primary"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-foreground">
+                    Documents
+                  </h1>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Your knowledge base library
+                  </p>
+                </div>
+              </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => refreshDocuments()}
-              className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:border-[var(--phosphor-green)]/30"
-              title="Refresh Documents"
-            >
-              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            </Button>
-            <Link href="/documents/upload">
-              <Button className="gap-2 bg-[var(--phosphor-green)] text-[var(--terminal-bg)] font-mono text-xs font-bold hover:shadow-[0_0_20px_var(--phosphor-green-glow)] hover:bg-[var(--phosphor-green)]/90">
-                <Upload className="w-3.5 h-3.5" />
-                UPLOAD_FILES
-              </Button>
-            </Link>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => refreshDocuments()}
+                  disabled={loading}
+                  aria-label="Refresh documents"
+                >
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={cn('w-4 h-4', loading && 'animate-spin')}
+                  />
+                </Button>
+                <Button asChild className="gap-2">
+                  <Link href="/documents/upload">
+                    <Upload aria-hidden="true" className="w-4 h-4" />
+                    Upload files
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <DocumentStats stats={stats} />
 
         {/* Filters */}
@@ -169,15 +175,21 @@ export default function DocumentsPage() {
           isBulkDeleting={isBulkDeleting}
         />
 
-        {/* Error Banner */}
+        {/* Error */}
         {error && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/5">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-red-400 font-mono text-sm">{error}</p>
+          <div
+            role="alert"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-destructive/40 bg-destructive/5"
+          >
+            <AlertTriangle
+              aria-hidden="true"
+              className="w-4 h-4 text-destructive shrink-0"
+            />
+            <p className="text-sm text-foreground">{error}</p>
           </div>
         )}
 
-        {/* Document List */}
+        {/* Document list */}
         <DocumentList
           documents={rawDocuments.map((doc) => ({
             ...doc,
@@ -196,7 +208,7 @@ export default function DocumentsPage() {
 
         {/* Pagination */}
         {!loading && pagination.total > 0 && (
-          <div className="mt-6 border-t border-[var(--terminal-border)]/50 pt-4">
+          <div className="mt-6 border-t border-border pt-4">
             <Pagination
               currentPage={pagination.page}
               totalPages={pagination.totalPages}

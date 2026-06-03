@@ -65,8 +65,8 @@ const typeColors: Record<string, string> = {
 };
 
 const getConfidenceColor = (confidence: number): string => {
-  if (confidence >= 0.8) return 'text-[var(--phosphor-green)]';
-  if (confidence >= 0.6) return 'text-[var(--amber-gold)]';
+  if (confidence >= 0.8) return 'text-[var(--nous-sol)]';
+  if (confidence >= 0.6) return 'text-[var(--nous-helios)]';
   return 'text-red-400';
 };
 
@@ -119,7 +119,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   const renderMetadata = (metadata: Record<string, any>) => {
     if (!metadata || Object.keys(metadata).length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-8 text-[var(--terminal-text-dim)]">
+        <div className="flex flex-col items-center justify-center py-8 text-[var(--nous-fg-3)]">
           <Database className="w-8 h-8 mb-2 opacity-20" />
           <p className="font-mono text-sm">NO_METADATA_AVAILABLE</p>
         </div>
@@ -134,9 +134,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             return (
               <div
                 key={key}
-                className="border-b border-[var(--terminal-border)] pb-3"
+                className="border-b border-[var(--nous-border-1)] pb-3"
               >
-                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">
+                <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest mb-2">
                   {key}
                 </dt>
                 <dd className="flex flex-wrap gap-2">
@@ -144,7 +144,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                     <Badge
                       key={index}
                       variant="outline"
-                      className="font-mono text-[10px] border-[var(--terminal-border)] text-[var(--terminal-text-muted)] bg-[var(--terminal-elevated)]"
+                      className="font-mono text-[10px] border-[var(--nous-border-1)] text-[var(--nous-fg-3)] bg-[var(--nous-bg-3)]"
                     >
                       {alias}
                     </Badge>
@@ -157,13 +157,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             return (
               <div
                 key={key}
-                className="border-b border-[var(--terminal-border)] pb-3"
+                className="border-b border-[var(--nous-border-1)] pb-3"
               >
-                <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest mb-2">
+                <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest mb-2">
                   {key}
                 </dt>
                 <dd>
-                  <pre className="text-[10px] font-mono bg-[var(--terminal-bg)] p-3 rounded border border-[var(--terminal-border)] text-[var(--terminal-text-muted)] overflow-auto custom-scrollbar">
+                  <pre className="text-[10px] font-mono bg-[var(--nous-bg-1)] p-3 rounded border border-[var(--nous-border-1)] text-[var(--nous-fg-3)] overflow-auto custom-scrollbar">
                     {JSON.stringify(value, null, 2)}
                   </pre>
                 </dd>
@@ -173,12 +173,12 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           return (
             <div
               key={key}
-              className="border-b border-[var(--terminal-border)] pb-3 flex justify-between items-center"
+              className="border-b border-[var(--nous-border-1)] pb-3 flex justify-between items-center"
             >
-              <dt className="text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+              <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
                 {key}
               </dt>
-              <dd className="text-xs font-mono text-[var(--terminal-text)]">
+              <dd className="text-xs font-mono text-[var(--nous-fg-1)]">
                 {String(value)}
               </dd>
             </div>
@@ -189,11 +189,11 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   };
 
   return (
-    <div className="space-y-6 text-[var(--terminal-text)]">
+    <div className="space-y-6 text-[var(--nous-fg-1)]">
       {/* Header */}
-      <div className="flex items-start justify-between pb-6 border-b border-[var(--terminal-border)]">
+      <div className="flex items-start justify-between pb-6 border-b border-[var(--nous-border-1)]">
         <div>
-          <h2 className="text-2xl font-mono font-bold text-[var(--terminal-text)] tracking-tight flex items-center gap-3">
+          <h2 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-tight flex items-center gap-3">
             {entity.name}
             <Badge
               className={cn(
@@ -205,13 +205,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               {entity.type}
             </Badge>
           </h2>
-          <div className="flex items-center gap-4 mt-2 text-[10px] font-mono text-[var(--terminal-text-dim)] uppercase tracking-widest">
+          <div className="flex items-center gap-4 mt-2 text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--terminal-text-muted)]">ID:</span>
+              <span className="text-[var(--nous-fg-3)]">ID:</span>
               <span className="font-mono">{entity.id.substring(0, 8)}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--terminal-text-muted)]">
+              <span className="text-[var(--nous-fg-3)]">
                 Confidence:
               </span>
               <span
@@ -224,7 +224,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               </span>
             </div>
             {entity.confidence && entity.confidence >= 0.8 && (
-              <div className="flex items-center gap-1 text-[var(--phosphor-green)]">
+              <div className="flex items-center gap-1 text-[var(--nous-sol)]">
                 <CheckCircle className="w-3 h-3" />
                 VERIFIED
               </div>
@@ -239,7 +239,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               onClick={() =>
                 window.open(`/documents/${entity.source_document_id}`, '_blank')
               }
-              className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--amber-gold)]"
+              className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-helios)]"
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
               SOURCE_DOC
@@ -251,7 +251,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               size="sm"
               onClick={onEdit}
               disabled={!canEdit}
-              className="font-mono text-[10px] font-bold border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)] hover:text-[var(--cyan)] disabled:opacity-30 disabled:cursor-not-allowed"
+              className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-helios)] disabled:opacity-30 disabled:cursor-not-allowed"
               title={!canEdit ? 'Admin access required' : 'Edit entity'}
             >
               <Edit className="h-3.5 w-3.5 mr-1.5" />
@@ -263,31 +263,31 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-[var(--terminal-bg)] border border-[var(--terminal-border)] p-1 rounded-xl w-full justify-start">
+        <TabsList className="bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] p-1 rounded-xl w-full justify-start">
           <TabsTrigger
             value="overview"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
           >
             <Activity className="w-3.5 h-3.5" />
             OVERVIEW
           </TabsTrigger>
           <TabsTrigger
             value="relationships"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
           >
             <Network className="w-3.5 h-3.5" />
             RELATIONSHIPS
           </TabsTrigger>
           <TabsTrigger
             value="neighborhood"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
           >
             <Shield className="w-3.5 h-3.5" />
             NEIGHBORHOOD
           </TabsTrigger>
           <TabsTrigger
             value="metadata"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--terminal-elevated)] data-[state=active]:text-[var(--phosphor-green)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
           >
             <Code className="w-3.5 h-3.5" />
             METADATA
@@ -296,74 +296,74 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
 
         <TabsContent value="overview" className="mt-0 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-              <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+              <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
                   <Terminal className="w-4 h-4" />
                   System_Log
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
-                <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Entity_UUID
                   </span>
-                  <span className="text-xs font-mono text-[var(--terminal-text)]">
+                  <span className="text-xs font-mono text-[var(--nous-fg-1)]">
                     {entity.id}
                   </span>
                 </div>
-                <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Created_At
                   </span>
-                  <div className="flex items-center text-xs font-mono text-[var(--terminal-text)]">
-                    <Clock className="h-3 w-3 mr-1.5 text-[var(--terminal-text-dim)]" />
+                  <div className="flex items-center text-xs font-mono text-[var(--nous-fg-1)]">
+                    <Clock className="h-3 w-3 mr-1.5 text-[var(--nous-fg-3)]" />
                     {formatDate(entity.created_at)}
                   </div>
                 </div>
-                <div className="flex justify-between items-center border-b border-[var(--terminal-border)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Last_Update
                   </span>
-                  <div className="flex items-center text-xs font-mono text-[var(--terminal-text)]">
-                    <Clock className="h-3 w-3 mr-1.5 text-[var(--terminal-text-dim)]" />
+                  <div className="flex items-center text-xs font-mono text-[var(--nous-fg-1)]">
+                    <Clock className="h-3 w-3 mr-1.5 text-[var(--nous-fg-3)]" />
                     {formatDate(entity.updated_at)}
                   </div>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-mono text-[var(--terminal-text-muted)]">
+                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
                     Extraction_Protocol
                   </span>
-                  <span className="text-xs font-mono text-[var(--cyan)]">
+                  <span className="text-xs font-mono text-[var(--nous-helios)]">
                     {entity.extraction_method || 'AUTO_INFERENCE'}
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg flex flex-col">
-              <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+            <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg flex flex-col">
+              <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Description_Buffer
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 flex-1">
-                <p className="text-xs font-mono text-[var(--terminal-text)] leading-relaxed">
+                <p className="text-xs font-mono text-[var(--nous-fg-1)] leading-relaxed">
                   {entity.metadata?.description || (
-                    <span className="text-[var(--terminal-text-dim)] italic opacity-50">
+                    <span className="text-[var(--nous-fg-3)] italic opacity-50">
                       NO_DESCRIPTION_BUFFER_AVAILABLE
                     </span>
                   )}
                 </p>
                 {entity.metadata?.category && (
-                  <div className="mt-4 pt-4 border-t border-[var(--terminal-border)] border-dashed">
-                    <span className="text-[10px] font-mono text-[var(--terminal-text-muted)] uppercase mr-2">
+                  <div className="mt-4 pt-4 border-t border-[var(--nous-border-1)] border-dashed">
+                    <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase mr-2">
                       Category_Tag:
                     </span>
                     <Badge
                       variant="outline"
-                      className="font-mono text-[10px] border-[var(--terminal-border)] text-[var(--terminal-text)]"
+                      className="font-mono text-[10px] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
                     >
                       {entity.metadata.category}
                     </Badge>
@@ -375,9 +375,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="relationships" className="mt-0">
-          <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg overflow-hidden">
-            <CardHeader className="border-b border-[var(--terminal-border)] py-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+          <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg overflow-hidden">
+            <CardHeader className="border-b border-[var(--nous-border-1)] py-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
                 <Network className="w-4 h-4" />
                 Connectivity_Matrix
               </CardTitle>
@@ -385,7 +385,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                 size="sm"
                 variant="ghost"
                 disabled={!canCreate}
-                className="h-7 font-mono text-[10px] font-bold hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="h-7 font-mono text-[10px] font-bold hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30 disabled:cursor-not-allowed"
                 title={
                   !canCreate ? 'Admin access required' : 'Add relationship'
                 }
@@ -400,37 +400,37 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div
                       key={i}
-                      className="h-12 bg-[var(--terminal-bg)] border border-[var(--terminal-border)] rounded animate-pulse"
+                      className="h-12 bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] rounded animate-pulse"
                     ></div>
                   ))}
                 </div>
               ) : relationships.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-3">
-                  <Network className="w-10 h-10 text-[var(--terminal-text-muted)] opacity-20" />
-                  <p className="text-sm font-mono text-[var(--terminal-text-dim)]">
+                  <Network className="w-10 h-10 text-[var(--nous-fg-3)] opacity-20" />
+                  <p className="text-sm font-mono text-[var(--nous-fg-3)]">
                     NO_RELATIONSHIPS_MAPPED
                   </p>
                 </div>
               ) : (
                 <Table>
-                  <TableHeader className="bg-[var(--terminal-bg)]/50">
-                    <TableRow className="border-[var(--terminal-border)] hover:bg-transparent">
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] pl-6">
+                  <TableHeader className="bg-[var(--nous-bg-1)]/50">
+                    <TableRow className="border-[var(--nous-border-1)] hover:bg-transparent">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] pl-6">
                         Linked_Entity
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                         Link_Type
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                         Strength_Index
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                         Confidence
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)]">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
                         Context_Data
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--terminal-text-dim)] text-right pr-6">
+                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] text-right pr-6">
                         Ops
                       </TableHead>
                     </TableRow>
@@ -439,32 +439,32 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                     {relationships.map((rel) => (
                       <TableRow
                         key={rel.id}
-                        className="border-[var(--terminal-border)] hover:bg-[var(--terminal-elevated)]"
+                        className="border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)]"
                       >
                         <TableCell className="pl-6">
-                          <div className="font-mono text-xs font-bold text-[var(--terminal-text)]">
+                          <div className="font-mono text-xs font-bold text-[var(--nous-fg-1)]">
                             {rel.source === entity.id ? rel.target : rel.source}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className="font-mono text-[9px] border-[var(--terminal-border)] text-[var(--terminal-text-muted)]"
+                            className="font-mono text-[9px] border-[var(--nous-border-1)] text-[var(--nous-fg-3)]"
                           >
                             {rel.type}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <div className="w-16 bg-[var(--terminal-bg)] rounded-full h-1.5 border border-[var(--terminal-border)]">
+                            <div className="w-16 bg-[var(--nous-bg-1)] rounded-full h-1.5 border border-[var(--nous-border-1)]">
                               <div
-                                className="bg-[var(--cyan)] h-full rounded-full"
+                                className="bg-[var(--nous-helios)] h-full rounded-full"
                                 style={{
                                   width: `${(rel.strength || 0) * 100}%`,
                                 }}
                               />
                             </div>
-                            <span className="text-[10px] font-mono text-[var(--cyan)]">
+                            <span className="text-[10px] font-mono text-[var(--nous-helios)]">
                               {((rel.strength || 0) * 100).toFixed(0)}%
                             </span>
                           </div>
@@ -480,7 +480,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                           </span>
                         </TableCell>
                         <TableCell>
-                          <div className="text-[10px] font-mono text-[var(--terminal-text-muted)] max-w-xs truncate">
+                          <div className="text-[10px] font-mono text-[var(--nous-fg-3)] max-w-xs truncate">
                             {rel.context || 'NULL'}
                           </div>
                         </TableCell>
@@ -522,9 +522,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="metadata" className="mt-0">
-          <Card className="border-[var(--terminal-border)] bg-[var(--terminal-surface)] shadow-lg">
-            <CardHeader className="border-b border-[var(--terminal-border)] py-3">
-              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+          <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
+            <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
+              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
                 <Code className="w-4 h-4" />
                 Raw_Metadata_Dump
               </CardTitle>

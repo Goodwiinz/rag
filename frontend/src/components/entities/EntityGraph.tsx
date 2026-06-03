@@ -28,13 +28,13 @@ interface EntityGraphProps {
 
 // Terminal Theme Colors
 const TERMINAL_COLORS = {
-  text: 'var(--terminal-text)',
-  textDim: 'var(--terminal-text-muted)',
-  background: 'var(--terminal-bg)',
-  border: 'var(--terminal-border)',
-  primary: 'var(--phosphor-green)',
-  secondary: 'var(--cyan)',
-  accent: 'var(--amber-gold)',
+  text: 'var(--nous-fg-1)',
+  textDim: 'var(--nous-fg-3)',
+  background: 'var(--nous-bg-1)',
+  border: 'var(--nous-border-1)',
+  primary: 'var(--nous-sol)',
+  secondary: 'var(--nous-helios)',
+  accent: 'var(--nous-helios)',
   error: '#ff4757',
 };
 
@@ -351,10 +351,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   }, [entities, relationships, d3Loaded]);
 
   return (
-    <Card className="w-full bg-[var(--terminal-surface)] border-[var(--terminal-border)] shadow-lg">
-      <CardHeader className="border-b border-[var(--terminal-border)] py-3">
+    <Card className="w-full bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] shadow-lg">
+      <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--terminal-text-dim)] flex items-center gap-2">
+          <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
             <Network className="w-4 h-4" />
             Entity_Graph_Viz
           </CardTitle>
@@ -364,7 +364,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               aria-label="Zoom in"
               onClick={handleZoomIn}
-              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              className="h-7 w-7 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -373,7 +373,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               aria-label="Zoom out"
               onClick={handleZoomOut}
-              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              className="h-7 w-7 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -382,7 +382,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               size="icon"
               aria-label="Reset zoom"
               onClick={handleReset}
-              className="h-7 w-7 text-[var(--terminal-text-dim)] hover:text-[var(--phosphor-green)] hover:bg-[var(--phosphor-green)]/10"
+              className="h-7 w-7 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -390,7 +390,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               variant="ghost"
               size="sm"
               onClick={exportGraph}
-              className="h-7 text-[10px] font-mono text-[var(--terminal-text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--cyan)]/10"
+              className="h-7 text-[10px] font-mono text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)] hover:bg-[var(--nous-helios)]/10"
             >
               <Download className="h-3.5 w-3.5 mr-1.5" />
               EXPORT_IMG
@@ -409,8 +409,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
         ) : (
           <div className="relative">
             {/* Legend Overlay */}
-            <div className="absolute top-4 left-4 p-3 bg-[var(--terminal-surface)]/90 backdrop-blur-sm border border-[var(--terminal-border)] rounded-lg max-w-[200px] z-10">
-              <h4 className="text-[10px] font-mono font-bold text-[var(--terminal-text-dim)] uppercase mb-2">
+            <div className="absolute top-4 left-4 p-3 bg-[var(--nous-bg-2)]/90 backdrop-blur-sm border border-[var(--nous-border-1)] rounded-lg max-w-[200px] z-10">
+              <h4 className="text-[10px] font-mono font-bold text-[var(--nous-fg-3)] uppercase mb-2">
                 Node_Types
               </h4>
               <div className="flex flex-wrap gap-1.5">
@@ -427,7 +427,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
               </div>
             </div>
 
-            <div className="overflow-hidden bg-[var(--terminal-bg)] relative">
+            <div className="overflow-hidden bg-[var(--nous-bg-1)] relative">
               {/* Grid Background Effect */}
               <div
                 className="absolute inset-0 pointer-events-none opacity-[0.03]"
@@ -448,9 +448,9 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
 
             {/* Selected Entity Details Overlay */}
             {selectedEntity && (
-              <div className="absolute bottom-4 right-4 p-4 bg-[var(--terminal-surface)]/95 backdrop-blur-md border border-[var(--terminal-border)] rounded-lg w-64 shadow-xl z-10 animate-in fade-in slide-in-from-bottom-4">
+              <div className="absolute bottom-4 right-4 p-4 bg-[var(--nous-bg-2)]/95 backdrop-blur-md border border-[var(--nous-border-1)] rounded-lg w-64 shadow-xl z-10 animate-in fade-in slide-in-from-bottom-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-mono text-xs font-bold text-[var(--terminal-text)] uppercase tracking-wide">
+                  <h3 className="font-mono text-xs font-bold text-[var(--nous-fg-1)] uppercase tracking-wide">
                     Node_Inspector
                   </h3>
                   <Button
@@ -470,7 +470,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="text-[var(--terminal-text-dim)]"
+                      className="text-[var(--nous-fg-3)]"
                     >
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -479,13 +479,13 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                 </div>
                 <div className="space-y-2 font-mono text-xs">
                   <div className="grid grid-cols-3 gap-1">
-                    <span className="text-[var(--terminal-text-dim)]">ID:</span>
-                    <span className="col-span-2 text-[var(--terminal-text)] truncate">
+                    <span className="text-[var(--nous-fg-3)]">ID:</span>
+                    <span className="col-span-2 text-[var(--nous-fg-1)] truncate">
                       {selectedEntity.name}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-1">
-                    <span className="text-[var(--terminal-text-dim)]">
+                    <span className="text-[var(--nous-fg-3)]">
                       TYPE:
                     </span>
                     <span
@@ -498,16 +498,16 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-1">
-                    <span className="text-[var(--terminal-text-dim)]">
+                    <span className="text-[var(--nous-fg-3)]">
                       CONF:
                     </span>
-                    <span className="col-span-2 text-[var(--phosphor-green)]">
+                    <span className="col-span-2 text-[var(--nous-sol)]">
                       {((selectedEntity.confidence || 0) * 100).toFixed(1)}%
                     </span>
                   </div>
                   {selectedEntity.metadata?.description && (
-                    <div className="pt-2 border-t border-[var(--terminal-border)] mt-2">
-                      <p className="text-[var(--terminal-text-muted)] line-clamp-3 leading-relaxed">
+                    <div className="pt-2 border-t border-[var(--nous-border-1)] mt-2">
+                      <p className="text-[var(--nous-fg-3)] line-clamp-3 leading-relaxed">
                         {selectedEntity.metadata.description}
                       </p>
                     </div>

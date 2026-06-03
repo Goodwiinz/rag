@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FileText, Loader2, Sparkles } from 'lucide-react';
+import { FileText, Sparkles } from 'lucide-react';
 import { listTemplates } from '@/services/researchEngineService';
 import type { BlueprintStepDef } from '@/services/researchEngineService';
 
@@ -42,10 +42,19 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
-        <span className="ml-2 font-mono text-sm text-muted-foreground">
-          Loading templates...
+      <div>
+        <div className="h-6 w-64 rounded bg-muted animate-pulse mb-2" />
+        <div className="h-4 w-80 rounded bg-muted animate-pulse mb-6" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="h-32 rounded-xl border border-border bg-card animate-pulse"
+            />
+          ))}
+        </div>
+        <span className="sr-only" role="status">
+          Loading templates
         </span>
       </div>
     );
@@ -53,58 +62,78 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-400 font-mono">
-        {error}
+      <div
+        role="alert"
+        className="flex items-start gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/5"
+      >
+        <div className="flex-1">
+          <p className="text-sm text-foreground">{error}</p>
+          <button
+            type="button"
+            onClick={fetchTemplates}
+            className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="text-lg font-mono font-bold text-sol mb-2">
-        Choose a Blueprint Template
+      <h2 className="text-lg font-semibold text-foreground mb-2">
+        Choose a blueprint template
       </h2>
-      <p className="text-sm text-muted-foreground font-mono mb-6">
-        Select a template to get started or create a blank blueprint.
+      <p className="text-sm text-muted-foreground mb-6">
+        Select a template to get started, or create a blank blueprint.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Blank blueprint option */}
         <button
+          type="button"
           onClick={() => onSelect(null)}
-          className="group bg-[#0a0a0a] border border-dashed border-[#333] rounded-lg p-5 text-left hover:border-sol/50 transition-colors"
+          className="group rounded-xl border border-dashed border-border bg-card p-5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <div className="flex items-center gap-2 mb-3">
-            <FileText className="h-5 w-5 text-muted-foreground group-hover:text-sol transition-colors" />
-            <span className="font-mono font-medium text-muted-foreground group-hover:text-sol transition-colors">
-              Blank Blueprint
-            </span>
+            <FileText
+              aria-hidden="true"
+              className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors"
+            />
+            <span className="font-medium text-foreground">Blank blueprint</span>
           </div>
-          <p className="text-sm text-foreground font-mono">
+          <p className="text-sm text-muted-foreground">
             Start from scratch with an empty blueprint.
           </p>
-          <div className="mt-3 text-xs text-foreground font-mono">0 steps</div>
+          <div className="mt-3 text-xs text-muted-foreground tabular-nums">
+            0 steps
+          </div>
         </button>
 
         {/* Template cards */}
         {templates.map((tpl) => (
           <button
+            type="button"
             key={tpl.slug}
             onClick={() => onSelect(tpl)}
-            className="group bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-5 text-left hover:border-brand-cyan/50 transition-colors"
+            className="group rounded-xl border border-border bg-card p-5 text-left hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="h-5 w-5 text-brand-cyan shrink-0" />
-              <span className="font-mono font-medium text-muted-foreground group-hover:text-brand-cyan transition-colors truncate">
+              <Sparkles
+                aria-hidden="true"
+                className="h-5 w-5 text-primary shrink-0"
+              />
+              <span className="font-medium text-foreground truncate">
                 {tpl.name}
               </span>
             </div>
             {tpl.description && (
-              <p className="text-sm text-muted-foreground font-mono mb-3 line-clamp-2">
+              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                 {tpl.description}
               </p>
             )}
-            <div className="text-xs text-foreground font-mono">
+            <div className="text-xs text-muted-foreground tabular-nums">
               {tpl.step_count} step{tpl.step_count !== 1 ? 's' : ''}
             </div>
           </button>

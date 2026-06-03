@@ -1101,8 +1101,8 @@ const CustomMetricCreationTracking: React.FC<
                               </div>
                             </div>
                           )}
-                          <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded">
-                            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          <div className="text-center p-3 bg-[var(--nous-sol)]/10 rounded">
+                            <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
                               {metric.dataSource.length}
                             </div>
                             <div className="text-sm text-foreground">
