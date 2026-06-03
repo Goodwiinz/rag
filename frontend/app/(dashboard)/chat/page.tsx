@@ -15,14 +15,52 @@ import { Citation } from '@/utils/citationParser';
 import { motion } from 'framer-motion';
 import { Activity, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 
 // ============================================
-// CONSTANTS
+// HITL HELPERS
 // ============================================
+
+interface ToolCallPreview {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+function extractToolCall(
+  confirmation: Record<string, unknown> | undefined
+): ToolCallPreview | null {
+  if (!confirmation) return null;
+  const flatName = confirmation.tool_name as string | undefined;
+  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
+    | Record<string, unknown>
+    | undefined;
+  if (flatName) return { name: flatName, args: flatArgs ?? {} };
+  const tools = confirmation.tools as
+    | Array<{ name?: string; args?: Record<string, unknown> }>
+    | undefined;
+  const first = tools?.[0];
+  if (first?.name) return { name: first.name, args: first.args ?? {} };
+  return null;
+}
+
+function formatArgValue(value: unknown, max = 140): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    return value.length > max ? value.slice(0, max - 1) + '…' : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  try {
+    const s = JSON.stringify(value);
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  } catch {
+    return '[unserializable]';
+  }
+}
 
 // ============================================
 // MAIN PAGE COMPONENT
@@ -455,22 +493,50 @@ function ChatPageContent() {
                 Approval needed
               </p>
             </div>
-            <p
-              className="text-sm leading-relaxed text-[var(--nous-fg-1)] mb-3"
-              style={{ fontFamily: 'var(--nous-font-ui)' }}
-            >
-              The agent wants to run{' '}
-              <span
-                className="rounded bg-[var(--nous-sol-subtle)] px-1.5 py-0.5 text-[var(--nous-fg-accent)]"
-                style={{ fontFamily: 'var(--nous-font-mono)' }}
-              >
-                {String(
-                  pendingConfirmation.confirmation?.tool_name ||
-                    'a destructive action'
-                )}
-              </span>
-              . Approve to let it continue, or deny to stop here.
-            </p>
+            {(() => {
+              const call = extractToolCall(pendingConfirmation.confirmation);
+              const argEntries = call ? Object.entries(call.args) : [];
+              return (
+                <>
+                  <p
+                    className="text-sm leading-relaxed text-[var(--nous-fg-1)] mb-3"
+                    style={{ fontFamily: 'var(--nous-font-ui)' }}
+                  >
+                    The agent wants to run{' '}
+                    <span
+                      className="rounded bg-[var(--nous-sol-subtle)] px-1.5 py-0.5 text-[var(--nous-fg-accent)]"
+                      style={{ fontFamily: 'var(--nous-font-mono)' }}
+                    >
+                      {call?.name ?? 'a destructive action'}
+                    </span>
+                    . Approve to let it continue, or deny to stop here.
+                  </p>
+                  {argEntries.length > 0 && (
+                    <dl
+                      className="mb-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/60 p-3 text-xs"
+                      aria-label="Tool arguments"
+                    >
+                      {argEntries.map(([key, value]) => (
+                        <Fragment key={key}>
+                          <dt
+                            className="whitespace-nowrap text-[var(--nous-fg-3)]"
+                            style={{ fontFamily: 'var(--nous-font-mono)' }}
+                          >
+                            {key}
+                          </dt>
+                          <dd
+                            className="break-all text-[var(--nous-fg-2)]"
+                            style={{ fontFamily: 'var(--nous-font-mono)' }}
+                          >
+                            {formatArgValue(value)}
+                          </dd>
+                        </Fragment>
+                      ))}
+                    </dl>
+                  )}
+                </>
+              );
+            })()}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleConfirmation(true)}

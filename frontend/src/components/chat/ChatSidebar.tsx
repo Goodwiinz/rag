@@ -186,8 +186,8 @@ export const ChatSidebar = memo(function ChatSidebar({
               {currentWorkspace?.name || 'My Workspace'}
             </span>
             <span
-              className="text-[9px] text-[var(--nous-fg-3)] tracking-wider"
-              style={{ fontFamily: 'var(--nous-font-mono)' }}
+              className="text-[11px] text-[var(--nous-fg-3)]"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {conversations.length} thread
               {conversations.length !== 1 ? 's' : ''}
@@ -202,7 +202,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             exitSelectMode();
             onNew();
           }}
-          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-[var(--nous-erebus)] dark:bg-[var(--nous-umber)] dark:border dark:border-[var(--nous-shade)] text-white shadow-sm hover:translate-y-[-1px] hover:shadow-md active:translate-y-0 transition-all"
+          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-[var(--nous-erebus)] dark:bg-[var(--nous-umber)] dark:border dark:border-[var(--nous-shade)] text-white shadow-sm hover:shadow-md transition-shadow"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           <Plus className="w-[13px] h-[13px]" />
@@ -261,10 +261,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                 ? 'bg-[var(--nous-erebus)] dark:bg-[var(--nous-helios)] text-white dark:text-[var(--nous-nyx)] border-[var(--nous-erebus)] dark:border-[var(--nous-helios)]'
                 : 'bg-transparent border-[var(--nous-border-1)] dark:border-[var(--nous-shade)] text-[var(--nous-fg-2)] hover:border-[var(--nous-sol)] hover:text-[var(--nous-sol-safe)]'
             )}
-            style={{
-              fontFamily: 'var(--nous-font-mono)',
-              letterSpacing: '0.02em',
-            }}
+            style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             {f.label}
             <span
@@ -320,8 +317,8 @@ export const ChatSidebar = memo(function ChatSidebar({
                 <Pin className="w-[9px] h-[9px] text-[var(--nous-sol)] dark:text-[var(--nous-helios)]" />
               )}
               <span
-                className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--nous-fg-3)]"
-                style={{ fontFamily: 'var(--nous-font-mono)' }}
+                className="text-[11px] font-medium text-[var(--nous-fg-3)]"
+                style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 {section.label}
               </span>
@@ -363,14 +360,9 @@ export const ChatSidebar = memo(function ChatSidebar({
                       'sb-conv w-full text-left block p-[9px_11px] rounded-[7px] border transition-[background,border-color] duration-[180ms] mb-px relative',
                       isActive
                         ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border-[rgba(212,160,57,0.2)] dark:border-[rgba(232,184,74,0.25)]'
-                        : 'bg-transparent border-transparent hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-umber)]'
+                        : 'bg-transparent border-transparent hover:bg-[var(--nous-bg-2)] dark:hover:bg-[var(--nous-obsidian)]'
                     )}
                   >
-                    {/* Active gold left rail */}
-                    {isActive && (
-                      <span className="absolute left-[-10px] top-[10px] bottom-[10px] w-0.5 rounded-r bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]" />
-                    )}
-
                     {/* Row 1: pin + title + unread */}
                     <div className="flex items-center gap-1.5 mb-[3px]">
                       {selectMode && (

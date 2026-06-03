@@ -2,6 +2,7 @@
 
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { cn } from '@/lib/utils';
+import { toolStatusLabel } from '@/components/context-rail/toolLabels';
 import { ChevronRight, Wrench } from 'lucide-react';
 import { useState } from 'react';
 
@@ -29,17 +30,23 @@ export function InlineAgentSummary({
 
   if (!show || !run || run.steps.length === 0) return null;
 
-  const active = run.steps.filter((s) => s.status === 'active').length;
+  const activeSteps = run.steps.filter((s) => s.status === 'active');
   const done = run.steps.filter((s) => s.status === 'done').length;
   const errored = run.steps.filter((s) => s.status === 'error').length;
   const total = run.steps.length;
+  const latestActive = activeSteps[activeSteps.length - 1];
 
+  // Quiet plain-present-tense narration while running; honest counts on
+  // completion. Single active step gets its own microcopy line so the
+  // reader sees what the agent is doing right now, not just how many.
   const summary =
     run.state === 'done'
-      ? `Ran ${total} ${total === 1 ? 'tool' : 'tools'}`
+      ? `Used ${total} ${total === 1 ? 'tool' : 'tools'}`
       : run.state === 'error'
-        ? `Ran ${total} ${total === 1 ? 'tool' : 'tools'} · ${errored} failed`
-        : `${done}/${total} complete${active > 0 ? ` · ${active} active` : ''}`;
+        ? `Used ${total} ${total === 1 ? 'tool' : 'tools'} · ${errored} failed`
+        : latestActive
+          ? toolStatusLabel(latestActive.tool, 'active')
+          : `${done}/${total} complete`;
 
   return (
     <div className="ml-4 mb-2">
@@ -51,16 +58,14 @@ export function InlineAgentSummary({
           'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]',
           'hover:border-[var(--nous-sol)]/30'
         )}
-        style={{ fontFamily: 'var(--nous-font-mono)' }}
+        style={{ fontFamily: 'var(--nous-font-ui)' }}
         aria-expanded={open}
-        aria-label={
-          open ? 'Hide agent steps' : `Show agent steps: ${summary}`
-        }
+        aria-label={open ? 'Hide agent steps' : `Show agent steps: ${summary}`}
       >
         <Wrench
           className={cn(
             'h-3 w-3 shrink-0',
-            run.state === 'running' && active > 0
+            run.state === 'running' && activeSteps.length > 0
               ? 'animate-pulse text-[var(--nous-sol)]'
               : run.state === 'error'
                 ? 'text-[var(--nous-mars)]'
@@ -79,14 +84,12 @@ export function InlineAgentSummary({
       {open && (
         <ul
           className="mt-2 ml-1 space-y-1"
-          style={{ fontFamily: 'var(--nous-font-mono)' }}
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           {run.steps.map((step) => (
-            <li
-              key={step.id}
-              className="flex items-center gap-2 text-[11px]"
-            >
+            <li key={step.id} className="flex items-center gap-2 text-[11px]">
               <span
+                aria-hidden
                 className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
                   step.status === 'active' &&
@@ -96,7 +99,7 @@ export function InlineAgentSummary({
                 )}
               />
               <span className="text-[var(--nous-fg-3)]">
-                {step.label}
+                {toolStatusLabel(step.tool, step.status)}
               </span>
             </li>
           ))}
