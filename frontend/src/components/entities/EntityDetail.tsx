@@ -1,23 +1,20 @@
 /**
  * EntityDetail Component
- * Terminal Observatory themed entity detail view with role-based access control
+ * Entity detail view with role-based access control.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   Edit,
-  ExternalLink,
   Clock,
   CheckCircle,
   FileText,
   Plus,
   Trash2,
-  Shield,
-  Activity,
-  Terminal,
-  Database,
-  Code,
+  Info,
   Network,
+  Code2,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,10 +28,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Entity, GraphEdge, EntityType } from '@/types/entity';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Entity, GraphEdge } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { NeighborhoodExplorer } from './NeighborhoodExplorer';
+import { formatEntityType, entityTypeBadgeClass } from './entityType';
 import { cn } from '@/lib/utils';
 
 interface EntityDetailProps {
@@ -44,30 +52,9 @@ interface EntityDetailProps {
   onEntityClick?: (entity: Entity) => void;
 }
 
-const typeColors: Record<string, string> = {
-  PERSON: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  ORGANIZATION: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-  LOCATION: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-  CONCEPT: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  EVENT: 'text-rose-400 bg-rose-400/10 border-rose-400/20',
-  PRODUCT: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20',
-  DATE: 'text-slate-400 bg-slate-400/10 border-slate-400/20',
-  TECHNOLOGY: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-  DOCUMENT: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  TOPIC: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
-  RESEARCH: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
-  FINANCIAL: 'text-green-400 bg-green-400/10 border-green-400/20',
-  EMAIL: 'text-sky-400 bg-sky-400/10 border-sky-400/20',
-  PHONE: 'text-teal-400 bg-teal-400/10 border-teal-400/20',
-  URL: 'text-lime-400 bg-lime-400/10 border-lime-400/20',
-  JOB_TITLE: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
-  OTHER: 'text-muted-foreground bg-gray-400/10 border-border/20',
-};
-
-const getConfidenceColor = (confidence: number): string => {
-  if (confidence >= 0.8) return 'text-[var(--nous-sol)]';
-  if (confidence >= 0.6) return 'text-[var(--nous-helios)]';
-  return 'text-red-400';
+const formatField = (key: string): string => {
+  const spaced = key.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 };
 
 export const EntityDetail: React.FC<EntityDetailProps> = ({
@@ -79,6 +66,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   const { canCreate, canEdit, canDelete } = useEntityPermissions();
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relationshipToDelete, setRelationshipToDelete] =
+    useState<GraphEdge | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (entity?.id) {
@@ -98,30 +88,32 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
     }
   };
 
-  const handleDeleteRelationship = async (relationshipId: string) => {
-    if (!window.confirm('Are you sure you want to delete this relationship?')) {
-      return;
-    }
+  const handleConfirmDeleteRelationship = async () => {
+    if (!relationshipToDelete) return;
 
     try {
-      await entityService.deleteRelationship(relationshipId);
+      setDeleting(true);
+      await entityService.deleteRelationship(relationshipToDelete.id);
       await fetchRelationships();
+      setRelationshipToDelete(null);
     } catch (error) {
       console.error('Error deleting relationship:', error);
+    } finally {
+      setDeleting(false);
     }
   };
 
   const formatDate = (dateString?: string): string => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleString();
   };
 
   const renderMetadata = (metadata: Record<string, any>) => {
     if (!metadata || Object.keys(metadata).length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-8 text-[var(--nous-fg-3)]">
-          <Database className="w-8 h-8 mb-2 opacity-20" />
-          <p className="font-mono text-sm">NO_METADATA_AVAILABLE</p>
+        <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
+          <Database aria-hidden="true" className="w-8 h-8 opacity-20" />
+          <p className="text-sm">No metadata available</p>
         </div>
       );
     }
@@ -132,19 +124,16 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           if (key === 'properties') return null;
           if (key === 'aliases' && Array.isArray(value)) {
             return (
-              <div
-                key={key}
-                className="border-b border-[var(--nous-border-1)] pb-3"
-              >
-                <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest mb-2">
-                  {key}
+              <div key={key} className="border-b border-border pb-3">
+                <dt className="text-xs font-medium text-muted-foreground mb-2">
+                  {formatField(key)}
                 </dt>
                 <dd className="flex flex-wrap gap-2">
                   {value.map((alias, index) => (
                     <Badge
                       key={index}
                       variant="outline"
-                      className="font-mono text-[10px] border-[var(--nous-border-1)] text-[var(--nous-fg-3)] bg-[var(--nous-bg-3)]"
+                      className="border-border bg-muted text-muted-foreground font-normal"
                     >
                       {alias}
                     </Badge>
@@ -155,15 +144,12 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           }
           if (typeof value === 'object' && value !== null) {
             return (
-              <div
-                key={key}
-                className="border-b border-[var(--nous-border-1)] pb-3"
-              >
-                <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest mb-2">
-                  {key}
+              <div key={key} className="border-b border-border pb-3">
+                <dt className="text-xs font-medium text-muted-foreground mb-2">
+                  {formatField(key)}
                 </dt>
                 <dd>
-                  <pre className="text-[10px] font-mono bg-[var(--nous-bg-1)] p-3 rounded border border-[var(--nous-border-1)] text-[var(--nous-fg-3)] overflow-auto custom-scrollbar">
+                  <pre className="text-xs font-[var(--nous-font-mono)] bg-muted/50 p-3 rounded-md border border-border text-muted-foreground overflow-auto custom-scrollbar">
                     {JSON.stringify(value, null, 2)}
                   </pre>
                 </dd>
@@ -173,12 +159,12 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           return (
             <div
               key={key}
-              className="border-b border-[var(--nous-border-1)] pb-3 flex justify-between items-center"
+              className="border-b border-border pb-3 flex justify-between items-center gap-4"
             >
-              <dt className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
-                {key}
+              <dt className="text-xs font-medium text-muted-foreground">
+                {formatField(key)}
               </dt>
-              <dd className="text-xs font-mono text-[var(--nous-fg-1)]">
+              <dd className="text-sm text-foreground text-right">
                 {String(value)}
               </dd>
             </div>
@@ -189,49 +175,41 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   };
 
   return (
-    <div className="space-y-6 text-[var(--nous-fg-1)]">
+    <div className="space-y-6 text-foreground">
       {/* Header */}
-      <div className="flex items-start justify-between pb-6 border-b border-[var(--nous-border-1)]">
+      <div className="flex items-start justify-between pb-6 border-b border-border gap-4">
         <div>
-          <h2 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-tight flex items-center gap-3">
+          <h2 className="text-2xl font-semibold text-foreground tracking-tight flex items-center gap-3 flex-wrap">
             {entity.name}
             <Badge
-              className={cn(
-                'font-mono text-[10px] font-bold border rounded px-1.5 py-0.5 ml-2 align-middle',
-                typeColors[entity.type] ||
-                  'text-muted-foreground bg-gray-400/10 border-border/20'
-              )}
+              variant="outline"
+              className={cn(entityTypeBadgeClass, 'align-middle')}
             >
-              {entity.type}
+              {formatEntityType(entity.type)}
             </Badge>
           </h2>
-          <div className="flex items-center gap-4 mt-2 text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
+          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--nous-fg-3)]">ID:</span>
-              <span className="font-mono">{entity.id.substring(0, 8)}</span>
+              <span>ID</span>
+              <span className="font-[var(--nous-font-mono)] text-foreground">
+                {entity.id.substring(0, 8)}
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[var(--nous-fg-3)]">
-                Confidence:
-              </span>
-              <span
-                className={cn(
-                  'font-bold',
-                  getConfidenceColor(entity.confidence || 0)
-                )}
-              >
+              <span>Confidence</span>
+              <span className="font-medium text-foreground tabular-nums">
                 {((entity.confidence || 0) * 100).toFixed(1)}%
               </span>
             </div>
             {entity.confidence && entity.confidence >= 0.8 && (
-              <div className="flex items-center gap-1 text-[var(--nous-sol)]">
-                <CheckCircle className="w-3 h-3" />
-                VERIFIED
+              <div className="flex items-center gap-1 text-primary">
+                <CheckCircle aria-hidden="true" className="w-3.5 h-3.5" />
+                High confidence
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {entity.source_document_id && (
             <Button
               variant="outline"
@@ -239,10 +217,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               onClick={() =>
                 window.open(`/documents/${entity.source_document_id}`, '_blank')
               }
-              className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-helios)]"
             >
-              <FileText className="h-3.5 w-3.5 mr-1.5" />
-              SOURCE_DOC
+              <FileText aria-hidden="true" className="h-3.5 w-3.5 mr-1.5" />
+              Source document
             </Button>
           )}
           {onEdit && (
@@ -251,11 +228,13 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               size="sm"
               onClick={onEdit}
               disabled={!canEdit}
-              className="font-mono text-[10px] font-bold border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-helios)] disabled:opacity-30 disabled:cursor-not-allowed"
               title={!canEdit ? 'Admin access required' : 'Edit entity'}
             >
-              <Edit className="h-3.5 w-3.5 mr-1.5" />
-              EDIT_NODE {!canEdit && '(ADMIN)'}
+              <Edit aria-hidden="true" className="h-3.5 w-3.5 mr-1.5" />
+              Edit
+              {!canEdit && (
+                <span className="ml-1 text-xs opacity-80">(admin)</span>
+              )}
             </Button>
           )}
         </div>
@@ -263,107 +242,117 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] p-1 rounded-xl w-full justify-start">
+        <TabsList className="bg-muted/40 border border-border p-1 rounded-lg w-full justify-start">
           <TabsTrigger
             value="overview"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-sm px-4"
           >
-            <Activity className="w-3.5 h-3.5" />
-            OVERVIEW
+            <Info aria-hidden="true" className="w-3.5 h-3.5" />
+            Overview
           </TabsTrigger>
           <TabsTrigger
             value="relationships"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-sm px-4"
           >
-            <Network className="w-3.5 h-3.5" />
-            RELATIONSHIPS
+            <Network aria-hidden="true" className="w-3.5 h-3.5" />
+            Relationships
           </TabsTrigger>
           <TabsTrigger
             value="neighborhood"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-sm px-4"
           >
-            <Shield className="w-3.5 h-3.5" />
-            NEIGHBORHOOD
+            <Network aria-hidden="true" className="w-3.5 h-3.5" />
+            Neighborhood
           </TabsTrigger>
           <TabsTrigger
             value="metadata"
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-[var(--nous-bg-3)] data-[state=active]:text-[var(--nous-sol)] font-mono text-xs font-bold px-4"
+            className="flex items-center gap-2 rounded-md data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-sm px-4"
           >
-            <Code className="w-3.5 h-3.5" />
-            METADATA
+            <Code2 aria-hidden="true" className="w-3.5 h-3.5" />
+            Metadata
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-0 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
-              <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
-                  <Terminal className="w-4 h-4" />
-                  System_Log
+            <Card className="border-border bg-card shadow-sm">
+              <CardHeader className="border-b border-border py-3 bg-muted/30">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <Info
+                    aria-hidden="true"
+                    className="w-4 h-4 text-muted-foreground"
+                  />
+                  Details
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
-                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
-                    Entity_UUID
+                <div className="flex justify-between items-center gap-4 border-b border-border pb-2">
+                  <span className="text-sm text-muted-foreground">
+                    Entity ID
                   </span>
-                  <span className="text-xs font-mono text-[var(--nous-fg-1)]">
+                  <span className="text-xs font-[var(--nous-font-mono)] text-foreground truncate">
                     {entity.id}
                   </span>
                 </div>
-                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
-                    Created_At
-                  </span>
-                  <div className="flex items-center text-xs font-mono text-[var(--nous-fg-1)]">
-                    <Clock className="h-3 w-3 mr-1.5 text-[var(--nous-fg-3)]" />
+                <div className="flex justify-between items-center gap-4 border-b border-border pb-2">
+                  <span className="text-sm text-muted-foreground">Created</span>
+                  <div className="flex items-center text-sm text-foreground">
+                    <Clock
+                      aria-hidden="true"
+                      className="h-3 w-3 mr-1.5 text-muted-foreground"
+                    />
                     {formatDate(entity.created_at)}
                   </div>
                 </div>
-                <div className="flex justify-between items-center border-b border-[var(--nous-border-1)] pb-2 border-dashed">
-                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
-                    Last_Update
+                <div className="flex justify-between items-center gap-4 border-b border-border pb-2">
+                  <span className="text-sm text-muted-foreground">
+                    Last updated
                   </span>
-                  <div className="flex items-center text-xs font-mono text-[var(--nous-fg-1)]">
-                    <Clock className="h-3 w-3 mr-1.5 text-[var(--nous-fg-3)]" />
+                  <div className="flex items-center text-sm text-foreground">
+                    <Clock
+                      aria-hidden="true"
+                      className="h-3 w-3 mr-1.5 text-muted-foreground"
+                    />
                     {formatDate(entity.updated_at)}
                   </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-mono text-[var(--nous-fg-3)]">
-                    Extraction_Protocol
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    Extraction method
                   </span>
-                  <span className="text-xs font-mono text-[var(--nous-helios)]">
-                    {entity.extraction_method || 'AUTO_INFERENCE'}
+                  <span className="text-sm text-foreground">
+                    {entity.extraction_method || 'Automatic'}
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg flex flex-col">
-              <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
-                <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Description_Buffer
+            <Card className="border-border bg-card shadow-sm flex flex-col">
+              <CardHeader className="border-b border-border py-3 bg-muted/30">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <FileText
+                    aria-hidden="true"
+                    className="w-4 h-4 text-muted-foreground"
+                  />
+                  Description
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 flex-1">
-                <p className="text-xs font-mono text-[var(--nous-fg-1)] leading-relaxed">
+                <p className="text-sm text-foreground leading-relaxed">
                   {entity.metadata?.description || (
-                    <span className="text-[var(--nous-fg-3)] italic opacity-50">
-                      NO_DESCRIPTION_BUFFER_AVAILABLE
+                    <span className="text-muted-foreground">
+                      No description available
                     </span>
                   )}
                 </p>
                 {entity.metadata?.category && (
-                  <div className="mt-4 pt-4 border-t border-[var(--nous-border-1)] border-dashed">
-                    <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase mr-2">
-                      Category_Tag:
+                  <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Category
                     </span>
                     <Badge
                       variant="outline"
-                      className="font-mono text-[10px] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
+                      className="border-border bg-muted text-foreground font-normal"
                     >
                       {entity.metadata.category}
                     </Badge>
@@ -375,63 +364,74 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="relationships" className="mt-0">
-          <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg overflow-hidden">
-            <CardHeader className="border-b border-[var(--nous-border-1)] py-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
-                <Network className="w-4 h-4" />
-                Connectivity_Matrix
+          <Card className="border-border bg-card shadow-sm overflow-hidden">
+            <CardHeader className="border-b border-border py-3 bg-muted/30 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Network
+                  aria-hidden="true"
+                  className="w-4 h-4 text-muted-foreground"
+                />
+                Relationships
               </CardTitle>
               <Button
                 size="sm"
                 variant="ghost"
                 disabled={!canCreate}
-                className="h-7 font-mono text-[10px] font-bold hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="h-7 text-xs hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed"
                 title={
                   !canCreate ? 'Admin access required' : 'Add relationship'
                 }
               >
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                ADD_LINK {!canCreate && '(ADMIN)'}
+                <Plus aria-hidden="true" className="h-3.5 w-3.5 mr-1.5" />
+                Add relationship
+                {!canCreate && <span className="ml-1 opacity-80">(admin)</span>}
               </Button>
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
-                <div className="p-8 space-y-3">
+                <div
+                  className="p-8 space-y-3"
+                  role="status"
+                  aria-label="Loading relationships"
+                >
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div
                       key={i}
-                      className="h-12 bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] rounded animate-pulse"
+                      className="h-12 bg-muted/50 border border-border rounded-md animate-pulse"
                     ></div>
                   ))}
                 </div>
               ) : relationships.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-3">
-                  <Network className="w-10 h-10 text-[var(--nous-fg-3)] opacity-20" />
-                  <p className="text-sm font-mono text-[var(--nous-fg-3)]">
-                    NO_RELATIONSHIPS_MAPPED
+                  <Network
+                    aria-hidden="true"
+                    className="w-10 h-10 text-muted-foreground opacity-20"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    No relationships yet
                   </p>
                 </div>
               ) : (
                 <Table>
-                  <TableHeader className="bg-[var(--nous-bg-1)]/50">
-                    <TableRow className="border-[var(--nous-border-1)] hover:bg-transparent">
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] pl-6">
-                        Linked_Entity
+                  <TableHeader className="bg-muted/20">
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-xs font-medium text-muted-foreground pl-6">
+                        Connected entity
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                        Link_Type
+                      <TableHead className="text-xs font-medium text-muted-foreground">
+                        Type
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                        Strength_Index
+                      <TableHead className="text-xs font-medium text-muted-foreground">
+                        Strength
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
+                      <TableHead className="text-xs font-medium text-muted-foreground">
                         Confidence
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                        Context_Data
+                      <TableHead className="text-xs font-medium text-muted-foreground">
+                        Context
                       </TableHead>
-                      <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] text-right pr-6">
-                        Ops
+                      <TableHead className="text-xs font-medium text-muted-foreground text-right pr-6">
+                        Actions
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -439,58 +439,57 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                     {relationships.map((rel) => (
                       <TableRow
                         key={rel.id}
-                        className="border-[var(--nous-border-1)] hover:bg-[var(--nous-bg-3)]"
+                        className="border-border hover:bg-muted/40"
                       >
                         <TableCell className="pl-6">
-                          <div className="font-mono text-xs font-bold text-[var(--nous-fg-1)]">
+                          <div className="text-sm font-medium text-foreground">
                             {rel.source === entity.id ? rel.target : rel.source}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className="font-mono text-[9px] border-[var(--nous-border-1)] text-[var(--nous-fg-3)]"
+                            className={entityTypeBadgeClass}
                           >
-                            {rel.type}
+                            {formatEntityType(rel.type)}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-16 bg-[var(--nous-bg-1)] rounded-full h-1.5 border border-[var(--nous-border-1)]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-muted rounded-full h-1.5 border border-border">
                               <div
-                                className="bg-[var(--nous-helios)] h-full rounded-full"
+                                className="bg-primary h-full rounded-full"
                                 style={{
                                   width: `${(rel.strength || 0) * 100}%`,
                                 }}
                               />
                             </div>
-                            <span className="text-[10px] font-mono text-[var(--nous-helios)]">
+                            <span className="text-xs text-muted-foreground tabular-nums">
                               {((rel.strength || 0) * 100).toFixed(0)}%
                             </span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span
-                            className={cn(
-                              'text-[10px] font-mono font-bold',
-                              getConfidenceColor(rel.confidence || 0)
-                            )}
-                          >
+                          <span className="text-xs font-medium text-muted-foreground tabular-nums">
                             {((rel.confidence || 0) * 100).toFixed(1)}%
                           </span>
                         </TableCell>
                         <TableCell>
-                          <div className="text-[10px] font-mono text-[var(--nous-fg-3)] max-w-xs truncate">
-                            {rel.context || 'NULL'}
+                          <div className="text-xs text-muted-foreground max-w-xs truncate">
+                            {rel.context || (
+                              <span className="text-muted-foreground/60">
+                                None
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteRelationship(rel.id)}
+                            onClick={() => setRelationshipToDelete(rel)}
                             disabled={!canDelete}
-                            className="h-6 w-6 text-red-500/50 hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
                             title={
                               !canDelete
                                 ? 'Admin access required'
@@ -498,11 +497,14 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                             }
                             aria-label={
                               !canDelete
-                                ? 'Admin access required'
+                                ? 'Delete relationship (admin access required)'
                                 : 'Delete relationship'
                             }
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2
+                              aria-hidden="true"
+                              className="h-3.5 w-3.5"
+                            />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -522,11 +524,14 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="metadata" className="mt-0">
-          <Card className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg">
-            <CardHeader className="border-b border-[var(--nous-border-1)] py-3">
-              <CardTitle className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-fg-3)] flex items-center gap-2">
-                <Code className="w-4 h-4" />
-                Raw_Metadata_Dump
+          <Card className="border-border bg-card shadow-sm">
+            <CardHeader className="border-b border-border py-3 bg-muted/30">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Code2
+                  aria-hidden="true"
+                  className="w-4 h-4 text-muted-foreground"
+                />
+                Metadata
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -535,6 +540,36 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={relationshipToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setRelationshipToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete relationship</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the link between {entity.name} and the connected
+              entity. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDeleteRelationship();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

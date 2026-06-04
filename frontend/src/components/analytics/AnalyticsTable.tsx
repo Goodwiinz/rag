@@ -221,7 +221,10 @@ export function AnalyticsTable<T extends Record<string, any>>({
           {/* Search */}
           {search && (
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              />
               <Input
                 placeholder={search.placeholder || 'Search...'}
                 aria-label="Search"
@@ -234,12 +237,15 @@ export function AnalyticsTable<T extends Record<string, any>>({
 
           {/* Column Filter */}
           {filters && (
-            <Select value={selectedFilter} onValueChange={(value) => {
-              setSelectedFilter(value);
-              filters.onFilter(value);
-            }}>
+            <Select
+              value={selectedFilter}
+              onValueChange={(value) => {
+                setSelectedFilter(value);
+                filters.onFilter(value);
+              }}
+            >
               <SelectTrigger className="w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
+                <Filter aria-hidden="true" className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter" />
               </SelectTrigger>
               <SelectContent>
@@ -281,13 +287,13 @@ export function AnalyticsTable<T extends Record<string, any>>({
                   >
                     <div className="flex items-center gap-2">
                       {column.title}
-                      {column.sortable && sortColumn === column.key && (
-                        sortDirection === 'asc' ? (
+                      {column.sortable &&
+                        sortColumn === column.key &&
+                        (sortDirection === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
                         ) : (
                           <ChevronDown className="h-4 w-4" />
-                        )
-                      )}
+                        ))}
                     </div>
                   </TableHead>
                 ))}
@@ -319,14 +325,20 @@ export function AnalyticsTable<T extends Record<string, any>>({
               ) : paginatedData.length === 0 ? (
                 // Empty state
                 <TableRow>
-                  <TableCell colSpan={columns.length + (rowActions ? 1 : 0)} className="h-24 text-center">
+                  <TableCell
+                    colSpan={columns.length + (rowActions ? 1 : 0)}
+                    className="h-24 text-center"
+                  >
                     <div className="flex flex-col items-center gap-2">
                       {emptyState?.icon && (
                         <emptyState.icon className="h-12 w-12 text-muted-foreground" />
                       )}
-                      <p className="font-medium">{emptyState?.title || 'No data found'}</p>
+                      <p className="font-medium">
+                        {emptyState?.title || 'No data found'}
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        {emptyState?.description || 'Try adjusting your filters or search query'}
+                        {emptyState?.description ||
+                          'Try adjusting your filters or search query'}
                       </p>
                       {emptyState?.action && (
                         <Button
@@ -358,7 +370,12 @@ export function AnalyticsTable<T extends Record<string, any>>({
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              aria-label="More actions"
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -368,7 +385,8 @@ export function AnalyticsTable<T extends Record<string, any>>({
                                 key={actionIndex}
                                 onClick={() => action.onClick(row, index)}
                                 className={cn(
-                                  action.variant === 'destructive' && 'text-rose-600'
+                                  action.variant === 'destructive' &&
+                                    'text-[var(--nous-mars)]'
                                 )}
                               >
                                 <action.icon className="h-4 w-4 mr-2" />
@@ -390,16 +408,21 @@ export function AnalyticsTable<T extends Record<string, any>>({
         {pagination && (
           <div className="flex items-center justify-between p-4 border-t">
             <div className="text-sm text-muted-foreground">
-              Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{' '}
-              {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
-              {pagination.total} results
+              Showing {(pagination.page - 1) * pagination.pageSize + 1} to{' '}
+              {Math.min(
+                pagination.page * pagination.pageSize,
+                pagination.total
+              )}{' '}
+              of {pagination.total} results
             </div>
 
             <div className="flex items-center gap-4">
               {/* Page Size Selector */}
               <Select
                 value={String(pagination.pageSize)}
-                onValueChange={(value) => pagination.onPageSizeChange(Number(value))}
+                onValueChange={(value) =>
+                  pagination.onPageSizeChange(Number(value))
+                }
               >
                 <SelectTrigger className="h-8 w-[70px]">
                   <SelectValue />
@@ -426,7 +449,8 @@ export function AnalyticsTable<T extends Record<string, any>>({
                 </Button>
 
                 <span className="text-sm px-2">
-                  Page {pagination.page} of {Math.ceil(pagination.total / pagination.pageSize)}
+                  Page {pagination.page} of{' '}
+                  {Math.ceil(pagination.total / pagination.pageSize)}
                 </span>
 
                 <Button
@@ -434,7 +458,8 @@ export function AnalyticsTable<T extends Record<string, any>>({
                   size="sm"
                   onClick={() => pagination.onPageChange(pagination.page + 1)}
                   disabled={
-                    pagination.page === Math.ceil(pagination.total / pagination.pageSize)
+                    pagination.page ===
+                    Math.ceil(pagination.total / pagination.pageSize)
                   }
                   className="h-8 w-8 p-0"
                   aria-label="Next page"
@@ -459,8 +484,8 @@ export const createDocumentAnalyticsTable = () => {
       sortable: true,
       render: (value: string, row: any) => (
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-amber-100 flex items-center justify-center">
-            <FileText className="h-4 w-4 text-amber-600" />
+          <div className="flex h-8 w-8 items-center justify-center rounded bg-muted text-primary">
+            <FileText aria-hidden="true" className="h-4 w-4" />
           </div>
           <span className="font-medium">{value}</span>
         </div>
@@ -486,7 +511,7 @@ export const createDocumentAnalyticsTable = () => {
       sortable: true,
       render: (value: string) => (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="h-3 w-3" />
+          <Calendar aria-hidden="true" className="h-3 w-3" />
           {formatDate(value)}
         </div>
       ),
@@ -501,10 +526,10 @@ export const createDocumentAnalyticsTable = () => {
             value === 'completed'
               ? 'default'
               : value === 'processing'
-              ? 'secondary'
-              : value === 'failed'
-              ? 'destructive'
-              : 'outline'
+                ? 'secondary'
+                : value === 'failed'
+                  ? 'destructive'
+                  : 'outline'
           }
         >
           {value}
@@ -523,16 +548,16 @@ export const createSearchAnalyticsTable = () => {
       title: 'Query',
       sortable: true,
       render: (value: string) => (
-        <span className="font-medium truncate max-w-[200px] block">{value}</span>
+        <span className="font-medium truncate max-w-[200px] block">
+          {value}
+        </span>
       ),
     },
     {
       key: 'type',
       title: 'Type',
       sortable: true,
-      render: (value: string) => (
-        <Badge variant="outline">{value}</Badge>
-      ),
+      render: (value: string) => <Badge variant="outline">{value}</Badge>,
     },
     {
       key: 'results',
@@ -541,13 +566,13 @@ export const createSearchAnalyticsTable = () => {
     },
     {
       key: 'clickRate',
-      title: 'Click Rate',
+      title: 'Click rate',
       sortable: true,
       render: (value: number) => `${(value * 100).toFixed(1)}%`,
     },
     {
       key: 'lastSearched',
-      title: 'Last Searched',
+      title: 'Last searched',
       sortable: true,
       render: (value: string) => formatDate(value),
     },

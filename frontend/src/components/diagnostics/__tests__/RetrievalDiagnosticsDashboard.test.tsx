@@ -74,7 +74,7 @@ describe('RetrievalDiagnosticsDashboard', () => {
       expect(mockGetRecentTraces).toHaveBeenCalledWith(50);
     });
 
-    expect(screen.getByText('NO_TRACES_CAPTURED')).toBeInTheDocument();
+    expect(screen.getByText('No traces captured yet')).toBeInTheDocument();
   });
 
   it('refreshes traces when refresh button is clicked', async () => {
@@ -94,15 +94,15 @@ describe('RetrievalDiagnosticsDashboard', () => {
   it('loads aggregate stats in quality overview tab', async () => {
     render(<RetrievalDiagnosticsDashboard />);
 
-    const qualityTab = activateTab('Quality Overview');
+    const qualityTab = activateTab('Quality overview');
 
     await waitFor(() => {
       expect(qualityTab).toHaveAttribute('aria-selected', 'true');
       expect(mockGetAggregateStats).toHaveBeenCalledWith(24);
     });
 
-    expect(screen.getByText('Total Queries')).toBeInTheDocument();
-    expect(screen.getByText('Context Truncation')).toBeInTheDocument();
+    expect(screen.getByText('Total queries')).toBeInTheDocument();
+    expect(screen.getByText('Context truncation')).toBeInTheDocument();
   });
 
   it('loads bottleneck analysis data in bottleneck tab', async () => {
@@ -129,7 +129,7 @@ describe('RetrievalDiagnosticsDashboard', () => {
 
     render(<RetrievalDiagnosticsDashboard />);
 
-    const bottleneckTab = activateTab('Bottleneck Analysis');
+    const bottleneckTab = activateTab('Bottleneck analysis');
 
     await waitFor(() => {
       expect(bottleneckTab).toHaveAttribute('aria-selected', 'true');
@@ -137,7 +137,7 @@ describe('RetrievalDiagnosticsDashboard', () => {
       expect(mockGetTrace).toHaveBeenCalledWith('trace-1');
     });
 
-    expect(screen.getByText('Pipeline Health')).toBeInTheDocument();
-    expect(screen.getByText('Top Issues (0)')).toBeInTheDocument();
+    expect(screen.getByText('Pipeline health')).toBeInTheDocument();
+    expect(screen.getByText('Top issues (0)')).toBeInTheDocument();
   });
 });

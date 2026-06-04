@@ -97,29 +97,27 @@ describe('ArxivManagement', () => {
       },
     ];
 
-    mockApi.post.mockImplementation(
-      async (url: string) => {
-        if (url === '/arxiv/search') {
-          return searchResult as never;
-        }
-
-        if (url === '/arxiv/ingest') {
-          return {
-            message: 'ArXiv paper ingestion started',
-            paper_count: 1,
-            status: 'processing',
-          } as never;
-        }
-
-        throw new Error(`Unexpected endpoint: ${url}`);
+    mockApi.post.mockImplementation(async (url: string) => {
+      if (url === '/arxiv/search') {
+        return searchResult as never;
       }
-    );
+
+      if (url === '/arxiv/ingest') {
+        return {
+          message: 'ArXiv paper ingestion started',
+          paper_count: 1,
+          status: 'processing',
+        } as never;
+      }
+
+      throw new Error(`Unexpected endpoint: ${url}`);
+    });
 
     render(<ArxivManagement />);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Ingest Papers' }));
 
-    fireEvent.change(screen.getByLabelText('Search Query'), {
+    fireEvent.change(screen.getByLabelText('Search query'), {
       target: { value: 'transformer' },
     });
 
@@ -157,7 +155,7 @@ describe('ArxivManagement', () => {
     });
 
     const successMessages = await screen.findAllByText(
-      'COMPLETED: 1 papers queued for background ingestion.'
+      '1 papers queued for background ingestion.'
     );
     expect(successMessages.length).toBeGreaterThan(0);
   });
@@ -173,7 +171,7 @@ describe('ArxivManagement', () => {
       screen.getByRole('switch', { name: /Filter by selected categories/i })
     );
 
-    fireEvent.change(screen.getByLabelText('Search Query'), {
+    fireEvent.change(screen.getByLabelText('Search query'), {
       target: { value: 'graph neural networks' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
@@ -212,17 +210,16 @@ describe('ArxivManagement', () => {
     render(<ArxivManagement />);
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: 'Ingest Papers' })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      );
+      expect(
+        screen.getByRole('tab', { name: 'Ingest Papers' })
+      ).toHaveAttribute('aria-selected', 'true');
     });
 
     expect(
-      screen.getByText(/public search and live stats stay available/i)
+      screen.getByText(/public search and statistics are available now/i)
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Search Query'), {
+    fireEvent.change(screen.getByLabelText('Search query'), {
       target: { value: 'transformer interpretability' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Search Papers' }));
@@ -248,46 +245,44 @@ describe('ArxivManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Run Change Scan' }));
 
     const errorMessages = await screen.findAllByText(
-      'ERROR: ArXiv scan failed because the upstream arXiv service is temporarily unavailable or rate limiting requests. Retry in about a minute or scan fewer categories.'
+      'ArXiv scan failed because the upstream arXiv service is temporarily unavailable or rate limiting requests. Retry in about a minute or scan fewer categories.'
     );
 
     expect(errorMessages.length).toBeGreaterThan(0);
   });
 
   it('extracts features from paper IDs in the extract tab', async () => {
-    mockApi.post.mockImplementation(
-      async (url: string) => {
-        if (url === '/arxiv/extraction/extract-features') {
-          return {
-            status: 'success',
-            message: 'Extraction complete',
-            processed_count: 2,
-            results: [
-              {
-                paper_id: '1706.03762',
-                title: 'Attention Is All You Need',
-                extraction_status: 'completed',
-                features: {
-                  topics: ['transformers', 'sequence modeling'],
-                  keyphrases: ['self-attention', 'encoder-decoder'],
-                },
+    mockApi.post.mockImplementation(async (url: string) => {
+      if (url === '/arxiv/extraction/extract-features') {
+        return {
+          status: 'success',
+          message: 'Extraction complete',
+          processed_count: 2,
+          results: [
+            {
+              paper_id: '1706.03762',
+              title: 'Attention Is All You Need',
+              extraction_status: 'completed',
+              features: {
+                topics: ['transformers', 'sequence modeling'],
+                keyphrases: ['self-attention', 'encoder-decoder'],
               },
-              {
-                paper_id: '1810.04805',
-                title: 'BERT: Pre-training of Deep Bidirectional Transformers',
-                extraction_status: 'completed',
-                features: {
-                  topics: ['language modeling'],
-                  keyphrases: ['masked language model'],
-                },
+            },
+            {
+              paper_id: '1810.04805',
+              title: 'BERT: Pre-training of Deep Bidirectional Transformers',
+              extraction_status: 'completed',
+              features: {
+                topics: ['language modeling'],
+                keyphrases: ['masked language model'],
               },
-            ],
-          } as never;
-        }
-
-        throw new Error(`Unexpected endpoint: ${url}`);
+            },
+          ],
+        } as never;
       }
-    );
+
+      throw new Error(`Unexpected endpoint: ${url}`);
+    });
 
     render(<ArxivManagement />);
 
