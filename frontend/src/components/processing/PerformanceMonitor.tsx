@@ -79,7 +79,7 @@ const metricConfigs = {
   cpu: {
     title: 'CPU Usage',
     icon: CpuChipIcon,
-    color: 'text-[var(--nous-sol-safe)]',
+    color: 'text-[var(--nous-fg-accent-safe)]',
     bgColor: 'bg-[var(--nous-bg-3)]',
     borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 70, critical: 90 },
@@ -97,7 +97,7 @@ const metricConfigs = {
   throughput: {
     title: 'Throughput',
     icon: ArrowTrendingUpIcon,
-    color: 'text-[var(--nous-sol-safe)]',
+    color: 'text-[var(--nous-fg-accent-safe)]',
     bgColor: 'bg-[var(--nous-bg-3)]',
     borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 50, critical: 25 },
@@ -570,7 +570,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="CPU"
           value={systemMetrics.cpuUsage}
           icon={CpuChipIcon}
-          color="text-[var(--nous-sol-safe)]"
+          color="text-[var(--nous-fg-accent-safe)]"
           trend={trends.cpu}
           threshold={metricConfigs.cpu.threshold}
           format={(v) => `${v.toFixed(1)}%`}
@@ -596,7 +596,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Messages"
           value={messageRate}
           icon={ArrowTrendingUpIcon}
-          color="text-[var(--nous-sol-safe)]"
+          color="text-[var(--nous-fg-accent-safe)]"
           format={(v) => `${v.toFixed(1)}/s`}
         />
       </div>
@@ -635,7 +635,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="CPU Usage"
             value={systemMetrics.cpuUsage}
             icon={CpuChipIcon}
-            color="text-[var(--nous-sol-safe)]"
+            color="text-[var(--nous-fg-accent-safe)]"
             trend={trends.cpu}
             threshold={metricConfigs.cpu.threshold}
             format={(v) => `${v.toFixed(1)}%`}
@@ -653,7 +653,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Active Jobs"
             value={systemMetrics.activeJobs}
             icon={ServerIcon}
-            color="text-[var(--nous-sol-safe)]"
+            color="text-[var(--nous-fg-accent-safe)]"
             unit="jobs"
           />
           <MetricCard
@@ -715,14 +715,14 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Throughput"
             value={store.queue.metrics.throughput}
             icon={DocumentTextIcon}
-            color="text-[var(--nous-sol-safe)]"
+            color="text-[var(--nous-fg-accent-safe)]"
             format={(v) => `${v.toFixed(1)}/min`}
           />
           <MetricCard
             title="Avg Processing"
             value={store.queue.metrics.averageProcessingTime}
             icon={ClockIcon}
-            color="text-[var(--nous-sol-safe)]"
+            color="text-[var(--nous-fg-accent-safe)]"
             format={(v) => `${v.toFixed(1)}s`}
           />
           <MetricCard

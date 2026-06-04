@@ -64,7 +64,7 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
   const getStatusColor = () => {
     switch (status) {
       case 'in_progress':
-        return 'text-[var(--nous-sol-safe)] border-[var(--nous-sol)] bg-[var(--nous-sol)]/10';
+        return 'text-[var(--nous-fg-accent-safe)] border-[var(--nous-sol)] bg-[var(--nous-sol)]/10';
       case 'completed':
         return 'text-[var(--nous-terra)] border-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'failed':
@@ -594,7 +594,7 @@ export const QueryProcessor: React.FC<QueryProcessorProps> = ({
       return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
     if (processingState.current_stage === 'failed')
       return <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
-    return <BoltIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />;
+    return <BoltIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />;
   };
 
   if (!query) {

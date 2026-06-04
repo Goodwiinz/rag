@@ -180,7 +180,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
             <BookmarkIcon
               className={cn(
                 'h-4 w-4',
-                isBookmarked && 'text-[var(--nous-sol-safe)] fill-current'
+                isBookmarked && 'text-[var(--nous-fg-accent-safe)] fill-current'
               )}
             />
           </Button>
@@ -227,7 +227,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           className={cn(
             'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
             activeTab === 'overview'
-              ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -239,7 +239,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           className={cn(
             'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
             activeTab === 'relationships'
-              ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -251,7 +251,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           className={cn(
             'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
             activeTab === 'documents'
-              ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -263,7 +263,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           className={cn(
             'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
             activeTab === 'timeline'
-              ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -406,7 +406,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
-                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]">
+                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]">
                             {relationship.relationship_type}
                           </Badge>
                           <span
@@ -502,7 +502,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <ClockIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                    <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <div>
                       <div className="font-medium">Last Mention</div>
                       <div className="text-sm text-muted-foreground">
@@ -512,7 +512,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <ChartBarIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                    <ChartBarIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <div>
                       <div className="font-medium">Total Mentions</div>
                       <div className="text-sm text-muted-foreground">

@@ -558,7 +558,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                             : filters.types.filter((t) => t !== type);
                           setFilters((prev) => ({ ...prev, types: newTypes }));
                         }}
-                        className="rounded border-border text-[var(--nous-sol-safe)] focus:ring-[var(--nous-sol)] mr-2"
+                        className="rounded border-border text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] mr-2"
                       />
                       <span className="text-sm capitalize">{type}</span>
                     </label>
@@ -587,7 +587,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                             categories: newCategories,
                           }));
                         }}
-                        className="rounded border-border text-[var(--nous-sol-safe)] focus:ring-[var(--nous-sol)] mr-2"
+                        className="rounded border-border text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] mr-2"
                       />
                       <span className="text-sm capitalize">{category}</span>
                     </label>
@@ -688,7 +688,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                   {/* Icon */}
                   <div className="flex-shrink-0">
                     <div className="p-2 bg-background rounded-lg border">
-                      <RecommendationIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                      <RecommendationIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     </div>
                   </div>
 
@@ -873,7 +873,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                 <ul className="space-y-2">
                   {selectedRecommendation.reasoning.map((reason, index) => (
                     <li key={index} className="flex items-start space-x-2">
-                      <span className="text-[var(--nous-sol-safe)]">•</span>
+                      <span className="text-[var(--nous-fg-accent-safe)]">•</span>
                       <span className="text-sm">{reason}</span>
                     </li>
                   ))}

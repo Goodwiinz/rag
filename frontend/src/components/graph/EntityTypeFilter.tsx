@@ -534,7 +534,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                 {/* Selection Info */}
                 {enableMultiSelect && (
                   <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-3)] rounded">
-                    <span className="text-sm text-[var(--nous-sol-safe)]">
+                    <span className="text-sm text-[var(--nous-fg-accent-safe)]">
                       {filters.selectedEntityIds.length} entities selected
                     </span>
                     {filters.selectedEntityIds.length > 0 && (
@@ -706,7 +706,7 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                           }}
                           className={cn(
                             'h-6 px-2',
-                            allOfTypeSelected && 'text-[var(--nous-sol-safe)]'
+                            allOfTypeSelected && 'text-[var(--nous-fg-accent-safe)]'
                           )}
                         >
                           {allOfTypeSelected ? (

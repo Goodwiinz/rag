@@ -180,7 +180,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-3 py-1 text-xs font-medium text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded transition-colors"
+              className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded transition-colors"
               aria-label="Retry processing"
             >
               Retry
@@ -227,7 +227,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-4 py-2 text-sm font-medium text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded-md transition-colors flex items-center space-x-1"
+              className="px-4 py-2 text-sm font-medium text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded-md transition-colors flex items-center space-x-1"
               aria-label="Retry processing"
             >
               <svg
@@ -279,7 +279,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {showDetails && error.length > 100 && (
             <button
               onClick={handleErrorClick}
-              className="text-xs text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:underline"
+              className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:underline"
               aria-label={
                 isExpanded
                   ? 'Show less error details'
@@ -332,7 +332,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {onErrorClick && !showDetails && (
             <button
               onClick={onErrorClick}
-              className="text-xs text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:underline"
+              className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] hover:underline"
               aria-label="View error details"
             >
               View Details

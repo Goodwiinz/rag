@@ -267,7 +267,7 @@ export function ThreadMessageSearch({
         return (
           <span
             key={i}
-            className="bg-[var(--nous-sol)]/30 text-[var(--nous-sol-safe)] px-0.5 rounded"
+            className="bg-[var(--nous-sol)]/30 text-[var(--nous-fg-accent-safe)] px-0.5 rounded"
           >
             {part}
           </span>
@@ -281,11 +281,11 @@ export function ThreadMessageSearch({
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'user':
-        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-fg-accent-safe)]';
       case 'assistant':
         return 'bg-[var(--nous-terra)]/20 text-[var(--nous-terra)]';
       case 'system':
-        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-fg-accent-safe)]';
       case 'tool':
         return 'bg-[var(--nous-corona)]/20 text-[var(--nous-corona)]';
       default:
@@ -299,7 +299,7 @@ export function ThreadMessageSearch({
       case 'active':
         return 'bg-[var(--nous-terra)]/20 text-[var(--nous-terra)]';
       case 'resolved':
-        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-fg-accent-safe)]';
       case 'archived':
         return 'bg-[var(--nous-bg-3)]/20 text-muted-foreground';
       default:
@@ -531,7 +531,7 @@ export function ThreadMessageSearch({
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
                     {result.result_type === 'thread' ? (
-                      <MessageSquare className="h-4 w-4 text-[var(--nous-sol-safe)]" />
+                      <MessageSquare className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
                     ) : (
                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     )}

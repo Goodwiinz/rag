@@ -856,7 +856,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
                         {isPrimary && (
-                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]">
+                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]">
                             Primary Path
                           </Badge>
                         )}
@@ -1061,7 +1061,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
 
                         {relationship && (
                           <div className="flex-shrink-0 text-right">
-                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)] mb-1">
+                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)] mb-1">
                               {relationship.relationship_type}
                             </Badge>
                             <div className="text-xs text-muted-foreground">
@@ -1090,7 +1090,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)] mb-2">
+                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)] mb-2">
                               {relationship.relationship_type}
                             </Badge>
                             <p className="text-sm text-foreground italic">

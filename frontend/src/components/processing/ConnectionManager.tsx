@@ -77,7 +77,7 @@ const statusConfigs = {
   },
   connecting: {
     icon: ArrowPathIcon,
-    color: 'text-[var(--nous-sol-safe)]',
+    color: 'text-[var(--nous-fg-accent-safe)]',
     bgColor: 'bg-[var(--nous-sol)]/10',
     borderColor: 'border-[var(--nous-sol)]/20',
     label: 'Connecting',
@@ -169,7 +169,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             {!isConnected && onReconnect && (
               <button
                 onClick={onReconnect}
-                className="px-3 py-1 text-xs font-medium text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors"
+                className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors"
               >
                 Reconnect
               </button>
@@ -243,7 +243,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div className="bg-card p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
-          <SignalIcon className="w-4 h-4 text-[var(--nous-sol-safe)]" />
+          <SignalIcon className="w-4 h-4 text-[var(--nous-fg-accent-safe)]" />
           <div>
             <p className="text-xs text-muted-foreground">Latency</p>
             <p className="text-sm font-semibold text-foreground">
@@ -397,7 +397,7 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
             <button
               onClick={handleTestConnection}
               disabled={isTestingConnection}
-              className="px-3 py-2 text-xs font-medium text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isTestingConnection ? 'Testing...' : 'Test Connection'}
             </button>
@@ -595,7 +595,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       {!isConnected && (
                         <button
                           onClick={reconnect}
-                          className="px-3 py-2 text-xs font-medium text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors"
+                          className="px-3 py-2 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors"
                         >
                           Connect
                         </button>

@@ -525,7 +525,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
       case 'completed':
         return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'processing':
-        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10';
       case 'failed':
         return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
@@ -606,7 +606,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                       onClick={() => setSelectedFormat(format.id)}
                     >
                       <div className="flex items-center space-x-3">
-                        <FormatIcon className="h-6 w-6 text-[var(--nous-sol-safe)]" />
+                        <FormatIcon className="h-6 w-6 text-[var(--nous-fg-accent-safe)]" />
                         <div>
                           <div className="font-medium">{format.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -643,7 +643,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                       onClick={() => setSelectedTemplate(template.id)}
                     >
                       <div className="flex items-center space-x-3">
-                        <TemplateIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                        <TemplateIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                         <div>
                           <div className="font-medium">{template.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -882,7 +882,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div className="flex items-center space-x-3">
-                    <TemplateIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                    <TemplateIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <div>
                       <div className="font-medium">{report.name}</div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">

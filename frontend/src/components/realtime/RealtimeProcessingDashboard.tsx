@@ -141,7 +141,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
         case 'completed':
           return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
         case 'processing':
-          return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
+          return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
         case 'queued':
           return 'text-foreground bg-[var(--nous-bg-2)] border-border';
         case 'uploading':
@@ -174,7 +174,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
             <ArrowPathIcon
               className={cn(
                 iconClass,
-                'text-[var(--nous-sol-safe)] animate-spin'
+                'text-[var(--nous-fg-accent-safe)] animate-spin'
               )}
             />
           );
@@ -217,7 +217,7 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           return <DocumentIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
         case 'txt':
           return (
-            <DocumentIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+            <DocumentIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           );
         case 'jpg':
         case 'png':
@@ -363,11 +363,11 @@ export const RealtimeProcessingDashboard: React.FC<RealtimeDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+              <p className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                 {processingStats.processingFiles}
               </p>
             </div>
-            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-sol-safe)] animate-spin" />
+            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)] animate-spin" />
           </div>
         </div>
 
@@ -800,7 +800,7 @@ const StageIndicator: React.FC<StageIndicatorProps> = ({
         );
       case 'in_progress':
         return (
-          <ArrowPathIcon className="h-3 w-3 text-[var(--nous-sol-safe)] animate-spin" />
+          <ArrowPathIcon className="h-3 w-3 text-[var(--nous-fg-accent-safe)] animate-spin" />
         );
       default:
         return <div className="h-3 w-3 rounded-full bg-[var(--nous-bg-3)]" />;
@@ -944,7 +944,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document }) => {
                       <ExclamationTriangleIcon className="h-4 w-4 text-[var(--nous-mars)]" />
                     )}
                     {stage.status === 'in_progress' && (
-                      <ArrowPathIcon className="h-4 w-4 text-[var(--nous-sol-safe)] animate-spin" />
+                      <ArrowPathIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)] animate-spin" />
                     )}
                   </div>
                   <span className="text-sm text-muted-foreground">

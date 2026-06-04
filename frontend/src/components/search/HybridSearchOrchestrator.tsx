@@ -68,9 +68,9 @@ const SearchStage: React.FC<SearchStageProps> = ({
 
     switch (stage.stage) {
       case 'vector':
-        return <BoltIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />;
+        return <BoltIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />;
       case 'graph':
-        return <ShareIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />;
+        return <ShareIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />;
       case 'keyword':
         return (
           <MagnifyingGlassIcon className="h-5 w-5 text-[var(--nous-terra)]" />
@@ -301,7 +301,7 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                 <span className="font-medium text-foreground capitalize">
                   {config.fusion_strategy}
                 </span>
-                <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]">
+                <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]">
                   Max {config.max_total_results} results
                 </Badge>
               </div>
@@ -622,7 +622,7 @@ export const HybridSearchOrchestrator: React.FC<
           {isRunning ? (
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <BoltIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+            <BoltIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Hybrid Search</h3>
@@ -716,7 +716,7 @@ export const HybridSearchOrchestrator: React.FC<
       {isRunning && (
         <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
-          <span className="text-sm text-[var(--nous-sol-safe)]">
+          <span className="text-sm text-[var(--nous-fg-accent-safe)]">
             {currentStage
               ? `Executing ${currentStage} search...`
               : 'Initializing hybrid search...'}

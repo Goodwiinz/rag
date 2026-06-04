@@ -59,7 +59,7 @@ const PROCESSING_THEMES: Record<
     error: '',
     success: '',
     warning: '',
-    info: 'text-[var(--nous-sol-safe)]',
+    info: 'text-[var(--nous-fg-accent-safe)]',
   },
   processing: {
     container: 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
