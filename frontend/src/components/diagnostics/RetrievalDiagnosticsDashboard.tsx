@@ -6,10 +6,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { Activity } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  RotateCw,
+  Search,
+  XCircle,
+} from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   AggregateStats,
@@ -22,6 +29,31 @@ import {
   WeightExperimentResult,
 } from '@/services/diagnosticsService';
 
+// --- Health labels (never color-only: each carries text + icon) ---
+const HEALTH_LABEL: Record<string, string> = {
+  green: 'Healthy',
+  yellow: 'Warning',
+  red: 'Critical',
+};
+
+function healthIcon(health: string) {
+  if (health === 'green')
+    return (
+      <CheckCircle2
+        className="h-4 w-4 text-[var(--nous-terra)]"
+        aria-hidden="true"
+      />
+    );
+  if (health === 'yellow')
+    return (
+      <AlertTriangle
+        className="h-4 w-4 text-[var(--nous-corona)]"
+        aria-hidden="true"
+      />
+    );
+  return <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />;
+}
+
 // --- Health badge ---
 function HealthBadge({ health }: { health: string }) {
   const variant =
@@ -30,27 +62,59 @@ function HealthBadge({ health }: { health: string }) {
       : health === 'yellow'
         ? 'secondary'
         : 'destructive';
-  const label =
-    health === 'green'
-      ? 'Healthy'
-      : health === 'yellow'
-        ? 'Warning'
-        : 'Critical';
-  return <Badge variant={variant}>{label}</Badge>;
+  return <Badge variant={variant}>{HEALTH_LABEL[health] ?? 'Unknown'}</Badge>;
 }
 
-// --- Stage health indicator ---
+// --- Stage health indicator (text label + icon, not color alone) ---
 function StageHealth({ stage, health }: { stage: string; health: string }) {
-  const color =
-    health === 'green'
-      ? 'bg-primary'
-      : health === 'yellow'
-        ? 'bg-[var(--nous-helios)]'
-        : 'bg-red-500';
   return (
     <div className="flex items-center gap-2">
-      <div className={cn('h-3 w-3 rounded-full', color)} />
-      <span className="text-sm capitalize">{stage}</span>
+      {healthIcon(health)}
+      <span className="text-sm">
+        <span className="capitalize">{stage}</span>
+        <span className="text-muted-foreground">
+          {' '}
+          — {HEALTH_LABEL[health] ?? 'Unknown'}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+// --- Shared inline error state with retry ---
+function LoadError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-col items-start gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-start gap-2">
+        <AlertTriangle
+          className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+          aria-hidden="true"
+        />
+        <span className="text-foreground">{message}</span>
+      </div>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+// --- Labelled key/value metric (replaces pipe-delimited runs) ---
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -63,14 +127,20 @@ function QueryExplorer() {
   );
   const [report, setReport] = useState<BottleneckReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   const loadTraces = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await diagnosticsService.getRecentTraces(50);
       setTraces(data.traces);
     } catch (err) {
       console.error('Failed to load traces:', err);
+      setError(
+        'Could not load recent queries. Check the diagnostics service and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -81,12 +151,18 @@ function QueryExplorer() {
   }, [loadTraces]);
 
   const selectTrace = useCallback(async (traceId: string) => {
+    setDetailError(null);
     try {
       const data = await diagnosticsService.getTrace(traceId);
       setSelectedTrace(data.trace);
       setReport(data.bottleneck_report);
     } catch (err) {
       console.error('Failed to load trace:', err);
+      setSelectedTrace(null);
+      setReport(null);
+      setDetailError(
+        'Could not load this trace. It may have expired, or the service is unavailable.'
+      );
     }
   }, []);
 
@@ -95,72 +171,99 @@ function QueryExplorer() {
       {/* Trace list */}
       <Card className="lg:col-span-1">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">Recent Queries</CardTitle>
+          <CardTitle className="text-sm font-medium">Recent queries</CardTitle>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={loadTraces}
             disabled={loading}
           >
-            {loading ? 'Loading...' : 'Refresh'}
+            <RotateCw
+              className={cn('mr-2 h-4 w-4', loading && 'animate-spin')}
+              aria-hidden="true"
+            />
+            {loading ? 'Loading' : 'Refresh'}
           </Button>
         </CardHeader>
-        <CardContent className="max-h-[600px] space-y-1 overflow-y-auto">
-          {traces.length === 0 && (
+        <CardContent
+          className="max-h-[600px] space-y-1 overflow-y-auto"
+          aria-busy={loading}
+        >
+          {error && <LoadError message={error} onRetry={loadTraces} />}
+          {!error && loading && traces.length === 0 && (
+            <div className="space-y-2" aria-hidden="true">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          )}
+          {!error && !loading && traces.length === 0 && (
             <EmptyState
-              icon={Activity}
-              title="NO_TRACES_CAPTURED"
-              description="Send a RAG query to start recording pipeline diagnostics and performance traces."
-              action={{ label: 'OPEN_SEARCH', href: '/search' }}
+              icon={Search}
+              title="No traces captured yet"
+              description="Run a search to start recording pipeline diagnostics and performance traces."
+              action={{ label: 'Open search', href: '/search' }}
             />
           )}
-          {traces.map((t) => (
-            <button
-              key={t.trace_id}
-              className={cn(
-                'w-full rounded-md border p-2 text-left text-sm transition-colors',
-                selectedTrace?.trace_id === t.trace_id
-                  ? 'border-primary/50 bg-primary/10'
-                  : 'hover:bg-muted/50'
-              )}
-              onClick={() => selectTrace(t.trace_id)}
-            >
-              <div className="truncate font-medium">
-                {t.query || '(empty query)'}
-              </div>
-              <div className="text-muted-foreground mt-1 flex gap-3 text-xs">
-                <span>{t.total_time_ms.toFixed(0)}ms</span>
-                <span>{t.final_result_count} results</span>
-                <span>{t.source_count} sources</span>
-              </div>
-            </button>
-          ))}
+          {traces.map((t) => {
+            const isSelected = selectedTrace?.trace_id === t.trace_id;
+            return (
+              <button
+                key={t.trace_id}
+                aria-pressed={isSelected}
+                className={cn(
+                  'w-full rounded-md border p-2 text-left text-sm transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40',
+                  isSelected
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:bg-muted/50'
+                )}
+                onClick={() => selectTrace(t.trace_id)}
+              >
+                <div className="truncate font-medium">
+                  {t.query || '(empty query)'}
+                </div>
+                <div className="mt-1 flex gap-3 text-xs text-muted-foreground tabular-nums">
+                  <span>{t.total_time_ms.toFixed(0)} ms</span>
+                  <span>{t.final_result_count} results</span>
+                  <span>{t.source_count} sources</span>
+                </div>
+              </button>
+            );
+          })}
         </CardContent>
       </Card>
 
       {/* Trace detail */}
       <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Pipeline Detail</CardTitle>
+          <CardTitle className="text-sm font-medium">Pipeline detail</CardTitle>
         </CardHeader>
         <CardContent>
-          {!selectedTrace ? (
-            <p className="text-muted-foreground text-sm">
+          {detailError ? (
+            <LoadError
+              message={detailError}
+              onRetry={() =>
+                selectedTrace && selectTrace(selectedTrace.trace_id)
+              }
+            />
+          ) : !selectedTrace ? (
+            <p className="text-sm text-muted-foreground">
               Select a query to view its pipeline stages.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Overall:</span>
+                <span className="text-sm font-medium">Overall</span>
                 {report && <HealthBadge health={report.overall_health} />}
-                <span className="text-muted-foreground text-xs">
-                  {selectedTrace.total_time_ms.toFixed(0)}ms total
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {selectedTrace.total_time_ms.toFixed(0)} ms total
                 </span>
               </div>
 
               {/* Sources */}
-              <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+              <section>
+                <h4 className="mb-2 text-sm font-medium text-foreground">
                   Sources
                 </h4>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -169,7 +272,7 @@ function QueryExplorer() {
                       key={src.source_type}
                       className={cn(
                         'rounded-md border p-3',
-                        src.success ? 'border-border' : 'border-red-500/50'
+                        src.success ? 'border-border' : 'border-destructive/40'
                       )}
                     >
                       <div className="flex items-center justify-between">
@@ -185,77 +288,80 @@ function QueryExplorer() {
                             : 'Failed'}
                         </Badge>
                       </div>
-                      <div className="text-muted-foreground mt-1 text-xs">
-                        {src.search_time_ms.toFixed(0)}ms | avg score:{' '}
+                      <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                        {src.search_time_ms.toFixed(0)} ms · avg score{' '}
                         {src.avg_score.toFixed(3)}
                       </div>
                       {src.error && (
-                        <div className="mt-1 text-xs text-red-400">
+                        <div className="mt-1 text-xs text-destructive">
                           {src.error}
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
 
               {/* Fusion */}
               {selectedTrace.fusion && (
-                <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                <section>
+                  <h4 className="mb-2 text-sm font-medium text-foreground">
                     Fusion
                   </h4>
                   <div className="rounded-md border p-3 text-sm">
-                    <div className="flex flex-wrap gap-4">
-                      <span>
-                        {selectedTrace.fusion.input_count} raw &rarr;{' '}
-                        {selectedTrace.fusion.output_count} unique
-                      </span>
-                      <span>
-                        {selectedTrace.fusion.multi_source_count} multi-source
-                      </span>
-                      <span>
-                        {selectedTrace.fusion.fusion_time_ms.toFixed(0)}ms
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground mt-1 text-xs">
-                      Weights:{' '}
+                    <dl className="flex flex-wrap gap-x-8 gap-y-2">
+                      <Metric
+                        label="Deduplicated"
+                        value={`${selectedTrace.fusion.input_count} raw → ${selectedTrace.fusion.output_count} unique`}
+                      />
+                      <Metric
+                        label="Multi-source"
+                        value={`${selectedTrace.fusion.multi_source_count}`}
+                      />
+                      <Metric
+                        label="Fusion time"
+                        value={`${selectedTrace.fusion.fusion_time_ms.toFixed(0)} ms`}
+                      />
+                    </dl>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Weights used:{' '}
                       {Object.entries(selectedTrace.fusion.weights_used)
-                        .map(([k, v]) => `${k}: ${(v * 100).toFixed(0)}%`)
+                        .map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`)
                         .join(', ')}
                     </div>
                   </div>
-                </div>
+                </section>
               )}
 
               {/* Reranking */}
               {selectedTrace.rerank?.enabled && (
-                <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
+                <section>
+                  <h4 className="mb-2 text-sm font-medium text-foreground">
                     Reranking
                   </h4>
                   <div className="rounded-md border p-3 text-sm">
-                    <div className="flex flex-wrap gap-4">
-                      <span>
-                        {selectedTrace.rerank.input_count} &rarr;{' '}
-                        {selectedTrace.rerank.output_count} results
-                      </span>
-                      <span>
-                        {selectedTrace.rerank.rerank_time_ms.toFixed(0)}ms
-                      </span>
+                    <dl className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                      <Metric
+                        label="Candidates"
+                        value={`${selectedTrace.rerank.input_count} → ${selectedTrace.rerank.output_count} results`}
+                      />
+                      <Metric
+                        label="Rerank time"
+                        value={`${selectedTrace.rerank.rerank_time_ms.toFixed(0)} ms`}
+                      />
                       {selectedTrace.rerank.fallback_used && (
-                        <Badge variant="destructive">Fallback</Badge>
+                        <Badge variant="destructive">Fallback used</Badge>
                       )}
-                    </div>
+                    </dl>
                     {selectedTrace.rerank.score_deltas.length > 0 && (
-                      <div className="mt-2 max-h-32 overflow-y-auto">
-                        <table className="w-full text-xs">
+                      <div className="mt-3 max-h-32 overflow-y-auto">
+                        <table className="w-full text-xs tabular-nums">
                           <thead>
                             <tr className="text-muted-foreground">
-                              <th className="text-left">Doc</th>
-                              <th className="text-right">Before</th>
-                              <th className="text-right">After</th>
-                              <th className="text-right">Delta</th>
+                              <th className="text-left font-medium">Doc</th>
+                              <th className="text-right font-medium">Before</th>
+                              <th className="text-right font-medium">After</th>
+                              <th className="text-right font-medium">Delta</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -264,7 +370,7 @@ function QueryExplorer() {
                               .map((d) => (
                                 <tr key={d.doc_id}>
                                   <td className="truncate pr-2">
-                                    {d.doc_id.slice(0, 8)}...
+                                    {d.doc_id.slice(0, 8)}…
                                   </td>
                                   <td className="text-right">
                                     {d.before.toFixed(3)}
@@ -276,8 +382,10 @@ function QueryExplorer() {
                                     className={cn(
                                       'text-right',
                                       d.delta > 0
-                                        ? 'text-primary'
-                                        : 'text-red-400'
+                                        ? 'text-[var(--nous-terra)]'
+                                        : d.delta < 0
+                                          ? 'text-destructive'
+                                          : 'text-muted-foreground'
                                     )}
                                   >
                                     {d.delta > 0 ? '+' : ''}
@@ -290,27 +398,25 @@ function QueryExplorer() {
                       </div>
                     )}
                   </div>
-                </div>
+                </section>
               )}
 
               {/* Context truncation */}
               {selectedTrace.context && (
-                <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
-                    Context Assembly
+                <section>
+                  <h4 className="mb-2 text-sm font-medium text-foreground">
+                    Context assembly
                   </h4>
                   <div className="rounded-md border p-3 text-sm">
-                    <div className="flex flex-wrap gap-4">
-                      <span>
-                        {selectedTrace.context.docs_with_content}/
-                        {selectedTrace.context.docs_retrieved} docs with content
-                      </span>
-                      <span>
-                        {selectedTrace.context.total_chars_before_truncation.toLocaleString()}{' '}
-                        &rarr;{' '}
-                        {selectedTrace.context.total_chars_after_truncation.toLocaleString()}{' '}
-                        chars
-                      </span>
+                    <dl className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                      <Metric
+                        label="Docs with content"
+                        value={`${selectedTrace.context.docs_with_content}/${selectedTrace.context.docs_retrieved}`}
+                      />
+                      <Metric
+                        label="Characters"
+                        value={`${selectedTrace.context.total_chars_before_truncation.toLocaleString()} → ${selectedTrace.context.total_chars_after_truncation.toLocaleString()}`}
+                      />
                       {selectedTrace.context.truncation_ratio > 0 && (
                         <Badge
                           variant={
@@ -325,23 +431,23 @@ function QueryExplorer() {
                           % truncated
                         </Badge>
                       )}
-                    </div>
+                    </dl>
                   </div>
-                </div>
+                </section>
               )}
 
               {/* Findings */}
               {report && report.findings.length > 0 && (
-                <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider">
-                    Issues Found
+                <section>
+                  <h4 className="mb-2 text-sm font-medium text-foreground">
+                    Issues found
                   </h4>
                   <div className="space-y-2">
                     {report.findings.map((f, i) => (
                       <FindingCard key={i} finding={f} />
                     ))}
                   </div>
-                </div>
+                </section>
               )}
             </div>
           )}
@@ -352,15 +458,22 @@ function QueryExplorer() {
 }
 
 function FindingCard({ finding }: { finding: Finding }) {
-  const severityColor =
+  const severityBorder =
     finding.severity === 'high'
-      ? 'border-red-500/50'
+      ? 'border-destructive/40'
       : finding.severity === 'medium'
-        ? 'border-[var(--nous-helios)]/50'
+        ? 'border-[var(--nous-corona)]/40'
         : 'border-border';
 
+  const severityLabel =
+    finding.severity === 'high'
+      ? 'High'
+      : finding.severity === 'medium'
+        ? 'Medium'
+        : 'Low';
+
   return (
-    <div className={cn('rounded-md border p-3', severityColor)}>
+    <div className={cn('rounded-md border p-3', severityBorder)}>
       <div className="flex items-center gap-2">
         <Badge
           variant={
@@ -372,12 +485,14 @@ function FindingCard({ finding }: { finding: Finding }) {
           }
           className="text-xs"
         >
-          {finding.severity}
+          {severityLabel}
         </Badge>
         <span className="text-sm font-medium">{finding.title}</span>
       </div>
-      <p className="text-muted-foreground mt-1 text-xs">{finding.detail}</p>
-      <p className="mt-1 text-xs text-brand-cyan">{finding.recommendation}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{finding.detail}</p>
+      <p className="mt-1 text-xs font-medium text-foreground">
+        {finding.recommendation}
+      </p>
     </div>
   );
 }
@@ -387,14 +502,19 @@ function QualityOverview() {
   const [stats, setStats] = useState<AggregateStats | null>(null);
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await diagnosticsService.getAggregateStats(hours);
       setStats(data);
     } catch (err) {
       console.error('Failed to load aggregate stats:', err);
+      setError(
+        'Could not load aggregate statistics. Check the diagnostics service and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -404,69 +524,105 @@ function QualityOverview() {
     loadStats();
   }, [loadStats]);
 
-  if (!stats) {
+  const controls = (
+    <div className="flex items-center gap-4">
+      <label className="sr-only" htmlFor="quality-window">
+        Time window
+      </label>
+      <select
+        id="quality-window"
+        className="rounded-md border bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+        value={hours}
+        onChange={(e) => setHours(Number(e.target.value))}
+      >
+        <option value={1}>Last 1 hour</option>
+        <option value={6}>Last 6 hours</option>
+        <option value={24}>Last 24 hours</option>
+        <option value={72}>Last 3 days</option>
+        <option value={168}>Last 7 days</option>
+      </select>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={loadStats}
+        disabled={loading}
+      >
+        <RotateCw
+          className={cn('mr-2 h-4 w-4', loading && 'animate-spin')}
+          aria-hidden="true"
+        />
+        Refresh
+      </Button>
+    </div>
+  );
+
+  if (error) {
     return (
-      <div className="text-muted-foreground text-sm">
-        {loading ? 'Loading statistics...' : 'No data available.'}
+      <div className="space-y-4">
+        {controls}
+        <LoadError message={error} onRetry={loadStats} />
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <select
-          className="bg-background rounded border px-2 py-1 text-sm"
-          value={hours}
-          onChange={(e) => setHours(Number(e.target.value))}
-        >
-          <option value={1}>Last 1 hour</option>
-          <option value={6}>Last 6 hours</option>
-          <option value={24}>Last 24 hours</option>
-          <option value={72}>Last 3 days</option>
-          <option value={168}>Last 7 days</option>
-        </select>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={loadStats}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
+  if (!stats) {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        {controls}
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="bg-card p-4">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="mt-2 h-7 w-16" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only" role="status">
+          Loading statistics
+        </span>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <StatCard
-          label="Total Queries"
+  const failures = stats.source_failure_count ?? 0;
+
+  return (
+    <div className="space-y-4" aria-busy={loading}>
+      {controls}
+
+      {/* Aggregate metrics as bordered cells in a single surface (no nested cards) */}
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-4">
+        <StatCell
+          label="Total queries"
           value={(stats.total_traces ?? 0).toString()}
         />
-        <StatCard
-          label="Avg Response Time"
-          value={`${(stats.avg_time_ms ?? 0).toFixed(0)}ms`}
+        <StatCell
+          label="Avg response time"
+          value={`${(stats.avg_time_ms ?? 0).toFixed(0)} ms`}
         />
-        <StatCard
-          label="Avg Results"
+        <StatCell
+          label="Avg results"
           value={(stats.avg_result_count ?? 0).toFixed(1)}
         />
-        <StatCard
-          label="Source Failures"
-          value={(stats.source_failure_count ?? 0).toString()}
-          alert={(stats.source_failure_count ?? 0) > 0}
+        <StatCell
+          label="Source failures"
+          value={failures.toString()}
+          alert={failures > 0}
+          emphasis
         />
-      </div>
+      </dl>
 
       {/* Source stats */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Source Performance
+            Source performance
           </CardTitle>
         </CardHeader>
         <CardContent>
           {Object.keys(stats.source_stats ?? {}).length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No source data available.
+            <p className="text-sm text-muted-foreground">
+              No source data yet for this time window.
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -476,11 +632,17 @@ function QualityOverview() {
                     <div className="text-sm font-medium capitalize">
                       {source}
                     </div>
-                    <div className="text-muted-foreground mt-1 text-xs">
-                      Avg: {data.avg_time_ms.toFixed(0)}ms | Max:{' '}
-                      {data.max_time_ms.toFixed(0)}ms | Queries:{' '}
-                      {data.query_count}
-                    </div>
+                    <dl className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                      <Metric
+                        label="Avg time"
+                        value={`${data.avg_time_ms.toFixed(0)} ms`}
+                      />
+                      <Metric
+                        label="Max time"
+                        value={`${data.max_time_ms.toFixed(0)} ms`}
+                      />
+                      <Metric label="Queries" value={`${data.query_count}`} />
+                    </dl>
                   </div>
                 )
               )}
@@ -493,68 +655,80 @@ function QualityOverview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Context Truncation
+            Context truncation
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard
-              label="Avg Truncation"
+          <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3">
+            <StatCell
+              label="Avg truncation"
               value={`${((stats.truncation_stats?.avg_ratio ?? 0) * 100).toFixed(1)}%`}
               alert={(stats.truncation_stats?.avg_ratio ?? 0) > 0.3}
             />
-            <StatCard
-              label="Max Truncation"
+            <StatCell
+              label="Max truncation"
               value={`${((stats.truncation_stats?.max_ratio ?? 0) * 100).toFixed(1)}%`}
               alert={(stats.truncation_stats?.max_ratio ?? 0) > 0.3}
             />
-            <StatCard
-              label="Queries with Truncation"
+            <StatCell
+              label="Queries with truncation"
               value={(
                 stats.truncation_stats?.traces_with_truncation ?? 0
               ).toString()}
             />
-          </div>
+          </dl>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function StatCard({
+function StatCell({
   label,
   value,
   alert = false,
+  emphasis = false,
 }: {
   label: string;
   value: string;
   alert?: boolean;
+  emphasis?: boolean;
 }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="text-muted-foreground text-xs">{label}</div>
-        <div
-          className={cn(
-            'mt-1 text-2xl font-bold',
-            alert ? 'text-red-400' : 'text-foreground'
+    <div className="bg-card p-4">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          'mt-1 font-bold tabular-nums',
+          emphasis ? 'text-3xl' : 'text-2xl',
+          alert ? 'text-destructive' : 'text-foreground'
+        )}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          {alert && (
+            <AlertTriangle
+              className="h-4 w-4 text-destructive"
+              aria-hidden="true"
+            />
           )}
-        >
           {value}
-        </div>
-      </CardContent>
-    </Card>
+        </span>
+      </dd>
+    </div>
   );
 }
 
 // --- Tab 3: Weight Tuner ---
+const DEFAULT_WEIGHTS = { fulltext: 0.4, vector: 0.4, kg: 0.2 };
+
 function WeightTuner() {
   const [query, setQuery] = useState('');
-  const [fulltext, setFulltext] = useState(0.4);
-  const [vector, setVector] = useState(0.4);
-  const [kg, setKg] = useState(0.2);
+  const [fulltext, setFulltext] = useState(DEFAULT_WEIGHTS.fulltext);
+  const [vector, setVector] = useState(DEFAULT_WEIGHTS.vector);
+  const [kg, setKg] = useState(DEFAULT_WEIGHTS.kg);
   const [results, setResults] = useState<WeightExperimentResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const normalizeWeights = useCallback(
     (changed: 'fulltext' | 'vector' | 'kg', newValue: number) => {
@@ -586,6 +760,7 @@ function WeightTuner() {
   const runExperiment = useCallback(async () => {
     if (!query.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       const configs: WeightConfig[] = [
         { fulltext: 0.4, vector: 0.4, knowledge_graph: 0.2 }, // Default
@@ -595,6 +770,9 @@ function WeightTuner() {
       setResults(data.results);
     } catch (err) {
       console.error('Weight experiment failed:', err);
+      setError(
+        'The weight experiment could not run. Check the diagnostics service and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -605,94 +783,116 @@ function WeightTuner() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Weight Configuration
+            Weight configuration
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs">
-              Fulltext: {(fulltext * 100).toFixed(0)}%
-            </label>
-            <Slider
-              value={[fulltext]}
-              min={0}
-              max={1}
-              step={0.05}
-              onValueChange={([v]) => normalizeWeights('fulltext', v)}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs">
-              Vector: {(vector * 100).toFixed(0)}%
-            </label>
-            <Slider
-              value={[vector]}
-              min={0}
-              max={1}
-              step={0.05}
-              onValueChange={([v]) => normalizeWeights('vector', v)}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs">
-              Knowledge Graph: {(kg * 100).toFixed(0)}%
-            </label>
-            <Slider
-              value={[kg]}
-              min={0}
-              max={1}
-              step={0.05}
-              onValueChange={([v]) => normalizeWeights('kg', v)}
-            />
-          </div>
+        <CardContent className="space-y-5">
+          <WeightSlider
+            id="weight-fulltext"
+            label="Full text"
+            value={fulltext}
+            onChange={(v) => normalizeWeights('fulltext', v)}
+          />
+          <WeightSlider
+            id="weight-vector"
+            label="Vector"
+            value={vector}
+            onChange={(v) => normalizeWeights('vector', v)}
+          />
+          <WeightSlider
+            id="weight-kg"
+            label="Knowledge graph"
+            value={kg}
+            onChange={(v) => normalizeWeights('kg', v)}
+          />
         </CardContent>
       </Card>
 
       <div className="flex gap-2">
+        <label className="sr-only" htmlFor="weight-query">
+          Test query
+        </label>
         <Input
-          placeholder="Enter a test query..."
+          id="weight-query"
+          placeholder="Enter a test query"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && runExperiment()}
         />
         <Button onClick={runExperiment} disabled={loading || !query.trim()}>
-          {loading ? 'Running...' : 'Compare'}
+          {loading ? 'Running' : 'Compare'}
         </Button>
       </div>
 
+      {error && <LoadError message={error} onRetry={runExperiment} />}
+
       {/* Results comparison */}
-      {results.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {results.map((r, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {i === 0 ? 'Default Weights' : 'Custom Weights'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
-                <div className="text-muted-foreground text-xs">
-                  {Object.entries(r.weights)
-                    .map(([k, v]) => `${k}: ${(v * 100).toFixed(0)}%`)
-                    .join(' | ')}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-3">
-                  <span>{r.result_count} results</span>
-                  <span>{r.total_time_ms.toFixed(0)}ms</span>
-                </div>
-                {r.top_scores.length > 0 && (
-                  <div className="mt-2">
-                    <span className="text-muted-foreground text-xs">
+      <div role="status" aria-live="polite">
+        {!error && results.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {results.map((r, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {i === 0 ? 'Default weights' : 'Custom weights'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <div className="text-xs text-muted-foreground">
+                    {Object.entries(r.weights)
+                      .map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`)
+                      .join(', ')}
+                  </div>
+                  <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                    <Metric label="Results" value={`${r.result_count}`} />
+                    <Metric
+                      label="Time"
+                      value={`${r.total_time_ms.toFixed(0)} ms`}
+                    />
+                  </dl>
+                  {r.top_scores.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground tabular-nums">
                       Top scores:{' '}
                       {r.top_scores.map((s) => s.toFixed(3)).join(', ')}
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WeightSlider({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const pct = (value * 100).toFixed(0);
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm">
+        {label}: <span className="tabular-nums">{pct}%</span>
+      </label>
+      <Slider
+        id={id}
+        value={[value]}
+        min={0}
+        max={1}
+        step={0.05}
+        aria-label={`${label} weight`}
+        aria-valuetext={`${pct} percent`}
+        onValueChange={([v]) => onChange(v)}
+      />
     </div>
   );
 }
@@ -704,9 +904,11 @@ function BottleneckAnalysis() {
     Array<{ trace: RetrievalTrace; report: BottleneckReport }>
   >([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadAnalysis = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await diagnosticsService.getRecentTraces(10);
       setTraces(data.traces);
@@ -725,6 +927,9 @@ function BottleneckAnalysis() {
       setReports(loaded.filter(Boolean) as typeof reports);
     } catch (err) {
       console.error('Failed to load analysis:', err);
+      setError(
+        'Could not load bottleneck analysis. Check the diagnostics service and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -774,86 +979,107 @@ function BottleneckAnalysis() {
     });
   }, [reports]);
 
+  const severityLabel = (severity: string) =>
+    severity === 'high' ? 'High' : severity === 'medium' ? 'Medium' : 'Low';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={loading}>
       <div className="flex items-center gap-4">
-        <span className="text-muted-foreground text-sm">
+        <span className="text-sm text-muted-foreground">
           Analyzing last {traces.length} queries
         </span>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={loadAnalysis}
           disabled={loading}
         >
-          {loading ? 'Analyzing...' : 'Refresh'}
+          <RotateCw
+            className={cn('mr-2 h-4 w-4', loading && 'animate-spin')}
+            aria-hidden="true"
+          />
+          {loading ? 'Analyzing' : 'Refresh'}
         </Button>
       </div>
 
-      {/* Pipeline health overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Pipeline Health</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-6">
-            {stageHealthSummary.map((s) => (
-              <StageHealth key={s.stage} stage={s.stage} health={s.health} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {error && <LoadError message={error} onRetry={loadAnalysis} />}
 
-      {/* Top issues */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">
-            Top Issues ({allFindings.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {allFindings.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              No issues detected across recent queries.
-            </p>
-          )}
-          {allFindings.map(({ finding, count }, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 rounded-md border p-3"
-            >
-              <Badge
-                variant={
-                  finding.severity === 'high'
-                    ? 'destructive'
-                    : finding.severity === 'medium'
-                      ? 'secondary'
-                      : 'default'
-                }
-                className="mt-0.5 shrink-0 text-xs"
-              >
-                {finding.severity}
-              </Badge>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{finding.title}</span>
-                  {count > 1 && (
-                    <span className="text-muted-foreground text-xs">
-                      ({count}x)
-                    </span>
-                  )}
-                </div>
-                <p className="text-muted-foreground text-xs">
-                  {finding.detail}
-                </p>
-                <p className="mt-1 text-xs text-brand-cyan">
-                  {finding.recommendation}
-                </p>
+      {!error && (
+        <>
+          {/* Pipeline health overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Pipeline health
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-x-8 gap-y-3">
+                {stageHealthSummary.map((s) => (
+                  <StageHealth
+                    key={s.stage}
+                    stage={s.stage}
+                    health={s.health}
+                  />
+                ))}
               </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {/* Top issues */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Top issues ({allFindings.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {allFindings.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No issues detected across recent queries.
+                </p>
+              )}
+              {allFindings.map(({ finding, count }, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 rounded-md border p-3"
+                >
+                  <Badge
+                    variant={
+                      finding.severity === 'high'
+                        ? 'destructive'
+                        : finding.severity === 'medium'
+                          ? 'secondary'
+                          : 'default'
+                    }
+                    className="mt-0.5 shrink-0 text-xs"
+                  >
+                    {severityLabel(finding.severity)}
+                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        {finding.title}
+                      </span>
+                      {count > 1 && (
+                        <span className="text-xs text-muted-foreground">
+                          ({count}×)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {finding.detail}
+                    </p>
+                    <p className="mt-1 text-xs font-medium text-foreground">
+                      {finding.recommendation}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -870,21 +1096,19 @@ export function RetrievalDiagnosticsDashboard({
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h1 className="text-2xl font-mono font-bold text-[var(--nous-fg-1)] tracking-wider">
-          RETRIEVAL_DIAGNOSTICS
-        </h1>
-        <p className="text-xs font-mono text-muted-foreground mt-0.5 uppercase tracking-widest">
-          Inspect the RAG retrieval pipeline, identify bottlenecks, and tune
-          search weights.
+        <h1 className="nous-h2 text-foreground">Retrieval diagnostics</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Inspect the retrieval pipeline, find bottlenecks, and tune search
+          weights.
         </p>
       </div>
 
       <Tabs defaultValue="explorer" className="w-full">
         <TabsList>
-          <TabsTrigger value="explorer">Query Explorer</TabsTrigger>
-          <TabsTrigger value="quality">Quality Overview</TabsTrigger>
-          <TabsTrigger value="weights">Weight Tuner</TabsTrigger>
-          <TabsTrigger value="bottleneck">Bottleneck Analysis</TabsTrigger>
+          <TabsTrigger value="explorer">Query explorer</TabsTrigger>
+          <TabsTrigger value="quality">Quality overview</TabsTrigger>
+          <TabsTrigger value="weights">Weight tuner</TabsTrigger>
+          <TabsTrigger value="bottleneck">Bottleneck analysis</TabsTrigger>
         </TabsList>
 
         <TabsContent value="explorer" className="mt-4">

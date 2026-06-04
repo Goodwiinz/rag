@@ -1,6 +1,6 @@
 /**
  * EntityFilters Component
- * Advanced filtering controls for entity list
+ * Advanced filtering controls for the entity list.
  */
 
 import React, { useState } from 'react';
@@ -33,6 +33,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { EntityType } from '@/types/entity';
 import { cn } from '@/lib/utils';
+import { formatEntityType, entityTypeBadgeClass } from './entityType';
 
 export type SortField = 'name' | 'confidence' | 'created_at' | 'type';
 export type SortOrder = 'asc' | 'desc';
@@ -68,20 +69,6 @@ const DEFAULT_ENTITY_TYPES: EntityType[] = [
   'OTHER',
 ];
 
-const typeColors: Record<string, string> = {
-  PERSON: 'bg-blue-400/20 text-blue-400 border-blue-400/30',
-  ORGANIZATION: 'bg-emerald-400/20 text-emerald-400 border-emerald-400/30',
-  LOCATION: 'bg-amber-400/20 text-amber-400 border-amber-400/30',
-  CONCEPT: 'bg-purple-400/20 text-purple-400 border-purple-400/30',
-  EVENT: 'bg-rose-400/20 text-rose-400 border-rose-400/30',
-  PRODUCT: 'bg-indigo-400/20 text-indigo-400 border-indigo-400/30',
-  DATE: 'bg-slate-400/20 text-slate-400 border-slate-400/30',
-  TECHNOLOGY: 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30',
-  DOCUMENT: 'bg-orange-400/20 text-orange-400 border-orange-400/30',
-  TOPIC: 'bg-pink-400/20 text-pink-400 border-pink-400/30',
-  OTHER: 'bg-gray-400/20 text-muted-foreground border-border/30',
-};
-
 export const EntityFilters: React.FC<EntityFiltersProps> = ({
   searchQuery,
   onSearchChange,
@@ -103,7 +90,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
 
   // Special filter for null/unknown types
   const SPECIAL_FILTERS = [
-    { value: '__null__', label: 'Unknown Type', isSpecial: true },
+    { value: '__null__', label: 'Unknown type', isSpecial: true },
   ];
 
   // Use available types from props or fall back to defaults
@@ -161,20 +148,24 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
       <div className="flex flex-col md:flex-row gap-3">
         {/* Search Input */}
         <div className="flex-1 relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nous-fg-3)] group-focus-within:text-[var(--nous-sol)] h-4 w-4 transition-colors" />
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary h-4 w-4 transition-colors"
+          />
           <Input
             placeholder="Search entities by name..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] focus:border-[var(--nous-sol)]/30 font-mono text-sm h-10"
+            aria-label="Search entities by name"
+            className="pl-10 bg-background border-border focus-visible:border-primary/40 text-sm h-10"
           />
           {searchQuery && (
             <IconButtonSm
               variant="ghost"
-              icon={<X className="h-3 w-3" />}
+              icon={<X aria-hidden="true" className="h-3 w-3" />}
               label="Clear search"
               onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nous-fg-3)] hover:text-white hover:bg-transparent h-6 w-6"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-transparent h-6 w-6"
             />
           )}
         </div>
@@ -185,29 +176,35 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Button
               variant="outline"
               className={cn(
-                'w-48 justify-between font-mono text-xs border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] h-10',
-                selectedTypes.length > 0 && 'border-[var(--nous-sol)]/30'
+                'w-48 justify-between text-sm border-border bg-background h-10',
+                selectedTypes.length > 0 && 'border-primary/40'
               )}
             >
               <div className="flex items-center gap-2">
-                <Filter className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
+                <Filter
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                />
                 <span>
                   {selectedTypes.length === 0
-                    ? 'All Types'
-                    : `${selectedTypes.length} Types`}
+                    ? 'All types'
+                    : `${selectedTypes.length} types`}
                 </span>
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
+              <ChevronDown
+                aria-hidden="true"
+                className="h-3.5 w-3.5 text-muted-foreground"
+              />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-64 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]"
+            className="w-64 bg-card border-border"
             align="start"
           >
-            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-              Entity Types
+            <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+              Entity types
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Search input for type filtering */}
             <div className="px-2 py-1.5">
@@ -215,24 +212,25 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 placeholder="Search types..."
                 value={typeSearchQuery}
                 onChange={(e) => setTypeSearchQuery(e.target.value)}
-                className="h-8 font-mono text-xs bg-[var(--nous-bg-1)] border-[var(--nous-border-1)]"
+                aria-label="Search entity types"
+                className="h-8 text-sm bg-background border-border"
               />
             </div>
 
-            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
+            <DropdownMenuSeparator className="bg-border" />
             <DropdownMenuCheckboxItem
               checked={selectedTypes.length === entityTypes.length}
               onCheckedChange={handleSelectAllTypes}
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--nous-sol)]"
+              className="text-sm focus:bg-muted focus:text-primary"
             >
-              Select All
+              Select all
             </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator className="bg-[var(--nous-border-1)]" />
+            <DropdownMenuSeparator className="bg-border" />
 
             {/* Scrollable type list */}
             <div className="max-h-64 overflow-y-auto">
               {filteredTypes.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-[var(--nous-fg-3)] font-mono">
+                <div className="px-3 py-2 text-sm text-muted-foreground">
                   No types found
                 </div>
               ) : (
@@ -250,16 +248,16 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                         onCheckedChange={() =>
                           handleTypeToggle(item.value as any)
                         }
-                        className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--amber)] bg-amber-400/10"
+                        className="text-sm focus:bg-muted focus:text-primary"
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="flex items-center">
-                            <span className="inline-block w-2 h-2 rounded-full mr-2 bg-amber-400/40" />
+                            <span className="inline-block w-2 h-2 rounded-full mr-2 bg-muted-foreground/40" />
                             {item.label}
                           </div>
                           {nullTypeCount > 0 && (
-                            <span className="text-[10px] text-amber-400 ml-2">
-                              ({nullTypeCount.toLocaleString()})
+                            <span className="text-xs text-muted-foreground ml-2 tabular-nums">
+                              {nullTypeCount.toLocaleString()}
                             </span>
                           )}
                         </div>
@@ -274,22 +272,16 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                       key={type}
                       checked={selectedTypes.includes(type)}
                       onCheckedChange={() => handleTypeToggle(type)}
-                      className="font-mono text-xs focus:bg-[var(--nous-bg-3)] focus:text-[var(--nous-sol)]"
+                      className="text-sm focus:bg-muted focus:text-primary"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center">
-                          <span
-                            className={cn(
-                              'inline-block w-2 h-2 rounded-full mr-2',
-                              typeColors[type]?.split(' ')[0] ||
-                                'bg-gray-400/20'
-                            )}
-                          />
-                          {type}
+                          <span className="inline-block w-2 h-2 rounded-full mr-2 bg-muted-foreground/40" />
+                          {formatEntityType(type)}
                         </div>
                         {typeCounts && typeCounts[type] !== undefined && (
-                          <span className="text-[10px] text-[var(--nous-fg-3)] ml-2">
-                            ({typeCounts[type].toLocaleString()})
+                          <span className="text-xs text-muted-foreground ml-2 tabular-nums">
+                            {typeCounts[type].toLocaleString()}
                           </span>
                         )}
                       </div>
@@ -307,27 +299,33 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Button
               variant="outline"
               className={cn(
-                'w-48 justify-between font-mono text-xs border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] h-10',
+                'w-48 justify-between text-sm border-border bg-background h-10',
                 (confidenceRange[0] > 0 || confidenceRange[1] < 100) &&
-                  'border-[var(--nous-sol)]/30'
+                  'border-primary/40'
               )}
             >
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
-                <span>
+                <SlidersHorizontal
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                />
+                <span className="tabular-nums">
                   {confidenceRange[0]}% - {confidenceRange[1]}%
                 </span>
               </div>
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--nous-fg-3)]" />
+              <ChevronDown
+                aria-hidden="true"
+                className="h-3.5 w-3.5 text-muted-foreground"
+              />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-64 p-4 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]"
+            className="w-64 p-4 bg-card border-border"
             align="start"
           >
             <div className="space-y-4">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                Confidence Range
+              <div className="text-xs font-medium text-muted-foreground">
+                Confidence range
               </div>
               <Slider
                 value={confidenceRange}
@@ -339,7 +337,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 step={5}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs font-mono text-[var(--nous-fg-3)]">
+              <div className="flex justify-between text-sm text-muted-foreground tabular-nums">
                 <span>{confidenceRange[0]}%</span>
                 <span>{confidenceRange[1]}%</span>
               </div>
@@ -348,7 +346,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => onConfidenceChange([80, 100])}
-                  className="flex-1 h-7 text-[10px] font-mono"
+                  className="flex-1 h-7 text-xs"
                 >
                   High (80%+)
                 </Button>
@@ -356,7 +354,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => onConfidenceChange([0, 100])}
-                  className="flex-1 h-7 text-[10px] font-mono"
+                  className="flex-1 h-7 text-xs"
                 >
                   Reset
                 </Button>
@@ -373,80 +371,76 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             onSortChange(field, order);
           }}
         >
-          <SelectTrigger className="w-48 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs h-10">
+          <SelectTrigger
+            aria-label="Sort entities"
+            className="w-48 bg-background border-border text-sm h-10"
+          >
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
-          <SelectContent className="bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]">
-            <SelectItem
-              value="name-asc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
-            >
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="name-asc" className="text-sm focus:bg-muted">
               Name A-Z
             </SelectItem>
-            <SelectItem
-              value="name-desc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
-            >
+            <SelectItem value="name-desc" className="text-sm focus:bg-muted">
               Name Z-A
             </SelectItem>
             <SelectItem
               value="confidence-desc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
+              className="text-sm focus:bg-muted"
             >
-              Confidence High-Low
+              Confidence high to low
             </SelectItem>
             <SelectItem
               value="confidence-asc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
+              className="text-sm focus:bg-muted"
             >
-              Confidence Low-High
+              Confidence low to high
             </SelectItem>
             <SelectItem
               value="created_at-desc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
+              className="text-sm focus:bg-muted"
             >
-              Newest First
+              Newest first
             </SelectItem>
             <SelectItem
               value="created_at-asc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
+              className="text-sm focus:bg-muted"
             >
-              Oldest First
+              Oldest first
             </SelectItem>
-            <SelectItem
-              value="type-asc"
-              className="font-mono text-xs focus:bg-[var(--nous-bg-3)]"
-            >
+            <SelectItem value="type-asc" className="text-sm focus:bg-muted">
               Type A-Z
             </SelectItem>
           </SelectContent>
         </Select>
 
         {/* Results Count */}
-        <div className="px-3 py-2 rounded-lg bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[10px] font-mono text-[var(--nous-fg-3)] uppercase font-bold shrink-0 flex items-center h-10">
+        <div className="px-3 py-2 rounded-lg bg-background border border-border text-sm text-muted-foreground shrink-0 flex items-center h-10 tabular-nums">
           {filteredCount === totalCount
-            ? `${totalCount} NODES`
-            : `${filteredCount} / ${totalCount}`}
+            ? `${totalCount.toLocaleString()} ${totalCount === 1 ? 'entity' : 'entities'}`
+            : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()}`}
         </div>
       </div>
 
       {/* Active Filters Row */}
       {hasActiveFilters && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase">
-            Active:
-          </span>
+          <span className="text-xs text-muted-foreground">Active filters</span>
 
           {searchQuery && (
             <Badge
               variant="outline"
-              className="font-mono text-[10px] border-[var(--nous-sol)]/30 text-[var(--nous-sol)] bg-[var(--nous-sol)]/5 gap-1"
+              className="border-primary/30 text-primary bg-primary/5 gap-1 font-normal"
             >
-              Search: "{searchQuery}"
-              <X
-                className="h-3 w-3 cursor-pointer hover:text-white"
+              Search: &quot;{searchQuery}&quot;
+              <button
+                type="button"
+                aria-label="Clear search filter"
                 onClick={() => onSearchChange('')}
-              />
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X aria-hidden="true" className="h-3 w-3" />
+              </button>
             </Badge>
           )}
 
@@ -454,29 +448,34 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Badge
               key={type}
               variant="outline"
-              className={cn(
-                'font-mono text-[10px] gap-1 border',
-                typeColors[type]
-              )}
+              className={cn(entityTypeBadgeClass, 'gap-1')}
             >
-              {type}
-              <X
-                className="h-3 w-3 cursor-pointer hover:text-white"
+              {formatEntityType(type)}
+              <button
+                type="button"
+                aria-label={`Remove ${formatEntityType(type)} filter`}
                 onClick={() => removeTypeFilter(type)}
-              />
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X aria-hidden="true" className="h-3 w-3" />
+              </button>
             </Badge>
           ))}
 
           {(confidenceRange[0] > 0 || confidenceRange[1] < 100) && (
             <Badge
               variant="outline"
-              className="font-mono text-[10px] border-[var(--nous-helios)]/30 text-[var(--nous-helios)] bg-[var(--nous-helios)]/5 gap-1"
+              className="border-primary/30 text-primary bg-primary/5 gap-1 font-normal tabular-nums"
             >
-              Conf: {confidenceRange[0]}%-{confidenceRange[1]}%
-              <X
-                className="h-3 w-3 cursor-pointer hover:text-white"
+              Confidence {confidenceRange[0]}%-{confidenceRange[1]}%
+              <button
+                type="button"
+                aria-label="Clear confidence filter"
                 onClick={() => onConfidenceChange([0, 100])}
-              />
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X aria-hidden="true" className="h-3 w-3" />
+              </button>
             </Badge>
           )}
 
@@ -484,9 +483,9 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             variant="ghost"
             size="sm"
             onClick={onClearFilters}
-            className="h-6 text-[10px] font-mono text-[var(--nous-fg-3)] hover:text-red-400"
+            className="h-6 text-xs text-muted-foreground hover:text-foreground"
           >
-            Clear All
+            Clear all
           </Button>
         </div>
       )}

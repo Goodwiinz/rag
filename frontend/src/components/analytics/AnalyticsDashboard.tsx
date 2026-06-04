@@ -24,6 +24,7 @@ import {
   Clock,
   Download,
   FileText,
+  Info,
   MessageSquare,
   RefreshCw,
   Search,
@@ -105,6 +106,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Names of the data sources that failed to load on the last fetch. Each
+  // endpoint still falls back to an empty shape so the page never blanks, but
+  // we record the failures so partial outages aren't silently shown as zeros.
+  const [partialFailures, setPartialFailures] = useState<string[]>([]);
   const [data, setData] = useState<any>({
     overview: null,
     documents: [],
@@ -120,6 +125,11 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
     setLoading(true);
     setError(null);
 
+    // Track which sources fail so we can tell the user honestly rather than
+    // rendering a failed endpoint as a real "0".
+    const failed: string[] = [];
+    const note = (label: string) => failed.push(label);
+
     try {
       // Fetch data from multiple API endpoints in parallel
       const [
@@ -131,58 +141,79 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         realtimeMetrics,
         trendData,
       ] = await Promise.all([
-        documentAnalyticsApi.getFileStats().catch(() => ({
-          files_by_type: [],
-          processing_stats: [],
-        })),
-        documentAnalyticsApi.getDocuments({ page: 1, size: 25 }).catch(() => ({
-          documents: [],
-          pagination: {
-            page: 1,
-            page_size: 25,
-            total: 0,
-            total_pages: 0,
-            has_next: false,
-            has_prev: false,
-          },
-        })),
-        searchAnalyticsApi.getCombinedSearchAnalytics().catch(() => ({
-          topQueries: [],
-          searchTypes: [],
-          totalSearches: 0,
-          avgResponseTime: 0,
-        })),
-        userBehaviorApi.getOrganizationTrends(30).catch(() => ({
-          stats: {
-            total_users: 0,
-            active_users_today: 0,
-            active_users_week: 0,
-            active_users_month: 0,
-            total_sessions: 0,
-            avg_session_duration: 0,
-            bounce_rate: 0,
-            search_volume_today: 0,
-            search_volume_week: 0,
-            new_users: 0,
-            returning_users: 0,
-          },
-          trendData: [],
-        })),
-        performanceApi.getDashboardOverview().catch(() => ({
-          totalUsers: 0,
-          activeUsers: 0,
-          totalSessions: 0,
-          totalSearches: 0,
-          avgResponseTime: 0,
-          errorRate: 0,
-        })),
-        performanceApi.getRealtimeMetrics().catch(() => ({
-          activeUsers: 0,
-          currentSearches: 0,
-          processingFiles: 0,
-          requestsPerMinute: 0,
-        })),
-        performanceApi.getTrendData(30).catch(() => []),
+        documentAnalyticsApi.getFileStats().catch(() => {
+          note('Documents');
+          return {
+            files_by_type: [],
+            processing_stats: [],
+          };
+        }),
+        documentAnalyticsApi.getDocuments({ page: 1, size: 25 }).catch(() => {
+          note('Document list');
+          return {
+            documents: [],
+            pagination: {
+              page: 1,
+              page_size: 25,
+              total: 0,
+              total_pages: 0,
+              has_next: false,
+              has_prev: false,
+            },
+          };
+        }),
+        searchAnalyticsApi.getCombinedSearchAnalytics().catch(() => {
+          note('Search');
+          return {
+            topQueries: [],
+            searchTypes: [],
+            totalSearches: 0,
+            avgResponseTime: 0,
+          };
+        }),
+        userBehaviorApi.getOrganizationTrends(30).catch(() => {
+          note('User trends');
+          return {
+            stats: {
+              total_users: 0,
+              active_users_today: 0,
+              active_users_week: 0,
+              active_users_month: 0,
+              total_sessions: 0,
+              avg_session_duration: 0,
+              bounce_rate: 0,
+              search_volume_today: 0,
+              search_volume_week: 0,
+              new_users: 0,
+              returning_users: 0,
+            },
+            trendData: [],
+          };
+        }),
+        performanceApi.getDashboardOverview().catch(() => {
+          note('Overview');
+          return {
+            totalUsers: 0,
+            activeUsers: 0,
+            totalSessions: 0,
+            totalSearches: 0,
+            avgResponseTime: 0,
+            errorRate: 0,
+          };
+        }),
+        performanceApi.getRealtimeMetrics().catch(() => {
+          note('Real-time metrics');
+          return {
+            activeUsers: 0,
+            currentSearches: 0,
+            processingFiles: 0,
+            requestsPerMinute: 0,
+          };
+        }),
+        performanceApi.getTrendData(30).catch(() => {
+          note('Trends');
+          return [];
+        }),
       ]);
 
       // Transform API data
@@ -257,6 +288,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         pagination: documentsResponse.pagination,
         realtimeMetrics,
       });
+
+      // Surface a non-blocking note for any sources that didn't load, so a
+      // partial outage isn't mistaken for genuine zero activity.
+      setPartialFailures(Array.from(new Set(failed)));
     } catch (err) {
       console.error('Failed to load analytics data:', err);
       setError('Failed to load analytics data. Please try again.');
@@ -273,14 +308,50 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
     loadData();
   };
 
-  const handleExport = (format: 'csv' | 'json') => {
-    console.log(`Exporting analytics data as ${format}`);
-    // Implementation would go here
+  // Serialize the currently loaded document rows to CSV and trigger a download.
+  // This exports exactly the rows on screen, not an invented full-corpus export.
+  const handleExport = () => {
+    const rows = data.documents ?? [];
+    if (rows.length === 0) return;
+
+    const headers = ['Filename', 'Type', 'Size (bytes)', 'Uploaded', 'Status'];
+    const escape = (value: unknown) => {
+      const str = String(value ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const lines = [
+      headers.join(','),
+      ...rows.map((row: any) =>
+        [row.filename, row.type, row.size, row.uploadedAt, row.status]
+          .map(escape)
+          .join(',')
+      ),
+    ];
+
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-documents-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleMetricClick = (metric: string) => {
-    console.log(`Metric clicked: ${metric}`);
-    // Implementation would go here
+    // Surface the selected metric's tab so the click resolves to something real
+    // rather than a no-op. Document and search metrics map to their own tabs.
+    const tabForMetric: Record<string, string> = {
+      documents: 'documents',
+      searches: 'search',
+      activeUsers: 'realtime',
+    };
+    setActiveTab(tabForMetric[metric] ?? 'overview');
   };
 
   const documentTableConfig = useMemo(() => createDocumentAnalyticsTable(), []);
@@ -423,7 +494,8 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleExport('csv')}
+              onClick={handleExport}
+              disabled={loading || (data.documents?.length ?? 0) === 0}
             >
               <Download aria-hidden="true" className="mr-2 h-4 w-4" />
               Export CSV
@@ -447,12 +519,31 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                 <stat.icon aria-hidden="true" className="h-4 w-4" />
               </div>
               <p className="mt-4 text-2xl font-semibold tabular-nums text-foreground">
-                {stat.value}
+                {stat.value.toLocaleString()}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">{stat.label}</p>
             </div>
           ))}
         </motion.div>
+
+        {/* Partial failure note. Non-blocking: the rest of the page still
+            renders, but we don't pretend the missing numbers are real zeros. */}
+        {partialFailures.length > 0 && (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl border border-[var(--nous-corona)]/30 bg-[var(--nous-corona)]/10 p-4"
+          >
+            <Info
+              aria-hidden="true"
+              className="mt-0.5 h-4 w-4 shrink-0 text-[var(--nous-corona)]"
+            />
+            <p className="text-sm text-foreground">
+              Some data couldn&apos;t be loaded ({partialFailures.join(', ')}).
+              Those sections may be incomplete. Try refreshing to load them
+              again.
+            </p>
+          </div>
+        )}
 
         {/* Main Content Tabs */}
         <Tabs
@@ -485,7 +576,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
               data={data.overview}
               loading={loading}
               onRefresh={handleRefresh}
-              onExport={() => handleExport('csv')}
+              onExport={handleExport}
               onMetricClick={handleMetricClick}
             />
 
@@ -524,29 +615,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
               <div className="lg:col-span-2">
                 <AnalyticsTable
                   title="Document analytics"
-                  description="Recent document uploads and their processing status"
+                  description="Your most recent document uploads and their processing status"
                   data={data.documents}
                   columns={documentTableConfig.columns}
                   loading={loading}
-                  pagination={{
-                    page: 1,
-                    pageSize: 10,
-                    total: data.documents.length,
-                    onPageChange: () => {},
-                    onPageSizeChange: () => {},
-                  }}
-                  search={{
-                    placeholder: 'Search documents...',
-                    onSearch: () => {},
-                  }}
-                  filters={{
-                    options: [
-                      { value: 'pdf', label: 'PDF' },
-                      { value: 'txt', label: 'Text' },
-                      { value: 'jpg', label: 'Image' },
-                    ],
-                    onFilter: () => {},
-                  }}
                 />
               </div>
 
@@ -620,29 +692,10 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
               <div className="lg:col-span-2">
                 <AnalyticsTable
                   title="Search analytics"
-                  description="Popular search queries and their performance"
+                  description="Your most popular search queries and how they performed"
                   data={data.searches}
                   columns={searchTableConfig.columns}
                   loading={loading}
-                  pagination={{
-                    page: 1,
-                    pageSize: 10,
-                    total: data.searches.length,
-                    onPageChange: () => {},
-                    onPageSizeChange: () => {},
-                  }}
-                  search={{
-                    placeholder: 'Search queries...',
-                    onSearch: () => {},
-                  }}
-                  filters={{
-                    options: [
-                      { value: 'semantic', label: 'Semantic search' },
-                      { value: 'keyword', label: 'Keyword search' },
-                      { value: 'hybrid', label: 'Hybrid search' },
-                    ],
-                    onFilter: () => {},
-                  }}
                 />
               </div>
 
@@ -729,7 +782,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
                       <metric.icon aria-hidden="true" className="h-4 w-4" />
                     </div>
                     <p className="mt-4 text-2xl font-semibold tabular-nums text-foreground">
-                      {metric.value}
+                      {metric.value.toLocaleString()}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {metric.label}
