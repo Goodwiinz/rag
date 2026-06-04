@@ -235,6 +235,7 @@ async def _execute_single_tool(
                         user_id=str(current_user.id) if current_user else "",
                         db=configurable.get("db"),
                         current_user=current_user,
+                        thread_id=configurable.get("thread_id") or "",
                     ),
                     timeout=timeout,
                 )

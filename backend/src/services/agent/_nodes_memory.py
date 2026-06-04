@@ -16,6 +16,7 @@ general-intent + no-tool turns.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -94,7 +95,9 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
 
         thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
         if thread_id:
-            write_iteration(thread_id, dict(state))
+            # Offload the synchronous ledger write (mkdir/write_text/os.replace)
+            # so it never blocks the event loop / token streaming.
+            await asyncio.to_thread(write_iteration, thread_id, dict(state))
     except Exception as _ledger_exc:  # noqa: BLE001 - observability must not crash
         logger.debug("ledger write skipped: %s", _ledger_exc)
 

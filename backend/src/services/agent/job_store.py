@@ -105,6 +105,28 @@ async def close_redis() -> None:
 # ---------------------------------------------------------------------------
 
 
+async def _redis_write_if_newer(redis_client: Any, job_id: str, data: dict) -> None:
+    """``setex`` *data* only if Redis does not already hold a newer job state.
+
+    Monotonic guard for the L2 (Redis) layer: a delayed fire-and-forget write
+    must not stomp a newer authoritative state that landed after it. Reads the
+    stored ``created_at`` and skips the write when it is strictly newer.
+
+    Not fully atomic (GET then SET) — closes the dominant delayed-write race;
+    a same-tick concurrent SET is still theoretically possible.
+    """
+    key = f"{_JOB_KEY_PREFIX}{job_id}"
+    try:
+        existing_raw = await redis_client.get(key)
+        if existing_raw is not None:
+            existing = _json.loads(existing_raw)
+            if existing.get("created_at", 0) > data.get("created_at", 0):
+                return
+        await redis_client.setex(key, _JOB_TTL_SECONDS, _json.dumps(data, default=str))
+    except Exception:
+        logger.exception("Failed to write job %s to Redis", job_id)
+
+
 async def _write_to_redis_only(job_id: str, data: dict) -> None:
     """Write *data* to Redis without touching the L1 cache.
 
@@ -114,13 +136,7 @@ async def _write_to_redis_only(job_id: str, data: dict) -> None:
     """
     redis_client = await _get_redis()
     if redis_client is not None:
-        try:
-            payload = _json.dumps(data, default=str)
-            await redis_client.setex(
-                f"{_JOB_KEY_PREFIX}{job_id}", _JOB_TTL_SECONDS, payload
-            )
-        except Exception:
-            logger.exception("Failed to write job %s to Redis", job_id)
+        await _redis_write_if_newer(redis_client, job_id, data)
 
 
 async def set_job(job_id: str, data: dict) -> None:
@@ -150,13 +166,7 @@ async def set_job_redis_only(job_id: str, data: dict) -> None:
     """
     redis_client = await _get_redis()
     if redis_client is not None:
-        try:
-            payload = _json.dumps(data, default=str)
-            await redis_client.setex(
-                f"{_JOB_KEY_PREFIX}{job_id}", _JOB_TTL_SECONDS, payload
-            )
-        except Exception:
-            logger.exception("Failed to write job %s to Redis", job_id)
+        await _redis_write_if_newer(redis_client, job_id, data)
 
 
 async def get_job(job_id: str) -> Optional[dict]:
@@ -179,9 +189,12 @@ async def get_job(job_id: str) -> Optional[dict]:
             raw = await redis_client.get(f"{_JOB_KEY_PREFIX}{job_id}")
             if raw is not None:
                 data = _json.loads(raw)
-                # Seed L1 for next read
+                # Seed L1 for next read — monotonic guard so a slightly stale
+                # Redis read cannot clobber a fresher L1 entry written meanwhile.
                 with _l1_lock:
-                    _l1[job_id] = data
+                    existing = _l1.get(job_id)
+                    if existing is None or existing.get("created_at", 0) <= data.get("created_at", 0):
+                        _l1[job_id] = data
                 return data
         except Exception:
             logger.exception("Failed to read job %s from Redis", job_id)

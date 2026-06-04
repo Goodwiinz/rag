@@ -596,6 +596,7 @@ async def execute_tool(
     user_id: str = "",
     db: Optional[AsyncSession] = None,
     current_user: Optional[User] = None,
+    thread_id: str = "",
 ) -> Dict[str, Any]:
     """Execute an agent tool and return the result."""
     if tool_name == "search_arxiv":
@@ -635,7 +636,7 @@ async def execute_tool(
     if tool_name == "export_bibliography":
         return await _tool_export_bibliography(args, db, current_user)
     if tool_name == "execute_code":
-        return await _tool_execute_code(args, thread_id="", current_user=current_user)
+        return await _tool_execute_code(args, thread_id=thread_id, current_user=current_user)
     if tool_name == "search_external_database":
         return await _tool_search_external_database(args)
     if tool_name == "list_external_databases":
@@ -1577,7 +1578,8 @@ async def _tool_summarize_document(
             from src.services.documents.file_service import FileService
 
             file_service = FileService(db)
-            text = file_service.extract_text_content(doc)
+            # Offload blocking PDF/CSV/Excel parsing off the event loop.
+            text = await asyncio.to_thread(file_service.extract_text_content, doc)
 
         if not text or text.startswith("Error"):
             return {"error": "Could not extract text from document"}
@@ -1678,7 +1680,8 @@ async def _tool_compare_documents(
 
             text = doc.content_text or ""
             if not text:
-                text = file_service.extract_text_content(doc)
+                # Offload blocking PDF/CSV/Excel parsing off the event loop.
+                text = await asyncio.to_thread(file_service.extract_text_content, doc)
 
             doc_texts.append(
                 {
@@ -1744,7 +1747,8 @@ async def _tool_extract_entities(
             from src.services.documents.file_service import FileService
 
             file_service = FileService(db)
-            text = file_service.extract_text_content(doc)
+            # Offload blocking PDF/CSV/Excel parsing off the event loop.
+            text = await asyncio.to_thread(file_service.extract_text_content, doc)
 
         if not text or text.startswith("Error"):
             return {"error": "Could not extract text from document"}
