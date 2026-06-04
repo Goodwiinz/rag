@@ -89,21 +89,21 @@ export function TrackingTab({
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('core')}
-                  className="rounded-md border border-primary/30 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="rounded-md border border-primary/30 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Core AI
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('all')}
-                  className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Select all
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('clear')}
-                  className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Clear
                 </button>
@@ -193,7 +193,7 @@ export function TrackingTab({
         </div>
 
         <div className="space-y-5 xl:col-span-7">
-          <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-5">
+          <div className="flex min-h-[320px] flex-col rounded-xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 border-b border-border pb-3">
               <span className="text-sm font-medium text-foreground">
                 Last scan
