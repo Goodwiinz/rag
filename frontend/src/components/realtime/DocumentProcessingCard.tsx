@@ -44,63 +44,63 @@ const PROCESSING_THEMES: Record<
   ProcessingCardTheme
 > = {
   queued: {
-    container: 'bg-gray-50 border-border',
-    selected: 'ring-blue-500 bg-blue-50',
-    progress: 'bg-gray-300',
+    container: 'bg-[var(--nous-bg-2)] border-border',
+    selected: 'ring-[var(--nous-sol)] bg-[var(--nous-bg-3)]',
+    progress: 'bg-[var(--nous-border-1)]',
     error: '',
     success: '',
     warning: '',
     info: 'text-foreground',
   },
   uploading: {
-    container: 'bg-blue-50 border-blue-200',
-    selected: 'ring-blue-500 bg-blue-100',
-    progress: 'bg-blue-500',
+    container: 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30',
+    selected: 'ring-[var(--nous-sol)] bg-[var(--nous-sol)]/15',
+    progress: 'bg-[var(--nous-sol)]',
     error: '',
     success: '',
     warning: '',
-    info: 'text-blue-600',
+    info: 'text-[var(--nous-sol-safe)]',
   },
   processing: {
-    container: 'bg-yellow-50 border-yellow-200',
-    selected: 'ring-yellow-500 bg-yellow-100',
-    progress: 'bg-yellow-500',
+    container: 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
+    selected: 'ring-[var(--nous-corona)] bg-[var(--nous-corona)]/15',
+    progress: 'bg-[var(--nous-corona)]',
     error: '',
     success: '',
     warning: '',
-    info: 'text-yellow-600',
+    info: 'text-[var(--nous-corona)]',
   },
   completed: {
-    container: 'bg-green-50 border-green-200',
-    selected: 'ring-green-500 bg-green-100',
-    progress: 'bg-green-500',
+    container: 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30',
+    selected: 'ring-[var(--nous-terra)] bg-[var(--nous-terra)]/15',
+    progress: 'bg-[var(--nous-terra)]',
     error: '',
-    success: 'text-green-600',
+    success: 'text-[var(--nous-terra)]',
     warning: '',
     info: '',
   },
   failed: {
-    container: 'bg-red-50 border-red-200',
-    selected: 'ring-red-500 bg-red-100',
-    progress: 'bg-red-500',
-    error: 'text-red-600',
+    container: 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30',
+    selected: 'ring-[var(--nous-mars)] bg-[var(--nous-mars)]/15',
+    progress: 'bg-[var(--nous-mars)]',
+    error: 'text-[var(--nous-mars)]',
     success: '',
     warning: '',
     info: '',
   },
   paused: {
-    container: 'bg-orange-50 border-orange-200',
-    selected: 'ring-orange-500 bg-orange-100',
-    progress: 'bg-orange-500',
+    container: 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
+    selected: 'ring-[var(--nous-corona)] bg-[var(--nous-corona)]/15',
+    progress: 'bg-[var(--nous-corona)]',
     error: '',
     success: '',
-    warning: 'text-orange-600',
+    warning: 'text-[var(--nous-corona)]',
     info: '',
   },
   cancelled: {
-    container: 'bg-gray-100 border-border',
-    selected: 'ring-gray-500 bg-gray-200',
-    progress: 'bg-gray-400',
+    container: 'bg-[var(--nous-bg-3)] border-border',
+    selected: 'ring-[var(--nous-border-1)] bg-[var(--nous-bg-3)]',
+    progress: 'bg-[var(--nous-border-1)]',
     error: '',
     success: '',
     warning: '',
@@ -272,7 +272,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   type="checkbox"
                   checked={isSelected}
                   onChange={handleSelectionChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
+                  className="h-4 w-4 text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] border-border rounded"
                   aria-label={`Select ${document.filename}`}
                 />
               )}
@@ -326,7 +326,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
       return (
         <div
           className={cn(
-            'bg-white border rounded-lg p-4 cursor-pointer transition-all hover:shadow-lg focus:outline-none focus:ring-2',
+            'bg-background border rounded-lg p-4 cursor-pointer transition-all hover:shadow-lg focus:outline-none focus:ring-2',
             theme.container,
             isSelected && theme.selected,
             className
@@ -346,7 +346,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   type="checkbox"
                   checked={isSelected}
                   onChange={handleSelectionChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded mt-1"
+                  className="h-4 w-4 text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] border-border rounded mt-1"
                   aria-label={`Select ${document.filename}`}
                 />
               )}
@@ -471,7 +471,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   ).toLocaleTimeString()}
                 </span>
                 {document.retryCount > 0 && (
-                  <span className="text-orange-600">
+                  <span className="text-[var(--nous-corona)]">
                     Retry #{document.retryCount}
                   </span>
                 )}

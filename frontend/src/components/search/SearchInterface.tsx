@@ -940,7 +940,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleHistoryClick(item)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -992,7 +992,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   key={saved.id}
                   type="button"
                   onClick={() => handleSavedSearchClick(saved)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   <div className="flex items-center justify-between">
                     <div>

@@ -523,13 +523,13 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
   const getStatusColor = (status: ExportJob['status']) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-50';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'processing':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10';
       case 'failed':
-        return 'text-red-600 bg-red-50';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-foreground bg-gray-50';
+        return 'text-foreground bg-[var(--nous-bg-2)]';
     }
   };
 
@@ -553,7 +553,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
         <CardContent>
           <div className="space-y-6">
             {/* Statistics Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-center">
                 <div className="text-2xl font-bold text-foreground">
                   {graphStatistics.totalEntities}
@@ -598,15 +598,15 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                     <div
                       key={format.id}
                       className={cn(
-                        'border rounded-lg p-4 cursor-pointer hover:border-blue-500 transition-colors',
+                        'border rounded-lg p-4 cursor-pointer hover:border-[var(--nous-sol)] transition-colors',
                         selectedFormat === format.id
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
                           : 'border-border'
                       )}
                       onClick={() => setSelectedFormat(format.id)}
                     >
                       <div className="flex items-center space-x-3">
-                        <FormatIcon className="h-6 w-6 text-blue-600" />
+                        <FormatIcon className="h-6 w-6 text-[var(--nous-sol-safe)]" />
                         <div>
                           <div className="font-medium">{format.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -635,15 +635,15 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                     <div
                       key={template.id}
                       className={cn(
-                        'border rounded-lg p-4 cursor-pointer hover:border-blue-500 transition-colors',
+                        'border rounded-lg p-4 cursor-pointer hover:border-[var(--nous-sol)] transition-colors',
                         selectedTemplate === template.id
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
                           : 'border-border'
                       )}
                       onClick={() => setSelectedTemplate(template.id)}
                     >
                       <div className="flex items-center space-x-3">
-                        <TemplateIcon className="h-5 w-5 text-blue-600" />
+                        <TemplateIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
                         <div>
                           <div className="font-medium">{template.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -747,9 +747,9 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
 
                       {job.status === 'processing' && (
                         <div className="w-24">
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                             <div
-                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              className="bg-[var(--nous-sol)] h-2 rounded-full transition-all duration-300"
                               style={{ width: `${job.progress}%` }}
                             />
                           </div>
@@ -809,7 +809,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
         {showPreview && (
           <CardContent>
             <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                 <h4 className="font-medium mb-2">Current Selection</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -831,9 +831,9 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                 <h4 className="font-medium mb-2">Sample Content</h4>
-                <pre className="text-xs bg-white p-3 rounded border overflow-auto max-h-64">
+                <pre className="text-xs bg-background p-3 rounded border overflow-auto max-h-64">
                   {generateExportData(
                     selectedFormat,
                     selectedTemplate
@@ -882,7 +882,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                   className="flex items-center justify-between p-4 border rounded-lg"
                 >
                   <div className="flex items-center space-x-3">
-                    <TemplateIcon className="h-5 w-5 text-blue-600" />
+                    <TemplateIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
                     <div>
                       <div className="font-medium">{report.name}</div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
@@ -1005,7 +1005,7 @@ export const GraphExportReporting: React.FC<GraphExportReportingProps> = ({
                 <label className="flex items-center">
                   <input
                     type="checkbox"
-                    className="rounded border-border text-blue-600 focus:ring-blue-500"
+                    className="rounded border-border text-[var(--nous-sol)] focus:ring-[var(--nous-sol)]"
                   />
                   <span className="text-sm text-foreground">
                     Enable scheduled report

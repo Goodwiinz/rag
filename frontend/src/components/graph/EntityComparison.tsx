@@ -360,7 +360,7 @@ export const EntityComparison: React.FC<EntityComparisonProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => removeEntity(entity.id)}
-                    className="h-6 w-6 p-0 hover:bg-red-100"
+                    className="h-6 w-6 p-0 hover:bg-[var(--nous-mars)]/10"
                   >
                     <XMarkIcon className="h-3 w-3" />
                   </Button>
@@ -435,7 +435,7 @@ export const EntityComparison: React.FC<EntityComparisonProps> = ({
                   return (
                     <div
                       key={entity.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-[var(--nous-bg-3)] cursor-pointer"
                       onClick={() => addEntity(entity)}
                     >
                       <div className="flex items-center space-x-2">
@@ -657,7 +657,7 @@ export const EntityComparison: React.FC<EntityComparisonProps> = ({
                             return doc ? (
                               <div
                                 key={docId}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                                className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg cursor-pointer hover:bg-[var(--nous-bg-3)]"
                                 onClick={() => onDocumentClick?.(docId)}
                               >
                                 <div>
@@ -799,11 +799,11 @@ export const EntityComparison: React.FC<EntityComparisonProps> = ({
                       (relationship) => (
                         <div
                           key={relationship.id}
-                          className="p-3 bg-gray-50 rounded-lg"
+                          className="p-3 bg-[var(--nous-bg-2)] rounded-lg"
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <Badge className="bg-blue-100 text-blue-800 mb-2">
+                              <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)] mb-2">
                                 {relationship.relationship_type}
                               </Badge>
                               <p className="text-sm text-foreground italic">
@@ -841,7 +841,7 @@ export const EntityComparison: React.FC<EntityComparisonProps> = ({
                         return doc ? (
                           <div
                             key={docId}
-                            className="flex items-center justify-between p-2 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
+                            className="flex items-center justify-between p-2 bg-[var(--nous-bg-2)] rounded cursor-pointer hover:bg-[var(--nous-bg-3)]"
                             onClick={() => onDocumentClick?.(docId)}
                           >
                             <span className="text-sm">{doc.title}</span>

@@ -139,7 +139,7 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
             className={`flex flex-col items-center justify-center min-h-screen p-8 ${className}`}
           >
             <div className="text-center max-w-md">
-              <div className="w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <div className="w-24 h-24 mx-auto mb-4 bg-[var(--nous-bg-2)] rounded-full flex items-center justify-center">
                 <svg
                   className="w-12 h-12 text-muted-foreground"
                   fill="none"
@@ -160,7 +160,7 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
               <p className="text-foreground mb-4">
                 Upload some documents to see real-time processing status here.
               </p>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[var(--nous-sol)] hover:bg-[var(--nous-helios)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--nous-sol)]">
                 Upload Documents
               </button>
             </div>
@@ -169,7 +169,7 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
       }
 
       return (
-        <div className={`min-h-screen bg-gray-50 ${className}`}>
+        <div className={`min-h-screen bg-[var(--nous-bg-1)] ${className}`}>
           {/* Connection Status Banner */}
           <ConnectionStatusBanner />
 
@@ -190,19 +190,19 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
                 {/* Quick Stats */}
                 <div className="flex items-center space-x-6 text-sm">
                   <div className="flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <div className="w-2 h-2 bg-[var(--nous-terra)] rounded-full mr-2"></div>
                     <span className="text-foreground">
                       {queue.summary.processing} Processing
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+                    <div className="w-2 h-2 bg-[var(--nous-corona)] rounded-full mr-2"></div>
                     <span className="text-foreground">
                       {queue.summary.queued} Queued
                     </span>
                   </div>
                   <div className="flex items-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    <div className="w-2 h-2 bg-[var(--nous-sol)] rounded-full mr-2"></div>
                     <span className="text-foreground">
                       {queue.summary.completed} Completed
                     </span>
@@ -235,7 +235,7 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
                     </svg>
                     {unreadCount > 0 && (
                       <span
-                        className="absolute top-0 right-0 -mt-1 -mr-1 px-2 py-1 text-xs font-bold text-white bg-red-500 rounded-full"
+                        className="absolute top-0 right-0 -mt-1 -mr-1 px-2 py-1 text-xs font-bold text-white bg-[var(--nous-mars)] rounded-full"
                         aria-hidden="true"
                       >
                         {unreadCount}

@@ -54,42 +54,46 @@ const SearchStage: React.FC<SearchStageProps> = ({
   const getStageIcon = () => {
     if (isActive && !isCompleted) {
       return (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
       );
     }
 
     if (hasError) {
-      return <XCircleIcon className="h-5 w-5 text-red-600" />;
+      return <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
     }
 
     if (isCompleted) {
-      return <CheckCircleIcon className="h-5 w-5 text-green-600" />;
+      return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
     }
 
     switch (stage.stage) {
       case 'vector':
-        return <BoltIcon className="h-5 w-5 text-purple-600" />;
+        return <BoltIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />;
       case 'graph':
-        return <ShareIcon className="h-5 w-5 text-blue-600" />;
+        return <ShareIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />;
       case 'keyword':
-        return <MagnifyingGlassIcon className="h-5 w-5 text-green-600" />;
+        return (
+          <MagnifyingGlassIcon className="h-5 w-5 text-[var(--nous-terra)]" />
+        );
       default:
         return <MagnifyingGlassIcon className="h-5 w-5 text-foreground" />;
     }
   };
 
   const getStageColor = () => {
-    if (hasError) return 'border-red-200 bg-red-50';
-    if (isCompleted) return 'border-green-200 bg-green-50';
-    if (isActive) return 'border-blue-200 bg-blue-50';
-    return 'border-border bg-gray-50';
+    if (hasError)
+      return 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10';
+    if (isCompleted)
+      return 'border-[var(--nous-terra)]/30 bg-[var(--nous-terra)]/10';
+    if (isActive) return 'border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/10';
+    return 'border-border bg-[var(--nous-bg-2)]';
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-yellow-600';
-    if (score >= 70) return 'text-orange-600';
-    return 'text-red-600';
+    if (score >= 90) return 'text-[var(--nous-terra)]';
+    if (score >= 80) return 'text-[var(--nous-corona)]';
+    if (score >= 70) return 'text-[var(--nous-corona)]';
+    return 'text-[var(--nous-mars)]';
   };
 
   return (
@@ -136,16 +140,16 @@ const SearchStage: React.FC<SearchStageProps> = ({
           {stage.results.length} result{stage.results.length !== 1 ? 's' : ''}
         </span>
         {stage.error && (
-          <span className="text-red-600 text-xs">{stage.error}</span>
+          <span className="text-[var(--nous-mars)] text-xs">{stage.error}</span>
         )}
       </div>
 
       {/* Progress Bar for Active Stage */}
       {isActive && !isCompleted && (
         <div className="mt-3">
-          <div className="w-full bg-gray-200 rounded-full h-1">
+          <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-1">
             <div
-              className="bg-blue-600 h-1 rounded-full animate-pulse"
+              className="bg-[var(--nous-sol)] h-1 rounded-full animate-pulse"
               style={{ width: '60%' }}
             />
           </div>
@@ -207,8 +211,8 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
               Search Configuration
             </h3>
             <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <h4 className="font-medium text-purple-900 mb-2">
+              <div className="p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+                <h4 className="font-medium text-foreground mb-2">
                   Vector Search
                 </h4>
                 <div className="space-y-1 text-sm">
@@ -233,8 +237,10 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                 </div>
               </div>
 
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Graph Search</h4>
+              <div className="p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+                <h4 className="font-medium text-foreground mb-2">
+                  Graph Search
+                </h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span>Weight:</span>
@@ -257,8 +263,8 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                 </div>
               </div>
 
-              <div className="p-3 bg-green-50 rounded-lg">
-                <h4 className="font-medium text-green-900 mb-2">
+              <div className="p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+                <h4 className="font-medium text-foreground mb-2">
                   Keyword Search
                 </h4>
                 <div className="space-y-1 text-sm">
@@ -290,12 +296,12 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
             <h3 className="text-lg font-semibold text-foreground mb-3">
               Fusion Strategy
             </h3>
-            <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-foreground capitalize">
                   {config.fusion_strategy}
                 </span>
-                <Badge className="bg-blue-100 text-blue-800">
+                <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]">
                   Max {config.max_total_results} results
                 </Badge>
               </div>
@@ -311,25 +317,25 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
               Performance Summary
             </h3>
             <div className="grid grid-cols-4 gap-3">
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded-lg text-center">
                 <div className="text-2xl font-bold text-foreground">
                   {totalLatency}ms
                 </div>
                 <div className="text-sm text-foreground">Total Latency</div>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded-lg text-center">
                 <div className="text-2xl font-bold text-foreground">
                   {totalResults}
                 </div>
                 <div className="text-sm text-foreground">Total Results</div>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded-lg text-center">
                 <div className="text-2xl font-bold text-foreground">
                   {successfulStages}/{results.length}
                 </div>
                 <div className="text-sm text-foreground">Successful Stages</div>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded-lg text-center">
                 <div className="text-2xl font-bold text-foreground">
                   {Math.round(totalLatency / results.length)}ms
                 </div>
@@ -355,12 +361,12 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                         {result.stage} Search
                       </h4>
                       {result.error && (
-                        <Badge className="bg-red-100 text-red-800">
+                        <Badge className="bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]">
                           Failed
                         </Badge>
                       )}
                       {!result.error && (
-                        <Badge className="bg-green-100 text-green-800">
+                        <Badge className="bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]">
                           Success
                         </Badge>
                       )}
@@ -371,8 +377,8 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                   </div>
 
                   {result.error && (
-                    <div className="p-3 bg-red-50 rounded-lg mb-3">
-                      <div className="flex items-center space-x-2 text-red-800">
+                    <div className="p-3 bg-[var(--nous-mars)]/10 rounded-lg mb-3">
+                      <div className="flex items-center space-x-2 text-[var(--nous-mars)]">
                         <ExclamationTriangleIcon className="h-4 w-4" />
                         <span className="text-sm font-medium">Error:</span>
                         <span className="text-sm">{result.error}</span>
@@ -403,7 +409,7 @@ const SearchDetail: React.FC<SearchDetailProps> = ({
                         <summary className="cursor-pointer text-foreground hover:text-foreground">
                           View metadata
                         </summary>
-                        <div className="mt-2 p-3 bg-gray-50 rounded text-xs font-mono">
+                        <div className="mt-2 p-3 bg-[var(--nous-bg-2)] rounded text-xs font-mono">
                           {JSON.stringify(result.metadata, null, 2)}
                         </div>
                       </details>
@@ -611,12 +617,12 @@ export const HybridSearchOrchestrator: React.FC<
   return (
     <div className={cn('space-y-4', className)}>
       {/* Search Header */}
-      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {isRunning ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <BoltIcon className="h-5 w-5 text-blue-600" />
+            <BoltIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Hybrid Search</h3>
@@ -708,9 +714,9 @@ export const HybridSearchOrchestrator: React.FC<
 
       {/* Status Indicator */}
       {isRunning && (
-        <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <span className="text-sm text-blue-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
+          <span className="text-sm text-[var(--nous-sol-safe)]">
             {currentStage
               ? `Executing ${currentStage} search...`
               : 'Initializing hybrid search...'}
@@ -720,9 +726,9 @@ export const HybridSearchOrchestrator: React.FC<
 
       {/* Error Indicator */}
       {hasErrors && !isRunning && (
-        <div className="flex items-center space-x-2 p-3 bg-yellow-50 rounded-lg">
-          <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
-          <span className="text-sm text-yellow-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-corona)]/10 rounded-lg">
+          <ExclamationTriangleIcon className="h-4 w-4 text-[var(--nous-corona)]" />
+          <span className="text-sm text-[var(--nous-corona)]">
             {successfulStages}/{searchResults.length} search stages completed
             successfully
           </span>
@@ -731,9 +737,9 @@ export const HybridSearchOrchestrator: React.FC<
 
       {/* Success Indicator */}
       {!isRunning && searchResults.length > 0 && !hasErrors && (
-        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
-          <CheckCircleIcon className="h-4 w-4 text-green-600" />
-          <span className="text-sm text-green-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+          <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
+          <span className="text-sm text-[var(--nous-terra)]">
             All {searchResults.length} search stages completed successfully
           </span>
         </div>

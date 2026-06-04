@@ -38,9 +38,9 @@ const getErrorSeverity = (
     return {
       type: 'warning',
       icon: '⚠️',
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
-      borderColor: 'border-yellow-200',
+      color: 'text-[var(--nous-corona)]',
+      bgColor: 'bg-[var(--nous-corona)]/10',
+      borderColor: 'border-[var(--nous-corona)]/30',
       message: 'Connection issue - retrying may resolve this',
     };
   }
@@ -54,9 +54,9 @@ const getErrorSeverity = (
     return {
       type: 'error',
       icon: '❌',
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/10',
+      borderColor: 'border-[var(--nous-mars)]/30',
       message: 'File format error - check file format',
     };
   }
@@ -70,9 +70,9 @@ const getErrorSeverity = (
     return {
       type: 'error',
       icon: '⚙️',
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
-      borderColor: 'border-red-200',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/10',
+      borderColor: 'border-[var(--nous-mars)]/30',
       message: 'Processing error - check file content',
     };
   }
@@ -86,9 +86,9 @@ const getErrorSeverity = (
     return {
       type: 'critical',
       icon: '🚨',
-      color: 'text-red-800',
-      bgColor: 'bg-red-100',
-      borderColor: 'border-red-300',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/15',
+      borderColor: 'border-[var(--nous-mars)]/40',
       message: 'System error - contact support',
     };
   }
@@ -98,9 +98,9 @@ const getErrorSeverity = (
     return {
       type: 'critical',
       icon: '🚫',
-      color: 'text-red-800',
-      bgColor: 'bg-red-100',
-      borderColor: 'border-red-300',
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/15',
+      borderColor: 'border-[var(--nous-mars)]/40',
       message: 'Maximum retry attempts reached',
     };
   }
@@ -109,9 +109,9 @@ const getErrorSeverity = (
   return {
     type: 'error',
     icon: '❌',
-    color: 'text-red-600',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
+    color: 'text-[var(--nous-mars)]',
+    bgColor: 'bg-[var(--nous-mars)]/10',
+    borderColor: 'border-[var(--nous-mars)]/30',
     message: 'An error occurred',
   };
 };
@@ -180,7 +180,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+              className="px-3 py-1 text-xs font-medium text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded transition-colors"
               aria-label="Retry processing"
             >
               Retry
@@ -227,7 +227,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {shouldShowRetry && (
             <button
               onClick={handleRetry}
-              className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors flex items-center space-x-1"
+              className="px-4 py-2 text-sm font-medium text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10 rounded-md transition-colors flex items-center space-x-1"
               aria-label="Retry processing"
             >
               <svg
@@ -279,7 +279,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {showDetails && error.length > 100 && (
             <button
               onClick={handleErrorClick}
-              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-xs text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:underline"
               aria-label={
                 isExpanded
                   ? 'Show less error details'
@@ -292,7 +292,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
 
           {/* Additional Information */}
           {severity.type === 'warning' && (
-            <div className="text-xs text-foreground bg-white/50 rounded p-2">
+            <div className="text-xs text-foreground bg-background/50 rounded p-2">
               <p>
                 💡 <strong>Suggestion:</strong> This error may resolve itself.
                 Wait a moment and try again, or check your internet connection.
@@ -301,7 +301,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           )}
 
           {severity.type === 'critical' && (
-            <div className="text-xs text-red-700 bg-red-50 rounded p-2 border border-red-200">
+            <div className="text-xs text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 rounded p-2 border border-[var(--nous-mars)]/30">
               <p>
                 🆘 <strong>Support Needed:</strong> This error requires
                 attention. Please contact support with the error details above.
@@ -310,7 +310,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           )}
 
           {isMaxRetriesReached && (
-            <div className="text-xs text-orange-700 bg-orange-50 rounded p-2 border border-orange-200">
+            <div className="text-xs text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 rounded p-2 border border-[var(--nous-corona)]/30">
               <p>
                 ⚠️ <strong>Max Retries:</strong> Maximum retry attempts (
                 {maxRetryAttempts}) reached. The document requires manual
@@ -332,7 +332,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = memo(
           {onErrorClick && !showDetails && (
             <button
               onClick={onErrorClick}
-              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-xs text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] hover:underline"
               aria-label="View error details"
             >
               View Details
