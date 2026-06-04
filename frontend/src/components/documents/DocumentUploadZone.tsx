@@ -205,7 +205,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
         return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'processing':
       case 'uploading':
-        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'failed':
         return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30';
       default:
@@ -589,7 +589,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       case 'processing':
       case 'uploading':
         return (
-          <ClockIcon className="h-5 w-5 text-[var(--nous-sol-safe)] animate-spin" />
+          <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)] animate-spin" />
         );
       case 'failed':
         return (
@@ -613,7 +613,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CloudArrowUpIcon className="h-6 w-6 text-[var(--nous-sol-safe)]" />
+            <CloudArrowUpIcon className="h-6 w-6 text-[var(--nous-fg-accent-safe)]" />
             Enhanced Document Upload
           </CardTitle>
           <CardDescription className="text-foreground">
@@ -629,7 +629,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               getUploadStateMessage().type === 'success'
                 ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30 text-[var(--nous-terra)]'
                 : getUploadStateMessage().type === 'processing'
-                  ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30 text-[var(--nous-sol-safe)]'
+                  ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30 text-[var(--nous-fg-accent-safe)]'
                   : getUploadStateMessage().type === 'ready'
                     ? 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30 text-[var(--nous-corona)]'
                     : 'bg-[var(--nous-bg-2)] border-border text-foreground'
@@ -688,7 +688,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
               <div className="space-y-4">
                 <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[var(--nous-sol)]/10 to-[var(--nous-sol)]/20 rounded-full flex items-center justify-center">
-                  <CloudArrowUpIcon className="h-8 w-8 text-[var(--nous-sol-safe)]" />
+                  <CloudArrowUpIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
                 </div>
 
                 <div>

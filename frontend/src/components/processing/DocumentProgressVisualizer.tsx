@@ -516,7 +516,7 @@ const Timeline: React.FC<TimelineProps> = ({
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="text-xs text-[var(--nous-sol-safe)] mt-1"
+                      className="text-xs text-[var(--nous-fg-accent-safe)] mt-1"
                     >
                       {stage.progress}% complete
                     </motion.div>

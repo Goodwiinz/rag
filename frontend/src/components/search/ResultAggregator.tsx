@@ -169,7 +169,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                 className={cn(
                   'py-2 px-1 border-b-2 font-medium text-sm capitalize',
                   activeTab === tab
-                    ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+                    ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 )}
               >
@@ -186,10 +186,10 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
               {/* Summary Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
-                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {aggregation.final_results.length}
                   </div>
-                  <div className="text-sm text-[var(--nous-sol-safe)]">
+                  <div className="text-sm text-[var(--nous-fg-accent-safe)]">
                     Final Results
                   </div>
                 </div>
@@ -202,7 +202,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                   </div>
                 </div>
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
-                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {Math.round(aggregation.diversity_score * 100)}%
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -804,7 +804,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
           {isAggregating ? (
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <ArrowsRightLeftIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+            <ArrowsRightLeftIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Result Aggregation</h3>
@@ -871,7 +871,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         <div className="space-y-3">
           <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
-            <span className="text-sm text-[var(--nous-sol-safe)]">
+            <span className="text-sm text-[var(--nous-fg-accent-safe)]">
               Aggregating results...
             </span>
           </div>
@@ -909,21 +909,21 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
             </div>
 
             <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
-              <DocumentDuplicateIcon className="h-4 w-4 text-[var(--nous-sol-safe)]" />
+              <DocumentDuplicateIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
               <div>
-                <div className="text-sm font-medium text-[var(--nous-sol-safe)]">
+                <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                   {aggregation.deduplication_stats.duplicates_removed} Removed
                 </div>
-                <div className="text-xs text-[var(--nous-sol-safe)]">
+                <div className="text-xs text-[var(--nous-fg-accent-safe)]">
                   Duplicates
                 </div>
               </div>
             </div>
 
             <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
-              <ChartBarIcon className="h-4 w-4 text-[var(--nous-sol-safe)]" />
+              <ChartBarIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
               <div>
-                <div className="text-sm font-medium text-[var(--nous-sol-safe)]">
+                <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                   {Math.round(aggregation.aggregation_confidence * 100)}%
                   Confidence
                 </div>

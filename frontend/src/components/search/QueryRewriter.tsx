@@ -54,11 +54,11 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
   const getStrategyColor = (strategy: string) => {
     switch (strategy) {
       case 'expansion':
-        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'simplification':
         return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'temporal_adaptation':
-        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'domain_enhancement':
         return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       default:
@@ -72,7 +72,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
       case 'expansion':
         return (
           <SparklesIcon
-            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'simplification':
@@ -83,7 +83,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
         );
       case 'temporal_adaptation':
         return (
-          <ClockIcon className={cn(iconClass, 'text-[var(--nous-sol-safe)]')} />
+          <ClockIcon className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')} />
         );
       case 'domain_enhancement':
         return (
@@ -104,7 +104,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
       case 'modality':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'date_range':
@@ -114,7 +114,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
       case 'file_type':
         return (
           <FunnelIcon
-            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'entity':
@@ -233,10 +233,10 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
 
                   {expandedQuery === index && (
                     <div className="mt-3 p-3 bg-[var(--nous-sol)]/10 rounded">
-                      <h4 className="text-sm font-medium text-[var(--nous-sol-safe)] mb-2">
+                      <h4 className="text-sm font-medium text-[var(--nous-fg-accent-safe)] mb-2">
                         Reasoning:
                       </h4>
-                      <p className="text-sm text-[var(--nous-sol-safe)]">
+                      <p className="text-sm text-[var(--nous-fg-accent-safe)]">
                         {rewrittenQuery.reasoning}
                       </p>
                     </div>

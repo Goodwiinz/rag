@@ -463,13 +463,13 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
   const getInsightColor = (type: Insight['type']) => {
     switch (type) {
       case 'opportunity':
-        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'warning':
         return 'text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30';
       case 'trend':
         return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'achievement':
-        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       default:
         return 'text-foreground bg-[var(--nous-bg-2)] border-border';
     }
@@ -539,7 +539,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <UserGroupIcon className="h-8 w-8 text-[var(--nous-sol-safe)]" />
+                <UserGroupIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -582,7 +582,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <DocumentTextIcon className="h-8 w-8 text-[var(--nous-sol-safe)]" />
+                <DocumentTextIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -860,7 +860,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                                       key={index}
                                       className="flex items-start space-x-2"
                                     >
-                                      <span className="text-[var(--nous-sol-safe)] mt-1">
+                                      <span className="text-[var(--nous-fg-accent-safe)] mt-1">
                                         •
                                       </span>
                                       <span>{suggestion}</span>

@@ -212,7 +212,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
       case 'completed':
         return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'processing':
-        return 'text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/10';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10';
       case 'pending':
         return 'text-foreground bg-[var(--nous-bg-2)]';
       case 'error':
@@ -257,11 +257,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+              <p className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                 {processingStats.processingFiles}
               </p>
             </div>
-            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-sol-safe)] animate-spin" />
+            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)] animate-spin" />
           </div>
         </div>
 

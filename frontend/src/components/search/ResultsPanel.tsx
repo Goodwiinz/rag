@@ -90,7 +90,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
                       className={cn(
                         'h-6 w-6',
                         star <= rating
-                          ? 'text-[var(--nous-sol-safe)] fill-[var(--nous-sol)]'
+                          ? 'text-[var(--nous-fg-accent-safe)] fill-[var(--nous-sol)]'
                           : 'text-foreground'
                       )}
                     />

@@ -674,7 +674,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                         className={cn(
                           'text-sm font-bold',
                           index < 3
-                            ? 'text-[var(--nous-sol-safe)]'
+                            ? 'text-[var(--nous-fg-accent-safe)]'
                             : 'text-muted-foreground'
                         )}
                       >
@@ -762,7 +762,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                   </div>
                 </div>
                 <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
-                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     #{metricDetail.rank}
                   </div>
                   <div className="text-sm text-muted-foreground">Rank</div>

@@ -290,7 +290,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     switch (type) {
       case 'entity_created':
         return (
-          <UserGroupIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+          <UserGroupIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
         );
       case 'relationship_formed':
         return <ArrowPathIcon className="h-5 w-5 text-[var(--nous-terra)]" />;

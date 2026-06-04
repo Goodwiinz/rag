@@ -104,7 +104,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   className={cn(
                     'py-2 px-1 border-b-2 font-medium text-sm capitalize',
                     activeTab === tab
-                      ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
+                      ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   )}
                 >
@@ -123,7 +123,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               <div className="grid grid-cols-4 gap-4">
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <ClockIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+                    <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <span
                       className={cn(
                         'text-sm font-medium',
@@ -137,10 +137,10 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           : 'Needs Improvement'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {metrics.total_latency_ms}ms
                   </div>
-                  <div className="text-sm text-[var(--nous-sol-safe)]">
+                  <div className="text-sm text-[var(--nous-fg-accent-safe)]">
                     Total Latency
                   </div>
                 </div>
@@ -556,12 +556,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               <div className="grid grid-cols-3 gap-6">
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center space-x-2 mb-3">
-                    <CpuChipIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
-                    <h4 className="font-medium text-[var(--nous-sol-safe)]">
+                    <CpuChipIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <h4 className="font-medium text-[var(--nous-fg-accent-safe)]">
                       CPU Usage
                     </h4>
                   </div>
-                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)] mb-2">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)] mb-2">
                     {metrics.resource_usage.cpu_percent}%
                   </div>
                   <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
@@ -676,7 +676,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           <p className="text-sm text-foreground mb-2">
                             {bottleneck.issue}
                           </p>
-                          <p className="text-sm text-[var(--nous-sol-safe)]">
+                          <p className="text-sm text-[var(--nous-fg-accent-safe)]">
                             {bottleneck.suggestion}
                           </p>
                         </div>
@@ -868,7 +868,7 @@ export const QueryPerformanceMonitor: React.FC<
           {isMonitoring ? (
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <ChartBarIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
+            <ChartBarIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Performance Monitor</h3>
@@ -910,12 +910,12 @@ export const QueryPerformanceMonitor: React.FC<
       {/* Quick Metrics */}
       <div className="grid grid-cols-4 gap-3">
         <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
-          <ClockIcon className="h-4 w-4 text-[var(--nous-sol-safe)]" />
+          <ClockIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
           <div>
-            <div className="text-sm font-medium text-[var(--nous-sol-safe)]">
+            <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
               {metrics.total_latency_ms}ms
             </div>
-            <div className="text-xs text-[var(--nous-sol-safe)]">Latency</div>
+            <div className="text-xs text-[var(--nous-fg-accent-safe)]">Latency</div>
           </div>
         </div>
 
@@ -979,7 +979,7 @@ export const QueryPerformanceMonitor: React.FC<
       {isMonitoring && (
         <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
           <div className="h-3 w-3 animate-ping bg-[var(--nous-sol)] rounded-full" />
-          <span className="text-sm text-[var(--nous-sol-safe)]">
+          <span className="text-sm text-[var(--nous-fg-accent-safe)]">
             Real-time monitoring active
           </span>
         </div>

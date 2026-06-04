@@ -98,7 +98,7 @@ const notificationConfigs = {
     icon: InformationCircleIcon,
     bgColor: 'bg-[var(--nous-sol)]/10',
     borderColor: 'border-[var(--nous-sol)]/30',
-    iconColor: 'text-[var(--nous-sol-safe)]',
+    iconColor: 'text-[var(--nous-fg-accent-safe)]',
     titleColor: 'text-[var(--nous-fg-1)]',
     messageColor: 'text-[var(--nous-fg-2)]',
   },
@@ -372,7 +372,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
         <div className="px-4 py-2 border-t border-border">
           <button
             onClick={() => setIsExpanded(true)}
-            className="text-xs text-[var(--nous-sol-safe)] hover:text-[var(--nous-sol)] font-medium"
+            className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] font-medium"
           >
             Show {notifications.length - 5} more
           </button>

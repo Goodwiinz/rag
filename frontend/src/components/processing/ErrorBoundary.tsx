@@ -122,7 +122,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {canRetry && isRetryableError && onRetry && (
               <button
                 onClick={onRetry}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded transition-colors"
               >
                 <ArrowPathIcon className="w-4 h-4 mr-2" />
                 Retry {retryCount > 0 ? `(${retryCount}/${maxRetries})` : ''}
