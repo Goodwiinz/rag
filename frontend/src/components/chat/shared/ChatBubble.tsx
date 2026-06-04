@@ -13,7 +13,6 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
-  User,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
@@ -146,20 +145,6 @@ export const ChatBubble = React.memo(function ChatBubble({
         isUser ? 'flex-row-reverse' : 'flex-row'
       )}
     >
-      {/* Avatar */}
-      <div
-        className={cn(
-          'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center relative z-10',
-          isUser ? 'nous-avatar-user' : 'nous-avatar-assistant'
-        )}
-      >
-        {isUser ? (
-          <User className="h-4 w-4" />
-        ) : (
-          <Sparkles className="h-4 w-4" />
-        )}
-      </div>
-
       {/* Content column */}
       <div
         className={cn('min-w-0 flex-1', isUser ? 'text-right' : 'text-left')}
