@@ -47,7 +47,7 @@ export function StatsTab({
 
       {stats ? (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-          <div className="rounded-xl border border-border bg-card p-6 xl:col-span-4">
+          <div className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-4">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Papers tracked
             </p>
@@ -78,7 +78,7 @@ export function StatsTab({
             </dl>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-6 xl:col-span-8">
+          <div className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-8">
             <h4 className="text-sm font-medium text-foreground">
               Top categories
             </h4>
@@ -87,9 +87,11 @@ export function StatsTab({
               <div className="mt-5 space-y-3">
                 {stats.statistics.top_categories.map(([category, count]) => (
                   <div key={category} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-foreground">{category}</span>
-                      <span className="font-medium tabular-nums text-muted-foreground">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate text-foreground">
+                        {category}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums text-muted-foreground">
                         {count}
                       </span>
                     </div>

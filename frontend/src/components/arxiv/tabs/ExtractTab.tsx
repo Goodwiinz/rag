@@ -201,7 +201,7 @@ export function ExtractTab({
                 parsedExtractIds.slice(0, 20).map((paperId) => (
                   <span
                     key={paperId}
-                    className="rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-muted-foreground"
+                    className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-muted-foreground"
                   >
                     {paperId}
                   </span>
@@ -231,7 +231,7 @@ export function ExtractTab({
                   {invalidExtractIds.slice(0, 12).map((paperId) => (
                     <span
                       key={paperId}
-                      className="rounded border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-[var(--nous-mars)]"
+                      className="max-w-full break-all rounded border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-[var(--nous-mars)]"
                     >
                       {paperId}
                     </span>
@@ -243,7 +243,7 @@ export function ExtractTab({
         </div>
 
         <div className="space-y-4 xl:col-span-7">
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
               <span className="text-sm font-medium text-foreground">
                 Extraction results
