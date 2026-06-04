@@ -325,6 +325,7 @@ export function ThreadMessageSearch({
               onFocus={() => query.length >= 2 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Search threads and messages..."
+              aria-label="Search threads and messages"
               className="pl-10 pr-10 bg-[var(--nous-bg-1)]/40 border-border focus:border-[var(--nous-sol)] text-muted-foreground placeholder:text-muted-foreground"
             />
             {query && (
@@ -332,7 +333,7 @@ export function ThreadMessageSearch({
                 onClick={handleClear}
                 aria-label="Clear search"
                 title="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -469,7 +470,7 @@ export function ThreadMessageSearch({
             {suggestions.map((suggestion, i) => (
               <button
                 key={i}
-                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-[var(--nous-bg-3)] first:rounded-t-md last:rounded-b-md"
+                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-[var(--nous-bg-3)] first:rounded-t-md last:rounded-b-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => {
                   setQuery(suggestion);
                   performSearch(suggestion, 0);
@@ -519,7 +520,9 @@ export function ThreadMessageSearch({
             combinedResults.map((result) => (
               <div
                 key={`${result.result_type}-${result.id}`}
-                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                role="button"
+                tabIndex={0}
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => {
                   if (result.result_type === 'thread') {
                     onSelectThread?.(result.id);
@@ -571,7 +574,9 @@ export function ThreadMessageSearch({
             threadResults.map((result) => (
               <div
                 key={result.thread_id}
-                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                role="button"
+                tabIndex={0}
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => onSelectThread?.(result.thread_id)}
               >
                 <div className="flex items-start gap-3">
@@ -626,7 +631,9 @@ export function ThreadMessageSearch({
             messageResults.map((result) => (
               <div
                 key={result.message_id}
-                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                role="button"
+                tabIndex={0}
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() =>
                   onSelectMessage?.(result.message_id, result.thread_id)
                 }

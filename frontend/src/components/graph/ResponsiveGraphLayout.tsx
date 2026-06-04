@@ -297,7 +297,7 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint !== 'mobile' && (
         <button
           onClick={onToggleLabels}
-          className={`p-2 border rounded ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             showLabels
               ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
               : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
@@ -322,7 +322,7 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint === 'desktop' && (
         <button
           onClick={onTogglePhysics}
-          className={`p-2 border rounded ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             enablePhysics
               ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
               : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
@@ -413,7 +413,8 @@ export const ResponsiveFilterPanel: React.FC<{
           <h3 className="font-semibold">Filters</h3>
           <button
             onClick={() => setIsCollapsed(true)}
-            className="p-1 hover:bg-[var(--nous-bg-3)] rounded"
+            className="p-1 min-h-11 min-w-11 hover:bg-[var(--nous-bg-3)] rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Collapse filters"
           >
             <svg
               className="w-5 h-5"
@@ -596,7 +597,8 @@ export const ResponsiveFilterPanel: React.FC<{
       <div className={`fixed bottom-4 left-4 z-10 ${className}`}>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="bg-[var(--nous-sol)] text-white p-3 rounded-full shadow-lg"
+          className="bg-[var(--nous-sol)] text-white p-3 rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="Show filters"
         >
           <svg
             className="w-5 h-5"

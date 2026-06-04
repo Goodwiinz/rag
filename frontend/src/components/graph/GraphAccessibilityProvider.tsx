@@ -392,7 +392,7 @@ export const AccessibleGraphNode: React.FC<{
       tabIndex={isFocused ? 0 : -1}
       aria-label={getAccessibleNodeDescription(node)}
       aria-describedby={`node-${node.id}-details`}
-      className={`graph-node ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''}`}
+      className={`graph-node ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       style={{
@@ -452,7 +452,7 @@ export const AccessibleGraphEdge: React.FC<{
       role="button"
       tabIndex={isFocused ? 0 : -1}
       aria-label={getAccessibleEdgeDescription(edge)}
-      className={`graph-edge ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''}`}
+      className={`graph-edge ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       style={{
@@ -493,7 +493,7 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
             role="switch"
             aria-checked={highContrastMode}
             onClick={toggleHighContrast}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               highContrastMode
                 ? 'bg-[var(--nous-sol)]'
                 : 'bg-[var(--nous-bg-3)]'
@@ -515,7 +515,7 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
               <button
                 key={size}
                 onClick={() => setFontSize(size)}
-                className={`px-3 py-1 rounded text-sm ${
+                className={`px-3 py-1 min-h-11 rounded text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   fontSize === size
                     ? 'bg-[var(--nous-sol)] text-white'
                     : 'bg-[var(--nous-bg-2)] text-foreground hover:bg-[var(--nous-bg-3)]'
@@ -538,7 +538,7 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
             role="switch"
             aria-checked={reducedMotion}
             onClick={toggleReducedMotion}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               reducedMotion ? 'bg-[var(--nous-sol)]' : 'bg-[var(--nous-bg-3)]'
             }`}
           >
@@ -562,7 +562,7 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
               <button
                 key={mode}
                 onClick={() => setColorBlindMode(mode)}
-                className={`px-3 py-1 rounded text-sm capitalize ${
+                className={`px-3 py-1 min-h-11 rounded text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   colorBlindMode === mode
                     ? 'bg-[var(--nous-sol)] text-white'
                     : 'bg-[var(--nous-bg-2)] text-foreground hover:bg-[var(--nous-bg-3)]'

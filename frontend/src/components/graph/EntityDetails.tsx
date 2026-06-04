@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   InformationCircleIcon,
   ShareIcon,
@@ -108,6 +108,32 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
     // In a real implementation, this would open a share dialog
     console.log('Would share entity:', entityId);
   }, [entityId]);
+
+  const tabOrder: Array<
+    'overview' | 'relationships' | 'documents' | 'timeline'
+  > = ['overview', 'relationships', 'documents', 'timeline'];
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      let nextIndex: number | null = null;
+      if (event.key === 'ArrowRight') {
+        nextIndex = (index + 1) % tabOrder.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (index - 1 + tabOrder.length) % tabOrder.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = tabOrder.length - 1;
+      }
+      if (nextIndex !== null) {
+        event.preventDefault();
+        setActiveTab(tabOrder[nextIndex]);
+        tabRefs.current[nextIndex]?.focus();
+      }
+    },
+    []
+  );
 
   if (loading) {
     return (
@@ -221,11 +247,24 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b bg-background px-6">
+      <div
+        role="tablist"
+        aria-label="Entity details"
+        className="flex border-b bg-background px-6"
+      >
         <button
+          ref={(el) => {
+            tabRefs.current[0] = el;
+          }}
+          role="tab"
+          id="entity-tab-overview"
+          aria-controls="entity-tabpanel-overview"
+          aria-selected={activeTab === 'overview'}
+          tabIndex={activeTab === 'overview' ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, 0)}
           onClick={() => setActiveTab('overview')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'overview'
               ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -235,9 +274,18 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           Overview
         </button>
         <button
+          ref={(el) => {
+            tabRefs.current[1] = el;
+          }}
+          role="tab"
+          id="entity-tab-relationships"
+          aria-controls="entity-tabpanel-relationships"
+          aria-selected={activeTab === 'relationships'}
+          tabIndex={activeTab === 'relationships' ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, 1)}
           onClick={() => setActiveTab('relationships')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'relationships'
               ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -247,9 +295,18 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           Relationships ({relationships.length})
         </button>
         <button
+          ref={(el) => {
+            tabRefs.current[2] = el;
+          }}
+          role="tab"
+          id="entity-tab-documents"
+          aria-controls="entity-tabpanel-documents"
+          aria-selected={activeTab === 'documents'}
+          tabIndex={activeTab === 'documents' ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, 2)}
           onClick={() => setActiveTab('documents')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'documents'
               ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -259,9 +316,18 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           Documents ({relatedDocuments.length})
         </button>
         <button
+          ref={(el) => {
+            tabRefs.current[3] = el;
+          }}
+          role="tab"
+          id="entity-tab-timeline"
+          aria-controls="entity-tabpanel-timeline"
+          aria-selected={activeTab === 'timeline'}
+          tabIndex={activeTab === 'timeline' ? 0 : -1}
+          onKeyDown={(event) => handleTabKeyDown(event, 3)}
           onClick={() => setActiveTab('timeline')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'timeline'
               ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -275,7 +341,13 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
       {/* Tab Content */}
       <div className="flex-1 overflow-auto p-6">
         {activeTab === 'overview' && (
-          <div className="space-y-6">
+          <div
+            role="tabpanel"
+            id="entity-tabpanel-overview"
+            aria-labelledby="entity-tab-overview"
+            tabIndex={0}
+            className="space-y-6"
+          >
             {/* Description */}
             {entity.description && (
               <Card>
@@ -388,7 +460,13 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
         )}
 
         {activeTab === 'relationships' && (
-          <div className="space-y-4">
+          <div
+            role="tabpanel"
+            id="entity-tabpanel-relationships"
+            aria-labelledby="entity-tab-relationships"
+            tabIndex={0}
+            className="space-y-4"
+          >
             {relationships.length === 0 ? (
               <div className="text-center py-8">
                 <UserGroupIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -441,7 +519,13 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
         )}
 
         {activeTab === 'documents' && (
-          <div className="space-y-4">
+          <div
+            role="tabpanel"
+            id="entity-tabpanel-documents"
+            aria-labelledby="entity-tab-documents"
+            tabIndex={0}
+            className="space-y-4"
+          >
             {relatedDocuments.length === 0 ? (
               <div className="text-center py-8">
                 <DocumentTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -484,7 +568,13 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
         )}
 
         {activeTab === 'timeline' && (
-          <div className="space-y-6">
+          <div
+            role="tabpanel"
+            id="entity-tabpanel-timeline"
+            aria-labelledby="entity-tab-timeline"
+            tabIndex={0}
+            className="space-y-6"
+          >
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Entity Timeline</CardTitle>

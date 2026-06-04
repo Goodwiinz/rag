@@ -672,7 +672,9 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                 <div key={stat.type} className="border rounded-lg">
                   {/* Type Header */}
                   <div
-                    className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] cursor-pointer hover:bg-[var(--nous-bg-3)]"
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] cursor-pointer hover:bg-[var(--nous-bg-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     onClick={() => toggleTypeExpansion(stat.type)}
                   >
                     <div className="flex items-center space-x-3">
@@ -706,7 +708,8 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                           }}
                           className={cn(
                             'h-6 px-2',
-                            allOfTypeSelected && 'text-[var(--nous-fg-accent-safe)]'
+                            allOfTypeSelected &&
+                              'text-[var(--nous-fg-accent-safe)]'
                           )}
                         >
                           {allOfTypeSelected ? (
@@ -735,8 +738,11 @@ export const EntityTypeFilter: React.FC<EntityTypeFilterProps> = ({
                           return (
                             <div
                               key={entity.id}
+                              role="button"
+                              tabIndex={0}
+                              aria-pressed={isSelected}
                               className={cn(
-                                'flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[var(--nous-bg-3)]',
+                                'flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-[var(--nous-bg-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                                 isSelected &&
                                   'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]'
                               )}

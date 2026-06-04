@@ -122,7 +122,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {canRetry && isRetryableError && onRetry && (
               <button
                 onClick={onRetry}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <ArrowPathIcon className="w-4 h-4 mr-2" />
                 Retry {retryCount > 0 ? `(${retryCount}/${maxRetries})` : ''}
@@ -132,7 +132,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {showErrorDetails && (
               <button
                 onClick={() => setShowDetails(!showDetails)}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {showDetails ? 'Hide' : 'Show'} Details
               </button>
@@ -141,7 +141,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Dismiss
               </button>
