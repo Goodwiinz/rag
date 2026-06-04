@@ -28,10 +28,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Entity, GraphEdge } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { NeighborhoodExplorer } from './NeighborhoodExplorer';
+import { formatEntityType, entityTypeBadgeClass } from './entityType';
 import { cn } from '@/lib/utils';
 
 interface EntityDetailProps {
@@ -55,6 +66,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
   const { canCreate, canEdit, canDelete } = useEntityPermissions();
   const [relationships, setRelationships] = useState<GraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relationshipToDelete, setRelationshipToDelete] =
+    useState<GraphEdge | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (entity?.id) {
@@ -74,16 +88,18 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
     }
   };
 
-  const handleDeleteRelationship = async (relationshipId: string) => {
-    if (!window.confirm('Are you sure you want to delete this relationship?')) {
-      return;
-    }
+  const handleConfirmDeleteRelationship = async () => {
+    if (!relationshipToDelete) return;
 
     try {
-      await entityService.deleteRelationship(relationshipId);
+      setDeleting(true);
+      await entityService.deleteRelationship(relationshipToDelete.id);
       await fetchRelationships();
+      setRelationshipToDelete(null);
     } catch (error) {
       console.error('Error deleting relationship:', error);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -167,9 +183,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
             {entity.name}
             <Badge
               variant="outline"
-              className="border-border bg-muted text-muted-foreground font-normal align-middle"
+              className={cn(entityTypeBadgeClass, 'align-middle')}
             >
-              {entity.type}
+              {formatEntityType(entity.type)}
             </Badge>
           </h2>
           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
@@ -324,7 +340,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               <CardContent className="p-4 flex-1">
                 <p className="text-sm text-foreground leading-relaxed">
                   {entity.metadata?.description || (
-                    <span className="text-muted-foreground italic">
+                    <span className="text-muted-foreground">
                       No description available
                     </span>
                   )}
@@ -433,9 +449,9 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                         <TableCell>
                           <Badge
                             variant="outline"
-                            className="border-border bg-muted text-muted-foreground font-normal"
+                            className={entityTypeBadgeClass}
                           >
-                            {rel.type}
+                            {formatEntityType(rel.type)}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -471,7 +487,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDeleteRelationship(rel.id)}
+                            onClick={() => setRelationshipToDelete(rel)}
                             disabled={!canDelete}
                             className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
                             title={
@@ -524,6 +540,36 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={relationshipToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setRelationshipToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete relationship</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the link between {entity.name} and the connected
+              entity. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDeleteRelationship();
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
