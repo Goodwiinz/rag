@@ -743,6 +743,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                             }
                           }}
                           className="peer h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
+                          aria-label={`Filter by ${option.label}`}
                         />
                       </div>
                       <span className="text-sm text-foreground group-hover:text-primary transition-colors">
@@ -785,6 +786,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                           }
                         }}
                         className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
+                        aria-label={`Filter by ${option.label}`}
                       />
                       <span className="text-sm text-foreground group-hover:text-primary transition-colors">
                         {option.label}

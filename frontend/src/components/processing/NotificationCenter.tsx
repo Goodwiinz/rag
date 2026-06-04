@@ -215,7 +215,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
                       <button
                         key={index}
                         onClick={() => handleAction(action)}
-                        className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors"
+                        className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         {action.label}
                       </button>
@@ -226,7 +226,8 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
 
               <button
                 onClick={handleClose}
-                className="flex-shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Dismiss notification"
+                className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <XMarkIcon className="w-4 h-4" />
               </button>
@@ -267,14 +268,18 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
             {notifications.length > 0 && (
               <button
                 onClick={onClearAll}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Clear All
               </button>
             )}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={
+                isExpanded ? 'Collapse notifications' : 'Expand notifications'
+              }
+              aria-expanded={isExpanded}
+              className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isExpanded ? (
                 <ChevronUpIcon className="w-4 h-4" />
@@ -335,7 +340,8 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                         </div>
                         <button
                           onClick={() => onDismiss(notification.id)}
-                          className="flex-shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Dismiss notification"
+                          className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <XMarkIcon className="w-4 h-4" />
                         </button>
@@ -351,7 +357,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                                 onClick={() =>
                                   onAction(notification.id, action)
                                 }
-                                className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors"
+                                className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               >
                                 {action.label}
                               </button>
@@ -372,7 +378,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
         <div className="px-4 py-2 border-t border-border">
           <button
             onClick={() => setIsExpanded(true)}
-            className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] font-medium"
+            className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Show {notifications.length - 5} more
           </button>
@@ -578,6 +584,10 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              aria-label={
+                isHistoryOpen ? 'Close notifications' : 'Open notifications'
+              }
+              aria-expanded={isHistoryOpen}
               className={cn(
                 'relative p-2 rounded-lg bg-card border border-border shadow-md hover:shadow-lg transition-all duration-200',
                 'focus:outline-none focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-[var(--nous-sol)]'

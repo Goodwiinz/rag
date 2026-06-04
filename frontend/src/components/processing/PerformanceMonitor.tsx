@@ -306,7 +306,8 @@ const Alert: React.FC<AlertProps> = ({
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Dismiss alert"
+          className="inline-flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           ×
         </button>
@@ -396,7 +397,7 @@ const PerformanceHistory: React.FC<PerformanceHistoryProps> = ({
       <div className="flex justify-end">
         <button
           onClick={onClear}
-          className="px-3 py-2 text-xs font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors"
+          className="px-3 py-2 text-xs font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Clear History
         </button>

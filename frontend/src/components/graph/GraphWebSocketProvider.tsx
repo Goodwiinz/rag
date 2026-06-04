@@ -323,7 +323,7 @@ export const WebSocketStatusIndicator: React.FC<{
         {status === 'error' && (
           <button
             onClick={manuallyReconnect}
-            className="mt-2 w-full px-2 py-1 bg-[var(--nous-sol)] text-white text-xs rounded hover:bg-[var(--nous-sol)]/90"
+            className="mt-2 w-full min-h-11 px-2 py-1 bg-[var(--nous-sol)] text-white text-xs rounded hover:bg-[var(--nous-sol)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>

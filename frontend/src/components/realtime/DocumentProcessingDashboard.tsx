@@ -219,7 +219,7 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
                 {/* Notification Bell */}
                 <div className="relative">
                   <button
-                    className="p-2 text-foreground hover:text-foreground relative"
+                    className="p-2 min-h-11 min-w-11 text-foreground hover:text-foreground relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     aria-label={
                       unreadCount > 0
                         ? `Notifications (${unreadCount} unread)`

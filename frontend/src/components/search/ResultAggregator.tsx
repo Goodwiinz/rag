@@ -72,8 +72,10 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
         {group.map((item, index) => (
           <div
             key={index}
+            role="button"
+            tabIndex={0}
             className={cn(
-              'p-3 rounded-lg border cursor-pointer transition-colors',
+              'p-3 rounded-lg border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               selectedItem === item
                 ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
                 : 'border-border bg-background hover:bg-[var(--nous-bg-3)]'
@@ -161,13 +163,15 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
 
         {/* Tabs */}
         <div className="border-b border-border">
-          <nav className="flex space-x-8">
+          <nav className="flex space-x-8" role="tablist">
             {['overview', 'duplicates', 'sources', 'metrics'].map((tab) => (
               <button
                 key={tab}
+                role="tab"
+                aria-selected={activeTab === tab}
                 onClick={() => setActiveTab(tab as any)}
                 className={cn(
-                  'py-2 px-1 border-b-2 font-medium text-sm capitalize',
+                  'py-2 px-1 border-b-2 font-medium text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                   activeTab === tab
                     ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
@@ -179,7 +183,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
           </nav>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6" role="tabpanel">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">

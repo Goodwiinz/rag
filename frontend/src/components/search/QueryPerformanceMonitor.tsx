@@ -102,7 +102,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   aria-selected={activeTab === tab}
                   onClick={() => setActiveTab(tab as any)}
                   className={cn(
-                    'py-2 px-1 border-b-2 font-medium text-sm capitalize',
+                    'py-2 px-1 border-b-2 font-medium text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     activeTab === tab
                       ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'

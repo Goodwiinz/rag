@@ -122,14 +122,14 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm text-muted-foreground hover:text-white transition-colors border border-terminal-border"
+              className="px-4 py-2 rounded-lg font-mono text-sm text-muted-foreground hover:text-white transition-colors border border-terminal-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--nous-sol-muted)] border border-[var(--nous-helios)] text-sol"
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--nous-sol-muted)] border border-[var(--nous-helios)] text-sol focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -625,7 +625,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           {result.answer.sources.map((source, index) => (
             <div
               key={`${source.document_id}-${index}`}
-              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border"
+              role="button"
+              tabIndex={0}
+              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--nous-helios)';

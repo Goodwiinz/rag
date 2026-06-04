@@ -598,7 +598,7 @@ export const RealtimeStatusDashboard: React.FC<
         {!isConnected && (
           <button
             onClick={reconnect}
-            className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded"
+            className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>
@@ -790,25 +790,25 @@ export const RealtimeStatusDashboard: React.FC<
               <div className="flex items-center space-x-2">
                 <button
                   onClick={pauseSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-corona)] bg-[var(--nous-corona)]/15 hover:bg-[var(--nous-corona)]/25 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-corona)] bg-[var(--nous-corona)]/15 hover:bg-[var(--nous-corona)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Pause All
                 </button>
                 <button
                   onClick={resumeSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-terra)] bg-[var(--nous-terra)]/15 hover:bg-[var(--nous-terra)]/25 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-terra)] bg-[var(--nous-terra)]/15 hover:bg-[var(--nous-terra)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Resume All
                 </button>
                 <button
                   onClick={cancelSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Cancel All
                 </button>
                 <button
                   onClick={retrySelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Retry All
                 </button>
