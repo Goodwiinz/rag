@@ -55,14 +55,14 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
   const [selectedItem, setSelectedItem] = useState(group[0]);
 
   return (
-    <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+    <div className="border border-[var(--nous-corona)] rounded-lg p-4 bg-[var(--nous-corona)]/10">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <DocumentDuplicateIcon className="h-4 w-4 text-orange-600" />
-          <span className="text-sm font-medium text-orange-900">
+          <DocumentDuplicateIcon className="h-4 w-4 text-[var(--nous-corona)]" />
+          <span className="text-sm font-medium text-[var(--nous-fg-1)]">
             Duplicate Group ({group.length} items)
           </span>
-          <Badge className="bg-orange-100 text-orange-800">
+          <Badge className="bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]">
             {Math.round(group[0].similarity * 100)}% similar
           </Badge>
         </div>
@@ -75,8 +75,8 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
             className={cn(
               'p-3 rounded-lg border cursor-pointer transition-colors',
               selectedItem === item
-                ? 'border-blue-300 bg-blue-50'
-                : 'border-border bg-white hover:bg-gray-50'
+                ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
+                : 'border-border bg-background hover:bg-[var(--nous-bg-3)]'
             )}
             onClick={() => setSelectedItem(item)}
           >
@@ -103,7 +103,7 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
                   className="h-6 w-6 p-0"
                   disabled={selectedItem === item}
                 >
-                  <CheckCircleIcon className="h-3 w-3 text-green-600" />
+                  <CheckCircleIcon className="h-3 w-3 text-[var(--nous-terra)]" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -114,7 +114,7 @@ const DuplicateGroup: React.FC<DuplicateGroupProps> = ({
                   }}
                   className="h-6 w-6 p-0"
                 >
-                  <XCircleIcon className="h-3 w-3 text-red-600" />
+                  <XCircleIcon className="h-3 w-3 text-[var(--nous-mars)]" />
                 </Button>
               </div>
             </div>
@@ -136,17 +136,20 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
   >('overview');
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-yellow-600';
-    if (score >= 70) return 'text-orange-600';
-    return 'text-red-600';
+    if (score >= 90) return 'text-[var(--nous-terra)]';
+    if (score >= 80) return 'text-[var(--nous-corona)]';
+    if (score >= 70) return 'text-[var(--nous-corona)]';
+    return 'text-[var(--nous-mars)]';
   };
 
   const getScoreBackground = (score: number) => {
-    if (score >= 90) return 'bg-green-100 text-green-800';
-    if (score >= 80) return 'bg-yellow-100 text-yellow-800';
-    if (score >= 70) return 'bg-orange-100 text-orange-800';
-    return 'bg-red-100 text-red-800';
+    if (score >= 90)
+      return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
+    if (score >= 80)
+      return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
+    if (score >= 70)
+      return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
+    return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
   };
 
   return (
@@ -166,7 +169,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                 className={cn(
                   'py-2 px-1 border-b-2 font-medium text-sm capitalize',
                   activeTab === tab
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-[var(--nous-sol)] text-[var(--nous-sol-safe)]'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 )}
               >
@@ -182,33 +185,37 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
             <div className="space-y-6">
               {/* Summary Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-900">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
                     {aggregation.final_results.length}
                   </div>
-                  <div className="text-sm text-blue-700">Final Results</div>
+                  <div className="text-sm text-[var(--nous-sol-safe)]">
+                    Final Results
+                  </div>
                 </div>
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-900">
+                <div className="p-4 bg-[var(--nous-terra)]/10 rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)]">
                     {aggregation.deduplication_stats.duplicates_removed}
                   </div>
-                  <div className="text-sm text-green-700">
+                  <div className="text-sm text-[var(--nous-terra)]">
                     Duplicates Removed
                   </div>
                 </div>
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
-                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
+                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
                     {Math.round(aggregation.diversity_score * 100)}%
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Diversity Score
                   </div>
                 </div>
-                <div className="p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-900">
+                <div className="p-4 bg-[var(--nous-corona)]/10 rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-corona)]">
                     {Math.round(aggregation.coverage_score * 100)}%
                   </div>
-                  <div className="text-sm text-orange-700">Coverage Score</div>
+                  <div className="text-sm text-[var(--nous-corona)]">
+                    Coverage Score
+                  </div>
                 </div>
               </div>
 
@@ -220,7 +227,10 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {Object.entries(aggregation.source_breakdown).map(
                     ([source, count]) => (
-                      <div key={source} className="p-3 bg-gray-50 rounded-lg">
+                      <div
+                        key={source}
+                        className="p-3 bg-[var(--nous-bg-2)] rounded-lg"
+                      >
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-foreground capitalize">
                             {source}
@@ -229,9 +239,9 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                             {count}
                           </span>
                         </div>
-                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                        <div className="mt-2 w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="bg-[var(--nous-sol)] h-2 rounded-full"
                             style={{
                               width: `${(count / aggregation.final_results.length) * 100}%`,
                             }}
@@ -254,7 +264,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     .map((result, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg"
                       >
                         <div className="flex items-center space-x-3">
                           <span className="font-medium text-foreground">
@@ -279,14 +289,14 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
           {/* Duplicates Tab */}
           {activeTab === 'duplicates' && (
             <div className="space-y-4">
-              <div className="p-4 bg-yellow-50 rounded-lg">
+              <div className="p-4 bg-[var(--nous-corona)]/10 rounded-lg">
                 <div className="flex items-center space-x-2">
-                  <DocumentDuplicateIcon className="h-5 w-5 text-yellow-600" />
+                  <DocumentDuplicateIcon className="h-5 w-5 text-[var(--nous-corona)]" />
                   <div>
-                    <h3 className="font-medium text-yellow-900">
+                    <h3 className="font-medium text-[var(--nous-fg-1)]">
                       Deduplication Summary
                     </h3>
-                    <p className="text-sm text-yellow-800">
+                    <p className="text-sm text-[var(--nous-corona)]">
                       {aggregation.deduplication_stats.initial_count} →{' '}
                       {aggregation.deduplication_stats.final_count} results (
                       {aggregation.deduplication_stats.duplicates_removed}{' '}
@@ -303,7 +313,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     <span className="font-medium text-foreground">
                       Similarity Threshold: 85%
                     </span>
-                    <Badge className="bg-green-100 text-green-800">
+                    <Badge className="bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]">
                       Active
                     </Badge>
                   </div>
@@ -334,11 +344,11 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                           {result.stage} Search
                         </h4>
                         {result.error ? (
-                          <Badge className="bg-red-100 text-red-800">
+                          <Badge className="bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]">
                             Failed
                           </Badge>
                         ) : (
-                          <Badge className="bg-green-100 text-green-800">
+                          <Badge className="bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]">
                             Success
                           </Badge>
                         )}
@@ -376,8 +386,10 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     </div>
 
                     {result.error && (
-                      <div className="mt-3 p-3 bg-red-50 rounded-lg">
-                        <p className="text-sm text-red-800">{result.error}</p>
+                      <div className="mt-3 p-3 bg-[var(--nous-mars)]/10 rounded-lg">
+                        <p className="text-sm text-[var(--nous-mars)]">
+                          {result.error}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -395,7 +407,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                   Quality Metrics
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-foreground">
                         Aggregation Confidence
@@ -411,15 +423,15 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                         {Math.round(aggregation.aggregation_confidence * 100)}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           aggregation.aggregation_confidence >= 0.9
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : aggregation.aggregation_confidence >= 0.8
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${aggregation.aggregation_confidence * 100}%`,
@@ -428,7 +440,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-foreground">Diversity Score</span>
                       <span
@@ -440,15 +452,15 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                         {Math.round(aggregation.diversity_score * 100)}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           aggregation.diversity_score >= 0.9
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : aggregation.diversity_score >= 0.8
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${aggregation.diversity_score * 100}%`,
@@ -457,7 +469,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-foreground">Coverage Score</span>
                       <span
@@ -469,15 +481,15 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                         {Math.round(aggregation.coverage_score * 100)}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           aggregation.coverage_score >= 0.9
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : aggregation.coverage_score >= 0.8
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${aggregation.coverage_score * 100}%`,
@@ -486,7 +498,7 @@ const AggregationDetail: React.FC<AggregationDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-foreground">Fusion Method</span>
                       <span className="font-bold text-foreground capitalize">
@@ -787,12 +799,12 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
   return (
     <div className={cn('space-y-4', className)}>
       {/* Aggregation Header */}
-      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {isAggregating ? (
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <ArrowsRightLeftIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+            <ArrowsRightLeftIcon className="h-5 w-5 text-[var(--nous-sol-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Result Aggregation</h3>
@@ -859,7 +871,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         <div className="space-y-3">
           <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
-            <span className="text-sm text-[var(--nous-fg-accent-safe)]">
+            <span className="text-sm text-[var(--nous-sol-safe)]">
               Aggregating results...
             </span>
           </div>
@@ -869,7 +881,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
               <span className="text-foreground">Fusing search results</span>
               <span className="text-foreground">50%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
               <div
                 className="bg-[var(--nous-sol)] h-2 rounded-full transition-all duration-500"
                 style={{ width: '50%' }}
@@ -884,30 +896,34 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
         <div className="space-y-3">
           {/* Quick Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
-              <CheckCircleIcon className="h-4 w-4 text-green-600" />
+            <div className="flex items-center space-x-2 p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+              <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
               <div>
-                <div className="text-sm font-medium text-green-900">
+                <div className="text-sm font-medium text-[var(--nous-terra)]">
                   {aggregation.final_results.length} Results
                 </div>
-                <div className="text-xs text-green-700">After aggregation</div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-              <DocumentDuplicateIcon className="h-4 w-4 text-blue-600" />
-              <div>
-                <div className="text-sm font-medium text-blue-900">
-                  {aggregation.deduplication_stats.duplicates_removed} Removed
+                <div className="text-xs text-[var(--nous-terra)]">
+                  After aggregation
                 </div>
-                <div className="text-xs text-blue-700">Duplicates</div>
               </div>
             </div>
 
             <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
-              <ChartBarIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
+              <DocumentDuplicateIcon className="h-4 w-4 text-[var(--nous-sol-safe)]" />
               <div>
-                <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
+                <div className="text-sm font-medium text-[var(--nous-sol-safe)]">
+                  {aggregation.deduplication_stats.duplicates_removed} Removed
+                </div>
+                <div className="text-xs text-[var(--nous-sol-safe)]">
+                  Duplicates
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+              <ChartBarIcon className="h-4 w-4 text-[var(--nous-sol-safe)]" />
+              <div>
+                <div className="text-sm font-medium text-[var(--nous-sol-safe)]">
                   {Math.round(aggregation.aggregation_confidence * 100)}%
                   Confidence
                 </div>
@@ -919,7 +935,7 @@ export const ResultAggregator: React.FC<ResultAggregatorProps> = ({
           </div>
 
           {/* Quality Indicators */}
-          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center space-x-3 p-3 bg-[var(--nous-bg-2)] rounded-lg">
             <Badge variant="outline" className="text-xs">
               Diversity: {Math.round(aggregation.diversity_score * 100)}%
             </Badge>

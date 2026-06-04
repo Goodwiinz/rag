@@ -90,7 +90,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
                       className={cn(
                         'h-6 w-6',
                         star <= rating
-                          ? 'text-amber-400 fill-amber-400'
+                          ? 'text-[var(--nous-sol-safe)] fill-[var(--nous-sol)]'
                           : 'text-foreground'
                       )}
                     />
@@ -144,8 +144,8 @@ const MetricsDisplay: React.FC<{ metrics: SearchMetrics }> = ({ metrics }) => {
   const getScoreColor = (score: number): string => {
     if (score >= 90) return 'var(--nous-sol)';
     if (score >= 80) return 'var(--nous-helios)';
-    if (score >= 70) return '#f97316';
-    return '#ef4444';
+    if (score >= 70) return 'var(--nous-corona)';
+    return 'var(--nous-mars)';
   };
 
   const formatScore = (score: number): string => {
@@ -278,14 +278,26 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     const iconClass = 'h-4 w-4';
     switch (fileType) {
       case 'pdf':
-        return <DocumentTextIcon className={cn(iconClass, 'text-red-500')} />;
+        return (
+          <DocumentTextIcon
+            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+          />
+        );
       case 'txt':
-        return <DocumentTextIcon className={cn(iconClass, 'text-blue-500')} />;
+        return (
+          <DocumentTextIcon
+            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+          />
+        );
       case 'jpg':
       case 'png':
         return <PhotoIcon className={cn(iconClass, 'text-sol')} />;
       case 'mp3':
-        return <MusicalNoteIcon className={cn(iconClass, 'text-purple-500')} />;
+        return (
+          <MusicalNoteIcon
+            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+          />
+        );
       case 'mp4':
         return <VideoCameraIcon className={cn(iconClass, 'text-helios')} />;
       default:
@@ -307,9 +319,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         };
       case 'reasoning':
         return {
-          colorClass: 'text-purple-500',
-          bgClass: 'bg-purple-500/10',
-          borderClass: 'border-purple-500/20',
+          colorClass: 'text-[var(--nous-fg-2)]',
+          bgClass: 'bg-[var(--nous-bg-3)]/10',
+          borderClass: 'border-[var(--nous-border-1)]/20',
         };
       case 'summarization':
         return {
@@ -326,7 +338,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       default:
         return {
           colorClass: 'text-muted-foreground',
-          bgClass: 'bg-gray-500/10',
+          bgClass: 'bg-[var(--nous-bg-3)]/10',
           borderClass: 'border-border/20',
         };
     }
@@ -346,29 +358,29 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'INSUFFICIENT_EVIDENCE':
         return {
           label: 'INSUFFICIENT EVIDENCE',
-          colorClass: 'text-amber-500',
-          bgClass: 'bg-amber-500/10',
-          borderClass: 'border-amber-500/25',
+          colorClass: 'text-[var(--nous-corona)]',
+          bgClass: 'bg-[var(--nous-corona)]/10',
+          borderClass: 'border-[var(--nous-corona)]/25',
         };
       case 'CONFLICTING_EVIDENCE':
         return {
           label: 'CONFLICTING EVIDENCE',
-          colorClass: 'text-orange-500',
-          bgClass: 'bg-orange-500/10',
-          borderClass: 'border-orange-500/25',
+          colorClass: 'text-[var(--nous-corona)]',
+          bgClass: 'bg-[var(--nous-corona)]/10',
+          borderClass: 'border-[var(--nous-corona)]/25',
         };
       case 'NO_MATCH':
         return {
           label: 'NO MATCH',
-          colorClass: 'text-red-500',
-          bgClass: 'bg-red-500/10',
-          borderClass: 'border-red-500/25',
+          colorClass: 'text-[var(--nous-mars)]',
+          bgClass: 'bg-[var(--nous-mars)]/10',
+          borderClass: 'border-[var(--nous-mars)]/25',
         };
       default:
         return {
           label: 'UNKNOWN',
           colorClass: 'text-muted-foreground',
-          bgClass: 'bg-gray-500/10',
+          bgClass: 'bg-[var(--nous-bg-3)]/10',
           borderClass: 'border-border/20',
         };
     }
@@ -442,7 +454,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   if (error) {
     return (
       <div className={cn('text-center py-8', className)}>
-        <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <XCircleIcon className="h-12 w-12 text-[var(--nous-mars)] mx-auto mb-4" />
         <h3 className="text-lg font-mono font-medium text-white mb-2">
           Search failed
         </h3>
@@ -550,7 +562,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   <action.icon
                     className={cn(
                       'h-4 w-4',
-                      copiedAnswer && i === 0 && 'text-green-500'
+                      copiedAnswer && i === 0 && 'text-[var(--nous-terra)]'
                     )}
                   />
                 }

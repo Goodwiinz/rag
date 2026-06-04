@@ -54,15 +54,15 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
   const getStrategyColor = (strategy: string) => {
     switch (strategy) {
       case 'expansion':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]';
       case 'simplification':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'temporal_adaptation':
-        return 'bg-purple-100 text-purple-800';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]';
       case 'domain_enhancement':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       default:
-        return 'bg-gray-100 text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]';
     }
   };
 
@@ -70,13 +70,27 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
     const iconClass = 'h-4 w-4';
     switch (strategy) {
       case 'expansion':
-        return <SparklesIcon className={cn(iconClass, 'text-blue-600')} />;
+        return (
+          <SparklesIcon
+            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+          />
+        );
       case 'simplification':
-        return <LightBulbIcon className={cn(iconClass, 'text-green-600')} />;
+        return (
+          <LightBulbIcon
+            className={cn(iconClass, 'text-[var(--nous-terra)]')}
+          />
+        );
       case 'temporal_adaptation':
-        return <ClockIcon className={cn(iconClass, 'text-purple-600')} />;
+        return (
+          <ClockIcon className={cn(iconClass, 'text-[var(--nous-sol-safe)]')} />
+        );
       case 'domain_enhancement':
-        return <AcademicCapIcon className={cn(iconClass, 'text-orange-600')} />;
+        return (
+          <AcademicCapIcon
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
+          />
+        );
       default:
         return (
           <DocumentTextIcon className={cn(iconClass, 'text-foreground')} />
@@ -88,13 +102,27 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
     const iconClass = 'h-4 w-4';
     switch (filterType) {
       case 'modality':
-        return <DocumentTextIcon className={cn(iconClass, 'text-blue-600')} />;
+        return (
+          <DocumentTextIcon
+            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+          />
+        );
       case 'date_range':
-        return <ClockIcon className={cn(iconClass, 'text-green-600')} />;
+        return (
+          <ClockIcon className={cn(iconClass, 'text-[var(--nous-terra)]')} />
+        );
       case 'file_type':
-        return <FunnelIcon className={cn(iconClass, 'text-purple-600')} />;
+        return (
+          <FunnelIcon
+            className={cn(iconClass, 'text-[var(--nous-sol-safe)]')}
+          />
+        );
       case 'entity':
-        return <SparklesIcon className={cn(iconClass, 'text-orange-600')} />;
+        return (
+          <SparklesIcon
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
+          />
+        );
       default:
         return <FunnelIcon className={cn(iconClass, 'text-foreground')} />;
     }
@@ -133,7 +161,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
             <h3 className="text-lg font-semibold text-foreground mb-3">
               Original Query
             </h3>
-            <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <p className="text-foreground italic">
                 "{rewrite.original_query}"
               </p>
@@ -199,16 +227,16 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-white rounded p-3 border border-border">
+                  <div className="bg-background rounded p-3 border border-border">
                     <p className="text-foreground">"{rewrittenQuery.query}"</p>
                   </div>
 
                   {expandedQuery === index && (
-                    <div className="mt-3 p-3 bg-blue-50 rounded">
-                      <h4 className="text-sm font-medium text-blue-900 mb-2">
+                    <div className="mt-3 p-3 bg-[var(--nous-sol)]/10 rounded">
+                      <h4 className="text-sm font-medium text-[var(--nous-sol-safe)] mb-2">
                         Reasoning:
                       </h4>
-                      <p className="text-sm text-blue-800">
+                      <p className="text-sm text-[var(--nous-sol-safe)]">
                         {rewrittenQuery.reasoning}
                       </p>
                     </div>
@@ -230,9 +258,9 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {rewrite.expanded_terms.map((term, index) => (
                     <div
                       key={index}
-                      className="flex items-center space-x-1 bg-green-50 rounded-full px-3 py-1"
+                      className="flex items-center space-x-1 bg-[var(--nous-terra)]/10 rounded-full px-3 py-1"
                     >
-                      <span className="text-sm font-medium text-green-800">
+                      <span className="text-sm font-medium text-[var(--nous-terra)]">
                         {term}
                       </span>
                     </div>
@@ -251,9 +279,9 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {rewrite.removed_terms.map((term, index) => (
                     <div
                       key={index}
-                      className="flex items-center space-x-1 bg-red-50 rounded-full px-3 py-1"
+                      className="flex items-center space-x-1 bg-[var(--nous-mars)]/10 rounded-full px-3 py-1"
                     >
-                      <span className="text-sm font-medium text-red-800">
+                      <span className="text-sm font-medium text-[var(--nous-mars)]">
                         {term}
                       </span>
                     </div>
@@ -273,7 +301,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                 {rewrite.suggested_filters.map((filter, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-orange-50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-[var(--nous-corona)]/10 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
                       {getFilterIcon(filter.type)}
@@ -301,7 +329,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
               Intent Context
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 bg-gray-50 rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Primary Intent
                 </span>
@@ -309,7 +337,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.primary_intent.replace('_', ' ')}
                 </span>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Complexity
                 </span>
@@ -317,7 +345,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.complexity}
                 </span>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Temporal
                 </span>
@@ -325,7 +353,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.temporal_aspect}
                 </span>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Domain
                 </span>
@@ -621,12 +649,12 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
   return (
     <div className={cn('space-y-3', className)}>
       {/* Rewrite Summary */}
-      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {isRewriting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-terra)] border-t-transparent" />
           ) : (
-            <ArrowPathIcon className="h-4 w-4 text-green-600" />
+            <ArrowPathIcon className="h-4 w-4 text-[var(--nous-terra)]" />
           )}
           <div>
             <div className="flex items-center space-x-2">
@@ -634,7 +662,7 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
                 Query Enhancement:
               </span>
               {rewrite ? (
-                <span className="text-sm font-semibold text-green-600">
+                <span className="text-sm font-semibold text-[var(--nous-terra)]">
                   {rewrite.rewritten_queries.length} optimization
                   {rewrite.rewritten_queries.length !== 1 ? 's' : ''} available
                 </span>
@@ -671,12 +699,12 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
 
       {/* Applied Rewrite Indicator */}
       {appliedRewrite && (
-        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
-          <CheckCircleIcon className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-green-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+          <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
+          <span className="text-sm font-medium text-[var(--nous-terra)]">
             Applied optimization:
           </span>
-          <span className="text-sm text-green-700 italic">
+          <span className="text-sm text-[var(--nous-terra)] italic">
             "{appliedRewrite}"
           </span>
           <Button

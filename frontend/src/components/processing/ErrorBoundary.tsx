@@ -87,11 +87,11 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
     error.message.includes('WebSocket');
 
   return (
-    <div className="min-h-[200px] bg-white rounded-lg border border-red-200 p-6">
+    <div className="min-h-[200px] bg-background rounded-lg border border-[var(--nous-mars)]/40 p-6">
       <div className="flex items-start space-x-4">
         <div className="flex-shrink-0">
-          <div className="p-2 bg-red-100 rounded-full">
-            <Icon className="w-6 h-6 text-red-600" />
+          <div className="p-2 bg-[var(--nous-mars)]/15 rounded-full">
+            <Icon className="w-6 h-6 text-[var(--nous-mars)]" />
           </div>
         </div>
 
@@ -106,12 +106,14 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
           </p>
 
           {/* Error summary */}
-          <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
-            <p className="text-sm font-medium text-red-800 mb-1">
+          <div className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/40 rounded p-3 mb-4">
+            <p className="text-sm font-medium text-[var(--nous-mars)] mb-1">
               {error.name}: {error.message}
             </p>
             {component && (
-              <p className="text-xs text-red-600">Component: {component}</p>
+              <p className="text-xs text-[var(--nous-mars)]">
+                Component: {component}
+              </p>
             )}
           </div>
 
@@ -120,7 +122,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {canRetry && isRetryableError && onRetry && (
               <button
                 onClick={onRetry}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-[var(--nous-sol-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded transition-colors"
               >
                 <ArrowPathIcon className="w-4 h-4 mr-2" />
                 Retry {retryCount > 0 ? `(${retryCount}/${maxRetries})` : ''}
@@ -130,7 +132,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {showErrorDetails && (
               <button
                 onClick={() => setShowDetails(!showDetails)}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors"
               >
                 {showDetails ? 'Hide' : 'Show'} Details
               </button>
@@ -139,7 +141,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors"
               >
                 Dismiss
               </button>
@@ -149,7 +151,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
           {/* Detailed error information */}
           {showDetails && showErrorDetails && (
             <div className="mt-4 space-y-3">
-              <div className="bg-gray-50 border border-border rounded p-3">
+              <div className="bg-[var(--nous-bg-2)] border border-border rounded p-3">
                 <h4 className="text-sm font-medium text-foreground mb-2">
                   Error Stack Trace
                 </h4>
@@ -159,7 +161,7 @@ const FallbackUI: React.FC<FallbackUIProps> = ({
               </div>
 
               {errorInfo && (
-                <div className="bg-gray-50 border border-border rounded p-3">
+                <div className="bg-[var(--nous-bg-2)] border border-border rounded p-3">
                   <h4 className="text-sm font-medium text-foreground mb-2">
                     Component Stack
                   </h4>
@@ -304,8 +306,10 @@ export class ErrorBoundary extends Component<
 
       // Minimal fallback if no error object
       return (
-        <div className="p-4 bg-red-50 border border-red-200 rounded">
-          <p className="text-red-800">An unexpected error occurred.</p>
+        <div className="p-4 bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/40 rounded">
+          <p className="text-[var(--nous-mars)]">
+            An unexpected error occurred.
+          </p>
         </div>
       );
     }

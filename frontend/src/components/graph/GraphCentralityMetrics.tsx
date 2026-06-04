@@ -400,7 +400,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
       date: 'bg-orange-100 text-orange-800 border-orange-200',
       product: 'bg-pink-100 text-pink-800 border-pink-200',
     };
-    return colors[type] || 'bg-gray-100 text-foreground border-border';
+    return (
+      colors[type] || 'bg-[var(--nous-bg-2)] text-foreground border-border'
+    );
   };
 
   // Get metric icon
@@ -494,7 +496,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
 
           {/* Current Metric Info */}
           {currentMetric && (
-            <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="flex items-start space-x-3">
                 <CurrentMetricIcon
                   className={cn('h-6 w-6 mt-1', currentMetric.color)}
@@ -663,7 +665,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                 return (
                   <div
                     key={entity.id}
-                    className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-[var(--nous-bg-3)] cursor-pointer transition-colors"
                     onClick={() => handleEntityClick(entity)}
                   >
                     {/* Rank */}
@@ -671,7 +673,9 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                       <div
                         className={cn(
                           'text-sm font-bold',
-                          index < 3 ? 'text-blue-600' : 'text-muted-foreground'
+                          index < 3
+                            ? 'text-[var(--nous-sol-safe)]'
+                            : 'text-muted-foreground'
                         )}
                       >
                         #{index + 1}
@@ -749,7 +753,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
             <div className="space-y-6">
               {/* Overview */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
                   <div className="text-2xl font-bold text-foreground">
                     {formatMetricValue(metricDetail.value, selectedMetric)}
                   </div>
@@ -757,14 +761,14 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                     {currentMetric?.name}
                   </div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-sol-safe)]">
                     #{metricDetail.rank}
                   </div>
                   <div className="text-sm text-muted-foreground">Rank</div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)]">
                     {Math.round(metricDetail.percentile)}%
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -794,7 +798,7 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
                         return (
                           <div
                             key={entity.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                            className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg"
                           >
                             <div className="flex items-center space-x-2">
                               <EntityTypeIcon className="h-4 w-4" />

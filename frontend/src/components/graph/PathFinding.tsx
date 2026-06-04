@@ -580,7 +580,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                   Source Entity
                 </label>
                 {sourceEntity ? (
-                  <div className="p-3 border rounded-lg bg-blue-50 border-blue-200">
+                  <div className="p-3 border rounded-lg bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Badge
@@ -631,7 +631,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                   Target Entity
                 </label>
                 {targetEntity ? (
-                  <div className="p-3 border rounded-lg bg-green-50 border-green-200">
+                  <div className="p-3 border rounded-lg bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Badge
@@ -765,7 +765,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                       includeAlternativePaths: e.target.checked,
                     }))
                   }
-                  className="rounded border-border text-blue-600 focus:ring-blue-500"
+                  className="rounded border-border text-[var(--nous-sol)] focus:ring-[var(--nous-sol)]"
                 />
                 <span className="text-sm text-foreground">
                   Find alternative paths
@@ -846,7 +846,9 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                     key={path.id}
                     className={cn(
                       'border rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow',
-                      isPrimary ? 'border-blue-200 bg-blue-50' : 'border-border'
+                      isPrimary
+                        ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10'
+                        : 'border-border'
                     )}
                     onClick={() => setSelectedPath(path)}
                   >
@@ -854,7 +856,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
                         {isPrimary && (
-                          <Badge className="bg-blue-100 text-blue-800">
+                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)]">
                             Primary Path
                           </Badge>
                         )}
@@ -951,7 +953,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
               {searchHistory.map((search, index) => (
                 <div
                   key={search.timestamp}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                  className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg cursor-pointer hover:bg-[var(--nous-bg-3)]"
                   onClick={() => {
                     setSourceEntity(search.source);
                     setTargetException(search.target);
@@ -999,17 +1001,17 @@ export const PathFinding: React.FC<PathFindingProps> = ({
             <div className="space-y-6">
               {/* Path Overview */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded-lg">
                   <div className="text-lg font-bold">{selectedPath.length}</div>
                   <div className="text-sm text-muted-foreground">Hops</div>
                 </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded-lg">
                   <div className="text-lg font-bold">
                     {selectedPath.strength.toFixed(3)}
                   </div>
                   <div className="text-sm text-muted-foreground">Strength</div>
                 </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded-lg">
                   <div className="text-lg font-bold">
                     {Math.round(selectedPath.confidence * 100)}%
                   </div>
@@ -1017,7 +1019,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                     Confidence
                   </div>
                 </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded-lg">
                   <div className="text-lg font-bold">
                     {selectedPath.metadata.executionTimeMs.toFixed(2)}ms
                   </div>
@@ -1059,7 +1061,7 @@ export const PathFinding: React.FC<PathFindingProps> = ({
 
                         {relationship && (
                           <div className="flex-shrink-0 text-right">
-                            <Badge className="bg-blue-100 text-blue-800 mb-1">
+                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)] mb-1">
                               {relationship.relationship_type}
                             </Badge>
                             <div className="text-xs text-muted-foreground">
@@ -1084,11 +1086,11 @@ export const PathFinding: React.FC<PathFindingProps> = ({
                     {selectedPath.relationships.map((relationship, index) => (
                       <div
                         key={relationship.id}
-                        className="p-3 bg-gray-50 rounded-lg"
+                        className="p-3 bg-[var(--nous-bg-2)] rounded-lg"
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <Badge className="bg-blue-100 text-blue-800 mb-2">
+                            <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-sol-safe)] mb-2">
                               {relationship.relationship_type}
                             </Badge>
                             <p className="text-sm text-foreground italic">

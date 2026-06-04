@@ -267,7 +267,7 @@ export function ThreadMessageSearch({
         return (
           <span
             key={i}
-            className="bg-amber-500/30 text-amber-300 px-0.5 rounded"
+            className="bg-[var(--nous-sol)]/30 text-[var(--nous-sol-safe)] px-0.5 rounded"
           >
             {part}
           </span>
@@ -281,15 +281,15 @@ export function ThreadMessageSearch({
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'user':
-        return 'bg-blue-500/20 text-blue-400';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
       case 'assistant':
-        return 'bg-green-500/20 text-green-400';
+        return 'bg-[var(--nous-terra)]/20 text-[var(--nous-terra)]';
       case 'system':
-        return 'bg-purple-500/20 text-purple-400';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
       case 'tool':
-        return 'bg-orange-500/20 text-orange-400';
+        return 'bg-[var(--nous-corona)]/20 text-[var(--nous-corona)]';
       default:
-        return 'bg-gray-500/20 text-muted-foreground';
+        return 'bg-[var(--nous-bg-3)]/20 text-muted-foreground';
     }
   };
 
@@ -297,13 +297,13 @@ export function ThreadMessageSearch({
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-green-500/20 text-green-400';
+        return 'bg-[var(--nous-terra)]/20 text-[var(--nous-terra)]';
       case 'resolved':
-        return 'bg-blue-500/20 text-blue-400';
+        return 'bg-[var(--nous-sol)]/20 text-[var(--nous-sol-safe)]';
       case 'archived':
-        return 'bg-gray-500/20 text-muted-foreground';
+        return 'bg-[var(--nous-bg-3)]/20 text-muted-foreground';
       default:
-        return 'bg-gray-500/20 text-muted-foreground';
+        return 'bg-[var(--nous-bg-3)]/20 text-muted-foreground';
     }
   };
 
@@ -325,7 +325,7 @@ export function ThreadMessageSearch({
               onFocus={() => query.length >= 2 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Search threads and messages..."
-              className="pl-10 pr-10 bg-black/40 border-border focus:border-green-500 text-muted-foreground placeholder:text-muted-foreground"
+              className="pl-10 pr-10 bg-[var(--nous-bg-1)]/40 border-border focus:border-[var(--nous-sol)] text-muted-foreground placeholder:text-muted-foreground"
             />
             {query && (
               <button
@@ -344,7 +344,7 @@ export function ThreadMessageSearch({
             value={searchMode}
             onValueChange={(v) => setSearchMode(v as SearchMode)}
           >
-            <SelectTrigger className="w-32 bg-black/40 border-border">
+            <SelectTrigger className="w-32 bg-[var(--nous-bg-1)]/40 border-border">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -361,12 +361,12 @@ export function ThreadMessageSearch({
                 variant="outline"
                 size="icon"
                 aria-label="Toggle filters"
-                className="bg-black/40 border-border hover:bg-gray-800"
+                className="bg-[var(--nous-bg-1)]/40 border-border hover:bg-[var(--nous-bg-3)]"
               >
                 <Filter className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 bg-gray-900 border-border">
+            <PopoverContent className="w-64 bg-[var(--nous-bg-2)] border-border">
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-muted-foreground">
                   Filters
@@ -384,7 +384,7 @@ export function ThreadMessageSearch({
                           setThreadSortOrder(v as ThreadSearchSortOrder)
                         }
                       >
-                        <SelectTrigger className="bg-black/40 border-border">
+                        <SelectTrigger className="bg-[var(--nous-bg-1)]/40 border-border">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -418,7 +418,7 @@ export function ThreadMessageSearch({
                               'cursor-pointer',
                               statusFilter.includes(status)
                                 ? getStatusBadgeColor(status)
-                                : 'bg-gray-800 text-muted-foreground'
+                                : 'bg-[var(--nous-bg-3)] text-muted-foreground'
                             )}
                             onClick={() => {
                               setStatusFilter((prev) =>
@@ -447,7 +447,7 @@ export function ThreadMessageSearch({
                         setMessageSortOrder(v as MessageSearchSortOrder)
                       }
                     >
-                      <SelectTrigger className="bg-black/40 border-border">
+                      <SelectTrigger className="bg-[var(--nous-bg-1)]/40 border-border">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -465,11 +465,11 @@ export function ThreadMessageSearch({
 
         {/* Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-border rounded-md shadow-lg z-10">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--nous-bg-2)] border border-border rounded-md shadow-lg z-10">
             {suggestions.map((suggestion, i) => (
               <button
                 key={i}
-                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-gray-800 first:rounded-t-md last:rounded-b-md"
+                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-[var(--nous-bg-3)] first:rounded-t-md last:rounded-b-md"
                 onClick={() => {
                   setQuery(suggestion);
                   performSearch(suggestion, 0);
@@ -506,7 +506,7 @@ export function ThreadMessageSearch({
 
       {/* Error State */}
       {error && (
-        <div className="text-red-400 text-sm p-4 bg-red-900/20 border border-red-800 rounded-md">
+        <div className="text-[var(--nous-mars)] text-sm p-4 bg-[var(--nous-mars)]/20 border border-[var(--nous-mars)] rounded-md">
           {error}
         </div>
       )}
@@ -519,7 +519,7 @@ export function ThreadMessageSearch({
             combinedResults.map((result) => (
               <div
                 key={`${result.result_type}-${result.id}`}
-                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() => {
                   if (result.result_type === 'thread') {
                     onSelectThread?.(result.id);
@@ -531,7 +531,7 @@ export function ThreadMessageSearch({
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
                     {result.result_type === 'thread' ? (
-                      <MessageSquare className="h-4 w-4 text-cyan-400" />
+                      <MessageSquare className="h-4 w-4 text-[var(--nous-sol-safe)]" />
                     ) : (
                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     )}
@@ -540,7 +540,7 @@ export function ThreadMessageSearch({
                     <div className="flex items-center gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className="text-xs bg-gray-800 text-muted-foreground"
+                        className="text-xs bg-[var(--nous-bg-3)] text-muted-foreground"
                       >
                         {result.result_type}
                       </Badge>
@@ -571,7 +571,7 @@ export function ThreadMessageSearch({
             threadResults.map((result) => (
               <div
                 key={result.thread_id}
-                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() => onSelectThread?.(result.thread_id)}
               >
                 <div className="flex items-start gap-3">
@@ -626,7 +626,7 @@ export function ThreadMessageSearch({
             messageResults.map((result) => (
               <div
                 key={result.message_id}
-                className="p-3 bg-black/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
+                className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors"
                 onClick={() =>
                   onSelectMessage?.(result.message_id, result.thread_id)
                 }
@@ -683,7 +683,7 @@ export function ThreadMessageSearch({
           {hasMore && !isLoading && (
             <Button
               variant="outline"
-              className="w-full bg-black/40 border-border hover:bg-gray-800"
+              className="w-full bg-[var(--nous-bg-1)]/40 border-border hover:bg-[var(--nous-bg-3)]"
               onClick={handleLoadMore}
             >
               <ChevronDown className="h-4 w-4 mr-2" />
