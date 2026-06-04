@@ -253,7 +253,7 @@ function QueryExplorer() {
             </p>
           ) : (
             <div className="space-y-5">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">Overall</span>
                 {report && <HealthBadge health={report.overall_health} />}
                 <span className="text-xs text-muted-foreground tabular-nums">
@@ -275,13 +275,13 @@ function QueryExplorer() {
                         src.success ? 'border-border' : 'border-destructive/40'
                       )}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium capitalize">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-medium capitalize">
                           {src.source_type}
                         </span>
                         <Badge
                           variant={src.success ? 'default' : 'destructive'}
-                          className="text-xs"
+                          className="shrink-0 text-xs"
                         >
                           {src.success
                             ? `${src.result_count} results`
@@ -293,7 +293,7 @@ function QueryExplorer() {
                         {src.avg_score.toFixed(3)}
                       </div>
                       {src.error && (
-                        <div className="mt-1 text-xs text-destructive">
+                        <div className="mt-1 break-words text-xs text-destructive">
                           {src.error}
                         </div>
                       )}
@@ -354,8 +354,8 @@ function QueryExplorer() {
                       )}
                     </dl>
                     {selectedTrace.rerank.score_deltas.length > 0 && (
-                      <div className="mt-3 max-h-32 overflow-y-auto">
-                        <table className="w-full text-xs tabular-nums">
+                      <div className="mt-3 max-h-32 overflow-x-auto overflow-y-auto">
+                        <table className="w-full min-w-[18rem] text-xs tabular-nums">
                           <thead>
                             <tr className="text-muted-foreground">
                               <th className="text-left font-medium">Doc</th>
@@ -525,13 +525,13 @@ function QualityOverview() {
   }, [loadStats]);
 
   const controls = (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
       <label className="sr-only" htmlFor="quality-window">
         Time window
       </label>
       <select
         id="quality-window"
-        className="rounded-md border bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+        className="min-h-[44px] rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:min-h-0 sm:px-2 sm:py-1"
         value={hours}
         onChange={(e) => setHours(Number(e.target.value))}
       >
@@ -818,8 +818,13 @@ function WeightTuner() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && runExperiment()}
+          className="min-w-0 flex-1"
         />
-        <Button onClick={runExperiment} disabled={loading || !query.trim()}>
+        <Button
+          onClick={runExperiment}
+          disabled={loading || !query.trim()}
+          className="shrink-0"
+        >
           {loading ? 'Running' : 'Compare'}
         </Button>
       </div>
@@ -984,7 +989,7 @@ function BottleneckAnalysis() {
 
   return (
     <div className="space-y-4" aria-busy={loading}>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <span className="text-sm text-muted-foreground">
           Analyzing last {traces.length} queries
         </span>
@@ -1104,12 +1109,22 @@ export function RetrievalDiagnosticsDashboard({
       </div>
 
       <Tabs defaultValue="explorer" className="w-full">
-        <TabsList>
-          <TabsTrigger value="explorer">Query explorer</TabsTrigger>
-          <TabsTrigger value="quality">Quality overview</TabsTrigger>
-          <TabsTrigger value="weights">Weight tuner</TabsTrigger>
-          <TabsTrigger value="bottleneck">Bottleneck analysis</TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+          <TabsList className="h-auto w-max min-w-full flex-nowrap justify-start sm:w-auto sm:min-w-0">
+            <TabsTrigger value="explorer" className="min-h-[40px] shrink-0">
+              Query explorer
+            </TabsTrigger>
+            <TabsTrigger value="quality" className="min-h-[40px] shrink-0">
+              Quality overview
+            </TabsTrigger>
+            <TabsTrigger value="weights" className="min-h-[40px] shrink-0">
+              Weight tuner
+            </TabsTrigger>
+            <TabsTrigger value="bottleneck" className="min-h-[40px] shrink-0">
+              Bottleneck analysis
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="explorer" className="mt-4">
           <QueryExplorer />

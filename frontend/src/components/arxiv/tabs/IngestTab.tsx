@@ -265,12 +265,12 @@ export function IngestTab({
                 Search results
               </h4>
               {searchResults && searchResults.length > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={onSelectAllSearchResults}
                     disabled={!canSelectAllResults || isAnyOperationRunning}
-                    className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
                   >
                     Select all
                   </button>
@@ -280,7 +280,7 @@ export function IngestTab({
                     disabled={
                       isAnyOperationRunning || selectedPaperIds.length === 0
                     }
-                    className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
                   >
                     Clear
                   </button>
@@ -336,7 +336,7 @@ export function IngestTab({
                               {paper.abstract}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
-                              <span className="rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-foreground">
+                              <span className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-foreground">
                                 {paper.id}
                               </span>
                               {paper.categories.slice(0, 3).map((category) => (

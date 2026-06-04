@@ -429,9 +429,9 @@ export function AnalyticsChart({
     <Card className={cn('overflow-hidden', className)}>
       {/* Header */}
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               {title}
               {trend && (
                 <Badge
@@ -461,7 +461,7 @@ export function AnalyticsChart({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Chart Type Selector */}
             <div className="flex items-center rounded-lg border border-border bg-background p-1">
               <Button
@@ -557,7 +557,10 @@ export function AnalyticsChart({
 
       {/* Chart */}
       <CardContent className="p-0">
-        <div style={{ height: `${height}px` }} className="w-full px-6 pb-6">
+        <div
+          style={{ height: `${height}px` }}
+          className="w-full min-w-0 px-3 pb-6 sm:px-6"
+        >
           <ResponsiveContainer width="100%" height="100%">
             {renderChart()}
           </ResponsiveContainer>
