@@ -79,36 +79,36 @@ const metricConfigs = {
   cpu: {
     title: 'CPU Usage',
     icon: CpuChipIcon,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
+    color: 'text-[var(--nous-fg-accent-safe)]',
+    bgColor: 'bg-[var(--nous-bg-3)]',
+    borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 70, critical: 90 },
     format: (value: number) => `${value.toFixed(1)}%`,
   },
   memory: {
     title: 'Memory Usage',
     icon: CircleStackIcon,
-    color: 'text-green-500',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
+    color: 'text-[var(--nous-terra)]',
+    bgColor: 'bg-[var(--nous-bg-3)]',
+    borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 80, critical: 95 },
     format: (value: number) => formatBytes(value),
   },
   throughput: {
     title: 'Throughput',
     icon: ArrowTrendingUpIcon,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
+    color: 'text-[var(--nous-fg-accent-safe)]',
+    bgColor: 'bg-[var(--nous-bg-3)]',
+    borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 50, critical: 25 },
     format: (value: number) => `${value.toFixed(1)}/min`,
   },
   latency: {
     title: 'Response Time',
     icon: ClockIcon,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200',
+    color: 'text-[var(--nous-corona)]',
+    bgColor: 'bg-[var(--nous-bg-3)]',
+    borderColor: 'border-[var(--nous-border-1)]',
     threshold: { warning: 500, critical: 1000 },
     format: (value: number) => `${value.toFixed(0)}ms`,
   },
@@ -132,14 +132,14 @@ const MetricCard: React.FC<MetricCardProps> = ({
   let statusColor = 'text-foreground';
   if (threshold) {
     if (numericValue >= threshold.critical) {
-      statusColor = 'text-red-600';
+      statusColor = 'text-[var(--nous-mars)]';
     } else if (numericValue >= threshold.warning) {
-      statusColor = 'text-yellow-600';
+      statusColor = 'text-[var(--nous-corona)]';
     }
   }
 
   return (
-    <div className="bg-white p-4 rounded-lg border border-border shadow-sm">
+    <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className={cn('p-2 rounded-lg', metricConfigs.cpu.bgColor)}>
@@ -161,14 +161,16 @@ const MetricCard: React.FC<MetricCardProps> = ({
         {trend && (
           <div className="flex items-center space-x-1">
             {trend.direction === 'up' ? (
-              <ArrowTrendingUpIcon className="w-4 h-4 text-green-500" />
+              <ArrowTrendingUpIcon className="w-4 h-4 text-[var(--nous-terra)]" />
             ) : (
-              <ArrowTrendingDownIcon className="w-4 h-4 text-red-500" />
+              <ArrowTrendingDownIcon className="w-4 h-4 text-[var(--nous-mars)]" />
             )}
             <span
               className={cn(
                 'text-xs font-medium',
-                trend.direction === 'up' ? 'text-green-600' : 'text-red-600'
+                trend.direction === 'up'
+                  ? 'text-[var(--nous-terra)]'
+                  : 'text-[var(--nous-mars)]'
               )}
             >
               {Math.abs(trend.value).toFixed(1)}%
@@ -180,15 +182,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
       {/* Threshold indicator */}
       {threshold && (
         <div className="mt-3">
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
             <div
               className={cn(
                 'h-2 rounded-full transition-all duration-300',
                 numericValue >= threshold.critical
-                  ? 'bg-red-500'
+                  ? 'bg-[var(--nous-mars)]'
                   : numericValue >= threshold.warning
-                    ? 'bg-yellow-500'
-                    : 'bg-green-500'
+                    ? 'bg-[var(--nous-corona)]'
+                    : 'bg-[var(--nous-terra)]'
               )}
               style={{
                 width: `${Math.min(100, (numericValue / threshold.critical) * 100)}%`,
@@ -270,16 +272,16 @@ const Alert: React.FC<AlertProps> = ({
   const config =
     type === 'critical'
       ? {
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-200',
-          textColor: 'text-red-800',
-          iconColor: 'text-red-500',
+          bgColor: 'bg-[var(--nous-mars)]/10',
+          borderColor: 'border-[var(--nous-mars)]/30',
+          textColor: 'text-[var(--nous-mars)]',
+          iconColor: 'text-[var(--nous-mars)]',
         }
       : {
-          bgColor: 'bg-yellow-50',
-          borderColor: 'border-yellow-200',
-          textColor: 'text-yellow-800',
-          iconColor: 'text-yellow-500',
+          bgColor: 'bg-[var(--nous-corona)]/10',
+          borderColor: 'border-[var(--nous-corona)]/30',
+          textColor: 'text-[var(--nous-corona)]',
+          iconColor: 'text-[var(--nous-corona)]',
         };
 
   return (
@@ -304,7 +306,8 @@ const Alert: React.FC<AlertProps> = ({
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Dismiss alert"
+          className="inline-flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           ×
         </button>
@@ -367,7 +370,7 @@ const PerformanceHistory: React.FC<PerformanceHistoryProps> = ({
 
       {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-border">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <h4 className="text-sm font-medium text-foreground mb-3">
             Latency History
           </h4>
@@ -378,7 +381,7 @@ const PerformanceHistory: React.FC<PerformanceHistoryProps> = ({
           />
         </div>
 
-        <div className="bg-white p-4 rounded-lg border border-border">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <h4 className="text-sm font-medium text-foreground mb-3">
             Message Rate
           </h4>
@@ -394,7 +397,7 @@ const PerformanceHistory: React.FC<PerformanceHistoryProps> = ({
       <div className="flex justify-end">
         <button
           onClick={onClear}
-          className="px-3 py-2 text-xs font-medium text-foreground bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+          className="px-3 py-2 text-xs font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Clear History
         </button>
@@ -423,19 +426,38 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
 
   const store = useRealtimeProcessingStore();
 
+  // Subscribe to only the primitive slices needed for currentMetrics so the
+  // memo below recomputes on these values changing, not on any unrelated
+  // store mutation.
+  const queueErrorRate = useRealtimeProcessingStore(
+    (state) => state.queue.metrics.errorRate
+  );
+  const reconnectionAttempts = useRealtimeProcessingStore(
+    (state) => state.connection.reconnectionAttempts
+  );
+  const lastConnectedAt = useRealtimeProcessingStore(
+    (state) => state.connection.lastConnectedAt
+  );
+
   // Calculate derived metrics
   const currentMetrics: PerformanceMetrics = useMemo(
     () => ({
       connectionLatency,
       messageRate,
-      errorRate: store.queue.metrics.errorRate,
-      reconnectionCount: store.connection.reconnectionAttempts,
-      uptime: store.connection.lastConnectedAt
-        ? Date.now() - new Date(store.connection.lastConnectedAt).getTime()
+      errorRate: queueErrorRate,
+      reconnectionCount: reconnectionAttempts,
+      uptime: lastConnectedAt
+        ? Date.now() - new Date(lastConnectedAt).getTime()
         : 0,
       lastMessageTimestamp: Date.now(),
     }),
-    [connectionLatency, messageRate, store]
+    [
+      connectionLatency,
+      messageRate,
+      queueErrorRate,
+      reconnectionAttempts,
+      lastConnectedAt,
+    ]
   );
 
   // Calculate trends
@@ -568,7 +590,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="CPU"
           value={systemMetrics.cpuUsage}
           icon={CpuChipIcon}
-          color="text-blue-500"
+          color="text-[var(--nous-fg-accent-safe)]"
           trend={trends.cpu}
           threshold={metricConfigs.cpu.threshold}
           format={(v) => `${v.toFixed(1)}%`}
@@ -577,7 +599,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Memory"
           value={systemMetrics.memoryUsage}
           icon={CircleStackIcon}
-          color="text-green-500"
+          color="text-[var(--nous-terra)]"
           trend={trends.memory}
           threshold={metricConfigs.memory.threshold}
           format={(v) => formatBytes(v)}
@@ -586,7 +608,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Latency"
           value={connectionLatency}
           icon={ClockIcon}
-          color="text-orange-500"
+          color="text-[var(--nous-corona)]"
           threshold={metricConfigs.latency.threshold}
           format={(v) => `${v.toFixed(0)}ms`}
         />
@@ -594,7 +616,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Messages"
           value={messageRate}
           icon={ArrowTrendingUpIcon}
-          color="text-purple-500"
+          color="text-[var(--nous-fg-accent-safe)]"
           format={(v) => `${v.toFixed(1)}/s`}
         />
       </div>
@@ -633,7 +655,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="CPU Usage"
             value={systemMetrics.cpuUsage}
             icon={CpuChipIcon}
-            color="text-blue-500"
+            color="text-[var(--nous-fg-accent-safe)]"
             trend={trends.cpu}
             threshold={metricConfigs.cpu.threshold}
             format={(v) => `${v.toFixed(1)}%`}
@@ -642,7 +664,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Memory Usage"
             value={systemMetrics.memoryUsage}
             icon={CircleStackIcon}
-            color="text-green-500"
+            color="text-[var(--nous-terra)]"
             trend={trends.memory}
             threshold={metricConfigs.memory.threshold}
             format={(v) => formatBytes(v)}
@@ -651,14 +673,14 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Active Jobs"
             value={systemMetrics.activeJobs}
             icon={ServerIcon}
-            color="text-purple-500"
+            color="text-[var(--nous-fg-accent-safe)]"
             unit="jobs"
           />
           <MetricCard
             title="Avg Duration"
             value={systemMetrics.averageJobDuration}
             icon={ClockIcon}
-            color="text-orange-500"
+            color="text-[var(--nous-corona)]"
             format={(v) => formatDuration(v)}
           />
         </div>
@@ -674,7 +696,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Response Time"
             value={connectionLatency}
             icon={ClockIcon}
-            color="text-orange-500"
+            color="text-[var(--nous-corona)]"
             threshold={metricConfigs.latency.threshold}
             format={(v) => `${v.toFixed(0)}ms`}
           />
@@ -682,14 +704,14 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Message Rate"
             value={messageRate}
             icon={ArrowTrendingUpIcon}
-            color="text-green-500"
+            color="text-[var(--nous-terra)]"
             format={(v) => `${v.toFixed(1)}/s`}
           />
           <MetricCard
             title="Error Rate"
             value={currentMetrics.errorRate}
             icon={ExclamationTriangleIcon}
-            color="text-red-500"
+            color="text-[var(--nous-mars)]"
             threshold={{ warning: 5, critical: 10 }}
             format={(v) => `${v.toFixed(1)}%`}
           />
@@ -706,28 +728,28 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Success Rate"
             value={store.queue.metrics.successRate}
             icon={ArrowTrendingUpIcon}
-            color="text-green-500"
+            color="text-[var(--nous-terra)]"
             format={(v) => `${v.toFixed(1)}%`}
           />
           <MetricCard
             title="Throughput"
             value={store.queue.metrics.throughput}
             icon={DocumentTextIcon}
-            color="text-blue-500"
+            color="text-[var(--nous-fg-accent-safe)]"
             format={(v) => `${v.toFixed(1)}/min`}
           />
           <MetricCard
             title="Avg Processing"
             value={store.queue.metrics.averageProcessingTime}
             icon={ClockIcon}
-            color="text-purple-500"
+            color="text-[var(--nous-fg-accent-safe)]"
             format={(v) => `${v.toFixed(1)}s`}
           />
           <MetricCard
             title="Queued Jobs"
             value={store.queue.summary.queued}
             icon={ArrowsUpDownIcon}
-            color="text-orange-500"
+            color="text-[var(--nous-corona)]"
             unit="jobs"
           />
         </div>

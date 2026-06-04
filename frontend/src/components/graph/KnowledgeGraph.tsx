@@ -49,15 +49,15 @@ interface GraphNodeComponentProps {
   node: GraphNode;
   isHovered: boolean;
   isSelected: boolean;
-  onMouseEnter: () => void;
+  onMouseEnter: (node: GraphNode) => void;
   onMouseLeave: () => void;
-  onClick: () => void;
+  onClick: (node: GraphNode) => void;
 }
 
 interface GraphEdgeComponentProps {
   edge: GraphEdge;
   isHighlighted: boolean;
-  onClick: () => void;
+  onClick: (edge: GraphEdge) => void;
 }
 
 const ENTITY_TYPE_COLORS = {
@@ -78,186 +78,189 @@ const ENTITY_TYPE_ICONS = {
   product: '📦',
 };
 
-const GraphNodeComponent: React.FC<GraphNodeComponentProps> = ({
-  node,
-  isHovered,
-  isSelected,
-  onMouseEnter,
-  onMouseLeave,
-  onClick,
-}) => {
-  const getNodeSize = useCallback(() => {
-    const baseSize = 8;
-    const confidenceFactor = 0.5 + node.confidence * 0.5;
-    const mentionsFactor = Math.log(1 + node.mentions) / Math.log(10);
-    return baseSize * confidenceFactor * mentionsFactor;
-  }, [node.confidence, node.mentions]);
+const GraphNodeComponent: React.FC<GraphNodeComponentProps> = React.memo(
+  ({ node, isHovered, isSelected, onMouseEnter, onMouseLeave, onClick }) => {
+    const getNodeSize = useCallback(() => {
+      const baseSize = 8;
+      const confidenceFactor = 0.5 + node.confidence * 0.5;
+      const mentionsFactor = Math.log(1 + node.mentions) / Math.log(10);
+      return baseSize * confidenceFactor * mentionsFactor;
+    }, [node.confidence, node.mentions]);
 
-  const getNodeColor = useCallback(() => {
-    return ENTITY_TYPE_COLORS[node.type] || '#6B7280';
-  }, [node.type]);
+    const getNodeColor = useCallback(() => {
+      return ENTITY_TYPE_COLORS[node.type] || '#6B7280';
+    }, [node.type]);
 
-  const size = getNodeSize();
-  const color = getNodeColor();
+    const handleMouseEnter = useCallback(
+      () => onMouseEnter(node),
+      [onMouseEnter, node]
+    );
+    const handleClick = useCallback(() => onClick(node), [onClick, node]);
 
-  return (
-    <g
-      className={cn(
-        'cursor-pointer transition-all duration-200',
-        isHovered && 'opacity-100',
-        !isHovered && 'opacity-80',
-        isSelected && 'opacity-100'
-      )}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onClick={onClick}
-    >
-      {/* Node shadow */}
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={size + 2}
-        fill="black"
-        fillOpacity={0.1}
+    const size = getNodeSize();
+    const color = getNodeColor();
+
+    return (
+      <g
         className={cn(
-          isHovered && 'fill-opacity-0.2',
-          isSelected && 'fill-opacity-0.3'
+          'cursor-pointer transition-all duration-200',
+          isHovered && 'opacity-100',
+          !isHovered && 'opacity-80',
+          isSelected && 'opacity-100'
         )}
-      />
-
-      {/* Node circle */}
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={size}
-        fill={color}
-        stroke="white"
-        strokeWidth={2}
-        className={cn(
-          isHovered && 'stroke-width-3',
-          isSelected && 'stroke-width-4'
-        )}
-      />
-
-      {/* Node icon/label */}
-      <text
-        x={node.x}
-        y={node.y}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="white"
-        fontSize={Math.max(10, size * 0.8)}
-        fontWeight="bold"
-        pointerEvents="none"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onClick={handleClick}
       >
-        {ENTITY_TYPE_ICONS[node.type] || node.name.charAt(0).toUpperCase()}
-      </text>
+        {/* Node shadow */}
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={size + 2}
+          fill="black"
+          fillOpacity={0.1}
+          className={cn(
+            isHovered && 'fill-opacity-0.2',
+            isSelected && 'fill-opacity-0.3'
+          )}
+        />
 
-      {/* Node label on hover */}
-      {isHovered && (
-        <g>
-          <rect
-            x={node.x - 40}
-            y={node.y + size + 5}
-            width={80}
-            height={20}
-            fill="white"
-            stroke={color}
-            strokeWidth={1}
-            rx={4}
-          />
-          <text
-            x={node.x}
-            y={node.y + size + 18}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill={color}
-            fontSize={10}
-            fontWeight="medium"
-            pointerEvents="none"
-          >
-            {node.name.length > 12
-              ? node.name.substring(0, 12) + '...'
-              : node.name}
-          </text>
-        </g>
-      )}
-    </g>
-  );
-};
+        {/* Node circle */}
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={size}
+          fill={color}
+          stroke="white"
+          strokeWidth={2}
+          className={cn(
+            isHovered && 'stroke-width-3',
+            isSelected && 'stroke-width-4'
+          )}
+        />
 
-const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = ({
-  edge,
-  isHighlighted,
-  onClick,
-}) => {
-  const getEdgeWidth = useCallback(() => {
-    const baseWidth = 1;
-    return baseWidth + edge.confidence * edge.weight * 2;
-  }, [edge.confidence, edge.weight]);
+        {/* Node icon/label */}
+        <text
+          x={node.x}
+          y={node.y}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={Math.max(10, size * 0.8)}
+          fontWeight="bold"
+          pointerEvents="none"
+        >
+          {ENTITY_TYPE_ICONS[node.type] || node.name.charAt(0).toUpperCase()}
+        </text>
 
-  const getEdgeColor = useCallback(() => {
-    return isHighlighted ? '#4F46E5' : '#9CA3AF';
-  }, [isHighlighted]);
+        {/* Node label on hover */}
+        {isHovered && (
+          <g>
+            <rect
+              x={node.x - 40}
+              y={node.y + size + 5}
+              width={80}
+              height={20}
+              fill="white"
+              stroke={color}
+              strokeWidth={1}
+              rx={4}
+            />
+            <text
+              x={node.x}
+              y={node.y + size + 18}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={color}
+              fontSize={10}
+              fontWeight="medium"
+              pointerEvents="none"
+            >
+              {node.name.length > 12
+                ? node.name.substring(0, 12) + '...'
+                : node.name}
+            </text>
+          </g>
+        )}
+      </g>
+    );
+  }
+);
+GraphNodeComponent.displayName = 'GraphNodeComponent';
 
-  const width = getEdgeWidth();
-  const color = getEdgeColor();
+const GraphEdgeComponent: React.FC<GraphEdgeComponentProps> = React.memo(
+  ({ edge, isHighlighted, onClick }) => {
+    const getEdgeWidth = useCallback(() => {
+      const baseWidth = 1;
+      return baseWidth + edge.confidence * edge.weight * 2;
+    }, [edge.confidence, edge.weight]);
 
-  // Calculate midpoint for label
-  const midX = (edge.source.x + edge.target.x) / 2;
-  const midY = (edge.source.y + edge.target.y) / 2;
+    const getEdgeColor = useCallback(() => {
+      return isHighlighted ? '#4F46E5' : '#9CA3AF';
+    }, [isHighlighted]);
 
-  return (
-    <g
-      className={cn(
-        'cursor-pointer transition-all duration-200',
-        isHighlighted ? 'opacity-100' : 'opacity-60'
-      )}
-      onClick={onClick}
-    >
-      {/* Edge line */}
-      <line
-        x1={edge.source.x}
-        y1={edge.source.y}
-        x2={edge.target.x}
-        y2={edge.target.y}
-        stroke={color}
-        strokeWidth={width}
-        className={cn(isHighlighted && 'stroke-2')}
-      />
+    const handleClick = useCallback(() => onClick(edge), [onClick, edge]);
 
-      {/* Relationship label on hover/highlight */}
-      {isHighlighted && (
-        <g>
-          <rect
-            x={midX - 30}
-            y={midY - 10}
-            width={60}
-            height={20}
-            fill="white"
-            stroke={color}
-            strokeWidth={1}
-            rx={4}
-          />
-          <text
-            x={midX}
-            y={midY}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill={color}
-            fontSize={9}
-            fontWeight="medium"
-            pointerEvents="none"
-          >
-            {edge.relationship_type.length > 10
-              ? edge.relationship_type.substring(0, 10) + '...'
-              : edge.relationship_type}
-          </text>
-        </g>
-      )}
-    </g>
-  );
-};
+    const width = getEdgeWidth();
+    const color = getEdgeColor();
+
+    // Calculate midpoint for label
+    const midX = (edge.source.x + edge.target.x) / 2;
+    const midY = (edge.source.y + edge.target.y) / 2;
+
+    return (
+      <g
+        className={cn(
+          'cursor-pointer transition-all duration-200',
+          isHighlighted ? 'opacity-100' : 'opacity-60'
+        )}
+        onClick={handleClick}
+      >
+        {/* Edge line */}
+        <line
+          x1={edge.source.x}
+          y1={edge.source.y}
+          x2={edge.target.x}
+          y2={edge.target.y}
+          stroke={color}
+          strokeWidth={width}
+          className={cn(isHighlighted && 'stroke-2')}
+        />
+
+        {/* Relationship label on hover/highlight */}
+        {isHighlighted && (
+          <g>
+            <rect
+              x={midX - 30}
+              y={midY - 10}
+              width={60}
+              height={20}
+              fill="white"
+              stroke={color}
+              strokeWidth={1}
+              rx={4}
+            />
+            <text
+              x={midX}
+              y={midY}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill={color}
+              fontSize={9}
+              fontWeight="medium"
+              pointerEvents="none"
+            >
+              {edge.relationship_type.length > 10
+                ? edge.relationship_type.substring(0, 10) + '...'
+                : edge.relationship_type}
+            </text>
+          </g>
+        )}
+      </g>
+    );
+  }
+);
+GraphEdgeComponent.displayName = 'GraphEdgeComponent';
 
 export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   queryId,
@@ -518,6 +521,15 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     [selectedNode, graphData, onEntityClick]
   );
 
+  // Stable hover handlers (setState setters are stable across renders)
+  const handleNodeMouseEnter = useCallback((node: GraphNode) => {
+    setHoveredNode(node.id);
+  }, []);
+
+  const handleNodeMouseLeave = useCallback(() => {
+    setHoveredNode(null);
+  }, []);
+
   // Handle edge interactions
   const handleEdgeClick = useCallback(
     (edge: GraphEdge) => {
@@ -613,7 +625,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     return (
       <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mx-auto mb-4" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent mx-auto mb-4" />
           <p className="text-foreground">Loading knowledge graph...</p>
         </div>
       </div>
@@ -624,7 +636,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     return (
       <div className={cn('flex items-center justify-center h-96', className)}>
         <div className="text-center">
-          <div className="text-red-500 mb-4">
+          <div className="text-[var(--nous-mars)] mb-4">
             <InformationCircleIcon className="h-12 w-12 mx-auto" />
           </div>
           <p className="text-foreground">Failed to load knowledge graph</p>
@@ -745,7 +757,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                   key={edge.id}
                   edge={edge}
                   isHighlighted={highlightedEdges.has(edge.id)}
-                  onClick={() => handleEdgeClick(edge)}
+                  onClick={handleEdgeClick}
                 />
               ))}
 
@@ -756,9 +768,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                   node={node}
                   isHovered={hoveredNode === node.id}
                   isSelected={selectedNode === node.id}
-                  onMouseEnter={() => setHoveredNode(node.id)}
-                  onMouseLeave={() => setHoveredNode(null)}
-                  onClick={() => handleNodeClick(node)}
+                  onMouseEnter={handleNodeMouseEnter}
+                  onMouseLeave={handleNodeMouseLeave}
+                  onClick={handleNodeClick}
                 />
               ))}
             </g>
@@ -814,9 +826,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
                     <div>
                       <span className="font-medium">Confidence:</span>
                       <div className="flex items-center mt-1">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-muted rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="bg-[var(--nous-sol)] h-2 rounded-full"
                             style={{ width: `${entity.confidence * 100}%` }}
                           />
                         </div>

@@ -202,14 +202,14 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'processing':
       case 'uploading':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'failed':
-        return 'text-red-600 bg-red-50 border-red-200';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30';
       default:
-        return 'text-foreground bg-gray-50 border-border';
+        return 'text-foreground bg-[var(--nous-bg-2)] border-border';
     }
   };
 
@@ -585,12 +585,16 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   const getStatusIcon = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircleIcon className="h-5 w-5 text-green-500" />;
+        return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
       case 'processing':
       case 'uploading':
-        return <ClockIcon className="h-5 w-5 text-blue-500 animate-spin" />;
+        return (
+          <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)] animate-spin" />
+        );
       case 'failed':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />;
+        return (
+          <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-mars)]" />
+        );
       default:
         return <DocumentPlusIcon className="h-5 w-5 text-muted-foreground" />;
     }
@@ -609,7 +613,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CloudArrowUpIcon className="h-6 w-6 text-blue-600" />
+            <CloudArrowUpIcon className="h-6 w-6 text-[var(--nous-fg-accent-safe)]" />
             Enhanced Document Upload
           </CardTitle>
           <CardDescription className="text-foreground">
@@ -623,12 +627,12 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
             className={cn(
               'flex items-center justify-between p-4 rounded-lg border',
               getUploadStateMessage().type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-800'
+                ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30 text-[var(--nous-terra)]'
                 : getUploadStateMessage().type === 'processing'
-                  ? 'bg-blue-50 border-blue-200 text-blue-800'
+                  ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30 text-[var(--nous-fg-accent-safe)]'
                   : getUploadStateMessage().type === 'ready'
-                    ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : 'bg-gray-50 border-border text-foreground'
+                    ? 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30 text-[var(--nous-corona)]'
+                    : 'bg-[var(--nous-bg-2)] border-border text-foreground'
             )}
             role="status"
             aria-live={getUploadStateMessage().ariaLive}
@@ -672,8 +676,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               className={cn(
                 'relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200',
                 isDragActive
-                  ? 'border-blue-400 bg-blue-50 scale-[1.02]'
-                  : 'border-border hover:border-border hover:bg-gray-50',
+                  ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10 scale-[1.02]'
+                  : 'border-border hover:border-border hover:bg-[var(--nous-bg-3)]',
                 isUploading && 'opacity-50 cursor-not-allowed'
               )}
               role="button"
@@ -683,8 +687,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               <input {...getInputProps()} />
 
               <div className="space-y-4">
-                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full flex items-center justify-center">
-                  <CloudArrowUpIcon className="h-8 w-8 text-blue-600" />
+                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[var(--nous-sol)]/10 to-[var(--nous-sol)]/20 rounded-full flex items-center justify-center">
+                  <CloudArrowUpIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
                 </div>
 
                 <div>
@@ -790,11 +794,11 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                   {/* Authentication Status Indicator */}
                   <div className="flex items-center space-x-1 text-xs">
                     {authLoading ? (
-                      <ClockIcon className="w-3 h-3 text-yellow-500" />
+                      <ClockIcon className="w-3 h-3 text-[var(--nous-corona)]" />
                     ) : isAuthenticated ? (
-                      <CheckCircleIcon className="w-3 h-3 text-green-500" />
+                      <CheckCircleIcon className="w-3 h-3 text-[var(--nous-terra)]" />
                     ) : (
-                      <ExclamationTriangleIcon className="w-3 h-3 text-red-500" />
+                      <ExclamationTriangleIcon className="w-3 h-3 text-[var(--nous-mars)]" />
                     )}
                     <span className="text-muted-foreground">
                       {authLoading
@@ -809,7 +813,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     <Button
                       onClick={uploadAllFiles}
                       disabled={isUploading || authLoading || !isAuthenticated}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/90"
                       aria-label={
                         isUploading
                           ? 'Upload in progress, please wait'
@@ -970,7 +974,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {(file.status === 'uploading' ||
                       file.status === 'processing') && (
                       <div
-                        className="px-4 py-3 bg-gray-50"
+                        className="px-4 py-3 bg-[var(--nous-bg-2)]"
                         role="status"
                         aria-live="polite"
                         aria-atomic="true"
@@ -995,10 +999,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                           aria-valuemin={0}
                           aria-valuemax={100}
                           aria-labelledby={`progress-status-${file.id} file-name-${file.id}`}
-                          className="w-full bg-gray-200 rounded-full h-2"
+                          className="w-full bg-[var(--nous-bg-3)] rounded-full h-2"
                         >
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                            className="bg-[var(--nous-sol)] h-2 rounded-full transition-all duration-300 ease-out"
                             style={{ width: `${file.progress}%` }}
                             aria-hidden="true"
                           />
@@ -1071,7 +1075,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {showAdvancedOptions &&
                       file.expanded &&
                       file.status === 'pending' && (
-                        <div className="px-4 py-4 bg-gray-50 border-t space-y-4">
+                        <div className="px-4 py-4 bg-[var(--nous-bg-2)] border-t space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                               <Label htmlFor={`title-${file.id}`}>Title</Label>

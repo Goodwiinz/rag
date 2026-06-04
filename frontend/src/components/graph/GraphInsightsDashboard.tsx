@@ -463,28 +463,28 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
   const getInsightColor = (type: Insight['type']) => {
     switch (type) {
       case 'opportunity':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'warning':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+        return 'text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30';
       case 'trend':
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'achievement':
-        return 'text-purple-600 bg-purple-50 border-purple-200';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       default:
-        return 'text-foreground bg-gray-50 border-border';
+        return 'text-foreground bg-[var(--nous-bg-2)] border-border';
     }
   };
 
   const getImpactColor = (impact: Insight['impact']) => {
     switch (impact) {
       case 'high':
-        return 'bg-red-100 text-red-800';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       default:
-        return 'bg-gray-100 text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
@@ -539,7 +539,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <UserGroupIcon className="h-8 w-8 text-blue-600" />
+                <UserGroupIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -560,7 +560,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <ShareIcon className="h-8 w-8 text-green-600" />
+                <ShareIcon className="h-8 w-8 text-[var(--nous-terra)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -582,7 +582,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <DocumentTextIcon className="h-8 w-8 text-purple-600" />
+                <DocumentTextIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -603,7 +603,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <GlobeAltIcon className="h-8 w-8 text-orange-600" />
+                <GlobeAltIcon className="h-8 w-8 text-[var(--nous-corona)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -662,8 +662,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-lg font-bold text-green-600">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-lg font-bold text-[var(--nous-terra)]">
                     {statistics.qualityMetrics.highConfidenceEntities}
                   </div>
                   <div className="text-sm text-foreground">
@@ -673,8 +673,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                     &gt;80% confidence
                   </div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-lg font-bold text-yellow-600">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-lg font-bold text-[var(--nous-corona)]">
                     {statistics.qualityMetrics.questionableEntities}
                   </div>
                   <div className="text-sm text-foreground">
@@ -731,19 +731,19 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.avgPathLength.toFixed(1)}
               </div>
               <div className="text-sm text-foreground">Avg Path Length</div>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.diameter}
               </div>
               <div className="text-sm text-foreground">Graph Diameter</div>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.clusteringCoefficient.toFixed(
                   3
@@ -753,7 +753,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                 Clustering Coefficient
               </div>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.components}
               </div>
@@ -762,10 +762,10 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           </div>
 
           {statistics.connectivityMetrics.isolatedNodes > 0 && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="mt-4 p-3 bg-[var(--nous-corona)]/10 border border-[var(--nous-corona)]/30 rounded-lg">
               <div className="flex items-center space-x-2">
-                <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600" />
-                <span className="text-sm text-yellow-800">
+                <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-corona)]" />
+                <span className="text-sm text-[var(--nous-corona)]">
                   {statistics.connectivityMetrics.isolatedNodes} isolated
                   entities found
                 </span>
@@ -860,7 +860,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                                       key={index}
                                       className="flex items-start space-x-2"
                                     >
-                                      <span className="text-blue-600 mt-1">
+                                      <span className="text-[var(--nous-fg-accent-safe)] mt-1">
                                         •
                                       </span>
                                       <span>{suggestion}</span>

@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   websocketService,
@@ -188,15 +189,26 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
     return () => clearInterval(interval);
   }, [status]);
 
-  const contextValue: WebSocketContextValue = {
-    status,
-    isConnected,
-    lastMessage,
-    messageCount,
-    reconnectAttempts,
-    manuallyReconnect,
-    disconnect,
-  };
+  const contextValue: WebSocketContextValue = useMemo(
+    () => ({
+      status,
+      isConnected,
+      lastMessage,
+      messageCount,
+      reconnectAttempts,
+      manuallyReconnect,
+      disconnect,
+    }),
+    [
+      status,
+      isConnected,
+      lastMessage,
+      messageCount,
+      reconnectAttempts,
+      manuallyReconnect,
+      disconnect,
+    ]
+  );
 
   return (
     <WebSocketContext.Provider value={contextValue}>
@@ -249,15 +261,15 @@ export const WebSocketStatusIndicator: React.FC<{
   const getStatusColor = () => {
     switch (status) {
       case 'connected':
-        return 'bg-green-500';
+        return 'bg-[var(--nous-terra)]';
       case 'connecting':
-        return 'bg-yellow-500';
+        return 'bg-[var(--nous-corona)]';
       case 'error':
-        return 'bg-red-500';
+        return 'bg-[var(--nous-mars)]';
       case 'disconnected':
-        return 'bg-gray-500';
+        return 'bg-[var(--nous-bg-3)]';
       default:
-        return 'bg-gray-500';
+        return 'bg-[var(--nous-bg-3)]';
     }
   };
 
@@ -286,7 +298,7 @@ export const WebSocketStatusIndicator: React.FC<{
   }
 
   return (
-    <div className={`p-3 bg-gray-50 rounded-lg ${className}`}>
+    <div className={`p-3 bg-[var(--nous-bg-2)] rounded-lg ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-medium">WebSocket Status</h4>
         <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
@@ -299,7 +311,7 @@ export const WebSocketStatusIndicator: React.FC<{
         <div className="flex justify-between">
           <span className="text-foreground">Connected:</span>
           <span
-            className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}
+            className={`font-medium ${isConnected ? 'text-[var(--nous-terra)]' : 'text-[var(--nous-mars)]'}`}
           >
             {isConnected ? 'Yes' : 'No'}
           </span>
@@ -311,7 +323,7 @@ export const WebSocketStatusIndicator: React.FC<{
         {status === 'error' && (
           <button
             onClick={manuallyReconnect}
-            className="mt-2 w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+            className="mt-2 w-full min-h-11 px-2 py-1 bg-[var(--nous-sol)] text-white text-xs rounded hover:bg-[var(--nous-sol)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>
