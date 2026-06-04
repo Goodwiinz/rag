@@ -19,6 +19,7 @@ import {
 import { Entity } from '@/types/entity';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { cn } from '@/lib/utils';
+import { formatEntityType, entityTypeBadgeClass } from './entityType';
 
 interface EntityListProps {
   entities: Entity[];
@@ -273,11 +274,8 @@ export const EntityList: React.FC<EntityListProps> = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className="border-border bg-muted text-muted-foreground font-normal"
-                    >
-                      {entity.type}
+                    <Badge variant="outline" className={entityTypeBadgeClass}>
+                      {formatEntityType(entity.type)}
                     </Badge>
                   </TableCell>
                   <TableCell>

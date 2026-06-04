@@ -33,6 +33,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { EntityType } from '@/types/entity';
 import { cn } from '@/lib/utils';
+import { formatEntityType, entityTypeBadgeClass } from './entityType';
 
 export type SortField = 'name' | 'confidence' | 'created_at' | 'type';
 export type SortOrder = 'asc' | 'desc';
@@ -276,7 +277,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center">
                           <span className="inline-block w-2 h-2 rounded-full mr-2 bg-muted-foreground/40" />
-                          {type}
+                          {formatEntityType(type)}
                         </div>
                         {typeCounts && typeCounts[type] !== undefined && (
                           <span className="text-xs text-muted-foreground ml-2 tabular-nums">
@@ -447,12 +448,12 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
             <Badge
               key={type}
               variant="outline"
-              className="border-border bg-muted text-muted-foreground gap-1 font-normal"
+              className={cn(entityTypeBadgeClass, 'gap-1')}
             >
-              {type}
+              {formatEntityType(type)}
               <button
                 type="button"
-                aria-label={`Remove ${type} filter`}
+                aria-label={`Remove ${formatEntityType(type)} filter`}
                 onClick={() => removeTypeFilter(type)}
                 className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >

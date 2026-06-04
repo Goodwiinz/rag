@@ -3,37 +3,43 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { THEME } from '@/theme/constants';
 import {
-    Activity,
-    BarChart3,
-    Download,
-    LineChart as LineChartIcon,
-    PieChart as PieChartIcon,
-    Settings,
-    TrendingDown,
-    TrendingUp
+  Activity,
+  BarChart3,
+  Download,
+  LineChart as LineChartIcon,
+  PieChart as PieChartIcon,
+  Settings,
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-    Area,
-    AreaChart,
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Cell,
-    Legend,
-    Line,
-    LineChart,
-    Pie,
-    PieChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 
 type ChartType = 'line' | 'bar' | 'area' | 'pie' | 'donut';
@@ -79,13 +85,15 @@ const CHART_COLORS = [
   'var(--chart-6)', // Pink
 ];
 
+// Curated, warm data-viz palette (the one sanctioned multi-hue zone). Used as a
+// raw-hex fallback only when the CSS chart vars are unavailable.
 const DEFAULT_COLORS = [
-  THEME.colors.primary, // Primary
-  THEME.colors.secondary, // Secondary
-  THEME.colors.success, // Success
-  THEME.colors.info, // Info
-  THEME.colors.accent, // Accent
-  THEME.colors.error, // Error
+  THEME.colors.chart1,
+  THEME.colors.chart2,
+  THEME.colors.chart3,
+  THEME.colors.chart4,
+  THEME.colors.chart5,
+  THEME.colors.chart1,
 ];
 
 export function AnalyticsChart({
@@ -121,7 +129,7 @@ export function AnalyticsChart({
     const days = daysMap[timeRange] || 7;
     const cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-    return data.filter(item => {
+    return data.filter((item) => {
       if (!item.date) return true;
       return new Date(item.date) >= cutoffDate;
     });
@@ -136,8 +144,10 @@ export function AnalyticsChart({
 
     if (previous.length === 0) return null;
 
-    const recentAvg = recent.reduce((sum, item) => sum + item.value, 0) / recent.length;
-    const previousAvg = previous.reduce((sum, item) => sum + item.value, 0) / previous.length;
+    const recentAvg =
+      recent.reduce((sum, item) => sum + item.value, 0) / recent.length;
+    const previousAvg =
+      previous.reduce((sum, item) => sum + item.value, 0) / previous.length;
 
     const change = ((recentAvg - previousAvg) / previousAvg) * 100;
 
@@ -151,7 +161,9 @@ export function AnalyticsChart({
     ? (value: number | string | undefined) => {
         const numericValue =
           typeof value === 'number' ? value : Number(value ?? 0);
-        return format.yAxis?.(Number.isFinite(numericValue) ? numericValue : 0) ?? '';
+        return (
+          format.yAxis?.(Number.isFinite(numericValue) ? numericValue : 0) ?? ''
+        );
       }
     : undefined;
 
@@ -161,7 +173,8 @@ export function AnalyticsChart({
         const numericValue =
           typeof baseValue === 'number' ? baseValue : Number(baseValue ?? 0);
         return (
-          format.tooltip?.(Number.isFinite(numericValue) ? numericValue : 0) ?? ''
+          format.tooltip?.(Number.isFinite(numericValue) ? numericValue : 0) ??
+          ''
         );
       }
     : undefined;
@@ -176,7 +189,9 @@ export function AnalyticsChart({
       case 'line':
         return (
           <LineChart {...commonProps}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />}
+            {showGrid && (
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            )}
             <XAxis
               dataKey="name"
               tickLine={false}
@@ -217,7 +232,9 @@ export function AnalyticsChart({
       case 'bar':
         return (
           <BarChart {...commonProps}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />}
+            {showGrid && (
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            )}
             <XAxis
               dataKey="name"
               tickLine={false}
@@ -278,7 +295,9 @@ export function AnalyticsChart({
                 </linearGradient>
               ))}
             </defs>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />}
+            {showGrid && (
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            )}
             <XAxis
               dataKey="name"
               tickLine={false}
@@ -328,7 +347,7 @@ export function AnalyticsChart({
                 `${String(name ?? '')} ${((percent ?? 0) * 100).toFixed(0)}%`
               }
               outerRadius={100}
-              fill="#8884d8"
+              fill="var(--chart-1)"
               dataKey="value"
             >
               {processedData.map((entry, index) => (
@@ -365,7 +384,7 @@ export function AnalyticsChart({
               }
               innerRadius={60}
               outerRadius={100}
-              fill="#8884d8"
+              fill="var(--chart-1)"
               dataKey="value"
             >
               {processedData.map((entry, index) => (
@@ -392,8 +411,13 @@ export function AnalyticsChart({
       default:
         // Return a placeholder for unsupported chart types
         return (
-          <LineChart data={processedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />}
+          <LineChart
+            data={processedData}
+            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          >
+            {showGrid && (
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            )}
             <XAxis dataKey="name" tickLine={false} className="text-xs" />
             <YAxis tickLine={false} className="text-xs" />
           </LineChart>
@@ -411,18 +435,22 @@ export function AnalyticsChart({
               {title}
               {trend && (
                 <Badge
-                  variant={trend.direction === 'up' ? 'default' : 'secondary'}
-                  className={cn(
-                    'text-xs',
-                    trend.direction === 'up'
-                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                      : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                  )}
+                  variant="secondary"
+                  className="text-xs font-medium"
+                  aria-label={`${
+                    trend.direction === 'up' ? 'Up' : 'Down'
+                  } ${trend.value.toFixed(1)} percent versus the prior period`}
                 >
                   {trend.direction === 'up' ? (
-                    <TrendingUp className="h-3 w-3 mr-1" />
+                    <TrendingUp
+                      aria-hidden="true"
+                      className="mr-1 h-3 w-3 text-[var(--nous-terra)]"
+                    />
                   ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
+                    <TrendingDown
+                      aria-hidden="true"
+                      className="mr-1 h-3 w-3 text-[var(--nous-mars)]"
+                    />
                   )}
                   {trend.value.toFixed(1)}%
                 </Badge>
@@ -441,24 +469,30 @@ export function AnalyticsChart({
                 size="sm"
                 onClick={() => setChartType('line')}
                 className="h-7 w-7 p-0"
+                aria-label="Line chart"
+                aria-pressed={chartType === 'line'}
               >
-                <LineChartIcon className="h-3 w-3" />
+                <LineChartIcon aria-hidden="true" className="h-3 w-3" />
               </Button>
               <Button
                 variant={chartType === 'bar' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('bar')}
                 className="h-7 w-7 p-0"
+                aria-label="Bar chart"
+                aria-pressed={chartType === 'bar'}
               >
-                <BarChart3 className="h-3 w-3" />
+                <BarChart3 aria-hidden="true" className="h-3 w-3" />
               </Button>
               <Button
                 variant={chartType === 'area' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setChartType('area')}
                 className="h-7 w-7 p-0"
+                aria-label="Area chart"
+                aria-pressed={chartType === 'area'}
               >
-                <Activity className="h-3 w-3" />
+                <Activity aria-hidden="true" className="h-3 w-3" />
               </Button>
               {data.length <= 10 && (
                 <Button
@@ -466,8 +500,10 @@ export function AnalyticsChart({
                   size="sm"
                   onClick={() => setChartType('pie')}
                   className="h-7 w-7 p-0"
+                  aria-label="Pie chart"
+                  aria-pressed={chartType === 'pie'}
                 >
-                  <PieChartIcon className="h-3 w-3" />
+                  <PieChartIcon aria-hidden="true" className="h-3 w-3" />
                 </Button>
               )}
             </div>
@@ -497,8 +533,9 @@ export function AnalyticsChart({
                     size="sm"
                     onClick={actions.onExport}
                     className="h-7 w-7 p-0"
+                    aria-label="Export chart"
                   >
-                    <Download className="h-3 w-3" />
+                    <Download aria-hidden="true" className="h-3 w-3" />
                   </Button>
                 )}
                 {actions.onSettings && (
@@ -507,8 +544,9 @@ export function AnalyticsChart({
                     size="sm"
                     onClick={actions.onSettings}
                     className="h-7 w-7 p-0"
+                    aria-label="Chart settings"
                   >
-                    <Settings className="h-3 w-3" />
+                    <Settings aria-hidden="true" className="h-3 w-3" />
                   </Button>
                 )}
               </>
