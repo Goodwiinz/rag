@@ -50,26 +50,26 @@ export function ConfirmDialog({
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent className="rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] shadow-[var(--nous-shadow-lg)]">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[var(--nous-fg-1)] font-mono tracking-tight">
+          <AlertDialogTitle className="text-[var(--nous-fg-1)] tracking-tight">
             {title}
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-[var(--nous-fg-3)] font-mono text-xs">
+          <AlertDialogDescription className="text-[var(--nous-fg-3)] text-xs">
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2">
           <AlertDialogCancel
             onClick={handleCancel}
-            className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-fg-1)] font-mono text-xs uppercase tracking-wider"
+            className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-fg-1)] text-xs"
           >
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             className={cn(
-              'font-mono text-xs uppercase tracking-wider border transition-all',
+              'text-xs border transition-all',
               variant === 'destructive'
-                ? 'bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-500'
+                ? 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 hover:border-[var(--nous-mars)]'
                 : 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/50 text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/20 hover:border-[var(--nous-sol)]'
             )}
           >

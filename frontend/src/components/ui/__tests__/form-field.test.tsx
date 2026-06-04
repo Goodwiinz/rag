@@ -22,7 +22,7 @@ describe('FormField', () => {
     const input = screen.getByLabelText('Count');
     fireEvent.blur(input);
 
-    const validIcon = container.querySelector('svg.text-green-500');
+    const validIcon = container.querySelector('svg[class*="nous-terra"]');
     expect(validIcon).not.toBeNull();
   });
 
@@ -40,7 +40,7 @@ describe('FormField', () => {
     const input = screen.getByLabelText('Name');
     fireEvent.blur(input);
 
-    const validIcon = container.querySelector('svg.text-green-500');
+    const validIcon = container.querySelector('svg[class*="nous-terra"]');
     expect(validIcon).toBeNull();
   });
 
@@ -58,7 +58,7 @@ describe('FormField', () => {
     const input = screen.getByLabelText('Name');
     fireEvent.blur(input);
 
-    const validIcon = container.querySelector('svg.text-green-500');
+    const validIcon = container.querySelector('svg[class*="nous-terra"]');
     expect(validIcon).not.toBeNull();
   });
 });
