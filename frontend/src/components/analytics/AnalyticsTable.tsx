@@ -190,8 +190,8 @@ export function AnalyticsTable<T extends Record<string, any>>({
     <Card className={cn('overflow-hidden', className)}>
       {/* Header */}
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-1">
             <CardTitle className="text-lg font-semibold">{title}</CardTitle>
             {description && (
               <p className="text-sm text-muted-foreground">{description}</p>
@@ -199,7 +199,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
           </div>
 
           {actions && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {actions.onRefresh && (
                 <Button variant="outline" size="sm" onClick={actions.onRefresh}>
                   <Download className="h-4 w-4 mr-2" />
@@ -244,7 +244,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
                 filters.onFilter(value);
               }}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter aria-hidden="true" className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter" />
               </SelectTrigger>
@@ -406,7 +406,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
 
         {/* Pagination */}
         {pagination && (
-          <div className="flex items-center justify-between p-4 border-t">
+          <div className="flex flex-col gap-4 border-t p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
               Showing {(pagination.page - 1) * pagination.pageSize + 1} to{' '}
               {Math.min(
@@ -416,7 +416,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
               of {pagination.total} results
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               {/* Page Size Selector */}
               <Select
                 value={String(pagination.pageSize)}

@@ -380,15 +380,15 @@ export default function ArxivManagement() {
     : message;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-2xl border border-border bg-card p-6">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="flex flex-col gap-5">
-            <div className="flex items-start gap-4">
-              <div className="rounded-xl border border-border bg-background p-3">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="shrink-0 rounded-xl border border-border bg-background p-3">
                 <Search className="h-6 w-6 text-primary" aria-hidden="true" />
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   arXiv management
                 </h1>
@@ -408,7 +408,7 @@ export default function ArxivManagement() {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-5">
             <p className="text-sm font-medium text-foreground">
               {isGuest ? 'Discovery mode' : 'Workspace mode'}
@@ -534,7 +534,7 @@ export default function ArxivManagement() {
                     aria-controls={`panel-${tab.id}`}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors touch-manipulation',
+                      'relative flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors touch-manipulation sm:min-h-0',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'border-primary text-foreground'
