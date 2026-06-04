@@ -43,3 +43,49 @@ class TestResolveLightweightDeployment:
         from src.services.agent.llm_factory import _resolve_lightweight_deployment
 
         assert _resolve_lightweight_deployment() == "model-router"
+
+
+@pytest.mark.unit
+class TestBuilderCaching:
+    """build_synthesis_llm / build_lightweight_llm cache one instance per args."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_factory_caches(self):
+        from src.services.agent.llm_factory import reset_llm_caches
+
+        reset_llm_caches()
+        yield
+        reset_llm_caches()
+
+    def test_synthesis_same_args_returns_same_object(self, monkeypatch):
+        from src.services.agent import llm_factory
+
+        monkeypatch.setattr(llm_factory, "_build_chat_llm", lambda *a, **k: object())
+        a = llm_factory.build_synthesis_llm(max_tokens=4096)
+        b = llm_factory.build_synthesis_llm(max_tokens=4096)
+        assert a is b  # cache hit — built once
+
+    def test_synthesis_different_args_returns_different_object(self, monkeypatch):
+        from src.services.agent import llm_factory
+
+        monkeypatch.setattr(llm_factory, "_build_chat_llm", lambda *a, **k: object())
+        a = llm_factory.build_synthesis_llm(max_tokens=4096)
+        b = llm_factory.build_synthesis_llm(max_tokens=512)
+        assert a is not b
+
+    def test_lightweight_caches_per_args(self, monkeypatch):
+        from src.services.agent import llm_factory
+
+        calls = {"n": 0}
+
+        def _fake(*a, **k):
+            calls["n"] += 1
+            return object()
+
+        monkeypatch.setattr(llm_factory, "_build_chat_llm", _fake)
+
+        x = llm_factory.build_lightweight_llm(max_tokens=512)
+        y = llm_factory.build_lightweight_llm(max_tokens=512)
+        z = llm_factory.build_lightweight_llm(max_tokens=2048)
+        assert x is y and x is not z
+        assert calls["n"] == 2  # built once per distinct key

@@ -320,8 +320,20 @@ class TestExtractInsights:
             assert isinstance(insight, str)
             assert len(insight.strip()) > 0
 
-    async def test_extract_insights_empty_on_failure(self):
-        """extract_insights should return empty list on LLM failure."""
+    async def test_extract_insights_empty_messages_skips_llm(self):
+        """Empty messages must return [] WITHOUT building or invoking an LLM."""
+        from src.services.agent.memory_store import extract_insights
+
+        with patch(
+            "src.services.agent.memory_store._build_insights_llm",
+        ) as mock_build:
+            insights = await extract_insights(messages=[], config={})
+
+        assert insights == []
+        assert mock_build.call_count == 0  # no LLM constructed, no ainvoke
+
+    async def test_extract_insights_empty_on_llm_failure(self):
+        """A real LLM failure (non-empty input) still returns []."""
         from src.services.agent.memory_store import extract_insights
 
         mock_llm = MagicMock()
@@ -331,7 +343,9 @@ class TestExtractInsights:
             "src.services.agent.memory_store._build_insights_llm",
             return_value=mock_llm,
         ):
-            insights = await extract_insights(messages=[], config={})
+            insights = await extract_insights(
+                messages=[{"role": "user", "content": "hello"}], config={}
+            )
 
         assert insights == []
 
