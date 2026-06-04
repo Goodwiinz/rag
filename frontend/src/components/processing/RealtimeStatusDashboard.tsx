@@ -258,7 +258,9 @@ const StageProgress: React.FC<StageProgressProps> = ({
                 <span
                   className={cn(
                     'text-sm font-medium',
-                    isActive ? 'text-[var(--nous-fg-accent-safe)]' : 'text-foreground'
+                    isActive
+                      ? 'text-[var(--nous-fg-accent-safe)]'
+                      : 'text-foreground'
                   )}
                 >
                   {stage.name}
@@ -469,11 +471,35 @@ export const RealtimeStatusDashboard: React.FC<
 
   // Get data from store
   const queue = useRealtimeProcessingStore((state) => state.queue);
-  const selectedDocuments = useRealtimeProcessingStore((state) =>
-    state.getSelectedDocuments()
+
+  // Subscribe to the raw slices that feed the computed selectors so we only
+  // re-derive when these actually change, instead of on every store update
+  // (the getters return a fresh array on every websocket tick).
+  const documents = queue.documents;
+  const filters = queue.filters;
+  const pagination = queue.pagination;
+  const selectedDocumentIds = useRealtimeProcessingStore(
+    (state) => state.ui.selectedDocuments
   );
-  const filteredDocuments = useRealtimeProcessingStore((state) =>
-    state.getFilteredDocuments()
+  const getSelectedDocuments = useRealtimeProcessingStore(
+    (state) => state.getSelectedDocuments
+  );
+  const getFilteredDocuments = useRealtimeProcessingStore(
+    (state) => state.getFilteredDocuments
+  );
+
+  // Re-derive only when the underlying slices change. The getters read current
+  // state via get(), so the returned array contents/order are identical to a
+  // direct call — only the call frequency (and thus reference churn) changes.
+  const selectedDocuments = useMemo(
+    () => getSelectedDocuments(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getSelectedDocuments, documents, selectedDocumentIds]
+  );
+  const filteredDocuments = useMemo(
+    () => getFilteredDocuments(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getFilteredDocuments, documents, filters, pagination]
   );
 
   // Apply filters

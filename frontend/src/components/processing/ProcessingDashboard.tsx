@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   ChartBarIcon,
   ClockIcon,
@@ -154,16 +160,22 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
     }
   }, [queueItems, selectedFilter]);
 
+  // Keep a stable ref to the latest stats so the sampling interval can read
+  // current values without being torn down and recreated on every change.
+  const processingStatsRef = useRef(processingStats);
+  processingStatsRef.current = processingStats;
+
   // Update time series data
   useEffect(() => {
     if (!isPaused && autoRefresh) {
       const interval = setInterval(() => {
         const now = Date.now();
+        const currentStats = processingStatsRef.current;
         const dataPoint: TimeSeriesData = {
           timestamp: now,
-          completed: processingStats.completedFiles,
-          failed: processingStats.failedFiles,
-          processing: processingStats.processingFiles,
+          completed: currentStats.completedFiles,
+          failed: currentStats.failedFiles,
+          processing: currentStats.processingFiles,
         };
 
         setTimeSeriesData((prev) => {
@@ -176,7 +188,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
       return () => clearInterval(interval);
     }
     return undefined;
-  }, [isPaused, autoRefresh, refreshInterval, processingStats]);
+  }, [isPaused, autoRefresh, refreshInterval]);
 
   // Handle WebSocket updates
   useEffect(() => {

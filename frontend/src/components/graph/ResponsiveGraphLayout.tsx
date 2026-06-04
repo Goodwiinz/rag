@@ -5,7 +5,13 @@
  * Adapts layout based on screen size and device capabilities.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { GraphNode, GraphEdge, GraphFilters } from '../../types/graph-api';
 import { IconButton } from '@/components/ui/icon-button';
 
@@ -148,13 +154,18 @@ export const ResponsiveGraphLayout: React.FC<ResponsiveGraphLayoutProps> = ({
 
   const config = breakpointConfigs[breakpoint];
 
+  const mergedConfig = useMemo(
+    () => ({ ...config, dimensions, orientation, breakpoint }),
+    [config, dimensions, orientation, breakpoint]
+  );
+
   return (
     <div
       ref={containerRef}
       className={`responsive-graph-layout ${className}`}
       style={{ width: '100%', height: '100%' }}
     >
-      {children({ ...config, dimensions, orientation, breakpoint })}
+      {children(mergedConfig)}
     </div>
   );
 };

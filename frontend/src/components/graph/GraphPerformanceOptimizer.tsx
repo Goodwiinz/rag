@@ -56,7 +56,19 @@ export const GraphPerformanceOptimizer: React.FC<
     memoryThreshold: 100 * 1024 * 1024, // 100MB
   };
 
-  const performanceConfig = { ...defaultConfig, ...config };
+  const performanceConfig = useMemo(
+    () => ({ ...defaultConfig, ...config }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      config.maxVisibleNodes,
+      config.maxVisibleEdges,
+      config.chunkSize,
+      config.renderThreshold,
+      config.enableVirtualization,
+      config.enableLazyLoading,
+      config.memoryThreshold,
+    ]
+  );
   const visibleRangeRef = useRef({
     minX: -Infinity,
     maxX: Infinity,

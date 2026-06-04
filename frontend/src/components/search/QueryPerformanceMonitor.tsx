@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChartBarIcon,
   ClockIcon,
@@ -715,6 +715,9 @@ export const QueryPerformanceMonitor: React.FC<
 }) => {
   const [metrics, setMetrics] = useState<QueryPerformanceMetrics | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  const monitoringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   const generateMockMetrics = useCallback((): QueryPerformanceMetrics => {
@@ -774,14 +777,26 @@ export const QueryPerformanceMonitor: React.FC<
   const startMonitoring = useCallback(() => {
     setIsMonitoring(true);
 
+    // Clear any previously running interval so re-entry can't stack timers.
+    if (monitoringIntervalRef.current !== null) {
+      clearInterval(monitoringIntervalRef.current);
+      monitoringIntervalRef.current = null;
+    }
+
     if (showRealTime) {
       const interval = setInterval(() => {
         const newMetrics = generateMockMetrics();
         setMetrics(newMetrics);
         onMetricsUpdate?.(newMetrics);
       }, refreshInterval);
+      monitoringIntervalRef.current = interval;
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        if (monitoringIntervalRef.current === interval) {
+          monitoringIntervalRef.current = null;
+        }
+      };
     }
 
     return undefined;
@@ -793,7 +808,8 @@ export const QueryPerformanceMonitor: React.FC<
       (processingState.current_stage === 'search_execution' ||
         processingState.current_stage === 'result_aggregation')
     ) {
-      startMonitoring();
+      // Register the interval cleanup so the timer is cleared on re-run/unmount.
+      return startMonitoring();
     } else if (processingState?.current_stage === 'completed' && metrics) {
       // Generate final metrics when processing completes
       const finalMetrics = generateMockMetrics();
@@ -915,7 +931,9 @@ export const QueryPerformanceMonitor: React.FC<
             <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
               {metrics.total_latency_ms}ms
             </div>
-            <div className="text-xs text-[var(--nous-fg-accent-safe)]">Latency</div>
+            <div className="text-xs text-[var(--nous-fg-accent-safe)]">
+              Latency
+            </div>
           </div>
         </div>
 

@@ -157,6 +157,20 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
     },
   ];
 
+  // Stable signature of the graph input so the (cubic) centrality
+  // computation only re-runs when the actual nodes/edges change, not on
+  // every render that happens to recreate the prop arrays.
+  const graphSignature = useMemo(() => {
+    const entitySig = entities.map((e) => `${e.id}:${e.confidence}`).join('|');
+    const relationshipSig = relationships
+      .map(
+        (r) =>
+          `${r.source_entity_id}>${r.target_entity_id}:${r.confidence}:${r.weight}`
+      )
+      .join('|');
+    return `${entitySig}#${relationshipSig}`;
+  }, [entities, relationships]);
+
   // Calculate centrality scores
   const centralityScores = useMemo((): CentralityScore[] => {
     const scores: CentralityScore[] = [];
@@ -281,7 +295,12 @@ export const GraphCentralityMetrics: React.FC<GraphCentralityMetricsProps> = ({
     });
 
     return scores;
-  }, [entities, relationships]);
+    // The cubic centrality computation reads `entities`/`relationships`, but is
+    // keyed on `graphSignature` (derived from those same inputs) so it only
+    // recomputes when the graph content actually changes, not when the parent
+    // recreates the array references with identical contents.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphSignature]);
 
   // Get current metric data
   const currentMetricData = useMemo(() => {
