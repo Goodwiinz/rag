@@ -10,7 +10,7 @@ export default function DiagnosticsPage() {
     return (
       <div
         data-testid="diagnostics-page"
-        className="container mx-auto max-w-7xl p-6"
+        className="container mx-auto max-w-7xl p-4 sm:p-6"
       >
         <div
           role="alert"
@@ -31,7 +31,7 @@ export default function DiagnosticsPage() {
   return (
     <div
       data-testid="diagnostics-page"
-      className="container mx-auto max-w-7xl p-6"
+      className="container mx-auto max-w-7xl p-4 sm:p-6"
     >
       <RetrievalDiagnosticsDashboard />
     </div>
