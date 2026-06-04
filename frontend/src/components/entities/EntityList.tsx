@@ -1,19 +1,10 @@
 /**
  * EntityList Component
- * Terminal Observatory themed entity list with role-based access control
+ * Knowledge-graph entity list with role-based access control.
  */
 
 import React, { useState } from 'react';
-import {
-  Edit,
-  Trash2,
-  Eye,
-  ExternalLink,
-  Clock,
-  CheckCircle,
-  Info,
-  Database,
-} from 'lucide-react';
+import { Edit, Trash2, Eye, ExternalLink, Clock, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconButton } from '@/components/ui/icon-button';
@@ -25,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Entity, EntityType } from '@/types/entity';
+import { Entity } from '@/types/entity';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
 import { cn } from '@/lib/utils';
 
@@ -36,32 +27,6 @@ interface EntityListProps {
   onView?: (entity: Entity) => void;
   onDelete?: (entityId: string) => void;
 }
-
-const typeColors: Record<string, string> = {
-  PERSON: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  ORGANIZATION: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-  LOCATION: 'text-amber-400 bg-amber-400/10 border-amber-400/20',
-  CONCEPT: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  EVENT: 'text-rose-400 bg-rose-400/10 border-rose-400/20',
-  PRODUCT: 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20',
-  DATE: 'text-slate-400 bg-slate-400/10 border-slate-400/20',
-  TECHNOLOGY: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-  DOCUMENT: 'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  TOPIC: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
-  RESEARCH: 'text-violet-400 bg-violet-400/10 border-violet-400/20',
-  FINANCIAL: 'text-green-400 bg-green-400/10 border-green-400/20',
-  EMAIL: 'text-sky-400 bg-sky-400/10 border-sky-400/20',
-  PHONE: 'text-teal-400 bg-teal-400/10 border-teal-400/20',
-  URL: 'text-lime-400 bg-lime-400/10 border-lime-400/20',
-  JOB_TITLE: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
-  OTHER: 'text-muted-foreground bg-gray-400/10 border-border/20',
-};
-
-const getConfidenceColor = (confidence: number): string => {
-  if (confidence >= 0.8) return 'text-[var(--nous-sol)]';
-  if (confidence >= 0.6) return 'text-[var(--nous-helios)]';
-  return 'text-[var(--nous-fg-3)]';
-};
 
 const formatMetadata = (metadata: Record<string, any>): string => {
   if (!metadata) return '';
@@ -100,48 +65,48 @@ export const EntityList: React.FC<EntityListProps> = ({
 
   if (loading) {
     return (
-      <div className="flex flex-col h-full bg-[var(--nous-bg-2)]">
+      <div className="flex flex-col h-full bg-card">
         {/* Skeleton header bar */}
-        <div className="px-6 py-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-4 h-4 rounded bg-[var(--nous-border-1)] animate-pulse" />
-            <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+            <div className="w-4 h-4 rounded bg-muted animate-pulse" />
+            <div className="w-20 h-3 rounded bg-muted animate-pulse" />
           </div>
-          <div className="w-32 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
+          <div className="w-32 h-3 rounded bg-muted animate-pulse" />
         </div>
 
         {/* Skeleton table header */}
-        <div className="px-6 py-2.5 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/30 grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center">
-          <div className="w-4 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-24 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-16 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-28 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse" />
-          <div className="w-20 h-3 rounded bg-[var(--nous-border-1)] animate-pulse ml-auto" />
+        <div className="px-6 py-2.5 border-b border-border bg-muted/20 grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center">
+          <div className="w-4 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-24 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-20 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-16 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-28 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-20 h-3 rounded bg-muted animate-pulse" />
+          <div className="w-20 h-3 rounded bg-muted animate-pulse ml-auto" />
         </div>
 
         {/* Skeleton rows */}
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="px-6 py-3.5 border-b border-[var(--nous-border-1)] grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
+            className="px-6 py-3.5 border-b border-border grid grid-cols-[3rem_1fr_8rem_5rem_1fr_7rem_7rem] gap-4 items-center"
             style={{ animationDelay: `${i * 75}ms` }}
           >
             <div
-              className="w-4 h-4 rounded bg-[var(--nous-border-1)] animate-pulse"
+              className="w-4 h-4 rounded bg-muted animate-pulse"
               style={{ animationDelay: `${i * 75}ms` }}
             />
             <div className="space-y-1.5">
               <div
-                className="h-4 rounded bg-[var(--nous-border-1)] animate-pulse"
+                className="h-4 rounded bg-muted animate-pulse"
                 style={{
                   width: `${60 + (i % 3) * 15}%`,
                   animationDelay: `${i * 75}ms`,
                 }}
               />
               <div
-                className="h-2.5 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
+                className="h-2.5 rounded bg-muted/50 animate-pulse"
                 style={{
                   width: `${30 + (i % 2) * 20}%`,
                   animationDelay: `${i * 75}ms`,
@@ -149,7 +114,7 @@ export const EntityList: React.FC<EntityListProps> = ({
               />
             </div>
             <div
-              className="h-5 rounded-full bg-[var(--nous-border-1)] animate-pulse"
+              className="h-5 rounded-full bg-muted animate-pulse"
               style={{
                 width: `${50 + (i % 4) * 10}%`,
                 animationDelay: `${i * 75}ms`,
@@ -157,36 +122,36 @@ export const EntityList: React.FC<EntityListProps> = ({
             />
             <div className="space-y-1">
               <div
-                className="h-1.5 rounded-full bg-[var(--nous-border-1)] animate-pulse"
+                className="h-1.5 rounded-full bg-muted animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
               <div
-                className="h-3 w-10 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
+                className="h-3 w-10 rounded bg-muted/50 animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
             </div>
             <div
-              className="h-3 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
+              className="h-3 rounded bg-muted/50 animate-pulse"
               style={{
                 width: `${40 + (i % 3) * 20}%`,
                 animationDelay: `${i * 75}ms`,
               }}
             />
             <div
-              className="h-3 w-16 rounded bg-[var(--nous-border-1)]/50 animate-pulse"
+              className="h-3 w-16 rounded bg-muted/50 animate-pulse"
               style={{ animationDelay: `${i * 75}ms` }}
             />
             <div className="flex items-center justify-end gap-1.5">
               <div
-                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
+                className="w-7 h-7 rounded bg-muted animate-pulse"
                 style={{ animationDelay: `${i * 75}ms` }}
               />
               <div
-                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
+                className="w-7 h-7 rounded bg-muted animate-pulse"
                 style={{ animationDelay: `${i * 75 + 25}ms` }}
               />
               <div
-                className="w-7 h-7 rounded bg-[var(--nous-border-1)] animate-pulse"
+                className="w-7 h-7 rounded bg-muted animate-pulse"
                 style={{ animationDelay: `${i * 75 + 50}ms` }}
               />
             </div>
@@ -197,42 +162,41 @@ export const EntityList: React.FC<EntityListProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[var(--nous-bg-2)]">
+    <div className="flex flex-col h-full bg-card">
       {/* Header with selection controls */}
-      <div className="px-6 py-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 flex items-center justify-between">
+      <div className="px-6 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <input
             type="checkbox"
+            aria-label="Select all entities"
             checked={
               selectedItems.length === entities.length && entities.length > 0
             }
             onChange={handleSelectAll}
-            className="rounded border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] text-[var(--nous-sol)] focus:ring-0 focus:ring-offset-0"
+            className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           />
-          <span className="text-[10px] font-mono text-[var(--nous-fg-3)] uppercase tracking-widest">
-            Select All
-          </span>
+          <span className="text-sm text-muted-foreground">Select all</span>
           {selectedItems.length > 0 && (
-            <div className="flex items-center gap-3 ml-4 pl-4 border-l border-[var(--nous-border-1)]">
+            <div className="flex items-center gap-3 ml-4 pl-4 border-l border-border">
               <Badge
                 variant="outline"
-                className="font-mono text-[10px] border-[var(--nous-sol)]/30 text-[var(--nous-sol)] bg-[var(--nous-sol)]/5"
+                className="border-primary/30 text-primary bg-primary/5"
               >
-                {selectedItems.length} SELECTED
+                {selectedItems.length} selected
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setSelectedItems([])}
-                className="h-7 text-[10px] font-mono text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)]"
+                className="h-7 text-xs text-muted-foreground hover:text-primary"
               >
-                CLEAR_SELECTION
+                Clear selection
               </Button>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--nous-fg-3)]">
-          <span>{entities.length} ENTITIES_LOADED</span>
+        <div className="text-sm text-muted-foreground tabular-nums">
+          {entities.length} {entities.length === 1 ? 'entity' : 'entities'}
         </div>
       </div>
 
@@ -240,39 +204,37 @@ export const EntityList: React.FC<EntityListProps> = ({
       {entities.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Database className="w-7 h-7 text-primary" />
+            <Network aria-hidden="true" className="w-7 h-7 text-primary" />
           </div>
-          <p className="text-sm font-mono font-bold text-foreground uppercase tracking-wider">
-            NO_ENTITIES_FOUND
-          </p>
-          <p className="text-xs font-mono text-muted-foreground text-center max-w-xs leading-relaxed">
-            No entities extracted yet. Process a document to populate the
-            knowledge graph, or adjust your filters.
+          <p className="text-sm font-medium text-foreground">No entities yet</p>
+          <p className="text-sm text-muted-foreground text-center max-w-xs leading-relaxed">
+            Process a document to populate the knowledge graph, or adjust your
+            filters.
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto nous-scrollbar">
           <Table>
-            <TableHeader className="bg-[var(--nous-bg-1)]/30 sticky top-0 z-10">
-              <TableRow className="border-[var(--nous-border-1)] hover:bg-transparent">
+            <TableHeader className="bg-muted/20 sticky top-0 z-10">
+              <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="w-12"></TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                  Node_Identity
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Name
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                  Classification
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Type
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
+                <TableHead className="text-xs font-medium text-muted-foreground">
                   Confidence
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                  Attributes_Dump
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Details
                 </TableHead>
-                <TableHead className="font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)]">
-                  Timestamp
+                <TableHead className="text-xs font-medium text-muted-foreground">
+                  Created
                 </TableHead>
-                <TableHead className="text-right font-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] pr-6">
-                  Direct_Access
+                <TableHead className="text-right text-xs font-medium text-muted-foreground pr-6">
+                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -281,29 +243,30 @@ export const EntityList: React.FC<EntityListProps> = ({
                 <TableRow
                   key={entity.id}
                   className={cn(
-                    'border-[var(--nous-border-1)] transition-colors group',
+                    'border-border transition-colors group',
                     selectedItems.includes(entity.id)
-                      ? 'bg-[var(--nous-sol)]/5'
-                      : 'hover:bg-[var(--nous-bg-3)]'
+                      ? 'bg-primary/5'
+                      : 'hover:bg-muted/40'
                   )}
                 >
                   <TableCell className="w-12">
                     <input
                       type="checkbox"
+                      aria-label={`Select ${entity.name}`}
                       checked={selectedItems.includes(entity.id)}
                       onChange={() => handleSelectItem(entity.id)}
-                      className="rounded border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] text-[var(--nous-sol)] focus:ring-0 focus:ring-offset-0"
+                      className="h-4 w-4 rounded border-border bg-background text-primary accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                     />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
-                      <span className="font-mono text-sm font-bold text-[var(--nous-fg-1)] group-hover:text-[var(--nous-sol)] transition-colors">
+                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                         {entity.name}
                       </span>
                       {entity.metadata?.aliases &&
                         entity.metadata.aliases.length > 0 && (
-                          <span className="text-[9px] font-mono text-[var(--nous-fg-3)] uppercase mt-0.5">
-                            AKA:{' '}
+                          <span className="text-xs text-muted-foreground">
+                            Also known as{' '}
                             {entity.metadata.aliases.slice(0, 2).join(', ')}
                           </span>
                         )}
@@ -312,54 +275,44 @@ export const EntityList: React.FC<EntityListProps> = ({
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={cn(
-                        'font-mono text-[10px] uppercase tracking-wide border',
-                        typeColors[entity.type] ||
-                          'text-muted-foreground bg-gray-400/10 border-border/20'
-                      )}
+                      className="border-border bg-muted text-muted-foreground font-normal"
                     >
                       {entity.type}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <div className="w-16 h-1.5 bg-[var(--nous-bg-1)] rounded-full overflow-hidden border border-[var(--nous-border-1)]">
+                      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden border border-border">
                         <div
-                          className={cn(
-                            'h-full transition-all duration-500',
-                            entity.confidence && entity.confidence >= 0.8
-                              ? 'bg-[var(--nous-sol)]'
-                              : 'bg-[var(--nous-helios)]'
-                          )}
+                          className="h-full bg-primary transition-all duration-500"
                           style={{
                             width: `${(entity.confidence || 0) * 100}%`,
                           }}
                         />
                       </div>
-                      <span
-                        className={cn(
-                          'font-mono text-[10px] font-bold',
-                          getConfidenceColor(entity.confidence || 0)
-                        )}
-                      >
+                      <span className="text-xs font-medium text-muted-foreground tabular-nums">
                         {((entity.confidence || 0) * 100).toFixed(1)}%
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div
-                      className="text-[10px] font-mono text-[var(--nous-fg-3)] max-w-xs truncate"
+                      className="text-xs text-muted-foreground max-w-xs truncate"
                       title={formatMetadata(entity.metadata ?? {})}
                     >
-                      {formatMetadata(entity.metadata ?? {}) || 'NO_METADATA'}
+                      {formatMetadata(entity.metadata ?? {}) || (
+                        <span className="text-muted-foreground/60">
+                          No details
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--nous-fg-3)]">
-                      <Clock className="w-3 h-3" />
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock aria-hidden="true" className="w-3 h-3" />
                       {entity.created_at
                         ? new Date(entity.created_at).toLocaleDateString()
-                        : 'N/A'}
+                        : 'Unknown'}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -370,8 +323,8 @@ export const EntityList: React.FC<EntityListProps> = ({
                           size="icon"
                           label="View entity details"
                           onClick={() => onView(entity)}
-                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/10"
-                          icon={<Eye className="h-4 w-4" />}
+                          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          icon={<Eye aria-hidden="true" className="h-4 w-4" />}
                         />
                       )}
                       {onEdit && (
@@ -380,13 +333,13 @@ export const EntityList: React.FC<EntityListProps> = ({
                           size="icon"
                           label={
                             !canEdit
-                              ? 'Edit entity (Admin access required)'
+                              ? 'Edit entity (admin access required)'
                               : 'Edit entity'
                           }
                           onClick={() => onEdit(entity)}
                           disabled={!canEdit}
-                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)] hover:bg-[var(--nous-helios)]/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                          icon={<Edit className="h-4 w-4" />}
+                          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          icon={<Edit aria-hidden="true" className="h-4 w-4" />}
                         />
                       )}
                       {entity.source_document_id && (
@@ -400,8 +353,13 @@ export const EntityList: React.FC<EntityListProps> = ({
                               '_blank'
                             )
                           }
-                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-helios)] hover:bg-[var(--nous-helios)]/10"
-                          icon={<ExternalLink className="h-4 w-4" />}
+                          className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          icon={
+                            <ExternalLink
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                            />
+                          }
                         />
                       )}
                       {onDelete && (
@@ -410,13 +368,15 @@ export const EntityList: React.FC<EntityListProps> = ({
                           size="icon"
                           label={
                             !canDelete
-                              ? 'Delete entity (Admin access required)'
+                              ? 'Delete entity (admin access required)'
                               : 'Delete entity'
                           }
                           onClick={() => onDelete(entity.id)}
                           disabled={!canDelete}
-                          className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-red-400 hover:bg-red-400/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                          icon={<Trash2 className="h-4 w-4" />}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          icon={
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          }
                         />
                       )}
                     </div>

@@ -1,13 +1,4 @@
-import { cn } from '@/lib/utils';
-import {
-  Activity,
-  BarChart3,
-  Cpu,
-  FileText,
-  Globe,
-  Layers,
-  Zap,
-} from 'lucide-react';
+import { AlertCircle, BarChart3 } from 'lucide-react';
 import React from 'react';
 
 import { StatsResult } from '../arxivTypes';
@@ -28,97 +19,83 @@ export function StatsTab({
   onRefresh,
 }: StatsTabProps) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-sm font-mono font-bold uppercase tracking-tight text-foreground">
-          <BarChart3
-            className="h-4 w-4 text-[var(--nous-helios)]"
-            aria-hidden="true"
-          />
-          System Statistics
+        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+          <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
+          Tracking statistics
         </h3>
         <button
           type="button"
           onClick={onRefresh}
           disabled={isAnyOperationRunning || isStatsLoading}
-          className="rounded-lg border border-[var(--nous-border-1)] px-4 py-2 text-[11px] font-mono font-bold uppercase text-muted-foreground hover:bg-[var(--nous-bg-2)] disabled:cursor-not-allowed disabled:opacity-45"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
         >
           Refresh
         </button>
       </div>
 
       {statsError && (
-        <div className="rounded-lg border border-red-900 bg-red-950/70 p-3 text-[10px] font-mono text-red-300">
-          Unable to refresh stats: {statsError}
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-3 text-sm text-[var(--nous-mars)]"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>Could not refresh statistics. {statsError}</span>
         </div>
       )}
 
       {stats ? (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              {
-                label: 'System Papers',
-                value: stats.statistics.total_papers_tracked,
-                color: 'text-foreground',
-                icon: FileText,
-              },
-              {
-                label: 'Active Papers',
-                value: stats.statistics.active_papers,
-                color: 'text-primary',
-                icon: Activity,
-              },
-              {
-                label: 'Category Clusters',
-                value: stats.statistics.categories_tracked,
-                color: 'text-[var(--nous-helios)]',
-                icon: Layers,
-              },
-              {
-                label: 'Deleted Papers',
-                value: stats.statistics.deleted_papers,
-                color: 'text-[var(--nous-helios)]',
-                icon: Zap,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="relative overflow-hidden rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-5"
-              >
-                <item.icon
-                  className="absolute -right-2 -top-2 h-14 w-14 text-[var(--nous-border-1)] opacity-25"
-                  aria-hidden="true"
-                />
-                <div className={cn('text-2xl font-mono font-bold', item.color)}>
-                  {item.value}
-                </div>
-                <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-muted-foreground">
-                  {item.label}
-                </div>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+          <div className="rounded-xl border border-border bg-card p-6 xl:col-span-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Papers tracked
+            </p>
+            <p className="mt-2 text-4xl font-semibold tabular-nums text-foreground">
+              {stats.statistics.total_papers_tracked}
+            </p>
+            <dl className="mt-5 space-y-3 border-t border-border pt-5">
+              <div className="flex items-center justify-between">
+                <dt className="text-sm text-muted-foreground">Active</dt>
+                <dd className="text-sm font-medium tabular-nums text-foreground">
+                  {stats.statistics.active_papers}
+                </dd>
               </div>
-            ))}
+              <div className="flex items-center justify-between">
+                <dt className="text-sm text-muted-foreground">Deleted</dt>
+                <dd className="text-sm font-medium tabular-nums text-foreground">
+                  {stats.statistics.deleted_papers}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-sm text-muted-foreground">
+                  Categories tracked
+                </dt>
+                <dd className="text-sm font-medium tabular-nums text-foreground">
+                  {stats.statistics.categories_tracked}
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-            <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-5 xl:col-span-8">
-              <div className="mb-5 flex items-center gap-2">
-                <Cpu className="h-4 w-4 text-primary" aria-hidden="true" />
-                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-foreground">
-                  Category Distribution
-                </h4>
-              </div>
-
-              <div className="space-y-3">
-                {stats.statistics.top_categories?.map(([category, count]) => (
+          <div className="rounded-xl border border-border bg-card p-6 xl:col-span-8">
+            <h4 className="text-sm font-medium text-foreground">
+              Top categories
+            </h4>
+            {stats.statistics.top_categories &&
+            stats.statistics.top_categories.length > 0 ? (
+              <div className="mt-5 space-y-3">
+                {stats.statistics.top_categories.map(([category, count]) => (
                   <div key={category} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[10px] font-mono uppercase">
-                      <span className="text-muted-foreground">{category}</span>
-                      <span className="font-bold text-primary">{count}</span>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-foreground">{category}</span>
+                      <span className="font-medium tabular-nums text-muted-foreground">
+                        {count}
+                      </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--nous-border-1)]">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                       <div
-                        className="h-full rounded-full bg-primary/40"
+                        className="h-full rounded-full bg-primary"
                         style={{
                           width: `${(count / Math.max(stats.statistics.total_papers_tracked, 1)) * 100}%`,
                         }}
@@ -127,28 +104,18 @@ export function StatsTab({
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-5 xl:col-span-4">
-              <Globe
-                className="h-10 w-10 text-[var(--nous-border-1)]"
-                aria-hidden="true"
-              />
-              <p className="text-center text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">
-                Grid Status Active
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">
+                No category breakdown yet. Run a change scan to populate it.
               </p>
-              <p className="text-center text-[10px] font-mono text-muted-foreground">
-                Synchronization latency: optimal
-              </p>
-              <p className="text-center text-[9px] font-mono text-muted-foreground">
-                State file: {stats.statistics.state_file_path}
-              </p>
-            </div>
+            )}
           </div>
-        </>
+        </div>
       ) : (
-        <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/50 p-6 text-center text-[11px] font-mono text-muted-foreground">
-          Statistics are unavailable right now.
+        <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          {isStatsLoading
+            ? 'Loading statistics…'
+            : 'Statistics are unavailable right now.'}
         </div>
       )}
     </div>
