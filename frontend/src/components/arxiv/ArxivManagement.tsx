@@ -5,14 +5,12 @@ import { api } from '@/services/api-client';
 import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity,
+  AlertCircle,
   ArrowRight,
   BarChart3,
   Brain,
-  Loader2,
   LogIn,
   Search,
-  ShieldCheck,
   TrendingUp,
   Upload,
 } from 'lucide-react';
@@ -129,7 +127,7 @@ export default function ArxivManagement() {
 
       if (showFeedback) {
         setProgress(100);
-        setMessage('COMPLETED: Tracking metrics refreshed.');
+        setMessage('Tracking metrics refreshed.');
       }
     } catch (error: any) {
       console.error('Failed to fetch stats:', error);
@@ -207,11 +205,11 @@ export default function ArxivManagement() {
 
       if (result.result.applied && updateDatabase) {
         setMessage(
-          `COMPLETED: Database updated with ${result.result.summary.new} new papers.`
+          `Database updated with ${result.result.summary.new} new papers.`
         );
       } else {
         setMessage(
-          `COMPLETED: Found ${result.result.summary.new} new and ${result.result.summary.updated} updated papers.`
+          `Found ${result.result.summary.new} new and ${result.result.summary.updated} updated papers.`
         );
       }
 
@@ -309,7 +307,7 @@ export default function ArxivManagement() {
       setProgress(100);
       setIngestionResult(result);
       setMessage(
-        `COMPLETED: ${result.paper_count} papers queued for background ingestion.`
+        `${result.paper_count} papers queued for background ingestion.`
       );
     } catch (error: any) {
       console.error('Ingestion failed:', error);
@@ -367,9 +365,7 @@ export default function ArxivManagement() {
 
       setProgress(100);
       setExtractionResult(result);
-      setMessage(
-        `COMPLETED: Features extracted for ${result.processed_count} papers.`
-      );
+      setMessage(`Features extracted for ${result.processed_count} papers.`);
     } catch (error: any) {
       console.error('Feature extraction failed:', error);
       setProgress(0);
@@ -379,139 +375,47 @@ export default function ArxivManagement() {
     }
   };
 
+  const displayMessage = hasMessageError
+    ? message.replace(/^ERROR:\s*/, '')
+    : message;
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[var(--nous-border-1)] bg-[linear-gradient(135deg,rgba(212,160,57,0.08),rgba(17,24,39,0.18)_45%,rgba(10,10,10,0.92)_100%)] p-5 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/80 p-3">
-                  <Activity className="h-6 w-6 text-primary" />
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <h1 className="text-2xl font-mono font-bold tracking-[0.16em] text-[var(--nous-fg-1)] sm:text-3xl">
-                      ARXIV_RESEARCH_HUB
-                    </h1>
-                    <p className="mt-2 max-w-2xl text-sm font-mono leading-relaxed text-muted-foreground">
-                      Search the public arXiv corpus, track category changes,
-                      and push selected papers into your workspace ingestion and
-                      extraction pipeline.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <Search className="h-3.5 w-3.5 text-[var(--nous-helios)]" />
-                      Public Search
-                    </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                      Live Stats
-                    </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-foreground">
-                      <ShieldCheck className="h-3.5 w-3.5 text-[var(--nous-helios)]" />
-                      {isGuest
-                        ? 'Workspace Actions Locked'
-                        : 'Workspace Actions Ready'}
-                    </span>
-                  </div>
-                </div>
+        <section className="overflow-hidden rounded-2xl border border-border bg-card p-6">
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl border border-border bg-background p-3">
+                <Search className="h-6 w-6 text-primary" aria-hidden="true" />
               </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {[
-                  {
-                    key: 'search',
-                    icon: Search,
-                    title: 'Search',
-                    description:
-                      'Explore papers, compare abstracts, and build a shortlist.',
-                    state: 'Ready',
-                    stateTone: 'text-[var(--nous-helios)]',
-                  },
-                  {
-                    key: 'ingest',
-                    icon: Upload,
-                    title: 'Queue',
-                    description:
-                      'Push selected papers into background ingestion jobs.',
-                    state: isGuest ? 'Sign in' : 'Ready',
-                    stateTone: isGuest
-                      ? 'text-[var(--nous-helios)]'
-                      : 'text-primary',
-                  },
-                  {
-                    key: 'extract',
-                    icon: Brain,
-                    title: 'Extract',
-                    description:
-                      'Generate entities, topics, keyphrases, citations, and summaries.',
-                    state: isGuest ? 'Sign in' : 'Ready',
-                    stateTone: isGuest
-                      ? 'text-[var(--nous-helios)]'
-                      : 'text-primary',
-                  },
-                ].map((step) => {
-                  const StepIcon = step.icon;
-
-                  return (
-                    <div
-                      key={step.key}
-                      className="rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/65 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] p-2">
-                          <StepIcon
-                            className="h-4 w-4 text-foreground"
-                            aria-hidden="true"
-                          />
-                        </div>
-                        <span
-                          className={cn(
-                            'text-[10px] font-mono font-bold uppercase tracking-[0.18em]',
-                            step.stateTone
-                          )}
-                        >
-                          {step.state}
-                        </span>
-                      </div>
-                      <div className="mt-4 space-y-2">
-                        <p className="text-sm font-mono font-bold uppercase tracking-[0.14em] text-foreground">
-                          {step.title}
-                        </p>
-                        <p className="text-[11px] font-mono leading-relaxed text-muted-foreground">
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="space-y-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                  arXiv management
+                </h1>
+                <p className="max-w-2xl font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+                  Search the public arXiv corpus, track category changes, and
+                  push selected papers into your workspace ingestion and
+                  extraction pipeline.
+                </p>
               </div>
             </div>
+
+            <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+              {isGuest
+                ? 'Search and statistics stay open without signing in. Queueing ingestion, running extraction, and scanning categories need an authenticated workspace.'
+                : 'Tracking, ingestion, and extraction are all available in this workspace session.'}
+            </p>
           </div>
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.22em] text-muted-foreground">
-                  Current Mode
-                </p>
-                <p className="mt-2 text-xl font-mono font-bold uppercase tracking-[0.16em] text-foreground">
-                  {isGuest ? 'Discovery Mode' : 'Workspace Mode'}
-                </p>
-              </div>
-              <div className="rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-primary">
-                {isGuest ? 'Guest' : 'Authenticated'}
-              </div>
-            </div>
-
-            <p className="mt-4 text-[11px] font-mono leading-relaxed text-muted-foreground">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <p className="text-sm font-medium text-foreground">
+              {isGuest ? 'Discovery mode' : 'Workspace mode'}
+            </p>
+            <p className="mt-2 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
               {isGuest
-                ? 'Public search and live stats stay available without signing in. Queueing ingestion, extraction, and category scans remain tied to an authenticated workspace.'
+                ? 'Public search and statistics are available now. Sign in to queue ingestion, run extraction, and scan categories.'
                 : 'All tracking, ingestion, and extraction actions are available in this workspace session.'}
             </p>
 
@@ -519,27 +423,27 @@ export default function ArxivManagement() {
               {isGuest ? (
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
-                  Sign In To Unlock Workspace
+                  Sign in to unlock workspace
                 </Link>
               ) : (
                 <>
                   <button
                     type="button"
                     onClick={() => setActiveTab('tracking')}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-background transition-colors hover:bg-primary/85"
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Run Tracking Workflow
+                    Run tracking workflow
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('ingest')}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--nous-border-1)] px-4 py-2.5 text-[11px] font-mono font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-[var(--nous-bg-2)]"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Review Search Results
+                    Review search results
                   </button>
                 </>
               )}
@@ -547,71 +451,74 @@ export default function ArxivManagement() {
           </div>
 
           {isStatsLoading && !stats && (
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 px-4 py-3 text-[11px] font-mono text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-              Loading metrics…
+            <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+              <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-12 animate-pulse rounded-lg bg-muted" />
+                <div className="h-12 animate-pulse rounded-lg bg-muted" />
+              </div>
+              <span className="sr-only">Loading tracking metrics</span>
             </div>
           )}
 
           {!isStatsLoading && !stats && statsError && (
-            <div className="rounded-2xl border border-red-900 bg-red-950/70 px-4 py-3 text-[10px] font-mono text-red-300">
-              Unable to load stats: {statsError}
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-2xl border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 px-4 py-3 text-sm text-[var(--nous-mars)]"
+            >
+              <AlertCircle
+                className="mt-0.5 h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+              <span>Could not load metrics. {statsError}</span>
             </div>
           )}
 
           {stats && (
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                {
-                  label: 'Tracked',
-                  value: stats.statistics.total_papers_tracked,
-                  color: 'text-primary',
-                },
-                {
-                  label: 'Active',
-                  value: stats.statistics.active_papers,
-                  color: 'text-[var(--nous-helios)]',
-                },
-                {
-                  label: 'Categories',
-                  value: stats.statistics.categories_tracked,
-                  color: 'text-foreground',
-                },
-                {
-                  label: 'Deleted',
-                  value: stats.statistics.deleted_papers,
-                  color: 'text-[var(--nous-helios)]',
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="min-w-[110px] rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/75 px-4 py-3"
-                >
-                  <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-                    {item.label}
-                  </div>
-                  <div
-                    className={cn(
-                      'mt-1 text-2xl font-mono font-bold',
-                      item.color
-                    )}
-                  >
-                    {item.value}
-                  </div>
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tracked corpus
+              </p>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-3xl font-semibold tabular-nums text-foreground">
+                  {stats.statistics.total_papers_tracked}
+                </span>
+                <span className="font-[family-name:var(--nous-font-body)] text-sm text-muted-foreground">
+                  papers tracked
+                </span>
+              </div>
+              <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Active</dt>
+                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
+                    {stats.statistics.active_papers}
+                  </dd>
                 </div>
-              ))}
+                <div>
+                  <dt className="text-xs text-muted-foreground">Categories</dt>
+                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
+                    {stats.statistics.categories_tracked}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Deleted</dt>
+                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
+                    {stats.statistics.deleted_papers}
+                  </dd>
+                </div>
+              </dl>
             </div>
           )}
         </aside>
       </div>
 
-      <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]">
-        <div className="border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-3 py-2 sm:px-4">
+      <div className="rounded-lg border border-border bg-card">
+        <div className="border-b border-border px-3 py-2 sm:px-4">
           <div className="overflow-x-auto">
             <div
               className="flex min-w-max items-center gap-1"
               role="tablist"
-              aria-label="ArXiv management sections"
+              aria-label="arXiv management sections"
             >
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -627,14 +534,14 @@ export default function ArxivManagement() {
                     aria-controls={`panel-${tab.id}`}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-mono transition-colors touch-manipulation',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                      'relative flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors touch-manipulation',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
-                        ? 'border-primary text-primary'
+                        ? 'border-primary text-foreground'
                         : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Icon className="h-4 w-4" aria-hidden="true" />
                     {tab.label}
                   </button>
                 );
@@ -647,38 +554,45 @@ export default function ArxivManagement() {
             isIngesting ||
             isExtracting ||
             message) && (
-            <div className="mt-3 space-y-2 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/60 p-3">
+            <div className="mt-3 space-y-2 rounded-lg border border-border bg-background p-3">
               {(isTracking || isSearching || isIngesting || isExtracting) && (
                 <ProgressBar
                   value={progress}
                   label={
                     isTracking
-                      ? 'Tracking Progress'
+                      ? 'Tracking progress'
                       : isSearching
-                        ? 'Search Progress'
+                        ? 'Search progress'
                         : isIngesting
-                          ? 'Ingestion Progress'
-                          : 'Extraction Progress'
+                          ? 'Ingestion progress'
+                          : 'Extraction progress'
                   }
                 />
               )}
               {message && (
                 <div
+                  role={hasMessageError ? 'alert' : 'status'}
                   className={cn(
-                    'rounded-md border px-3 py-2 text-[11px] font-mono leading-relaxed',
+                    'flex items-start gap-2 rounded-md border px-3 py-2 text-sm leading-relaxed',
                     hasMessageError
-                      ? 'border-red-900 bg-red-950 text-red-300'
-                      : 'border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-muted-foreground'
+                      ? 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
+                      : 'border-border bg-card text-muted-foreground'
                   )}
                 >
-                  {message}
+                  {hasMessageError && (
+                    <AlertCircle
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span>{displayMessage}</span>
                 </div>
               )}
             </div>
           )}
 
           <div className="sr-only" aria-live="polite">
-            {message}
+            {displayMessage}
           </div>
         </div>
 

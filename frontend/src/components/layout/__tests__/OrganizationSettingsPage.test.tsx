@@ -10,11 +10,11 @@ describe('OrganizationSettingsPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Organization Settings' })
     ).toBeInTheDocument();
-    expect(screen.getByText('Members & Roles')).toBeInTheDocument();
-    expect(screen.getByText('Usage & Billing')).toBeInTheDocument();
-    expect(screen.getByText('Security & Compliance')).toBeInTheDocument();
+    expect(screen.getByText('Members and roles')).toBeInTheDocument();
+    expect(screen.getByText('Usage and billing')).toBeInTheDocument();
+    expect(screen.getByText('Developer access')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /review developer access/i })
+      screen.getByRole('link', { name: /open developer access/i })
     ).toBeInTheDocument();
   });
 });

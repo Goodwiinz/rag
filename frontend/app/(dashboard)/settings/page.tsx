@@ -4,18 +4,12 @@ import Link from 'next/link';
 import { useState, type ComponentType, type ReactElement } from 'react';
 import {
   ArrowRight,
-  BadgeCheck,
   Bell,
   BriefcaseBusiness,
   Clock3,
-  CreditCard,
   KeyRound,
-  ShieldCheck,
-  SlidersHorizontal,
-  Sparkles,
   UserCog,
   UserCircle2,
-  Workflow,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -32,122 +26,39 @@ type SettingsStatusItem = {
   label: string;
   value: string;
   hint: string;
+  connected: boolean;
   icon: ComponentType<{ className?: string }>;
 };
 
 type SettingsCardItem = {
   title: string;
   description: string;
-  summary: string;
   href: string;
   cta: string;
   icon: ComponentType<{ className?: string }>;
-  accent: string;
 };
 
-function buildStatusItems(
-  role: string,
-  workspace: string
-): SettingsStatusItem[] {
-  const roleHints: Record<string, string> = {
-    admin: 'Full governance access',
-    user: 'Standard workspace access',
-    viewer: 'Read-only access',
-  };
+const PLAN_LABELS: Record<string, string> = {
+  free: 'Free',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+};
 
-  return [
-    {
-      label: 'Workspace',
-      value: workspace,
-      hint: 'Active tenant context',
-      icon: BriefcaseBusiness,
-    },
-    {
-      label: 'Role',
-      value: role.charAt(0).toUpperCase() + role.slice(1),
-      hint: roleHints[role] ?? 'Workspace member',
-      icon: UserCog,
-    },
-    {
-      label: 'Plan',
-      value: 'Research Pro',
-      hint: '428 credits remain this cycle',
-      icon: Sparkles,
-    },
-    {
-      label: 'Security',
-      value: 'Protected',
-      hint: 'Audit and encryption active',
-      icon: ShieldCheck,
-    },
-    {
-      label: 'API Access',
-      value: '2 tokens',
-      hint: 'OpenAI and Anthropic ready',
-      icon: KeyRound,
-    },
-  ];
+const ROLE_HINTS: Record<string, string> = {
+  admin: 'Full governance access',
+  user: 'Standard workspace access',
+  viewer: 'Read-only access',
+};
+
+function formatLastSignIn(value: string | null | undefined): string {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 }
-
-const SETTINGS_CARDS: SettingsCardItem[] = [
-  {
-    title: 'Profile & Preferences',
-    description: 'Identity, timezone, display defaults, and notification tone.',
-    summary:
-      'Primary email, profile defaults, and personal workspace behavior.',
-    href: '#personal-preferences',
-    cta: 'Jump to personal controls',
-    icon: UserCircle2,
-    accent: 'bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]',
-  },
-  {
-    title: 'Workspace & Access',
-    description: 'Tenant identity, members, roles, and collaboration controls.',
-    summary: 'Manage workspace context, membership, and administrative access.',
-    href: '/settings/organization',
-    cta: 'Open Workspace & Access',
-    icon: BriefcaseBusiness,
-    accent: 'bg-sky-500/10 text-sky-400',
-  },
-  {
-    title: 'Security & Compliance',
-    description:
-      'Authentication posture, audit controls, and policy readiness.',
-    summary:
-      'Review session protection, audit posture, and governance controls.',
-    href: '/settings/organization',
-    cta: 'Open Security & Compliance',
-    icon: ShieldCheck,
-    accent: 'bg-emerald-500/10 text-emerald-400',
-  },
-  {
-    title: 'Usage & Billing',
-    description: 'Plan tier, compute consumption, storage, and renewal timing.',
-    summary: 'Track credits, document capacity, and billing visibility.',
-    href: '/settings/organization',
-    cta: 'Open Usage & Billing',
-    icon: CreditCard,
-    accent: 'bg-amber-500/10 text-amber-400',
-  },
-  {
-    title: 'Developer Access',
-    description: 'Token inventory, provider readiness, and scope visibility.',
-    summary: 'Manage API access, token rotation, and developer credentials.',
-    href: '/settings/api-keys',
-    cta: 'Open Developer Access',
-    icon: KeyRound,
-    accent: 'bg-violet-500/10 text-violet-400',
-  },
-  {
-    title: 'Connected Systems',
-    description: 'Provider connectivity and external integration readiness.',
-    summary: 'See which model and integration surfaces are ready to use.',
-    href: '/settings/api-keys',
-    cta: 'Open Connected Systems',
-    icon: Workflow,
-    accent: 'bg-cyan-500/10 text-cyan-400',
-  },
-];
 
 const PREFERENCE_ITEMS = [
   {
@@ -168,25 +79,81 @@ const PREFERENCE_ITEMS = [
   },
 ] as const;
 
-const TRUST_ITEMS = ['Audit active', 'Encrypted', 'Admin access'];
-
 export default function SettingsPage(): ReactElement {
-  const { user } = useAuth();
+  const { user, organization } = useAuth();
   const [preferences, setPreferences] = useState({
     compactMode: false,
     emailNotifications: true,
     desktopNotifications: true,
   });
 
-  const primaryEmail = user?.email ?? 'Not provided';
-  const operatorName =
-    primaryEmail === 'Not provided' ? 'Operator' : primaryEmail.split('@')[0];
+  const realName = user?.name?.trim();
+  const primaryEmail = user?.email ?? '';
+  const accountName = realName || primaryEmail || 'Your account';
+  // Avoid repeating the email when it is also standing in as the display name.
+  const showEmailLine = Boolean(primaryEmail) && accountName !== primaryEmail;
+  const accountInitial = accountName.charAt(0).toUpperCase() || '?';
 
-  const STATUS_ITEMS = buildStatusItems(
-    user?.role || 'user',
-    'Default Workspace'
-  );
-  const operatorInitial = operatorName.charAt(0).toUpperCase();
+  const role = user?.role;
+  const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : '';
+
+  const workspaceName = organization?.name?.trim() ?? '';
+  const planLabel = organization?.plan ? PLAN_LABELS[organization.plan] : '';
+  const lastSignIn = formatLastSignIn(user?.last_login);
+
+  const statusItems: SettingsStatusItem[] = [
+    {
+      label: 'Workspace',
+      value: workspaceName || 'No workspace connected',
+      hint: workspaceName
+        ? 'Active workspace'
+        : 'Connect a workspace to manage members',
+      connected: Boolean(workspaceName),
+      icon: BriefcaseBusiness,
+    },
+    {
+      label: 'Role',
+      value: roleLabel || 'Unknown',
+      hint: role ? (ROLE_HINTS[role] ?? 'Workspace member') : 'Sign in to view',
+      connected: Boolean(role),
+      icon: UserCog,
+    },
+    {
+      label: 'Plan',
+      value: planLabel || 'Not connected',
+      hint: planLabel
+        ? 'Current workspace plan'
+        : 'No billing source linked yet',
+      connected: Boolean(planLabel),
+      icon: BriefcaseBusiness,
+    },
+    {
+      label: 'API access',
+      value: 'No tokens yet',
+      hint: 'Create a token in developer access',
+      connected: false,
+      icon: KeyRound,
+    },
+  ];
+
+  const settingsCards: SettingsCardItem[] = [
+    {
+      title: 'Workspace and organization',
+      description:
+        'Workspace identity, members, roles, billing, and security posture.',
+      href: '/settings/organization',
+      cta: 'Open workspace settings',
+      icon: BriefcaseBusiness,
+    },
+    {
+      title: 'Developer access',
+      description:
+        'API tokens, provider connections, and credential management.',
+      href: '/settings/api-keys',
+      cta: 'Open developer access',
+      icon: KeyRound,
+    },
+  ];
 
   const togglePreference = (key: PreferenceKey, checked: boolean): void => {
     setPreferences((current) => ({
@@ -197,7 +164,7 @@ export default function SettingsPage(): ReactElement {
 
   return (
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
-      <header className="space-y-3">
+      <header className="space-y-5">
         <div className="space-y-3">
           <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
             Settings
@@ -209,77 +176,62 @@ export default function SettingsPage(): ReactElement {
         </div>
 
         <Card className="overflow-hidden rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
-          <CardContent className="grid gap-4 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <CardContent className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="flex items-start gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--nous-border-1)] bg-[linear-gradient(180deg,rgba(212,160,57,0.16),rgba(212,160,57,0.04))] text-lg font-semibold text-[var(--nous-fg-1)]">
-                {operatorInitial}
+              <div
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-sol-glow)] text-lg font-semibold text-[var(--nous-fg-1)]"
+                aria-hidden="true"
+              >
+                {accountInitial}
               </div>
-              <div className="space-y-2">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
-                      {operatorName}
-                    </p>
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
+                    {accountName}
+                  </p>
+                  {roleLabel ? (
                     <span className="inline-flex items-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-2.5 py-1 text-xs font-medium text-[var(--nous-fg-1)]">
-                      Administrator
+                      {roleLabel}
                     </span>
-                  </div>
+                  ) : null}
+                </div>
+                {showEmailLine ? (
                   <p className="text-sm text-[var(--nous-fg-3)]">
                     {primaryEmail}
                   </p>
-                </div>
+                ) : !primaryEmail ? (
+                  <p className="text-sm text-[var(--nous-fg-3)]">
+                    No email on file
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="grid gap-3 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] p-3.5 sm:p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--nous-fg-3)]">
-                    Last sign-in
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
-                    <Clock3 className="h-4 w-4 text-[var(--nous-sol)]" />
-                    Today at 09:10
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-[var(--nous-fg-3)]">
-                    Session trust
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
-                    <BadgeCheck className="h-4 w-4 text-[var(--nous-sol)]" />
-                    Verified operator context
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {TRUST_ITEMS.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-3 py-1 text-xs font-medium text-[var(--nous-fg-1)]"
-                  >
-                    {item}
-                  </span>
-                ))}
+            <div className="grid gap-2 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] p-3.5 sm:p-4">
+              <p className="text-xs font-medium text-[var(--nous-fg-3)]">
+                Last sign-in
+              </p>
+              <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
+                <Clock3
+                  className="h-4 w-4 text-[var(--nous-sol)]"
+                  aria-hidden="true"
+                />
+                {lastSignIn || 'Not recorded yet'}
               </div>
             </div>
           </CardContent>
         </Card>
       </header>
 
-      <section className="space-y-3" aria-labelledby="settings-status-title">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--nous-sol)]" />
-          <h2
-            id="settings-status-title"
-            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]"
-          >
-            OPERATING_STATUS
-          </h2>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {STATUS_ITEMS.map((item) => {
+      <section className="space-y-4" aria-labelledby="settings-status-title">
+        <h2
+          id="settings-status-title"
+          className="text-base font-semibold text-[var(--nous-fg-1)]"
+        >
+          Account overview
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {statusItems.map((item) => {
             const Icon = item.icon;
 
             return (
@@ -288,23 +240,27 @@ export default function SettingsPage(): ReactElement {
                 className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
               >
                 <CardContent className="space-y-2 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--nous-bg-1)] text-[var(--nous-sol)]">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--nous-fg-3)]">
-                        {item.label}
-                      </p>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                      aria-hidden="true"
+                    >
+                      <Icon className="h-4 w-4" />
                     </div>
-                    <span className="h-2 w-2 rounded-full bg-[var(--nous-sol)]" />
+                    <p className="text-sm font-medium text-[var(--nous-fg-2)]">
+                      {item.label}
+                    </p>
                   </div>
-                  <p className="text-xl font-semibold leading-tight text-[var(--nous-fg-1)]">
+                  <p
+                    className={`text-lg font-semibold leading-tight ${
+                      item.connected
+                        ? 'text-[var(--nous-fg-1)]'
+                        : 'text-[var(--nous-fg-3)]'
+                    }`}
+                  >
                     {item.value}
                   </p>
-                  <p className="text-sm text-[var(--nous-fg-3)]">
-                    {item.hint}
-                  </p>
+                  <p className="text-sm text-[var(--nous-fg-3)]">{item.hint}</p>
                 </CardContent>
               </Card>
             );
@@ -312,27 +268,45 @@ export default function SettingsPage(): ReactElement {
         </div>
       </section>
 
-      <section className="space-y-3" aria-labelledby="settings-areas-title">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-[var(--nous-sol)]" />
-          <h2
-            id="settings-areas-title"
-            className="text-sm font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]"
-          >
-            SETTINGS_AREAS
-          </h2>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-          {SETTINGS_CARDS.map((item) => {
+      <section className="space-y-4" aria-labelledby="settings-areas-title">
+        <h2
+          id="settings-areas-title"
+          className="text-base font-semibold text-[var(--nous-fg-1)]"
+        >
+          Settings areas
+        </h2>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none lg:col-span-2">
+            <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                  aria-hidden="true"
+                >
+                  <UserCircle2 className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
+                    Profile and preferences
+                  </p>
+                  <p className="text-sm leading-6 text-[var(--nous-fg-3)]">
+                    Identity, display defaults, and notification preferences for
+                    your account.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="#personal-preferences"
+                className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded-md"
+              >
+                Jump to personal controls
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </CardContent>
+          </Card>
+
+          {settingsCards.map((item) => {
             const Icon = item.icon;
-            const actionClassName =
-              'inline-flex items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)]';
-            const actionContent = (
-              <>
-                {item.cta}
-                <ArrowRight className="h-4 w-4" />
-              </>
-            );
 
             return (
               <Card
@@ -340,12 +314,11 @@ export default function SettingsPage(): ReactElement {
                 className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
               >
                 <CardHeader className="space-y-3 p-5 pb-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.accent}`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                    aria-hidden="true"
+                  >
+                    <Icon className="h-5 w-5" />
                   </div>
                   <div className="space-y-2">
                     <CardTitle className="text-xl text-[var(--nous-fg-1)]">
@@ -356,20 +329,15 @@ export default function SettingsPage(): ReactElement {
                     </p>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3 p-5 pt-0">
-                  <p className="text-sm leading-6 text-[var(--nous-fg-1)]">
-                    {item.summary}
-                  </p>
-                  <div className="border-t border-[var(--nous-border-1)] pt-2">
-                    {item.href.startsWith('#') ? (
-                      <a href={item.href} className={actionClassName}>
-                        {actionContent}
-                      </a>
-                    ) : (
-                      <Link href={item.href} className={actionClassName}>
-                        {actionContent}
-                      </Link>
-                    )}
+                <CardContent className="p-5 pt-0">
+                  <div className="border-t border-[var(--nous-border-1)] pt-3">
+                    <Link
+                      href={item.href}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded-md"
+                    >
+                      {item.cta}
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -386,24 +354,21 @@ export default function SettingsPage(): ReactElement {
         <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
           <CardHeader className="space-y-2 p-5 pb-2">
             <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4 text-[var(--nous-sol)]" />
-              <p className="text-xs font-mono uppercase tracking-[0.24em] text-[var(--nous-sol)]">
-                PERSONAL_CONTROLS
-              </p>
-            </div>
-            <div className="space-y-2">
+              <Bell
+                className="h-4 w-4 text-[var(--nous-sol)]"
+                aria-hidden="true"
+              />
               <CardTitle
                 id="personal-preferences-title"
                 className="text-2xl text-[var(--nous-fg-1)]"
               >
-                Personal Preferences
+                Personal preferences
               </CardTitle>
-              <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
-                Keep quick personal defaults on the overview page. These
-                controls stay local in this pass and do not write to backend
-                settings yet.
-              </p>
             </div>
+            <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
+              Quick personal defaults for this overview. These controls stay
+              local in this pass and do not write to backend settings yet.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4 p-5 pt-0">
             {PREFERENCE_ITEMS.map((item, index) => (

@@ -36,24 +36,20 @@ describe('Settings page', () => {
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Role')).toBeInTheDocument();
     expect(screen.getByText('Plan')).toBeInTheDocument();
-    expect(screen.getByText('Security')).toBeInTheDocument();
-    expect(screen.getByText('API Access')).toBeInTheDocument();
-    expect(screen.getByText('Profile & Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Workspace & Access')).toBeInTheDocument();
-    expect(screen.getByText('Security & Compliance')).toBeInTheDocument();
-    expect(screen.getByText('Usage & Billing')).toBeInTheDocument();
-    expect(screen.getByText('Developer Access')).toBeInTheDocument();
-    expect(screen.getByText('Connected Systems')).toBeInTheDocument();
+    expect(screen.getByText('API access')).toBeInTheDocument();
+    expect(screen.getByText('Profile and preferences')).toBeInTheDocument();
+    expect(screen.getByText('Workspace and organization')).toBeInTheDocument();
+    expect(screen.getByText('Developer access')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: /open workspace & access/i })
+      screen.getByRole('link', { name: /open workspace settings/i })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /open developer access/i })
     ).toBeInTheDocument();
     expect(screen.getByText(/last sign-in/i)).toBeInTheDocument();
-    expect(screen.getByText('Audit active')).toBeInTheDocument();
-    expect(screen.getByText('Encrypted')).toBeInTheDocument();
-    expect(screen.getByText('Admin access')).toBeInTheDocument();
+    // Honest empty states replace fabricated status values.
+    expect(screen.getByText('No workspace connected')).toBeInTheDocument();
+    expect(screen.getByText('No tokens yet')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /jump to personal controls/i })
     ).toHaveAttribute('href', '#personal-preferences');
