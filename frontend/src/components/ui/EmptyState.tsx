@@ -50,7 +50,7 @@ export function EmptyState({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.3 }}
-        className="text-sm font-mono font-semibold text-[var(--nous-fg-1)] tracking-wider mb-1.5"
+        className="mb-1.5 text-sm font-semibold text-foreground"
       >
         {title}
       </motion.h3>
@@ -58,7 +58,7 @@ export function EmptyState({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2, duration: 0.3 }}
-        className="text-xs font-mono text-muted-foreground max-w-xs leading-relaxed"
+        className="max-w-xs text-sm leading-relaxed text-muted-foreground"
       >
         {description}
       </motion.p>
@@ -74,7 +74,7 @@ export function EmptyState({
               asChild
               variant={action.variant || 'outline'}
               size="sm"
-              className="font-mono text-xs tracking-wider"
+              className="text-xs"
             >
               <Link href={action.href}>{action.label}</Link>
             </Button>
@@ -83,7 +83,7 @@ export function EmptyState({
               variant={action.variant || 'outline'}
               size="sm"
               onClick={action.onClick}
-              className="font-mono text-xs tracking-wider"
+              className="text-xs"
             >
               {action.label}
             </Button>

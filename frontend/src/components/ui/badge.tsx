@@ -22,9 +22,11 @@ const badgeVariants = cva(
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground',
-        success: 'border-transparent bg-emerald-500/15 text-emerald-400',
-        warning: 'border-transparent bg-amber-500/15 text-amber-400',
-        info: 'border-transparent bg-sky-500/15 text-sky-400',
+        success:
+          'border-transparent bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]',
+        warning:
+          'border-transparent bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]',
+        info: 'border-transparent bg-muted text-muted-foreground',
         accent:
           'border-transparent bg-[var(--nous-sol)] text-white hover:bg-[var(--nous-helios)]',
         muted:
