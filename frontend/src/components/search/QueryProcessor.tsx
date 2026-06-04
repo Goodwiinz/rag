@@ -64,13 +64,13 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
   const getStatusColor = () => {
     switch (status) {
       case 'in_progress':
-        return 'text-blue-600 border-blue-200 bg-blue-50';
+        return 'text-[var(--nous-fg-accent-safe)] border-[var(--nous-sol)] bg-[var(--nous-sol)]/10';
       case 'completed':
-        return 'text-green-600 border-green-200 bg-green-50';
+        return 'text-[var(--nous-terra)] border-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'failed':
-        return 'text-red-600 border-red-200 bg-red-50';
+        return 'text-[var(--nous-mars)] border-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-muted-foreground border-border bg-gray-50';
+        return 'text-muted-foreground border-border bg-[var(--nous-bg-2)]';
     }
   };
 
@@ -78,12 +78,12 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
     switch (status) {
       case 'in_progress':
         return (
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
         );
       case 'completed':
-        return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
+        return <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />;
       case 'failed':
-        return <XCircleIcon className="h-4 w-4 text-red-600" />;
+        return <XCircleIcon className="h-4 w-4 text-[var(--nous-mars)]" />;
       default:
         return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
     }
@@ -108,7 +108,9 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
             <span className="text-xs text-foreground">{duration}ms</span>
           )}
           {error && (
-            <Badge className="bg-red-100 text-red-800 text-xs">Error</Badge>
+            <Badge className="bg-[var(--nous-mars)]/15 text-[var(--nous-mars)] text-xs">
+              Error
+            </Badge>
           )}
         </div>
       </div>
@@ -117,7 +119,7 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
         <Progress value={progress} className="h-1" />
       )}
 
-      {error && <p className="text-xs text-red-700 mt-1">{error}</p>}
+      {error && <p className="text-xs text-[var(--nous-mars)] mt-1">{error}</p>}
     </div>
   );
 };
@@ -582,16 +584,17 @@ export const QueryProcessor: React.FC<QueryProcessorProps> = ({
   };
 
   const getProcessingIcon = () => {
-    if (isPaused) return <PauseIcon className="h-5 w-5 text-yellow-600" />;
+    if (isPaused)
+      return <PauseIcon className="h-5 w-5 text-[var(--nous-corona)]" />;
     if (isRunning)
       return (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
       );
     if (processingState.current_stage === 'completed')
-      return <CheckCircleIcon className="h-5 w-5 text-green-600" />;
+      return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
     if (processingState.current_stage === 'failed')
-      return <XCircleIcon className="h-5 w-5 text-red-600" />;
-    return <BoltIcon className="h-5 w-5 text-blue-600" />;
+      return <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
+    return <BoltIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />;
   };
 
   if (!query) {
@@ -680,8 +683,10 @@ export const QueryProcessor: React.FC<QueryProcessorProps> = ({
           </div>
 
           {processingState.error && (
-            <div className="mt-4 p-3 bg-red-50 rounded-lg">
-              <p className="text-sm text-red-800">{processingState.error}</p>
+            <div className="mt-4 p-3 bg-[var(--nous-mars)]/10 rounded-lg">
+              <p className="text-sm text-[var(--nous-mars)]">
+                {processingState.error}
+              </p>
             </div>
           )}
         </CardContent>

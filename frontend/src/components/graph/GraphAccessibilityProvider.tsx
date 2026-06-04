@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
 } from 'react';
 import { GraphNode, GraphEdge } from '../../types/graph-api';
 
@@ -230,25 +231,46 @@ export const GraphAccessibilityProvider: React.FC<
     return colorBlindPalettes[colorBlindMode];
   }, [colorBlindMode]);
 
-  const contextValue: AccessibilityContextValue = {
-    highContrastMode,
-    toggleHighContrast,
-    focusedNodeId,
-    focusedEdgeId,
-    setFocusedNode: setFocusedNodeId,
-    setFocusedEdge: setFocusedEdgeId,
-    navigateGraph,
-    announceToScreenReader,
-    getAccessibleNodeDescription,
-    getAccessibleEdgeDescription,
-    fontSize,
-    setFontSize,
-    reducedMotion,
-    toggleReducedMotion,
-    colorBlindMode,
-    setColorBlindMode,
-    getColorBlindPalette,
-  };
+  const contextValue: AccessibilityContextValue = useMemo(
+    () => ({
+      highContrastMode,
+      toggleHighContrast,
+      focusedNodeId,
+      focusedEdgeId,
+      setFocusedNode: setFocusedNodeId,
+      setFocusedEdge: setFocusedEdgeId,
+      navigateGraph,
+      announceToScreenReader,
+      getAccessibleNodeDescription,
+      getAccessibleEdgeDescription,
+      fontSize,
+      setFontSize,
+      reducedMotion,
+      toggleReducedMotion,
+      colorBlindMode,
+      setColorBlindMode,
+      getColorBlindPalette,
+    }),
+    [
+      highContrastMode,
+      toggleHighContrast,
+      focusedNodeId,
+      focusedEdgeId,
+      setFocusedNodeId,
+      setFocusedEdgeId,
+      navigateGraph,
+      announceToScreenReader,
+      getAccessibleNodeDescription,
+      getAccessibleEdgeDescription,
+      fontSize,
+      setFontSize,
+      reducedMotion,
+      toggleReducedMotion,
+      colorBlindMode,
+      setColorBlindMode,
+      getColorBlindPalette,
+    ]
+  );
 
   return (
     <AccessibilityContext.Provider value={contextValue}>
@@ -370,7 +392,7 @@ export const AccessibleGraphNode: React.FC<{
       tabIndex={isFocused ? 0 : -1}
       aria-label={getAccessibleNodeDescription(node)}
       aria-describedby={`node-${node.id}-details`}
-      className={`graph-node ${className} ${isFocused ? 'ring-2 ring-blue-500' : ''}`}
+      className={`graph-node ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       style={{
@@ -430,7 +452,7 @@ export const AccessibleGraphEdge: React.FC<{
       role="button"
       tabIndex={isFocused ? 0 : -1}
       aria-label={getAccessibleEdgeDescription(edge)}
-      className={`graph-edge ${className} ${isFocused ? 'ring-2 ring-blue-500' : ''}`}
+      className={`graph-edge ${className} ${isFocused ? 'ring-2 ring-[var(--nous-sol)]' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       style={{
@@ -456,7 +478,7 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
   } = useGraphAccessibility();
 
   return (
-    <div className={`p-4 bg-gray-50 rounded-lg ${className}`}>
+    <div className={`p-4 bg-[var(--nous-bg-2)] rounded-lg ${className}`}>
       <h3 className="text-lg font-semibold mb-4">Accessibility Options</h3>
 
       <div className="space-y-4">
@@ -471,12 +493,14 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
             role="switch"
             aria-checked={highContrastMode}
             onClick={toggleHighContrast}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              highContrastMode ? 'bg-blue-600' : 'bg-gray-200'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              highContrastMode
+                ? 'bg-[var(--nous-sol)]'
+                : 'bg-[var(--nous-bg-3)]'
             }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
                 highContrastMode ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
@@ -491,10 +515,10 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
               <button
                 key={size}
                 onClick={() => setFontSize(size)}
-                className={`px-3 py-1 rounded text-sm ${
+                className={`px-3 py-1 min-h-11 rounded text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   fontSize === size
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-foreground hover:bg-gray-300'
+                    ? 'bg-[var(--nous-sol)] text-white'
+                    : 'bg-[var(--nous-bg-2)] text-foreground hover:bg-[var(--nous-bg-3)]'
                 }`}
               >
                 {size.charAt(0).toUpperCase() + size.slice(1)}
@@ -514,12 +538,12 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
             role="switch"
             aria-checked={reducedMotion}
             onClick={toggleReducedMotion}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              reducedMotion ? 'bg-blue-600' : 'bg-gray-200'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              reducedMotion ? 'bg-[var(--nous-sol)]' : 'bg-[var(--nous-bg-3)]'
             }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
                 reducedMotion ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
@@ -538,10 +562,10 @@ export const AccessibilityControls: React.FC<{ className?: string }> = ({
               <button
                 key={mode}
                 onClick={() => setColorBlindMode(mode)}
-                className={`px-3 py-1 rounded text-sm capitalize ${
+                className={`px-3 py-1 min-h-11 rounded text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   colorBlindMode === mode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-foreground hover:bg-gray-300'
+                    ? 'bg-[var(--nous-sol)] text-white'
+                    : 'bg-[var(--nous-bg-2)] text-foreground hover:bg-[var(--nous-bg-3)]'
                 }`}
               >
                 {mode === 'normal' ? 'Normal' : mode}

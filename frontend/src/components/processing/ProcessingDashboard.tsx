@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   ChartBarIcon,
   ClockIcon,
@@ -154,16 +160,22 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
     }
   }, [queueItems, selectedFilter]);
 
+  // Keep a stable ref to the latest stats so the sampling interval can read
+  // current values without being torn down and recreated on every change.
+  const processingStatsRef = useRef(processingStats);
+  processingStatsRef.current = processingStats;
+
   // Update time series data
   useEffect(() => {
     if (!isPaused && autoRefresh) {
       const interval = setInterval(() => {
         const now = Date.now();
+        const currentStats = processingStatsRef.current;
         const dataPoint: TimeSeriesData = {
           timestamp: now,
-          completed: processingStats.completedFiles,
-          failed: processingStats.failedFiles,
-          processing: processingStats.processingFiles,
+          completed: currentStats.completedFiles,
+          failed: currentStats.failedFiles,
+          processing: currentStats.processingFiles,
         };
 
         setTimeSeriesData((prev) => {
@@ -176,7 +188,7 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
       return () => clearInterval(interval);
     }
     return undefined;
-  }, [isPaused, autoRefresh, refreshInterval, processingStats]);
+  }, [isPaused, autoRefresh, refreshInterval]);
 
   // Handle WebSocket updates
   useEffect(() => {
@@ -210,15 +222,15 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
   const getStatusColor = useCallback((status: UploadQueueItem['status']) => {
     switch (status) {
       case 'completed':
-        return 'text-green-600 bg-green-50';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'processing':
-        return 'text-blue-600 bg-blue-50';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10';
       case 'pending':
-        return 'text-foreground bg-gray-50';
+        return 'text-foreground bg-[var(--nous-bg-2)]';
       case 'error':
-        return 'text-red-600 bg-red-50';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-foreground bg-gray-50';
+        return 'text-foreground bg-[var(--nous-bg-2)]';
     }
   }, []);
 
@@ -257,11 +269,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                 {processingStats.processingFiles}
               </p>
             </div>
-            <ArrowPathIcon className="h-8 w-8 text-blue-600 animate-spin" />
+            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)] animate-spin" />
           </div>
         </div>
 
@@ -269,11 +281,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-2xl font-bold text-[var(--nous-terra)]">
                 {processingStats.completedFiles}
               </p>
             </div>
-            <CheckCircleIcon className="h-8 w-8 text-green-600" />
+            <CheckCircleIcon className="h-8 w-8 text-[var(--nous-terra)]" />
           </div>
         </div>
 
@@ -281,11 +293,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Failed</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-2xl font-bold text-[var(--nous-mars)]">
                 {processingStats.failedFiles}
               </p>
             </div>
-            <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+            <ExclamationTriangleIcon className="h-8 w-8 text-[var(--nous-mars)]" />
           </div>
         </div>
       </div>

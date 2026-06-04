@@ -94,33 +94,37 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     queued: {
       icon: ClockIcon,
       color: 'text-muted-foreground',
-      bgColor: 'bg-gray-100',
+      bgColor: 'bg-[var(--nous-bg-3)]',
     },
     uploading: {
       icon: ArrowPathIcon,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-100',
+      color: 'text-[var(--nous-fg-accent-safe)]',
+      bgColor: 'bg-[var(--nous-sol)]/15',
     },
     processing: {
       icon: ArrowPathIcon,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-100',
+      color: 'text-[var(--nous-fg-accent-safe)]',
+      bgColor: 'bg-[var(--nous-sol)]/15',
     },
     completed: {
       icon: CheckCircleIcon,
-      color: 'text-green-500',
-      bgColor: 'bg-green-100',
+      color: 'text-[var(--nous-terra)]',
+      bgColor: 'bg-[var(--nous-terra)]/15',
     },
-    failed: { icon: XCircleIcon, color: 'text-red-500', bgColor: 'bg-red-100' },
+    failed: {
+      icon: XCircleIcon,
+      color: 'text-[var(--nous-mars)]',
+      bgColor: 'bg-[var(--nous-mars)]/15',
+    },
     paused: {
       icon: PauseIcon,
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-100',
+      color: 'text-[var(--nous-corona)]',
+      bgColor: 'bg-[var(--nous-corona)]/15',
     },
     cancelled: {
       icon: XMarkIcon,
       color: 'text-muted-foreground',
-      bgColor: 'bg-gray-100',
+      bgColor: 'bg-[var(--nous-bg-3)]',
     },
   };
 
@@ -170,7 +174,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
-          className="text-blue-500 transition-all duration-500 ease-out"
+          className="text-[var(--nous-fg-accent-safe)] transition-all duration-500 ease-out"
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
@@ -199,12 +203,12 @@ const StageProgress: React.FC<StageProgressProps> = ({
               className={cn(
                 'flex-1 h-1 rounded-full transition-all duration-300',
                 isCompleted
-                  ? 'bg-green-500'
+                  ? 'bg-[var(--nous-terra)]'
                   : hasError
-                    ? 'bg-red-500'
+                    ? 'bg-[var(--nous-mars)]'
                     : isActive
-                      ? 'bg-blue-500'
-                      : 'bg-gray-200'
+                      ? 'bg-[var(--nous-sol)]'
+                      : 'bg-[var(--nous-bg-3)]'
               )}
               title={stage.name}
             />
@@ -227,11 +231,11 @@ const StageProgress: React.FC<StageProgressProps> = ({
               className={cn(
                 'w-4 h-4 rounded-full border-2 flex items-center justify-center',
                 isCompleted
-                  ? 'border-green-500 bg-green-500'
+                  ? 'border-[var(--nous-terra)] bg-[var(--nous-terra)]'
                   : hasError
-                    ? 'border-red-500 bg-red-500'
+                    ? 'border-[var(--nous-mars)] bg-[var(--nous-mars)]'
                     : isActive
-                      ? 'border-blue-500 bg-blue-500'
+                      ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]'
                       : 'border-border'
               )}
             >
@@ -254,7 +258,9 @@ const StageProgress: React.FC<StageProgressProps> = ({
                 <span
                   className={cn(
                     'text-sm font-medium',
-                    isActive ? 'text-blue-600' : 'text-foreground'
+                    isActive
+                      ? 'text-[var(--nous-fg-accent-safe)]'
+                      : 'text-foreground'
                   )}
                 >
                   {stage.name}
@@ -266,9 +272,9 @@ const StageProgress: React.FC<StageProgressProps> = ({
                 </span>
               </div>
               {isActive && (
-                <div className="mt-1 w-full bg-gray-200 rounded-full h-1">
+                <div className="mt-1 w-full bg-[var(--nous-bg-3)] rounded-full h-1">
                   <div
-                    className="bg-blue-500 h-1 rounded-full transition-all duration-300"
+                    className="bg-[var(--nous-sol)] h-1 rounded-full transition-all duration-300"
                     style={{ width: `${stage.progress}%` }}
                   />
                 </div>
@@ -304,8 +310,8 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={cn(
-        'bg-white rounded-lg border border-border shadow-sm hover:shadow-md transition-all duration-200',
-        selected && 'ring-2 ring-blue-500 ring-offset-2',
+        'bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-all duration-200',
+        selected && 'ring-2 ring-[var(--nous-sol)] ring-offset-2',
         compact ? 'p-3' : 'p-4'
       )}
     >
@@ -336,7 +342,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 type="checkbox"
                 checked={selected}
                 onChange={() => onSelect(document.id)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
+                className="h-4 w-4 text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] border-border rounded"
               />
             </div>
           </div>
@@ -354,7 +360,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
               <span>{formatDuration(document.metadata.duration)}</span>
             )}
             {document.retryCount > 0 && (
-              <span className="text-yellow-600">
+              <span className="text-[var(--nous-corona)]">
                 Retry {document.retryCount}
               </span>
             )}
@@ -381,7 +387,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
 
           {/* Error display */}
           {document.error && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+            <div className="mt-2 p-2 bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/30 rounded text-xs text-[var(--nous-mars)]">
               {document.error}
             </div>
           )}
@@ -391,7 +397,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.pause && document.status === 'processing' && (
               <IconButton
                 onClick={() => handleAction(() => onPause(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-yellow-600 hover:bg-yellow-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-corona)] hover:bg-[var(--nous-corona)]/10 rounded"
                 label="Pause"
                 icon={<PauseIcon className="h-4 w-4" />}
               />
@@ -399,7 +405,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.resume && document.status === 'paused' && (
               <IconButton
                 onClick={() => handleAction(() => onResume(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-terra)] hover:bg-[var(--nous-terra)]/10 rounded"
                 label="Resume"
                 icon={<PlayIcon className="h-4 w-4" />}
               />
@@ -407,7 +413,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.retry && document.status === 'failed' && (
               <IconButton
                 onClick={() => handleAction(() => onRetry(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-fg-accent-safe)] hover:bg-[var(--nous-sol)]/10 rounded"
                 label="Retry"
                 icon={<ArrowPathIcon className="h-4 w-4" />}
               />
@@ -417,7 +423,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 document.status === 'processing') && (
                 <IconButton
                   onClick={() => handleAction(() => onCancel(document.id))}
-                  className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded"
+                  className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/10 rounded"
                   label="Cancel"
                   icon={<XMarkIcon className="h-4 w-4" />}
                 />
@@ -465,11 +471,35 @@ export const RealtimeStatusDashboard: React.FC<
 
   // Get data from store
   const queue = useRealtimeProcessingStore((state) => state.queue);
-  const selectedDocuments = useRealtimeProcessingStore((state) =>
-    state.getSelectedDocuments()
+
+  // Subscribe to the raw slices that feed the computed selectors so we only
+  // re-derive when these actually change, instead of on every store update
+  // (the getters return a fresh array on every websocket tick).
+  const documents = queue.documents;
+  const filters = queue.filters;
+  const pagination = queue.pagination;
+  const selectedDocumentIds = useRealtimeProcessingStore(
+    (state) => state.ui.selectedDocuments
   );
-  const filteredDocuments = useRealtimeProcessingStore((state) =>
-    state.getFilteredDocuments()
+  const getSelectedDocuments = useRealtimeProcessingStore(
+    (state) => state.getSelectedDocuments
+  );
+  const getFilteredDocuments = useRealtimeProcessingStore(
+    (state) => state.getFilteredDocuments
+  );
+
+  // Re-derive only when the underlying slices change. The getters read current
+  // state via get(), so the returned array contents/order are identical to a
+  // direct call — only the call frequency (and thus reference churn) changes.
+  const selectedDocuments = useMemo(
+    () => getSelectedDocuments(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getSelectedDocuments, documents, selectedDocumentIds]
+  );
+  const filteredDocuments = useMemo(
+    () => getFilteredDocuments(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getFilteredDocuments, documents, filters, pagination]
   );
 
   // Apply filters
@@ -532,22 +562,26 @@ export const RealtimeStatusDashboard: React.FC<
         className={cn(
           'flex items-center justify-between p-3 rounded-lg border',
           isConnected
-            ? 'bg-green-50 border-green-200'
-            : 'bg-red-50 border-red-200'
+            ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30'
+            : 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30'
         )}
       >
         <div className="flex items-center space-x-3">
           <SignalIcon
             className={cn(
               'h-5 w-5',
-              isConnected ? 'text-green-600' : 'text-red-600'
+              isConnected
+                ? 'text-[var(--nous-terra)]'
+                : 'text-[var(--nous-mars)]'
             )}
           />
           <div>
             <span
               className={cn(
                 'text-sm font-medium',
-                isConnected ? 'text-green-900' : 'text-red-900'
+                isConnected
+                  ? 'text-[var(--nous-terra)]'
+                  : 'text-[var(--nous-mars)]'
               )}
             >
               {connectionStatus.status === 'connected'
@@ -555,7 +589,7 @@ export const RealtimeStatusDashboard: React.FC<
                 : 'Disconnected'}
             </span>
             {connectionStatus.lastError && (
-              <p className="text-xs text-red-700">
+              <p className="text-xs text-[var(--nous-mars)]">
                 {connectionStatus.lastError}
               </p>
             )}
@@ -564,7 +598,7 @@ export const RealtimeStatusDashboard: React.FC<
         {!isConnected && (
           <button
             onClick={reconnect}
-            className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded"
+            className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>
@@ -573,7 +607,7 @@ export const RealtimeStatusDashboard: React.FC<
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
             <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
             <div>
@@ -585,72 +619,72 @@ export const RealtimeStatusDashboard: React.FC<
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <ClockIcon className="h-5 w-5 text-blue-400" />
+            <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
             <div>
               <p className="text-xs text-muted-foreground">Queued</p>
-              <p className="text-lg font-semibold text-blue-600">
+              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
                 {queue.summary.queued}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <ArrowPathIcon className="h-5 w-5 text-blue-400" />
+            <ArrowPathIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
             <div>
               <p className="text-xs text-muted-foreground">Processing</p>
-              <p className="text-lg font-semibold text-blue-600">
+              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
                 {queue.summary.processing}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <CheckCircleIcon className="h-5 w-5 text-green-400" />
+            <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />
             <div>
               <p className="text-xs text-muted-foreground">Completed</p>
-              <p className="text-lg font-semibold text-green-600">
+              <p className="text-lg font-semibold text-[var(--nous-terra)]">
                 {queue.summary.completed}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <XCircleIcon className="h-5 w-5 text-red-400" />
+            <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />
             <div>
               <p className="text-xs text-muted-foreground">Failed</p>
-              <p className="text-lg font-semibold text-red-600">
+              <p className="text-lg font-semibold text-[var(--nous-mars)]">
                 {queue.summary.failed}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <PauseIcon className="h-5 w-5 text-yellow-400" />
+            <PauseIcon className="h-5 w-5 text-[var(--nous-corona)]" />
             <div>
               <p className="text-xs text-muted-foreground">Paused</p>
-              <p className="text-lg font-semibold text-yellow-600">
+              <p className="text-lg font-semibold text-[var(--nous-corona)]">
                 {queue.summary.paused}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-border">
+        <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <div className="h-5 w-5 rounded-full bg-blue-500" />
+            <div className="h-5 w-5 rounded-full bg-[var(--nous-sol)]" />
             <div>
               <p className="text-xs text-muted-foreground">Success Rate</p>
-              <p className="text-lg font-semibold text-blue-600">
+              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
                 {queue.metrics.successRate.toFixed(1)}%
               </p>
             </div>
@@ -660,7 +694,7 @@ export const RealtimeStatusDashboard: React.FC<
 
       {/* Filters and Controls */}
       {showFilters && (
-        <div className="bg-white p-4 rounded-lg border border-border">
+        <div className="bg-card p-4 rounded-lg border border-border">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             {/* Search */}
             <div className="flex-1 max-w-md">
@@ -671,7 +705,7 @@ export const RealtimeStatusDashboard: React.FC<
                   placeholder="Search documents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
                 />
               </div>
             </div>
@@ -689,7 +723,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
               >
                 <option value="queued">Queued</option>
                 <option value="processing">Processing</option>
@@ -709,7 +743,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
               >
                 <option value="pdf">PDF</option>
                 <option value="txt">TXT</option>
@@ -727,7 +761,7 @@ export const RealtimeStatusDashboard: React.FC<
                 className={cn(
                   'h-8 w-8 rounded',
                   viewMode === 'list'
-                    ? 'bg-blue-100 text-blue-600'
+                    ? 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="List view"
@@ -738,7 +772,7 @@ export const RealtimeStatusDashboard: React.FC<
                 className={cn(
                   'h-8 w-8 rounded',
                   viewMode === 'grid'
-                    ? 'bg-blue-100 text-blue-600'
+                    ? 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="Grid view"
@@ -749,32 +783,32 @@ export const RealtimeStatusDashboard: React.FC<
 
           {/* Bulk actions */}
           {selectedDocuments.length > 0 && (
-            <div className="mt-4 flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm text-blue-900">
+            <div className="mt-4 flex items-center justify-between p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+              <span className="text-sm text-[var(--nous-fg-accent-safe)]">
                 {selectedDocuments.length} documents selected
               </span>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={pauseSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-corona)] bg-[var(--nous-corona)]/15 hover:bg-[var(--nous-corona)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Pause All
                 </button>
                 <button
                   onClick={resumeSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-terra)] bg-[var(--nous-terra)]/15 hover:bg-[var(--nous-terra)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Resume All
                 </button>
                 <button
                   onClick={cancelSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Cancel All
                 </button>
                 <button
                   onClick={retrySelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded"
+                  className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Retry All
                 </button>
@@ -785,7 +819,7 @@ export const RealtimeStatusDashboard: React.FC<
       )}
 
       {/* Document List */}
-      <div className="bg-white rounded-lg border border-border">
+      <div className="bg-card rounded-lg border border-border">
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">Documents</h2>
@@ -799,7 +833,7 @@ export const RealtimeStatusDashboard: React.FC<
                     filteredAndSearchedDocs.length > 0
                   }
                   onChange={handleSelectAll}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
+                  className="h-4 w-4 text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] border-border rounded"
                 />
                 <span className="text-sm text-foreground">Select All</span>
               </label>
@@ -813,7 +847,7 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div
           className={cn(
-            'divide-y divide-gray-200',
+            'divide-y divide-[var(--nous-border-1)]',
             viewMode === 'grid' &&
               'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4'
           )}
@@ -849,7 +883,7 @@ export const RealtimeStatusDashboard: React.FC<
 
       {/* System Metrics */}
       {showSystemMetrics && (
-        <div className="bg-white rounded-lg border border-border p-4">
+        <div className="bg-card rounded-lg border border-border p-4">
           <h3 className="text-lg font-semibold text-foreground mb-4">
             System Metrics
           </h3>

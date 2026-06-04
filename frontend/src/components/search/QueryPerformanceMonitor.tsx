@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ChartBarIcon,
   ClockIcon,
@@ -49,29 +49,32 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
   >('overview');
 
   const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-yellow-600';
-    if (score >= 70) return 'text-orange-600';
-    return 'text-red-600';
+    if (score >= 90) return 'text-[var(--nous-terra)]';
+    if (score >= 80) return 'text-[var(--nous-corona)]';
+    if (score >= 70) return 'text-[var(--nous-corona)]';
+    return 'text-[var(--nous-mars)]';
   };
 
   const getScoreBackground = (score: number) => {
-    if (score >= 90) return 'bg-green-100 text-green-800';
-    if (score >= 80) return 'bg-yellow-100 text-yellow-800';
-    if (score >= 70) return 'bg-orange-100 text-orange-800';
-    return 'bg-red-100 text-red-800';
+    if (score >= 90)
+      return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
+    if (score >= 80)
+      return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
+    if (score >= 70)
+      return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
+    return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
   };
 
   const getImpactColor = (impact: string) => {
     switch (impact) {
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'high':
-        return 'bg-red-100 text-red-800';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       default:
-        return 'bg-gray-100 text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]';
     }
   };
 
@@ -99,9 +102,9 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   aria-selected={activeTab === tab}
                   onClick={() => setActiveTab(tab as any)}
                   className={cn(
-                    'py-2 px-1 border-b-2 font-medium text-sm capitalize',
+                    'py-2 px-1 border-b-2 font-medium text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     activeTab === tab
-                      ? 'border-blue-500 text-blue-600'
+                      ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   )}
                 >
@@ -118,9 +121,9 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
             <div className="space-y-6">
               {/* Key Metrics */}
               <div className="grid grid-cols-4 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <ClockIcon className="h-5 w-5 text-blue-600" />
+                    <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <span
                       className={cn(
                         'text-sm font-medium',
@@ -134,15 +137,17 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           : 'Needs Improvement'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-blue-900">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                     {metrics.total_latency_ms}ms
                   </div>
-                  <div className="text-sm text-blue-700">Total Latency</div>
+                  <div className="text-sm text-[var(--nous-fg-accent-safe)]">
+                    Total Latency
+                  </div>
                 </div>
 
-                <div className="p-4 bg-green-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-terra)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <CheckCircleIcon className="h-5 w-5 text-green-600" />
+                    <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />
                     <span
                       className={cn(
                         'text-sm font-medium',
@@ -158,14 +163,16 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         : 'Fail'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-green-900">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)]">
                     {Math.round(
                       metrics.quality_metrics.rag_triad_compliance
                         .answer_relevancy
                     )}
                     %
                   </div>
-                  <div className="text-sm text-green-700">Answer Relevancy</div>
+                  <div className="text-sm text-[var(--nous-terra)]">
+                    Answer Relevancy
+                  </div>
                 </div>
 
                 <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
@@ -186,9 +193,9 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   </div>
                 </div>
 
-                <div className="p-4 bg-orange-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-corona)]/10 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
-                    <BoltIcon className="h-5 w-5 text-orange-600" />
+                    <BoltIcon className="h-5 w-5 text-[var(--nous-corona)]" />
                     <span
                       className={cn(
                         'text-sm font-medium',
@@ -200,10 +207,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         : 'High'}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-orange-900">
+                  <div className="text-2xl font-bold text-[var(--nous-corona)]">
                     {metrics.resource_usage.cpu_percent}%
                   </div>
-                  <div className="text-sm text-orange-700">CPU Usage</div>
+                  <div className="text-sm text-[var(--nous-corona)]">
+                    CPU Usage
+                  </div>
                 </div>
               </div>
 
@@ -229,17 +238,17 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         %
                       </Badge>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           metrics.quality_metrics.rag_triad_compliance
                             .answer_relevancy >= 90
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : metrics.quality_metrics.rag_triad_compliance
                                   .answer_relevancy >= 80
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${metrics.quality_metrics.rag_triad_compliance.answer_relevancy}%`,
@@ -264,17 +273,17 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         %
                       </Badge>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           metrics.quality_metrics.rag_triad_compliance
                             .faithfulness >= 90
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : metrics.quality_metrics.rag_triad_compliance
                                   .faithfulness >= 80
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${metrics.quality_metrics.rag_triad_compliance.faithfulness}%`,
@@ -301,17 +310,17 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         %
                       </Badge>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                       <div
                         className={cn(
                           'h-2 rounded-full',
                           metrics.quality_metrics.rag_triad_compliance
                             .contextual_relevancy >= 90
-                            ? 'bg-green-600'
+                            ? 'bg-[var(--nous-terra)]'
                             : metrics.quality_metrics.rag_triad_compliance
                                   .contextual_relevancy >= 80
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
+                              ? 'bg-[var(--nous-corona)]'
+                              : 'bg-[var(--nous-mars)]'
                         )}
                         style={{
                           width: `${metrics.quality_metrics.rag_triad_compliance.contextual_relevancy}%`,
@@ -410,10 +419,10 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           <Badge
                             className={cn(
                               latency < 100
-                                ? 'bg-green-100 text-green-800'
+                                ? 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]'
                                 : latency < 300
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
+                                  ? 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]'
+                                  : 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]'
                             )}
                           >
                             {latency < 100
@@ -424,15 +433,15 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           </Badge>
                         </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                         <div
                           className={cn(
                             'h-2 rounded-full',
                             latency < 100
-                              ? 'bg-green-600'
+                              ? 'bg-[var(--nous-terra)]'
                               : latency < 300
-                                ? 'bg-yellow-600'
-                                : 'bg-red-600'
+                                ? 'bg-[var(--nous-corona)]'
+                                : 'bg-[var(--nous-mars)]'
                           )}
                           style={{
                             width: `${Math.min((latency / 500) * 100, 100)}%`,
@@ -468,21 +477,21 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                     ).map(([metric, score]) => (
                       <div
                         key={metric}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg"
                       >
                         <span className="font-medium text-foreground capitalize">
                           {metric.replace('_', ' ')}
                         </span>
                         <div className="flex items-center space-x-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div className="w-24 bg-[var(--nous-bg-3)] rounded-full h-2">
                             <div
                               className={cn(
                                 'h-2 rounded-full',
                                 score >= 90
-                                  ? 'bg-green-600'
+                                  ? 'bg-[var(--nous-terra)]'
                                   : score >= 80
-                                    ? 'bg-yellow-600'
-                                    : 'bg-red-600'
+                                    ? 'bg-[var(--nous-corona)]'
+                                    : 'bg-[var(--nous-mars)]'
                               )}
                               style={{ width: `${score}%` }}
                             />
@@ -506,7 +515,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                     Additional Quality Metrics
                   </h4>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg">
                       <span className="font-medium text-foreground">
                         Hallucination Risk
                       </span>
@@ -519,7 +528,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                         %
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg">
                       <span className="font-medium text-foreground">
                         Confidence Score
                       </span>
@@ -545,23 +554,25 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               </h3>
 
               <div className="grid grid-cols-3 gap-6">
-                <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-sol)]/10 rounded-lg">
                   <div className="flex items-center space-x-2 mb-3">
-                    <CpuChipIcon className="h-5 w-5 text-blue-600" />
-                    <h4 className="font-medium text-blue-900">CPU Usage</h4>
+                    <CpuChipIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+                    <h4 className="font-medium text-[var(--nous-fg-accent-safe)]">
+                      CPU Usage
+                    </h4>
                   </div>
-                  <div className="text-2xl font-bold text-blue-900 mb-2">
+                  <div className="text-2xl font-bold text-[var(--nous-fg-accent-safe)] mb-2">
                     {metrics.resource_usage.cpu_percent}%
                   </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
                     <div
                       className={cn(
                         'h-2 rounded-full',
                         metrics.resource_usage.cpu_percent < 50
-                          ? 'bg-green-600'
+                          ? 'bg-[var(--nous-terra)]'
                           : metrics.resource_usage.cpu_percent < 80
-                            ? 'bg-yellow-600'
-                            : 'bg-red-600'
+                            ? 'bg-[var(--nous-corona)]'
+                            : 'bg-[var(--nous-mars)]'
                       )}
                       style={{
                         width: `${Math.min(metrics.resource_usage.cpu_percent, 100)}%`,
@@ -570,17 +581,19 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                   </div>
                 </div>
 
-                <div className="p-4 bg-green-50 rounded-lg">
+                <div className="p-4 bg-[var(--nous-terra)]/10 rounded-lg">
                   <div className="flex items-center space-x-2 mb-3">
-                    <CircleStackIcon className="h-5 w-5 text-green-600" />
-                    <h4 className="font-medium text-green-900">Memory Usage</h4>
+                    <CircleStackIcon className="h-5 w-5 text-[var(--nous-terra)]" />
+                    <h4 className="font-medium text-[var(--nous-terra)]">
+                      Memory Usage
+                    </h4>
                   </div>
-                  <div className="text-2xl font-bold text-green-900 mb-2">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)] mb-2">
                     {formatBytes(
                       metrics.resource_usage.memory_mb * 1024 * 1024
                     )}
                   </div>
-                  <div className="text-sm text-green-700">
+                  <div className="text-sm text-[var(--nous-terra)]">
                     {metrics.resource_usage.memory_mb < 100
                       ? 'Low'
                       : metrics.resource_usage.memory_mb < 500
@@ -605,7 +618,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
               </div>
 
               {/* Cache Performance */}
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
                 <h4 className="font-medium text-foreground mb-3">
                   Cache Performance
                 </h4>
@@ -650,7 +663,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
-                            <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
+                            <ExclamationTriangleIcon className="h-4 w-4 text-[var(--nous-corona)]" />
                             <span className="font-medium text-foreground">
                               {bottleneck.stage.replace('_', ' ')}
                             </span>
@@ -663,7 +676,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                           <p className="text-sm text-foreground mb-2">
                             {bottleneck.issue}
                           </p>
-                          <p className="text-sm text-blue-700">
+                          <p className="text-sm text-[var(--nous-fg-accent-safe)]">
                             {bottleneck.suggestion}
                           </p>
                         </div>
@@ -673,7 +686,7 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                  <CheckCircleIcon className="h-12 w-12 text-[var(--nous-terra)] mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-foreground mb-2">
                     No bottlenecks detected
                   </h3>
@@ -702,6 +715,9 @@ export const QueryPerformanceMonitor: React.FC<
 }) => {
   const [metrics, setMetrics] = useState<QueryPerformanceMetrics | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
+  const monitoringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
   const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   const generateMockMetrics = useCallback((): QueryPerformanceMetrics => {
@@ -761,14 +777,26 @@ export const QueryPerformanceMonitor: React.FC<
   const startMonitoring = useCallback(() => {
     setIsMonitoring(true);
 
+    // Clear any previously running interval so re-entry can't stack timers.
+    if (monitoringIntervalRef.current !== null) {
+      clearInterval(monitoringIntervalRef.current);
+      monitoringIntervalRef.current = null;
+    }
+
     if (showRealTime) {
       const interval = setInterval(() => {
         const newMetrics = generateMockMetrics();
         setMetrics(newMetrics);
         onMetricsUpdate?.(newMetrics);
       }, refreshInterval);
+      monitoringIntervalRef.current = interval;
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        if (monitoringIntervalRef.current === interval) {
+          monitoringIntervalRef.current = null;
+        }
+      };
     }
 
     return undefined;
@@ -780,7 +808,8 @@ export const QueryPerformanceMonitor: React.FC<
       (processingState.current_stage === 'search_execution' ||
         processingState.current_stage === 'result_aggregation')
     ) {
-      startMonitoring();
+      // Register the interval cleanup so the timer is cleared on re-run/unmount.
+      return startMonitoring();
     } else if (processingState?.current_stage === 'completed' && metrics) {
       // Generate final metrics when processing completes
       const finalMetrics = generateMockMetrics();
@@ -818,11 +847,11 @@ export const QueryPerformanceMonitor: React.FC<
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'excellent':
-        return 'text-green-600';
+        return 'text-[var(--nous-terra)]';
       case 'good':
-        return 'text-yellow-600';
+        return 'text-[var(--nous-corona)]';
       case 'needs-improvement':
-        return 'text-red-600';
+        return 'text-[var(--nous-mars)]';
       default:
         return 'text-foreground';
     }
@@ -831,13 +860,13 @@ export const QueryPerformanceMonitor: React.FC<
   const getStatusBackground = (status: string) => {
     switch (status) {
       case 'excellent':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'good':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'needs-improvement':
-        return 'bg-red-100 text-red-800';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       default:
-        return 'bg-gray-100 text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]';
     }
   };
 
@@ -850,12 +879,12 @@ export const QueryPerformanceMonitor: React.FC<
   return (
     <div className={cn('space-y-4', className)}>
       {/* Performance Header */}
-      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-between p-4 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {isMonitoring ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
           ) : (
-            <ChartBarIcon className="h-5 w-5 text-blue-600" />
+            <ChartBarIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
           )}
           <div>
             <h3 className="font-medium text-foreground">Performance Monitor</h3>
@@ -872,7 +901,7 @@ export const QueryPerformanceMonitor: React.FC<
 
         <div className="flex items-center space-x-3">
           {metrics.bottlenecks.length > 0 && (
-            <div className="flex items-center space-x-1 text-yellow-600">
+            <div className="flex items-center space-x-1 text-[var(--nous-corona)]">
               <ExclamationTriangleIcon className="h-4 w-4" />
               <span className="text-sm font-medium">
                 {metrics.bottlenecks.length} bottleneck
@@ -896,26 +925,30 @@ export const QueryPerformanceMonitor: React.FC<
 
       {/* Quick Metrics */}
       <div className="grid grid-cols-4 gap-3">
-        <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-          <ClockIcon className="h-4 w-4 text-blue-600" />
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+          <ClockIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
           <div>
-            <div className="text-sm font-medium text-blue-900">
+            <div className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
               {metrics.total_latency_ms}ms
             </div>
-            <div className="text-xs text-blue-700">Latency</div>
+            <div className="text-xs text-[var(--nous-fg-accent-safe)]">
+              Latency
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
-          <CheckCircleIcon className="h-4 w-4 text-green-600" />
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+          <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
           <div>
-            <div className="text-sm font-medium text-green-900">
+            <div className="text-sm font-medium text-[var(--nous-terra)]">
               {Math.round(
                 metrics.quality_metrics.rag_triad_compliance.answer_relevancy
               )}
               %
             </div>
-            <div className="text-xs text-green-700">Answer Quality</div>
+            <div className="text-xs text-[var(--nous-terra)]">
+              Answer Quality
+            </div>
           </div>
         </div>
 
@@ -929,22 +962,22 @@ export const QueryPerformanceMonitor: React.FC<
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 p-3 bg-orange-50 rounded-lg">
-          <CpuChipIcon className="h-4 w-4 text-orange-600" />
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-corona)]/10 rounded-lg">
+          <CpuChipIcon className="h-4 w-4 text-[var(--nous-corona)]" />
           <div>
-            <div className="text-sm font-medium text-orange-900">
+            <div className="text-sm font-medium text-[var(--nous-corona)]">
               {metrics.resource_usage.cpu_percent}%
             </div>
-            <div className="text-xs text-orange-700">CPU</div>
+            <div className="text-xs text-[var(--nous-corona)]">CPU</div>
           </div>
         </div>
       </div>
 
       {/* Bottleneck Alert */}
       {metrics.bottlenecks.length > 0 && (
-        <div className="flex items-center space-x-2 p-3 bg-yellow-50 rounded-lg">
-          <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600" />
-          <span className="text-sm text-yellow-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-corona)]/10 rounded-lg">
+          <ExclamationTriangleIcon className="h-4 w-4 text-[var(--nous-corona)]" />
+          <span className="text-sm text-[var(--nous-corona)]">
             Performance bottleneck detected in{' '}
             {metrics.bottlenecks[0]?.stage.replace('_', ' ')}:{' '}
             {metrics.bottlenecks[0]?.issue}
@@ -953,7 +986,7 @@ export const QueryPerformanceMonitor: React.FC<
             variant="ghost"
             size="sm"
             onClick={() => setShowDetailDialog(true)}
-            className="h-6 text-xs text-yellow-700 hover:text-yellow-900"
+            className="h-6 text-xs text-[var(--nous-corona)] hover:text-[var(--nous-fg-1)]"
           >
             View Details
           </Button>
@@ -962,9 +995,9 @@ export const QueryPerformanceMonitor: React.FC<
 
       {/* Monitoring Status */}
       {isMonitoring && (
-        <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
-          <div className="h-3 w-3 animate-ping bg-blue-600 rounded-full" />
-          <span className="text-sm text-blue-800">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-sol)]/10 rounded-lg">
+          <div className="h-3 w-3 animate-ping bg-[var(--nous-sol)] rounded-full" />
+          <span className="text-sm text-[var(--nous-fg-accent-safe)]">
             Real-time monitoring active
           </span>
         </div>

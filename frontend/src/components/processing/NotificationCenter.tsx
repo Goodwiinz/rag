@@ -72,35 +72,35 @@ const positionClasses = {
 const notificationConfigs = {
   success: {
     icon: CheckCircleIcon,
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
-    iconColor: 'text-green-500',
-    titleColor: 'text-green-900',
-    messageColor: 'text-green-800',
+    bgColor: 'bg-[var(--nous-terra)]/10',
+    borderColor: 'border-[var(--nous-terra)]/30',
+    iconColor: 'text-[var(--nous-terra)]',
+    titleColor: 'text-[var(--nous-fg-1)]',
+    messageColor: 'text-[var(--nous-fg-2)]',
   },
   error: {
     icon: ExclamationTriangleIcon,
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200',
-    iconColor: 'text-red-500',
-    titleColor: 'text-red-900',
-    messageColor: 'text-red-800',
+    bgColor: 'bg-[var(--nous-mars)]/10',
+    borderColor: 'border-[var(--nous-mars)]/30',
+    iconColor: 'text-[var(--nous-mars)]',
+    titleColor: 'text-[var(--nous-fg-1)]',
+    messageColor: 'text-[var(--nous-fg-2)]',
   },
   warning: {
     icon: ExclamationTriangleIcon,
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-200',
-    iconColor: 'text-yellow-500',
-    titleColor: 'text-yellow-900',
-    messageColor: 'text-yellow-800',
+    bgColor: 'bg-[var(--nous-corona)]/10',
+    borderColor: 'border-[var(--nous-corona)]/30',
+    iconColor: 'text-[var(--nous-corona)]',
+    titleColor: 'text-[var(--nous-fg-1)]',
+    messageColor: 'text-[var(--nous-fg-2)]',
   },
   info: {
     icon: InformationCircleIcon,
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    iconColor: 'text-blue-500',
-    titleColor: 'text-blue-900',
-    messageColor: 'text-blue-800',
+    bgColor: 'bg-[var(--nous-sol)]/10',
+    borderColor: 'border-[var(--nous-sol)]/30',
+    iconColor: 'text-[var(--nous-fg-accent-safe)]',
+    titleColor: 'text-[var(--nous-fg-1)]',
+    messageColor: 'text-[var(--nous-fg-2)]',
   },
 };
 
@@ -118,7 +118,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full min-w-[20px]',
+        'inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-[var(--nous-mars)] rounded-full min-w-[20px]',
         count > 0 && 'animate-pulse',
         className
       )}
@@ -215,7 +215,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
                       <button
                         key={index}
                         onClick={() => handleAction(action)}
-                        className="text-xs font-medium bg-white bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors"
+                        className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         {action.label}
                       </button>
@@ -226,7 +226,8 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
 
               <button
                 onClick={handleClose}
-                className="flex-shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Dismiss notification"
+                className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <XMarkIcon className="w-4 h-4" />
               </button>
@@ -255,7 +256,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-white rounded-lg shadow-xl border border-border w-96 max-h-[80vh] overflow-hidden"
+      className="bg-card rounded-lg shadow-xl border border-border w-96 max-h-[80vh] overflow-hidden"
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-border">
@@ -267,14 +268,18 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
             {notifications.length > 0 && (
               <button
                 onClick={onClearAll}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Clear All
               </button>
             )}
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={
+                isExpanded ? 'Collapse notifications' : 'Expand notifications'
+              }
+              aria-expanded={isExpanded}
+              className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isExpanded ? (
                 <ChevronUpIcon className="w-4 h-4" />
@@ -296,7 +301,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-[var(--nous-border-1)]">
             {visibleNotifications.map((notification) => {
               const config = notificationConfigs[notification.type];
               const Icon = config.icon;
@@ -335,7 +340,8 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                         </div>
                         <button
                           onClick={() => onDismiss(notification.id)}
-                          className="flex-shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label="Dismiss notification"
+                          className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <XMarkIcon className="w-4 h-4" />
                         </button>
@@ -351,7 +357,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                                 onClick={() =>
                                   onAction(notification.id, action)
                                 }
-                                className="text-xs font-medium bg-white bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors"
+                                className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               >
                                 {action.label}
                               </button>
@@ -372,7 +378,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
         <div className="px-4 py-2 border-t border-border">
           <button
             onClick={() => setIsExpanded(true)}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+            className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Show {notifications.length - 5} more
           </button>
@@ -397,6 +403,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [activeToasts, setActiveToasts] = useState<Map<string, NodeJS.Timeout>>(
     new Map()
   );
+  // Mirror of pending timers, kept in a ref so the unmount cleanup can clear
+  // them without re-subscribing on every toast change.
+  const activeTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const { documents, notifications, clearNotifications } =
     useRealtimeProcessing();
@@ -474,6 +483,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     // Auto-hide toast notifications
     if (latestNotification.autoHide !== false) {
       const timer = setTimeout(() => {
+        activeTimersRef.current.delete(latestNotification.id);
         setActiveToasts((prev) => {
           const newMap = new Map(prev);
           newMap.delete(latestNotification.id);
@@ -481,6 +491,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         });
       }, latestNotification.autoHideDelay || autoHideDuration);
 
+      activeTimersRef.current.set(latestNotification.id, timer);
       setActiveToasts((prev) =>
         new Map(prev).set(latestNotification.id, timer)
       );
@@ -494,10 +505,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const timers = activeTimersRef.current;
     return () => {
-      activeToasts.forEach((timer) => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer));
     };
-  }, [activeToasts]);
+  }, []);
 
   // Request notification permissions on mount
   useEffect(() => {
@@ -513,6 +525,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const handleClearNotifications = useCallback(() => {
     clearNotifications();
     activeToasts.forEach((timer) => clearTimeout(timer));
+    activeTimersRef.current.clear();
     setActiveToasts(new Map());
   }, [clearNotifications, activeToasts]);
 
@@ -521,6 +534,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       const timer = activeToasts.get(id);
       if (timer) {
         clearTimeout(timer);
+        activeTimersRef.current.delete(id);
         setActiveToasts((prev) => {
           const newMap = new Map(prev);
           newMap.delete(id);
@@ -570,9 +584,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              aria-label={
+                isHistoryOpen ? 'Close notifications' : 'Open notifications'
+              }
+              aria-expanded={isHistoryOpen}
               className={cn(
-                'relative p-2 rounded-lg bg-white border border-border shadow-md hover:shadow-lg transition-all duration-200',
-                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                'relative p-2 rounded-lg bg-card border border-border shadow-md hover:shadow-lg transition-all duration-200',
+                'focus:outline-none focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-[var(--nous-sol)]'
               )}
             >
               <BellIcon className="w-5 h-5 text-foreground" />

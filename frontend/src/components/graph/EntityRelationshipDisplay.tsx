@@ -393,7 +393,7 @@ export const EntityRelationshipDisplay: React.FC<
                   return (
                     <div
                       key={relationship.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      className="border rounded-lg p-4 hover:bg-[var(--nous-bg-3)] transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -503,7 +503,7 @@ export const EntityRelationshipDisplay: React.FC<
                                         <Badge
                                           key={docId}
                                           variant="secondary"
-                                          className="text-xs cursor-pointer hover:bg-gray-200"
+                                          className="text-xs cursor-pointer hover:bg-[var(--nous-bg-3)]"
                                           onClick={() =>
                                             onDocumentClick?.(docId)
                                           }
@@ -551,7 +551,7 @@ export const EntityRelationshipDisplay: React.FC<
                                     <div className="text-sm font-medium text-foreground mb-2">
                                       Additional Metadata:
                                     </div>
-                                    <div className="bg-gray-50 rounded p-2 text-xs">
+                                    <div className="bg-[var(--nous-bg-2)] rounded p-2 text-xs">
                                       {Object.entries(
                                         relationship.metadata
                                       ).map(([key, value]) => (
@@ -595,7 +595,7 @@ export const EntityRelationshipDisplay: React.FC<
                     Source Entity
                   </h4>
                   {getRelatedEntity(selectedRelationship.source_entity_id) ? (
-                    <div className="p-3 bg-gray-50 rounded">
+                    <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                       <div className="font-medium">
                         {
                           getRelatedEntity(
@@ -612,7 +612,7 @@ export const EntityRelationshipDisplay: React.FC<
                       </Badge>
                     </div>
                   ) : (
-                    <div className="p-3 bg-gray-50 rounded text-muted-foreground">
+                    <div className="p-3 bg-[var(--nous-bg-2)] rounded text-muted-foreground">
                       Entity not found
                     </div>
                   )}
@@ -623,7 +623,7 @@ export const EntityRelationshipDisplay: React.FC<
                     Target Entity
                   </h4>
                   {getRelatedEntity(selectedRelationship.target_entity_id) ? (
-                    <div className="p-3 bg-gray-50 rounded">
+                    <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                       <div className="font-medium">
                         {
                           getRelatedEntity(
@@ -640,7 +640,7 @@ export const EntityRelationshipDisplay: React.FC<
                       </Badge>
                     </div>
                   ) : (
-                    <div className="p-3 bg-gray-50 rounded text-muted-foreground">
+                    <div className="p-3 bg-[var(--nous-bg-2)] rounded text-muted-foreground">
                       Entity not found
                     </div>
                   )}
@@ -649,7 +649,7 @@ export const EntityRelationshipDisplay: React.FC<
 
               <div>
                 <h4 className="font-medium text-foreground mb-2">Context</h4>
-                <div className="p-3 bg-gray-50 rounded italic">
+                <div className="p-3 bg-[var(--nous-bg-2)] rounded italic">
                   "{selectedRelationship.context || 'No context available'}"
                 </div>
               </div>

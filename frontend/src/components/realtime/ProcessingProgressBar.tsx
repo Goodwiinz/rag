@@ -48,12 +48,12 @@ const PROGRESS_SIZES: Record<
 };
 
 const DEFAULT_COLORS = {
-  primary: 'bg-blue-600',
-  success: 'bg-green-600',
-  warning: 'bg-yellow-600',
-  error: 'bg-red-600',
-  info: 'bg-cyan-600',
-  gray: 'bg-gray-600',
+  primary: 'bg-[var(--nous-sol)]',
+  success: 'bg-[var(--nous-terra)]',
+  warning: 'bg-[var(--nous-corona)]',
+  error: 'bg-[var(--nous-mars)]',
+  info: 'bg-[var(--nous-helios)]',
+  gray: 'bg-[var(--nous-bg-3)]',
 };
 
 // Helper to get progress color based on percentage
@@ -75,7 +75,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
     progress,
     size = 'md',
     color,
-    backgroundColor = 'bg-gray-200',
+    backgroundColor = 'bg-[var(--nous-bg-2)]',
     showPercentage = true,
     showLabel = false,
     label,
@@ -211,7 +211,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
         {clampedProgress === 100 && (
           <div className="flex items-center justify-center">
             <svg
-              className="w-5 h-5 text-green-500"
+              className="w-5 h-5 text-[var(--nous-terra)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -223,7 +223,9 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
                 d="M5 13l4 4L19 7"
               />
             </svg>
-            <span className="ml-1 text-sm text-green-600">Complete</span>
+            <span className="ml-1 text-sm text-[var(--nous-terra)]">
+              Complete
+            </span>
           </div>
         )}
       </div>

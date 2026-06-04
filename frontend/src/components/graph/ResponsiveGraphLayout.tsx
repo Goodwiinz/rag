@@ -5,7 +5,13 @@
  * Adapts layout based on screen size and device capabilities.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { GraphNode, GraphEdge, GraphFilters } from '../../types/graph-api';
 import { IconButton } from '@/components/ui/icon-button';
 
@@ -148,13 +154,18 @@ export const ResponsiveGraphLayout: React.FC<ResponsiveGraphLayoutProps> = ({
 
   const config = breakpointConfigs[breakpoint];
 
+  const mergedConfig = useMemo(
+    () => ({ ...config, dimensions, orientation, breakpoint }),
+    [config, dimensions, orientation, breakpoint]
+  );
+
   return (
     <div
       ref={containerRef}
       className={`responsive-graph-layout ${className}`}
       style={{ width: '100%', height: '100%' }}
     >
-      {children({ ...config, dimensions, orientation, breakpoint })}
+      {children(mergedConfig)}
     </div>
   );
 };
@@ -200,7 +211,7 @@ export const ResponsiveGraphControls: React.FC<{
     <>
       <IconButton
         onClick={onZoomIn}
-        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
+        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
         label="Zoom in"
         icon={
           <svg
@@ -220,7 +231,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onZoomOut}
-        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
+        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
         label="Zoom out"
         icon={
           <svg
@@ -240,7 +251,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onFit}
-        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
+        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
         label="Fit to screen"
         icon={
           <svg
@@ -260,7 +271,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onReset}
-        className="p-2 bg-white border border-border rounded hover:bg-gray-50"
+        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
         label="Reset view"
         icon={
           <svg
@@ -286,10 +297,10 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint !== 'mobile' && (
         <button
           onClick={onToggleLabels}
-          className={`p-2 border rounded ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             showLabels
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white border-border hover:bg-gray-50'
+              ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
+              : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
           }`}
           aria-label={showLabels ? 'Hide labels' : 'Show labels'}
         >
@@ -311,10 +322,10 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint === 'desktop' && (
         <button
           onClick={onTogglePhysics}
-          className={`p-2 border rounded ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             enablePhysics
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white border-border hover:bg-gray-50'
+              ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
+              : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
           }`}
           aria-label={enablePhysics ? 'Disable physics' : 'Enable physics'}
         >
@@ -340,14 +351,14 @@ export const ResponsiveGraphControls: React.FC<{
     switch (breakpoint) {
       case 'mobile':
         return (
-          <div className="flex justify-center space-x-2 p-2 bg-white border-t">
+          <div className="flex justify-center space-x-2 p-2 bg-background border-t">
             {baseControls}
           </div>
         );
 
       case 'tablet':
         return (
-          <div className="flex justify-between items-center p-4 bg-white border-b">
+          <div className="flex justify-between items-center p-4 bg-background border-b">
             <div className="flex space-x-2">{baseControls}</div>
             <div className="flex space-x-2">{toggleControls}</div>
           </div>
@@ -357,7 +368,7 @@ export const ResponsiveGraphControls: React.FC<{
       default:
         return (
           <div className="absolute top-4 left-4 z-10">
-            <div className="bg-white rounded-lg shadow-lg border p-2 space-y-2">
+            <div className="bg-background rounded-lg shadow-lg border p-2 space-y-2">
               <div className="flex space-x-2">{baseControls}</div>
               <div className="flex space-x-2">{toggleControls}</div>
             </div>
@@ -396,13 +407,14 @@ export const ResponsiveFilterPanel: React.FC<{
   }, []);
 
   const renderMobileFilters = () => (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 z-20">
+    <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 z-20">
       <div className="space-y-3">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">Filters</h3>
           <button
             onClick={() => setIsCollapsed(true)}
-            className="p-1 hover:bg-gray-100 rounded"
+            className="p-1 min-h-11 min-w-11 hover:bg-[var(--nous-bg-3)] rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Collapse filters"
           >
             <svg
               className="w-5 h-5"
@@ -447,7 +459,7 @@ export const ResponsiveFilterPanel: React.FC<{
   );
 
   const renderTabletFilters = () => (
-    <div className="bg-white border rounded-lg p-4">
+    <div className="bg-background border rounded-lg p-4">
       <h3 className="font-semibold mb-3">Filters</h3>
       <div className="space-y-3">
         <input
@@ -494,7 +506,7 @@ export const ResponsiveFilterPanel: React.FC<{
   );
 
   const renderDesktopFilters = () => (
-    <div className="bg-white border rounded-lg p-6">
+    <div className="bg-background border rounded-lg p-6">
       <h3 className="font-semibold mb-4">Graph Filters</h3>
       <div className="space-y-4">
         <div>
@@ -585,7 +597,8 @@ export const ResponsiveFilterPanel: React.FC<{
       <div className={`fixed bottom-4 left-4 z-10 ${className}`}>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="bg-blue-600 text-white p-3 rounded-full shadow-lg"
+          className="bg-[var(--nous-sol)] text-white p-3 rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="Show filters"
         >
           <svg
             className="w-5 h-5"
