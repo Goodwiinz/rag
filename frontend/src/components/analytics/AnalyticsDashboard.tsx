@@ -478,12 +478,13 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={handleRefresh}
               disabled={loading}
+              className="min-h-[44px] sm:min-h-0"
             >
               <RefreshCw
                 aria-hidden="true"
@@ -496,6 +497,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
               size="sm"
               onClick={handleExport}
               disabled={loading || (data.documents?.length ?? 0) === 0}
+              className="min-h-[44px] sm:min-h-0"
             >
               <Download aria-hidden="true" className="mr-2 h-4 w-4" />
               Export CSV
@@ -551,21 +553,33 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 aria-hidden="true" className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsTrigger
+              value="overview"
+              className="flex min-h-[44px] items-center gap-2 sm:min-h-0"
+            >
+              <BarChart3 aria-hidden="true" className="h-4 w-4 shrink-0" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="documents" className="flex items-center gap-2">
-              <FileText aria-hidden="true" className="h-4 w-4" />
+            <TabsTrigger
+              value="documents"
+              className="flex min-h-[44px] items-center gap-2 sm:min-h-0"
+            >
+              <FileText aria-hidden="true" className="h-4 w-4 shrink-0" />
               Documents
             </TabsTrigger>
-            <TabsTrigger value="search" className="flex items-center gap-2">
-              <Search aria-hidden="true" className="h-4 w-4" />
+            <TabsTrigger
+              value="search"
+              className="flex min-h-[44px] items-center gap-2 sm:min-h-0"
+            >
+              <Search aria-hidden="true" className="h-4 w-4 shrink-0" />
               Search
             </TabsTrigger>
-            <TabsTrigger value="realtime" className="flex items-center gap-2">
-              <Activity aria-hidden="true" className="h-4 w-4" />
+            <TabsTrigger
+              value="realtime"
+              className="flex min-h-[44px] items-center gap-2 sm:min-h-0"
+            >
+              <Activity aria-hidden="true" className="h-4 w-4 shrink-0" />
               Real-time
             </TabsTrigger>
           </TabsList>
