@@ -16,6 +16,7 @@ from src.services.agent.subgraphs.writing_agent import (
     WRITING_TOOL_NAMES_LIST,
     WRITING_TOOLS,
     _build_writing_system_prompt,
+    _format_retrieved_contexts,
 )
 
 
@@ -75,3 +76,53 @@ def test_writing_prompt_instructs_search_before_summarize() -> None:
     prompt = _build_writing_system_prompt()
     assert "search_documents" in prompt
     assert "Never ask the user for a document_id" in prompt
+
+
+@pytest.mark.unit
+def test_format_retrieved_contexts_renders_title_id_and_snippet() -> None:
+    """Each context renders as a numbered doc with title, id, and snippet."""
+    out = _format_retrieved_contexts(
+        [
+            {
+                "document_id": "uuid-1",
+                "title": "Attention Is All You Need",
+                "content": "We propose the Transformer.",
+            }
+        ]
+    )
+    assert "[Doc 1] Attention Is All You Need (id: uuid-1):" in out
+    assert "We propose the Transformer." in out
+
+
+@pytest.mark.unit
+def test_format_retrieved_contexts_none_document_id_renders_unknown() -> None:
+    """A present-but-None document_id must render 'unknown', not 'None'.
+
+    ``_legacy_hybrid_search_fallback`` sets ``document_id`` to None (key
+    present), so ``dict.get(key, 'unknown')`` would leak a literal "None"
+    into the prompt. Regression guard for that fallback path.
+    """
+    out = _format_retrieved_contexts(
+        [{"document_id": None, "title": "Untitled paper", "content": "x"}]
+    )
+    assert "(id: unknown)" in out
+    assert "id: None" not in out
+
+
+@pytest.mark.unit
+def test_format_retrieved_contexts_truncates_long_content() -> None:
+    """Snippets are capped so the writing synthesis turn stays cheap."""
+    out = _format_retrieved_contexts(
+        [{"document_id": "d", "title": "T", "content": "y" * 5000}]
+    )
+    assert "y" * 500 in out
+    assert "y" * 501 not in out
+
+
+@pytest.mark.unit
+def test_format_retrieved_contexts_skips_malformed_items() -> None:
+    """Empty input → empty string; non-dict items are skipped without raising."""
+    assert _format_retrieved_contexts([]) == ""
+    out = _format_retrieved_contexts(["not-a-dict", {"title": "Only Title"}])
+    # The bad entry is dropped; the dict still renders with safe fallbacks.
+    assert "[Doc 1] Only Title (id: unknown):" in out

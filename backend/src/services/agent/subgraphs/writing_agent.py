@@ -2,7 +2,8 @@
 
 Specialized for content creation, summarization, and bibliography tasks.
 Tools: search_documents, create_draft, create_project_note,
-       export_bibliography, summarize_document, compare_documents
+       export_bibliography, summarize_document, compare_documents,
+       ingest_arxiv_papers (recovery path only)
 """
 
 import asyncio
@@ -84,6 +85,33 @@ def _build_writing_system_prompt() -> str:
     )
 
 
+# Snippet length for retrieved-context previews in the writing system
+# prompt. Deliberately tighter than the main ``llm_node`` (which passes
+# full content) — the writing agent only needs enough text to recognise
+# and disambiguate a pre-resolved doc before searching/summarizing, and a
+# small budget keeps the synthesis turn fast.
+_RETRIEVED_CONTEXT_PREVIEW_CHARS = 500
+
+
+def _format_retrieved_contexts(retrieved: list) -> str:
+    """Render pre-resolved RAG contexts for the writing system prompt.
+
+    Defensive by construction so a malformed item can never crash the LLM
+    node: non-dict entries are skipped and missing keys fall back to
+    placeholders. ``document_id`` may be *present but None* (see
+    ``_legacy_hybrid_search_fallback`` in ``_nodes_rag``), so resolve the
+    placeholder with ``or`` rather than ``dict.get(..., default)`` — the
+    latter only fires on a *missing* key and would leak a literal "None".
+    """
+    valid = [ctx for ctx in retrieved if isinstance(ctx, dict)]
+    return "\n\n".join(
+        f"[Doc {i + 1}] {ctx.get('title', 'Untitled')} "
+        f"(id: {ctx.get('document_id') or 'unknown'}):\n"
+        f"{(ctx.get('content') or '')[:_RETRIEVED_CONTEXT_PREVIEW_CHARS]}"
+        for i, ctx in enumerate(valid)
+    )
+
+
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
     from langchain_core.messages import ToolMessage
@@ -94,12 +122,8 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     sanitized = _sanitize_messages(list(state["messages"]))
     system_text = _build_writing_system_prompt()
 
-    retrieved = state.get("retrieved_contexts", [])
-    if retrieved:
-        context_text = "\n\n".join(
-            f"[Doc {i + 1}] {ctx['title']} (id: {ctx.get('document_id', 'unknown')}):\n{ctx['content'][:500]}"
-            for i, ctx in enumerate(retrieved)
-        )
+    context_text = _format_retrieved_contexts(state.get("retrieved_contexts", []))
+    if context_text:
         system_text += f"\n\nRetrieved context:\n{context_text}"
 
     messages = [SystemMessage(content=system_text)] + sanitized

@@ -316,6 +316,12 @@ class LLMEntityExtractionService:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             for result in results:
+                # BaseException, not Exception: asyncio.CancelledError
+                # subclasses BaseException (since Py3.8) and is surfaced
+                # here by gather(return_exceptions=True). Catching only
+                # Exception would route it to the success branch below and
+                # blow up on ``all_entities.extend(<CancelledError>)``.
+                # Count it as a failed chunk and keep going.
                 if isinstance(result, BaseException):
                     chunks_failed += 1
                     logger.warning("Chunk extraction failed: %s", result)
