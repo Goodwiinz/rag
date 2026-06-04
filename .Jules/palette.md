@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-06-04 - Sidebar Upgrade Button Accessibility
+**Learning:** The "UPGRADE NOW" button in the `AppSidebar.tsx` was a raw `<button>` without `type="button"` and missed focus styling, meaning it could not be easily navigated via keyboard in the UI.
+**Action:** Always verify that raw `<button>` elements, especially in layout sidebars and critical CTAs, have `type="button"` and include `focus-visible` ring utility classes (e.g. `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`) so keyboard focus remains explicitly visible.

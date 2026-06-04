@@ -316,7 +316,10 @@ export function AppSidebar() {
             <p className="font-mono text-[10px] text-muted-foreground leading-relaxed mb-3">
               Advanced RAG features, unlimited queries, and priority support.
             </p>
-            <button className="w-full bg-primary text-primary-foreground font-mono text-[9px] font-bold py-2.5 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              className="w-full bg-primary text-primary-foreground font-mono text-[9px] font-bold py-2.5 hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+            >
               <Sparkles className="w-3 h-3" />
               UPGRADE NOW
             </button>
