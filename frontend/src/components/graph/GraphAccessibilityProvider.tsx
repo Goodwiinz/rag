@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
 } from 'react';
 import { GraphNode, GraphEdge } from '../../types/graph-api';
 
@@ -230,25 +231,46 @@ export const GraphAccessibilityProvider: React.FC<
     return colorBlindPalettes[colorBlindMode];
   }, [colorBlindMode]);
 
-  const contextValue: AccessibilityContextValue = {
-    highContrastMode,
-    toggleHighContrast,
-    focusedNodeId,
-    focusedEdgeId,
-    setFocusedNode: setFocusedNodeId,
-    setFocusedEdge: setFocusedEdgeId,
-    navigateGraph,
-    announceToScreenReader,
-    getAccessibleNodeDescription,
-    getAccessibleEdgeDescription,
-    fontSize,
-    setFontSize,
-    reducedMotion,
-    toggleReducedMotion,
-    colorBlindMode,
-    setColorBlindMode,
-    getColorBlindPalette,
-  };
+  const contextValue: AccessibilityContextValue = useMemo(
+    () => ({
+      highContrastMode,
+      toggleHighContrast,
+      focusedNodeId,
+      focusedEdgeId,
+      setFocusedNode: setFocusedNodeId,
+      setFocusedEdge: setFocusedEdgeId,
+      navigateGraph,
+      announceToScreenReader,
+      getAccessibleNodeDescription,
+      getAccessibleEdgeDescription,
+      fontSize,
+      setFontSize,
+      reducedMotion,
+      toggleReducedMotion,
+      colorBlindMode,
+      setColorBlindMode,
+      getColorBlindPalette,
+    }),
+    [
+      highContrastMode,
+      toggleHighContrast,
+      focusedNodeId,
+      focusedEdgeId,
+      setFocusedNodeId,
+      setFocusedEdgeId,
+      navigateGraph,
+      announceToScreenReader,
+      getAccessibleNodeDescription,
+      getAccessibleEdgeDescription,
+      fontSize,
+      setFontSize,
+      reducedMotion,
+      toggleReducedMotion,
+      colorBlindMode,
+      setColorBlindMode,
+      getColorBlindPalette,
+    ]
+  );
 
   return (
     <AccessibilityContext.Provider value={contextValue}>

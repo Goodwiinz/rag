@@ -85,15 +85,22 @@ export const DocumentProcessingDashboard: React.FC<DocumentProcessingDashboardPr
         setCompactView,
       ]);
 
-      // Memoize filtered documents
+      // Memoize filtered documents — key on the reactive source data so the
+      // derived value recomputes whenever documents/filters/pagination change.
       const filteredDocuments = useMemo(() => {
         return getFilteredDocuments();
-      }, [getFilteredDocuments]);
+      }, [
+        getFilteredDocuments,
+        queue.documents,
+        queue.filters,
+        queue.pagination,
+      ]);
 
-      // Memoize unread notifications count
+      // Memoize unread notifications count — key on the reactive notifications
+      // source so the count recomputes whenever notifications change.
       const unreadCount = useMemo(() => {
         return getUnreadNotificationsCount();
-      }, [getUnreadNotificationsCount]);
+      }, [getUnreadNotificationsCount, notifications]);
 
       // Handle layout change
       const handleLayoutChange = useCallback(

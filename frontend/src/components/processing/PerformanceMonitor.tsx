@@ -425,19 +425,38 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
 
   const store = useRealtimeProcessingStore();
 
+  // Subscribe to only the primitive slices needed for currentMetrics so the
+  // memo below recomputes on these values changing, not on any unrelated
+  // store mutation.
+  const queueErrorRate = useRealtimeProcessingStore(
+    (state) => state.queue.metrics.errorRate
+  );
+  const reconnectionAttempts = useRealtimeProcessingStore(
+    (state) => state.connection.reconnectionAttempts
+  );
+  const lastConnectedAt = useRealtimeProcessingStore(
+    (state) => state.connection.lastConnectedAt
+  );
+
   // Calculate derived metrics
   const currentMetrics: PerformanceMetrics = useMemo(
     () => ({
       connectionLatency,
       messageRate,
-      errorRate: store.queue.metrics.errorRate,
-      reconnectionCount: store.connection.reconnectionAttempts,
-      uptime: store.connection.lastConnectedAt
-        ? Date.now() - new Date(store.connection.lastConnectedAt).getTime()
+      errorRate: queueErrorRate,
+      reconnectionCount: reconnectionAttempts,
+      uptime: lastConnectedAt
+        ? Date.now() - new Date(lastConnectedAt).getTime()
         : 0,
       lastMessageTimestamp: Date.now(),
     }),
-    [connectionLatency, messageRate, store]
+    [
+      connectionLatency,
+      messageRate,
+      queueErrorRate,
+      reconnectionAttempts,
+      lastConnectedAt,
+    ]
   );
 
   // Calculate trends

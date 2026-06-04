@@ -397,6 +397,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [activeToasts, setActiveToasts] = useState<Map<string, NodeJS.Timeout>>(
     new Map()
   );
+  // Mirror of pending timers, kept in a ref so the unmount cleanup can clear
+  // them without re-subscribing on every toast change.
+  const activeTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const { documents, notifications, clearNotifications } =
     useRealtimeProcessing();
@@ -474,6 +477,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     // Auto-hide toast notifications
     if (latestNotification.autoHide !== false) {
       const timer = setTimeout(() => {
+        activeTimersRef.current.delete(latestNotification.id);
         setActiveToasts((prev) => {
           const newMap = new Map(prev);
           newMap.delete(latestNotification.id);
@@ -481,6 +485,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         });
       }, latestNotification.autoHideDelay || autoHideDuration);
 
+      activeTimersRef.current.set(latestNotification.id, timer);
       setActiveToasts((prev) =>
         new Map(prev).set(latestNotification.id, timer)
       );
@@ -494,10 +499,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const timers = activeTimersRef.current;
     return () => {
-      activeToasts.forEach((timer) => clearTimeout(timer));
+      timers.forEach((timer) => clearTimeout(timer));
     };
-  }, [activeToasts]);
+  }, []);
 
   // Request notification permissions on mount
   useEffect(() => {
@@ -513,6 +519,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const handleClearNotifications = useCallback(() => {
     clearNotifications();
     activeToasts.forEach((timer) => clearTimeout(timer));
+    activeTimersRef.current.clear();
     setActiveToasts(new Map());
   }, [clearNotifications, activeToasts]);
 
@@ -521,6 +528,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       const timer = activeToasts.get(id);
       if (timer) {
         clearTimeout(timer);
+        activeTimersRef.current.delete(id);
         setActiveToasts((prev) => {
           const newMap = new Map(prev);
           newMap.delete(id);

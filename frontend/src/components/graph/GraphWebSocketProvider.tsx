@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   websocketService,
@@ -188,15 +189,26 @@ export const GraphWebSocketProvider: React.FC<GraphWebSocketProviderProps> = ({
     return () => clearInterval(interval);
   }, [status]);
 
-  const contextValue: WebSocketContextValue = {
-    status,
-    isConnected,
-    lastMessage,
-    messageCount,
-    reconnectAttempts,
-    manuallyReconnect,
-    disconnect,
-  };
+  const contextValue: WebSocketContextValue = useMemo(
+    () => ({
+      status,
+      isConnected,
+      lastMessage,
+      messageCount,
+      reconnectAttempts,
+      manuallyReconnect,
+      disconnect,
+    }),
+    [
+      status,
+      isConnected,
+      lastMessage,
+      messageCount,
+      reconnectAttempts,
+      manuallyReconnect,
+      disconnect,
+    ]
+  );
 
   return (
     <WebSocketContext.Provider value={contextValue}>
