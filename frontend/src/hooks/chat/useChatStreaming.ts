@@ -232,6 +232,7 @@ export function useChatStreaming(
         lastStreamedContentRef.current = '';
         let streamHadError = false;
         let streamHadConfirmation = false;
+        const responseStart = Date.now();
 
         // Set streaming state in store for UI
         useChatStore.setState({
@@ -423,10 +424,12 @@ export function useChatStreaming(
         // so the virtual streaming bubble unmounts atomically with the real one
         // mounting. Otherwise the final message and the streaming bubble render
         // together during the (awaited) DB save window below.
+        const responseTimeMs = Date.now() - responseStart;
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
+          metadata: { responseTimeMs },
         };
 
         useChatStore.setState({
@@ -456,7 +459,10 @@ export function useChatStreaming(
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
             });
-            addMessageToStore(currentThreadId, savedAssistantMessage);
+            addMessageToStore(currentThreadId, {
+              ...savedAssistantMessage,
+              latency_ms: responseTimeMs,
+            });
             console.log('[Chat] Saved messages to database');
           } catch (error) {
             console.error('[Chat] Failed to save messages:', error);
