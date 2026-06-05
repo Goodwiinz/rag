@@ -163,14 +163,11 @@ class TestThreadsList:
         """GET /threads returns 200 (mock DB returns empty result set)."""
         mock_db = _make_mock_db()
 
-        # Mock the execute to return empty scalars for the thread list query
+        # The endpoint runs a SINGLE windowed query — select(Thread, count().over())
+        # — and reads rows via .all(). An empty result => empty list, total 0.
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_scalar_result = MagicMock()
-        mock_scalar_result.scalar.return_value = 0
-
-        # The endpoint makes two db.execute calls: one for threads, one for count
-        mock_db.execute = AsyncMock(side_effect=[mock_result, mock_scalar_result])
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
 
         from src.core.database import get_db
 

@@ -473,8 +473,11 @@ async def list_agent_threads(
 ):
     """List threads for the current user, ordered by most recently updated."""
     # Build query: Thread -> Conversation -> Workspace, filter by owner
+    # Single query: a window count returns the (pre-limit) total alongside the
+    # page, so we avoid firing a second full count query on every thread-list
+    # load.
     stmt = (
-        select(Thread)
+        select(Thread, func.count().over().label("total"))
         .join(Conversation, Thread.conversation_id == Conversation.id)
         .join(Workspace, Conversation.workspace_id == Workspace.id)
         .where(
@@ -485,22 +488,9 @@ async def list_agent_threads(
         .order_by(desc(Thread.updated_at))
         .limit(50)
     )
-    result = await db.execute(stmt)
-    threads = result.scalars().all()
-
-    # Count total (without limit)
-    count_stmt = (
-        select(func.count(Thread.id))
-        .join(Conversation, Thread.conversation_id == Conversation.id)
-        .join(Workspace, Conversation.workspace_id == Workspace.id)
-        .where(
-            Workspace.owner_id == current_user.id,
-            Thread.is_deleted == False,
-            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
-        )
-    )
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar() or 0
+    rows = (await db.execute(stmt)).all()
+    threads = [row[0] for row in rows]
+    total = rows[0][1] if rows else 0
 
     thread_summaries = []
     for t in threads:
