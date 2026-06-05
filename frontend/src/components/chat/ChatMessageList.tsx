@@ -25,6 +25,8 @@ export interface ChatMessageListProps {
   /** Ephemeral CLI command output, rendered at the bottom of the transcript. */
   commandOutputs?: CommandOutput[];
   onCommandItemAction?: (action: CommandAction) => void;
+  /** True while RAG retrieval is in flight (drives the thinking-pill label). */
+  isRetrievingRag?: boolean;
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
@@ -38,6 +40,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onCitationClick,
   commandOutputs,
   onCommandItemAction,
+  isRetrievingRag,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -89,6 +92,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   }, []);
 
   const lastIndex = messages.length - 1;
+  // Phase-aware "thinking" label (the pill only shows before any token arrives).
+  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
   return (
     <div className="flex-1 relative min-h-0">
@@ -125,6 +130,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       : undefined
                   }
                   onCitationClick={onCitationClick}
+                  thinkingLabel={thinkingLabel}
                 />
               </>
             );
@@ -170,6 +176,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   isStreaming={true}
                   streamingContent={storeStreamingContent}
                   onCitationClick={onCitationClick}
+                  thinkingLabel={thinkingLabel}
                 />
               </motion.div>
             )}

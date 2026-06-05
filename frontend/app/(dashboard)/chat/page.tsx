@@ -12,10 +12,17 @@ import {
 } from '@/components/chat/shared/chatNavigation';
 import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { Citation } from '@/utils/citationParser';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
+import {
+  Fragment,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
@@ -83,6 +90,36 @@ function formatArgValue(value: unknown, max = 140): string {
   } catch {
     return '[unserializable]';
   }
+}
+
+// Shared loading skeleton for cold-load + thread-switch (on-brand bubble rows).
+function TranscriptSkeleton() {
+  return (
+    <div
+      className="mx-auto max-w-[var(--nous-chat-col)] space-y-8 p-6"
+      aria-busy="true"
+      aria-label="Loading conversation"
+    >
+      {[0, 1, 2].map((row) => (
+        <div
+          key={row}
+          className={
+            row % 2 === 0
+              ? 'flex flex-col items-start gap-2'
+              : 'flex flex-col items-end gap-2'
+          }
+        >
+          <Skeleton className="h-3 w-24 rounded-md bg-[var(--nous-bg-2)]" />
+          <Skeleton
+            className={
+              (row % 2 === 0 ? 'h-20 w-[80%]' : 'h-12 w-[55%]') +
+              ' rounded-xl bg-[var(--nous-bg-2)]'
+            }
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ============================================
@@ -536,45 +573,77 @@ function ChatPageContent() {
     handleSubmit();
   }, [handleSubmit]);
 
+  // Mobile drawer: focus in on open, return focus on close, Escape to close.
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerOpenerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      drawerOpenerRef.current = document.activeElement as HTMLElement | null;
+      drawerRef.current?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setMobileSidebarOpen(false);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+    drawerOpenerRef.current?.focus?.();
+  }, [mobileSidebarOpen]);
+
+  // HITL banner: move focus to Approve when it appears.
+  const approveRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (pendingConfirmation) approveRef.current?.focus();
+  }, [pendingConfirmation]);
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
       {/* Mobile sidebar backdrop + drawer */}
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 z-50 md:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        >
-          <div className="absolute inset-0 bg-[var(--nous-erebus)]/50" />
-          <motion.div
-            initial={{ x: -280 }}
-            animate={{ x: 0 }}
-            exit={{ x: -280 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-0 bottom-0 w-[280px] bg-[var(--nous-bg-2)] border-r border-[var(--nous-border-1)] shadow-[var(--nous-shadow-lg)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChatSidebar
-              conversations={conversations}
-              activeId={activeConversationId}
-              onSelect={(id) => {
-                setActiveConversationId(id);
-                activeConversationIdRef.current = id;
-                setCurrentThread(id);
-                router.push(getSelectedThreadUrl(id));
-                setMobileSidebarOpen(false);
-              }}
-              onNew={() => {
-                startNewChat();
-                setMobileSidebarOpen(false);
-              }}
-              onRename={handleRenameThread}
-              onDelete={handleDeleteThread}
-              onBulkDelete={handleBulkDeleteThreads}
-              currentWorkspace={workspace}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <motion.div
+              className="absolute inset-0 bg-[var(--nous-erebus)]/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileSidebarOpen(false)}
             />
-          </motion.div>
-        </div>
-      )}
+            <motion.div
+              ref={drawerRef}
+              tabIndex={-1}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Chat history"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute left-0 top-0 bottom-0 w-[min(280px,85vw)] bg-[var(--nous-bg-2)] border-r border-[var(--nous-border-1)] shadow-[var(--nous-shadow-lg)] outline-none"
+            >
+              <ChatSidebar
+                conversations={conversations}
+                activeId={activeConversationId}
+                onSelect={(id) => {
+                  setActiveConversationId(id);
+                  activeConversationIdRef.current = id;
+                  setCurrentThread(id);
+                  router.push(getSelectedThreadUrl(id));
+                  setMobileSidebarOpen(false);
+                }}
+                onNew={() => {
+                  startNewChat();
+                  setMobileSidebarOpen(false);
+                }}
+                onRename={handleRenameThread}
+                onDelete={handleDeleteThread}
+                onBulkDelete={handleBulkDeleteThreads}
+                currentWorkspace={workspace}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Desktop sidebar */}
       <div className="hidden md:block h-full shrink-0">
@@ -617,8 +686,8 @@ function ChatPageContent() {
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
               <div className="h-full flex flex-col items-center justify-center p-8">
-                <div className="text-center">
-                  <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+                <div className="text-center" role="status">
+                  <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
                   <p
                     className="text-sm text-[var(--nous-fg-3)] mt-2"
                     style={{ fontFamily: 'var(--nous-font-ui)' }}
@@ -632,23 +701,7 @@ function ChatPageContent() {
         ) : isInitializing ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div className="h-full flex flex-col items-center justify-center p-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center"
-                >
-                  <div className="relative w-12 h-12 mx-auto mb-6">
-                    <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin" />
-                  </div>
-                  <h2
-                    className="text-sm text-[var(--nous-fg-3)] mb-2"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    Initializing...
-                  </h2>
-                </motion.div>
-              </div>
+              <TranscriptSkeleton />
             </div>
           </div>
         ) : initError ? (
@@ -693,31 +746,7 @@ function ChatPageContent() {
         ) : isLoadingMessages ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div
-                className="mx-auto max-w-3xl space-y-8 p-6"
-                aria-busy="true"
-                aria-label="Loading messages"
-              >
-                {[0, 1, 2].map((row) => (
-                  <div
-                    key={row}
-                    className={
-                      row % 2 === 0
-                        ? 'flex flex-col items-start gap-2'
-                        : 'flex flex-col items-end gap-2'
-                    }
-                  >
-                    <Skeleton className="h-3 w-24 rounded-md" />
-                    <Skeleton
-                      className={
-                        row % 2 === 0
-                          ? 'h-20 w-[80%] rounded-xl'
-                          : 'h-12 w-[55%] rounded-xl'
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+              <TranscriptSkeleton />
             </div>
           </div>
         ) : displayedMessages.length === 0 &&
@@ -743,6 +772,7 @@ function ChatPageContent() {
             onCitationClick={handleCitationClick}
             commandOutputs={commandOutputs}
             onCommandItemAction={handleCommandItemAction}
+            isRetrievingRag={storeIsRetrievingRag}
           />
         )}
 
@@ -751,7 +781,13 @@ function ChatPageContent() {
           <div
             role="alertdialog"
             aria-label="Approval needed"
-            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5"
+            aria-describedby="hitl-desc"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !isConfirming)
+                handleConfirmation(false);
+            }}
+            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5 outline-none"
           >
             <div className="mb-2 flex items-center gap-2">
               <ShieldCheck
@@ -772,6 +808,7 @@ function ChatPageContent() {
               return (
                 <>
                   <p
+                    id="hitl-desc"
                     className="text-sm leading-relaxed text-[var(--nous-fg-1)] mb-3"
                     style={{ fontFamily: 'var(--nous-font-ui)' }}
                   >
@@ -780,9 +817,9 @@ function ChatPageContent() {
                       className="rounded bg-[var(--nous-sol-subtle)] px-1.5 py-0.5 text-[var(--nous-fg-accent)]"
                       style={{ fontFamily: 'var(--nous-font-mono)' }}
                     >
-                      {call?.name ?? 'a destructive action'}
+                      {call?.name ?? 'this action'}
                     </span>
-                    . Approve to let it continue, or deny to stop here.
+                    . Approve to let it continue, or Deny to stop.
                   </p>
                   {argEntries.length > 0 && (
                     <dl
@@ -812,6 +849,7 @@ function ChatPageContent() {
             })()}
             <div className="flex items-center gap-3">
               <button
+                ref={approveRef}
                 onClick={() => handleConfirmation(true)}
                 disabled={isConfirming}
                 className="px-4 py-2 rounded-xl bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
@@ -884,8 +922,8 @@ export default function ChatPage() {
     <Suspense
       fallback={
         <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+          <div className="text-center" role="status">
+            <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
             <p
               className="text-sm text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}

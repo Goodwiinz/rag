@@ -16,6 +16,8 @@ export interface SlashCommandMenuState {
   setHighlightedIndex: (index: number) => void;
   /** Move the highlight by `delta`, wrapping around the list. */
   move: (delta: number) => void;
+  /** Hide the menu without clearing the typed token; re-arms on next keystroke. */
+  dismiss: () => void;
 }
 
 /**
@@ -26,7 +28,10 @@ export interface SlashCommandMenuState {
  * changes so it can never point past the filtered list.
  */
 export function useSlashCommandMenu(value: string): SlashCommandMenuState {
-  const isOpen = isSlashTrigger(value);
+  // Escape sets `dismissed` to hide the menu without erasing the typed token;
+  // any new keystroke (value change) re-arms it below.
+  const [dismissed, setDismissed] = useState(false);
+  const isOpen = isSlashTrigger(value) && !dismissed;
 
   const filtered = useMemo(
     () => (isOpen ? filterCommands(value) : []),
@@ -37,6 +42,7 @@ export function useSlashCommandMenu(value: string): SlashCommandMenuState {
 
   useEffect(() => {
     setHighlightedIndex(0);
+    setDismissed(false);
   }, [value]);
 
   const move = useCallback(
@@ -50,5 +56,14 @@ export function useSlashCommandMenu(value: string): SlashCommandMenuState {
     [filtered.length]
   );
 
-  return { isOpen, filtered, highlightedIndex, setHighlightedIndex, move };
+  const dismiss = useCallback(() => setDismissed(true), []);
+
+  return {
+    isOpen,
+    filtered,
+    highlightedIndex,
+    setHighlightedIndex,
+    move,
+    dismiss,
+  };
 }

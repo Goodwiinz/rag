@@ -14,6 +14,7 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
@@ -40,6 +41,8 @@ export interface ChatBubbleProps {
   streamingContent?: string;
   onRetry?: () => void;
   onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
+  /** Label for the pre-token "thinking" pill (phase-aware). */
+  thinkingLabel?: string;
 }
 
 function ToolStrip({
@@ -105,6 +108,7 @@ export const ChatBubble = React.memo(function ChatBubble({
   streamingContent,
   onRetry,
   onCitationClick,
+  thinkingLabel = 'Thinking',
 }: ChatBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
@@ -231,7 +235,7 @@ export const ChatBubble = React.memo(function ChatBubble({
         ) : (
           <div className="relative">
             {isStreaming && !streamingContent ? (
-              <ThinkingPill label="Thinking" />
+              <ThinkingPill label={thinkingLabel} />
             ) : isStreaming && streamingContent ? (
               <div className="nous-chat-body">
                 <span className="whitespace-pre-wrap">{streamingContent}</span>
@@ -241,7 +245,7 @@ export const ChatBubble = React.memo(function ChatBubble({
                 />
               </div>
             ) : isTyping && !message.content ? (
-              <ThinkingPill label="Thinking" />
+              <ThinkingPill label={thinkingLabel} />
             ) : (
               <div className="nous-chat-body">
                 <CitationRenderer
@@ -371,8 +375,16 @@ export const ChatBubble = React.memo(function ChatBubble({
 });
 
 function ThinkingPill({ label }: { label: string }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="nous-streaming-pill" role="status" aria-live="polite">
+    <motion.div
+      className="nous-streaming-pill"
+      role="status"
+      aria-live="polite"
+      initial={reduce ? false : { opacity: 0, y: 2 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
       <span
         className="w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
         style={{
@@ -381,7 +393,7 @@ function ThinkingPill({ label }: { label: string }) {
         }}
       />
       <span>{label}</span>
-    </div>
+    </motion.div>
   );
 }
 
