@@ -315,7 +315,10 @@ class LLMEntityExtractionService:
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
+            from src.core.async_utils import reraise_if_cancelled
+
             for result in results:
+                reraise_if_cancelled(result)
                 if isinstance(result, Exception):
                     chunks_failed += 1
                     logger.warning("Chunk extraction failed: %s", result)

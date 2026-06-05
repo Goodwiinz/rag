@@ -73,7 +73,10 @@ class HealthChecker:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results
+        from src.core.async_utils import reraise_if_cancelled
+
         for i, result in enumerate(results):
+            reraise_if_cancelled(result)
             if isinstance(result, Exception):
                 component = checks[i].__name__.replace("check_", "")
                 self.results[component] = HealthCheckResult(

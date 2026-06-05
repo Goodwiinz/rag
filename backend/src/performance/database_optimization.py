@@ -552,6 +552,14 @@ class UltraFastDatabaseManager:
                 f"(avg: {avg_time_per_query:.2f}ms per query)"
             )
 
+            # Re-raise cancellation (a BaseException) before filtering —
+            # otherwise a CancelledError passes `not isinstance(_, Exception)`
+            # and is silently returned as a "successful" result.
+            from src.core.async_utils import reraise_if_cancelled
+
+            for r in results:
+                reraise_if_cancelled(r)
+
             # Filter out exceptions and return successful results
             return [r for r in results if not isinstance(r, Exception)]
 
