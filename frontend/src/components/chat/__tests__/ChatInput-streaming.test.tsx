@@ -182,5 +182,14 @@ describe('ChatInput streaming behavior', () => {
       fireEvent.click(screen.getByText('/clear'));
       expect(onCommand).toHaveBeenCalledWith('clear');
     });
+
+    it('Escape dismisses the menu without clearing the input', () => {
+      const onChange = vi.fn();
+      render(<ChatInput {...defaultProps} value="/new" onChange={onChange} />);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
   });
 });

@@ -170,7 +170,7 @@ export function ChatInput({
       }
       if (e.key === 'Escape') {
         e.preventDefault();
-        onChange('');
+        menu.dismiss();
         return;
       }
     }

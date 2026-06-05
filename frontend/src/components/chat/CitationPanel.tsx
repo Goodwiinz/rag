@@ -101,7 +101,7 @@ export function CitationPanel({
           className={cn(
             'fixed right-0 top-0 bottom-0 z-50',
             'w-[400px] max-w-[90vw]',
-            'bg-background border-l border-border',
+            'bg-[var(--nous-bg-1)] border-l border-[var(--nous-border-1)]',
             'flex flex-col',
             className
           )}
@@ -110,7 +110,7 @@ export function CitationPanel({
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
             <div className="flex items-center gap-2">
               <BookOpen
                 className="w-5 h-5"
@@ -137,14 +137,14 @@ export function CitationPanel({
               icon={<X className="w-4 h-4" />}
               label="Close citations panel"
               onClick={onClose}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="h-8 w-8 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-aurum)]"
             />
           </div>
 
           {/* Search and Sort */}
-          <div className="px-4 py-3 border-b border-border space-y-3 bg-background">
+          <div className="px-4 py-3 border-b border-[var(--nous-border-1)] space-y-3 bg-[var(--nous-bg-1)]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--nous-fg-3)]" />
               <Input
                 type="text"
                 placeholder="Search sources..."
@@ -152,22 +152,22 @@ export function CitationPanel({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
                   'pl-9 h-9 text-sm font-mono',
-                  'bg-card border-border',
-                  'text-muted-foreground placeholder:text-foreground',
-                  'focus:border-primary/30 focus:ring-primary/10'
+                  'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]',
+                  'text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]',
+                  'focus:border-[var(--nous-sol)]/30 focus:ring-[var(--nous-sol)]/10'
                 )}
               />
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-foreground font-mono">
+              <span className="text-[10px] text-[var(--nous-fg-3)] font-mono">
                 {filteredCitations.length} of {citations.length} sources
               </span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={toggleSort}
-                className="h-7 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted font-mono"
+                className="h-7 text-[10px] text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-aurum)] font-mono"
               >
                 {sortBy === 'relevance' ? 'By Relevance' : 'By Title'}
                 {sortOrder === 'desc' ? (
@@ -183,8 +183,8 @@ export function CitationPanel({
           <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             {filteredCitations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center">
-                <FileText className="w-10 h-10 text-foreground mb-2" />
-                <p className="text-xs text-foreground font-mono">
+                <FileText className="w-10 h-10 text-[var(--nous-fg-3)] mb-2" />
+                <p className="text-xs text-[var(--nous-fg-3)] font-mono">
                   {searchQuery
                     ? 'No sources match your search'
                     : 'No sources available'}
@@ -211,7 +211,7 @@ export function CitationPanel({
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-border bg-background">
+          <div className="px-4 py-2.5 border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
             <p
               className="text-[9px] text-center font-mono uppercase tracking-widest"
               style={{ color: 'var(--nous-fg-3)' }}
