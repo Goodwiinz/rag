@@ -400,7 +400,9 @@ function ChatPageContent() {
               const items: CommandOutputItem[] = projects.map((p) => ({
                 key: p.id,
                 label: p.name,
-                meta: p.project_type?.replace('_', ' '),
+                meta: `${p.document_count ?? 0} ${
+                  (p.document_count ?? 0) === 1 ? 'paper' : 'papers'
+                }`,
                 active: p.id === currentProject?.id,
                 action: { type: 'set-project', id: p.id, name: p.name },
               }));
@@ -431,8 +433,21 @@ function ChatPageContent() {
           });
           void (async () => {
             try {
-              const res = await documentService.getDocuments(1, 10);
-              const docs = res?.data?.documents ?? [];
+              // api.get() returns the raw body, so getDocuments resolves to
+              // { documents, pagination } directly (its APIResponse<> type
+              // annotation is wrong). Read .documents, not .data.documents.
+              const res = (await documentService.getDocuments(
+                1,
+                10
+              )) as unknown as {
+                documents?: Array<{
+                  id: string;
+                  title?: string;
+                  filename: string;
+                  processing_status?: string;
+                }>;
+              };
+              const docs = res?.documents ?? [];
               const items: CommandOutputItem[] = docs.map((d) => ({
                 key: d.id,
                 label: d.title || d.filename,
