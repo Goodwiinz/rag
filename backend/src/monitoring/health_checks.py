@@ -610,7 +610,10 @@ class HealthCheckManager:
         unhealthy_count = 0
         unknown_count = 0
 
+        from src.core.async_utils import reraise_if_cancelled
+
         for result in results:
+            reraise_if_cancelled(result)
             if isinstance(result, Exception):
                 # Handle exceptions
                 error_result = HealthCheckResult(
@@ -813,7 +816,10 @@ async def check_component_health(component: str) -> HealthSummary:
     check_results = []
     healthy_count = degraded_count = unhealthy_count = unknown_count = 0
 
+    from src.core.async_utils import reraise_if_cancelled
+
     for result in results:
+        reraise_if_cancelled(result)
         if isinstance(result, Exception):
             unhealthy_count += 1
         else:
