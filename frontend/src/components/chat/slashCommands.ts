@@ -31,7 +31,7 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'new', label: '/new', title: 'Start a new chat' },
   { id: 'retry', label: '/retry', title: 'Regenerate the last response' },
-  { id: 'clear', label: '/clear', title: 'Clear the screen' },
+  { id: 'clear', label: '/clear', title: 'Clear command output' },
   { id: 'threads', label: '/threads', title: 'Browse and switch threads' },
   { id: 'projects', label: '/projects', title: 'Set the project context' },
   { id: 'papers', label: '/papers', title: 'Browse your papers' },

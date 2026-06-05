@@ -210,13 +210,13 @@ export function ChatInput({
 
   return (
     <div
-      className="z-40 px-2 sm:px-6 pt-3 pb-[80px] md:pb-4 border-t"
+      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px_+_env(safe-area-inset-bottom))] md:pb-4 border-t"
       style={{
         background: 'var(--nous-bg-1)',
         borderColor: 'var(--nous-border-1)',
       }}
     >
-      <div className="relative max-w-[820px] mx-auto">
+      <div className="relative max-w-[var(--nous-chat-col)] mx-auto">
         <SlashCommandMenu
           open={menu.isOpen}
           commands={menu.filtered}
@@ -242,7 +242,7 @@ export function ChatInput({
         >
           {/* Top strip — live status, Ultra Thinking, model, counter */}
           <div
-            className="flex items-center justify-between gap-2 px-3 py-2 border-b overflow-x-auto"
+            className="flex items-center justify-between gap-2 px-3 py-2 border-b"
             style={{
               background: 'var(--nous-bg-1)',
               borderColor: 'var(--nous-border-1)',
@@ -259,7 +259,7 @@ export function ChatInput({
                     animate={{ opacity: 1, y: 0 }}
                     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="inline-flex items-center gap-2 rounded-full shrink-0"
+                    className="inline-flex items-center gap-2 rounded-full min-w-0"
                     style={{
                       padding: '4px 11px 4px 9px',
                       background: 'var(--nous-bg-2)',
@@ -275,7 +275,7 @@ export function ChatInput({
                       }}
                     />
                     <span
-                      className="font-nous-mono text-[10px] font-medium"
+                      className="font-nous-mono text-[10px] font-medium truncate"
                       style={{
                         color: 'var(--nous-fg-2)',
                         letterSpacing: '0.02em',
@@ -401,7 +401,7 @@ export function ChatInput({
                 activeCommand ? slashOptionId(activeCommand.id) : undefined
               }
               aria-autocomplete="list"
-              className="w-full bg-transparent resize-none outline-none font-nous-body text-[15px]"
+              className="w-full bg-transparent resize-none outline-none font-nous-body text-[16px]"
               style={{
                 color: 'var(--nous-fg-1)',
                 lineHeight: '1.6',
@@ -416,7 +416,7 @@ export function ChatInput({
             >
               <div className="flex items-center gap-0.5">
                 <label
-                  className="grid place-items-center w-[30px] h-[30px] rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -444,7 +444,7 @@ export function ChatInput({
                   />
                 </label>
                 <label
-                  className="grid place-items-center w-[30px] h-[30px] rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -492,7 +492,7 @@ export function ChatInput({
                         : 'Voice input'
                   }
                   className={cn(
-                    'grid place-items-center w-[30px] h-[30px] rounded-md transition-all',
+                    'grid place-items-center w-11 h-11 rounded-md transition-all',
                     !voiceSupported && 'opacity-40 cursor-not-allowed'
                   )}
                   style={{
@@ -519,11 +519,12 @@ export function ChatInput({
                     onChange('/');
                     textareaRef.current?.focus();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 font-nous-mono text-[10px] cursor-pointer transition-colors hover:border-[var(--nous-sol)]/40"
+                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-[var(--nous-aurum)]"
                   style={{
-                    padding: '4px 8px 4px 6px',
-                    border: '1px dashed var(--nous-border-2)',
-                    color: 'var(--nous-fg-3)',
+                    padding: '4px 8px',
+                    border: '1px solid var(--nous-border-1)',
+                    background: 'var(--nous-bg-1)',
+                    color: 'var(--nous-fg-2)',
                   }}
                   aria-label="Open commands"
                   title="Type / to open commands"
