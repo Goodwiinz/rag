@@ -3,8 +3,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import React from 'react';
 
-import { ProjectPickerPopover } from '@/components/context-rail/ProjectPickerPopover';
-
 import type { SlashCommand } from './slashCommands';
 
 export const SLASH_LISTBOX_ID = 'slash-command-listbox';
@@ -15,28 +13,17 @@ interface SlashCommandMenuProps {
   commands: SlashCommand[];
   highlightedIndex: number;
   onHighlight: (index: number) => void;
-  /** Run an `action` command (selecting a row or pressing Enter). */
+  /** Run a command (selecting a row or pressing Enter). */
   onRun: (command: SlashCommand) => void;
-  /** Active thread + workspace for the `/projects` picker. */
-  threadId?: string;
-  workspaceId?: string;
-  /** Called when a project is chosen via the `/projects` picker. */
-  onSetProjectContext?: (projectId: string, projectName: string) => void;
-  /**
-   * Ref to the `/projects` row button, so a keyboard Enter on that row can
-   * synthesise a click and open the (mouse-driven) picker.
-   */
-  projectsTriggerRef?: React.RefObject<HTMLButtonElement>;
 }
 
 /**
  * Filterable, keyboard-navigable slash-command menu.
  *
  * Rendered as a plain absolutely-positioned listbox that opens *upward* from
- * the composer (`bottom: 100% + 8px` of a `relative` wrapper around the input
- * box). That escapes the input box's `overflow-hidden` without a portal, keeps
- * keyboard focus in the textarea (rows never steal it), and lets `/projects`
- * reuse `ProjectPickerPopover` as a single, non-nested Radix popover.
+ * the composer (inline `bottom: calc(100% + 8px)` on a `relative` wrapper
+ * around the input box). That escapes the input box's `overflow-hidden` without
+ * a portal and keeps keyboard focus in the textarea.
  *
  * Roving selection: the highlight is tracked here and exposed to assistive tech
  * via `aria-activedescendant` on the textarea (set by the parent), so real DOM
@@ -48,83 +35,8 @@ export function SlashCommandMenu({
   highlightedIndex,
   onHighlight,
   onRun,
-  threadId,
-  workspaceId,
-  onSetProjectContext,
-  projectsTriggerRef,
 }: SlashCommandMenuProps) {
   const reduceMotion = useReducedMotion();
-
-  const renderRow = (cmd: SlashCommand, index: number) => {
-    const active = index === highlightedIndex;
-    const rowClass =
-      'flex w-full min-h-[44px] items-center gap-3 rounded-lg px-3 text-left transition-colors';
-    const rowStyle: React.CSSProperties = {
-      background: active ? 'var(--nous-aurum)' : 'transparent',
-    };
-    const labelColor = active ? 'var(--nous-sol-safe)' : 'var(--nous-fg-1)';
-    const titleColor = active ? 'var(--nous-sol-safe)' : 'var(--nous-fg-3)';
-
-    const inner = (
-      <>
-        <span
-          className="font-nous-mono text-[12px] font-semibold shrink-0"
-          style={{ color: labelColor, letterSpacing: '0.04em' }}
-        >
-          {cmd.label}
-        </span>
-        <span
-          className="font-nous-body text-[12px] truncate"
-          style={{ color: titleColor }}
-        >
-          {cmd.title}
-        </span>
-      </>
-    );
-
-    const shared = {
-      id: slashOptionId(cmd.id),
-      role: 'option' as const,
-      'aria-selected': active,
-      onMouseEnter: () => onHighlight(index),
-    };
-
-    // `/projects` row IS the trigger of ProjectPickerPopover (a self-contained
-    // Radix popover). Mouse click opens it; keyboard Enter clicks it via ref.
-    if (cmd.kind === 'picker' && cmd.id === 'projects') {
-      return (
-        <ProjectPickerPopover
-          key={cmd.id}
-          threadId={threadId ?? ''}
-          workspaceId={workspaceId}
-          onProjectBound={(id, name) => onSetProjectContext?.(id, name)}
-        >
-          <button
-            {...shared}
-            ref={projectsTriggerRef}
-            type="button"
-            className={rowClass}
-            style={rowStyle}
-          >
-            {inner}
-          </button>
-        </ProjectPickerPopover>
-      );
-    }
-
-    return (
-      <button
-        {...shared}
-        key={cmd.id}
-        type="button"
-        className={rowClass}
-        style={rowStyle}
-        onClick={() => onRun(cmd)}
-      >
-        {inner}
-      </button>
-    );
-  };
 
   return (
     <AnimatePresence>
@@ -153,7 +65,42 @@ export function SlashCommandMenu({
           >
             Commands
           </div>
-          {commands.map((cmd, i) => renderRow(cmd, i))}
+          {commands.map((cmd, index) => {
+            const active = index === highlightedIndex;
+            return (
+              <button
+                key={cmd.id}
+                id={slashOptionId(cmd.id)}
+                role="option"
+                aria-selected={active}
+                type="button"
+                onMouseEnter={() => onHighlight(index)}
+                onClick={() => onRun(cmd)}
+                className="flex w-full min-h-[44px] items-center gap-3 rounded-lg px-3 text-left transition-colors"
+                style={{
+                  background: active ? 'var(--nous-aurum)' : 'transparent',
+                }}
+              >
+                <span
+                  className="font-nous-mono text-[12px] font-semibold shrink-0"
+                  style={{
+                    color: active ? 'var(--nous-sol-safe)' : 'var(--nous-fg-1)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {cmd.label}
+                </span>
+                <span
+                  className="font-nous-body text-[12px] truncate"
+                  style={{
+                    color: active ? 'var(--nous-sol-safe)' : 'var(--nous-fg-3)',
+                  }}
+                >
+                  {cmd.title}
+                </span>
+              </button>
+            );
+          })}
         </motion.div>
       )}
     </AnimatePresence>

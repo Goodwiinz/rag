@@ -3,9 +3,9 @@
  *
  * Mirrors the command names the user already has in the CLI
  * (`cli/repl.ts` `handleSlashCommand`) so the web chat and the terminal share
- * one vocabulary. Only the subset that maps cleanly to existing web actions is
- * shipped; the CLI's `/thread /history /forget /context /settings /quit` are
- * intentionally omitted.
+ * one vocabulary. Running a command prints its result into the chat transcript
+ * (see `commandOutput.ts` / `CommandOutputBubble`), CLI-style; nothing
+ * navigates away.
  *
  * Kept JSX- and dependency-free so it can be imported anywhere (component,
  * hook, test) without pulling in React.
@@ -26,31 +26,16 @@ export interface SlashCommand {
   label: string;
   /** One-line description shown beside the label. */
   title: string;
-  /**
-   * `action` runs immediately via `onCommand(id)`.
-   * `picker` opens an in-menu picker (currently only `/projects`).
-   */
-  kind: 'action' | 'picker';
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  { id: 'new', label: '/new', title: 'Start a new chat', kind: 'action' },
-  {
-    id: 'retry',
-    label: '/retry',
-    title: 'Regenerate the last response',
-    kind: 'action',
-  },
-  { id: 'clear', label: '/clear', title: 'Clear the input', kind: 'action' },
-  { id: 'threads', label: '/threads', title: 'Browse threads', kind: 'action' },
-  {
-    id: 'projects',
-    label: '/projects',
-    title: 'Set project context',
-    kind: 'picker',
-  },
-  { id: 'papers', label: '/papers', title: 'Browse papers', kind: 'action' },
-  { id: 'help', label: '/help', title: 'List commands', kind: 'action' },
+  { id: 'new', label: '/new', title: 'Start a new chat' },
+  { id: 'retry', label: '/retry', title: 'Regenerate the last response' },
+  { id: 'clear', label: '/clear', title: 'Clear the screen' },
+  { id: 'threads', label: '/threads', title: 'Browse and switch threads' },
+  { id: 'projects', label: '/projects', title: 'Set the project context' },
+  { id: 'papers', label: '/papers', title: 'Browse your papers' },
+  { id: 'help', label: '/help', title: 'List commands' },
 ];
 
 /**
