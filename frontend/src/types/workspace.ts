@@ -232,6 +232,7 @@ export interface ChatMessageCreate {
   role?: MessageRole;
   attachment_ids?: string[];
   citations?: CitationCreate[]; // Citations from RAG retrieval
+  latency_ms?: number; // Client-measured response time (ms)
 }
 
 export interface ChatMessageUpdate {

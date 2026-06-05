@@ -458,6 +458,7 @@ export function useChatStreaming(
               thread_id: currentThreadId,
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
+              latency_ms: responseTimeMs,
             });
             addMessageToStore(currentThreadId, {
               ...savedAssistantMessage,
