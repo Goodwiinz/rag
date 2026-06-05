@@ -437,6 +437,28 @@ class TestExecuteToolDispatch:
         assert result.get("status") == "completed"
         assert "error" not in result  # must NOT be the "Unknown tool" catch-all
 
+    async def test_execute_code_threads_thread_id(self):
+        """execute_tool must forward thread_id to _tool_execute_code (was hardcoded "")."""
+        from src.api.agent.execute import execute_tool
+
+        with patch(
+            "src.api.agent.tools_impl._tool_execute_code",
+            new_callable=AsyncMock,
+            return_value={"status": "ok"},
+        ) as mock_handler:
+            await execute_tool(
+                tool_name="execute_code",
+                args={"code": "print(1)"},
+                user_id="user-1",
+                db=AsyncMock(),
+                current_user=_mock_user(),
+                thread_id="thread-abc",
+            )
+
+        mock_handler.assert_awaited_once()
+        # The sandbox is keyed by thread_id; isolation breaks if it's empty.
+        assert mock_handler.await_args.kwargs["thread_id"] == "thread-abc"
+
 
 class TestCreateProject:
     """Tests for _tool_create_project."""
