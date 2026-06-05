@@ -11,6 +11,7 @@ unavailable or returns low confidence.
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
@@ -174,7 +175,10 @@ def classify_intent_keywords(query: str) -> ClassificationResult:
     scores: Dict[str, int] = {intent: 0 for intent in INTENT_KEYWORDS}
     for intent, keyword_weights in INTENT_KEYWORDS.items():
         for kw, weight in keyword_weights:
-            if kw in query_lower:
+            # Word-boundary match — plain substring let 'graph' hit
+            # 'biography', 'entity' hit 'identity', etc. (re caches compiled
+            # patterns, and this is the cheap keyword fast-path.)
+            if re.search(rf"\b{re.escape(kw)}\b", query_lower):
                 scores[intent] += weight
 
     best_score = max(scores.values())
