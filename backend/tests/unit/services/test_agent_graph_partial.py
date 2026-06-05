@@ -342,6 +342,23 @@ class TestIndividualNodes:
         assert "user_memories" in result
         assert result["intent"] == "research"
 
+    async def test_preprocessing_node_reraises_cancelled_error(self):
+        """A CancelledError from a parallel subtask must propagate, not be
+        swallowed into a TypeError via merged.update(<exception>)."""
+        import asyncio
+
+        from src.services.agent.graph import preprocessing_node
+
+        async def _cancel(*_a, **_k):
+            raise asyncio.CancelledError()
+
+        with patch("src.services.agent._nodes_classify.rag_node", new=_cancel):
+            with pytest.raises(asyncio.CancelledError):
+                await preprocessing_node(
+                    _make_initial_state("find papers on transformers"),
+                    _make_config(),
+                )
+
     async def test_memory_save_node_without_user(self):
         """memory_save_node should return empty dict when no user."""
         from src.services.agent.graph import compile_agent_graph

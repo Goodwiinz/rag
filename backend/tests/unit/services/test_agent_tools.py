@@ -413,6 +413,30 @@ class TestExecuteToolDispatch:
         mock_handler.assert_awaited_once()
         assert result["status"] == "success"
 
+    async def test_forget_memory_dispatches_correctly(self):
+        """execute_tool must route forget_memory to its handler (was Unknown tool)."""
+        from src.api.agent.execute import execute_tool
+
+        with patch(
+            "src.api.agent.tools_impl._tool_forget_memory",
+            new_callable=AsyncMock,
+            return_value={"status": "completed", "deleted": 1, "matches": []},
+        ) as mock_handler:
+            result = await execute_tool(
+                tool_name="forget_memory",
+                args={"query": "forget my transformer searches"},
+                user_id="user-1",
+                db=AsyncMock(),
+                current_user=_mock_user(),
+            )
+
+        mock_handler.assert_awaited_once()
+        # keyword-only handler — routing must pass query + user_id through
+        assert mock_handler.await_args.kwargs["query"] == "forget my transformer searches"
+        assert mock_handler.await_args.kwargs["user_id"] == "user-1"
+        assert result.get("status") == "completed"
+        assert "error" not in result  # must NOT be the "Unknown tool" catch-all
+
     async def test_execute_code_threads_thread_id(self):
         """execute_tool must forward thread_id to _tool_execute_code (was hardcoded "")."""
         from src.api.agent.execute import execute_tool

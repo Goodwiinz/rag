@@ -152,7 +152,7 @@ async def set_job(job_id: str, data: dict) -> None:
         existing = _l1.get(job_id)
         if existing is None or existing.get("created_at", 0) <= data["created_at"]:
             _l1[job_id] = data
-        _l1_cleanup()
+        _l1_maybe_cleanup()
 
     # L2: Redis
     await set_job_redis_only(job_id, data)
