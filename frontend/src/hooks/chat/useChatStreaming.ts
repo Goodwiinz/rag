@@ -55,6 +55,7 @@ export interface UseChatStreamingReturn {
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
   storeIsStreaming: boolean;
   storeStreamingContent: string;
+  storeIsRetrievingRag: boolean;
   streamingTimestampRef: React.MutableRefObject<number>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -115,6 +116,7 @@ export function useChatStreaming(
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
+  const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
@@ -235,6 +237,8 @@ export function useChatStreaming(
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
+          // Only "retrieving" when RAG is on; cleared on first token / context.
+          isRetrievingRag: enableRAG,
         });
 
         if (currentThreadId) {
@@ -274,6 +278,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -300,6 +305,7 @@ export function useChatStreaming(
               console.log('[Agent] RAG contexts:', contexts.length);
               useChatStore.setState({
                 streamingCitations: contexts,
+                isRetrievingRag: false,
               });
             },
             onPlan: (steps) => {
@@ -549,6 +555,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -625,6 +632,7 @@ export function useChatStreaming(
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
+    storeIsRetrievingRag,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,

@@ -164,6 +164,10 @@ interface ChatState {
   streamingMessageId: string | null;
   streamingCitations: Array<Record<string, unknown>>;
   streamingDiagnosticsTraceId: string | null;
+  // True only while RAG retrieval is in flight (set at stream start, cleared on
+  // the first token or rag_context event). Drives the composer's
+  // "reading sources…" status phase.
+  isRetrievingRag: boolean;
 }
 
 interface ChatActions {
@@ -384,6 +388,7 @@ const initialState: ChatState = {
   streamingMessageId: null,
   streamingCitations: [],
   streamingDiagnosticsTraceId: null,
+  isRetrievingRag: false,
 };
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)
@@ -1286,6 +1291,7 @@ export const useChatStore = create<ChatStore>()(
           state.streamingMessageId = null;
           state.streamingCitations = [];
           state.streamingDiagnosticsTraceId = null;
+          state.isRetrievingRag = false;
         });
       },
 

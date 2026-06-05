@@ -2,10 +2,16 @@
 
 import { cn } from '@/lib/utils';
 import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
-import { motion } from 'framer-motion';
+import {
+  SlashCommandMenu,
+  SLASH_LISTBOX_ID,
+  slashOptionId,
+} from './SlashCommandMenu';
+import { useSlashCommandMenu } from './useSlashCommandMenu';
+import type { SlashCommand, SlashCommandId } from './slashCommands';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
-  Bot,
   Image as ImageIcon,
   Mic,
   Paperclip,
@@ -26,6 +32,14 @@ interface ChatInputProps {
   onAttach?: (files: FileList) => void;
   selectedModelId?: string;
   onModelChange?: (id: string) => void;
+  // Phase-aware status pill (shown only while generating)
+  isStreaming?: boolean;
+  streamingContent?: string;
+  // Slash commands
+  onCommand?: (id: SlashCommandId) => void;
+  onSetProjectContext?: (projectId: string, projectName: string) => void;
+  workspaceId?: string;
+  activeThreadId?: string;
 }
 
 type SpeechRecognitionEventLike = {
@@ -65,6 +79,12 @@ export function ChatInput({
   onAttach,
   selectedModelId,
   onModelChange,
+  isStreaming,
+  streamingContent,
+  onCommand,
+  onSetProjectContext,
+  workspaceId,
+  activeThreadId,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
@@ -72,6 +92,9 @@ export function ChatInput({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const menu = useSlashCommandMenu(value);
+  const projectsTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     setVoiceSupported(getSpeechRecognition() !== null);
   }, []);
@@ -120,7 +143,58 @@ export function ChatInput({
     }
   }, [value, textareaRef]);
 
+  const runCommand = (command: SlashCommand | undefined): void => {
+    if (!command) return;
+    if (command.kind === 'picker') {
+      // Open the in-menu picker; the keyboard path synthesises the click the
+      // mouse path performs natively. The input clears once a project is set.
+      projectsTriggerRef.current?.click();
+      return;
+    }
+    onChange('');
+    onCommand?.(command.id);
+  };
+
+  const handlePickProjectContext = (
+    projectId: string,
+    projectName: string
+  ): void => {
+    onChange('');
+    onSetProjectContext?.(projectId, projectName);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
+    // When the slash menu is open, intercept navigation/run keys. Enter runs
+    // the highlighted command and never submits. The menu can only be open
+    // while the whole value is a "/word" token, which is never a sendable
+    // message — so normal send-on-Enter is unaffected.
+    if (menu.isOpen && menu.filtered.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        menu.move(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        menu.move(-1);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        menu.move(e.shiftKey ? -1 : 1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runCommand(menu.filtered[menu.highlightedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onChange('');
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!isLoading && value.trim()) {
@@ -135,6 +209,26 @@ export function ChatInput({
   const fillPct = Math.min(100, Math.round((charCount / maxChars) * 100));
   const isNearLimit = charCount > maxChars * 0.8;
 
+  const activeCommand =
+    menu.isOpen && menu.filtered.length > 0
+      ? menu.filtered[menu.highlightedIndex]
+      : undefined;
+
+  // Phase-aware status: shown only while generating.
+  const statusPhase: 'retrieving' | 'writing' | 'reflecting' | null = !isLoading
+    ? null
+    : isRAGLoading
+      ? 'retrieving'
+      : isStreaming && (streamingContent?.length ?? 0) > 0
+        ? 'writing'
+        : 'reflecting';
+  const statusLabel =
+    statusPhase === 'retrieving'
+      ? 'Nous is reading sources…'
+      : statusPhase === 'writing'
+        ? 'Nous is writing…'
+        : 'Nous is reflecting…';
+
   return (
     <div
       className="z-40 px-2 sm:px-6 pt-3 pb-[80px] md:pb-4 border-t"
@@ -143,7 +237,18 @@ export function ChatInput({
         borderColor: 'var(--nous-border-1)',
       }}
     >
-      <div className="max-w-[820px] mx-auto">
+      <div className="relative max-w-[820px] mx-auto">
+        <SlashCommandMenu
+          open={menu.isOpen}
+          commands={menu.filtered}
+          highlightedIndex={menu.highlightedIndex}
+          onHighlight={menu.setHighlightedIndex}
+          onRun={runCommand}
+          threadId={activeThreadId}
+          workspaceId={workspaceId}
+          onSetProjectContext={handlePickProjectContext}
+          projectsTriggerRef={projectsTriggerRef}
+        />
         <motion.div
           className="rounded-[14px] overflow-hidden"
           style={{
@@ -160,7 +265,7 @@ export function ChatInput({
           animate={isFocused ? { y: -1 } : { y: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
-          {/* Top strip — agent badge, RAG toggle, model, counter */}
+          {/* Top strip — live status, Ultra Thinking, model, counter */}
           <div
             className="flex items-center justify-between gap-2 px-3 py-2 border-b overflow-x-auto"
             style={{
@@ -169,49 +274,43 @@ export function ChatInput({
             }}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <div
-                className="inline-flex items-center gap-[7px] rounded-md shrink-0"
-                style={{
-                  padding: '4px 9px 4px 7px',
-                  background: 'var(--nous-bg-2)',
-                  border: '1px solid var(--nous-border-1)',
-                }}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{
-                    background: 'var(--nous-terra)',
-                    boxShadow: '0 0 0 2px rgba(52, 211, 153, 0.15)',
-                    animation: 'nous-pulse 2s ease-in-out infinite',
-                  }}
-                />
-                <Bot
-                  className="w-3 h-3"
-                  style={{ color: 'var(--nous-fg-1)' }}
-                  strokeWidth={1.7}
-                />
-                <span
-                  className="font-nous-mono text-[10px] font-semibold"
-                  style={{
-                    color: 'var(--nous-fg-1)',
-                    letterSpacing: '0.04em',
-                  }}
-                >
-                  nous-agent
-                </span>
-                <span
-                  className="font-nous-mono font-bold uppercase rounded-sm"
-                  style={{
-                    padding: '1px 5px',
-                    fontSize: '8px',
-                    letterSpacing: '0.12em',
-                    background: 'var(--nous-aurum)',
-                    color: 'var(--nous-sol-safe)',
-                  }}
-                >
-                  Agent
-                </span>
-              </div>
+              <AnimatePresence>
+                {statusPhase && (
+                  <motion.div
+                    key="nous-status"
+                    role="status"
+                    aria-live="polite"
+                    initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="inline-flex items-center gap-2 rounded-full shrink-0"
+                    style={{
+                      padding: '4px 11px 4px 9px',
+                      background: 'var(--nous-bg-2)',
+                      border: '1px solid var(--nous-border-1)',
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{
+                        background: 'var(--nous-sol)',
+                        boxShadow: '0 0 0 3px rgba(212, 160, 57, 0.18)',
+                        animation: 'nous-pulse 1.4s ease-in-out infinite',
+                      }}
+                    />
+                    <span
+                      className="font-nous-mono text-[10px] font-medium"
+                      style={{
+                        color: 'var(--nous-fg-2)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      {statusLabel}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <button
                 type="button"
@@ -219,12 +318,14 @@ export function ChatInput({
                 disabled={isLoading}
                 aria-pressed={enableRAG}
                 aria-label={
-                  enableRAG ? 'Disable RAG context' : 'Enable RAG context'
+                  enableRAG
+                    ? 'Ultra Thinking on. Grounds answers in your sources.'
+                    : 'Ultra Thinking off. Answers without your sources.'
                 }
                 title={
                   enableRAG
-                    ? 'RAG enabled — click to disable'
-                    : 'RAG disabled — click to enable'
+                    ? 'Ultra Thinking on. Grounds answers in your sources.'
+                    : 'Ultra Thinking off. Answers without your sources.'
                 }
                 className="inline-flex items-center gap-[7px] rounded-md shrink-0 transition-all disabled:opacity-50"
                 style={{
@@ -249,7 +350,7 @@ export function ChatInput({
                   }}
                 />
                 <span
-                  className="font-nous-mono text-[10px] font-semibold"
+                  className="font-nous-mono text-[10px] font-semibold whitespace-nowrap"
                   style={{
                     letterSpacing: '0.04em',
                     color: enableRAG
@@ -257,7 +358,7 @@ export function ChatInput({
                       : 'var(--nous-fg-3)',
                   }}
                 >
-                  {isRAGLoading ? 'RETRIEVING' : enableRAG ? 'RAG' : 'RAG OFF'}
+                  Ultra Thinking
                 </span>
               </button>
 
@@ -319,6 +420,12 @@ export function ChatInput({
               placeholder="Ask anything, or paste a passage to discuss…"
               rows={1}
               disabled={isDisabled}
+              aria-expanded={menu.isOpen}
+              aria-controls={menu.isOpen ? SLASH_LISTBOX_ID : undefined}
+              aria-activedescendant={
+                activeCommand ? slashOptionId(activeCommand.id) : undefined
+              }
+              aria-autocomplete="list"
               className="w-full bg-transparent resize-none outline-none font-nous-body text-[15px]"
               style={{
                 color: 'var(--nous-fg-1)',
@@ -431,14 +538,19 @@ export function ChatInput({
                   />
                 </button>
 
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 font-nous-mono text-[10px] select-none cursor-default"
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange('/');
+                    textareaRef.current?.focus();
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 font-nous-mono text-[10px] cursor-pointer transition-colors hover:border-[var(--nous-sol)]/40"
                   style={{
                     padding: '4px 8px 4px 6px',
                     border: '1px dashed var(--nous-border-2)',
                     color: 'var(--nous-fg-3)',
                   }}
-                  aria-label="Slash commands hint"
+                  aria-label="Open commands"
                   title="Type / to open commands"
                 >
                   <kbd
@@ -454,7 +566,7 @@ export function ChatInput({
                     /
                   </kbd>
                   Commands
-                </span>
+                </button>
               </div>
 
               {isLoading ? (

@@ -19,6 +19,7 @@ import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
+import type { SlashCommandId } from '@/components/chat/slashCommands';
 
 // ============================================
 // HITL HELPERS
@@ -109,6 +110,7 @@ function ChatPageContent() {
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
+    storeIsRetrievingRag,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,
@@ -257,6 +259,71 @@ function ChatPageContent() {
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setMessages]
   );
 
+  // Start a fresh chat — shared by the sidebar "new" button and the /new command
+  const startNewChat = useCallback(() => {
+    setActiveConversationId(null);
+    activeConversationIdRef.current = null;
+    setMessages([]);
+    setCurrentThread(null);
+    router.push(getNewChatUrl());
+  }, [
+    router,
+    setActiveConversationId,
+    setMessages,
+    setCurrentThread,
+    activeConversationIdRef,
+  ]);
+
+  // Regenerate the most recent assistant response (the /retry command)
+  const retryLast = useCallback(() => {
+    const lastAssistantIdx = [...displayedMessages]
+      .map((m, i) => ({ role: m.role, i }))
+      .reverse()
+      .find((x) => x.role === 'assistant')?.i;
+    if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
+  }, [displayedMessages, handleRegenerate]);
+
+  // Bind the chat to a project via the same ?projectId= param the context rail
+  // uses (the streaming hook reads it into page_context).
+  const handleSetProjectContext = useCallback(
+    (projectId: string) => {
+      const params = new URLSearchParams(window.location.search);
+      params.set('projectId', projectId);
+      router.replace(`/chat?${params.toString()}`);
+    },
+    [router]
+  );
+
+  // Run a slash command picked from the composer menu.
+  const handleSlashCommand = useCallback(
+    (id: SlashCommandId) => {
+      switch (id) {
+        case 'new':
+          startNewChat();
+          break;
+        case 'retry':
+          retryLast();
+          break;
+        case 'clear':
+          setInput('');
+          break;
+        case 'threads':
+          // Desktop sidebar is always visible; on mobile, open the drawer.
+          setMobileSidebarOpen(true);
+          break;
+        case 'papers':
+          router.push('/documents');
+          break;
+        case 'help':
+          // Re-open the menu (it IS the command list) by re-triggering "/".
+          setInput('/');
+          break;
+        // 'projects' is handled in-menu by the project picker.
+      }
+    },
+    [startNewChat, retryLast, setInput, router]
+  );
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
       {/* Mobile sidebar backdrop + drawer */}
@@ -285,11 +352,7 @@ function ChatPageContent() {
                 setMobileSidebarOpen(false);
               }}
               onNew={() => {
-                setActiveConversationId(null);
-                activeConversationIdRef.current = null;
-                setMessages([]);
-                setCurrentThread(null);
-                router.push(getNewChatUrl());
+                startNewChat();
                 setMobileSidebarOpen(false);
               }}
               onRename={handleRenameThread}
@@ -312,13 +375,7 @@ function ChatPageContent() {
             setCurrentThread(id);
             router.push(getSelectedThreadUrl(id));
           }}
-          onNew={() => {
-            setActiveConversationId(null);
-            activeConversationIdRef.current = null;
-            setMessages([]);
-            setCurrentThread(null);
-            router.push(getNewChatUrl());
-          }}
+          onNew={startNewChat}
           onRename={handleRenameThread}
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
@@ -567,10 +624,17 @@ function ChatPageContent() {
           isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
+          isRAGLoading={storeIsRetrievingRag}
+          isStreaming={storeIsStreaming}
+          streamingContent={storeStreamingContent}
           inputRef={chatInputRef}
           onAttach={handleAttach}
           selectedModelId={selectedModel}
           onModelChange={setSelectedModel}
+          onCommand={handleSlashCommand}
+          onSetProjectContext={handleSetProjectContext}
+          activeThreadId={activeThreadId ?? undefined}
+          workspaceId={workspace?.id}
         />
 
         {/* Citation Panel Sidebar */}
