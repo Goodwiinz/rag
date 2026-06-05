@@ -22,6 +22,13 @@ vi.mock('framer-motion', () => ({
   useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
+  useReducedMotion: () => false,
+}));
+
+// Isolate the composer from the project picker (Radix + stores) — the /projects
+// row just needs to render its trigger for these tests.
+vi.mock('@/components/context-rail/ProjectPickerPopover', () => ({
+  ProjectPickerPopover: ({ children }: any) => <>{children}</>,
 }));
 
 import { ChatInput } from '../ChatInput';
@@ -88,11 +95,75 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('shows agent label', () => {
-    it('displays the agent label in the input bar', () => {
+  describe('phase-aware status pill', () => {
+    it('shows no status pill when idle (and no legacy agent badge)', () => {
       render(<ChatInput {...defaultProps} />);
+      expect(screen.queryByText(/Nous is/)).not.toBeInTheDocument();
+      expect(screen.queryByText('nous-agent')).not.toBeInTheDocument();
+    });
 
-      expect(screen.getByText('nous-agent')).toBeInTheDocument();
+    it('shows "reflecting" while loading before tokens arrive', () => {
+      render(
+        <ChatInput
+          {...defaultProps}
+          isLoading
+          isStreaming
+          streamingContent=""
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Nous is reflecting'
+      );
+    });
+
+    it('shows "writing" once tokens stream', () => {
+      render(
+        <ChatInput
+          {...defaultProps}
+          isLoading
+          isStreaming
+          streamingContent="partial answer"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('Nous is writing');
+    });
+
+    it('shows "reading sources" while RAG retrieval is in flight', () => {
+      render(<ChatInput {...defaultProps} isLoading isRAGLoading />);
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Nous is reading sources'
+      );
+    });
+  });
+
+  describe('Ultra Thinking toggle', () => {
+    it('renders the Ultra Thinking label and toggles RAG', () => {
+      const onRAGToggle = vi.fn();
+      render(
+        <ChatInput
+          {...defaultProps}
+          enableRAG={false}
+          onRAGToggle={onRAGToggle}
+        />
+      );
+      const toggle = screen.getByText('Ultra Thinking');
+      expect(toggle).toBeInTheDocument();
+      fireEvent.click(toggle);
+      expect(onRAGToggle).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('slash command menu', () => {
+    it('opens a listbox of commands when the value is "/"', () => {
+      render(<ChatInput {...defaultProps} value="/" />);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getByText('/new')).toBeInTheDocument();
+      expect(screen.getByText('/projects')).toBeInTheDocument();
+    });
+
+    it('does not show the menu for normal text', () => {
+      render(<ChatInput {...defaultProps} value="hello" />);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
   });
 });

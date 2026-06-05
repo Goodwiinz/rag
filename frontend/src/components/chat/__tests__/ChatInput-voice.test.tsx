@@ -23,6 +23,7 @@ vi.mock('framer-motion', () => ({
   useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
+  useReducedMotion: () => false,
 }));
 
 import { ChatInput } from '../ChatInput';
