@@ -141,7 +141,7 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all",
+                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                     userMenuOpen
                       ? "border-primary/40 bg-primary/10"
                       : "border-white/10 bg-white/[0.02] hover:border-white/20"
@@ -202,7 +202,7 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                           setUserMenuOpen(false);
                           handleLogout();
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:ring-offset-2"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Sign Out
