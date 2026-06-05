@@ -954,8 +954,12 @@ async def _tool_ingest_arxiv(
                             from src.services.do_kb import sync_documents_to_kb
 
                             async with AsyncSessionLocal() as kb_db:
+                                # AsyncSession.merge() is synchronous in SQLAlchemy
+                                # 2.0 — awaiting it raises TypeError (swallowed by
+                                # the except below), so the KB dual-write silently
+                                # never ran. Do not await it.
                                 merged = [
-                                    await kb_db.merge(d) for d in persisted_documents
+                                    kb_db.merge(d) for d in persisted_documents
                                 ]
                                 await sync_documents_to_kb(kb_db, merged)
                         except Exception as kb_err:  # noqa: BLE001
