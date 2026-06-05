@@ -25,12 +25,6 @@ vi.mock('framer-motion', () => ({
   useReducedMotion: () => false,
 }));
 
-// Isolate the composer from the project picker (Radix + stores) — the /projects
-// row just needs to render its trigger for these tests.
-vi.mock('@/components/context-rail/ProjectPickerPopover', () => ({
-  ProjectPickerPopover: ({ children }: any) => <>{children}</>,
-}));
-
 import { ChatInput } from '../ChatInput';
 
 // Default props for all tests

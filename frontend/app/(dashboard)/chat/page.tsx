@@ -19,7 +19,29 @@ import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
-import type { SlashCommandId } from '@/components/chat/slashCommands';
+import {
+  SLASH_COMMANDS,
+  type SlashCommandId,
+} from '@/components/chat/slashCommands';
+import type {
+  CommandAction,
+  CommandOutput,
+  CommandOutputItem,
+} from '@/components/chat/commandOutput';
+import { useProjectStore } from '@/store/projectStore';
+import { documentService } from '@/services/documentService';
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString();
+}
 
 // ============================================
 // HITL HELPERS
@@ -283,6 +305,29 @@ function ChatPageContent() {
     if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
   }, [displayedMessages, handleRegenerate]);
 
+  // ---- CLI slash-command output (ephemeral, in-chat) ----
+  // Lives in page state, never in the message arrays, so it is never sent to
+  // the agent or persisted. Cleared on thread change (effect below) and on send.
+  const [commandOutputs, setCommandOutputs] = useState<CommandOutput[]>([]);
+  const fetchProjects = useProjectStore((s) => s.fetchProjects);
+
+  useEffect(() => {
+    setCommandOutputs([]);
+  }, [activeThreadId]);
+
+  const appendOutput = useCallback((o: CommandOutput) => {
+    setCommandOutputs((prev) => [...prev, o]);
+  }, []);
+
+  const patchOutput = useCallback(
+    (id: string, patch: Partial<CommandOutput>) => {
+      setCommandOutputs((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
+      );
+    },
+    []
+  );
+
   // Bind the chat to a project via the same ?projectId= param the context rail
   // uses (the streaming hook reads it into page_context).
   const handleSetProjectContext = useCallback(
@@ -294,35 +339,187 @@ function ChatPageContent() {
     [router]
   );
 
-  // Run a slash command picked from the composer menu.
+  // Run a slash command. Output prints into the chat transcript, CLI-style;
+  // nothing navigates away (except /new, which starts a fresh chat).
   const handleSlashCommand = useCallback(
     (id: SlashCommandId) => {
+      const now = Date.now();
+      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
       switch (id) {
         case 'new':
           startNewChat();
-          break;
+          return;
         case 'retry':
           retryLast();
-          break;
+          return;
         case 'clear':
+          setCommandOutputs([]);
           setInput('');
-          break;
-        case 'threads':
-          // Desktop sidebar is always visible; on mobile, open the drawer.
-          setMobileSidebarOpen(true);
-          break;
-        case 'papers':
-          router.push('/documents');
-          break;
+          return;
         case 'help':
-          // Re-open the menu (it IS the command list) by re-triggering "/".
-          setInput('/');
-          break;
-        // 'projects' is handled in-menu by the project picker.
+          appendOutput({
+            id: outId,
+            command: '/help',
+            timestamp: now,
+            status: 'ready',
+            lines: SLASH_COMMANDS.map((c) => `${c.label.padEnd(10)}${c.title}`),
+            note: 'Type / in the message box to autocomplete.',
+          });
+          return;
+        case 'threads': {
+          const items: CommandOutputItem[] = conversations.map((c) => ({
+            key: c.id,
+            label: c.title || 'Untitled',
+            meta: c.updatedAt ? relativeTime(c.updatedAt) : undefined,
+            active: c.id === activeConversationId,
+            action: { type: 'open-thread', id: c.id },
+          }));
+          appendOutput({
+            id: outId,
+            command: '/threads',
+            timestamp: now,
+            status: 'ready',
+            items,
+            emptyText: 'No threads yet.',
+            note: items.length ? 'Tap a thread to open it.' : undefined,
+          });
+          return;
+        }
+        case 'projects':
+          appendOutput({
+            id: outId,
+            command: '/projects',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              await fetchProjects({ limit: 20, project_status: 'active' });
+              const { projects, currentProject } = useProjectStore.getState();
+              const items: CommandOutputItem[] = projects.map((p) => ({
+                key: p.id,
+                label: p.name,
+                meta: p.project_type?.replace('_', ' '),
+                active: p.id === currentProject?.id,
+                action: { type: 'set-project', id: p.id, name: p.name },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No active projects.',
+                note: items.length
+                  ? 'Tap a project to use it as context.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load projects.',
+              });
+            }
+          })();
+          return;
+        case 'papers':
+          appendOutput({
+            id: outId,
+            command: '/papers',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              const res = await documentService.getDocuments(1, 10);
+              const docs = res?.data?.documents ?? [];
+              const items: CommandOutputItem[] = docs.map((d) => ({
+                key: d.id,
+                label: d.title || d.filename,
+                meta: d.processing_status,
+                action: {
+                  type: 'cite-paper',
+                  id: d.id,
+                  title: d.title || d.filename,
+                },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No papers found.',
+                note: items.length
+                  ? 'Tap a paper to reference it in your message.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load papers.',
+              });
+            }
+          })();
+          return;
       }
     },
-    [startNewChat, retryLast, setInput, router]
+    [
+      startNewChat,
+      retryLast,
+      setInput,
+      conversations,
+      activeConversationId,
+      appendOutput,
+      patchOutput,
+      fetchProjects,
+    ]
   );
+
+  // A tap on a clickable command-output row.
+  const handleCommandItemAction = useCallback(
+    (action: CommandAction) => {
+      switch (action.type) {
+        case 'open-thread':
+          setActiveConversationId(action.id);
+          activeConversationIdRef.current = action.id;
+          setCurrentThread(action.id);
+          router.push(getSelectedThreadUrl(action.id));
+          return;
+        case 'set-project':
+          handleSetProjectContext(action.id);
+          setCommandOutputs([
+            {
+              id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              command: '/projects',
+              timestamp: Date.now(),
+              status: 'ready',
+              lines: [`Project context set: ${action.name}`],
+            },
+          ]);
+          return;
+        case 'cite-paper':
+          setInput((cur) =>
+            cur ? `${cur} "${action.title}"` : `"${action.title}" `
+          );
+          chatInputRef.current?.focus();
+          return;
+      }
+    },
+    [
+      router,
+      setActiveConversationId,
+      setCurrentThread,
+      activeConversationIdRef,
+      handleSetProjectContext,
+      setInput,
+      chatInputRef,
+    ]
+  );
+
+  // Clear ephemeral command output when a real message is sent.
+  const submitMessage = useCallback(() => {
+    setCommandOutputs([]);
+    handleSubmit();
+  }, [handleSubmit]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
@@ -508,7 +705,9 @@ function ChatPageContent() {
               </div>
             </div>
           </div>
-        ) : displayedMessages.length === 0 && !storeIsStreaming ? (
+        ) : displayedMessages.length === 0 &&
+          commandOutputs.length === 0 &&
+          !storeIsStreaming ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
               <WelcomeState
@@ -527,6 +726,8 @@ function ChatPageContent() {
             streamingTimestamp={streamingTimestampRef.current}
             onRegenerate={handleRegenerate}
             onCitationClick={handleCitationClick}
+            commandOutputs={commandOutputs}
+            onCommandItemAction={handleCommandItemAction}
           />
         )}
 
@@ -619,7 +820,7 @@ function ChatPageContent() {
         <ChatInput
           value={input}
           onChange={setInput}
-          onSubmit={handleSubmit}
+          onSubmit={submitMessage}
           onStop={handleStop}
           isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
           enableRAG={enableRAG}
@@ -632,9 +833,6 @@ function ChatPageContent() {
           selectedModelId={selectedModel}
           onModelChange={setSelectedModel}
           onCommand={handleSlashCommand}
-          onSetProjectContext={handleSetProjectContext}
-          activeThreadId={activeThreadId ?? undefined}
-          workspaceId={workspace?.id}
         />
 
         {/* Citation Panel Sidebar */}

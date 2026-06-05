@@ -5,7 +5,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
+import { CommandOutputBubble } from '@/components/chat/CommandOutputBubble';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  CommandAction,
+  CommandOutput,
+} from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 
 export interface ChatMessageListProps {
@@ -17,6 +22,9 @@ export interface ChatMessageListProps {
   streamingTimestamp: number;
   onRegenerate: (index: number) => void;
   onCitationClick: (citations: Citation[], clickedCitation: Citation) => void;
+  /** Ephemeral CLI command output, rendered at the bottom of the transcript. */
+  commandOutputs?: CommandOutput[];
+  onCommandItemAction?: (action: CommandAction) => void;
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
@@ -28,6 +36,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   streamingTimestamp,
   onRegenerate,
   onCitationClick,
+  commandOutputs,
+  onCommandItemAction,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +53,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       scrollRafRef.current = null;
     });
-  }, [messages, storeStreamingContent, showScrollButton]);
+  }, [messages, storeStreamingContent, commandOutputs, showScrollButton]);
 
   useEffect(() => {
     return () => {
@@ -102,9 +112,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 <ChatBubble
                   message={message}
                   index={index}
-                  modelName={
-                    message.role === 'assistant' ? 'NOUS' : undefined
-                  }
+                  modelName={message.role === 'assistant' ? 'NOUS' : undefined}
                   isTyping={
                     isLast &&
                     isLoading &&
@@ -137,11 +145,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               );
             }
 
-            return (
-              <div key={message.id || `msg-${index}`}>
-                {bubble}
-              </div>
-            );
+            return <div key={message.id || `msg-${index}`}>{bubble}</div>;
           })}
 
           {/* Streaming assistant message */}
@@ -170,6 +174,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Ephemeral CLI command output (not persisted, not sent to agent) */}
+          {commandOutputs?.map((output) => (
+            <CommandOutputBubble
+              key={output.id}
+              output={output}
+              onItemAction={(action) => onCommandItemAction?.(action)}
+            />
+          ))}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -187,9 +200,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <ArrowDown className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                New messages
-              </span>
+              <span className="hidden sm:inline">New messages</span>
             </motion.button>
           </div>
         )}

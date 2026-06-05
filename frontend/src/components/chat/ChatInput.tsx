@@ -37,9 +37,6 @@ interface ChatInputProps {
   streamingContent?: string;
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
-  onSetProjectContext?: (projectId: string, projectName: string) => void;
-  workspaceId?: string;
-  activeThreadId?: string;
 }
 
 type SpeechRecognitionEventLike = {
@@ -82,9 +79,6 @@ export function ChatInput({
   isStreaming,
   streamingContent,
   onCommand,
-  onSetProjectContext,
-  workspaceId,
-  activeThreadId,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
@@ -94,7 +88,6 @@ export function ChatInput({
   const [voiceSupported, setVoiceSupported] = useState(false);
   const reduceMotion = useReducedMotion();
   const menu = useSlashCommandMenu(value);
-  const projectsTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     setVoiceSupported(getSpeechRecognition() !== null);
   }, []);
@@ -145,22 +138,8 @@ export function ChatInput({
 
   const runCommand = (command: SlashCommand | undefined): void => {
     if (!command) return;
-    if (command.kind === 'picker') {
-      // Open the in-menu picker; the keyboard path synthesises the click the
-      // mouse path performs natively. The input clears once a project is set.
-      projectsTriggerRef.current?.click();
-      return;
-    }
     onChange('');
     onCommand?.(command.id);
-  };
-
-  const handlePickProjectContext = (
-    projectId: string,
-    projectName: string
-  ): void => {
-    onChange('');
-    onSetProjectContext?.(projectId, projectName);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
@@ -244,10 +223,6 @@ export function ChatInput({
           highlightedIndex={menu.highlightedIndex}
           onHighlight={menu.setHighlightedIndex}
           onRun={runCommand}
-          threadId={activeThreadId}
-          workspaceId={workspaceId}
-          onSetProjectContext={handlePickProjectContext}
-          projectsTriggerRef={projectsTriggerRef}
         />
         <motion.div
           className="rounded-[14px] overflow-hidden"
