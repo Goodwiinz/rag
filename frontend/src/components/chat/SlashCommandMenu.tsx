@@ -40,7 +40,7 @@ export function SlashCommandMenu({
 
   return (
     <AnimatePresence>
-      {open && commands.length > 0 && (
+      {open && (
         <motion.div
           role="listbox"
           id={SLASH_LISTBOX_ID}
@@ -63,7 +63,7 @@ export function SlashCommandMenu({
             className="px-3 pt-1.5 pb-1 font-nous-mono text-[9px] uppercase"
             style={{ color: 'var(--nous-fg-3)', letterSpacing: '0.14em' }}
           >
-            Commands
+            Slash commands
           </div>
           {commands.map((cmd, index) => {
             const active = index === highlightedIndex;
@@ -93,7 +93,7 @@ export function SlashCommandMenu({
                 <span
                   className="font-nous-body text-[12px] truncate"
                   style={{
-                    color: active ? 'var(--nous-sol-safe)' : 'var(--nous-fg-3)',
+                    color: active ? 'var(--nous-fg-1)' : 'var(--nous-fg-3)',
                   }}
                 >
                   {cmd.title}
@@ -101,6 +101,20 @@ export function SlashCommandMenu({
               </button>
             );
           })}
+          {commands.length === 0 && (
+            <div
+              className="flex min-h-[44px] items-center px-3 font-nous-body text-[12px]"
+              style={{ color: 'var(--nous-fg-3)' }}
+            >
+              No commands match
+            </div>
+          )}
+          <div
+            className="hidden sm:flex items-center gap-2 px-3 pt-1 pb-0.5 font-nous-mono text-[9px]"
+            style={{ color: 'var(--nous-fg-3)', letterSpacing: '0.08em' }}
+          >
+            ↑↓ navigate · ↵ run · esc close
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

@@ -110,7 +110,7 @@ export const ChatHeader = memo(function ChatHeader({
       <button
         type="button"
         onClick={onCommandPaletteOpen}
-        aria-label="Open command palette"
+        aria-label="Search"
         className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 hover:border-[var(--nous-sol)]/25 transition-colors"
         style={{ fontFamily: 'var(--nous-font-ui)' }}
       >

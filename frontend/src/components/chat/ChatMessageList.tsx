@@ -97,7 +97,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         onScroll={handleScroll}
         className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
-        <div className="max-w-4xl mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
+        <div className="max-w-[var(--nous-chat-col)] mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {messages.map((message, index) => {
             const isLast = index === lastIndex;
             const shouldAnimate = isLast && isNewMessage;

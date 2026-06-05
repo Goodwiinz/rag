@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 
 import type { CommandAction, CommandOutput } from './commandOutput';
 
@@ -78,22 +78,26 @@ export function CommandOutputBubble({
                       }
                     : {})}
                   className={
-                    'flex w-full min-h-[40px] items-center gap-2.5 rounded-md px-2 text-left transition-colors' +
+                    'flex w-full min-h-[44px] items-center gap-2.5 rounded-md px-2.5 text-left transition-colors' +
                     (interactive
                       ? ' cursor-pointer hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]'
                       : '')
                   }
                 >
                   <span
-                    className="w-3 shrink-0 text-center text-[12px]"
-                    style={{
-                      color: item.active
-                        ? 'var(--nous-sol)'
-                        : 'var(--nous-fg-3)',
-                    }}
+                    className="grid w-3 shrink-0 place-items-center"
                     aria-hidden
                   >
-                    {item.active ? '▸' : '·'}
+                    <span
+                      className="rounded-full"
+                      style={{
+                        width: '5px',
+                        height: '5px',
+                        background: item.active
+                          ? 'var(--nous-sol)'
+                          : 'var(--nous-fg-3)',
+                      }}
+                    />
                   </span>
                   <span
                     className="flex-1 truncate text-[12px]"
@@ -112,6 +116,13 @@ export function CommandOutputBubble({
                       {item.meta}
                     </span>
                   )}
+                  {interactive && (
+                    <ChevronRight
+                      className="h-3 w-3 shrink-0"
+                      style={{ color: 'var(--nous-fg-3)' }}
+                      aria-hidden
+                    />
+                  )}
                 </Tag>
               );
             })}
@@ -128,11 +139,21 @@ export function CommandOutputBubble({
           </div>
         )}
 
+        {/* Loading placeholder */}
+        {status === 'loading' && (
+          <div
+            className="mt-2 text-[12px]"
+            style={{ color: 'var(--nous-fg-3)' }}
+          >
+            Loading…
+          </div>
+        )}
+
         {/* Footer hint */}
         {note && (
           <div
-            className="mt-2 text-[11px]"
-            style={{ color: 'var(--nous-fg-3)' }}
+            className="mt-2 text-[12px]"
+            style={{ color: 'var(--nous-fg-2)' }}
           >
             {note}
           </div>

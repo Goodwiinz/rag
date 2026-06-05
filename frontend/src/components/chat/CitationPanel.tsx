@@ -214,9 +214,9 @@ export function CitationPanel({
           <div className="px-4 py-2.5 border-t border-border bg-background">
             <p
               className="text-[9px] text-center font-mono uppercase tracking-widest"
-              style={{ color: `${THEME.colors.primary}40` }}
+              style={{ color: 'var(--nous-fg-3)' }}
             >
-              Sources Retrieved via RAG Pipeline
+              Grounded in your sources
             </p>
           </div>
         </motion.div>

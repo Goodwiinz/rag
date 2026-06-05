@@ -33,9 +33,10 @@
   /* Semantic fg/bg */
   --nous-fg-1: var(--nous-erebus);
   --nous-fg-2: var(--nous-titan);
-  --nous-fg-3: var(--nous-charon);
+  --nous-fg-3: #6b6b6f; /* AA-safe tertiary text (was charon #9a9a9e, 2.6:1) */
   --nous-fg-accent: var(--nous-sol);
   --nous-fg-accent-safe: var(--nous-sol-safe);
+  --nous-chat-col: 820px; /* shared conversation column width */
 
   --nous-bg-1: var(--nous-selene);
   --nous-bg-2: #ffffff;
@@ -86,7 +87,7 @@
 .dark {
   --nous-fg-1: var(--nous-ivory);
   --nous-fg-2: var(--nous-parchment);
-  --nous-fg-3: var(--nous-dust);
+  --nous-fg-3: #9a9080; /* AA-safe tertiary on tinted dark cards (was dust #8a8070) */
   --nous-fg-accent: var(--nous-helios);
   --nous-fg-accent-safe: var(--nous-helios);
 
