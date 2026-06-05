@@ -91,7 +91,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     from src.core.config import get_settings
 
-    sanitized = _sanitize_messages(list(state["messages"]))
+    sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
     settings = get_settings()

@@ -163,7 +163,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if dynamic_parts:
         system_text += "\n\n" + "\n\n".join(dynamic_parts)
 
-    sanitized = _sanitize_messages(list(state["messages"]))
+    sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=system_text)] + sanitized
 
     # Bind intent-specific tool subset

@@ -86,7 +86,7 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.core.config import get_settings
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    sanitized = _sanitize_messages(list(state["messages"]))
+    sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
 
     # Post-tool synthesis turn → use the synthesis deployment. Mirrors
