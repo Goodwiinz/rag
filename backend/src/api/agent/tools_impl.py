@@ -641,6 +641,12 @@ async def execute_tool(
         return await _tool_search_external_database(args)
     if tool_name == "list_external_databases":
         return await _tool_list_external_databases(args)
+    if tool_name == "forget_memory":
+        return await _tool_forget_memory(
+            query=args.get("query", ""),
+            user_id=user_id,
+            page_context=None,
+        )
     return {"error": f"Unknown tool: {tool_name}"}
 
 
