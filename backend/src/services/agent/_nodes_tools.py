@@ -188,6 +188,25 @@ def _record_tool_error_category(tool_name: str, category: str) -> None:
         pass
 
 
+def _with_injected_project_id(tc: dict, page_context: dict) -> dict:
+    """Return a copy of tool_call *tc* with ``project_id`` auto-filled from an
+    active project ``page_context`` when the LLM omitted it.
+
+    Used both when executing a tool and when computing the per-turn dedupe key,
+    so a repeat call that omits ``project_id`` produces the same key as the
+    recorded (injected) execution and is correctly deduped rather than re-run.
+    (audit #10)
+    """
+    tool_args = dict(tc.get("args") or {})
+    if (
+        "project_id" not in tool_args
+        and page_context.get("type") == "project"
+        and page_context.get("project_id")
+    ):
+        tool_args["project_id"] = page_context["project_id"]
+    return {**tc, "args": tool_args}
+
+
 async def _execute_single_tool(
     tc: dict,
     config: RunnableConfig,
@@ -201,16 +220,10 @@ async def _execute_single_tool(
     tool_executor = _get_execute_tool()
 
     tool_name = tc["name"]
-    tool_args = dict(tc["args"])
     tool_call_id = tc["id"]
-
-    # Auto-fill project_id from page context if not provided by LLM
-    if (
-        "project_id" not in tool_args
-        and page_context.get("type") == "project"
-        and page_context.get("project_id")
-    ):
-        tool_args["project_id"] = page_context["project_id"]
+    # Auto-fill project_id from page context if the LLM omitted it. Shared with
+    # the dedupe pre-pass so the dedupe key matches the recorded args.
+    tool_args = _with_injected_project_id(tc, page_context)["args"]
 
     t0 = time.monotonic()
     error_increment = 0
@@ -337,8 +350,14 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         find_cached_tool_results,
     )
 
+    # Inject page_context project_id before computing dedupe keys so a repeat
+    # call that omits project_id matches the recorded (injected) execution and
+    # is deduped instead of re-running. (audit #10)
+    deduped_calls = [
+        _with_injected_project_id(tc, page_context) for tc in last_message.tool_calls
+    ]
     cached = find_cached_tool_results(
-        last_message.tool_calls, state["messages"], tool_executions
+        deduped_calls, state["messages"], tool_executions
     )
     fresh_calls = [
         tc for tc in last_message.tool_calls if tc["id"] not in cached
@@ -489,8 +508,12 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             find_cached_tool_results,
         )
 
+        # Inject project_id before dedupe key computation (same as tool_node). (audit #10)
+        deduped_calls = [
+            _with_injected_project_id(tc, page_context) for tc in allowed_calls
+        ]
         cached = find_cached_tool_results(
-            allowed_calls, state["messages"], tool_executions
+            deduped_calls, state["messages"], tool_executions
         )
         fresh_calls = [tc for tc in allowed_calls if tc["id"] not in cached]
 

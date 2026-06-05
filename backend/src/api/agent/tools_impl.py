@@ -716,6 +716,11 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     query = args.get("query", "")
+    # Preserve the user's raw query for the cache key — the recency filter
+    # below rewrites ``query`` with a minute-precision cutoff, which would
+    # otherwise make two identical searches a minute apart miss the bounded
+    # cache and defeat its 429-avoidance purpose (audit #14).
+    original_query = query
     # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
     # results = 8087 chars feeding into the synthesis LLM call and triggering
     # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
@@ -742,7 +747,10 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
         query = f"({query}) AND {date_filter}" if query else date_filter
 
-    cache_key = _arxiv_cache_key(query, max_results, categories, recency_days)
+    # Key on the original query + recency_days (an int that already captures
+    # the window), NOT the date-filtered query whose minute-precision cutoff
+    # changes every minute. (audit #14)
+    cache_key = _arxiv_cache_key(original_query, max_results, categories, recency_days)
     cached = _arxiv_cache_get(cache_key)
     if cached is not None:
         return {**cached, "cached": True}

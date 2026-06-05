@@ -71,7 +71,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.core.config import get_settings
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
 
-    sanitized = _sanitize_messages(list(state["messages"]))
+    sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_data_system_prompt())] + sanitized
 
     settings = get_settings()

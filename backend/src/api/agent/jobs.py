@@ -43,6 +43,12 @@ from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
 
+# Strong references to in-flight fire-and-forget Redis write tasks. Without
+# this the event loop keeps only a weak reference and the task can be garbage
+# collected mid-write (per the CPython asyncio docs). Cleared in the
+# done-callback below, which also surfaces any write failure.
+_background_tasks: set = set()
+
 
 def _cleanup_jobs():
     """No-op — Redis TTL handles expiry; L1 cleanup is in job_store."""
@@ -71,9 +77,27 @@ def _set_job(job_id: str, data: dict):
 
     try:
         loop = _asyncio.get_running_loop()
-        loop.create_task(_write_to_redis_only(job_id, data))
+        task = loop.create_task(_write_to_redis_only(job_id, data))
+        _background_tasks.add(task)
+        task.add_done_callback(_on_redis_write_done)
     except RuntimeError:
         pass
+
+
+def _on_redis_write_done(task) -> None:
+    """Drop a finished Redis-write task from the tracking set and surface errors.
+
+    Runs when the fire-and-forget write completes. Logs (but swallows) any
+    exception so a background Redis failure is observable without crashing the
+    worker; cancellation on loop shutdown is expected and stays quiet.
+    """
+    _background_tasks.discard(task)
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.exception("Background Redis write task failed for a job")
 
 
 def _get_job(job_id: str) -> dict | None:
