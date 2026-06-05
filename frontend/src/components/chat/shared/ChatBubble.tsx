@@ -57,24 +57,33 @@ function ToolStrip({
     (responseTimeMs && responseTimeMs > 0);
   if (!hasAny) return null;
 
+  // Only claim "Searched" when the agent actually retrieved/used tools; a
+  // response can carry just a timing with no sources (e.g. RAG off).
+  const didSearch =
+    (toolsUsed && toolsUsed.length > 0) || (sourcesCount && sourcesCount > 0);
+
   return (
     <div className="nous-tool-strip">
-      <div className="nous-tool-strip-icon">
-        <Search className="w-2.5 h-2.5" strokeWidth={2} />
-      </div>
-      <span className="nous-tool-strip-label">Searched</span>
-      {toolsUsed?.slice(0, 3).map((tool) => (
-        <React.Fragment key={tool}>
-          <span className="nous-tool-strip-sep" />
-          <span className="nous-tool-strip-chip">{tool}</span>
-        </React.Fragment>
-      ))}
-      {sourcesCount && sourcesCount > 0 && (
+      {didSearch && (
         <>
-          <span className="nous-tool-strip-sep" />
-          <span className="nous-tool-strip-chip">
-            {sourcesCount} {sourcesCount === 1 ? 'source' : 'sources'}
-          </span>
+          <div className="nous-tool-strip-icon">
+            <Search className="w-2.5 h-2.5" strokeWidth={2} />
+          </div>
+          <span className="nous-tool-strip-label">Searched</span>
+          {toolsUsed?.slice(0, 3).map((tool) => (
+            <React.Fragment key={tool}>
+              <span className="nous-tool-strip-sep" />
+              <span className="nous-tool-strip-chip">{tool}</span>
+            </React.Fragment>
+          ))}
+          {sourcesCount && sourcesCount > 0 && (
+            <>
+              <span className="nous-tool-strip-sep" />
+              <span className="nous-tool-strip-chip">
+                {sourcesCount} {sourcesCount === 1 ? 'source' : 'sources'}
+              </span>
+            </>
+          )}
         </>
       )}
       {responseTimeMs && responseTimeMs > 0 && (
