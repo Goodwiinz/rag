@@ -283,16 +283,7 @@ async def extract_insights(
     Returns a list of insight strings, or empty list on failure.
     """
     if not messages:
-        try:
-            llm = _build_insights_llm()
-            from langchain_core.messages import SystemMessage, HumanMessage
-            result = await llm.ainvoke([
-                SystemMessage(content="Extract key insights. Return an empty response."),
-                HumanMessage(content="No messages."),
-            ])
-            return []
-        except Exception:
-            return []
+        return []
 
     try:
         llm = _build_insights_llm()

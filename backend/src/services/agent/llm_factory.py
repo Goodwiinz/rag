@@ -19,6 +19,24 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_LIGHTWEIGHT_MODEL = "model-router"
 
+# Cache built chat models keyed by the builder's input args. Constructing a
+# ChatOpenAI/AzureChatOpenAI spins up an HTTP client (~30-50ms); the synthesis
+# path previously rebuilt one on every turn. deployment / reasoning_effort /
+# max_retries / resolved request_timeout are settings-derived and stable at
+# runtime, so they need not be part of the key — the same assumption the
+# classifier / compactor / reflection single-instance caches already rely on.
+_LIGHTWEIGHT_LLM_CACHE: dict[tuple, BaseChatModel] = {}
+_SYNTHESIS_LLM_CACHE: dict[tuple, BaseChatModel] = {}
+
+
+def reset_llm_caches() -> None:
+    """Clear the factory's per-args LLM caches.
+
+    For tests that exercise the real builders and need a fresh instance.
+    """
+    _LIGHTWEIGHT_LLM_CACHE.clear()
+    _SYNTHESIS_LLM_CACHE.clear()
+
 
 def _resolve_lightweight_deployment() -> str:
     settings = get_settings()
@@ -135,8 +153,12 @@ def build_lightweight_llm(
     ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to ``model-router``).
     Used by classifier, planner complexity check, reflection, compactor.
     """
+    key = (temperature, max_tokens, request_timeout, use_responses_api)
+    cached = _LIGHTWEIGHT_LLM_CACHE.get(key)
+    if cached is not None:
+        return cached
     settings = get_settings()
-    return _build_chat_llm(
+    llm = _build_chat_llm(
         _resolve_lightweight_deployment(),
         role_label="Lightweight",
         temperature=temperature,
@@ -145,6 +167,8 @@ def build_lightweight_llm(
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
     )
+    _LIGHTWEIGHT_LLM_CACHE[key] = llm
+    return llm
 
 
 def build_synthesis_llm(
@@ -161,13 +185,17 @@ def build_synthesis_llm(
     keep working. Lets ops put a stronger model (e.g. gpt-5-mini) on the
     final-answer path while routing/classify stay on cheap nano.
     """
+    key = (temperature, max_tokens, request_timeout, use_responses_api)
+    cached = _SYNTHESIS_LLM_CACHE.get(key)
+    if cached is not None:
+        return cached
     settings = get_settings()
     # Synthesis call can be long (full 4096-token completion). Use the main
     # agent timeout, not the lightweight one, unless caller overrides.
     resolved_timeout = (
         request_timeout if request_timeout is not None else settings.AGENT_LLM_REQUEST_TIMEOUT
     )
-    return _build_chat_llm(
+    llm = _build_chat_llm(
         _resolve_synthesis_deployment(),
         role_label="Synthesis",
         temperature=temperature,
@@ -176,6 +204,8 @@ def build_synthesis_llm(
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
     )
+    _SYNTHESIS_LLM_CACHE[key] = llm
+    return llm
 
 
 def get_lightweight_model_name() -> str:

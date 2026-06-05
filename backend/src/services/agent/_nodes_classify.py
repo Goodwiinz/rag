@@ -176,6 +176,12 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         "pending_confirmation": {},
     }
     for result, default in zip(results, defaults):
+        if isinstance(result, asyncio.CancelledError):
+            # CancelledError is BaseException (not Exception) since 3.8, so the
+            # check below would skip it and merged.update(<exc>) would raise
+            # TypeError. The caller aborted — propagate, don't swallow (house
+            # pattern: jobs.py / classifier.py / error_recovery.py).
+            raise result
         if isinstance(result, Exception):
             logger.warning("Preprocessing subtask failed: %s", result)
             merged.update(default)
