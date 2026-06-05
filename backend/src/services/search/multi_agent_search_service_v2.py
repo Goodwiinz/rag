@@ -1067,7 +1067,10 @@ class MultiAgentSearchServiceV2:
                     return_exceptions=True,
                 )
 
+                from src.core.async_utils import reraise_if_cancelled
+
                 for result in batch_executions:
+                    reraise_if_cancelled(result)
                     if isinstance(result, Exception):
                         logger.error(f"Batch execution error: {result}")
                         # Create failed execution for unknown task
