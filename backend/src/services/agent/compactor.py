@@ -167,7 +167,12 @@ _COMPACTOR_LLM = None
 
 
 def _build_compactor_llm():
-    """Return a cached lightweight LLM for compaction summaries."""
+    """Return a cached lightweight LLM for compaction summaries.
+
+    The if-None-then-build below is not locked, but build_lightweight_llm()
+    caches by args, so a concurrent double-build just returns the same factory
+    instance — at worst one redundant dict lookup, never a duplicate client.
+    """
     global _COMPACTOR_LLM
     if _COMPACTOR_LLM is not None:
         return _COMPACTOR_LLM
