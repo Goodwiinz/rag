@@ -165,5 +165,28 @@ describe('ChatInput streaming behavior', () => {
       render(<ChatInput {...defaultProps} value="hello" />);
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
+
+    it('runs the highlighted command on Enter (and does not submit)', () => {
+      const onCommand = vi.fn();
+      const onSubmit = vi.fn();
+      render(
+        <ChatInput
+          {...defaultProps}
+          value="/new"
+          onCommand={onCommand}
+          onSubmit={onSubmit}
+        />
+      );
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+      expect(onCommand).toHaveBeenCalledWith('new');
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('runs a command when its row is clicked', () => {
+      const onCommand = vi.fn();
+      render(<ChatInput {...defaultProps} value="/" onCommand={onCommand} />);
+      fireEvent.click(screen.getByText('/clear'));
+      expect(onCommand).toHaveBeenCalledWith('clear');
+    });
   });
 });
