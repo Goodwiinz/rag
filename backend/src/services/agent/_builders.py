@@ -212,6 +212,20 @@ def build_agent_graph() -> StateGraph:
     return graph
 
 
+# Cache for the compiled production graph. ``build_agent_graph`` rebuilds the
+# main StateGraph AND compiles all three subgraphs (research/writing/data), so
+# rebuilding per request — i.e. on every chat turn — is pure overhead. The
+# compiled graph is request-agnostic (per-turn state lives in the checkpointer
+# keyed by ``thread_id``) and the checkpointer/store are process singletons, so
+# it is safe to compile once and reuse. Keyed by ``(id(checkpointer), id(store))``.
+_COMPILED_GRAPH_CACHE: dict = {}
+
+
+def reset_compiled_graph_cache() -> None:
+    """Clear the compiled-graph cache (for tests / hot-reload)."""
+    _COMPILED_GRAPH_CACHE.clear()
+
+
 def compile_agent_graph(checkpointer=None, store=None, **kwargs):
     """Compile the agent graph, optionally with a checkpointer and store.
 
@@ -225,9 +239,25 @@ def compile_agent_graph(checkpointer=None, store=None, **kwargs):
     memory (user preferences, facts).  When provided, LangGraph injects it
     into nodes that accept a ``Runtime`` parameter so they can use
     ``runtime.store`` instead of importing the singleton directly.
+
+    The compiled graph for the production path (a real ``BaseCheckpointSaver``,
+    no extra compile kwargs) is cached and reused across turns — see
+    ``_COMPILED_GRAPH_CACHE`` — so the main graph + 3 subgraphs are built once,
+    not on every turn. ``None``/``True`` (no-checkpoint / fresh MemorySaver for
+    tests) always rebuild.
     """
-    graph = build_agent_graph()
     from langgraph.checkpoint.base import BaseCheckpointSaver
+
+    # Fast path: reuse the already-compiled graph for the production singletons.
+    # Checked BEFORE build_agent_graph() so a cache hit skips building entirely.
+    cacheable = isinstance(checkpointer, BaseCheckpointSaver) and not kwargs
+    cache_key = (id(checkpointer), id(store)) if cacheable else None
+    if cacheable:
+        cached = _COMPILED_GRAPH_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+    graph = build_agent_graph()
 
     compile_kwargs: dict = {}
     if store is not None:
@@ -244,7 +274,10 @@ def compile_agent_graph(checkpointer=None, store=None, **kwargs):
         return graph.compile(checkpointer=MemorySaver(), **compile_kwargs)
 
     if isinstance(checkpointer, BaseCheckpointSaver):
-        return graph.compile(checkpointer=checkpointer, **compile_kwargs)
+        compiled = graph.compile(checkpointer=checkpointer, **compile_kwargs)
+        if cacheable:
+            _COMPILED_GRAPH_CACHE[cache_key] = compiled
+        return compiled
 
     raise TypeError(
         "compile_agent_graph(checkpointer=...) must be None, True, False, "
@@ -264,5 +297,6 @@ __all__ = [
     "after_interrupt",
     "build_agent_graph",
     "compile_agent_graph",
+    "reset_compiled_graph_cache",
     "create_graph",
 ]
