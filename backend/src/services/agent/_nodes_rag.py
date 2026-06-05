@@ -106,6 +106,20 @@ _CONVERSATIONAL_PATTERNS: frozenset[str] = frozenset(
 _SHORT_QUERY_TOKEN_LIMIT: int = 8
 
 
+def _resolve_active_project_id(
+    existing_project_id: Optional[str], extracted_pid: Optional[str]
+) -> Optional[str]:
+    """Resolve which project RAG retrieval should be scoped to.
+
+    The active context (``state.current_project_id`` / ``page_context``) takes
+    precedence over a UUID parsed from the user's message text, so a stale or
+    quoted ``/projects/<uuid>`` URL cannot silently re-scope retrieval to
+    another project (cross-project exposure). Text extraction only wins when no
+    project context is active yet. (Audit #7.)
+    """
+    return existing_project_id or extracted_pid or None
+
+
 def _is_retrieval_query(content: str) -> bool:
     """Return ``True`` when *content* looks like it needs document retrieval.
 
@@ -354,8 +368,8 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         # Still surface a UUID extracted from the text or carried in state
         # so downstream nodes can act on the project context.
         extracted_pid = _extract_project_id_from_text(last_user_msg or "")
-        resolved_pid: Optional[str] = (
-            extracted_pid or existing_project_id or None
+        resolved_pid: Optional[str] = _resolve_active_project_id(
+            existing_project_id, extracted_pid
         )
         state_update: Dict[str, Any] = {"retrieved_contexts": []}
         if resolved_pid:
@@ -376,7 +390,9 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # turns without depending on the client always re-sending page_context.
     extracted_pid = _extract_project_id_from_text(last_user_msg or "")
 
-    resolved_project_id: Optional[str] = extracted_pid or existing_project_id or None
+    resolved_project_id: Optional[str] = _resolve_active_project_id(
+        existing_project_id, extracted_pid
+    )
     state_update: Dict[str, Any] = {}
     if resolved_project_id:
         state_update["current_project_id"] = resolved_project_id
