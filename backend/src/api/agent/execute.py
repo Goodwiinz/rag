@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
 from pydantic import BaseModel, Field, field_validator
@@ -459,6 +459,7 @@ class MessageResponse(BaseModel):
 class ThreadMessagesResponse(BaseModel):
     messages: List[MessageResponse]
     total: int
+    has_more: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -523,10 +524,28 @@ async def list_agent_threads(
 @router.get("/threads/{thread_id}/messages", response_model=ThreadMessagesResponse)
 async def get_thread_messages(
     thread_id: UUID,
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=500,
+        description="Max messages to return (most recent first). Omit for full history.",
+    ),
+    before: Optional[datetime] = Query(
+        None,
+        description=(
+            "Return only messages created strictly before this time (ISO 8601), "
+            "for loading older messages."
+        ),
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get messages for a specific agent thread, verifying user ownership."""
+    """Get messages for a specific agent thread, verifying user ownership.
+
+    With no query params this returns the full history (ascending) — unchanged.
+    Pass ``limit`` to fetch the most recent N (and ``before`` to page older),
+    with ``has_more`` signalling whether older messages remain.
+    """
     # Verify thread exists and belongs to the current user via ownership chain
     ownership_stmt = (
         select(Thread)
@@ -544,15 +563,41 @@ async def get_thread_messages(
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
 
-    # Fetch messages with citations eagerly loaded
-    messages_stmt = (
-        select(ChatMessage)
-        .where(ChatMessage.thread_id == thread_id)
-        .options(selectinload(ChatMessage.citations))
-        .order_by(ChatMessage.created_at.asc())
-    )
-    messages_result = await db.execute(messages_stmt)
-    messages = messages_result.scalars().all()
+    # Fetch messages with citations eagerly loaded.
+    if limit is None and before is None:
+        # Default (no params): full history ascending — unchanged behavior.
+        messages_stmt = (
+            select(ChatMessage)
+            .where(ChatMessage.thread_id == thread_id)
+            .options(selectinload(ChatMessage.citations))
+            .order_by(ChatMessage.created_at.asc())
+        )
+        messages = (await db.execute(messages_stmt)).scalars().all()
+        total = len(messages)
+        has_more = False
+    else:
+        # Opt-in window: the most recent N (optionally older than ``before``),
+        # then reversed to chronological order for the client. Backed by the
+        # existing ix_chat_messages_thread_created (thread_id, created_at) index.
+        eff_limit = limit or 50
+        page_stmt = select(ChatMessage).where(ChatMessage.thread_id == thread_id)
+        if before is not None:
+            page_stmt = page_stmt.where(ChatMessage.created_at < before)
+        page_stmt = (
+            page_stmt.options(selectinload(ChatMessage.citations))
+            .order_by(ChatMessage.created_at.desc())
+            .limit(eff_limit + 1)  # +1 sentinel to detect older messages
+        )
+        rows = (await db.execute(page_stmt)).scalars().all()
+        has_more = len(rows) > eff_limit
+        messages = list(reversed(rows[:eff_limit]))
+        total = (
+            await db.execute(
+                select(func.count(ChatMessage.id)).where(
+                    ChatMessage.thread_id == thread_id
+                )
+            )
+        ).scalar() or 0
 
     message_responses = []
     for msg in messages:
@@ -574,4 +619,6 @@ async def get_thread_messages(
             )
         )
 
-    return ThreadMessagesResponse(messages=message_responses, total=len(message_responses))
+    return ThreadMessagesResponse(
+        messages=message_responses, total=total, has_more=has_more
+    )
