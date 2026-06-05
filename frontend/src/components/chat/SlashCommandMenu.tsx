@@ -119,8 +119,6 @@ export function SlashCommandMenu({
         type="button"
         className={rowClass}
         style={rowStyle}
-        // Keep textarea focus: don't let the press move focus to the row.
-        onMouseDown={(e) => e.preventDefault()}
         onClick={() => onRun(cmd)}
       >
         {inner}
@@ -139,8 +137,11 @@ export function SlashCommandMenu({
           animate={{ opacity: 1, y: 0 }}
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
           transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-50 overflow-hidden rounded-xl p-1"
+          className="absolute left-0 right-0 z-50 overflow-hidden rounded-xl p-1"
           style={{
+            // Float 8px above the input box. Inline (not a Tailwind arbitrary
+            // value) so the calc() spacing is guaranteed valid CSS.
+            bottom: 'calc(100% + 8px)',
             background: 'var(--nous-bg-2)',
             border: '1px solid var(--nous-border-1)',
             boxShadow: 'var(--nous-shadow-lg)',
