@@ -36,6 +36,24 @@ _L1_MAX_ENTRIES = 500
 _LAST_L1_CLEANUP: float = 0.0
 _L1_CLEANUP_INTERVAL = 60.0
 
+# Per-process monotonic counter — a tiebreaker for set_job calls landing in the
+# same ``time.time()`` tick, so two updates in one tick cannot overwrite out of
+# order (created_at alone can't disambiguate them).
+_seq: int = 0
+
+
+def _is_newer_or_equal(data: dict, existing: dict) -> bool:
+    """True if *data* should overwrite *existing* in the L1 cache.
+
+    Orders by ``(created_at, _seq)``: ``created_at`` is the cross-process clock,
+    ``_seq`` the per-process tiebreaker. Missing keys default to 0 for backward
+    compatibility with pre-``_seq`` values already stored in Redis.
+    """
+    return (data.get("created_at", 0), data.get("_seq", 0)) >= (
+        existing.get("created_at", 0),
+        existing.get("_seq", 0),
+    )
+
 
 def _l1_cleanup() -> None:
     """Remove expired entries (>1h) and evict oldest when over max.
@@ -145,12 +163,15 @@ async def set_job(job_id: str, data: dict) -> None:
     L1 overwrite is guarded by ``created_at`` so a delayed fire-and-forget
     write cannot stomp a newer authoritative state written after it.
     """
+    global _seq
     data["created_at"] = time.time()
 
     # L1: in-memory cache (monotonic guard — never overwrite newer data)
     with _l1_lock:
+        _seq += 1
+        data["_seq"] = _seq
         existing = _l1.get(job_id)
-        if existing is None or existing.get("created_at", 0) <= data["created_at"]:
+        if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
 
@@ -193,7 +214,7 @@ async def get_job(job_id: str) -> Optional[dict]:
                 # Redis read cannot clobber a fresher L1 entry written meanwhile.
                 with _l1_lock:
                     existing = _l1.get(job_id)
-                    if existing is None or existing.get("created_at", 0) <= data.get("created_at", 0):
+                    if existing is None or _is_newer_or_equal(data, existing):
                         _l1[job_id] = data
                 return data
         except Exception:
