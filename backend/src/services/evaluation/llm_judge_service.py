@@ -267,7 +267,10 @@ Respond with ONLY valid JSON:
 
         # Handle any exceptions
         scores = []
+        from src.core.async_utils import reraise_if_cancelled
+
         for i, result in enumerate(results):
+            reraise_if_cancelled(result)
             if isinstance(result, Exception):
                 logger.error(f"Evaluation failed: {result}")
                 scores.append(

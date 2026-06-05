@@ -144,8 +144,11 @@ async def search_connectors(body: SearchRequest):
 
     merged: List[SearchResultItem] = []
     searched: List[str] = []
+    from src.core.async_utils import reraise_if_cancelled
+
     for connector, result in zip(targets, all_results):
         searched.append(connector.info.name)
+        reraise_if_cancelled(result)
         if isinstance(result, Exception):
             continue  # skip failed connectors silently
         for r in result:

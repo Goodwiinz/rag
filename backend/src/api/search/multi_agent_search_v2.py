@@ -335,7 +335,10 @@ async def run_agent_benchmark(
             parallel_results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Process parallel results
+            from src.core.async_utils import reraise_if_cancelled
+
             for i, result in enumerate(parallel_results):
+                reraise_if_cancelled(result)
                 query_idx = i // len(request.workflow_types)
                 workflow_idx = i % len(request.workflow_types)
                 query = request.queries[query_idx]
