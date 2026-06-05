@@ -27,9 +27,10 @@ _REFLECTION_LLM_TIMEOUT_SECONDS = 45.0  # bumped from 20s after 4096-token
 
 # Cache the reflection LLM at module scope. The settings/endpoint are
 # resolved at import time once and reused across every reflection call,
-# saving a ~50ms client-build round-trip per turn.
+# saving a ~50ms client-build round-trip per turn. build_lightweight_llm()
+# also caches by args, so even a concurrent double-build returns the same
+# factory instance — no lock needed here.
 _REFLECTION_LLM = None
-_REFLECTION_LLM_LOCK = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
