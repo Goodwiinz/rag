@@ -4,15 +4,12 @@ import { cn } from '@/lib/utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 import {
   Activity,
-  Bookmark,
   Check,
   Clock,
   Copy,
   RefreshCw,
   Search,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
@@ -340,27 +337,6 @@ export const ChatBubble = React.memo(function ChatBubble({
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              className="nous-msg-action"
-              aria-label="Helpful"
-              title="Helpful"
-            >
-              <ThumbsUp className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="nous-msg-action"
-              aria-label="Not helpful"
-              title="Not helpful"
-            >
-              <ThumbsDown className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="nous-msg-action"
-              aria-label="Bookmark"
-              title="Bookmark"
-            >
-              <Bookmark className="h-3.5 w-3.5" />
-            </button>
           </div>
         )}
 

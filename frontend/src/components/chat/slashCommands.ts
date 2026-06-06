@@ -18,6 +18,10 @@ export type SlashCommandId =
   | 'threads'
   | 'projects'
   | 'papers'
+  | 'summarize'
+  | 'keypoints'
+  | 'gaps'
+  | 'timeline'
   | 'help';
 
 export interface SlashCommand {
@@ -35,6 +39,10 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'threads', label: '/threads', title: 'Browse and switch threads' },
   { id: 'projects', label: '/projects', title: 'Set the project context' },
   { id: 'papers', label: '/papers', title: 'Browse your papers' },
+  { id: 'summarize', label: '/summarize', title: 'Summarize your sources' },
+  { id: 'keypoints', label: '/keypoints', title: 'Key points with citations' },
+  { id: 'gaps', label: '/gaps', title: 'Gaps and open questions' },
+  { id: 'timeline', label: '/timeline', title: 'Timeline from your sources' },
   { id: 'help', label: '/help', title: 'List commands' },
 ];
 

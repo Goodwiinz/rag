@@ -32,9 +32,9 @@ describe('ChatHeader', () => {
     expect(screen.queryByLabelText('Select workspace')).not.toBeInTheDocument();
   });
 
-  it('exposes the command palette affordance', () => {
+  it('does not render the command palette affordance (unwired no-op)', () => {
     render(<ChatHeader />);
-    expect(screen.getByLabelText('Search')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search')).not.toBeInTheDocument();
   });
 
   it('no longer renders a connected-status clock', () => {
@@ -52,7 +52,9 @@ describe('ChatHeader', () => {
     const { rerender } = render(
       <ChatHeader messages={[]} onCopyAll={() => {}} />
     );
-    expect(screen.queryByLabelText('Copy all messages')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Copy all messages')
+    ).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Export chat')).not.toBeInTheDocument();
 
     rerender(
