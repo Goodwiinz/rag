@@ -13,6 +13,8 @@ export interface ChatPageMessage {
     toolsUsed?: string[];
     responseTimeMs?: number;
     sourcesCount?: number;
+    /** The user stopped this response mid-stream; the text is partial. */
+    stopped?: boolean;
   };
 }
 
