@@ -70,6 +70,7 @@ from .permission import (
     UserRoleAssignment,
 )
 from .processing import JobPriority, JobStatus, JobType, ProcessingJob
+from .project_memory import ProjectMemory
 from .project_note import ProjectNote
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
@@ -165,6 +166,7 @@ __all__ = [
     "MessageAttachment",
     # Research Assistant models
     "CitationRelationship",
+    "ProjectMemory",
     "ProjectNote",
     "GeneratedDraft",
     "DraftCitation",

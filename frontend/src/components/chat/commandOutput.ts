@@ -8,7 +8,8 @@
 export type CommandAction =
   | { type: 'open-thread'; id: string }
   | { type: 'set-project'; id: string; name: string }
-  | { type: 'cite-paper'; id: string; title: string };
+  | { type: 'cite-paper'; id: string; title: string }
+  | { type: 'delete-memory'; id: string; projectId: string };
 
 export interface CommandOutputItem {
   key: string;

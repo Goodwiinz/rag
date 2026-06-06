@@ -152,6 +152,19 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         if mem_text.strip():
             dynamic_parts.append(f"Relevant past interactions:\n{mem_text}")
 
+    # Project memory — durable facts the user saved for the bound project,
+    # recalled across every thread in it. Loaded into initial state when the
+    # turn is project-scoped (see jobs.py / streaming.py). Stored as plain
+    # strings; honor them like standing instructions.
+    project_memories = state.get("project_memories", [])
+    if project_memories:
+        pm_text = "\n".join(f"- {m}" for m in project_memories if m)
+        if pm_text.strip():
+            dynamic_parts.append(
+                "Project memory (durable facts the user saved for this "
+                f"project; honor them):\n{pm_text}"
+            )
+
     if retrieved:
         context_text = "\n\n".join(
             f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
