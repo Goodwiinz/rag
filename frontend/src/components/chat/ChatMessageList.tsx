@@ -5,7 +5,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
+import { CommandOutputBubble } from '@/components/chat/CommandOutputBubble';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  CommandAction,
+  CommandOutput,
+} from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 
 export interface ChatMessageListProps {
@@ -16,7 +21,16 @@ export interface ChatMessageListProps {
   storeStreamingContent: string;
   streamingTimestamp: number;
   onRegenerate: (index: number) => void;
-  onCitationClick: (citations: Citation[], clickedCitation: Citation) => void;
+  onCitationClick: (
+    citations: Citation[],
+    clickedCitation: Citation,
+    traceId?: string
+  ) => void;
+  /** Ephemeral CLI command output, rendered at the bottom of the transcript. */
+  commandOutputs?: CommandOutput[];
+  onCommandItemAction?: (action: CommandAction) => void;
+  /** True while RAG retrieval is in flight (drives the thinking-pill label). */
+  isRetrievingRag?: boolean;
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
@@ -28,6 +42,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   streamingTimestamp,
   onRegenerate,
   onCitationClick,
+  commandOutputs,
+  onCommandItemAction,
+  isRetrievingRag,
 }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -43,7 +60,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       scrollRafRef.current = null;
     });
-  }, [messages, storeStreamingContent, showScrollButton]);
+  }, [messages, storeStreamingContent, commandOutputs, showScrollButton]);
 
   useEffect(() => {
     return () => {
@@ -79,6 +96,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   }, []);
 
   const lastIndex = messages.length - 1;
+  // Phase-aware "thinking" label (the pill only shows before any token arrives).
+  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
   return (
     <div className="flex-1 relative min-h-0">
@@ -87,7 +106,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         onScroll={handleScroll}
         className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
-        <div className="max-w-4xl mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
+        <div className="max-w-[var(--nous-chat-col)] mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {messages.map((message, index) => {
             const isLast = index === lastIndex;
             const shouldAnimate = isLast && isNewMessage;
@@ -102,9 +121,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 <ChatBubble
                   message={message}
                   index={index}
-                  modelName={
-                    message.role === 'assistant' ? 'NOUS' : undefined
-                  }
+                  modelName={message.role === 'assistant' ? 'NOUS' : undefined}
                   isTyping={
                     isLast &&
                     isLoading &&
@@ -117,6 +134,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                       : undefined
                   }
                   onCitationClick={onCitationClick}
+                  thinkingLabel={thinkingLabel}
                 />
               </>
             );
@@ -137,11 +155,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               );
             }
 
-            return (
-              <div key={message.id || `msg-${index}`}>
-                {bubble}
-              </div>
-            );
+            return <div key={message.id || `msg-${index}`}>{bubble}</div>;
           })}
 
           {/* Streaming assistant message */}
@@ -166,10 +180,20 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                   isStreaming={true}
                   streamingContent={storeStreamingContent}
                   onCitationClick={onCitationClick}
+                  thinkingLabel={thinkingLabel}
                 />
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Ephemeral CLI command output (not persisted, not sent to agent) */}
+          {commandOutputs?.map((output) => (
+            <CommandOutputBubble
+              key={output.id}
+              output={output}
+              onItemAction={(action) => onCommandItemAction?.(action)}
+            />
+          ))}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -187,9 +211,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <ArrowDown className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                New messages
-              </span>
+              <span className="hidden sm:inline">New messages</span>
             </motion.button>
           </div>
         )}

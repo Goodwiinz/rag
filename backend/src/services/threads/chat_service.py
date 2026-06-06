@@ -818,6 +818,7 @@ class ChatService:
             role=data.role,
             content=data.content,
             token_count=message_token_count,
+            latency_ms=data.latency_ms,
         )
         self.db.add(message)
         await self.db.flush()  # Flush to get message.id for citations/attachments

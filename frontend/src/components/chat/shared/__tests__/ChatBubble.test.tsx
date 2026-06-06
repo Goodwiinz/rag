@@ -69,7 +69,11 @@ describe('ChatBubble', () => {
     );
 
     expect(onCitationClick).toHaveBeenCalledTimes(1);
-    expect(onCitationClick).toHaveBeenCalledWith(citations, citations[0]);
+    expect(onCitationClick).toHaveBeenCalledWith(
+      citations,
+      citations[0],
+      undefined
+    );
   });
 
   it('renders citation chips even when the assistant text has no inline citations', () => {

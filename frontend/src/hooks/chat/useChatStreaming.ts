@@ -55,6 +55,7 @@ export interface UseChatStreamingReturn {
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
   storeIsStreaming: boolean;
   storeStreamingContent: string;
+  storeIsRetrievingRag: boolean;
   streamingTimestampRef: React.MutableRefObject<number>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -115,6 +116,7 @@ export function useChatStreaming(
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
+  const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
@@ -230,11 +232,14 @@ export function useChatStreaming(
         lastStreamedContentRef.current = '';
         let streamHadError = false;
         let streamHadConfirmation = false;
+        const responseStart = Date.now();
 
         // Set streaming state in store for UI
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
+          // Only "retrieving" when RAG is on; cleared on first token / context.
+          isRetrievingRag: enableRAG,
         });
 
         if (currentThreadId) {
@@ -274,6 +279,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -300,6 +306,7 @@ export function useChatStreaming(
               console.log('[Agent] RAG contexts:', contexts.length);
               useChatStore.setState({
                 streamingCitations: contexts,
+                isRetrievingRag: false,
               });
             },
             onPlan: (steps) => {
@@ -417,10 +424,12 @@ export function useChatStreaming(
         // so the virtual streaming bubble unmounts atomically with the real one
         // mounting. Otherwise the final message and the streaming bubble render
         // together during the (awaited) DB save window below.
+        const responseTimeMs = Date.now() - responseStart;
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
+          metadata: { responseTimeMs },
         };
 
         useChatStore.setState({
@@ -449,8 +458,12 @@ export function useChatStreaming(
               thread_id: currentThreadId,
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
+              latency_ms: responseTimeMs,
             });
-            addMessageToStore(currentThreadId, savedAssistantMessage);
+            addMessageToStore(currentThreadId, {
+              ...savedAssistantMessage,
+              latency_ms: responseTimeMs,
+            });
             console.log('[Chat] Saved messages to database');
           } catch (error) {
             console.error('[Chat] Failed to save messages:', error);
@@ -549,6 +562,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -625,6 +639,7 @@ export function useChatStreaming(
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
+    storeIsRetrievingRag,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,

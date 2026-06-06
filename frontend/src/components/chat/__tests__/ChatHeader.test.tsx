@@ -34,7 +34,7 @@ describe('ChatHeader', () => {
 
   it('exposes the command palette affordance', () => {
     render(<ChatHeader />);
-    expect(screen.getByLabelText('Open command palette')).toBeInTheDocument();
+    expect(screen.getByLabelText('Search')).toBeInTheDocument();
   });
 
   it('no longer renders a connected-status clock', () => {

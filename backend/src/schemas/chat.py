@@ -311,6 +311,7 @@ class ChatMessageCreate(ChatMessageBase):
     thread_id: UUID
     attachment_ids: Optional[List[UUID]] = None  # Document IDs to attach
     citations: Optional[List[CitationCreate]] = None  # Citations from RAG retrieval
+    latency_ms: Optional[int] = None  # Client-measured response time (ms)
 
 
 class ChatMessageUpdate(BaseModel):
