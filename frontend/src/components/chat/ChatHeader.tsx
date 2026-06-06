@@ -12,7 +12,6 @@ import {
   FileJson,
   FileText,
   Menu,
-  Search,
 } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -24,7 +23,6 @@ interface ExportableMessage {
 }
 
 interface ChatHeaderProps {
-  onCommandPaletteOpen?: () => void;
   messages?: ExportableMessage[];
   chatTitle?: string;
   onCopyAll?: () => void;
@@ -32,7 +30,6 @@ interface ChatHeaderProps {
 }
 
 export const ChatHeader = memo(function ChatHeader({
-  onCommandPaletteOpen,
   messages = [],
   chatTitle = 'Chat',
   onCopyAll,
@@ -105,21 +102,6 @@ export const ChatHeader = memo(function ChatHeader({
           </span>
         </div>
       </div>
-
-      {/* Command palette trigger */}
-      <button
-        type="button"
-        onClick={onCommandPaletteOpen}
-        aria-label="Search"
-        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/50 hover:border-[var(--nous-sol)]/25 transition-colors"
-        style={{ fontFamily: 'var(--nous-font-ui)' }}
-      >
-        <Search className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
-        <span className="text-[11px] text-[var(--nous-fg-3)]">Search</span>
-        <span className="px-1.5 py-0.5 rounded-md bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[9px] text-[var(--nous-fg-3)] whitespace-nowrap">
-          ⌘K
-        </span>
-      </button>
 
       {/* Right: chat actions */}
       <div className="flex items-center gap-1.5 shrink-0 ml-auto">

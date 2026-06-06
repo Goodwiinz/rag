@@ -411,6 +411,35 @@ function ChatPageContent() {
           setCommandOutputs([]);
           setInput('');
           return;
+        case 'summarize':
+        case 'keypoints':
+        case 'gaps':
+        case 'timeline': {
+          // Synthesis commands SEND a real, citation-asking research query over
+          // the current project sources (unlike /threads, which only prints
+          // in-chat output). Mirror submitMessage by clearing ephemeral command
+          // output first, then dispatch the templated prompt through the same
+          // send path retryLast/handleRegenerate use: setInput so the composer
+          // reflects what was sent, then a deferred handleSubmit(template) so it
+          // doesn't read the stale pre-setInput value from its closure.
+          const SYNTHESIS_TEMPLATES: Record<
+            'summarize' | 'keypoints' | 'gaps' | 'timeline',
+            string
+          > = {
+            summarize:
+              'Summarize the key findings across my sources, with citations.',
+            keypoints:
+              'List the key points from my sources as concise bullets, each with a citation.',
+            gaps: 'What gaps, open questions, or contradictions appear across my sources? Cite them.',
+            timeline:
+              'Build a chronological timeline of the developments described in my sources, with citations.',
+          };
+          const template = SYNTHESIS_TEMPLATES[id];
+          setCommandOutputs([]);
+          setInput(template);
+          setTimeout(() => handleSubmit(template), 0);
+          return;
+        }
         case 'help':
           appendOutput({
             id: outId,
@@ -536,6 +565,7 @@ function ChatPageContent() {
       startNewChat,
       retryLast,
       setInput,
+      handleSubmit,
       conversations,
       activeConversationId,
       appendOutput,
