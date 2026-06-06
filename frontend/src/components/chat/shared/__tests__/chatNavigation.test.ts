@@ -9,7 +9,7 @@ describe('chatNavigation', () => {
     expect(getSelectedThreadUrl('thread-123')).toBe('/chat?thread=thread-123');
   });
 
-  it('uses the plain chat route for new chats', () => {
-    expect(getNewChatUrl()).toBe('/chat');
+  it('marks a new chat with the new=1 intent so the session lands blank', () => {
+    expect(getNewChatUrl()).toBe('/chat?new=1');
   });
 });

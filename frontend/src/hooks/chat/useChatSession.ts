@@ -291,9 +291,19 @@ export function useChatSession(): UseChatSessionReturn {
           'threads from database'
         );
 
-        // Restore active thread from URL param or default to first
-        if (uiConversations.length > 0) {
-          const threadFromUrl = searchParamsRef.current.get('thread');
+        // Restore active thread from URL param or default to first — UNLESS the
+        // user explicitly started a new chat (?new=1), in which case load the
+        // sidebar list but leave the composer blank (no auto-open).
+        const threadFromUrl = searchParamsRef.current.get('thread');
+        const isNewChat = searchParamsRef.current.get('new') === '1';
+
+        if (isNewChat && !threadFromUrl) {
+          setActiveConversationId(null);
+          activeConversationIdRef.current = null;
+          setMessages([]);
+          setCurrentThread(null);
+          console.log('[Chat] New chat requested; not auto-selecting a thread');
+        } else if (uiConversations.length > 0) {
           let selectedConv = uiConversations[0];
 
           if (threadFromUrl) {
@@ -373,11 +383,16 @@ export function useChatSession(): UseChatSessionReturn {
       // Warm-start: read IDs cached on prior visits and fire sidebar + message
       // fetches in parallel with workspace validation. On repeat page loads this
       // collapses 4 sequential calls into 2 parallel ones.
+      // Explicit "new chat" intent (?new=1) suppresses warm-start restore so
+      // the page lands on a blank composer instead of the last thread.
+      const isNewChat = searchParamsRef.current.get('new') === '1';
       const persistedConvId =
         typeof window !== 'undefined'
           ? localStorage.getItem('default-conversation-id')
           : null;
-      const persistedThreadId = useChatStore.getState().currentThreadId;
+      const persistedThreadId = isNewChat
+        ? null
+        : useChatStore.getState().currentThreadId;
 
       const wsPromise = workspaceService.getOrCreateDefaultWorkspace();
 
