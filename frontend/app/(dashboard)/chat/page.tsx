@@ -223,6 +223,9 @@ function ChatPageContent() {
   const [activeCitationId, setActiveCitationId] = useState<string | undefined>(
     undefined
   );
+  const [citationTraceId, setCitationTraceId] = useState<string | undefined>(
+    undefined
+  );
 
   const router = useRouter();
 
@@ -249,12 +252,27 @@ function ChatPageContent() {
   }, [setInput, chatInputRef]);
 
   const handleCitationClick = useCallback(
-    (citations: Citation[], clickedCitation: Citation) => {
+    (citations: Citation[], clickedCitation: Citation, traceId?: string) => {
       setCitationPanelCitations(citations);
-      setActiveCitationId(clickedCitation.documentId);
+      setActiveCitationId(
+        clickedCitation.documentId || clickedCitation.externalReferenceId
+      );
+      setCitationTraceId(traceId);
       setIsCitationPanelOpen(true);
     },
     []
+  );
+
+  // Insert a reference to a source into the composer (the panel "Cite" action).
+  const handleCiteSource = useCallback(
+    (citation: Citation) => {
+      setInput((cur) =>
+        cur ? `${cur} "${citation.title}"` : `"${citation.title}" `
+      );
+      chatInputRef.current?.focus();
+      setIsCitationPanelOpen(false);
+    },
+    [setInput, chatInputRef]
   );
 
   const handlePromptSelect = (prompt: string) => {
@@ -894,9 +912,12 @@ function ChatPageContent() {
           isOpen={isCitationPanelOpen}
           onClose={() => setIsCitationPanelOpen(false)}
           onCitationClick={(citation) => {
-            setActiveCitationId(citation.documentId);
-            router.push(`/documents/${citation.documentId}`);
+            if (citation.documentId) {
+              router.push(`/documents/${citation.documentId}`);
+            }
           }}
+          onCite={handleCiteSource}
+          diagnosticsTraceId={citationTraceId}
           activeCitationId={activeCitationId}
         />
       </div>

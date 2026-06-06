@@ -40,7 +40,11 @@ export interface ChatBubbleProps {
   isStreaming?: boolean;
   streamingContent?: string;
   onRetry?: () => void;
-  onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
+  onCitationClick?: (
+    citations: Citation[],
+    clickedCitation: Citation,
+    traceId?: string
+  ) => void;
   /** Label for the pre-token "thinking" pill (phase-aware). */
   thinkingLabel?: string;
 }
@@ -253,7 +257,11 @@ export const ChatBubble = React.memo(function ChatBubble({
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
                     if (onCitationClick) {
-                      onCitationClick(visibleCitations, citation);
+                      onCitationClick(
+                        visibleCitations,
+                        citation,
+                        message.diagnosticsTraceId
+                      );
                     }
                   }}
                 />
@@ -274,7 +282,11 @@ export const ChatBubble = React.memo(function ChatBubble({
                   type="button"
                   onClick={() => {
                     if (onCitationClick) {
-                      onCitationClick(visibleCitations, citation);
+                      onCitationClick(
+                        visibleCitations,
+                        citation,
+                        message.diagnosticsTraceId
+                      );
                     }
                   }}
                   className="group/citation flex items-center gap-2 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/40 hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"

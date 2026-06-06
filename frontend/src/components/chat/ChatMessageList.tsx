@@ -21,7 +21,11 @@ export interface ChatMessageListProps {
   storeStreamingContent: string;
   streamingTimestamp: number;
   onRegenerate: (index: number) => void;
-  onCitationClick: (citations: Citation[], clickedCitation: Citation) => void;
+  onCitationClick: (
+    citations: Citation[],
+    clickedCitation: Citation,
+    traceId?: string
+  ) => void;
   /** Ephemeral CLI command output, rendered at the bottom of the transcript. */
   commandOutputs?: CommandOutput[];
   onCommandItemAction?: (action: CommandAction) => void;
