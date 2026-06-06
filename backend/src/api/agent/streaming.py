@@ -185,34 +185,48 @@ _PLANNER_CHAIN_NODES = frozenset(
 
 
 async def _graph_events_with_keepalive(event_stream_iter, request: Any):
-    """Yield LangGraph events, interleaving keepalive markers during long gaps."""
+    """Yield LangGraph events, interleaving keepalive markers during long gaps.
+
+    On client disconnect, emits a ``{"type": "disconnect"}`` sentinel and stops.
+    The caller closes the underlying graph iterator so the agent run is actually
+    cancelled rather than left generating into a dead connection.
+    """
     pending: asyncio.Task | None = None
-    while True:
-        if await request.is_disconnected():
-            break
-        if pending is None:
-            pending = asyncio.create_task(event_stream_iter.__anext__())
-        sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
-        done, _ = await asyncio.wait(
-            {pending, sleep_task},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if sleep_task in done and pending not in done:
-            yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
-            continue
-        sleep_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sleep_task
-        try:
-            event = pending.result()
-        except StopAsyncIteration:
+    try:
+        while True:
+            if await request.is_disconnected():
+                yield {"type": "disconnect"}
+                return
+            if pending is None:
+                pending = asyncio.create_task(event_stream_iter.__anext__())
+            sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
+            done, _ = await asyncio.wait(
+                {pending, sleep_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if sleep_task in done and pending not in done:
+                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+                continue
+            sleep_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await sleep_task
+            try:
+                event = pending.result()
+            except StopAsyncIteration:
+                pending = None
+                break
+            except Exception:
+                pending = None
+                raise
             pending = None
-            break
-        except Exception:
-            pending = None
-            raise
-        pending = None
-        yield {"type": "event", "event": event}
+            yield {"type": "event", "event": event}
+    finally:
+        # Never leak the in-flight __anext__ task — on disconnect or error it
+        # would otherwise drive one more graph step after we stop reading.
+        if pending is not None and not pending.done():
+            pending.cancel()
+            with contextlib.suppress(BaseException):
+                await pending
 
 
 async def stream_event_generator(
@@ -370,12 +384,16 @@ async def stream_event_generator(
 
         event_stream_iter = await _open_event_stream()
         first_event_yielded = False
+        client_disconnected = False
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
                     async for item in _graph_events_with_keepalive(
                         event_stream_iter, request
                     ):
+                        if item["type"] == "disconnect":
+                            client_disconnected = True
+                            break
                         if item["type"] == "keepalive":
                             keepalive_count += 1
                             elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
@@ -491,6 +509,30 @@ async def stream_event_generator(
                     await _clear_stale_pending_confirmation(graph, config)
                     event_stream_iter = await _open_event_stream()
                     continue
+
+        # Client hung up mid-stream (hit Stop / closed the tab). Cancel the
+        # agent run by closing the graph iterator instead of letting it finish
+        # generating into a dead socket, and skip the persist + `done` path —
+        # the client preserves and saves its own partial answer.
+        if client_disconnected:
+            with contextlib.suppress(Exception):
+                await event_stream_iter.aclose()
+            _debug_log(
+                hypothesis_id="H10",
+                location="streaming.py:client_disconnect",
+                message="stream_cancelled_on_disconnect",
+                data={
+                    "elapsed_ms": int(
+                        (time.monotonic() - stream_started_at) * 1000
+                    ),
+                    "keepalive_count": keepalive_count,
+                },
+            )
+            logger.info(
+                "SSE client disconnected; cancelled agent run for thread %s",
+                stream_thread_id,
+            )
+            return
 
         # Check graph state after streaming completes
         try:

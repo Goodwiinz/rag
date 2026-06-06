@@ -27,9 +27,13 @@ export function mapStoreMessagesToChatMessages(
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
-    metadata: dbMsg.latency_ms
-      ? { responseTimeMs: dbMsg.latency_ms }
-      : undefined,
+    metadata:
+      dbMsg.latency_ms || dbMsg.stopped
+        ? {
+            ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
+            ...(dbMsg.stopped ? { stopped: true } : {}),
+          }
+        : undefined,
   }));
 }
 

@@ -448,7 +448,10 @@ export function useChatStreaming(
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
-          metadata: { responseTimeMs, ...(wasStopped ? { stopped: true } : {}) },
+          metadata: {
+            responseTimeMs,
+            ...(wasStopped ? { stopped: true } : {}),
+          },
         };
         stoppedByUserRef.current = false;
         activeRunThreadRef.current = null;
@@ -480,10 +483,12 @@ export function useChatStreaming(
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
               latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
             });
             addMessageToStore(currentThreadId, {
               ...savedAssistantMessage,
               latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
             });
             console.log('[Chat] Saved messages to database');
           } catch (error) {
