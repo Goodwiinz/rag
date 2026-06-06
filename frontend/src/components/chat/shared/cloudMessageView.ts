@@ -9,6 +9,11 @@ export interface ChatPageMessage {
   timestamp: number;
   citations?: Citation[];
   diagnosticsTraceId?: string;
+  metadata?: {
+    toolsUsed?: string[];
+    responseTimeMs?: number;
+    sourcesCount?: number;
+  };
 }
 
 export function mapStoreMessagesToChatMessages(
@@ -20,6 +25,9 @@ export function mapStoreMessagesToChatMessages(
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
+    metadata: dbMsg.latency_ms
+      ? { responseTimeMs: dbMsg.latency_ms }
+      : undefined,
   }));
 }
 
@@ -32,7 +40,9 @@ function shouldUseStoreMessages(
   localMessages: ChatPageMessage[],
   storeMessages: ChatMessage[]
 ): boolean {
-  return storeMessages.length > 0 && storeMessages.length >= localMessages.length;
+  return (
+    storeMessages.length > 0 && storeMessages.length >= localMessages.length
+  );
 }
 
 export function selectDisplayedMessages({
@@ -107,7 +117,8 @@ export function syncConversationMessagesWithStore<
         mappedMessages.length
       ),
       updatedAt:
-        mappedMessages[mappedMessages.length - 1]?.timestamp ?? conversation.updatedAt,
+        mappedMessages[mappedMessages.length - 1]?.timestamp ??
+        conversation.updatedAt,
     };
   });
 }

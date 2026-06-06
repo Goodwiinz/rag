@@ -12,13 +12,43 @@ import {
 } from '@/components/chat/shared/chatNavigation';
 import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import { Citation } from '@/utils/citationParser';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
+import {
+  Fragment,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
+import {
+  SLASH_COMMANDS,
+  type SlashCommandId,
+} from '@/components/chat/slashCommands';
+import type {
+  CommandAction,
+  CommandOutput,
+  CommandOutputItem,
+} from '@/components/chat/commandOutput';
+import { useProjectStore } from '@/store/projectStore';
+import { documentService } from '@/services/documentService';
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(ms).toLocaleDateString();
+}
 
 // ============================================
 // HITL HELPERS
@@ -60,6 +90,36 @@ function formatArgValue(value: unknown, max = 140): string {
   } catch {
     return '[unserializable]';
   }
+}
+
+// Shared loading skeleton for cold-load + thread-switch (on-brand bubble rows).
+function TranscriptSkeleton() {
+  return (
+    <div
+      className="mx-auto max-w-[var(--nous-chat-col)] space-y-8 p-6"
+      aria-busy="true"
+      aria-label="Loading conversation"
+    >
+      {[0, 1, 2].map((row) => (
+        <div
+          key={row}
+          className={
+            row % 2 === 0
+              ? 'flex flex-col items-start gap-2'
+              : 'flex flex-col items-end gap-2'
+          }
+        >
+          <Skeleton className="h-3 w-24 rounded-md bg-[var(--nous-bg-2)]" />
+          <Skeleton
+            className={
+              (row % 2 === 0 ? 'h-20 w-[80%]' : 'h-12 w-[55%]') +
+              ' rounded-xl bg-[var(--nous-bg-2)]'
+            }
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ============================================
@@ -109,6 +169,7 @@ function ChatPageContent() {
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
+    storeIsRetrievingRag,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,
@@ -162,6 +223,9 @@ function ChatPageContent() {
   const [activeCitationId, setActiveCitationId] = useState<string | undefined>(
     undefined
   );
+  const [citationTraceId, setCitationTraceId] = useState<string | undefined>(
+    undefined
+  );
 
   const router = useRouter();
 
@@ -188,12 +252,27 @@ function ChatPageContent() {
   }, [setInput, chatInputRef]);
 
   const handleCitationClick = useCallback(
-    (citations: Citation[], clickedCitation: Citation) => {
+    (citations: Citation[], clickedCitation: Citation, traceId?: string) => {
       setCitationPanelCitations(citations);
-      setActiveCitationId(clickedCitation.documentId);
+      setActiveCitationId(
+        clickedCitation.documentId || clickedCitation.externalReferenceId
+      );
+      setCitationTraceId(traceId);
       setIsCitationPanelOpen(true);
     },
     []
+  );
+
+  // Insert a reference to a source into the composer (the panel "Cite" action).
+  const handleCiteSource = useCallback(
+    (citation: Citation) => {
+      setInput((cur) =>
+        cur ? `${cur} "${citation.title}"` : `"${citation.title}" `
+      );
+      chatInputRef.current?.focus();
+      setIsCitationPanelOpen(false);
+    },
+    [setInput, chatInputRef]
   );
 
   const handlePromptSelect = (prompt: string) => {
@@ -257,49 +336,332 @@ function ChatPageContent() {
     [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setMessages]
   );
 
+  // Start a fresh chat — shared by the sidebar "new" button and the /new command
+  const startNewChat = useCallback(() => {
+    setActiveConversationId(null);
+    activeConversationIdRef.current = null;
+    setMessages([]);
+    setCurrentThread(null);
+    router.push(getNewChatUrl());
+  }, [
+    router,
+    setActiveConversationId,
+    setMessages,
+    setCurrentThread,
+    activeConversationIdRef,
+  ]);
+
+  // Regenerate the most recent assistant response (the /retry command)
+  const retryLast = useCallback(() => {
+    const lastAssistantIdx = [...displayedMessages]
+      .map((m, i) => ({ role: m.role, i }))
+      .reverse()
+      .find((x) => x.role === 'assistant')?.i;
+    if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
+  }, [displayedMessages, handleRegenerate]);
+
+  // ---- CLI slash-command output (ephemeral, in-chat) ----
+  // Lives in page state, never in the message arrays, so it is never sent to
+  // the agent or persisted. Cleared on thread change (effect below) and on send.
+  const [commandOutputs, setCommandOutputs] = useState<CommandOutput[]>([]);
+  const fetchProjects = useProjectStore((s) => s.fetchProjects);
+
+  useEffect(() => {
+    setCommandOutputs([]);
+  }, [activeThreadId]);
+
+  const appendOutput = useCallback((o: CommandOutput) => {
+    setCommandOutputs((prev) => [...prev, o]);
+  }, []);
+
+  const patchOutput = useCallback(
+    (id: string, patch: Partial<CommandOutput>) => {
+      setCommandOutputs((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
+      );
+    },
+    []
+  );
+
+  // Bind the chat to a project via the same ?projectId= param the context rail
+  // uses (the streaming hook reads it into page_context).
+  const handleSetProjectContext = useCallback(
+    (projectId: string) => {
+      const params = new URLSearchParams(window.location.search);
+      params.set('projectId', projectId);
+      router.replace(`/chat?${params.toString()}`);
+    },
+    [router]
+  );
+
+  // Run a slash command. Output prints into the chat transcript, CLI-style;
+  // nothing navigates away (except /new, which starts a fresh chat).
+  const handleSlashCommand = useCallback(
+    (id: SlashCommandId) => {
+      const now = Date.now();
+      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      switch (id) {
+        case 'new':
+          startNewChat();
+          return;
+        case 'retry':
+          retryLast();
+          return;
+        case 'clear':
+          setCommandOutputs([]);
+          setInput('');
+          return;
+        case 'help':
+          appendOutput({
+            id: outId,
+            command: '/help',
+            timestamp: now,
+            status: 'ready',
+            lines: SLASH_COMMANDS.map((c) => `${c.label.padEnd(10)}${c.title}`),
+            note: 'Type / in the message box to autocomplete.',
+          });
+          return;
+        case 'threads': {
+          const items: CommandOutputItem[] = conversations.map((c) => ({
+            key: c.id,
+            label: c.title || 'Untitled',
+            meta: c.updatedAt ? relativeTime(c.updatedAt) : undefined,
+            active: c.id === activeConversationId,
+            action: { type: 'open-thread', id: c.id },
+          }));
+          appendOutput({
+            id: outId,
+            command: '/threads',
+            timestamp: now,
+            status: 'ready',
+            items,
+            emptyText: 'No threads yet.',
+            note: items.length ? 'Tap a thread to open it.' : undefined,
+          });
+          return;
+        }
+        case 'projects':
+          appendOutput({
+            id: outId,
+            command: '/projects',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              await fetchProjects({ limit: 20, project_status: 'active' });
+              const { projects, currentProject } = useProjectStore.getState();
+              const items: CommandOutputItem[] = projects.map((p) => ({
+                key: p.id,
+                label: p.name,
+                meta: `${p.document_count ?? 0} ${
+                  (p.document_count ?? 0) === 1 ? 'paper' : 'papers'
+                }`,
+                active: p.id === currentProject?.id,
+                action: { type: 'set-project', id: p.id, name: p.name },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No active projects.',
+                note: items.length
+                  ? 'Tap a project to use it as context.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load projects.',
+              });
+            }
+          })();
+          return;
+        case 'papers':
+          appendOutput({
+            id: outId,
+            command: '/papers',
+            timestamp: now,
+            status: 'loading',
+            items: [],
+          });
+          void (async () => {
+            try {
+              // api.get() returns the raw body, so getDocuments resolves to
+              // { documents, pagination } directly (its APIResponse<> type
+              // annotation is wrong). Read .documents, not .data.documents.
+              const res = (await documentService.getDocuments(
+                1,
+                10
+              )) as unknown as {
+                documents?: Array<{
+                  id: string;
+                  title?: string;
+                  filename: string;
+                  processing_status?: string;
+                }>;
+              };
+              const docs = res?.documents ?? [];
+              const items: CommandOutputItem[] = docs.map((d) => ({
+                key: d.id,
+                label: d.title || d.filename,
+                meta: d.processing_status,
+                action: {
+                  type: 'cite-paper',
+                  id: d.id,
+                  title: d.title || d.filename,
+                },
+              }));
+              patchOutput(outId, {
+                status: 'ready',
+                items,
+                emptyText: 'No papers found.',
+                note: items.length
+                  ? 'Tap a paper to reference it in your message.'
+                  : undefined,
+              });
+            } catch {
+              patchOutput(outId, {
+                status: 'ready',
+                items: [],
+                emptyText: 'Could not load papers.',
+              });
+            }
+          })();
+          return;
+      }
+    },
+    [
+      startNewChat,
+      retryLast,
+      setInput,
+      conversations,
+      activeConversationId,
+      appendOutput,
+      patchOutput,
+      fetchProjects,
+    ]
+  );
+
+  // A tap on a clickable command-output row.
+  const handleCommandItemAction = useCallback(
+    (action: CommandAction) => {
+      switch (action.type) {
+        case 'open-thread':
+          setActiveConversationId(action.id);
+          activeConversationIdRef.current = action.id;
+          setCurrentThread(action.id);
+          router.push(getSelectedThreadUrl(action.id));
+          return;
+        case 'set-project':
+          handleSetProjectContext(action.id);
+          setCommandOutputs([
+            {
+              id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              command: '/projects',
+              timestamp: Date.now(),
+              status: 'ready',
+              lines: [`Project context set: ${action.name}`],
+            },
+          ]);
+          return;
+        case 'cite-paper':
+          setInput((cur) =>
+            cur ? `${cur} "${action.title}"` : `"${action.title}" `
+          );
+          chatInputRef.current?.focus();
+          return;
+      }
+    },
+    [
+      router,
+      setActiveConversationId,
+      setCurrentThread,
+      activeConversationIdRef,
+      handleSetProjectContext,
+      setInput,
+      chatInputRef,
+    ]
+  );
+
+  // Clear ephemeral command output when a real message is sent.
+  const submitMessage = useCallback(() => {
+    setCommandOutputs([]);
+    handleSubmit();
+  }, [handleSubmit]);
+
+  // Mobile drawer: focus in on open, return focus on close, Escape to close.
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerOpenerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      drawerOpenerRef.current = document.activeElement as HTMLElement | null;
+      drawerRef.current?.focus();
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setMobileSidebarOpen(false);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }
+    drawerOpenerRef.current?.focus?.();
+  }, [mobileSidebarOpen]);
+
+  // HITL banner: move focus to Approve when it appears.
+  const approveRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (pendingConfirmation) approveRef.current?.focus();
+  }, [pendingConfirmation]);
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[var(--nous-bg-1)]">
       {/* Mobile sidebar backdrop + drawer */}
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 z-50 md:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        >
-          <div className="absolute inset-0 bg-[var(--nous-erebus)]/50" />
-          <motion.div
-            initial={{ x: -280 }}
-            animate={{ x: 0 }}
-            exit={{ x: -280 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-0 bottom-0 w-[280px] bg-[var(--nous-bg-2)] border-r border-[var(--nous-border-1)] shadow-[var(--nous-shadow-lg)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChatSidebar
-              conversations={conversations}
-              activeId={activeConversationId}
-              onSelect={(id) => {
-                setActiveConversationId(id);
-                activeConversationIdRef.current = id;
-                setCurrentThread(id);
-                router.push(getSelectedThreadUrl(id));
-                setMobileSidebarOpen(false);
-              }}
-              onNew={() => {
-                setActiveConversationId(null);
-                activeConversationIdRef.current = null;
-                setMessages([]);
-                setCurrentThread(null);
-                router.push(getNewChatUrl());
-                setMobileSidebarOpen(false);
-              }}
-              onRename={handleRenameThread}
-              onDelete={handleDeleteThread}
-              onBulkDelete={handleBulkDeleteThreads}
-              currentWorkspace={workspace}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <motion.div
+              className="absolute inset-0 bg-[var(--nous-erebus)]/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileSidebarOpen(false)}
             />
-          </motion.div>
-        </div>
-      )}
+            <motion.div
+              ref={drawerRef}
+              tabIndex={-1}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Chat history"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute left-0 top-0 bottom-0 w-[min(280px,85vw)] bg-[var(--nous-bg-2)] border-r border-[var(--nous-border-1)] shadow-[var(--nous-shadow-lg)] outline-none"
+            >
+              <ChatSidebar
+                conversations={conversations}
+                activeId={activeConversationId}
+                onSelect={(id) => {
+                  setActiveConversationId(id);
+                  activeConversationIdRef.current = id;
+                  setCurrentThread(id);
+                  router.push(getSelectedThreadUrl(id));
+                  setMobileSidebarOpen(false);
+                }}
+                onNew={() => {
+                  startNewChat();
+                  setMobileSidebarOpen(false);
+                }}
+                onRename={handleRenameThread}
+                onDelete={handleDeleteThread}
+                onBulkDelete={handleBulkDeleteThreads}
+                currentWorkspace={workspace}
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Desktop sidebar */}
       <div className="hidden md:block h-full shrink-0">
@@ -312,13 +674,7 @@ function ChatPageContent() {
             setCurrentThread(id);
             router.push(getSelectedThreadUrl(id));
           }}
-          onNew={() => {
-            setActiveConversationId(null);
-            activeConversationIdRef.current = null;
-            setMessages([]);
-            setCurrentThread(null);
-            router.push(getNewChatUrl());
-          }}
+          onNew={startNewChat}
           onRename={handleRenameThread}
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
@@ -348,8 +704,8 @@ function ChatPageContent() {
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
               <div className="h-full flex flex-col items-center justify-center p-8">
-                <div className="text-center">
-                  <Loader2 className="w-8 h-8 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+                <div className="text-center" role="status">
+                  <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
                   <p
                     className="text-sm text-[var(--nous-fg-3)] mt-2"
                     style={{ fontFamily: 'var(--nous-font-ui)' }}
@@ -363,23 +719,7 @@ function ChatPageContent() {
         ) : isInitializing ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div className="h-full flex flex-col items-center justify-center p-8">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center"
-                >
-                  <div className="relative w-12 h-12 mx-auto mb-6">
-                    <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin" />
-                  </div>
-                  <h2
-                    className="text-sm text-[var(--nous-fg-3)] mb-2"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    Initializing...
-                  </h2>
-                </motion.div>
-              </div>
+              <TranscriptSkeleton />
             </div>
           </div>
         ) : initError ? (
@@ -424,34 +764,12 @@ function ChatPageContent() {
         ) : isLoadingMessages ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div
-                className="mx-auto max-w-3xl space-y-8 p-6"
-                aria-busy="true"
-                aria-label="Loading messages"
-              >
-                {[0, 1, 2].map((row) => (
-                  <div
-                    key={row}
-                    className={
-                      row % 2 === 0
-                        ? 'flex flex-col items-start gap-2'
-                        : 'flex flex-col items-end gap-2'
-                    }
-                  >
-                    <Skeleton className="h-3 w-24 rounded-md" />
-                    <Skeleton
-                      className={
-                        row % 2 === 0
-                          ? 'h-20 w-[80%] rounded-xl'
-                          : 'h-12 w-[55%] rounded-xl'
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+              <TranscriptSkeleton />
             </div>
           </div>
-        ) : displayedMessages.length === 0 && !storeIsStreaming ? (
+        ) : displayedMessages.length === 0 &&
+          commandOutputs.length === 0 &&
+          !storeIsStreaming ? (
           <div className="flex-1 relative min-h-0">
             <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
               <WelcomeState
@@ -470,6 +788,9 @@ function ChatPageContent() {
             streamingTimestamp={streamingTimestampRef.current}
             onRegenerate={handleRegenerate}
             onCitationClick={handleCitationClick}
+            commandOutputs={commandOutputs}
+            onCommandItemAction={handleCommandItemAction}
+            isRetrievingRag={storeIsRetrievingRag}
           />
         )}
 
@@ -478,7 +799,13 @@ function ChatPageContent() {
           <div
             role="alertdialog"
             aria-label="Approval needed"
-            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5"
+            aria-describedby="hitl-desc"
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !isConfirming)
+                handleConfirmation(false);
+            }}
+            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-[var(--nous-sol)]/30 bg-[var(--nous-sol)]/5 outline-none"
           >
             <div className="mb-2 flex items-center gap-2">
               <ShieldCheck
@@ -499,6 +826,7 @@ function ChatPageContent() {
               return (
                 <>
                   <p
+                    id="hitl-desc"
                     className="text-sm leading-relaxed text-[var(--nous-fg-1)] mb-3"
                     style={{ fontFamily: 'var(--nous-font-ui)' }}
                   >
@@ -507,9 +835,9 @@ function ChatPageContent() {
                       className="rounded bg-[var(--nous-sol-subtle)] px-1.5 py-0.5 text-[var(--nous-fg-accent)]"
                       style={{ fontFamily: 'var(--nous-font-mono)' }}
                     >
-                      {call?.name ?? 'a destructive action'}
+                      {call?.name ?? 'this action'}
                     </span>
-                    . Approve to let it continue, or deny to stop here.
+                    . Approve to let it continue, or Deny to stop.
                   </p>
                   {argEntries.length > 0 && (
                     <dl
@@ -539,6 +867,7 @@ function ChatPageContent() {
             })()}
             <div className="flex items-center gap-3">
               <button
+                ref={approveRef}
                 onClick={() => handleConfirmation(true)}
                 disabled={isConfirming}
                 className="px-4 py-2 rounded-xl bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
@@ -562,15 +891,19 @@ function ChatPageContent() {
         <ChatInput
           value={input}
           onChange={setInput}
-          onSubmit={handleSubmit}
+          onSubmit={submitMessage}
           onStop={handleStop}
           isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
+          isRAGLoading={storeIsRetrievingRag}
+          isStreaming={storeIsStreaming}
+          streamingContent={storeStreamingContent}
           inputRef={chatInputRef}
           onAttach={handleAttach}
           selectedModelId={selectedModel}
           onModelChange={setSelectedModel}
+          onCommand={handleSlashCommand}
         />
 
         {/* Citation Panel Sidebar */}
@@ -579,9 +912,12 @@ function ChatPageContent() {
           isOpen={isCitationPanelOpen}
           onClose={() => setIsCitationPanelOpen(false)}
           onCitationClick={(citation) => {
-            setActiveCitationId(citation.documentId);
-            router.push(`/documents/${citation.documentId}`);
+            if (citation.documentId) {
+              router.push(`/documents/${citation.documentId}`);
+            }
           }}
+          onCite={handleCiteSource}
+          diagnosticsTraceId={citationTraceId}
           activeCitationId={activeCitationId}
         />
       </div>
@@ -607,8 +943,8 @@ export default function ChatPage() {
     <Suspense
       fallback={
         <div className="flex-1 flex flex-col items-center justify-center p-8">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
+          <div className="text-center" role="status">
+            <Loader2 className="w-10 h-10 text-[var(--nous-sol)] animate-spin mx-auto mb-4" />
             <p
               className="text-sm text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
