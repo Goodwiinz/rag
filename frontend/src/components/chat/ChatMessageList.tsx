@@ -12,6 +12,7 @@ import type {
   CommandOutput,
 } from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
+import { useChatStore } from '@/store/chat-store';
 
 export interface ChatMessageListProps {
   messages: ChatPageMessage[];
@@ -46,6 +47,10 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   onCommandItemAction,
   isRetrievingRag,
 }: ChatMessageListProps) {
+  // Live citations captured mid-stream (set once by onRagContext); used to
+  // surface a subtle "reading sources" chip while the answer streams.
+  const streamingCitations = useChatStore((s) => s.streamingCitations);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -169,6 +174,25 @@ export const ChatMessageList = React.memo(function ChatMessageList({
                 transition={{ duration: 0.25 }}
               >
                 <InlineAgentSummary threadId={activeThreadId} />
+                {streamingCitations.length > 0 && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
+                    style={{
+                      color: 'var(--nous-fg-2)',
+                      backgroundColor: 'var(--nous-bg-2)',
+                      borderColor: 'var(--nous-border-1)',
+                    }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: 'var(--nous-sol)' }}
+                    />
+                    Reading {streamingCitations.length}{' '}
+                    {streamingCitations.length === 1 ? 'source' : 'sources'}
+                  </div>
+                )}
                 <ChatBubble
                   message={{
                     role: 'assistant',
