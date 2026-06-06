@@ -175,12 +175,6 @@ export const ChatBubble = React.memo(function ChatBubble({
         >
           {!isUser && (
             <>
-              <span
-                className="text-[12px] font-medium text-[var(--nous-fg-3)]"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
-              >
-                Assistant
-              </span>
               {modelName && (
                 <span
                   className="inline-flex items-center gap-1 px-2 py-[2px] rounded text-[10px] font-semibold bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)]"
