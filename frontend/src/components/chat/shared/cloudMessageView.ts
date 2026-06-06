@@ -13,6 +13,8 @@ export interface ChatPageMessage {
     toolsUsed?: string[];
     responseTimeMs?: number;
     sourcesCount?: number;
+    /** The user stopped this response mid-stream; the text is partial. */
+    stopped?: boolean;
   };
 }
 
@@ -25,9 +27,13 @@ export function mapStoreMessagesToChatMessages(
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
-    metadata: dbMsg.latency_ms
-      ? { responseTimeMs: dbMsg.latency_ms }
-      : undefined,
+    metadata:
+      dbMsg.latency_ms || dbMsg.stopped
+        ? {
+            ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
+            ...(dbMsg.stopped ? { stopped: true } : {}),
+          }
+        : undefined,
   }));
 }
 

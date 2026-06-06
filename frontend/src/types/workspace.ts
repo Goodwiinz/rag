@@ -233,6 +233,7 @@ export interface ChatMessageCreate {
   attachment_ids?: string[];
   citations?: CitationCreate[]; // Citations from RAG retrieval
   latency_ms?: number; // Client-measured response time (ms)
+  stopped?: boolean; // User stopped this response mid-stream
 }
 
 export interface ChatMessageUpdate {
@@ -248,6 +249,7 @@ export interface ChatMessage {
   role: MessageRole;
   token_count: number;
   latency_ms?: number;
+  stopped?: boolean;
   model_name?: string;
   model_version?: string;
   tool_name?: string;

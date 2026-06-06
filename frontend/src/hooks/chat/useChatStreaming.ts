@@ -106,6 +106,13 @@ export function useChatStreaming(
   const agentThreadMapRef = useRef<Record<string, string>>({});
   const lastStreamedContentRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Set the instant the user hits Stop, read by the stream-completion path so a
+  // user abort finalizes the partial answer (tagged `stopped`) instead of
+  // surfacing an error or an empty bubble. Reset once the turn is wrapped up.
+  const stoppedByUserRef = useRef(false);
+  // Workspace thread id of the in-flight run, so Stop can close out the agent
+  // activity indicator (the normal onDone never fires on abort).
+  const activeRunThreadRef = useRef<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const submitLockRef = useRef(false);
   const streamingTimestampRef = useRef(Date.now());
@@ -241,6 +248,11 @@ export function useChatStreaming(
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
         });
+
+        // Fresh turn — clear any stop flag from a previous run and record the
+        // thread so Stop can finalize this run's activity indicator.
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = currentThreadId || null;
 
         if (currentThreadId) {
           useAgentActivityStore
@@ -403,19 +415,25 @@ export function useChatStreaming(
         // the UI side.
         const finalContent = assistantContent || lastStreamedContentRef.current;
         if (!finalContent.trim()) {
-          const emptyResponseMessage: ChatPageMessage = {
-            role: 'assistant',
-            content:
-              '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
-            timestamp: Date.now(),
-          };
-          setMessages([...newMessages, emptyResponseMessage]);
+          // A user-stop before the first token: just unwind quietly — no error
+          // bubble for an answer the user chose not to wait for.
+          if (!stoppedByUserRef.current) {
+            const emptyResponseMessage: ChatPageMessage = {
+              role: 'assistant',
+              content:
+                '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
+              timestamp: Date.now(),
+            };
+            setMessages([...newMessages, emptyResponseMessage]);
+          }
           useChatStore.setState({
             isStreaming: false,
             streamingContent: '',
             streamingCitations: [],
           });
           setIsLoading(false);
+          stoppedByUserRef.current = false;
+          activeRunThreadRef.current = null;
           return;
         }
 
@@ -425,12 +443,18 @@ export function useChatStreaming(
         // mounting. Otherwise the final message and the streaming bubble render
         // together during the (awaited) DB save window below.
         const responseTimeMs = Date.now() - responseStart;
+        const wasStopped = stoppedByUserRef.current;
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
-          metadata: { responseTimeMs },
+          metadata: {
+            responseTimeMs,
+            ...(wasStopped ? { stopped: true } : {}),
+          },
         };
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = null;
 
         useChatStore.setState({
           isStreaming: false,
@@ -459,10 +483,12 @@ export function useChatStreaming(
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
               latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
             });
             addMessageToStore(currentThreadId, {
               ...savedAssistantMessage,
               latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
             });
             console.log('[Chat] Saved messages to database');
           } catch (error) {
@@ -479,19 +505,23 @@ export function useChatStreaming(
           )
         );
       } catch (err) {
-        console.error('Failed to send message:', err);
-        const errorMessage =
-          'Error: ' +
-          (err instanceof Error ? err.message : 'Failed to get response');
+        // A user stop should never read as a failure. (streamMessage already
+        // swallows AbortError, but guard here too in case the abort surfaces.)
+        if (!stoppedByUserRef.current) {
+          console.error('Failed to send message:', err);
+          const errorMessage =
+            'Error: ' +
+            (err instanceof Error ? err.message : 'Failed to get response');
 
-        setMessages([
-          ...newMessages,
-          {
-            role: 'assistant',
-            content: errorMessage,
-            timestamp: Date.now(),
-          },
-        ]);
+          setMessages([
+            ...newMessages,
+            {
+              role: 'assistant',
+              content: errorMessage,
+              timestamp: Date.now(),
+            },
+          ]);
+        }
       } finally {
         submitLockRef.current = false;
         setIsLoading(false);
@@ -501,6 +531,8 @@ export function useChatStreaming(
           streamingCitations: [],
         });
         lastStreamedContentRef.current = '';
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = null;
       }
     },
     [
@@ -524,17 +556,24 @@ export function useChatStreaming(
   );
 
   const handleStop = useCallback(() => {
+    // Mark the stop first so the stream-completion path (which runs right after
+    // the abort makes streamMessage resolve) keeps the partial answer and tags
+    // it `stopped`, rather than wiping it here and racing the commit.
+    stoppedByUserRef.current = true;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    setIsLoading(false);
+
+    // Close out the agent activity indicator — onDone won't fire on abort.
+    const runThread = activeRunThreadRef.current;
+    if (runThread) {
+      useAgentActivityStore.getState().finishRun(runThread, 'done');
+    }
+
+    // The store-driven streaming path (used by the non-cloud chat) finalizes
+    // through its own action; keep that contract intact.
     if (storeIsStreaming) {
       storeStopStreaming();
     }
-    useChatStore.setState({
-      isStreaming: false,
-      streamingContent: '',
-      streamingCitations: [],
-    });
   }, [storeIsStreaming, storeStopStreaming]);
 
   const handleConfirmation = useCallback(

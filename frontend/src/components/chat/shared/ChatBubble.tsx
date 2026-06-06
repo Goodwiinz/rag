@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Square,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
@@ -26,6 +27,7 @@ export interface ChatBubbleMessage {
     toolsUsed?: string[];
     responseTimeMs?: number;
     sourcesCount?: number;
+    stopped?: boolean;
   };
 }
 
@@ -50,15 +52,18 @@ function ToolStrip({
   toolsUsed,
   sourcesCount,
   responseTimeMs,
+  stopped,
 }: {
   toolsUsed?: string[];
   sourcesCount?: number;
   responseTimeMs?: number;
+  stopped?: boolean;
 }) {
   const hasAny =
     (toolsUsed && toolsUsed.length > 0) ||
     (sourcesCount && sourcesCount > 0) ||
-    (responseTimeMs && responseTimeMs > 0);
+    (responseTimeMs && responseTimeMs > 0) ||
+    stopped;
   if (!hasAny) return null;
 
   // Only claim "Searched" when the agent actually retrieved/used tools; a
@@ -94,6 +99,15 @@ function ToolStrip({
         <span className="nous-tool-strip-time inline-flex items-center gap-1">
           <Clock className="w-2.5 h-2.5" strokeWidth={2} />
           {(responseTimeMs / 1000).toFixed(1)}s
+        </span>
+      )}
+      {stopped && (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--nous-fg-3)]"
+          title="You stopped this response; the text above is partial."
+        >
+          <Square className="w-2 h-2" strokeWidth={2.4} />
+          Stopped
         </span>
       )}
     </div>
@@ -212,6 +226,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
             responseTimeMs={stripResponseMs}
+            stopped={message.metadata?.stopped}
           />
         )}
 

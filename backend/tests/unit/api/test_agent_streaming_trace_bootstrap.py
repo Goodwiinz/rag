@@ -30,7 +30,10 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
         assert configured, "configure_langsmith must run before graph compilation"
         return _FakeGraph()
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client: the (empty) event stream completes normally and the
+    # generator must emit `done`. Disconnect now cancels early without a `done`
+    # — covered by test_stream_event_generator_cancels_on_disconnect below.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="", model=None)
     current_user = Mock(id="user-1", organization_id="org-1")
 
@@ -62,6 +65,55 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
 
     assert configured is True
     assert events[-1].startswith("event: done")
+
+
+@pytest.mark.asyncio
+async def test_stream_event_generator_cancels_on_disconnect():
+    """A disconnected client cancels the run: no `done`, no persisted message."""
+    from src.api.agent import streaming as streaming_mod
+    from src.api.agent.streaming import stream_event_generator
+
+    def fake_compile_agent_graph(*, checkpointer, store=None):
+        return _FakeGraph()
+
+    # Client is gone before the first graph event is read.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    body = SimpleNamespace(
+        messages=[], page_context={"type": "general"}, thread_id="", model=None
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+    persist = AsyncMock(return_value=None)
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            side_effect=lambda: None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            side_effect=fake_compile_agent_graph,
+        ),
+        patch.object(
+            streaming_mod._jobs_mod,
+            "_persist_assistant_message_safe",
+            new=persist,
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+    ):
+        events = []
+        async for event in stream_event_generator(body, request, current_user):
+            events.append(event)
+
+    # No completion frame, and no assistant row persisted into a dead socket.
+    assert not any(e.startswith("event: done") for e in events)
+    persist.assert_not_awaited()
 
 
 @pytest.mark.asyncio
