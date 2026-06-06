@@ -259,7 +259,7 @@ export function ChatInput({
                     animate={{ opacity: 1, y: 0 }}
                     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
                     transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="inline-flex items-center gap-2 rounded-full min-w-0"
+                    className="inline-flex items-center gap-2 rounded-full shrink-0"
                     style={{
                       padding: '4px 11px 4px 9px',
                       background: 'var(--nous-bg-2)',
@@ -275,7 +275,7 @@ export function ChatInput({
                       }}
                     />
                     <span
-                      className="font-nous-mono text-[10px] font-medium truncate"
+                      className="font-nous-mono text-[10px] font-medium whitespace-nowrap"
                       style={{
                         color: 'var(--nous-fg-2)',
                         letterSpacing: '0.02em',
@@ -355,7 +355,7 @@ export function ChatInput({
                 letterSpacing: '0.04em',
               }}
             >
-              <span>
+              <span className="hidden sm:inline">
                 {charCount}/{maxChars}
               </span>
               <span
