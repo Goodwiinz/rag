@@ -615,6 +615,40 @@ NoteResponse = ProjectNoteResponse
 
 
 # ============================================================================
+# Project Memory Schemas (project-scoped persistent memory)
+# ============================================================================
+
+
+class ProjectMemoryCreate(BaseModel):
+    """Request to save a durable fact for a project."""
+
+    content: str = Field(..., min_length=1, max_length=2000)
+    source: str = Field(default="manual", max_length=32)
+
+
+class ProjectMemoryResponse(BaseModel):
+    """A single project memory."""
+
+    id: UUID
+    project_id: UUID
+    user_id: UUID
+    content: str
+    source: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ProjectMemoryListResponse(BaseModel):
+    """List of project memories (small, unpaginated)."""
+
+    memories: List[ProjectMemoryResponse]
+    total: int
+
+
+# ============================================================================
 # T022: Draft Schemas (User Story 5)
 # ============================================================================
 
