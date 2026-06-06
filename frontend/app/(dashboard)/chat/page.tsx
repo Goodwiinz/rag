@@ -37,6 +37,7 @@ import type {
 } from '@/components/chat/commandOutput';
 import { useProjectStore } from '@/store/projectStore';
 import { documentService } from '@/services/documentService';
+import { projectService } from '@/services/projectService';
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -394,6 +395,104 @@ function ChatPageContent() {
     [router]
   );
 
+  // Project-scoped memory commands. `/remember <fact>` saves a durable fact the
+  // agent recalls across every thread in the project; `/memories` lists them
+  // (tap a row to delete). The active project is the one the chat is bound to
+  // (?projectId=), falling back to the selected project in the store.
+  const runMemoryCommand = useCallback(
+    (kind: 'remember' | 'memories', content: string) => {
+      const now = Date.now();
+      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const projectId =
+        new URLSearchParams(window.location.search).get('projectId') ||
+        useProjectStore.getState().currentProject?.id ||
+        null;
+
+      if (!projectId) {
+        appendOutput({
+          id: outId,
+          command: `/${kind}`,
+          timestamp: now,
+          status: 'ready',
+          lines: ['No project in context.'],
+          note: 'Set one with /projects, then try again.',
+        });
+        return;
+      }
+
+      if (kind === 'remember') {
+        const fact = content.trim();
+        if (!fact) {
+          appendOutput({
+            id: outId,
+            command: '/remember',
+            timestamp: now,
+            status: 'ready',
+            lines: ['Usage: /remember <fact>'],
+            note: 'e.g. /remember Always cite sources in APA style.',
+          });
+          return;
+        }
+        appendOutput({
+          id: outId,
+          command: '/remember',
+          timestamp: now,
+          status: 'loading',
+          lines: [],
+        });
+        void (async () => {
+          try {
+            await projectService.createMemory(projectId, fact, 'remember');
+            patchOutput(outId, {
+              status: 'ready',
+              lines: [`Saved to project memory: ${fact}`],
+              note: 'NOUS recalls this across every thread in this project.',
+            });
+          } catch {
+            patchOutput(outId, {
+              status: 'ready',
+              lines: ['Could not save memory.'],
+            });
+          }
+        })();
+        return;
+      }
+
+      // kind === 'memories'
+      appendOutput({
+        id: outId,
+        command: '/memories',
+        timestamp: now,
+        status: 'loading',
+        items: [],
+      });
+      void (async () => {
+        try {
+          const res = await projectService.listMemories(projectId);
+          const items: CommandOutputItem[] = (res.memories ?? []).map((m) => ({
+            key: m.id,
+            label: m.content,
+            meta: m.source === 'remember' ? 'remembered' : m.source,
+            action: { type: 'delete-memory', id: m.id, projectId },
+          }));
+          patchOutput(outId, {
+            status: 'ready',
+            items,
+            emptyText: 'No project memory yet.',
+            note: items.length ? 'Tap a memory to delete it.' : undefined,
+          });
+        } catch {
+          patchOutput(outId, {
+            status: 'ready',
+            items: [],
+            emptyText: 'Could not load memory.',
+          });
+        }
+      })();
+    },
+    [appendOutput, patchOutput]
+  );
+
   // Run a slash command. Output prints into the chat transcript, CLI-style;
   // nothing navigates away (except /new, which starts a fresh chat).
   const handleSlashCommand = useCallback(
@@ -559,6 +658,12 @@ function ChatPageContent() {
             }
           })();
           return;
+        case 'remember':
+          runMemoryCommand('remember', '');
+          return;
+        case 'memories':
+          runMemoryCommand('memories', '');
+          return;
       }
     },
     [
@@ -571,6 +676,7 @@ function ChatPageContent() {
       appendOutput,
       patchOutput,
       fetchProjects,
+      runMemoryCommand,
     ]
   );
 
@@ -602,6 +708,16 @@ function ChatPageContent() {
           );
           chatInputRef.current?.focus();
           return;
+        case 'delete-memory':
+          void (async () => {
+            try {
+              await projectService.deleteMemory(action.projectId, action.id);
+            } catch {
+              /* best-effort; re-list reflects the true state either way */
+            }
+            runMemoryCommand('memories', '');
+          })();
+          return;
       }
     },
     [
@@ -612,14 +728,28 @@ function ChatPageContent() {
       handleSetProjectContext,
       setInput,
       chatInputRef,
+      runMemoryCommand,
     ]
   );
 
-  // Clear ephemeral command output when a real message is sent.
+  // Clear ephemeral command output when a real message is sent. Slash commands
+  // that carry an argument (`/remember <fact>`) never open the autocomplete
+  // menu — they look like a normal message — so they're intercepted here on
+  // send instead of being dispatched to the agent.
   const submitMessage = useCallback(() => {
+    const raw = input.trim();
+    const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
+    if (memMatch) {
+      setInput('');
+      runMemoryCommand(
+        memMatch[1].toLowerCase() as 'remember' | 'memories',
+        memMatch[2]
+      );
+      return;
+    }
     setCommandOutputs([]);
     handleSubmit();
-  }, [handleSubmit]);
+  }, [input, setInput, handleSubmit, runMemoryCommand]);
 
   // Mobile drawer: focus in on open, return focus on close, Escape to close.
   const drawerRef = useRef<HTMLDivElement>(null);

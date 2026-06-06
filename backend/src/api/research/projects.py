@@ -19,7 +19,14 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
-from src.models import Collection, CollectionDocument, Document, ProjectNote, User
+from src.models import (
+    Collection,
+    CollectionDocument,
+    Document,
+    ProjectMemory,
+    ProjectNote,
+    User,
+)
 from src.models.processing import (
     JobPriority,
     JobStatus,
@@ -37,6 +44,9 @@ from src.shared.research_schemas import (
     ProjectCreate,
     ProjectDetailResponse,
     ProjectListResponse,
+    ProjectMemoryCreate,
+    ProjectMemoryListResponse,
+    ProjectMemoryResponse,
     ProjectResponse,
     ProjectUpdate,
 )
@@ -1149,3 +1159,137 @@ def _to_note_response(note: ProjectNote) -> NoteResponse:
         created_at=note.created_at,
         updated_at=note.updated_at,
     )
+
+
+# =========================================================================
+# Project Memory (project-scoped persistent memory)
+# =========================================================================
+
+
+def _to_memory_response(mem: ProjectMemory) -> ProjectMemoryResponse:
+    """Convert a ProjectMemory row to its API response."""
+    return ProjectMemoryResponse(
+        id=mem.id,
+        project_id=mem.project_id,
+        user_id=mem.user_id,
+        content=mem.content,
+        source=mem.source,
+        created_at=mem.created_at,
+        updated_at=mem.updated_at,
+    )
+
+
+@router.get("/{project_id}/memories", response_model=ProjectMemoryListResponse)
+async def list_project_memories(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List a project's saved memories (newest first)."""
+    try:
+        await _get_project_with_auth(project_id, current_user, db)
+
+        query = (
+            select(ProjectMemory)
+            .where(ProjectMemory.project_id == project_id)
+            .order_by(ProjectMemory.created_at.desc())
+        )
+        result = await db.execute(query)
+        memories = result.scalars().all()
+
+        return ProjectMemoryListResponse(
+            memories=[_to_memory_response(m) for m in memories],
+            total=len(memories),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("list_memories_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list memories: {str(e)}",
+        )
+
+
+@router.post(
+    "/{project_id}/memories",
+    response_model=ProjectMemoryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_memory(
+    project_id: UUID,
+    memory_data: ProjectMemoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save a durable fact for a project."""
+    try:
+        await _get_project_with_auth(project_id, current_user, db)
+
+        memory = ProjectMemory(
+            project_id=project_id,
+            user_id=current_user.id,
+            content=memory_data.content.strip(),
+            source=memory_data.source or "manual",
+        )
+        db.add(memory)
+        await db.commit()
+        await db.refresh(memory)
+
+        logger.info(
+            "project_memory_created",
+            memory_id=str(memory.id),
+            project_id=str(project_id),
+        )
+        return _to_memory_response(memory)
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error("create_memory_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create memory: {str(e)}",
+        )
+
+
+@router.delete(
+    "/{project_id}/memories/{memory_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_project_memory(
+    project_id: UUID,
+    memory_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a project memory."""
+    try:
+        await _get_project_with_auth(project_id, current_user, db)
+
+        query = select(ProjectMemory).where(
+            and_(
+                ProjectMemory.id == memory_id,
+                ProjectMemory.project_id == project_id,
+            )
+        )
+        result = await db.execute(query)
+        memory = result.scalar_one_or_none()
+        if not memory:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Memory not found",
+            )
+
+        await db.delete(memory)
+        await db.commit()
+        logger.info("project_memory_deleted", memory_id=str(memory_id))
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error("delete_memory_failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete memory: {str(e)}",
+        )

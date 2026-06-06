@@ -26,6 +26,8 @@ class AgentState(TypedDict):
     user_confirmed: bool
     intent: str
     user_memories: list
+    project_memories: list     # Durable facts saved for the bound project,
+                               # recalled across all its threads (list[str])
     # --- v2 additions ---
     plan: list                # [{step, tool, args_hint}] advisory plan
     reflection_count: int     # Max 2 per turn, reset per user message

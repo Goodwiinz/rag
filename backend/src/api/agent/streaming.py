@@ -304,6 +304,21 @@ async def stream_event_generator(
             if not page_context.get("type") or page_context["type"] == "chat":
                 page_context["type"] = "project"
 
+        # Project-scoped memory recall (best-effort; never blocks a turn).
+        project_memories: list = []
+        _pm_project_id = page_context.get("project_id")
+        if _pm_project_id:
+            try:
+                from src.services.research.project_memory_service import (
+                    load_project_memories,
+                )
+
+                project_memories = await load_project_memories(
+                    db, str(_pm_project_id)
+                )
+            except Exception:
+                logger.warning("project memory load failed", exc_info=True)
+
         initial_state = {
             "messages": messages,
             "page_context": page_context,
@@ -317,6 +332,7 @@ async def stream_event_generator(
             "user_confirmed": False,
             "intent": "",
             "user_memories": [],
+            "project_memories": project_memories,
             "plan": [],
             "reflection_count": 0,
             "compaction_count": 0,

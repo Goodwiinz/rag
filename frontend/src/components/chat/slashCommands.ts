@@ -22,6 +22,8 @@ export type SlashCommandId =
   | 'keypoints'
   | 'gaps'
   | 'timeline'
+  | 'remember'
+  | 'memories'
   | 'help';
 
 export interface SlashCommand {
@@ -43,6 +45,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'keypoints', label: '/keypoints', title: 'Key points with citations' },
   { id: 'gaps', label: '/gaps', title: 'Gaps and open questions' },
   { id: 'timeline', label: '/timeline', title: 'Timeline from your sources' },
+  {
+    id: 'remember',
+    label: '/remember',
+    title: 'Save a fact to project memory',
+  },
+  { id: 'memories', label: '/memories', title: 'View project memory' },
   { id: 'help', label: '/help', title: 'List commands' },
 ];
 
