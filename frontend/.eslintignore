@@ -1,0 +1,4 @@
+# Remotion video sources — depend on `remotion`, which is an optional, not-yet-
+# installed dependency. Excluded from lint/type-check until installed (see
+# src/remotion/README.md).
+src/remotion/

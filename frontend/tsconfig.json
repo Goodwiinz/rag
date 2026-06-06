@@ -149,6 +149,7 @@
     "src/stores/monitoringStore.ts",
     "src/test/setup.ts",
     "src/trigger/**/*",
-    "trigger.config.ts"
+    "trigger.config.ts",
+    "src/remotion/**/*"
   ]
 }
