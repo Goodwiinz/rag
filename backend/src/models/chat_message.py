@@ -5,7 +5,17 @@ ChatMessage model for Terminal Observatory thread-centric chat schema
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
@@ -51,6 +61,9 @@ class ChatMessage(BaseModel):
     # Metrics
     token_count = Column(Integer, default=0, nullable=False)
     latency_ms = Column(Integer, nullable=True)  # Response latency for observability
+    stopped = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )  # User stopped this response mid-stream (content is partial)
 
     # Model information (for AI responses)
     model_name = Column(String(100), nullable=True)

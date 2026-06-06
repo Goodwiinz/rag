@@ -114,15 +114,20 @@ export function useChatSession(): UseChatSessionReturn {
   // Map DB messages to UI messages
   const mapDbMessageToUiMessage = useCallback(
     (dbMsg: DBChatMessage): ChatPageMessage => {
+      // Rebuild display metadata from the persisted row so a reloaded thread
+      // keeps the response time and the "Stopped" marker (both were otherwise
+      // session-only).
+      const metadata: ChatPageMessage['metadata'] = {};
+      if (dbMsg.latency_ms) metadata.responseTimeMs = dbMsg.latency_ms;
+      if (dbMsg.stopped) metadata.stopped = true;
+
       return {
         id: dbMsg.id,
         role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
         content: dbMsg.content,
         timestamp: new Date(dbMsg.created_at).getTime(),
         citations: dbMsg.citations?.map(normalizeCitation),
-        metadata: dbMsg.latency_ms
-          ? { responseTimeMs: dbMsg.latency_ms }
-          : undefined,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       };
     },
     []
