@@ -120,6 +120,9 @@ export function useChatSession(): UseChatSessionReturn {
         content: dbMsg.content,
         timestamp: new Date(dbMsg.created_at).getTime(),
         citations: dbMsg.citations?.map(normalizeCitation),
+        metadata: dbMsg.latency_ms
+          ? { responseTimeMs: dbMsg.latency_ms }
+          : undefined,
       };
     },
     []
