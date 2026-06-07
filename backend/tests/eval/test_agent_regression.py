@@ -33,11 +33,34 @@ pytestmark = [pytest.mark.langsmith]
 
 
 def _build_initial_state(inputs: dict[str, Any]) -> dict[str, Any]:
-    """Convert a LangSmith example's inputs into agent initial state."""
+    """Convert a LangSmith example's inputs into agent initial state.
+
+    Raises ``ValueError`` if the row carries neither ``messages`` nor a
+    non-empty ``question`` — a loud contract-drift guard. The remote dataset
+    previously accumulated malformed rows (pytest-langsmith captured test
+    parametrize args: a fixture-arg-leak row and ``{"case": {...}}``-nested
+    rows), which silently produced empty messages and scored every example 0.
+    Fail loudly so drift surfaces as an error, not 48 silent zeros.
+    """
+    # Unwrap a nested ``{"case": {...}}`` row (pytest-langsmith parametrize
+    # capture) so a polluted dataset is still interpretable.
+    if (
+        isinstance(inputs.get("case"), dict)
+        and "question" not in inputs
+        and "messages" not in inputs
+    ):
+        inputs = inputs["case"]
+
     if "messages" in inputs and inputs["messages"]:
         messages = inputs["messages"]
     else:
         question = inputs.get("question") or ""
+        if not question:
+            raise ValueError(
+                "eval example has neither 'messages' nor a non-empty 'question' "
+                f"(keys={sorted(inputs)}); dataset/harness contract drift — "
+                "regenerate the dataset with `python -m tests.eval.upload_golden --clean`"
+            )
         messages = [HumanMessage(content=question)]
 
     return {
@@ -125,16 +148,36 @@ def _target(inputs: dict[str, Any]) -> dict[str, Any]:
 
 
 def intent_match(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> dict[str, Any]:
-    expected = (reference_outputs or {}).get("intent", "")
+    ref = reference_outputs or {}
+    # Null-reference guard: a row with no reference intent (e.g. outputs=null
+    # in a polluted dataset) must FAIL, not vacuously pass on ""=="".
+    if "intent" not in ref:
+        return {
+            "key": "intent_match",
+            "score": 0,
+            "comment": "missing reference intent (null/polluted dataset row)",
+        }
     actual = (outputs or {}).get("intent", "")
-    return {"key": "intent_match", "score": int(expected == actual)}
+    return {"key": "intent_match", "score": int(ref["intent"] == actual)}
 
 
 def tool_subset_match(
     outputs: dict[str, Any], reference_outputs: dict[str, Any]
 ) -> dict[str, Any]:
-    """Score 1 iff every expected tool call appears in order in actual calls."""
-    expected = list((reference_outputs or {}).get("expected_tools", ()))
+    """Score 1 iff every expected tool call appears in order in actual calls.
+
+    A *legitimately empty* ``expected_tools=()`` (key present) passes — that is
+    a valid "no tools expected" case. A *missing* key (null/polluted reference)
+    FAILS, instead of the old vacuous pass that made the suite green-but-blind.
+    """
+    ref = reference_outputs or {}
+    if "expected_tools" not in ref:
+        return {
+            "key": "tool_subset_match",
+            "score": 0,
+            "comment": "missing reference expected_tools (null/polluted dataset row)",
+        }
+    expected = list(ref.get("expected_tools", ()))
     actual = list((outputs or {}).get("tool_calls", ()))
     idx = 0
     for tool_name in actual:

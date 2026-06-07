@@ -30,6 +30,7 @@ METRICS = [
     ("tool_call_validity", "Tool Call Validity"),
     ("no_tool_loop", "No Tool Loop"),
     ("terminates_with_answer", "Terminates With Answer"),
+    ("plan_adherence", "Plan Adherence"),
 ]
 
 

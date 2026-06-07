@@ -123,3 +123,56 @@ def terminates_with_answer(run):
     if not (isinstance(content, str) and content.strip()) and not isinstance(content, list):
         return {"score": 0, "comment": "Last AI message has empty content."}
     return {"score": 1, "comment": "Terminates with AI answer."}
+
+
+def plan_adherence(run):
+    """Fraction of planned tool-steps the agent actually executed, in order.
+
+    The planner (``planner.py``) emits an advisory ``plan`` — a list of steps
+    ``{step, description, tool, args_hint, depends_on}`` — only for project-
+    scoped, multi-step queries; it legitimately skips most turns (greetings,
+    simple adds), leaving ``plan == []``. So:
+
+    - empty / no-tool plan  -> score 1 (vacuously adherent — nothing to follow)
+    - plan with tool steps  -> score = (planned tool-steps that appear in the
+      executed tool calls, IN PLANNED ORDER) / (total planned tool-steps);
+      1.0 iff all executed in order, 0.0 if none.
+
+    Deterministic by design: a pure-LLM judge is what made the prior
+    plan_adherence attempt fire 0x. Semantic step<->call mapping (tool-name
+    drift, paraphrase) is a future refinement layered on this spine.
+    """
+    outputs = run.outputs if hasattr(run, "outputs") else run.get("outputs", {}) or {}
+    if not isinstance(outputs, dict):
+        return {"score": 1, "comment": "No outputs dict — vacuously adherent."}
+
+    plan = outputs.get("plan") or []
+    planned_tools = [
+        step.get("tool")
+        for step in plan
+        if isinstance(step, dict) and step.get("tool")
+    ]
+    if not planned_tools:
+        return {"score": 1, "comment": "Empty / no-tool plan — vacuously adherent."}
+
+    messages = _extract_messages(run)
+    executed = [name for _, name, _ in _iter_tool_calls(messages) if name]
+
+    idx = 0
+    for name in executed:
+        if idx < len(planned_tools) and name == planned_tools[idx]:
+            idx += 1
+
+    score = idx / len(planned_tools)
+    if idx == len(planned_tools):
+        return {
+            "score": 1,
+            "comment": f"All {idx} planned tool-step(s) executed in order.",
+        }
+    return {
+        "score": round(score, 3),
+        "comment": (
+            f"{idx}/{len(planned_tools)} planned tool-step(s) executed in order; "
+            f"planned={planned_tools} executed={executed}"
+        ),
+    }

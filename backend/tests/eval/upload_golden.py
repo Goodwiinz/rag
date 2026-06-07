@@ -30,7 +30,16 @@ def _example_payload(case: GoldenCase) -> tuple[dict[str, Any], dict[str, Any], 
     return inputs, outputs, metadata
 
 
-def upload(dataset_name: str) -> None:
+def upload(dataset_name: str, *, clean: bool = False) -> None:
+    """Upsert every local golden case into *dataset_name*.
+
+    True upsert (the old version was create-only, which is why a polluted
+    dataset never self-healed): existing examples are UPDATED to match the
+    local case, missing ones are created, and — when ``clean=True`` — orphan
+    rows (any example whose ``golden_case`` metadata is not in ``ALL_CASES``,
+    including the pytest-langsmith fixture-arg-leak and ``case``-nested
+    pollution) are DELETED so the remote dataset exactly mirrors local.
+    """
     if not os.environ.get("LANGCHAIN_API_KEY"):
         print("LANGCHAIN_API_KEY not set; aborting.", file=sys.stderr)
         sys.exit(1)
@@ -49,28 +58,48 @@ def upload(dataset_name: str) -> None:
         )
         print(f"Created dataset: {dataset_name} (id={dataset.id})")
 
-    existing_names = {
-        (ex.metadata or {}).get("golden_case")
-        for ex in client.list_examples(dataset_id=dataset.id)
-    }
+    # Map existing examples by their golden_case name (None for orphans).
+    existing_by_name: dict[Any, Any] = {}
+    for ex in client.list_examples(dataset_id=dataset.id):
+        existing_by_name.setdefault((ex.metadata or {}).get("golden_case"), ex)
 
-    created = 0
-    skipped = 0
+    local_names = {case.name for case in ALL_CASES}
+    created = updated = deleted = 0
+
     for case in ALL_CASES:
-        if case.name in existing_names:
-            skipped += 1
-            continue
         inputs, outputs, metadata = _example_payload(case)
-        client.create_example(
-            inputs=inputs,
-            outputs=outputs,
-            dataset_id=dataset.id,
-            metadata=metadata,
-        )
-        created += 1
-        print(f"  + {case.name}")
+        existing = existing_by_name.get(case.name)
+        if existing is not None:
+            client.update_example(
+                example_id=existing.id,
+                inputs=inputs,
+                outputs=outputs,
+                metadata=metadata,
+            )
+            updated += 1
+            print(f"  ~ {case.name}")
+        else:
+            client.create_example(
+                inputs=inputs,
+                outputs=outputs,
+                dataset_id=dataset.id,
+                metadata=metadata,
+            )
+            created += 1
+            print(f"  + {case.name}")
 
-    print(f"Done. created={created} skipped={skipped} total_local={len(ALL_CASES)}")
+    if clean:
+        for name, ex in existing_by_name.items():
+            if name not in local_names:
+                client.delete_example(example_id=ex.id)
+                deleted += 1
+                print(f"  - orphan: golden_case={name!r} (id={ex.id})")
+
+    print(
+        f"Done. created={created} updated={updated} deleted={deleted} "
+        f"total_local={len(ALL_CASES)}"
+        + ("" if clean else "  (run with --clean to delete orphan rows)")
+    )
 
 
 def main() -> None:
@@ -80,8 +109,14 @@ def main() -> None:
         default=os.environ.get("AGENT_EVAL_DATASET_NAME", "agent-accuracy-benchmark"),
         help="LangSmith dataset name (default: agent-accuracy-benchmark)",
     )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Delete orphan rows (examples not in ALL_CASES) so the remote "
+        "dataset exactly mirrors local golden cases.",
+    )
     args = parser.parse_args()
-    upload(args.dataset)
+    upload(args.dataset, clean=args.clean)
 
 
 if __name__ == "__main__":
