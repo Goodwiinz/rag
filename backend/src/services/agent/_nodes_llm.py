@@ -24,7 +24,12 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
@@ -109,6 +114,88 @@ def _get_tools_for_intent(intent: str) -> list:
     return [t for t in ALL_TOOLS if t.name in name_set]
 
 
+def _tools_for_turn(intent: str, *, last_user_msg: str, retrieved: list) -> list:
+    """Return the tool subset to bind for THIS turn.
+
+    A conversational general turn ("hi", "thanks", "ok") with no retrieved
+    context calls no tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas
+    only inflates the prompt (~thousands of input tokens) and slows
+    time-to-first-token. Bind nothing for those turns. Every retrieval or
+    specialised-intent turn keeps its full intent subset. Shares the
+    ``is_conversational`` predicate with ``rag_node`` / ``memory_retrieval_node``
+    so all three hot-path nodes agree on what counts as small talk.
+    """
+    from src.services.agent._nodes_rag import is_conversational
+
+    if intent == "general" and not retrieved and is_conversational(last_user_msg):
+        return []
+    return _get_tools_for_intent(intent)
+
+
+# Bare greetings that warrant a templated, zero-LLM reply. Deliberately
+# NARROWER than ``is_conversational`` — acks like "yes"/"no"/"thanks"/"ok"
+# are excluded because they often answer a prior question (e.g. a HITL
+# confirmation) and must still reach the model.
+_GREETING_PATTERNS: frozenset[str] = frozenset(
+    {
+        "hi",
+        "hii",
+        "hiya",
+        "hey",
+        "heya",
+        "hello",
+        "hello there",
+        "hi there",
+        "hey there",
+        "yo",
+        "greetings",
+        "good morning",
+        "good afternoon",
+        "good evening",
+    }
+)
+
+
+def _is_greeting(content: str) -> bool:
+    """Return ``True`` when *content* is a bare greeting.
+
+    Exact match (punctuation- and whitespace-tolerant) against
+    ``_GREETING_PATTERNS`` — e.g. ``"hi"``, ``"Hello!"``, ``"good morning"``.
+    A greeting carrying a real request ("hi, can you search arxiv") does NOT
+    match, so it still reaches the model.
+    """
+    if not content or not content.strip():
+        return False
+    normalized = content.lower().strip().strip("!.?,")
+    normalized = " ".join(normalized.split())  # collapse internal whitespace
+    return normalized in _GREETING_PATTERNS
+
+
+def _greeting_reply(last_user_msg: str, page_context: dict, messages: list) -> str | None:
+    """Templated greeting reply, or ``None`` when *last_user_msg* is not a bare
+    greeting.
+
+    Project-aware when the page context is a project; varies first-greeting vs
+    repeat so it does not read as canned. Costs ZERO LLM round-trips — this is
+    the whole point of the fast-path.
+    """
+    if not _is_greeting(last_user_msg):
+        return None
+
+    ctx = page_context or {}
+    project = ctx.get("project_name") if ctx.get("type") == "project" else None
+    if project:
+        return f"Hi — back to “{project}”. What would you like to do next?"
+
+    user_turns = sum(1 for m in messages if isinstance(m, HumanMessage))
+    if user_turns > 1:
+        return (
+            "Hi again — what would you like to work on? I can find papers, "
+            "manage projects, add documents, summarize, or take notes."
+        )
+    return "Hi — how can I help with your research today?"
+
+
 # ---------------------------------------------------------------------------
 # Main LLM node
 # ---------------------------------------------------------------------------
@@ -124,6 +211,25 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     page_context = state.get("page_context", {})
     retrieved = state.get("retrieved_contexts", [])
+    intent = state.get("intent", "general")
+
+    last_user_msg = next(
+        (
+            m.content
+            for m in reversed(state["messages"])
+            if isinstance(m, HumanMessage) and isinstance(m.content, str)
+        ),
+        "",
+    )
+
+    # Greeting fast-path — a bare greeting needs no model. Return a templated
+    # on-brand reply with ZERO LLM round-trip (~50ms vs ~1s). Fires only for
+    # general intent with no retrieved context, and only for true greetings
+    # (NOT acks like "yes"/"thanks", which may answer a prior question).
+    if intent == "general" and not retrieved:
+        greeting = _greeting_reply(last_user_msg, page_context, state["messages"])
+        if greeting is not None:
+            return {"messages": [AIMessage(content=greeting)]}
 
     # Static prefix first — must be byte-identical across requests so the
     # provider's automatic prefix cache hits on every turn after the first.
@@ -134,7 +240,6 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if context_line:
         dynamic_parts.append(context_line)
 
-    intent = state.get("intent", "general")
     intent_guidance = INTENT_PROMPTS.get(intent, INTENT_PROMPTS["general"])
     dynamic_parts.append(f"Current intent: {intent}. {intent_guidance}")
 
@@ -179,8 +284,11 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=system_text)] + sanitized
 
-    # Bind intent-specific tool subset
-    intent_tools = _get_tools_for_intent(intent)
+    # Bind the per-turn tool subset. Conversational general turns ("hi") get
+    # zero tools (see _tools_for_turn) so a greeting prompt stays small.
+    intent_tools = _tools_for_turn(
+        intent, last_user_msg=last_user_msg, retrieved=retrieved
+    )
 
     # Lightweight model selection. Two cases use the synthesis deployment:
     #
@@ -327,6 +435,9 @@ __all__ = [
     "KG_TOOLS_NAMES",
     "GENERAL_TOOLS_NAMES",
     "_get_tools_for_intent",
+    "_tools_for_turn",
+    "_is_greeting",
+    "_greeting_reply",
     "llm_node",
     "force_synthesis_node",
 ]

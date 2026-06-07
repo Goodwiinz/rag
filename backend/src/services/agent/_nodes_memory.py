@@ -22,6 +22,7 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from src.services.agent._nodes_rag import is_conversational
 from src.services.agent._pii_redact import redact_pii
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
@@ -38,21 +39,29 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
     if not current_user:
         return {"user_memories": []}
 
+    # Find the last user message for memory search.
+    last_user_msg = ""
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, HumanMessage):
+            last_user_msg = msg.content
+            break
+
+    # Greeting / acknowledgement fast-path. Conversational turns ("hi",
+    # "thanks", "ok") never benefit from long-term recall, and the save gate
+    # in ``memory_save_node`` never persists them — so there is provably
+    # nothing to retrieve. Skip the Cohere query-embedding + Postgres
+    # semantic search (~0.5-2s on the parallel-preprocessing critical path).
+    # Shares the predicate with ``rag_node`` so both nodes agree on what
+    # counts as small talk. (Trace 019e9ef7: "hi" embedded the query and
+    # recalled 5 sub-0.5-score noise memories.)
+    if is_conversational(last_user_msg):
+        return {"user_memories": []}
+
     try:
         from src.services.agent.memory import get_memory_store, search_memories
 
         store = await get_memory_store()
         if not store:
-            return {"user_memories": []}
-
-        # Find the last user message for memory search
-        last_user_msg = ""
-        for msg in reversed(state["messages"]):
-            if isinstance(msg, HumanMessage):
-                last_user_msg = msg.content
-                break
-
-        if not last_user_msg:
             return {"user_memories": []}
 
         memories = await search_memories(

@@ -17,7 +17,17 @@ from langchain_core.messages import AIMessage, HumanMessage
 pytestmark = pytest.mark.asyncio
 
 
-def _make_initial_state(user_msg: str = "hello", *, intent: str = "general") -> dict:
+# A real request, NOT a greeting. The general-intent greeting fast-path in
+# ``llm_node`` (``_greeting_reply``) returns a templated reply with ZERO LLM
+# round-trip for bare greetings like "hi"/"hello", so those never assemble or
+# send a system prompt. To capture the prompt we must send a message that
+# actually reaches the model. See _nodes_llm.py:_is_greeting.
+_NON_GREETING_MSG = "What documents do I have in my library?"
+
+
+def _make_initial_state(
+    user_msg: str = _NON_GREETING_MSG, *, intent: str = "general"
+) -> dict:
     return {
         "messages": [HumanMessage(content=user_msg)],
         "page_context": {"type": "unknown"},

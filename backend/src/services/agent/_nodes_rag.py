@@ -120,6 +120,24 @@ def _resolve_active_project_id(
     return existing_project_id or extracted_pid or None
 
 
+def is_conversational(content: str) -> bool:
+    """Return ``True`` when *content* is a bare greeting / acknowledgement.
+
+    Small talk such as ``"hi"``, ``"thanks"`` or ``"ok cool"`` needs neither
+    document retrieval (``rag_node``) nor long-term memory recall
+    (``memory_retrieval_node``). Both hot-path nodes share this predicate so
+    they agree on what counts as conversational. Empty / whitespace-only
+    input counts as conversational — there is nothing to retrieve or recall.
+    """
+    if not content or not content.strip():
+        return True
+    lowered = content.lower().strip()
+    return any(
+        re.search(r"\b" + re.escape(pattern) + r"\b", lowered)
+        for pattern in _CONVERSATIONAL_PATTERNS
+    )
+
+
 def _is_retrieval_query(content: str) -> bool:
     """Return ``True`` when *content* looks like it needs document retrieval.
 
@@ -137,15 +155,11 @@ def _is_retrieval_query(content: str) -> bool:
       2. lowercased content contains any ``_RETRIEVAL_VERBS`` substring
       3. lowercased content starts with any ``_TOOL_NAME_PREFIXES`` prefix
     """
-    if not content or not content.strip():
+    if is_conversational(content):
         return False
 
     lowered = content.lower().strip()
     tokens = content.split()
-
-    for pattern in _CONVERSATIONAL_PATTERNS:
-        if re.search(r"\b" + re.escape(pattern) + r"\b", lowered):
-            return False
 
     if len(tokens) >= _SHORT_QUERY_TOKEN_LIMIT:
         return True
@@ -454,6 +468,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
 
 
 __all__ = [
+    "is_conversational",
     "_is_retrieval_query",
     "_shape_do_kb_context",
     "_try_primary_do_kb_read",
