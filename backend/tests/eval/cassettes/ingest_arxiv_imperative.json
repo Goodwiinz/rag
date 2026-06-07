@@ -1,0 +1,27 @@
+{
+  "case": "ingest_arxiv_imperative",
+  "expected_intent": "research",
+  "expected_tools": [
+    "ingest_arxiv_papers"
+  ],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "ingest_arxiv_papers",
+            "args": {
+              "paper_ids": [
+                "2201.00978"
+              ]
+            },
+            "id": "call_hpusAykzjYF8BAadDRljfuGt"
+          }
+        ]
+      }
+    }
+  ]
+}
