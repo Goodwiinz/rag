@@ -103,6 +103,12 @@ def _golden_replay(monkeypatch, request):
     ):
         monkeypatch.setattr(module, attr, lambda *a, **k: fake, raising=False)
 
+    # Phase 5: stub tool execution so replay touches no infra (DB/Neo4j/Qdrant/
+    # arXiv). Golden cases assert tool-call names + intent, not tool results.
+    from tests.eval._replay_llm import stub_tool_executor
+
+    monkeypatch.setattr(graph, "_get_execute_tool", lambda: stub_tool_executor, raising=False)
+
 
 @pytest.fixture(scope="session")
 def langsmith_dataset_name() -> str:

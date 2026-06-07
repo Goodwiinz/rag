@@ -149,6 +149,18 @@ class GoldenReplayLLM:
         return _to_ai_message(self.cassette.next_text())
 
 
+async def stub_tool_executor(*, tool_name: str, args: Any = None, **_kw: Any) -> dict:
+    """No-op tool executor for replay — returns a benign result without touching
+    any infra (DB / Neo4j / Qdrant / arXiv / network).
+
+    Golden cases assert tool-call NAMES (captured from the AIMessage at emission
+    time, before execution) and the final intent — never tool *results* — so a
+    stub is sufficient and removes the last live dependency, making the replay
+    gate fully infra-free (B2 Phase 5).
+    """
+    return {"status": "stubbed-in-replay", "tool": tool_name}
+
+
 def load_cassette(case_name: str) -> GoldenCassette:
     path = CASSETTE_DIR / f"{case_name}.json"
     if not path.exists():
