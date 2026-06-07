@@ -91,6 +91,56 @@ class TestEvaluatorGuards:
         )
 
 
+_UNSET = object()
+
+
+class _FakeExample:
+    """Minimal stand-in for a LangSmith example (has .id and .metadata)."""
+
+    def __init__(self, ex_id, golden_case=_UNSET):
+        self.id = ex_id
+        if golden_case is _UNSET:
+            self.metadata = {}  # polluted row: no golden_case key
+        else:
+            self.metadata = {"golden_case": golden_case}
+
+
+@pytest.mark.unit
+class TestPartitionExamples:
+    def test_orphans_with_missing_metadata_are_not_collapsed(self):
+        # The bug: keying orphans by golden_case (None) collapsed every
+        # metadata-less polluted row to one, so --clean deleted only one.
+        from tests.eval.upload_golden import _partition_examples
+
+        examples = [_FakeExample("o1"), _FakeExample("o2"), _FakeExample("o3")]
+        by_name, orphans = _partition_examples(examples, local_names={"x"})
+        assert by_name == {}
+        assert {o.id for o in orphans} == {"o1", "o2", "o3"}
+
+    def test_known_cases_mapped_unknown_are_orphans(self):
+        from tests.eval.upload_golden import _partition_examples
+
+        examples = [
+            _FakeExample("a", "greeting_hi"),
+            _FakeExample("b", "stale_removed_case"),
+        ]
+        by_name, orphans = _partition_examples(
+            examples, local_names={"greeting_hi"}
+        )
+        assert set(by_name) == {"greeting_hi"}
+        assert [o.id for o in orphans] == ["b"]
+
+    def test_duplicate_of_known_name_is_orphaned(self):
+        # Two remote rows for the same local case: keep one, orphan the rest
+        # so the remote exactly mirrors local.
+        from tests.eval.upload_golden import _partition_examples
+
+        examples = [_FakeExample("first", "ack_yes"), _FakeExample("dup", "ack_yes")]
+        by_name, orphans = _partition_examples(examples, local_names={"ack_yes"})
+        assert by_name["ack_yes"].id == "first"
+        assert [o.id for o in orphans] == ["dup"]
+
+
 def _run(plan, executed_tool_names):
     """Build a dict-shaped run for plan_adherence with an empty inputs set."""
     messages = [

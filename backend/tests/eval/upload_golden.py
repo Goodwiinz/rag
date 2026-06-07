@@ -17,6 +17,32 @@ from typing import Any
 from tests.eval.golden_examples import ALL_CASES, GoldenCase
 
 
+def _partition_examples(
+    examples: Any, local_names: set[str]
+) -> tuple[dict[str, Any], list[Any]]:
+    """Split remote examples into known-by-name and orphans.
+
+    Returns ``(by_name, orphans)`` where ``by_name`` maps each local golden
+    case name to its single canonical remote example, and ``orphans`` is every
+    other row: unknown ``golden_case``, missing metadata, or a *duplicate* of
+    an already-seen name.
+
+    Orphans are a LIST, not a dict keyed on ``golden_case``: the polluted rows
+    this exists to clean (pytest-langsmith fixture-arg leaks, ``case``-nested
+    capture) all share a missing ``golden_case``, so a dict would collapse them
+    to one ``None`` key and ``--clean`` would delete only one of many.
+    """
+    by_name: dict[str, Any] = {}
+    orphans: list[Any] = []
+    for ex in examples:
+        name = (getattr(ex, "metadata", None) or {}).get("golden_case")
+        if name in local_names and name not in by_name:
+            by_name[name] = ex
+        else:
+            orphans.append(ex)
+    return by_name, orphans
+
+
 def _example_payload(case: GoldenCase) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     inputs: dict[str, Any] = {"question": case.question}
     if case.page_context:
@@ -58,12 +84,10 @@ def upload(dataset_name: str, *, clean: bool = False) -> None:
         )
         print(f"Created dataset: {dataset_name} (id={dataset.id})")
 
-    # Map existing examples by their golden_case name (None for orphans).
-    existing_by_name: dict[Any, Any] = {}
-    for ex in client.list_examples(dataset_id=dataset.id):
-        existing_by_name.setdefault((ex.metadata or {}).get("golden_case"), ex)
-
     local_names = {case.name for case in ALL_CASES}
+    existing_by_name, orphans = _partition_examples(
+        client.list_examples(dataset_id=dataset.id), local_names
+    )
     created = updated = deleted = 0
 
     for case in ALL_CASES:
@@ -89,11 +113,11 @@ def upload(dataset_name: str, *, clean: bool = False) -> None:
             print(f"  + {case.name}")
 
     if clean:
-        for name, ex in existing_by_name.items():
-            if name not in local_names:
-                client.delete_example(example_id=ex.id)
-                deleted += 1
-                print(f"  - orphan: golden_case={name!r} (id={ex.id})")
+        for ex in orphans:
+            client.delete_example(example_id=ex.id)
+            deleted += 1
+            name = (getattr(ex, "metadata", None) or {}).get("golden_case")
+            print(f"  - orphan: golden_case={name!r} (id={ex.id})")
 
     print(
         f"Done. created={created} updated={updated} deleted={deleted} "
