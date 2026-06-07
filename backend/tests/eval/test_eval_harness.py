@@ -374,10 +374,94 @@ class TestGoldenCaseInvariants:
         # (keyed by golden_case name) and in pytest ids.
         from collections import Counter
 
-        from tests.eval.golden_examples import ALL_CASES
+        from tests.eval.golden_examples import LOCAL_CASES
 
-        dups = [n for n, c in Counter(c.name for c in ALL_CASES).items() if c > 1]
+        dups = [n for n, c in Counter(c.name for c in LOCAL_CASES).items() if c > 1]
         assert not dups, f"duplicate golden case names: {dups}"
+
+
+@pytest.mark.unit
+class TestKnownToolsRegistry:
+    def test_known_tools_matches_live_registry(self):
+        # KNOWN_TOOLS is hardcoded in the (sandbox-uploaded) evaluator module;
+        # this drift test fails if it diverges from the real tool registry.
+        from tests.eval.langsmith_trajectory_evaluators import KNOWN_TOOLS
+        from src.services.agent.tools import ALL_TOOLS
+        from src.services.agent.subgraphs.research_agent import RESEARCH_TOOLS
+        from src.services.agent.subgraphs.data_agent import DATA_TOOLS
+        from src.services.agent.subgraphs.writing_agent import WRITING_TOOLS
+
+        live = {t.name for t in ALL_TOOLS}
+        for lst in (RESEARCH_TOOLS, DATA_TOOLS, WRITING_TOOLS):
+            live |= {t.name for t in lst}
+        assert set(KNOWN_TOOLS) == live, (
+            f"KNOWN_TOOLS drift: missing={live - set(KNOWN_TOOLS)} "
+            f"extra={set(KNOWN_TOOLS) - live}"
+        )
+
+
+@pytest.mark.unit
+class TestPlanAdherenceRegistryFilter:
+    def test_hallucinated_tool_step_excluded(self):
+        # A real tool executed + a hallucinated planned step the agent could
+        # never run -> the bogus step is excluded, score is full.
+        from tests.eval.langsmith_trajectory_evaluators import plan_adherence
+
+        plan = [
+            {"step": 1, "tool": "search_arxiv"},
+            {"step": 2, "tool": "totally_made_up_tool"},
+        ]
+        assert plan_adherence(_run(plan, ["search_arxiv"]))["score"] == 1
+
+    def test_all_hallucinated_is_vacuous(self):
+        from tests.eval.langsmith_trajectory_evaluators import plan_adherence
+
+        plan = [{"step": 1, "tool": "made_up_a"}, {"step": 2, "tool": "made_up_b"}]
+        assert plan_adherence(_run(plan, []))["score"] == 1
+
+
+@pytest.mark.unit
+class TestEvaluatorExtractorRoundTrip:
+    def test_every_metric_extracts_and_runs(self):
+        # The extractor must bundle all helpers + constants each evaluator
+        # references; a missing name would NameError only in the LangSmith
+        # sandbox. _extract_function now exec+smoke-calls internally, so a
+        # broken blob raises here at "upload" time.
+        from tests.eval.upload_trajectory_rules import (
+            METRICS,
+            EVALUATORS_FILE,
+            _extract_function,
+        )
+
+        src = EVALUATORS_FILE.read_text()
+        for fn_name, _label in METRICS:
+            blob = _extract_function(src, fn_name)
+            assert "def perform_eval(" in blob
+            ns: dict = {}
+            exec(compile(blob, f"<{fn_name}>", "exec"), ns)
+            result = ns["perform_eval"](
+                {"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}}
+            )
+            assert isinstance(result.get("score"), (int, float))
+
+
+@pytest.mark.asyncio
+async def test_runner_harvests_interrupt_tool_calls(monkeypatch):
+    """Destructive tools trigger interrupt() for HITL and never reach the
+    top-level message history; the runner must harvest their names from the
+    __interrupt__ payload. A golden case cannot isolate this branch."""
+    import tests.eval.test_agent_regression as reg
+
+    class _Interrupt:
+        value = {"tools": [{"name": "create_project", "args": {}}]}
+
+    class FakeGraph:
+        async def astream(self, initial_state, stream_mode=None):
+            yield {"__interrupt__": (_Interrupt(),)}
+
+    monkeypatch.setattr(reg, "compile_agent_graph", lambda: FakeGraph())
+    out = await reg._run_agent({"question": "create a project called X"})
+    assert "create_project" in out["tool_calls"]
 
 
 @pytest.mark.asyncio

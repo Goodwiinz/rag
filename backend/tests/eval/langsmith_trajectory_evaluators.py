@@ -13,6 +13,37 @@ Both `RunTree` (local) and `dict` (uploaded) are handled.
 """
 
 
+# Executable tool universe = ALL_TOOLS (tools.py) ∪ do_kb_retrieve (bound only
+# in the research subgraph, deliberately absent from ALL_TOOLS). Hardcoded
+# because uploaded evaluators run in a sandbox that cannot import src.* — the
+# drift test `test_known_tools_matches_registry` (test_eval_harness.py) fails
+# if this set diverges from the live registry.
+KNOWN_TOOLS = frozenset({
+    "search_arxiv",
+    "ingest_arxiv_papers",
+    "search_documents",
+    "create_project",
+    "list_projects",
+    "add_document_to_project",
+    "create_project_note",
+    "list_project_documents",
+    "summarize_document",
+    "compare_documents",
+    "extract_entities",
+    "search_knowledge_graph",
+    "explore_entity_neighborhood",
+    "find_entity_paths",
+    "get_graph_stats",
+    "create_draft",
+    "export_bibliography",
+    "execute_code",
+    "search_external_database",
+    "list_external_databases",
+    "forget_memory",
+    "do_kb_retrieve",
+})
+
+
 def _extract_messages(run):
     """Return list of messages NEW in this execution.
 
@@ -189,12 +220,28 @@ def plan_adherence(run):
         return {"score": 1, "comment": "No outputs dict — vacuously adherent."}
 
     plan = outputs.get("plan") or []
-    planned_tools = [
+    raw_planned = [
         step.get("tool")
         for step in plan
         if isinstance(step, dict) and step.get("tool")
     ]
+    # Score adherence only over planned steps naming a REAL executable tool.
+    # The planner prompt asks for valid tool names but does not enforce it, so
+    # a hallucinated/mis-named step the agent could never execute would
+    # otherwise inflate the denominator and falsely depress the score on a
+    # perfectly-behaved trajectory (planner issue, not an execution regression).
+    planned_tools = [t for t in raw_planned if t in KNOWN_TOOLS]
+    dropped = len(raw_planned) - len(planned_tools)
     if not planned_tools:
+        if raw_planned:
+            return {
+                "score": 1,
+                "comment": (
+                    f"All {len(raw_planned)} planned tool-step(s) name unknown "
+                    f"tools ({raw_planned}) — planner hallucination, not an "
+                    "execution regression; vacuously adherent."
+                ),
+            }
         return {"score": 1, "comment": "Empty / no-tool plan — vacuously adherent."}
 
     messages = _extract_messages(run)
@@ -211,10 +258,11 @@ def plan_adherence(run):
             "score": 1,
             "comment": f"All {idx} planned tool-step(s) executed in order.",
         }
+    drop_note = f" ({dropped} unknown-tool step(s) excluded)" if dropped else ""
     return {
         "score": round(score, 3),
         "comment": (
-            f"{idx}/{len(planned_tools)} planned tool-step(s) executed in order; "
+            f"{idx}/{len(planned_tools)} planned tool-step(s) executed in order{drop_note}; "
             f"planned={planned_tools} executed={executed}"
         ),
     }

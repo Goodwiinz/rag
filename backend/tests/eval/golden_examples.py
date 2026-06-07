@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 
 @dataclass(frozen=True)
 class GoldenCase:
@@ -17,6 +19,12 @@ class GoldenCase:
     expected_tools: tuple[str, ...] = ()
     page_context: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Optional multi-turn prior history. When set, the harness seeds the agent
+    # with these messages instead of a single ``question`` (see
+    # _build_initial_state). Carries LangChain message objects, so cases using
+    # it are LOCAL-ONLY — they are not JSON-serialised into the LangSmith
+    # dataset by upload_golden.
+    messages: tuple[Any, ...] = ()
 
 
 # do-kb activation coverage — verifies do_kb_retrieve tool selection
@@ -144,6 +152,33 @@ ARXIV_ID_CASES: tuple[GoldenCase, ...] = (
 )
 
 
+# Multi-turn retry follow-up — pins _extract_prior_tool + the "Handling retry
+# follow-ups" rule (_nodes_classify.py / _prompts.py): a bare "try again" after
+# a failed tool call must route back to the prior tool's intent. LOCAL-ONLY
+# (LangChain message objects do not serialise into the LangSmith dataset), so
+# kept out of ALL_CASES and excluded from upload_golden.
+RETRY_CASES: tuple[GoldenCase, ...] = (
+    GoldenCase(
+        name="retry_after_failed_search",
+        question="",
+        expected_intent="research",
+        expected_tools=(),
+        messages=(
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"type": "tool_call", "id": "c1", "name": "search_arxiv", "args": {"query": "transformers"}}
+                ],
+            ),
+            ToolMessage(content="error: rate limited", tool_call_id="c1"),
+            HumanMessage(content="try again"),
+        ),
+        metadata={"feature": "retry_followup"},
+    ),
+)
+
+
+# Uploaded to the remote LangSmith dataset (question-based rows only).
 ALL_CASES: tuple[GoldenCase, ...] = (
     DO_KB_CASES
     + PLANNER_SKIP_CASES
@@ -154,3 +189,8 @@ ALL_CASES: tuple[GoldenCase, ...] = (
     + ARXIV_ID_CASES
     + PLAN_CASES
 )
+
+# Full set the LOCAL golden test runs — adds message-based cases that cannot
+# be serialised into the remote dataset. Use this for test parametrization;
+# use ALL_CASES for upload.
+LOCAL_CASES: tuple[GoldenCase, ...] = ALL_CASES + RETRY_CASES

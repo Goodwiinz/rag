@@ -23,9 +23,16 @@ from langgraph.graph import add_messages
 
 from src.services.agent.graph import compile_agent_graph
 
-from tests.eval.golden_examples import ALL_CASES, GoldenCase
+from tests.eval.golden_examples import LOCAL_CASES, GoldenCase
 
-pytestmark = [pytest.mark.langsmith]
+# NOTE: do NOT put a module-level langsmith mark here. The two suites have
+# different requirements and must be gated separately:
+#   - test_agent_regression_against_dataset -> @pytest.mark.langsmith
+#     (needs a populated LangSmith dataset + LANGCHAIN_API_KEY + LLM creds)
+#   - test_local_golden_case               -> @pytest.mark.golden
+#     (needs only LLM creds; runnable as a fast per-PR gate)
+# A shared module mark previously skipped the local goldens whenever
+# LANGCHAIN_API_KEY was absent, so they never ran on PRs (green-but-blind).
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +243,7 @@ def tool_subset_match(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.langsmith
 def test_agent_regression_against_dataset(
     langsmith_dataset_name: str, experiment_prefix: str
 ) -> None:
@@ -294,14 +302,16 @@ def test_agent_regression_against_dataset(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.golden
 @pytest.mark.asyncio
-@pytest.mark.parametrize("case", ALL_CASES, ids=lambda c: c.name)
+@pytest.mark.parametrize("case", LOCAL_CASES, ids=lambda c: c.name)
 async def test_local_golden_case(case: GoldenCase) -> None:
     """Smoke-test golden cases locally; complements the dataset sweep."""
-    inputs = {
-        "question": case.question,
-        "page_context": case.page_context,
-    }
+    inputs: dict[str, Any] = {"page_context": case.page_context}
+    if case.messages:
+        inputs["messages"] = list(case.messages)
+    else:
+        inputs["question"] = case.question
     outputs = await _run_agent(inputs)
 
     intent_result = intent_match(
