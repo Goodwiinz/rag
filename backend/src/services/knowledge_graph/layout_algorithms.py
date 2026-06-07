@@ -372,12 +372,16 @@ class LayoutAlgorithms:
                 return self._create_empty_layout(LayoutAlgorithm.SPIRAL)
 
             center_x, center_y = 500, 500
+            max_radius = 480  # keep nodes inside the 1000x1000 canvas
             a = 10  # Spiral tightness
-            b = 10  # Spiral growth rate
+            # Scale growth so the last node lands near (not past) the edge —
+            # a fixed b sent nodes thousands of px off-canvas for large graphs.
+            theta_max = max(1, (len(nodes) - 1)) * 0.5
+            b = min(10, (max_radius - a) / theta_max)
 
             for i, node in enumerate(nodes):
                 theta = i * 0.5
-                r = a + b * theta
+                r = min(a + b * theta, max_radius)
                 node.x = center_x + r * math.cos(theta)
                 node.y = center_y + r * math.sin(theta)
 
@@ -416,24 +420,25 @@ class LayoutAlgorithms:
             num_circles = min(5, len(sorted_nodes))
             nodes_per_circle = math.ceil(len(sorted_nodes) / num_circles)
 
-            positions = {}
+            # Group nodes into circles ONCE (was O(n^2): a slice rebuild +
+            # list.index() per node, with a ZeroDivision/off-by-one footgun
+            # that silently fell back to random layout).
+            center_x, center_y = 500, 500
+            circles: dict[int, list] = {}
             for i, node in enumerate(sorted_nodes):
-                circle = i // nodes_per_circle
-                radius = 100 + circle * 80
-                nodes_in_circle = [
-                    n
-                    for n in sorted_nodes[
-                        circle * nodes_per_circle : (circle + 1) * nodes_per_circle
-                    ]
-                ]
-                angle_step = 2 * math.pi / len(nodes_in_circle)
-                angle = nodes_in_circle.index(node) * angle_step
+                circles.setdefault(i // nodes_per_circle, []).append(node)
 
-                center_x, center_y = 500, 500
-                positions[node.id] = [
-                    center_x + radius * math.cos(angle),
-                    center_y + radius * math.sin(angle),
-                ]
+            positions = {}
+            for circle, circle_nodes in circles.items():
+                radius = 100 + circle * 80
+                count = len(circle_nodes)
+                angle_step = (2 * math.pi / count) if count else 0
+                for idx, node in enumerate(circle_nodes):
+                    angle = idx * angle_step
+                    positions[node.id] = [
+                        center_x + radius * math.cos(angle),
+                        center_y + radius * math.sin(angle),
+                    ]
 
             # Update node positions
             for node in nodes:
@@ -518,28 +523,42 @@ class LayoutAlgorithms:
     def _assign_hierarchy_levels(
         self, nodes: List[VisualizationNode], edges: List[VisualizationEdge]
     ) -> Dict[str, int]:
-        """Assign hierarchy levels using topological sorting"""
-        # Build adjacency list
-        adj_list = self._create_adjacency_list(nodes, edges)
-        levels = {node.id: 0 for node in nodes}
+        """Assign hierarchy levels using Kahn's topological sort.
 
-        # Simple level assignment based on BFS from sources
-        changed = True
-        iterations = 0
-        max_iterations = len(nodes) * 2
+        The previous relaxation loop never converged on cycles/self-loops
+        (it incremented levels until an arbitrary iteration cap, leaving
+        garbage levels). Kahn's sort terminates deterministically: self-loops
+        and parallel edges are dropped, and any nodes left in a cycle keep the
+        default level 0.
+        """
+        from collections import deque
 
-        while changed and iterations < max_iterations:
-            changed = False
-            iterations += 1
+        node_ids = {node.id for node in nodes}
+        adj: Dict[str, List[str]] = {nid: [] for nid in node_ids}
+        indegree: Dict[str, int] = {nid: 0 for nid in node_ids}
+        seen: set = set()
+        for edge in edges:
+            if edge.source == edge.target:  # skip self-loops
+                continue
+            if edge.source not in node_ids or edge.target not in node_ids:
+                continue
+            key = (edge.source, edge.target)
+            if key in seen:  # dedupe parallel edges
+                continue
+            seen.add(key)
+            adj[edge.source].append(edge.target)
+            indegree[edge.target] += 1
 
-            for edge in edges:
-                source_level = levels.get(edge.source, 0)
-                target_level = levels.get(edge.target, 0)
-
-                # Target should be at least one level deeper than source
-                if target_level <= source_level:
-                    levels[edge.target] = source_level + 1
-                    changed = True
+        levels = {nid: 0 for nid in node_ids}
+        queue = deque(nid for nid, deg in indegree.items() if deg == 0)
+        while queue:
+            nid = queue.popleft()
+            for target in adj[nid]:
+                if levels[nid] + 1 > levels[target]:
+                    levels[target] = levels[nid] + 1
+                indegree[target] -= 1
+                if indegree[target] == 0:
+                    queue.append(target)
 
         return levels
 

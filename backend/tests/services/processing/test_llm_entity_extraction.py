@@ -9,6 +9,7 @@ from src.models.entity import EntityType
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
     LLMEntityExtractionService,
+    _count_tokens,
     chunk_text,
     map_to_entity_type,
     merge_entities,
@@ -53,6 +54,15 @@ class TestChunkText:
     def test_whitespace_only_returns_empty(self):
         chunks = chunk_text("   \n\n  ", max_tokens=4000, overlap_tokens=200)
         assert chunks == []
+
+    def test_oversize_single_paragraph_is_split_within_limit(self):
+        """A single paragraph larger than max_tokens must be split so NO chunk
+        exceeds max_tokens (previously it was emitted whole -> LLM overflow)."""
+        big_para = "word " * 6000  # one paragraph, no blank-line breaks
+        chunks = chunk_text(big_para, max_tokens=500, overlap_tokens=50)
+        assert len(chunks) >= 2
+        for chunk in chunks:
+            assert _count_tokens(chunk) <= 500
 
 
 class TestMergeEntities:
@@ -156,6 +166,30 @@ class TestParseLLMResponse:
         raw = json.dumps({"entities": []})
         entities = parse_llm_response(raw)
         assert entities == []
+
+    def test_bad_confidence_does_not_abort_other_entities(self):
+        """A non-numeric confidence on one entity must not drop the whole
+        chunk — coerce to the default and keep the rest."""
+        raw = json.dumps({
+            "entities": [
+                {"name": "A", "type": "MODEL", "confidence": "not-a-number"},
+                {"name": "B", "type": "MODEL", "confidence": 0.9},
+            ]
+        })
+        entities = parse_llm_response(raw)
+        assert {e.name for e in entities} == {"A", "B"}
+        by_name = {e.name: e for e in entities}
+        assert by_name["A"].confidence == 0.8  # fallback
+
+    def test_confidence_is_clamped(self):
+        raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "confidence": 5.0}]})
+        entities = parse_llm_response(raw)
+        assert entities[0].confidence == 1.0
+
+    def test_non_list_aliases_coerced(self):
+        raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "aliases": "solo"}]})
+        entities = parse_llm_response(raw)
+        assert entities[0].aliases == ["solo"]
 
 
 class TestEntityTypeMapping:

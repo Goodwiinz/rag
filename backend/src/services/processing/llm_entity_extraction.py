@@ -48,6 +48,22 @@ def chunk_text(
     paragraphs = re.split(r"\n\n+", stripped)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
+    # Pre-split any single paragraph that alone exceeds max_tokens. Without
+    # this, such a paragraph was appended whole and produced a chunk larger
+    # than max_tokens — overflowing the LLM context (truncation / hard error =
+    # silent data loss). Split on token boundaries so every unit fits.
+    bounded_paragraphs: list[str] = []
+    for para in paragraphs:
+        tokens = _ENCODING.encode(para)
+        if len(tokens) <= max_tokens:
+            bounded_paragraphs.append(para)
+        else:
+            for i in range(0, len(tokens), max_tokens):
+                piece = _ENCODING.decode(tokens[i : i + max_tokens]).strip()
+                if piece:
+                    bounded_paragraphs.append(piece)
+    paragraphs = bounded_paragraphs
+
     chunks: list[str] = []
     current_paragraphs: list[str] = []
     current_tokens = 0
@@ -191,16 +207,35 @@ def parse_llm_response(raw: str) -> list[ExtractedEntity]:
         ent_type = raw_ent.get("type", "").strip().upper()
         if not name or not ent_type:
             continue
-        entities.append(
-            ExtractedEntity(
-                name=name,
-                type=ent_type,
-                canonical_name=raw_ent.get("canonical_name", ""),
-                description=raw_ent.get("description", ""),
-                confidence=float(raw_ent.get("confidence", 0.8)),
-                aliases=raw_ent.get("aliases", []),
+        # Per-entity guard: a single malformed field (non-numeric confidence,
+        # aliases that aren't a list of strings) previously raised and aborted
+        # EVERY entity in the chunk. Coerce/clamp defensively and skip only the
+        # bad row.
+        try:
+            raw_conf = raw_ent.get("confidence", 0.8)
+            confidence = max(0.0, min(1.0, float(raw_conf)))
+        except (TypeError, ValueError):
+            confidence = 0.8
+        raw_aliases = raw_ent.get("aliases", [])
+        if isinstance(raw_aliases, list):
+            aliases = [str(a) for a in raw_aliases if a]
+        elif isinstance(raw_aliases, str) and raw_aliases:
+            aliases = [raw_aliases]
+        else:
+            aliases = []
+        try:
+            entities.append(
+                ExtractedEntity(
+                    name=name,
+                    type=ent_type,
+                    canonical_name=raw_ent.get("canonical_name", "") or "",
+                    description=raw_ent.get("description", "") or "",
+                    confidence=confidence,
+                    aliases=aliases,
+                )
             )
-        )
+        except Exception as e:  # noqa: BLE001 - skip one bad row, keep the rest
+            logger.warning("Skipping malformed entity %r: %s", name, e)
 
     return entities
 
