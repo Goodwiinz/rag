@@ -163,26 +163,36 @@ def _target(inputs: dict[str, Any]) -> dict[str, Any]:
 
 
 def intent_match(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> dict[str, Any]:
+    """Score 1 iff the run's intent is acceptable for the reference row.
+
+    Acceptable = equals the exact ``intent`` OR is a member of
+    ``accept_intents`` (a set of acceptable routes — e.g. a "compare docs"
+    query that may legitimately route to either ``writing`` or ``research``).
+    A row carrying NEITHER key is a null/polluted reference and must FAIL.
+    """
     ref = reference_outputs or {}
-    # Null-reference guard: a row with no reference intent (e.g. outputs=null
-    # in a polluted dataset) must FAIL, not vacuously pass on ""=="".
-    if "intent" not in ref:
+    accept = list(ref.get("accept_intents") or [])
+    has_exact = "intent" in ref
+    # Null-reference guard: a row with no reference intent at all (e.g.
+    # outputs=null in a polluted dataset) must FAIL, not vacuously pass.
+    if not has_exact and not accept:
         return {
             "key": "intent_match",
             "score": 0,
             "comment": "missing reference intent (null/polluted dataset row)",
         }
     actual = (outputs or {}).get("intent", "")
-    # Output-side guard: "" is never a valid classified intent. A run that
-    # produced no intent must FAIL, not vacuously pass when the reference is
-    # also "" (which a polluted dataset row could be).
+    # Output-side guard: "" is never a valid classified intent.
     if not actual:
         return {
             "key": "intent_match",
             "score": 0,
             "comment": "run produced no intent",
         }
-    return {"key": "intent_match", "score": int(ref["intent"] == actual)}
+    acceptable = set(accept)
+    if has_exact:
+        acceptable.add(ref["intent"])
+    return {"key": "intent_match", "score": int(actual in acceptable)}
 
 
 def tool_subset_match(
@@ -203,6 +213,16 @@ def tool_subset_match(
         }
     expected = list(ref.get("expected_tools", ()))
     actual = list((outputs or {}).get("tool_calls", ()))
+    # A legitimately empty expected set passes regardless of mode.
+    if not expected:
+        return {"key": "tool_subset_match", "score": 1}
+    # ``tool_match`` selects the matching semantics:
+    #   "any"  -> at least one expected tool was invoked (order-free); for
+    #             cases where the agent may pick one of several valid tools.
+    #   else   -> default: every expected tool appears IN ORDER (subsequence).
+    if ref.get("tool_match") == "any":
+        score = int(any(tool_name in actual for tool_name in expected))
+        return {"key": "tool_subset_match", "score": score}
     idx = 0
     for tool_name in actual:
         if idx < len(expected) and tool_name == expected[idx]:

@@ -105,6 +105,35 @@ class TestEvaluatorGuards:
         assert intent_match({"intent": ""}, {"intent": ""})["score"] == 0
         assert intent_match({}, {"intent": "general"})["score"] == 0
 
+    def test_intent_match_accept_intents_membership(self):
+        # A row may list a set of acceptable routes; the exact intent plus any
+        # accept_intents member all pass.
+        from tests.eval.test_agent_regression import intent_match
+
+        ref = {"intent": "writing", "accept_intents": ["research"]}
+        assert intent_match({"intent": "research"}, ref)["score"] == 1
+        assert intent_match({"intent": "writing"}, ref)["score"] == 1
+        assert intent_match({"intent": "knowledge_graph"}, ref)["score"] == 0
+        # accept_intents alone (no exact intent key) is a valid reference.
+        assert (
+            intent_match({"intent": "data"}, {"accept_intents": ["data", "research"]})[
+                "score"
+            ]
+            == 1
+        )
+
+    def test_tool_match_any(self):
+        from tests.eval.test_agent_regression import tool_subset_match
+
+        ref = {"expected_tools": ("a", "b", "c"), "tool_match": "any"}
+        # Any one of the expected tools present, order-free -> pass.
+        assert tool_subset_match({"tool_calls": ["z", "b"]}, ref)["score"] == 1
+        # None present -> fail.
+        assert tool_subset_match({"tool_calls": ["z"]}, ref)["score"] == 0
+        # Default (no tool_match) stays strict ordered-subsequence.
+        ref_default = {"expected_tools": ("a", "b")}
+        assert tool_subset_match({"tool_calls": ["b", "a"]}, ref_default)["score"] == 0
+
 
 _UNSET = object()
 
