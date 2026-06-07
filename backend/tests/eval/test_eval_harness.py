@@ -379,6 +379,22 @@ class TestGoldenCaseInvariants:
         dups = [n for n, c in Counter(c.name for c in LOCAL_CASES).items() if c > 1]
         assert not dups, f"duplicate golden case names: {dups}"
 
+    def test_every_local_case_has_replay_cassette(self):
+        # Staleness guard (B2 Phase 3): a golden case with no recorded cassette
+        # would silently skip the creds-free replay gate. Fail loud so a newly
+        # added case must be recorded (record_golden_cassette.py) before merge.
+        from tests.eval._replay_llm import CASSETTE_DIR
+        from tests.eval.golden_examples import LOCAL_CASES
+
+        missing = [
+            c.name for c in LOCAL_CASES
+            if not (CASSETTE_DIR / f"{c.name}.json").exists()
+        ]
+        assert not missing, (
+            "golden cases missing a replay cassette — record with "
+            f"`python -m tests.eval.record_golden_cassette {' '.join(missing)}`: {missing}"
+        )
+
 
 @pytest.mark.unit
 class TestKnownToolsRegistry:
