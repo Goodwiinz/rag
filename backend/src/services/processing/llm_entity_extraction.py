@@ -100,9 +100,13 @@ def merge_entities(entities: list[ExtractedEntity]) -> list[ExtractedEntity]:
     if not entities:
         return []
 
-    groups: dict[str, list[ExtractedEntity]] = {}
+    # Key on (canonical_name, type): name alone wrongly collapses semantically
+    # distinct entities (e.g. "Apple" the ORG vs the PRODUCT) into one node and
+    # drops the relationships keyed on the other type. Mirrors the (canonical_key,
+    # type) identity used by the entity MERGE in knowledge_graph_service.
+    groups: dict[tuple[str, str], list[ExtractedEntity]] = {}
     for ent in entities:
-        key = ent.canonical_name.strip().lower()
+        key = (ent.canonical_name.strip().lower(), (ent.type or "").strip().lower())
         groups.setdefault(key, []).append(ent)
 
     merged: list[ExtractedEntity] = []

@@ -59,6 +59,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   height = 600,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  // The zoom behavior bound to the svg, so the toolbar buttons drive the SAME
+  // instance the wheel uses (a fresh d3.zoom() per click is detached and
+  // desyncs the zoom transform).
+  const zoomRef = useRef<any>(null);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [d3Loaded, setD3Loaded] = useState(false);
 
@@ -129,6 +133,7 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       });
 
     svg.call(zoom as any);
+    zoomRef.current = zoom;
 
     // Create arrow markers
     svg
@@ -259,36 +264,33 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   };
 
   const handleZoomIn = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.scaleBy as any, 1.3);
+      .call(zoomRef.current.scaleBy as any, 1.3);
   };
 
   const handleZoomOut = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.scaleBy as any, 0.7);
+      .call(zoomRef.current.scaleBy as any, 0.7);
   };
 
   const handleReset = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.transform as any, d3.zoomIdentity);
+      .call(zoomRef.current.transform as any, d3.zoomIdentity);
   };
 
   const exportGraph = () => {

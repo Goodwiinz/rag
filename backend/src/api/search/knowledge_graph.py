@@ -1098,6 +1098,10 @@ async def reset_graph_schema(
     current_user: User = Depends(get_current_user),
 ):
     """Reset the entire graph schema (DESTRUCTIVE OPERATION)"""
+    # Admin-only: this wipes ALL nodes/relationships across EVERY tenant
+    # (MATCH (n) DETACH DELETE n, unscoped). Mirror the gate on fix_null_entity_types.
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
     if not confirm:
         raise HTTPException(status_code=400, detail="Confirmation required")
 
