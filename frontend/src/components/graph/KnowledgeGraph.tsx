@@ -476,13 +476,20 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     if (!graphData) return null;
 
     try {
+      // Bound the synchronous force solve: 300 iterations × O(n²) freezes the
+      // main thread on large graphs. Scale iterations down as node count grows
+      // so worst-case work stays bounded. (Full rAF/Web-Worker offload is a
+      // larger follow-up.)
+      const nodeCount = graphData.nodes.length;
+      const forceIterations =
+        nodeCount > 400 ? 40 : nodeCount > 150 ? 100 : 300;
       const layoutAlgorithm = createLayout(
         layout,
         graphData.nodes,
         graphData.edges,
         {
           bounds,
-          iterations: layout === 'force' ? 300 : 0,
+          iterations: layout === 'force' ? forceIterations : 0,
         }
       );
 
