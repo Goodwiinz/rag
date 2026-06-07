@@ -1,0 +1,15 @@
+{
+  "case": "ack_thanks",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "You're welcome \u2014 glad to help. Do you want to do anything next with your project or papers?",
+        "tool_calls": []
+      }
+    }
+  ]
+}
