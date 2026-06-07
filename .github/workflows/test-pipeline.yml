@@ -157,6 +157,64 @@ jobs:
       - name: Check per-file coverage ratchet
         run: python backend/scripts/check_coverage_ratchet.py coverage.json
   # ==========================================================================
+  # Golden Replay — deterministic, creds-free agent regression gate (B2)
+  # ==========================================================================
+  golden-replay:
+    name: Golden Replay
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+      - name: Cache pip dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run golden replay (deterministic, no creds)
+        # AGENT_GOLDEN_REPLAY swaps the real model for the cassette-seeded fake
+        # at every LLM seam, so this runs offline with no Azure creds and no
+        # nondeterminism. Cassette-vs-reality drift is caught weekly, live, by
+        # agent-eval.yml. The staleness guard (test_eval_harness.py) fails if a
+        # case lacks a cassette.
+        run: |
+          pytest backend/tests/eval/test_agent_regression.py \
+            -c backend/pytest.ini \
+            -m golden \
+            -p no:cacheprovider \
+            -v
+        env:
+          ENVIRONMENT: testing
+          AGENT_GOLDEN_REPLAY: "1"
+          DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure creds: the agent graph constructor requires them to
+          # import, but every LLM seam is replaced by the replay fake, so no
+          # real model call is ever made.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
+
+  # ==========================================================================
   # Security Scan
   # ==========================================================================
   security-scan:
@@ -675,10 +733,11 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
+    needs: [unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests]
     if: always()
     env:
       UNIT_RESULT: ${{ needs.unit-tests.result }}
+      GOLDEN_RESULT: ${{ needs.golden-replay.result }}
       INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
       RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
       FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
@@ -703,6 +762,15 @@ jobs:
               echo "| Unit Tests | :fast_forward: Skipped |"
             else
               echo "| Unit Tests | :x: $UNIT_RESULT |"
+            fi
+
+            # Golden Replay
+            if [ "$GOLDEN_RESULT" = "success" ]; then
+              echo "| Golden Replay | :white_check_mark: Passed |"
+            elif [ "$GOLDEN_RESULT" = "skipped" ]; then
+              echo "| Golden Replay | :fast_forward: Skipped |"
+            else
+              echo "| Golden Replay | :x: $GOLDEN_RESULT |"
             fi
 
             # Integration Tests
@@ -758,12 +826,14 @@ jobs:
       - name: Fail if critical tests failed
         env:
           UNIT_RESULT: ${{ needs.unit-tests.result }}
+          GOLDEN_RESULT: ${{ needs.golden-replay.result }}
           FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
           SECURITY_RESULT: ${{ needs.security-scan.result }}
         run: |
-          # Only fail on truly critical tests (unit, frontend, security)
+          # Only fail on truly critical tests (unit, golden replay, frontend, security)
           # Integration tests have continue-on-error so they don't block
           if [ "$UNIT_RESULT" == "failure" ] || \
+             [ "$GOLDEN_RESULT" == "failure" ] || \
              [ "$FRONTEND_RESULT" == "failure" ] || \
              [ "$SECURITY_RESULT" == "failure" ]; then
             echo "One or more critical test suites failed!"

@@ -1,0 +1,42 @@
+{
+  "case": "retry_after_failed_search",
+  "expected_intent": "research",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "research",
+        "confidence": 0.86,
+        "reasoning": "Short retry phrase 'try again' follows a previous tool call (search_arxiv) that was rate-limited; per instructions, such retries inherit the intent of the prior tool call (research/document search)."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "search_arxiv",
+            "args": {
+              "query": "transformers",
+              "max_results": 5
+            },
+            "id": "call_7V6DjJ8lXav3F4FAMh3TrNve"
+          }
+        ]
+      }
+    },
+    {
+      "slot": 2,
+      "kind": "tool",
+      "message": {
+        "content": "I re-ran the previous arXiv search for \"transformers\" and got 5 recent results (arXiv returned 5 papers; see titles below). Do you want me to (pick one):\n\n- Ingest any of these into the workspace for indexing/search? (I\u2019ll need confirmation before importing.)\n- Show more results / widen the search?\n- Search within a specific subtopic (e.g., efficient transformers, vision transformers, instruction-tuning, scaling laws)?\n\nReturned papers (title \u2014 arXiv id):\n\n1) Operation-Guided Progressive Human-to-AI Text Transformation Benchmark for Multi-Granularity AI-Text Detection \u2014 2606.06481v1\n2) Pretraining Recurrent Networks without Recurrence \u2014 2606.06479v1\n3) PC Layer: Polynomial Weight Preconditioning for Improving LLM Pre-Training \u2014 2606.06470v1\n4) Quantum element-wise transforms \u2014 2606.06456v1\n5) RiskFlow: Fast and Faithful Safety-Critical Traffic Scenario Generation \u2014 2606.06423v1\n\nWhich would you like to do next?",
+        "tool_calls": []
+      }
+    }
+  ]
+}
