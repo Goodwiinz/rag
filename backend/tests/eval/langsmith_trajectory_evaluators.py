@@ -79,6 +79,16 @@ def tool_call_validity(run):
             "score": 0,
             "comment": f"{len(missing)} tool_call(s) without ToolMessage: {sorted(missing)[:3]}",
         }
+    # Orphan ToolMessage: a result whose tool_call_id has no originating AI
+    # tool_call in this turn (_extract_messages already scopes to new messages,
+    # so a cross-turn result is not flagged). Signals a malformed/mis-stitched
+    # trajectory the sanitizer should have caught.
+    orphans = seen_ids - expected_ids
+    if orphans:
+        return {
+            "score": 0,
+            "comment": f"{len(orphans)} ToolMessage(s) without originating tool_call: {sorted(orphans)[:3]}",
+        }
     return {"score": 1, "comment": f"All {len(expected_ids)} tool_call(s) matched."}
 
 
@@ -98,7 +108,20 @@ def no_tool_loop(run):
                 "score": 0,
                 "comment": f"Consecutive duplicate tool call at index {i}: {calls[i][0]}",
             }
-    return {"score": 1, "comment": f"{len(calls)} tool calls, no consecutive duplicates."}
+
+    # Non-consecutive spinning: an A,B,A,B oscillation or the same identical-args
+    # call repeated with other steps interleaved is NOT caught by the adjacent
+    # check above. Flag when any identical (name, args) appears >=3 times across
+    # the whole trajectory. Threshold 3 leaves a single legitimate retry alone.
+    from collections import Counter
+
+    worst, n = Counter(calls).most_common(1)[0]
+    if n >= 3:
+        return {
+            "score": 0,
+            "comment": f"Tool call {worst[0]} repeated {n}x with identical args across trajectory.",
+        }
+    return {"score": 1, "comment": f"{len(calls)} tool calls, no spinning detected."}
 
 
 def terminates_with_answer(run):
@@ -120,7 +143,26 @@ def terminates_with_answer(run):
     if last.get("tool_calls"):
         return {"score": 0, "comment": "Last AI message has pending tool_calls."}
     content = last.get("content")
-    if not (isinstance(content, str) and content.strip()) and not isinstance(content, list):
+    if isinstance(content, str):
+        if not content.strip():
+            return {"score": 0, "comment": "Last AI message has empty content."}
+    elif isinstance(content, list):
+        # Anthropic/multimodal content is list-shaped. Require at least one
+        # non-empty text block — an empty list, a tool_use-only block list, or
+        # whitespace-only text blocks are NOT a real terminating answer. (The
+        # old `not isinstance(content, list)` short-circuit passed ALL lists.)
+        has_text = any(
+            (isinstance(b, str) and b.strip())
+            or (
+                isinstance(b, dict)
+                and b.get("type") == "text"
+                and (b.get("text") or "").strip()
+            )
+            for b in content
+        )
+        if not has_text:
+            return {"score": 0, "comment": "Last AI message has no non-empty text block."}
+    else:
         return {"score": 0, "comment": "Last AI message has empty content."}
     return {"score": 1, "comment": "Terminates with AI answer."}
 

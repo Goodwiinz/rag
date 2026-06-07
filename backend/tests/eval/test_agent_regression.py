@@ -19,6 +19,7 @@ from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph import add_messages
 
 from src.services.agent.graph import compile_agent_graph
 
@@ -125,7 +126,21 @@ async def _run_agent(inputs: dict[str, Any]) -> dict[str, Any]:
                             interrupted_tool_calls.append(name)
                 continue
             if isinstance(update, dict):
-                final_state.update(update)
+                # The messages channel uses the ``add_messages`` reducer in
+                # AgentState. Under ``stream_mode="updates"`` each node emits
+                # only its OWN message delta, so a plain ``dict.update`` REPLACES
+                # the accumulated history and drops every general-path tool call
+                # (AIMessage with tool_calls clobbered by the next node's delta).
+                # Merge messages through the real reducer (dedups by id, so
+                # re-merging a subgraph's accumulated list is idempotent) and
+                # only ``update`` the scalar keys.
+                if "messages" in update:
+                    final_state["messages"] = add_messages(
+                        final_state.get("messages", []), update["messages"]
+                    )
+                final_state.update(
+                    {k: v for k, v in update.items() if k != "messages"}
+                )
 
     tool_calls = _extract_tool_calls(final_state.get("messages", []))
     for name in interrupted_tool_calls:
@@ -158,6 +173,15 @@ def intent_match(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> 
             "comment": "missing reference intent (null/polluted dataset row)",
         }
     actual = (outputs or {}).get("intent", "")
+    # Output-side guard: "" is never a valid classified intent. A run that
+    # produced no intent must FAIL, not vacuously pass when the reference is
+    # also "" (which a polluted dataset row could be).
+    if not actual:
+        return {
+            "key": "intent_match",
+            "score": 0,
+            "comment": "run produced no intent",
+        }
     return {"key": "intent_match", "score": int(ref["intent"] == actual)}
 
 

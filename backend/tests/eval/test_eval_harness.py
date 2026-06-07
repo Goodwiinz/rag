@@ -89,6 +89,21 @@ class TestEvaluatorGuards:
             tool_subset_match({"tool_calls": ["b"]}, {"expected_tools": ("a",)})["score"]
             == 0
         )
+        # Order matters: expected (a, b) is NOT satisfied by actual [b, a].
+        assert (
+            tool_subset_match(
+                {"tool_calls": ["b", "a"]}, {"expected_tools": ("a", "b")}
+            )["score"]
+            == 0
+        )
+
+    def test_intent_match_empty_actual_fails(self):
+        # "" is never a valid classified intent: a run that produced no intent
+        # must fail even when the reference is also "" (polluted row).
+        from tests.eval.test_agent_regression import intent_match
+
+        assert intent_match({"intent": ""}, {"intent": ""})["score"] == 0
+        assert intent_match({}, {"intent": "general"})["score"] == 0
 
 
 _UNSET = object()
@@ -193,3 +208,185 @@ class TestPlanAdherence:
 
         plan = [{"step": 1, "tool": "search_arxiv"}]
         assert plan_adherence(_run(plan, []))["score"] == 0
+
+
+def _traj(tool_calls):
+    """Build a dict-shaped run from a list of (name, args_dict) tool calls."""
+    messages = [
+        {
+            "type": "ai",
+            "id": f"ai-{i}",
+            "tool_calls": [{"id": f"tc-{i}", "name": name, "args": args}],
+        }
+        for i, (name, args) in enumerate(tool_calls)
+    ]
+    return {"inputs": {"messages": []}, "outputs": {"messages": messages}}
+
+
+@pytest.mark.unit
+class TestNoToolLoop:
+    def test_consecutive_duplicate_scores_zero(self):
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        assert no_tool_loop(_traj([("a", {}), ("a", {})]))["score"] == 0
+
+    def test_oscillation_three_times_scores_zero(self):
+        # A,B,A,B,A — "a" with identical args appears 3x, never adjacent.
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        calls = [("a", {"q": 1}), ("b", {}), ("a", {"q": 1}), ("b", {}), ("a", {"q": 1})]
+        assert no_tool_loop(_traj(calls))["score"] == 0
+
+    def test_two_non_consecutive_repeats_pass(self):
+        # A,B,A — same call twice, not a loop yet (threshold is 3).
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        assert no_tool_loop(_traj([("a", {}), ("b", {}), ("a", {})]))["score"] == 1
+
+    def test_distinct_calls_pass(self):
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        assert no_tool_loop(_traj([("a", {}), ("b", {}), ("c", {})]))["score"] == 1
+
+    def test_same_name_different_args_not_a_loop(self):
+        from tests.eval.langsmith_trajectory_evaluators import no_tool_loop
+
+        calls = [("a", {"q": 1}), ("a", {"q": 2}), ("a", {"q": 3})]
+        assert no_tool_loop(_traj(calls))["score"] == 1
+
+
+def _final(content, tool_calls=None):
+    """Build a run whose only output message is a final AI message."""
+    msg = {"type": "ai", "id": "final", "content": content}
+    if tool_calls is not None:
+        msg["tool_calls"] = tool_calls
+    return {"inputs": {"messages": []}, "outputs": {"messages": [msg]}}
+
+
+@pytest.mark.unit
+class TestTerminatesWithAnswer:
+    def test_str_answer_passes(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        assert terminates_with_answer(_final("here is the answer"))["score"] == 1
+
+    def test_empty_str_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        assert terminates_with_answer(_final("   "))["score"] == 0
+
+    def test_empty_list_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        assert terminates_with_answer(_final([]))["score"] == 0
+
+    def test_tool_use_only_block_list_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        content = [{"type": "tool_use", "name": "x", "input": {}}]
+        assert terminates_with_answer(_final(content))["score"] == 0
+
+    def test_whitespace_text_block_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        content = [{"type": "text", "text": "   "}]
+        assert terminates_with_answer(_final(content))["score"] == 0
+
+    def test_real_text_block_passes(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        content = [{"type": "text", "text": "the answer"}]
+        assert terminates_with_answer(_final(content))["score"] == 1
+
+    def test_pending_tool_calls_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import terminates_with_answer
+
+        run = _final("ignored", tool_calls=[{"id": "1", "name": "x", "args": {}}])
+        assert terminates_with_answer(run)["score"] == 0
+
+
+@pytest.mark.unit
+class TestToolCallValidity:
+    def _run(self, messages):
+        return {"inputs": {"messages": []}, "outputs": {"messages": messages}}
+
+    def test_matched_call_passes(self):
+        from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
+
+        msgs = [
+            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+            {"type": "tool", "id": "t1", "tool_call_id": "c1"},
+        ]
+        assert tool_call_validity(self._run(msgs))["score"] == 1
+
+    def test_missing_tool_message_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
+
+        msgs = [
+            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+        ]
+        assert tool_call_validity(self._run(msgs))["score"] == 0
+
+    def test_orphan_tool_message_fails(self):
+        from tests.eval.langsmith_trajectory_evaluators import tool_call_validity
+
+        msgs = [
+            {"type": "ai", "id": "a1", "tool_calls": [{"id": "c1", "name": "x", "args": {}}]},
+            {"type": "tool", "id": "t1", "tool_call_id": "c1"},
+            {"type": "tool", "id": "t2", "tool_call_id": "c9"},  # orphan
+        ]
+        assert tool_call_validity(self._run(msgs))["score"] == 0
+
+
+@pytest.mark.unit
+class TestGoldenCaseInvariants:
+    def test_all_case_names_unique(self):
+        # A duplicate name would silently shadow a case in the dataset upsert
+        # (keyed by golden_case name) and in pytest ids.
+        from collections import Counter
+
+        from tests.eval.golden_examples import ALL_CASES
+
+        dups = [n for n, c in Counter(c.name for c in ALL_CASES).items() if c > 1]
+        assert not dups, f"duplicate golden case names: {dups}"
+
+
+@pytest.mark.asyncio
+async def test_runner_preserves_general_path_tool_calls(monkeypatch):
+    """Regression: under stream_mode="updates" the runner must merge the
+    messages channel with the add_messages reducer, not dict.update (which
+    replaced the list and dropped every general-path tool call)."""
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    import tests.eval.test_agent_regression as reg
+
+    class FakeGraph:
+        async def astream(self, initial_state, stream_mode=None):
+            yield {
+                "llm_node": {
+                    "messages": [
+                        AIMessage(
+                            content="",
+                            id="m1",
+                            tool_calls=[
+                                {"type": "tool_call", "name": "do_kb_retrieve", "id": "1", "args": {}}
+                            ],
+                        )
+                    ]
+                }
+            }
+            yield {"tool_node": {"messages": [ToolMessage(content="hits", tool_call_id="1", id="m2")]}}
+            yield {
+                "llm_node": {
+                    "messages": [AIMessage(content="final answer", id="m3")],
+                    "intent": "general",
+                }
+            }
+
+    monkeypatch.setattr(reg, "compile_agent_graph", lambda: FakeGraph())
+    out = await reg._run_agent({"question": "what does our kb say?"})
+    assert out["intent"] == "general"
+    assert "do_kb_retrieve" in out["tool_calls"], (
+        "general-path tool call was clobbered — messages channel not merged "
+        "with the add_messages reducer"
+    )
