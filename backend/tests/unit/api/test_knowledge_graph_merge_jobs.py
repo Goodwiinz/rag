@@ -110,3 +110,31 @@ def test_create_merge_job_accepts_entities_from_same_tenant(
     assert "job_id" in body
     assert body["status"] == "queued"
     mock_apply_async.assert_called_once()
+
+
+@patch("src.api.search.knowledge_graph.kg_merge_entities_job.apply_async")
+@patch("src.api.search.knowledge_graph.knowledge_graph_service.get_entity")
+def test_create_merge_job_404_when_entity_outside_org_scope(
+    mock_get_entity,
+    mock_apply_async,
+    test_client,
+    mock_sync_db,
+):
+    """get_entity is now scoped to org docs, so an entity not in the caller's
+    org (including a NULL-source orphan that previously bypassed the cross-org
+    check) resolves to None -> 404, never queued."""
+    payload = {
+        "groups": [
+            {
+                "entities": [{"id": "entity-x", "name": "A"}],
+                "suggested_primary": "entity-x",
+            }
+        ]
+    }
+    mock_get_entity.return_value = None  # scoped miss
+    _set_doc_query_results(mock_sync_db, ["doc-org"])
+
+    response = test_client.post("/api/v1/knowledge-graph/merge-jobs", json=payload)
+
+    assert response.status_code == 404
+    mock_apply_async.assert_not_called()

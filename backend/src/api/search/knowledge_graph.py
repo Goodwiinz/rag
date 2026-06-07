@@ -154,9 +154,21 @@ def _safe_graph_relationship_type(raw_type: str) -> RelationshipType:
 # Entity Management Endpoints
 @router.post("/entities", response_model=EntityResponse)
 async def create_entity(
-    request: CreateEntityRequest, current_user: User = Depends(get_current_user)
+    request: CreateEntityRequest,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """Create a new entity in the knowledge graph"""
+    # Tenant guard: the client supplies source_document_id; without this check a
+    # caller could attach an entity to (and thus read/inject into) another org's
+    # document. Validate membership against the caller's org documents.
+    if request.source_document_id:
+        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        if str(request.source_document_id) not in org_doc_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="source_document_id does not belong to your organization",
+            )
     try:
         entity = knowledge_graph_service.create_entity(request)
         return entity
@@ -581,9 +593,16 @@ async def create_merge_job(
     if not entity_ids:
         raise HTTPException(status_code=400, detail="At least one entity ID is required")
 
+    # Scope the fetch to the caller's org documents. Previously get_entity was
+    # unscoped, so an entity with a NULL source_document_id (orphan) belonging
+    # to another org passed the cross-org check below (orphans are treated as
+    # "safe") and could be merged cross-tenant. A scoped miss now 404s.
+    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
     entity_source_docs: Dict[str, str] = {}
     for entity_id in entity_ids:
-        entity = knowledge_graph_service.get_entity(entity_id)
+        entity = knowledge_graph_service.get_entity(
+            entity_id, source_document_ids=org_doc_ids
+        )
         if not entity:
             raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
@@ -854,19 +873,21 @@ async def get_document_entities(
 ):
     """Get all entities extracted from a specific document"""
     try:
+        # Verify the document belongs to the caller's org, then scope the query
+        # to that single document. The old path fetched up to 1000 org-wide
+        # entities and filtered in Python — silently truncating (and leaking
+        # work) once an org had >1000 entities.
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
-        entities = knowledge_graph_service.search_entities(
+        if document_id not in org_doc_ids:
+            raise HTTPException(status_code=404, detail="Document not found")
+        document_entities = knowledge_graph_service.search_entities(
             query="",  # Empty query to find all
             limit=1000,
-            source_document_ids=org_doc_ids,
+            source_document_ids=[document_id],
         )
-
-        # Filter by source document
-        document_entities = [
-            entity for entity in entities if entity.source_document_id == document_id
-        ]
-
         return document_entities
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting document entities: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
