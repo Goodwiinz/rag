@@ -244,6 +244,7 @@ def tool_subset_match(
 
 
 @pytest.mark.langsmith
+@pytest.mark.slow
 def test_agent_regression_against_dataset(
     langsmith_dataset_name: str, experiment_prefix: str
 ) -> None:
@@ -302,7 +303,12 @@ def test_agent_regression_against_dataset(
 # ---------------------------------------------------------------------------
 
 
+# `slow` keeps these out of the generic fast unit job
+# (`-m "unit or not (integration or e2e or slow)"`); they run only in a
+# dedicated `-m golden` job (which has LLM creds). Without it, CI injects LLM
+# creds but no full infra, so the cases ran in the fast job and failed.
 @pytest.mark.golden
+@pytest.mark.slow
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", LOCAL_CASES, ids=lambda c: c.name)
 async def test_local_golden_case(case: GoldenCase) -> None:
