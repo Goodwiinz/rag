@@ -60,6 +60,20 @@ jobs:
           fi
           .venv/bin/pip install -q -r requirements.txt
 
+      # Regenerate the remote dataset from golden_examples.py EVERY run so it
+      # can never drift (upsert + delete orphans). This is what prevents the
+      # silent-contract-mismatch class of failure: the dataset always mirrors
+      # the committed golden cases. Blocking — a sync failure fails the job.
+      - name: Sync golden dataset
+        run: |
+          .venv/bin/python -m tests.eval.upload_golden --clean
+
+      # Blocking gate: pytest's non-zero exit fails the job (no
+      # continue-on-error). Runs BOTH the remote-dataset sweep
+      # (test_agent_regression_against_dataset) and the deterministic local
+      # golden cases (test_local_golden_case). Online trajectory evaluators
+      # (incl. plan_adherence) are registered separately via
+      # `python tests/eval/upload_trajectory_rules.py` after evaluator changes.
       - name: Run regression sweep
         run: |
           .venv/bin/pytest -m langsmith tests/eval/test_agent_regression.py -v --tb=short
