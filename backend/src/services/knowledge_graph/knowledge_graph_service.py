@@ -1179,9 +1179,14 @@ class KnowledgeGraphService:
                     if source_document_ids is not None
                     else ""
                 )
+                # Type the traversal to :RELATED_TO and clamp depth: an untyped
+                # `[r*1..N]` follows ANY relationship type and an unbounded N
+                # explodes into combinatorial fanout on hub nodes. LIMIT alone
+                # (applied after expansion) does not bound the work.
+                safe_depth = max(1, min(int(max_depth), 5))
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
-                MATCH (start)-[r*1..{max_depth}]-(related:Entity)
+                MATCH (start)-[r:RELATED_TO*1..{safe_depth}]-(related:Entity)
                 WHERE all(rel in r WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN DISTINCT related
                 LIMIT $limit
@@ -1247,9 +1252,13 @@ class KnowledgeGraphService:
                     if source_document_ids is not None
                     else ""
                 )
+                # Type the traversal + clamp depth (untyped `[*1..N]` followed
+                # ANY relationship and unbounded N caused combinatorial fanout
+                # on hub nodes).
+                safe_depth = max(1, min(int(max_depth), 5))
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
-                MATCH path = (start)-[*1..{max_depth}]-(related:Entity)
+                MATCH path = (start)-[:RELATED_TO*1..{safe_depth}]-(related:Entity)
                 WHERE related.id <> $entity_id
                   AND all(rel in relationships(path)
                       WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength){tenant_filter}
