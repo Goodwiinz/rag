@@ -12,11 +12,13 @@ from neo4j import AsyncSession
 
 from src.services.config.analytics_config import config
 from src.services.models.analytics_models import (
+    AnomalyInsight,
     BridgeEntityInsight,
     CentralityResult,
     ClusterInsight,
     Community,
     GraphPath,
+    GrowthTrendInsight,
     KeyEntityInsight,
     PathStep,
 )
