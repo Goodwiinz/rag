@@ -143,6 +143,34 @@ def _entity_scope_predicate(
     return "(" + " OR ".join(preds) + ")"
 
 
+def _two_endpoint_scope(
+    alias_a: str,
+    alias_b: str,
+    source_document_ids: Optional[List[str]],
+    organization_id: Optional[str],
+) -> tuple[str, Dict[str, Any]]:
+    """Scope a relationship/traversal query by BOTH endpoint Entity aliases (#50).
+
+    Prefers the indexed organization_id (org-wide scope, no doc-id list); falls
+    back to the legacy source_document_id IN-list (project scope — entities have
+    no project_id). Returns a fragment with a LEADING "\\n  AND ..." (empty when
+    unscoped) plus the bind params to merge in.
+    """
+    if organization_id is not None:
+        frag = (
+            f"\n  AND {alias_a}.organization_id = $organization_id"
+            f"\n  AND {alias_b}.organization_id = $organization_id"
+        )
+        return frag, {"organization_id": organization_id}
+    if source_document_ids is not None:
+        frag = (
+            f"\n  AND {alias_a}.source_document_id IN $source_document_ids"
+            f"\n  AND {alias_b}.source_document_id IN $source_document_ids"
+        )
+        return frag, {"source_document_ids": source_document_ids}
+    return "", {}
+
+
 def _safe_relationship_type(value: Optional[str]) -> RelationshipType:
     """Safely convert string to RelationshipType, falling back to RELATED_TO"""
     if not value:
@@ -994,6 +1022,7 @@ class KnowledgeGraphService:
         entity_id: str,
         relationship_types: Optional[List[RelationshipType]] = None,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[RelationshipResponse]:
         """Get all relationships for an entity, optionally scoped to organization documents"""
         try:
@@ -1001,7 +1030,11 @@ class KnowledgeGraphService:
                 conditions = ["(source.id = $entity_id OR target.id = $entity_id)"]
                 params: Dict[str, Any] = {"entity_id": entity_id}
 
-                if source_document_ids is not None:
+                if organization_id is not None:
+                    conditions.append("source.organization_id = $organization_id")
+                    conditions.append("target.organization_id = $organization_id")
+                    params["organization_id"] = organization_id
+                elif source_document_ids is not None:
                     conditions.append("source.source_document_id IN $source_document_ids")
                     conditions.append("target.source_document_id IN $source_document_ids")
                     params["source_document_ids"] = source_document_ids
@@ -1094,6 +1127,7 @@ class KnowledgeGraphService:
         self,
         entity_ids: List[str],
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[RelationshipResponse]:
         """Return every relationship whose BOTH endpoints are in entity_ids — in a
         SINGLE query. Replaces the per-entity get_relationships loop + Python
@@ -1104,7 +1138,11 @@ class KnowledgeGraphService:
             with self.get_session() as session:
                 conditions = ["source.id IN $entity_ids", "target.id IN $entity_ids"]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
-                if source_document_ids is not None:
+                if organization_id is not None:
+                    conditions.append("source.organization_id = $organization_id")
+                    conditions.append("target.organization_id = $organization_id")
+                    params["organization_id"] = organization_id
+                elif source_document_ids is not None:
                     conditions.append("source.source_document_id IN $source_document_ids")
                     conditions.append("target.source_document_id IN $source_document_ids")
                     params["source_document_ids"] = source_document_ids
@@ -1124,6 +1162,7 @@ class KnowledgeGraphService:
         self,
         entity_ids: List[str],
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[RelationshipResponse]:
         """Return every relationship INCIDENT to any entity in entity_ids (either
         endpoint), in a SINGLE query — replaces the per-entity get_relationships
@@ -1135,7 +1174,11 @@ class KnowledgeGraphService:
             with self.get_session() as session:
                 conditions = ["source.id IN $entity_ids"]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
-                if source_document_ids is not None:
+                if organization_id is not None:
+                    conditions.append("source.organization_id = $organization_id")
+                    conditions.append("target.organization_id = $organization_id")
+                    params["organization_id"] = organization_id
+                elif source_document_ids is not None:
                     conditions.append("source.source_document_id IN $source_document_ids")
                     conditions.append("target.source_document_id IN $source_document_ids")
                     params["source_document_ids"] = source_document_ids
@@ -1155,22 +1198,19 @@ class KnowledgeGraphService:
         self,
         relationship_id: str,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> Optional[RelationshipResponse]:
         """Get a single relationship by ID, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
                 params: Dict[str, Any] = {"relationship_id": relationship_id}
-                if source_document_ids is not None:
-                    query = """
-                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
-                    WHERE source.source_document_id IN $source_document_ids
-                      AND target.source_document_id IN $source_document_ids
-                    RETURN r, source.id AS source_id, target.id AS target_id
-                    """
-                    params["source_document_ids"] = source_document_ids
-                else:
-                    query = """
-                    MATCH (source:Entity)-[r:RELATED_TO {id: $relationship_id}]-(target:Entity)
+                scope_frag, scope_params = _two_endpoint_scope(
+                    "source", "target", source_document_ids, organization_id
+                )
+                params.update(scope_params)
+                where = f"\n                    WHERE true{scope_frag}" if scope_frag else ""
+                query = f"""
+                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity){where}
                     RETURN r, source.id AS source_id, target.id AS target_id
                     """
 
@@ -1247,15 +1287,13 @@ class KnowledgeGraphService:
         min_strength: float = 0.1,
         limit: int = 50,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[EntityResponse]:
         """Find entities related to a given entity, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                tenant_filter = (
-                    "\n  AND start.source_document_id IN $source_document_ids"
-                    "\n  AND related.source_document_id IN $source_document_ids"
-                    if source_document_ids is not None
-                    else ""
+                tenant_filter, scope_params = _two_endpoint_scope(
+                    "start", "related", source_document_ids, organization_id
                 )
                 # Type the traversal to :RELATED_TO and clamp depth: an untyped
                 # `[r*1..N]` follows ANY relationship type and an unbounded N
@@ -1274,9 +1312,8 @@ class KnowledgeGraphService:
                     "entity_id": entity_id,
                     "min_strength": min_strength,
                     "limit": limit,
+                    **scope_params,
                 }
-                if source_document_ids is not None:
-                    params["source_document_ids"] = source_document_ids
 
                 result = session.run(query, params)
 
@@ -1316,6 +1353,7 @@ class KnowledgeGraphService:
         min_strength: float = 0.1,
         limit: int = 50,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get neighborhood entities and relationships in a single query.
 
@@ -1324,11 +1362,8 @@ class KnowledgeGraphService:
         """
         try:
             with self.get_session() as session:
-                tenant_filter = (
-                    "\n  AND start.source_document_id IN $source_document_ids"
-                    "\n  AND related.source_document_id IN $source_document_ids"
-                    if source_document_ids is not None
-                    else ""
+                tenant_filter, scope_params = _two_endpoint_scope(
+                    "start", "related", source_document_ids, organization_id
                 )
                 # Type the traversal + clamp depth (untyped `[*1..N]` followed
                 # ANY relationship and unbounded N caused combinatorial fanout
@@ -1360,9 +1395,8 @@ class KnowledgeGraphService:
                     "entity_id": entity_id,
                     "min_strength": min_strength,
                     "limit": limit,
+                    **scope_params,
                 }
-                if source_document_ids is not None:
-                    params["source_document_ids"] = source_document_ids
 
                 result = session.run(query, params)
 
@@ -1456,15 +1490,13 @@ class KnowledgeGraphService:
         max_depth: int = 3,
         min_strength: float = 0.1,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[GraphPath]:
         """Find paths between two entities, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                tenant_filter = (
-                    "\n  AND start.source_document_id IN $source_document_ids"
-                    "\n  AND end.source_document_id IN $source_document_ids"
-                    if source_document_ids is not None
-                    else ""
+                tenant_filter, scope_params = _two_endpoint_scope(
+                    "start", "end", source_document_ids, organization_id
                 )
                 query = f"""
                 MATCH path = (start:Entity {{id: $source_id}})-[*1..{max_depth}]-(end:Entity {{id: $target_id}})
@@ -1478,9 +1510,8 @@ class KnowledgeGraphService:
                     "source_id": source_id,
                     "target_id": target_id,
                     "min_strength": min_strength,
+                    **scope_params,
                 }
-                if source_document_ids is not None:
-                    params["source_document_ids"] = source_document_ids
 
                 result = session.run(query, params)
 
