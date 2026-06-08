@@ -205,3 +205,41 @@ async def test_backfill_raises_when_disabled(monkeypatch):
 
     with pytest.raises(RuntimeError):
         await backfill_org(session, "o")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_backfill_commits_once_per_batch_not_per_doc(stub_settings, monkeypatch):
+    """Audit A2: a batch of N docs must produce ONE commit, not N. Total commits =
+    in_progress(1) + per-batch(1) + final(1) = 3 for a single 3-doc batch."""
+    org = _FakeOrg("org-1")
+    docs = [_FakeDoc(f"d{i:02d}") for i in range(3)]
+    session = _FakeSession(org, docs)
+
+    batches = [docs, []]
+
+    async def fake_next_batch(*args, **kwargs):
+        return batches.pop(0)
+
+    async def fake_sync(session_, doc, *, client=None, trigger_indexing=True):
+        doc.do_kb_data_source_uuid = f"ds-{doc.id}"
+        return doc.do_kb_data_source_uuid
+
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill._next_batch", fake_next_batch
+    )
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.sync_document_to_kb", fake_sync
+    )
+    monkeypatch.setattr(
+        "src.services.do_kb.backfill.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    )
+
+    api = MagicMock()
+    api.start_indexing = AsyncMock()
+
+    await backfill_org(session, org.id, batch_size=10, client=api)
+
+    # 3 docs in one batch → 3 commits (NOT 5 = 1+3+1 the old per-doc path).
+    assert session.commits == 3
