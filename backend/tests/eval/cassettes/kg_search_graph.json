@@ -1,0 +1,47 @@
+{
+  "case": "kg_search_graph",
+  "expected_intent": "knowledge_graph",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "knowledge_graph",
+        "confidence": 0.96,
+        "reasoning": "User asks specifically about what is connected to 'BERT' in 'our knowledge graph' \u2014 this is an entity-graph exploration question, matching the knowledge_graph intent."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "search_knowledge_graph",
+            "args": {
+              "query": "BERT",
+              "entity_types": [
+                "concept",
+                "model",
+                "method",
+                "technology"
+              ]
+            },
+            "id": "call_GiTBA5nSQ8Yh8nQwTRiJ7OYR"
+          }
+        ]
+      }
+    },
+    {
+      "slot": 2,
+      "kind": "tool",
+      "message": {
+        "content": "I couldn't find an entity named \"BERT\" in the knowledge graph with that search (no matching entity returned). Would you like me to:\n\n- Retry the search with broader entity types or a different query (e.g., \"BERT model\", \"Bidirectional Encoder Representations from Transformers\")?  \n- Search for related terms like \"Transformers\", \"GPT\", or specific BERT variants (e.g., \"BERT-base\", \"BioBERT\")?  \n- Or, if you meant an entity in a specific document or project, tell me which project/document so I can extract entities there?",
+        "tool_calls": []
+      }
+    }
+  ]
+}

@@ -326,7 +326,10 @@ class TestEntityIdentity:
         )
 
         mock_node = MagicMock()
-        mock_node.__getitem__ = MagicMock(return_value={})
+        # create_entity now MERGEs and reads the resolved id from the RETURN.
+        mock_node.__getitem__ = MagicMock(
+            return_value="11111111-1111-1111-1111-111111111111"
+        )
         mock_result = MagicMock()
         mock_result.single.return_value = mock_node
         mock_ctx = MagicMock()
