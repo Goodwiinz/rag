@@ -386,3 +386,57 @@ async def test_retrieve_omits_search_type_when_none():
 
     sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert "search_type" not in sent_body
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_all_429_raises_with_real_status(monkeypatch):
+    """An all-retryable run must surface the actual HTTP status, not the old
+    'exhausted retries: None' (audit A4)."""
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", fake_sleep)
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(429))
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        with pytest.raises(DOKnowledgeBaseError) as exc_info:
+            await client.start_indexing(kb_uuid="kb")
+
+    assert exc_info.value.status_code == 429
+    assert "429" in str(exc_info.value)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_honors_retry_after_header(monkeypatch):
+    """A 429 with Retry-After: 5 should sleep 5s, not the 2**attempt backoff (A5)."""
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("asyncio.sleep", fake_sleep)
+
+    resp_429 = _mock_response(429)
+    resp_429.headers = {"Retry-After": "5"}
+    resp_ok = _mock_response(200, {"job": {"uuid": "job-1", "status": "PENDING"}})
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(side_effect=[resp_429, resp_ok])
+        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx.request = request_mock
+
+        job = await client.start_indexing(kb_uuid="kb")
+
+    assert job.uuid == "job-1"
+    assert 5 in sleeps
