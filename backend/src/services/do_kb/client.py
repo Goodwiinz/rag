@@ -61,6 +61,25 @@ class DOKnowledgeBaseClient:
 
     def __init__(self, cfg: Optional[Settings] = None) -> None:
         self._settings = cfg or global_settings
+        self._http: Optional[httpx.AsyncClient] = None
+
+    def _client(self) -> httpx.AsyncClient:
+        """Lazily create one pooled AsyncClient and reuse it across requests.
+
+        A fresh client per request (the old `async with httpx.AsyncClient()`) paid
+        full TLS setup every call — magnified per-document + per-retry during bulk
+        ingest. Timeout is passed per-request so a single pooled client still
+        honors the longer indexing timeout.
+        """
+        if self._http is None:
+            self._http = httpx.AsyncClient()
+        return self._http
+
+    async def aclose(self) -> None:
+        """Close the pooled client (call on app shutdown)."""
+        if self._http is not None:
+            await self._http.aclose()
+            self._http = None
 
     @property
     def _api_base(self) -> str:
@@ -92,15 +111,16 @@ class DOKnowledgeBaseClient:
         last_exc: Optional[Exception] = None
         last_status: Optional[int] = None
 
+        client = self._client()
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                async with httpx.AsyncClient(timeout=timeout_s) as client:
-                    response = await client.request(
-                        method,
-                        url,
-                        headers=self._auth_headers,
-                        json=json_body,
-                    )
+                response = await client.request(
+                    method,
+                    url,
+                    headers=self._auth_headers,
+                    json=json_body,
+                    timeout=timeout_s,
+                )
                 if response.status_code in _RETRYABLE_STATUS:
                     # Remember the status so an all-retryable run reports the real
                     # code instead of "exhausted retries: None".

@@ -42,6 +42,25 @@ def _mock_response(status: int, json_body: dict[str, Any] | None = None) -> Magi
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_pooled_client_reused_across_requests():
+    """Audit A3: the AsyncClient is created once and reused, not rebuilt per call."""
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    payload = {"job": {"uuid": "j", "status": "PENDING"}}
+    with patch("httpx.AsyncClient") as mock_async_client:
+        mock_async_client.return_value.request = AsyncMock(
+            return_value=_mock_response(200, payload)
+        )
+        await client.start_indexing(kb_uuid="kb")
+        await client.start_indexing(kb_uuid="kb")
+
+    # Two requests, one client constructed.
+    assert mock_async_client.call_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_create_kb_happy_path():
     cfg = _make_settings()
     client = DOKnowledgeBaseClient(cfg=cfg)
@@ -59,7 +78,7 @@ async def test_create_kb_happy_path():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         kb = await client.create_kb(
@@ -100,7 +119,7 @@ async def test_retrieve_parses_chunks():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         result = await client.retrieve(kb_uuid="kb-123", query="hello", top_k=2)
@@ -132,7 +151,7 @@ async def test_retrieve_synthesizes_score_when_absent():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         result = await client.retrieve(kb_uuid="kb-123", query="x", top_k=3)
@@ -155,7 +174,7 @@ async def test_retrieve_uses_config_alpha():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -175,7 +194,7 @@ async def test_retrieve_explicit_alpha_overrides_config():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test", alpha=0.8)
@@ -195,7 +214,7 @@ async def test_retrieve_no_alpha_when_config_none():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -225,7 +244,7 @@ async def test_retry_on_429_then_success(monkeypatch):
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(side_effect=responses)
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         job = await client.start_indexing(kb_uuid="kb-123")
@@ -258,7 +277,7 @@ async def test_retrieve_uses_config_default_top_k():
     payload = {"results": [], "total_results": 0}
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
         await client.retrieve(kb_uuid="kb-123", query="test")
     sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
@@ -278,7 +297,7 @@ async def test_4xx_non_retryable_raises(monkeypatch):
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(404))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         with pytest.raises(DOKnowledgeBaseError) as exc_info:
@@ -299,7 +318,7 @@ async def test_retrieve_sends_reranking_when_enabled():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -319,7 +338,7 @@ async def test_retrieve_omits_reranking_when_none():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -339,7 +358,7 @@ async def test_retrieve_explicit_reranking_overrides_config():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test", reranking=False)
@@ -359,7 +378,7 @@ async def test_retrieve_sends_search_type_when_set():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -379,7 +398,7 @@ async def test_retrieve_omits_search_type_when_none():
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         await client.retrieve(kb_uuid="kb-123", query="test")
@@ -403,7 +422,7 @@ async def test_all_429_raises_with_real_status(monkeypatch):
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(return_value=_mock_response(429))
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         with pytest.raises(DOKnowledgeBaseError) as exc_info:
@@ -433,7 +452,7 @@ async def test_honors_retry_after_header(monkeypatch):
 
     with patch("httpx.AsyncClient") as mock_async_client:
         request_mock = AsyncMock(side_effect=[resp_429, resp_ok])
-        ctx = mock_async_client.return_value.__aenter__.return_value
+        ctx = mock_async_client.return_value
         ctx.request = request_mock
 
         job = await client.start_indexing(kb_uuid="kb")
