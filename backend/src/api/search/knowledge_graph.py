@@ -184,10 +184,10 @@ def get_entity(
     db=Depends(get_db_sync),
 ):
     """Get an entity by ID"""
-    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    # Org-wide scope: filter by the indexed organization_id (stamped on every
+    # entity by write-path + backfill), no per-request document-id list needed.
     entity = knowledge_graph_service.get_entity(
         entity_id,
-        source_document_ids=org_doc_ids,
         organization_id=str(current_user.organization_id),
     )
     if not entity:
@@ -203,11 +203,9 @@ def update_entity(
     db=Depends(get_db_sync),
 ):
     """Update an existing entity"""
-    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
     entity = knowledge_graph_service.update_entity(
         entity_id,
         request,
-        source_document_ids=org_doc_ids,
         organization_id=str(current_user.organization_id),
     )
     if not entity:
@@ -222,10 +220,8 @@ def delete_entity(
     db=Depends(get_db_sync),
 ):
     """Delete an entity and all its relationships"""
-    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
     success = knowledge_graph_service.delete_entity(
         entity_id,
-        source_document_ids=org_doc_ids,
         organization_id=str(current_user.organization_id),
     )
     if not success:
@@ -253,18 +249,20 @@ def get_all_entities(
 ):
     """Get all entities with pagination and optional filtering"""
     try:
-        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
-        if project_id is not None and not scope_doc_ids:
-            return PaginatedEntitiesResponse(
-                entities=[], total=0, limit=limit, offset=offset, has_more=False
-            )
+        # Org-wide scope → indexed organization_id, no doc-id list (and no
+        # Postgres lookup). Project scope → keep the project doc-id list, since
+        # entities carry no project_id (org_id would broaden to the whole org).
+        if project_id is None:
+            org_scope = str(current_user.organization_id)
+            scope_doc_ids = None
+        else:
+            org_scope = None
+            scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+            if not scope_doc_ids:
+                return PaginatedEntitiesResponse(
+                    entities=[], total=0, limit=limit, offset=offset, has_more=False
+                )
 
-        # Prefer the indexed organization_id only for ORG-wide scope. For a
-        # project scope, entities carry no project_id, so org_id would broaden
-        # the result to the whole org — keep the project doc-id list there.
-        org_scope = (
-            str(current_user.organization_id) if project_id is None else None
-        )
         entities = knowledge_graph_service.get_all_entities(
             limit, offset, entity_types,
             source_document_ids=scope_doc_ids,
@@ -306,12 +304,15 @@ def search_entities(
 ):
     """Search for entities by name or properties"""
     try:
-        scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
-        if project_id is not None and not scope_doc_ids:
-            return []
-        org_scope = (
-            str(current_user.organization_id) if project_id is None else None
-        )
+        # Org-wide → indexed organization_id (no doc-id list). Project → doc-ids.
+        if project_id is None:
+            org_scope = str(current_user.organization_id)
+            scope_doc_ids = None
+        else:
+            org_scope = None
+            scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
+            if not scope_doc_ids:
+                return []
         entities = knowledge_graph_service.search_entities(
             query,
             entity_types,
