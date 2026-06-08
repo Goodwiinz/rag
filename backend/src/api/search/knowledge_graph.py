@@ -339,9 +339,9 @@ def get_entity_relationships(
 ):
     """Get all relationships for an entity"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationships = knowledge_graph_service.get_relationships(
-            entity_id, relationship_types, source_document_ids=org_doc_ids
+            entity_id, relationship_types,
+            organization_id=str(current_user.organization_id),
         )
         return relationships
     except Exception as e:
@@ -364,10 +364,9 @@ def get_related_entities(
 ):
     """Find entities related to a given entity"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         entities = knowledge_graph_service.find_related_entities(
             entity_id, max_depth, min_strength, limit,
-            source_document_ids=org_doc_ids,
+            organization_id=str(current_user.organization_id),
         )
         return entities
     except Exception as e:
@@ -390,10 +389,9 @@ def get_entity_neighborhood(
 ):
     """Get neighborhood entities and relationships in a single call"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         data = knowledge_graph_service.get_neighborhood(
             entity_id, max_depth, min_strength, limit,
-            source_document_ids=org_doc_ids,
+            organization_id=str(current_user.organization_id),
         )
         return data
     except Exception as e:
@@ -457,9 +455,9 @@ def get_relationship(
 ):
     """Get a relationship by ID"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationship = knowledge_graph_service.get_relationship(
-            relationship_id, source_document_ids=org_doc_ids
+            relationship_id,
+            organization_id=str(current_user.organization_id),
         )
         if not relationship:
             raise HTTPException(
@@ -507,19 +505,19 @@ def search_graph(
         import time
 
         start_time = time.time()
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        org_id = str(current_user.organization_id)
 
         # Search entities
         entities = knowledge_graph_service.search_entities(
             request.query, request.entity_types, request.max_results,
-            source_document_ids=org_doc_ids,
+            organization_id=org_id,
         )
 
         # Find relationships incident to the found entities in ONE query
         # (was a get_relationships call per entity — N+1).
         relationships = knowledge_graph_service.get_relationships_for_entities(
             [e.id for e in entities],
-            source_document_ids=org_doc_ids,
+            organization_id=org_id,
         )
         if request.relationship_types:
             wanted = {t.value if hasattr(t, "value") else t for t in request.relationship_types}
@@ -540,7 +538,7 @@ def search_graph(
                         path_entities[j].id,
                         request.max_depth,
                         request.min_strength,
-                        source_document_ids=org_doc_ids,
+                        organization_id=org_id,
                     )
                     paths.extend(entity_paths)
 
@@ -574,10 +572,9 @@ def find_paths(
 ):
     """Find paths between two entities"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         paths = knowledge_graph_service.find_paths(
             source_id, target_id, max_depth, min_strength,
-            source_document_ids=org_doc_ids,
+            organization_id=str(current_user.organization_id),
         )
         return paths
     except Exception as e:
@@ -973,11 +970,11 @@ def get_entity_visualization(
 ):
     """Get graph data for visualizing an entity's neighborhood"""
     try:
-        org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+        org_id = str(current_user.organization_id)
 
         # Get the central entity
         central_entity = knowledge_graph_service.get_entity(
-            entity_id, source_document_ids=org_doc_ids
+            entity_id, organization_id=org_id
         )
         if not central_entity:
             raise HTTPException(status_code=404, detail="Entity not found")
@@ -985,14 +982,14 @@ def get_entity_visualization(
         # Get related entities
         related_entities = knowledge_graph_service.find_related_entities(
             entity_id, max_depth=depth, limit=max_nodes - 1,
-            source_document_ids=org_doc_ids,
+            organization_id=org_id,
         )
 
         # Get every relationship among the visualized set in ONE query
         # (was a get_relationships call PER node + a Python filter — N+1).
         all_entity_ids = [entity_id] + [e.id for e in related_entities]
         filtered_relationships = knowledge_graph_service.get_relationships_among(
-            all_entity_ids, source_document_ids=org_doc_ids
+            all_entity_ids, organization_id=org_id
         )
 
         # Convert to visualization format
