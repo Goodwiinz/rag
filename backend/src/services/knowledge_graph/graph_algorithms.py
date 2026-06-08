@@ -361,7 +361,9 @@ class GraphAlgorithms:
             MATCH (e:Entity)
             WHERE {where_clause}
             OPTIONAL MATCH (e)-[r:RELATED_TO]-()
-            WITH e, count(r) AS degree
+            // count(DISTINCT r): an undirected match binds a self-loop twice
+            // (once per direction), so plain count(r) double-counted self-loops.
+            WITH e, count(DISTINCT r) AS degree
             ORDER BY degree DESC
             LIMIT $limit
             RETURN e.id AS entity_id,
