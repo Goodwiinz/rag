@@ -52,27 +52,41 @@ spec:
           # Same backend image the dev API pods run (latest gitops tag). Only needs
           # the `src` package importable; migration scripts come from the ConfigMap.
           image: registry.digitalocean.com/ragsystemregistry/backend:f319992
-          workingDir: /app/backend      # so `from src...` imports resolve
-          # The chart-managed Neo4j secret stores a single NEO4J_AUTH key in
-          # "neo4j/<password>" form (templates/neo4j-secret.yaml), so split it into
-          # NEO4J_PASSWORD before running. To APPLY for real, drop the "--dry-run".
+          workingDir: /app
+          # Mirror the backend Deployment's secrets so `import src` (which loads
+          # Settings, validating DB/Neo4j/etc. env) succeeds identically to the API
+          # pods — the backend already gets its working Neo4j + Postgres creds here.
+          # PYTHONPATH is set explicitly because `python /migration/<script>.py`
+          # puts /migration (not the workdir) on sys.path → src would not import.
+          # To APPLY for real, drop the "--dry-run".
           command: ["sh", "-c"]
           args:
             - >-
-              export NEO4J_PASSWORD=$(printf '%s' "$NEO4J_AUTH" | cut -d/ -f2-);
               exec python /migration/dedup_entities_add_canonical_key.py --dry-run
           env:
+            - name: PYTHONPATH
+              value: "/app"
+            # Explicit override (env beats envFrom) — the creds secret ships an
+            # outdated NEO4J_URI (rag-... ); the live service is nous-dev-... .
             - name: NEO4J_URI
               value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
-            - name: NEO4J_USER
-              value: "neo4j"
-            - name: NEO4J_AUTH
-              valueFrom:
-                secretKeyRef:
-                  # helm fullname "nous-dev-knowledge-graph-analytics" +
-                  # "-neo4j-credentials" (confirmed by pod nous-dev-...-neo4j-0).
-                  name: nous-dev-knowledge-graph-analytics-neo4j-credentials
-                  key: NEO4J_AUTH
+          envFrom:
+            - secretRef:
+                name: database-credentials
+            - secretRef:
+                name: app-secrets
+            - secretRef:
+                name: spaces-credentials
+            - secretRef:
+                name: supabase-credentials
+            - secretRef:
+                name: redis-credentials
+            - secretRef:
+                name: langsmith-credentials
+                optional: true
+            - secretRef:
+                name: do-kb-credentials
+                optional: true
           volumeMounts:
             - name: scripts
               mountPath: /migration
