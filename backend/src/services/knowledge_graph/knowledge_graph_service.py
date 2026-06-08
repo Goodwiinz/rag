@@ -113,6 +113,36 @@ def _to_lucene_prefix(query: str) -> str:
     return " ".join(tokens) if tokens else query
 
 
+def _entity_scope_predicate(
+    alias: str,
+    source_document_ids: Optional[List[str]],
+    organization_id: Optional[str],
+    params: Dict[str, Any],
+) -> Optional[str]:
+    """Build the org-scoping WHERE predicate for an Entity alias (#50 read-flip).
+
+    Prefers the indexed `organization_id` (stamped on writes + the one-time
+    backfill) — but OR's it with the legacy `source_document_id IN $ids` list so
+    the SAME query stays correct on environments whose backfill has not run yet
+    (organization_id NULL there). Once every environment is backfilled the IN-list
+    arg can be dropped, leaving a pure indexed equality.
+
+    Mutates `params` with whichever bind vars it uses. Returns the predicate (no
+    leading WHERE/AND), or None when unscoped (both inputs None).
+    Relationships have no organization_id, so this is entity-only.
+    """
+    preds: List[str] = []
+    if organization_id is not None:
+        preds.append(f"{alias}.organization_id = $organization_id")
+        params["organization_id"] = organization_id
+    if source_document_ids is not None:
+        preds.append(f"{alias}.source_document_id IN $source_document_ids")
+        params["source_document_ids"] = source_document_ids
+    if not preds:
+        return None
+    return "(" + " OR ".join(preds) + ")"
+
+
 def _safe_relationship_type(value: Optional[str]) -> RelationshipType:
     """Safely convert string to RelationshipType, falling back to RELATED_TO"""
     if not value:
@@ -403,21 +433,18 @@ class KnowledgeGraphService:
         self,
         entity_id: str,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> Optional[EntityResponse]:
         """Retrieve an entity by ID, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                params = {"entity_id": entity_id}
-                if source_document_ids is not None:
-                    query = """
-                    MATCH (e:Entity {id: $entity_id})
-                    WHERE e.source_document_id IN $source_document_ids
-                    RETURN e
-                    """
-                    params["source_document_ids"] = source_document_ids
-                else:
-                    query = """
-                    MATCH (e:Entity {id: $entity_id})
+                params: Dict[str, Any] = {"entity_id": entity_id}
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
+                where = f"\n                    WHERE {scope}" if scope else ""
+                query = f"""
+                    MATCH (e:Entity {{id: $entity_id}}){where}
                     RETURN e
                     """
 
@@ -452,6 +479,7 @@ class KnowledgeGraphService:
         entity_id: str,
         request: UpdateEntityRequest,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> Optional[EntityResponse]:
         """Update an existing entity, optionally scoped to organization documents"""
         try:
@@ -459,8 +487,9 @@ class KnowledgeGraphService:
                 # Build update parameters dynamically
                 update_fields = []
                 params = {"entity_id": entity_id, "updated_at": datetime.utcnow()}
-                if source_document_ids is not None:
-                    params["source_document_ids"] = source_document_ids
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
 
                 if request.name is not None:
                     update_fields.append("e.name = $name")
@@ -477,16 +506,16 @@ class KnowledgeGraphService:
                     )
 
                 if not update_fields:
-                    return self.get_entity(entity_id, source_document_ids=source_document_ids)
+                    return self.get_entity(
+                        entity_id,
+                        source_document_ids=source_document_ids,
+                        organization_id=organization_id,
+                    )
 
                 update_fields.append("e.updated_at = $updated_at")
                 set_clause = ", ".join(update_fields)
 
-                tenant_filter = (
-                    "\nWHERE e.source_document_id IN $source_document_ids"
-                    if source_document_ids is not None
-                    else ""
-                )
+                tenant_filter = f"\nWHERE {scope}" if scope else ""
                 query = f"""
                 MATCH (e:Entity {{id: $entity_id}}){tenant_filter}
                 SET {set_clause}
@@ -523,22 +552,18 @@ class KnowledgeGraphService:
         self,
         entity_id: str,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> bool:
         """Delete an entity and all its relationships, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
                 params: Dict[str, Any] = {"entity_id": entity_id}
-                if source_document_ids is not None:
-                    query = """
-                    MATCH (e:Entity {id: $entity_id})
-                    WHERE e.source_document_id IN $source_document_ids
-                    DETACH DELETE e
-                    RETURN count(e) as deleted_count
-                    """
-                    params["source_document_ids"] = source_document_ids
-                else:
-                    query = """
-                    MATCH (e:Entity {id: $entity_id})
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
+                where = f"\n                    WHERE {scope}" if scope else ""
+                query = f"""
+                    MATCH (e:Entity {{id: $entity_id}}){where}
                     DETACH DELETE e
                     RETURN count(e) as deleted_count
                     """
@@ -562,6 +587,7 @@ class KnowledgeGraphService:
         entity_types: Optional[List[EntityType]] = None,
         limit: int = 50,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[EntityResponse]:
         """Search for entities by name or properties, optionally scoped to organization documents"""
         try:
@@ -570,9 +596,11 @@ class KnowledgeGraphService:
                 # Shared scope/type filters (reference `e`).
                 filters: List[str] = []
                 params: Dict[str, Any] = {"limit": limit}
-                if source_document_ids is not None:
-                    filters.append("e.source_document_id IN $source_document_ids")
-                    params["source_document_ids"] = source_document_ids
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
+                if scope:
+                    filters.append(scope)
                 if entity_types:
                     filters.append("e.type IN $entity_types")
                     params["entity_types"] = [t.value for t in entity_types]
@@ -650,6 +678,7 @@ class KnowledgeGraphService:
         entity_types: Optional[List[EntityType]] = None,
         source_document_ids: Optional[List[str]] = None,
         connected_only: bool = False,
+        organization_id: Optional[str] = None,
     ) -> List[EntityResponse]:
         """Get all entities with pagination and optional filtering"""
         try:
@@ -664,11 +693,11 @@ class KnowledgeGraphService:
                     conditions.append("e.type IN $entity_types")
                     params["entity_types"] = type_values
 
-                if source_document_ids is not None:
-                    conditions.append(
-                        "e.source_document_id IN $source_document_ids"
-                    )
-                    params["source_document_ids"] = source_document_ids
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
+                if scope:
+                    conditions.append(scope)
 
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 
@@ -751,23 +780,24 @@ class KnowledgeGraphService:
         entity_types: Optional[List[EntityType]] = None,
         source_document_ids: Optional[List[str]] = None,
         connected_only: bool = False,
+        organization_id: Optional[str] = None,
     ) -> int:
         """Count total entities with optional filtering"""
         try:
             with self.get_session() as session:
                 conditions = []
-                params = {}
+                params: Dict[str, Any] = {}
 
                 if entity_types:
                     type_values = [t.value for t in entity_types]
                     conditions.append("e.type IN $entity_types")
                     params["entity_types"] = type_values
 
-                if source_document_ids is not None:
-                    conditions.append(
-                        "e.source_document_id IN $source_document_ids"
-                    )
-                    params["source_document_ids"] = source_document_ids
+                scope = _entity_scope_predicate(
+                    "e", source_document_ids, organization_id, params
+                )
+                if scope:
+                    conditions.append(scope)
 
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
 

@@ -185,7 +185,11 @@ def get_entity(
 ):
     """Get an entity by ID"""
     org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
-    entity = knowledge_graph_service.get_entity(entity_id, source_document_ids=org_doc_ids)
+    entity = knowledge_graph_service.get_entity(
+        entity_id,
+        source_document_ids=org_doc_ids,
+        organization_id=str(current_user.organization_id),
+    )
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
     return entity
@@ -201,7 +205,10 @@ def update_entity(
     """Update an existing entity"""
     org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
     entity = knowledge_graph_service.update_entity(
-        entity_id, request, source_document_ids=org_doc_ids
+        entity_id,
+        request,
+        source_document_ids=org_doc_ids,
+        organization_id=str(current_user.organization_id),
     )
     if not entity:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -216,7 +223,11 @@ def delete_entity(
 ):
     """Delete an entity and all its relationships"""
     org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
-    success = knowledge_graph_service.delete_entity(entity_id, source_document_ids=org_doc_ids)
+    success = knowledge_graph_service.delete_entity(
+        entity_id,
+        source_document_ids=org_doc_ids,
+        organization_id=str(current_user.organization_id),
+    )
     if not success:
         raise HTTPException(status_code=404, detail="Entity not found")
     return {"message": "Entity deleted successfully"}
@@ -248,15 +259,23 @@ def get_all_entities(
                 entities=[], total=0, limit=limit, offset=offset, has_more=False
             )
 
+        # Prefer the indexed organization_id only for ORG-wide scope. For a
+        # project scope, entities carry no project_id, so org_id would broaden
+        # the result to the whole org — keep the project doc-id list there.
+        org_scope = (
+            str(current_user.organization_id) if project_id is None else None
+        )
         entities = knowledge_graph_service.get_all_entities(
             limit, offset, entity_types,
             source_document_ids=scope_doc_ids,
             connected_only=connected_only,
+            organization_id=org_scope,
         )
         total = knowledge_graph_service.count_entities(
             entity_types,
             source_document_ids=scope_doc_ids,
             connected_only=connected_only,
+            organization_id=org_scope,
         )
         return PaginatedEntitiesResponse(
             entities=entities,
@@ -290,8 +309,15 @@ def search_entities(
         scope_doc_ids = _scope_doc_ids(db, current_user.organization_id, project_id)
         if project_id is not None and not scope_doc_ids:
             return []
+        org_scope = (
+            str(current_user.organization_id) if project_id is None else None
+        )
         entities = knowledge_graph_service.search_entities(
-            query, entity_types, limit, source_document_ids=scope_doc_ids
+            query,
+            entity_types,
+            limit,
+            source_document_ids=scope_doc_ids,
+            organization_id=org_scope,
         )
         return entities
     except Exception as e:
