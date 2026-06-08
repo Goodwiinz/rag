@@ -581,7 +581,19 @@ async def batch_create_entities(
                         }
                     )
 
-        await db.commit()
+            # Explicit commit: begin_transaction() rolls back on context exit
+            # unless committed, so without this the Neo4j writes were silently
+            # discarded while the Postgres records below were committed —
+            # leaving the two stores divergent. Commit Neo4j first; if Postgres
+            # then fails, roll Postgres back (Neo4j is already durable).
+            await tx.commit()
+
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.error("Postgres commit failed after Neo4j commit in batch_create_entities")
+            raise
 
         # Notify WebSocket clients
         await websocket_manager.broadcast_to_tenant(
