@@ -955,23 +955,12 @@ async def get_entity_visualization(
             source_document_ids=org_doc_ids,
         )
 
-        # Get relationships
+        # Get every relationship among the visualized set in ONE query
+        # (was a get_relationships call PER node + a Python filter — N+1).
         all_entity_ids = [entity_id] + [e.id for e in related_entities]
-        relationships = []
-        for eid in all_entity_ids:
-            rels = knowledge_graph_service.get_relationships(
-                eid, source_document_ids=org_doc_ids
-            )
-            relationships.extend(rels)
-
-        # Filter relationships to only include entities in our set
-        entity_id_set = set(all_entity_ids)
-        filtered_relationships = [
-            rel
-            for rel in relationships
-            if rel.source_entity_id in entity_id_set
-            and rel.target_entity_id in entity_id_set
-        ]
+        filtered_relationships = knowledge_graph_service.get_relationships_among(
+            all_entity_ids, source_document_ids=org_doc_ids
+        )
 
         # Convert to visualization format
         nodes = []

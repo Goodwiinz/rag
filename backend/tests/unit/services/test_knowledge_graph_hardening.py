@@ -349,3 +349,23 @@ class TestEntityIdentity:
         call_args = mock_ctx.run.call_args
         params = call_args[0][1]
         assert params["name"] == "John Doe"
+
+
+@pytest.mark.unit
+class TestRelationshipDatetimeCoercion:
+    def test_to_native_dt_converts_neo4j_datetime(self):
+        from datetime import datetime, timezone
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
+
+        class _FakeNeo4jDT:
+            def to_native(self):
+                return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+        out = KnowledgeGraphService._to_native_dt(_FakeNeo4jDT())
+        assert isinstance(out, datetime)
+        # passthrough for native / None
+        assert KnowledgeGraphService._to_native_dt(None) is None
+        native = datetime(2025, 5, 5)
+        assert KnowledgeGraphService._to_native_dt(native) is native
