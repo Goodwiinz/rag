@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 from sqlalchemy import select
@@ -367,7 +367,6 @@ async def update_entity(
         params = {
             "entity_id": entity_id,
             "tenant_id": current_user.tenant_id,
-            "updated_at": "datetime()",
         }
 
         if request.name is not None:
@@ -389,7 +388,10 @@ async def update_entity(
                 entity_id, current_user, redis_client, neo4j_session
             )
 
-        update_fields.append("e.updated_at = $updated_at")
+        # Inline datetime() — it's a Cypher function call, not a bind value.
+        # Passing the string "datetime()" as $updated_at stored the literal
+        # text and corrupted the timestamp on every update.
+        update_fields.append("e.updated_at = datetime()")
         set_clause = ", ".join(update_fields)
 
         query = f"""
@@ -813,15 +815,18 @@ async def websocket_endpoint(websocket: WebSocket, tenant_id: str, token: str = 
 
 # Health check endpoint
 @app.get("/health")
-async def health_check(app):
+async def health_check(request: Request):
     """Health check endpoint"""
+    # Was `health_check(app)` — FastAPI treated `app` as a required query param,
+    # so the probe 422'd. Take the app off the Request instead.
+    app_state = request.app.state
     try:
         # Test Neo4j
-        async with app.state.neo4j_driver.session() as session:
+        async with app_state.neo4j_driver.session() as session:
             await session.run("RETURN 1")
 
         # Test Redis
-        await app.state.redis_client.ping()
+        await app_state.redis_client.ping()
 
         return {
             "status": "healthy",

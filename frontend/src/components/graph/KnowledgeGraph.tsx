@@ -284,7 +284,6 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     'force'
   );
   const [isAnimating, setIsAnimating] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -800,7 +799,12 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
       {/* Selected entity details */}
       {selectedNode && (
-        <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <Dialog
+          open={!!selectedNode}
+          onOpenChange={(open) => {
+            if (!open) setSelectedNode(null);
+          }}
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Entity Details</DialogTitle>
