@@ -12,17 +12,21 @@ This tracks what's done vs. outstanding. Audit date: 2026-06-08.
       deleted orphaned `_get_qdrant_client` / `_QDRANT_CLIENT` / `QDRANT_COLLECTION` /
       `_get_embedding_service` + unused `get_settings` import. Semantic recall is served by
       LangGraph `AsyncPostgresStore` (pgvector) in `memory.py`; nothing was lost.
+- [x] **Legacy ingest tasks now reach DO KB (HIGH).** There were two ingest paths: the
+      multimodal upload path (`multimodal_processing_service.py:1089`) always synced to DO KB,
+      but the legacy Celery `process_document_ingestion` + `generate_embeddings`
+      (`tasks/processing_tasks.py`, used by `file_service.py` and the documents reprocess
+      endpoint) wrote only to dead Qdrant → `is_embedded` never set → docs never retrievable.
+      Added `_sync_document_to_kb_blocking` (sync→async `merge()` bridge, mirrors
+      `api/agent/tools_impl.py`); both tasks now call `sync_document_to_kb` and drive
+      `is_embedded` off the data-source uuid. Idempotent, gated by `DO_KB_ENABLED`, never raises.
+      Tests: `tests/tasks/test_processing_tasks_do_kb.py`. (PR #656)
+- [x] **Dead Qdrant write in embedding step neutralized.** `process_embedding_generation`
+      (`processing_service.py`) no longer calls `vector_service.insert_vectors`; kept as a no-op
+      so it can't fail against the absent backend. (PR #656)
 
 ## Outstanding — RUNTIME CODE (needs a working test env to change safely)
 
-- [ ] **Ingest path never reaches DO KB (HIGH).** Legacy Celery `tasks/processing_tasks.py:211`
-      → `processing_service.process_embedding_generation` writes only Qdrant (now returns None) and
-      does **no** `sync_document_to_kb`. The DO KB sync lives in
-      `multimodal_processing_service.py:1093`. **Action:** confirm which ingest path is live; ensure
-      every ingest calls `sync_document_to_kb` and drives `document.is_embedded`/`is_indexed` off DO
-      KB success, not the dead Qdrant `embedding_id`.
-- [ ] **Dead Qdrant write in embedding step.** `process_embedding_generation` → `insert_vectors`
-      on a `None` client. Remove; DO KB sync is the index step.
 - [ ] **Search service dense leg silently empty.** `services/search/vector_service.py:261`
       (`search_vectors` → HTTP to `QDRANT_URL=None`) returns `[]`; `hybrid_search_service` then runs
       keyword-only (Postgres FTS still works). `/api/v1/search` health probe (`api/search/search.py:725`)
