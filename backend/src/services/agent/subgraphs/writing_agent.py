@@ -24,6 +24,7 @@ from src.services.agent.tools import (
     create_project_note,
     export_bibliography,
     ingest_arxiv_papers,
+    search_arxiv,
     summarize_document,
 )
 
@@ -35,12 +36,16 @@ WRITING_TOOLS = [
     export_bibliography,
     summarize_document,
     compare_documents,
-    # ingest_arxiv_papers is exposed here ONLY as a recovery path for
-    # summarize_document / compare_documents when they return
-    # error_type="recoverable" with suggestion="ingest_arxiv_papers"
-    # (see _build_writing_system_prompt). Without it the LLM hits a
-    # dead end on "Summarize arxiv 2201.00978" because the source paper
-    # isn't ingested yet. Destructive — gated through the HITL interrupt.
+    # search_arxiv (read-only) lets the agent resolve a paper given by TITLE to
+    # an arXiv id, so "make notes for <titles>" no longer dead-ends asking the
+    # user for ids it can find itself (trace 685b2fd1). Resolve → ingest →
+    # summarize/note.
+    search_arxiv,
+    # ingest_arxiv_papers brings a paper into the library so it can be
+    # summarized/noted: used after search_arxiv resolves a title, when the user
+    # supplies an arXiv id directly, or as the recovery path when
+    # summarize_document / compare_documents return error_type="recoverable"
+    # with suggestion="ingest_arxiv_papers". Destructive — HITL-gated.
     ingest_arxiv_papers,
 ]
 
