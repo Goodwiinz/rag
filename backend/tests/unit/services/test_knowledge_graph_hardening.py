@@ -369,3 +369,52 @@ class TestRelationshipDatetimeCoercion:
         assert KnowledgeGraphService._to_native_dt(None) is None
         native = datetime(2025, 5, 5)
         assert KnowledgeGraphService._to_native_dt(native) is native
+
+
+# ---------------------------------------------------------------------------
+# #50 read-flip: org-scoping predicate (OR-transition)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestEntityScopePredicate:
+    """`_entity_scope_predicate` prefers the indexed organization_id but OR's the
+    legacy source_document_id IN-list, so the same query stays correct on
+    environments whose backfill has not run yet."""
+
+    def _fn(self):
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            _entity_scope_predicate,
+        )
+
+        return _entity_scope_predicate
+
+    def test_unscoped_returns_none(self):
+        params = {}
+        assert self._fn()("e", None, None, params) is None
+        assert params == {}
+
+    def test_org_only_uses_indexed_equality(self):
+        params = {}
+        pred = self._fn()("e", None, "org-1", params)
+        assert pred == "(e.organization_id = $organization_id)"
+        assert params == {"organization_id": "org-1"}
+
+    def test_doc_only_preserves_legacy_in_list(self):
+        params = {}
+        pred = self._fn()("e", ["d1", "d2"], None, params)
+        assert pred == "(e.source_document_id IN $source_document_ids)"
+        assert params == {"source_document_ids": ["d1", "d2"]}
+
+    def test_both_ors_org_and_docs_for_cross_env_safety(self):
+        params = {}
+        pred = self._fn()("e", ["d1"], "org-1", params)
+        assert pred == (
+            "(e.organization_id = $organization_id "
+            "OR e.source_document_id IN $source_document_ids)"
+        )
+        assert params == {"organization_id": "org-1", "source_document_ids": ["d1"]}
+
+    def test_alias_is_respected(self):
+        params = {}
+        pred = self._fn()("source", None, "org-1", params)
+        assert pred == "(source.organization_id = $organization_id)"
