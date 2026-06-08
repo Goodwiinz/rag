@@ -488,23 +488,29 @@ async def search_graph(
             source_document_ids=org_doc_ids,
         )
 
-        # Find relationships for found entities
-        relationships = []
-        for entity in entities:
-            entity_relationships = knowledge_graph_service.get_relationships(
-                entity.id, request.relationship_types,
-                source_document_ids=org_doc_ids,
-            )
-            relationships.extend(entity_relationships)
+        # Find relationships incident to the found entities in ONE query
+        # (was a get_relationships call per entity — N+1).
+        relationships = knowledge_graph_service.get_relationships_for_entities(
+            [e.id for e in entities],
+            source_document_ids=org_doc_ids,
+        )
+        if request.relationship_types:
+            wanted = {t.value if hasattr(t, "value") else t for t in request.relationship_types}
+            relationships = [
+                r for r in relationships
+                if (r.relationship_type.value if hasattr(r.relationship_type, "value") else r.relationship_type) in wanted
+            ]
 
-        # Find paths between entities
+        # Find paths between entities. Cap the entity set used for pairwise
+        # path-finding so this stays O(cap^2), not O(n^2) over all results.
         paths = []
-        if len(entities) >= 2:
-            for i in range(len(entities) - 1):
-                for j in range(i + 1, min(len(entities), i + 5)):  # Limit path finding
+        path_entities = entities[:10]
+        if len(path_entities) >= 2:
+            for i in range(len(path_entities) - 1):
+                for j in range(i + 1, min(len(path_entities), i + 5)):
                     entity_paths = knowledge_graph_service.find_paths(
-                        entities[i].id,
-                        entities[j].id,
+                        path_entities[i].id,
+                        path_entities[j].id,
                         request.max_depth,
                         request.min_strength,
                         source_document_ids=org_doc_ids,
