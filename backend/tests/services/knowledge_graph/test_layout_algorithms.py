@@ -14,7 +14,8 @@ def _node(node_id):
 
 
 def _edge(source, target):
-    return SimpleNamespace(source=source, target=target)
+    # VisualizationEdge-shaped: layout reads .weight on some paths.
+    return SimpleNamespace(source=source, target=target, weight=1.0, strength=1.0)
 
 
 @pytest.mark.unit
@@ -53,6 +54,18 @@ class TestConcentricLayout:
         assert layout is not None
         for n in nodes:
             assert isinstance(n.x, (int, float)) and isinstance(n.y, (int, float))
+
+
+@pytest.mark.unit
+class TestForceDirectedLayout:
+    def test_runs_bounded_and_positions_nodes(self):
+        # async + bounded: completes (yields to loop) and lays out a larger
+        # graph without pinning the CPU forever.
+        la = LayoutAlgorithms()
+        nodes = [_node(str(i)) for i in range(40)]
+        edges = [_edge(str(i), str(i + 1)) for i in range(39)]
+        layout = asyncio.run(la.force_directed_layout(nodes, edges, iterations=300))
+        assert layout is not None
 
 
 @pytest.mark.unit

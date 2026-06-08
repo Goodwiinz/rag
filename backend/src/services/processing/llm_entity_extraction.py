@@ -335,6 +335,7 @@ class LLMEntityExtractionService:
 
         all_entities: list[ExtractedEntity] = []
         chunks_failed = 0
+        chunks_attempted = 0
 
         batch_size = 10
         for batch_start in range(0, len(chunks), batch_size):
@@ -347,6 +348,7 @@ class LLMEntityExtractionService:
                 break
 
             batch = chunks[batch_start : batch_start + batch_size]
+            chunks_attempted += len(batch)
             tasks = [
                 self._extract_chunk(chunk, system_prompt, semaphore)
                 for chunk in batch
@@ -367,13 +369,28 @@ class LLMEntityExtractionService:
         merged = merge_entities(all_entities)
         elapsed_ms = (time.monotonic() - start) * 1000
 
+        # chunks_processed = succeeded only (attempted minus failed). Chunks
+        # left unattempted after a timeout are SKIPPED, not processed — the old
+        # `len(chunks) - chunks_failed` silently counted skipped chunks as
+        # successful (silent data loss). Surface skips/failures via error.
+        chunks_skipped = len(chunks) - chunks_attempted
+        chunks_processed = chunks_attempted - chunks_failed
+
+        # Partial chunk FAILURE is accepted (not an error) — only all-failed,
+        # or chunks SKIPPED by a timeout, surface as an error (the latter is
+        # the silent-data-loss bug this fixes).
         error = None
         if chunks_failed == len(chunks):
             error = "All chunks failed during entity extraction"
+        elif chunks_skipped > 0:
+            error = (
+                f"Timed out: {chunks_skipped}/{len(chunks)} chunks not processed "
+                f"({chunks_failed} failed, {chunks_processed} succeeded)"
+            )
 
         return ExtractionResult(
             entities=merged,
-            chunks_processed=len(chunks) - chunks_failed,
+            chunks_processed=chunks_processed,
             chunks_failed=chunks_failed,
             processing_time_ms=elapsed_ms,
             error=error,

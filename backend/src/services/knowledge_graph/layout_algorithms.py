@@ -53,7 +53,19 @@ class LayoutAlgorithms:
             temperature = 1000.0
             cooling_factor = 0.95
 
+            # Bound total work: this is O(iterations * n^2). Scale iterations
+            # down as the graph grows so a large graph can't pin a CPU for
+            # minutes, and yield to the event loop periodically (the method is
+            # async but had no await, so it blocked every other request).
+            n = len(nodes)
+            if n > 600:
+                iterations = min(iterations, 60)
+            elif n > 250:
+                iterations = min(iterations, 150)
+
             for iteration in range(iterations):
+                if iteration % 20 == 0:
+                    await asyncio.sleep(0)  # cooperative yield
                 max_displacement = 0.0
                 forces = {node.id: [0.0, 0.0] for node in nodes}
 
