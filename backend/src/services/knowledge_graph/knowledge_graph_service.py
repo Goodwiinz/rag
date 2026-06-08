@@ -97,6 +97,22 @@ def _convert_datetime(dt) -> datetime:
         return datetime.utcnow()
 
 
+import re as _re
+
+_LUCENE_SPECIAL = _re.compile(r'(&&|\|\||[+\-!(){}\[\]^"~*?:\\/])')
+
+
+def _to_lucene_prefix(query: str) -> str:
+    """Escape Lucene special chars in a plain-text query and prefix-match each
+    token (token* ) for substring-like recall via the fulltext index."""
+    tokens = []
+    for tok in query.split():
+        esc = _LUCENE_SPECIAL.sub(r"\\\1", tok)
+        if esc:
+            tokens.append(esc + "*")
+    return " ".join(tokens) if tokens else query
+
+
 def _safe_relationship_type(value: Optional[str]) -> RelationshipType:
     """Safely convert string to RelationshipType, falling back to RELATED_TO"""
     if not value:
@@ -263,6 +279,8 @@ class KnowledgeGraphService:
                     "CREATE INDEX relationship_strength_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.strength)",
                     # get_all_relationships orders by r.created_at for pagination.
                     "CREATE INDEX relationship_created_at_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.created_at)",
+                    # Fulltext index backs search_entities (replaces the unindexed CONTAINS scan).
+                    "CREATE FULLTEXT INDEX entity_fulltext_idx IF NOT EXISTS FOR (e:Entity) ON EACH [e.name]",
                 ]
 
                 for constraint in constraints:
@@ -543,32 +561,54 @@ class KnowledgeGraphService:
         """Search for entities by name or properties, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                # Build query conditions
-                conditions = ["e.name CONTAINS $query"]
-                params: Dict[str, Any] = {"query": query, "limit": limit}
-
+                query_str = (query or "").strip()
+                # Shared scope/type filters (reference `e`).
+                filters: List[str] = []
+                params: Dict[str, Any] = {"limit": limit}
                 if source_document_ids is not None:
-                    conditions.append("e.source_document_id IN $source_document_ids")
+                    filters.append("e.source_document_id IN $source_document_ids")
                     params["source_document_ids"] = source_document_ids
-
                 if entity_types:
-                    # Parameterize (was f-string interpolation of t.value) —
-                    # avoids an injection footgun + per-value query-plan-cache
-                    # misses. Mirrors get_all_entities' `IN $entity_types`.
-                    conditions.append("e.type IN $entity_types")
+                    filters.append("e.type IN $entity_types")
                     params["entity_types"] = [t.value for t in entity_types]
 
-                where_clause = " AND ".join(conditions)
+                result = None
+                if query_str:
+                    # Use the fulltext index instead of an unindexed `CONTAINS`
+                    # full label scan. Escape Lucene specials and prefix-match
+                    # for substring-like recall. Falls back to CONTAINS on error.
+                    lucene = _to_lucene_prefix(query_str)
+                    ft_where = (" WHERE " + " AND ".join(filters)) if filters else ""
+                    ft_query = f"""
+                    CALL db.index.fulltext.queryNodes('entity_fulltext_idx', $lucene)
+                    YIELD node AS e, score
+                    {ft_where}
+                    RETURN e
+                    ORDER BY score DESC
+                    LIMIT $limit
+                    """
+                    try:
+                        result = list(session.run(ft_query, {**params, "lucene": lucene}))
+                    except Exception as ft_err:
+                        logger.warning("Fulltext search failed, falling back to CONTAINS: %s", ft_err)
+                        result = None
 
-                search_query = f"""
-                MATCH (e:Entity)
-                WHERE {where_clause}
-                RETURN e
-                ORDER BY e.confidence_score DESC
-                LIMIT $limit
-                """
+                if result is None:
+                    # Empty query (list mode) or fulltext fallback.
+                    conditions = list(filters)
+                    if query_str:
+                        conditions.insert(0, "e.name CONTAINS $query")
+                        params["query"] = query_str
+                    where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+                    search_query = f"""
+                    MATCH (e:Entity)
+                    {where_clause}
+                    RETURN e
+                    ORDER BY e.confidence_score DESC
+                    LIMIT $limit
+                    """
+                    result = session.run(search_query, params)
 
-                result = session.run(search_query, params)
                 entities = []
 
                 for node in result:
@@ -1294,72 +1334,80 @@ class KnowledgeGraphService:
                 entities = []
                 edges = []
                 seen_edge_keys = set()
+                seen_entity_ids = {entity_id}
+                intermediate_ids: set = set()
+
+                def _node_to_entity(n) -> EntityResponse:
+                    return EntityResponse(
+                        id=n["id"],
+                        name=n["name"],
+                        entity_type=_safe_entity_type(n["type"]),
+                        confidence_score=n.get("confidence_score", n.get("confidence", 0.5)),
+                        extraction_method=_safe_extraction_method(
+                            n.get("extraction_method", "unknown")
+                        ),
+                        position=n.get("position"),
+                        context=n.get("context"),
+                        metadata=_parse_metadata(n.get("metadata", "{}")),
+                        source_document_id=n.get("source_document_id"),
+                        created_at=_convert_datetime(n.get("created_at")),
+                        updated_at=_convert_datetime(n["updated_at"]) if n.get("updated_at") else None,
+                    )
 
                 for record in result:
                     e = record["related"]
                     path_rels = record["path_rels"]
                     path_node_ids = record["path_node_ids"]
 
-                    entities.append(
-                        EntityResponse(
-                            id=e["id"],
-                            name=e["name"],
-                            entity_type=_safe_entity_type(e["type"]),
-                            confidence_score=e.get(
-                                "confidence_score", e.get("confidence", 0.5)
-                            ),
-                            extraction_method=_safe_extraction_method(
-                                e.get("extraction_method", "unknown")
-                            ),
-                            position=e.get("position"),
-                            context=e.get("context"),
-                            metadata=_parse_metadata(e.get("metadata", "{}")),
-                            source_document_id=e.get("source_document_id"),
-                            created_at=_convert_datetime(e["created_at"]),
-                            updated_at=_convert_datetime(e["updated_at"])
-                            if e.get("updated_at")
-                            else None,
-                        )
-                    )
+                    if e["id"] not in seen_entity_ids:
+                        seen_entity_ids.add(e["id"])
+                        entities.append(_node_to_entity(e))
 
-                    # Build an edge from start entity to related entity
-                    # using the relationship labels along the path
-                    source_id = entity_id
-                    target_id = e["id"]
-                    edge_key = tuple(sorted([source_id, target_id]))
-                    if edge_key not in seen_edge_keys:
-                        seen_edge_keys.add(edge_key)
-                        rel_labels = [r["label"] for r in path_rels]
-                        combined_strength = 1.0
-                        for r in path_rels:
-                            combined_strength *= r.get("strength", 1.0)
+                    # Intermediate nodes on the path (between start and related)
+                    # — previously dropped. Collect to fetch + include.
+                    for nid in path_node_ids[1:-1]:
+                        if nid not in seen_entity_ids:
+                            intermediate_ids.add(nid)
 
-                        edge_type = rel_labels[0] if len(rel_labels) == 1 else " > ".join(rel_labels)
+                    # Emit the REAL per-hop edges (was a single synthetic
+                    # start->related edge with product strength + first-hop type).
+                    for i, rel in enumerate(path_rels):
+                        if i + 1 >= len(path_node_ids):
+                            break
+                        src, tgt = path_node_ids[i], path_node_ids[i + 1]
+                        label = rel.get("label") or "RELATED_TO"
+                        ek = (src, tgt, label)
+                        if ek in seen_edge_keys:
+                            continue
+                        seen_edge_keys.add(ek)
                         try:
-                            rel_type = RelationshipType(rel_labels[0])
+                            rel_type = RelationshipType(label)
                         except ValueError:
                             rel_type = RelationshipType.RELATED_TO
-
                         edges.append(
                             RelationshipResponse(
-                                id=f"{source_id}-{target_id}",
-                                source_entity_id=source_id,
-                                target_entity_id=target_id,
+                                id=f"{src}-{label}-{tgt}",
+                                source_entity_id=src,
+                                target_entity_id=tgt,
                                 relationship_type=rel_type,
-                                strength=round(combined_strength, 3),
-                                confidence_score=round(
-                                    sum(r.get("confidence", 0.5) for r in path_rels)
-                                    / len(path_rels),
-                                    3,
-                                ),
-                                context=edge_type if len(rel_labels) > 1 else None,
+                                strength=round(rel.get("strength", 1.0), 3),
+                                confidence_score=round(rel.get("confidence", 0.5), 3),
+                                context=None,
                                 evidence=[],
-                                metadata={"path_length": len(path_rels), "path_types": rel_labels},
+                                metadata={},
                                 source_document_id=None,
                                 created_at=datetime.utcnow(),
                                 updated_at=None,
                             )
                         )
+
+                # Fetch the intermediate nodes' details in ONE batched query.
+                missing = [nid for nid in intermediate_ids if nid not in seen_entity_ids]
+                if missing:
+                    for row in session.run(
+                        "MATCH (n:Entity) WHERE n.id IN $ids RETURN n", {"ids": missing}
+                    ):
+                        entities.append(_node_to_entity(row["n"]))
 
                 return {"entities": entities, "relationships": edges}
         except Exception as e:
