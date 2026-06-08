@@ -1,0 +1,88 @@
+# Knowledge-graph dedup + canonical_key migration — run as an in-cluster Job.
+#
+# Runs scripts/maintenance/dedup_entities_add_canonical_key.py against the live
+# Neo4j. The script + its python deps live in the backend image; Neo4j creds are
+# injected from the EXISTING cluster secret via secretKeyRef (nothing harvested,
+# nothing hardcoded). DEFAULT IS --dry-run (reports impact, writes nothing).
+#
+# ── PREREQUISITES (do these first) ──────────────────────────────────────────
+# 1. SNAPSHOT the Neo4j volume — the non-dry-run dedup DELETES duplicate nodes
+#    (apoc.refactor.mergeNodes). No undo.
+# 2. Confirm APOC is installed on that Neo4j (dedup needs apoc.refactor.mergeNodes).
+# 3. Create the ConfigMap with the migration scripts from your repo checkout
+#    (the deployed image likely predates the merge):
+#
+#      kubectl -n rag-dev create configmap kg-migration-scripts \
+#        --from-file=dedup_entities_add_canonical_key.py=backend/scripts/maintenance/dedup_entities_add_canonical_key.py \
+#        --from-file=backfill_entity_organization_id.py=backend/scripts/maintenance/backfill_entity_organization_id.py
+#
+# ── VALUES (pre-filled for rag-dev from the committed helm chart) ────────────
+#   image   = registry.digitalocean.com/ragsystemregistry/backend:f319992
+#             (latest dev/staging gitops tag; matches API pods)
+#   secret  = nous-dev-knowledge-graph-analytics-neo4j-credentials, key NEO4J_AUTH
+#             (helm fullname + "-neo4j-credentials"; single key "neo4j/<pw>" form,
+#              split into NEO4J_PASSWORD by the container command below)
+#   For staging/prod: swap the fullname prefix (nous-staging-* / nous-prod-*) in
+#   the secret name and NEO4J_URI, and the gitops image tag for that env.
+#
+# ── RUN ──────────────────────────────────────────────────────────────────────
+#   Dry-run (as-is):   kubectl -n rag-dev apply -f kg-dedup-migration-job.yaml
+#                      kubectl -n rag-dev logs -f job/kg-dedup-migration
+#   Then inspect the reported counts. To APPLY for real, change the arg
+#   "--dry-run" to "" (empty), delete the old Job, and re-apply.
+#
+# Order: run THIS (dedup) to completion first, then a second Job swapping the
+# command to backfill_entity_organization_id.py.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kg-dedup-migration
+  namespace: rag-dev
+spec:
+  backoffLimit: 0          # don't retry a destructive migration automatically
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: kg-migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration
+          # Same backend image the dev API pods run (latest gitops tag). Only needs
+          # the `src` package importable; migration scripts come from the ConfigMap.
+          image: registry.digitalocean.com/ragsystemregistry/backend:f319992
+          workingDir: /app/backend      # so `from src...` imports resolve
+          # The chart-managed Neo4j secret stores a single NEO4J_AUTH key in
+          # "neo4j/<password>" form (templates/neo4j-secret.yaml), so split it into
+          # NEO4J_PASSWORD before running. To APPLY for real, drop the "--dry-run".
+          command: ["sh", "-c"]
+          args:
+            - >-
+              export NEO4J_PASSWORD=$(printf '%s' "$NEO4J_AUTH" | cut -d/ -f2-);
+              exec python /migration/dedup_entities_add_canonical_key.py --dry-run
+          env:
+            - name: NEO4J_URI
+              value: "bolt://nous-dev-knowledge-graph-analytics-neo4j:7687"
+            - name: NEO4J_USER
+              value: "neo4j"
+            - name: NEO4J_AUTH
+              valueFrom:
+                secretKeyRef:
+                  # helm fullname "nous-dev-knowledge-graph-analytics" +
+                  # "-neo4j-credentials" (confirmed by pod nous-dev-...-neo4j-0).
+                  name: nous-dev-knowledge-graph-analytics-neo4j-credentials
+                  key: NEO4J_AUTH
+          volumeMounts:
+            - name: scripts
+              mountPath: /migration
+      volumes:
+        - name: scripts
+          configMap:
+            name: kg-migration-scripts
+# NOTE on NEO4J_AUTH-style secrets: if the only secret value is "neo4j/<password>"
+# (single NEO4J_AUTH key), set NEO4J_PASSWORD via a small wrapper instead:
+#   command: ["sh","-c"]
+#   args: ["export NEO4J_PASSWORD=$(printf '%s' \"$NEO4J_AUTH\" | cut -d/ -f2-); \
+#           cd /app/backend && python /migration/dedup_entities_add_canonical_key.py --dry-run"]
+# with env NEO4J_AUTH from secretKeyRef(name=<...>, key=NEO4J_AUTH).
