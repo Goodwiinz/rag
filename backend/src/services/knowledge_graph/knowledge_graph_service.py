@@ -844,7 +844,7 @@ class KnowledgeGraphService:
                 query = f"""
                 MATCH (source:Entity {{id: $source_entity_id}})
                 MATCH (target:Entity {{id: $target_entity_id}}){tenant_filter}
-                CREATE (source)-[r:RELATED_TO {
+                CREATE (source)-[r:RELATED_TO {{
                     id: $id,
                     type: $relationship_type,
                     strength: $strength,
@@ -855,7 +855,7 @@ class KnowledgeGraphService:
                     source_document_id: $source_document_id,
                     created_at: datetime(),
                     updated_at: datetime()
-                }]->(target)
+                }}]->(target)
                 RETURN r, source, target
                 """
 
@@ -980,6 +980,66 @@ class KnowledgeGraphService:
                 return relationships
         except Exception as e:
             logger.error(f"Error retrieving relationships for {entity_id}: {e}")
+            return []
+
+    @staticmethod
+    def _to_native_dt(value):
+        """Convert a neo4j.time.DateTime to a native datetime (pydantic rejects
+        the neo4j type). Pass through None / already-native values."""
+        return value.to_native() if hasattr(value, "to_native") else value
+
+    def _record_to_relationship(self, record) -> "RelationshipResponse":
+        """Build a RelationshipResponse from a (r, rel_label, source_id, target_id) row."""
+        r = record["r"]
+        rel_label = record["rel_label"]
+        raw_type = r.get("type") or rel_label
+        try:
+            rel_type = RelationshipType(raw_type)
+        except ValueError:
+            rel_type = RelationshipType.RELATED_TO
+        return RelationshipResponse(
+            id=r.get("id", f"{record['source_id']}-{rel_label}-{record['target_id']}"),
+            source_entity_id=record["source_id"],
+            target_entity_id=record["target_id"],
+            relationship_type=rel_type,
+            strength=r.get("strength", r.get("confidence", 0.5)),
+            confidence_score=r.get("confidence_score", r.get("confidence", 0.5)),
+            context=r.get("context"),
+            evidence=_parse_evidence(r.get("evidence", [])),
+            metadata=_parse_metadata(r.get("metadata", "{}")),
+            source_document_id=r.get("source_document_id", r.get("source_paper")),
+            created_at=self._to_native_dt(r.get("created_at")) or datetime.utcnow(),
+            updated_at=self._to_native_dt(r.get("updated_at")),
+        )
+
+    def get_relationships_among(
+        self,
+        entity_ids: List[str],
+        source_document_ids: Optional[List[str]] = None,
+    ) -> List[RelationshipResponse]:
+        """Return every relationship whose BOTH endpoints are in entity_ids — in a
+        SINGLE query. Replaces the per-entity get_relationships loop + Python
+        filter (N+1) used by visualization/search endpoints."""
+        if not entity_ids:
+            return []
+        try:
+            with self.get_session() as session:
+                conditions = ["source.id IN $entity_ids", "target.id IN $entity_ids"]
+                params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
+                if source_document_ids is not None:
+                    conditions.append("source.source_document_id IN $source_document_ids")
+                    conditions.append("target.source_document_id IN $source_document_ids")
+                    params["source_document_ids"] = source_document_ids
+                where_clause = " AND ".join(conditions)
+                query = f"""
+                MATCH (source:Entity)-[r]-(target:Entity)
+                WHERE {where_clause}
+                RETURN DISTINCT r, type(r) AS rel_label,
+                       source.id AS source_id, target.id AS target_id
+                """
+                return [self._record_to_relationship(rec) for rec in session.run(query, params)]
+        except Exception as e:
+            logger.error(f"Error retrieving relationships among entities: {e}")
             return []
 
     def get_relationship(
