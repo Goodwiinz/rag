@@ -140,6 +140,36 @@ class GraphAlgorithms:
             except Exception:  # noqa: BLE001 - cleanup best-effort
                 pass
 
+    async def _gds_run_on_projection(
+        self,
+        session: AsyncSession,
+        validated_org: str,
+        validated_types: List[str],
+        body: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Project an org-scoped named graph (GDS 2.x Cypher projection), run an
+        arbitrary `body` query that references ``$g`` (the graph name), materialize
+        the records, and ALWAYS drop the graph. Raises on any GDS error so callers
+        fall back. For algos whose result shape isn't the centrality (id,score) row.
+        """
+        graph_name = "kg_" + uuid.uuid4().hex
+        node_q, rel_q = _org_projection_queries(validated_org, validated_types)
+        try:
+            await session.run(
+                "CALL gds.graph.project.cypher($g, $nq, $rq)",
+                {"g": graph_name, "nq": node_q, "rq": rel_q},
+            )
+            result = await session.run(body, {"g": graph_name, **(params or {})})
+            return [r.data() async for r in result]
+        finally:
+            try:
+                await session.run(
+                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
+                )
+            except Exception:  # noqa: BLE001 - cleanup best-effort
+                pass
+
     async def compute_pagerank(
         self,
         session: AsyncSession,
@@ -407,50 +437,43 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            query = """
-            MATCH (start:Entity {id: $source_entity_id, organization_id: $organization_id})
-            MATCH (end:Entity {id: $target_entity_id, organization_id: $organization_id})
-            CALL gds.shortestPath.dijkstra.stream({
-                nodeProjection: 'Entity',
-                relationshipProjection: {
-                    RELATED_TO: {
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED',
-                        properties: [$weight_property]
-                    }
-                },
-                sourceNode: start,
-                targetNode: end,
-                relationshipWeightProperty: $weight_property
-            })
-            YIELD index, sourceNode, targetNode, totalCost, nodeIds, relationshipIds, costs
-            RETURN index,
-                   gds.util.asNode(sourceNode).id AS source_id,
-                   gds.util.asNode(targetNode).id AS target_id,
-                   totalCost,
-                   nodeIds,
-                   relationshipIds,
-                   costs,
-                   [nid IN nodeIds | gds.util.asNode(nid).id] AS node_entity_ids,
-                   [nid IN nodeIds | gds.util.asNode(nid).name] AS node_entity_names,
-                   [nid IN nodeIds | gds.util.asNode(nid).type] AS node_entity_types
-            ORDER BY totalCost
-            LIMIT $max_paths
-            """
+            validated_org = _validate_organization_id(organization_id)
 
-            result = await session.run(
-                query,
+            # GDS 2.x: project an org-scoped named graph, then run dijkstra by name
+            # with the endpoints resolved to their Neo4j ids. The projection holds
+            # only this org's nodes (endpoints are also org-id matched), so the path
+            # cannot cross orgs. Any GDS error → Cypher-BFS/path fallback below.
+            body = (
+                "MATCH (src:Entity {id: $source_entity_id, "
+                f"organization_id: '{validated_org}'}}) "
+                "MATCH (dst:Entity {id: $target_entity_id, "
+                f"organization_id: '{validated_org}'}}) "
+                "CALL gds.shortestPath.dijkstra.stream($g, {sourceNode: id(src), "
+                "targetNode: id(dst), relationshipWeightProperty: 'weight'}) "
+                "YIELD index, sourceNode, targetNode, totalCost, nodeIds, costs "
+                "RETURN index, "
+                "gds.util.asNode(sourceNode).id AS source_id, "
+                "gds.util.asNode(targetNode).id AS target_id, "
+                "totalCost, costs, "
+                "[nid IN nodeIds | gds.util.asNode(nid).id] AS node_entity_ids, "
+                "[nid IN nodeIds | gds.util.asNode(nid).name] AS node_entity_names, "
+                "[nid IN nodeIds | gds.util.asNode(nid).type] AS node_entity_types "
+                "ORDER BY totalCost LIMIT $max_paths"
+            )
+            records = await self._gds_run_on_projection(
+                session,
+                validated_org,
+                [],
+                body,
                 {
                     "source_entity_id": source_entity_id,
                     "target_entity_id": target_entity_id,
-                    "organization_id": organization_id,
-                    "weight_property": weight_property,
                     "max_paths": max_paths,
                 },
             )
 
             paths = []
-            async for record in result:
+            for record in records:
                 # Convert path to steps
                 steps = []
                 costs = record["costs"]
@@ -601,48 +624,21 @@ class GraphAlgorithms:
             validated_types = _validate_entity_types(entity_types)
             validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_org:
-                where_clauses.append(f"e.organization_id = '{validated_org}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            # GDS 2.x named-graph projection (anonymous projection removed in 2.x);
+            # any GDS error falls through to the empty-result except below.
+            records = await self._gds_run_on_projection(
+                session,
+                validated_org,
+                validated_types,
+                "CALL gds.louvain.stream($g, {includeIntermediateCommunities: false, "
+                "tolerance: 0.00001}) "
+                "YIELD nodeId, communityId "
+                "RETURN communityId, "
+                "collect(gds.util.asNode(nodeId).id) AS entities, "
+                "collect(gds.util.asNode(nodeId).type) AS entity_types, "
+                "count(gds.util.asNode(nodeId)) AS entity_count "
+                "ORDER BY entity_count DESC",
             )
-
-            query = f"""
-            CALL gds.louvain.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }},
-                includeIntermediateCommunities: false,
-                seedProperty: 'seed',
-                tolerance: 0.00001
-            }})
-            YIELD nodeId, communityId, intermediateCommunityIds
-            RETURN communityId,
-                   collect(gds.util.asNode(nodeId).id) AS entities,
-                   collect(gds.util.asNode(nodeId).type) AS entity_types,
-                   count(gds.util.asNode(nodeId)) AS entity_count
-            ORDER BY entity_count DESC
-            """
-
-            result = await session.run(query, {"resolution": resolution})
 
             from collections import Counter
 
@@ -650,7 +646,7 @@ class GraphAlgorithms:
             community_count = 0
             total_modularity = 0.0
 
-            async for record in result:
+            for record in records:
                 # Dominant type computed from the types collected in the SAME
                 # Louvain stream (was a separate UNWIND query per community — N+1).
                 type_list = [t for t in (record["entity_types"] or []) if t]
