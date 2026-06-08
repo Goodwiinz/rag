@@ -149,9 +149,10 @@ async def test_falls_back_to_text_upload_when_no_storage_path(stub_settings):
     args, kwargs = client.add_spaces_data_source.call_args
     assert kwargs["bucket"] == "test-bucket"
     assert kwargs["key"] == f"documents/{doc.organization_id}/{doc.id}.txt"
-    # Fallback also rewrites the document so future calls treat it as Spaces-backed.
-    assert doc.storage_backend == "s3"
-    assert doc.storage_path == f"documents/{doc.organization_id}/{doc.id}.txt"
+    # The canonical key is deterministic from the doc id; we must NOT clobber the
+    # document's real storage pointer (it still references the original upload).
+    assert doc.storage_backend == "local"
+    assert doc.storage_path is None
 
 
 @pytest.mark.unit
@@ -248,3 +249,66 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     assert result == "ds-1"
     assert doc.do_kb_data_source_uuid == "ds-1"
     assert session.commits == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_canonical_text_preferred_over_s3_when_text_present(stub_settings):
+    """Even for an s3-backed doc, prefer the canonical text object in the KB
+    bucket so it lands under the documents/{org}/ prefix the data source reads."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc(
+        storage_backend="s3",
+        storage_path="uploads/elsewhere/doc-1.pdf",
+        content_text="hello",
+    )
+
+    client = MagicMock()
+    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-x"))
+    client.start_indexing = AsyncMock(return_value=IndexingJob(uuid="job-1"))
+
+    helper = MagicMock()
+    helper.bucket = "test-bucket"
+    helper.upload_file = MagicMock(return_value="ok")
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
+        result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result == "ds-x"
+    helper.upload_file.assert_called_once()
+    _, kwargs = client.add_spaces_data_source.call_args
+    # Canonical .txt key in the KB bucket, NOT the original uploads/... path.
+    assert kwargs["key"] == f"documents/{doc.organization_id}/{doc.id}.txt"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_bulk_kicks_indexing_via_org_id(stub_settings):
+    """A1 regression: bulk must resolve the KB via organization_id (a column) and
+    actually kick indexing — the old code keyed off a lazy `doc.organization`
+    relationship that is None in async context, so indexing never ran."""
+    from src.services.do_kb.ingest import sync_documents_to_kb
+
+    session = _FakeSession()
+    docs = [_FakeDoc(doc_id="doc-1"), _FakeDoc(doc_id="doc-2")]  # same org-1
+
+    client = MagicMock()
+    client.add_spaces_data_source = AsyncMock(
+        side_effect=[DataSource(uuid="ds-1"), DataSource(uuid="ds-2")]
+    )
+    client.start_indexing = AsyncMock(return_value=IndexingJob(uuid="job-1"))
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ):
+        results = await sync_documents_to_kb(session, docs, client=client)
+
+    assert results == ["ds-1", "ds-2"]
+    # Indexing kicked exactly once for the single org, via the resolved kb_uuid.
+    client.start_indexing.assert_awaited_once_with(kb_uuid="kb-1")
