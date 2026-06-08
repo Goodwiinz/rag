@@ -117,6 +117,24 @@ class TestCohereEmbedTexts:
                 assert payload["embedding_types"] == ["float"]
 
     @pytest.mark.asyncio
+    async def test_raises_instead_of_emitting_zero_vector(self, service):
+        """When a batch AND its per-text retry both fail, embed_texts must raise —
+        never substitute a zero vector (which silently corrupts the index)."""
+        with patch.object(
+            service,
+            "_embed_texts_batch",
+            AsyncMock(side_effect=RuntimeError("cohere down")),
+        ):
+            with patch(
+                "src.services.embedding.cohere_embed_service.get_circuit_breaker"
+            ) as mock_breaker:
+                mock_breaker.return_value = MagicMock(
+                    can_execute=MagicMock(return_value=True)
+                )
+                with pytest.raises(RuntimeError, match="refusing to emit zero vectors"):
+                    await service.embed_texts(["hello"])
+
+    @pytest.mark.asyncio
     async def test_raises_when_disabled(self):
         with patch("src.services.embedding.cohere_embed_service.settings") as mock_settings:
             mock_settings.COHERE_EMBED_ENDPOINT = None
