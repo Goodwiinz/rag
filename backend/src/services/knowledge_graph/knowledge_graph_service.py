@@ -261,6 +261,8 @@ class KnowledgeGraphService:
                     "CREATE INDEX entity_source_doc_index IF NOT EXISTS FOR (e:Entity) ON (e.source_document_id)",
                     "CREATE INDEX document_title_index IF NOT EXISTS FOR (d:Document) ON (d.title)",
                     "CREATE INDEX relationship_strength_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.strength)",
+                    # get_all_relationships orders by r.created_at for pagination.
+                    "CREATE INDEX relationship_created_at_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.created_at)",
                 ]
 
                 for constraint in constraints:
@@ -550,10 +552,11 @@ class KnowledgeGraphService:
                     params["source_document_ids"] = source_document_ids
 
                 if entity_types:
-                    type_condition = " OR ".join(
-                        [f"e.type = '{t.value}'" for t in entity_types]
-                    )
-                    conditions.append(f"({type_condition})")
+                    # Parameterize (was f-string interpolation of t.value) —
+                    # avoids an injection footgun + per-value query-plan-cache
+                    # misses. Mirrors get_all_entities' `IN $entity_types`.
+                    conditions.append("e.type IN $entity_types")
+                    params["entity_types"] = [t.value for t in entity_types]
 
                 where_clause = " AND ".join(conditions)
 
