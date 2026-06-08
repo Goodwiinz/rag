@@ -309,6 +309,20 @@ class TestLLMEntityExtractionService:
         assert result.entities == []
         assert result.error is not None
 
+    @pytest.mark.asyncio
+    async def test_timeout_reports_skipped_not_processed(self, service):
+        """On timeout, un-attempted chunks must be reported as skipped (error
+        set, chunks_processed accurate) — not silently counted as processed."""
+        svc, mock_llm = service
+        # Multi-chunk text + immediate timeout -> first batch check breaks
+        # before any chunk is attempted.
+        text = "word " * 6000
+        result = await svc.extract_entities(
+            text, timeout_seconds=0.0, max_tokens_per_chunk=500
+        )
+        assert result.chunks_processed == 0
+        assert result.error is not None and "not processed" in result.error
+
 
 class TestIntegrationSmoke:
     """End-to-end smoke test simulating agent tool call."""
