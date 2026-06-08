@@ -24,6 +24,10 @@ This tracks what's done vs. outstanding. Audit date: 2026-06-08.
 - [x] **Dead Qdrant write in embedding step neutralized.** `process_embedding_generation`
       (`processing_service.py`) no longer calls `vector_service.insert_vectors`; kept as a no-op
       so it can't fail against the absent backend. (PR #656)
+- [x] **Orphaned dead-Qdrant code removed (workflow-mapped, grep + py_compile verified).**
+      Deleted `services/search/hybrid_vector_search_service.py` (zero importers); removed
+      `QdrantException`/`QdrantConnectionError`/`QdrantSearchError` from `exceptions/__init__.py`
+      (never imported/raised). (PR #656)
 
 ## Outstanding — RUNTIME CODE (needs a working test env to change safely)
 
@@ -36,9 +40,14 @@ This tracks what's done vs. outstanding. Audit date: 2026-06-08.
       `vector_service.client` (None) → 500s. **Decision needed:** rebuild on DO KB or remove router.
 - [ ] **Capabilities with NO DO KB replacement:** entity vector search
       (`vector_search_service.search_entities`/`index_entity`), hybrid dense leg. Rebuild or formally drop.
-- [ ] Dead-import cleanup: `search_service.py:113` module-level `qdrant_client`,
-      `hybrid_vector_search_service.py`, `core/database_optimizations/*` Qdrant pools,
-      `exceptions/__init__.py` Qdrant*Error, config `QDRANT_*` + validators.
+- [ ] Dead-import cleanup remaining (workflow-mapped, NOT auto-removable):
+      - `search_service.py` — standalone microservice (port 8002), but its `cache` object is
+        live-imported by `documents.py:542` / `document_upload.py:354`. Can't delete the file;
+        extract the Qdrant `qdrant_client` + `HybridSearchEngine` bits only, keep `cache`.
+      - `core/database_optimizations/*` — orphaned, already-broken package (~70 Qdrant refs across
+        4 files), zero importers. Separate teardown (or delete the whole dead package).
+      - config `QDRANT_*` + `validate_qdrant_*` — still read by `vector_service.py` at startup;
+        removable only after the dense-leg repoint/removal below.
 
 ## Outstanding — INFRA / SECRETS (outward-facing; owner action)
 
