@@ -312,3 +312,36 @@ async def test_bulk_kicks_indexing_via_org_id(stub_settings):
     assert results == ["ds-1", "ds-2"]
     # Indexing kicked exactly once for the single org, via the resolved kb_uuid.
     client.start_indexing.assert_awaited_once_with(kb_uuid="kb-1")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_reuses_existing_data_source_for_same_item_path(stub_settings):
+    """A7: when a data source for the canonical key already exists, reuse its uuid
+    instead of adding a duplicate."""
+    from src.services.do_kb.ingest import sync_document_to_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc(storage_backend="local", storage_path=None, content_text="hi")
+    key = f"documents/{doc.organization_id}/{doc.id}.txt"
+
+    client = MagicMock()
+    client.list_data_sources = AsyncMock(
+        return_value=[{"uuid": "ds-existing", "spaces_data_source": {"item_path": key}}]
+    )
+    client.add_spaces_data_source = AsyncMock()
+    client.start_indexing = AsyncMock(return_value=IndexingJob(uuid="job-1"))
+
+    helper = MagicMock()
+    helper.bucket = "test-bucket"
+    helper.upload_file = MagicMock(return_value="ok")
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
+        result = await sync_document_to_kb(session, doc, client=client)
+
+    assert result == "ds-existing"
+    client.add_spaces_data_source.assert_not_called()
+    assert doc.do_kb_data_source_uuid == "ds-existing"

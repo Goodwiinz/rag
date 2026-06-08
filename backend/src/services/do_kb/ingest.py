@@ -38,6 +38,30 @@ def _canonical_key(document: Document, ext: str) -> str:
     return f"{_CANONICAL_KEY_PREFIX}/{document.organization_id}/{document.id}.{ext}"
 
 
+def _source_item_path(src: dict) -> Optional[str]:
+    """Best-effort extract of a data source's Spaces item_path (defensive against
+    the exact list-response shape)."""
+    spaces = src.get("spaces_data_source") or src.get("spaces") or {}
+    if isinstance(spaces, dict):
+        return spaces.get("item_path") or spaces.get("key")
+    return None
+
+
+async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[str]:
+    """Return the uuid of an existing data source whose item_path == ``key``, else
+    None. Best-effort: any error / unknown shape returns None so the caller adds
+    normally (never blocks ingest on a failed/uncertain dedup lookup)."""
+    try:
+        for src in await api.list_data_sources(kb_uuid=kb_uuid):
+            if _source_item_path(src) == key:
+                uuid = src.get("uuid")
+                if uuid:
+                    return str(uuid)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("do_kb list_data_sources failed (will add): %s", exc)
+    return None
+
+
 def _record_metric(status: str) -> None:
     """Best-effort Prometheus counter; tolerate missing prometheus_client."""
     try:
@@ -148,23 +172,31 @@ async def sync_document_to_kb(
 
     bucket, key = source
 
-    try:
-        data_source = await api.add_spaces_data_source(
-            kb_uuid=kb_uuid, bucket=bucket, key=key
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb add_data_source failed",
-            extra={
-                "document_id": str(document.id),
-                "kb_uuid": kb_uuid,
-                "error": str(exc),
-            },
-        )
-        _record_metric("add_data_source_failed")
-        return None
+    # Idempotency (A7): if a data source for this exact item_path already exists
+    # (e.g. a prior run added it but the commit persisting the uuid failed), reuse
+    # it instead of adding a duplicate. Best-effort — any list error / unknown
+    # response shape falls through to a normal add, so the worst case is the
+    # pre-existing behavior (a possible duplicate), never a missing document.
+    ds_uuid = await _existing_data_source_uuid(api, kb_uuid, key)
+    if ds_uuid is None:
+        try:
+            data_source = await api.add_spaces_data_source(
+                kb_uuid=kb_uuid, bucket=bucket, key=key
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "do_kb add_data_source failed",
+                extra={
+                    "document_id": str(document.id),
+                    "kb_uuid": kb_uuid,
+                    "error": str(exc),
+                },
+            )
+            _record_metric("add_data_source_failed")
+            return None
+        ds_uuid = data_source.uuid
 
-    document.do_kb_data_source_uuid = data_source.uuid
+    document.do_kb_data_source_uuid = ds_uuid
     document.do_kb_indexed_at = datetime.now(timezone.utc)
 
     try:
@@ -188,7 +220,7 @@ async def sync_document_to_kb(
             _record_metric("indexing_kick_failed")
 
     _record_metric("ok")
-    return data_source.uuid
+    return ds_uuid
 
 
 async def sync_documents_to_kb(

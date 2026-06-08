@@ -222,6 +222,24 @@ class DOKnowledgeBaseClient:
         ds_data = payload.get("knowledge_base_data_source", payload)
         return DataSource.model_validate(ds_data)
 
+    async def list_data_sources(self, *, kb_uuid: str) -> list[dict[str, Any]]:
+        """Return the KB's existing data sources as raw dicts.
+
+        Best-effort + defensive: the exact list-response shape is treated as
+        unverified, so callers should match fields with .get() and fall back to
+        adding when nothing matches. Returns [] on an unexpected shape.
+        """
+        payload = await self._request(
+            "GET",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources",
+        )
+        raw = (
+            payload.get("knowledge_base_data_sources")
+            or payload.get("data_sources")
+            or []
+        )
+        return [s for s in raw if isinstance(s, dict)]
+
     async def start_indexing(self, *, kb_uuid: str) -> IndexingJob:
         payload = await self._request(
             "POST",
