@@ -1423,21 +1423,30 @@ class KnowledgeGraphService:
 
                     for rel in path_obj.relationships:
                         r = rel
-                        total_strength *= r["strength"]
+                        # source/target are the graph ENDPOINTS, not stored
+                        # properties — reading r["source_entity_id"] KeyError'd
+                        # and the whole path was swallowed (returned []). Read
+                        # the endpoint node ids; .get() the rest with defaults.
+                        strength = r.get("strength", r.get("confidence", 0.5))
+                        total_strength *= strength
                         relationships.append(
                             RelationshipResponse(
-                                id=r["id"],
-                                source_entity_id=r["source_entity_id"],
-                                target_entity_id=r["target_entity_id"],
-                                relationship_type=RelationshipType(r["type"]),
-                                strength=r["strength"],
-                                confidence_score=r["confidence_score"],
+                                id=r.get("id", f"{rel.start_node['id']}-{rel.end_node['id']}"),
+                                source_entity_id=rel.start_node["id"],
+                                target_entity_id=rel.end_node["id"],
+                                relationship_type=_safe_relationship_type(r.get("type")),
+                                strength=strength,
+                                confidence_score=r.get("confidence_score", strength),
                                 context=r.get("context"),
                                 evidence=_parse_evidence(r.get("evidence", [])),
                                 metadata=_parse_metadata(r.get("metadata", "{}")),
                                 source_document_id=r.get("source_document_id"),
-                                created_at=r["created_at"],
-                                updated_at=r.get("updated_at"),
+                                created_at=_convert_datetime(r.get("created_at")),
+                                updated_at=(
+                                    _convert_datetime(r["updated_at"])
+                                    if r.get("updated_at")
+                                    else None
+                                ),
                             )
                         )
 
@@ -1447,8 +1456,10 @@ class KnowledgeGraphService:
                             relationships=relationships,
                             total_strength=total_strength,
                             path_length=path_length,
+                            # guard min() on a zero-length (no-relationship) path
                             confidence_score=min(
-                                [rel.confidence_score for rel in relationships]
+                                (rel.confidence_score for rel in relationships),
+                                default=1.0,
                             ),
                         )
                     )
