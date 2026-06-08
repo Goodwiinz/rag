@@ -1042,6 +1042,37 @@ class KnowledgeGraphService:
             logger.error(f"Error retrieving relationships among entities: {e}")
             return []
 
+    def get_relationships_for_entities(
+        self,
+        entity_ids: List[str],
+        source_document_ids: Optional[List[str]] = None,
+    ) -> List[RelationshipResponse]:
+        """Return every relationship INCIDENT to any entity in entity_ids (either
+        endpoint), in a SINGLE query — replaces the per-entity get_relationships
+        loop (N+1) in search_graph. Unlike get_relationships_among, the other
+        endpoint may be outside the set."""
+        if not entity_ids:
+            return []
+        try:
+            with self.get_session() as session:
+                conditions = ["source.id IN $entity_ids"]
+                params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
+                if source_document_ids is not None:
+                    conditions.append("source.source_document_id IN $source_document_ids")
+                    conditions.append("target.source_document_id IN $source_document_ids")
+                    params["source_document_ids"] = source_document_ids
+                where_clause = " AND ".join(conditions)
+                query = f"""
+                MATCH (source:Entity)-[r]-(target:Entity)
+                WHERE {where_clause}
+                RETURN DISTINCT r, type(r) AS rel_label,
+                       source.id AS source_id, target.id AS target_id
+                """
+                return [self._record_to_relationship(rec) for rec in session.run(query, params)]
+        except Exception as e:
+            logger.error(f"Error retrieving relationships for entities: {e}")
+            return []
+
     def get_relationship(
         self,
         relationship_id: str,
