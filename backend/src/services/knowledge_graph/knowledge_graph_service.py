@@ -281,6 +281,8 @@ class KnowledgeGraphService:
                     "CREATE INDEX relationship_created_at_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.created_at)",
                     # Fulltext index backs search_entities (replaces the unindexed CONTAINS scan).
                     "CREATE FULLTEXT INDEX entity_fulltext_idx IF NOT EXISTS FOR (e:Entity) ON EACH [e.name]",
+                    # Direct tenant scoping (replaces the org-doc-id IN-list once backfilled).
+                    "CREATE INDEX entity_organization_index IF NOT EXISTS FOR (e:Entity) ON (e.organization_id)",
                 ]
 
                 for constraint in constraints:
@@ -337,11 +339,13 @@ class KnowledgeGraphService:
                     e.context = $context,
                     e.metadata = $metadata,
                     e.source_document_id = $source_document_id,
+                    e.organization_id = $organization_id,
                     e.created_at = datetime(),
                     e.updated_at = datetime()
                 ON MATCH SET
                     e.name = $name,
                     e.updated_at = datetime(),
+                    e.organization_id = coalesce(e.organization_id, $organization_id),
                     e.confidence_score = CASE
                         WHEN $confidence_score > e.confidence_score THEN $confidence_score
                         ELSE e.confidence_score END
@@ -361,6 +365,7 @@ class KnowledgeGraphService:
                         "context": request.context,
                         "metadata": json.dumps(request.metadata) if request.metadata else "{}",
                         "source_document_id": request.source_document_id,
+                        "organization_id": getattr(request, "organization_id", None),
                     },
                 )
 
@@ -1618,6 +1623,7 @@ class KnowledgeGraphService:
                     "context": e.context,
                     "metadata": json.dumps(e.metadata) if e.metadata else "{}",
                     "source_document_id": e.source_document_id,
+                    "organization_id": getattr(e, "organization_id", None),
                 },
             })
         query = """
@@ -1627,6 +1633,7 @@ class KnowledgeGraphService:
             row.props) YIELD node
         SET node.created_at = coalesce(node.created_at, datetime()),
             node.updated_at = datetime(),
+            node.organization_id = coalesce(node.organization_id, row.props.organization_id),
             node.name = row.props.name,
             node.confidence_score = CASE
                 WHEN row.props.confidence_score > coalesce(node.confidence_score, 0.0)
