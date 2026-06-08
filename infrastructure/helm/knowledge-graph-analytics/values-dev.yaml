@@ -251,6 +251,9 @@ celeryWorker:
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 75
+    # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
+    # on memory too. Requires the memory metric block in templates/hpa.yaml.
+    targetMemoryUtilizationPercentage: 75
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60
@@ -258,12 +261,15 @@ celeryWorker:
     timeoutSeconds: 90
     failureThreshold: 10
   resources:
+    # request == limit for memory -> Guaranteed QoS, so this pod is evicted LAST
+    # under node memory pressure, not first. This is what was OOM-evicting it:
+    # used ~1.3Gi while requesting only 1Gi.
     limits:
       cpu: "2"
       memory: 2Gi
     requests:
       cpu: 500m
-      memory: 1Gi
+      memory: 2Gi
 celeryBeat:
   enabled: true
   resources:
