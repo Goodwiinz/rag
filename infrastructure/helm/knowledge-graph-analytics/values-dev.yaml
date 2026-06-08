@@ -273,12 +273,16 @@ celeryWorker:
 celeryBeat:
   enabled: true
   resources:
+    # memory request == limit so beat is never "over request" and is not a
+    # first-choice eviction target. It was OOM-evicted using ~686Mi against a
+    # 384Mi request. If it leaks past 768Mi it is OOMKilled and restarts
+    # cleanly (beat is a singleton scheduler), keeping memory bounded.
     limits:
       cpu: 200m
       memory: 768Mi
     requests:
       cpu: 50m
-      memory: 384Mi
+      memory: 768Mi
 prometheus:
   enabled: false
 grafana:
