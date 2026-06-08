@@ -250,9 +250,15 @@ class KnowledgeGraphService:
                 # Create constraints
                 constraints = [
                     "CREATE CONSTRAINT entity_id_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
+                    # Identity for idempotent MERGE: one node per (canonical_key, type).
+                    # Makes re-ingest + concurrent ingest dedup instead of duplicating.
+                    "CREATE CONSTRAINT entity_canonical_unique IF NOT EXISTS FOR (e:Entity) REQUIRE (e.canonical_key, e.type) IS UNIQUE",
                     "CREATE CONSTRAINT document_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE",
                     "CREATE INDEX entity_name_index IF NOT EXISTS FOR (e:Entity) ON (e.name)",
                     "CREATE INDEX entity_type_index IF NOT EXISTS FOR (e:Entity) ON (e.type)",
+                    # Hottest filter in the service (org/tenant scoping). Without this the
+                    # `source_document_id IN [...]` predicate is a full label scan.
+                    "CREATE INDEX entity_source_doc_index IF NOT EXISTS FOR (e:Entity) ON (e.source_document_id)",
                     "CREATE INDEX document_title_index IF NOT EXISTS FOR (d:Document) ON (d.title)",
                     "CREATE INDEX relationship_strength_index IF NOT EXISTS FOR ()-[r:RELATED_TO]-() ON (r.strength)",
                 ]
@@ -292,30 +298,41 @@ class KnowledgeGraphService:
 
         start_time = time.time()
         entity_id = str(uuid.uuid4())
+        # Stable identity for dedup. Re-ingesting the same name+type, or two
+        # documents naming the same entity, MERGE onto one node instead of
+        # CREATEing a fresh UUID each time (the old behavior duplicated nodes
+        # endlessly and broke cross-document linking).
+        canonical_key = request.name.strip().lower()
 
         try:
             with self.get_session() as session:
                 query = f"""
-                CREATE (e:Entity:{request.entity_type.value} {{
-                    id: $id,
-                    name: $name,
-                    type: $entity_type,
-                    confidence_score: $confidence_score,
-                    extraction_method: $extraction_method,
-                    position: $position,
-                    context: $context,
-                    metadata: $metadata,
-                    source_document_id: $source_document_id,
-                    created_at: datetime(),
-                    updated_at: datetime()
-                }})
-                RETURN e
+                MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type}})
+                ON CREATE SET
+                    e.id = $id,
+                    e.name = $name,
+                    e.confidence_score = $confidence_score,
+                    e.extraction_method = $extraction_method,
+                    e.position = $position,
+                    e.context = $context,
+                    e.metadata = $metadata,
+                    e.source_document_id = $source_document_id,
+                    e.created_at = datetime(),
+                    e.updated_at = datetime()
+                ON MATCH SET
+                    e.name = $name,
+                    e.updated_at = datetime(),
+                    e.confidence_score = CASE
+                        WHEN $confidence_score > e.confidence_score THEN $confidence_score
+                        ELSE e.confidence_score END
+                RETURN e.id AS resolved_id, e.created_at AS created_at, e.updated_at AS updated_at
                 """
 
                 result = session.run(
                     query,
                     {
                         "id": entity_id,
+                        "canonical_key": canonical_key,
                         "name": request.name,
                         "entity_type": request.entity_type.value,
                         "confidence_score": request.confidence_score,
@@ -331,13 +348,16 @@ class KnowledgeGraphService:
                 if not node:
                     raise RuntimeError("Failed to create entity")
 
+                # Use the node's resolved id (existing on MATCH, new on CREATE) —
+                # never assume the freshly generated UUID was persisted.
+                resolved_id = node["resolved_id"]
                 processing_time = time.time() - start_time
                 logger.info(
-                    f"Created entity: {request.name} ({entity_id}) in {processing_time:.3f}s"
+                    f"Upserted entity: {request.name} ({resolved_id}) in {processing_time:.3f}s"
                 )
 
                 return EntityResponse(
-                    id=entity_id,
+                    id=resolved_id,
                     name=request.name,
                     entity_type=request.entity_type,
                     confidence_score=request.confidence_score,
@@ -1415,27 +1435,38 @@ class KnowledgeGraphService:
         request.name = request.name.strip()
 
         entity_id = str(uuid.uuid4())
+        canonical_key = request.name.strip().lower()
+        # Idempotent MERGE keyed on (canonical_key, type) — same identity as
+        # create_entity — so batch re-ingest and concurrent ingest of the same
+        # entity dedup onto one node (backed by the entity_canonical_unique
+        # constraint) instead of creating a fresh UUID node every time.
         query = f"""
-        CREATE (e:Entity:{request.entity_type.value} {{
-            id: $id,
-            name: $name,
-            type: $entity_type,
-            confidence_score: $confidence_score,
-            extraction_method: $extraction_method,
-            position: $position,
-            context: $context,
-            metadata: $metadata,
-            source_document_id: $source_document_id,
-            created_at: datetime(),
-            updated_at: datetime()
-        }})
-        RETURN e
+        MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type}})
+        ON CREATE SET
+            e.id = $id,
+            e.name = $name,
+            e.confidence_score = $confidence_score,
+            e.extraction_method = $extraction_method,
+            e.position = $position,
+            e.context = $context,
+            e.metadata = $metadata,
+            e.source_document_id = $source_document_id,
+            e.created_at = datetime(),
+            e.updated_at = datetime()
+        ON MATCH SET
+            e.name = $name,
+            e.updated_at = datetime(),
+            e.confidence_score = CASE
+                WHEN $confidence_score > e.confidence_score THEN $confidence_score
+                ELSE e.confidence_score END
+        RETURN e.id AS resolved_id
         """
 
         result = tx.run(
             query,
             {
                 "id": entity_id,
+                "canonical_key": canonical_key,
                 "name": request.name,
                 "entity_type": request.entity_type.value,
                 "confidence_score": request.confidence_score,
@@ -1452,7 +1483,7 @@ class KnowledgeGraphService:
             return None
 
         return EntityResponse(
-            id=entity_id,
+            id=node["resolved_id"],
             name=request.name,
             entity_type=request.entity_type,
             confidence_score=request.confidence_score,
