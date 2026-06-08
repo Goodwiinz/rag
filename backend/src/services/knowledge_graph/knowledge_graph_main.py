@@ -743,10 +743,9 @@ async def extract_entities_from_document(
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:
-        # Get document content (this would integrate with document service)
-        # For now, assume we have document content
+        # Fetch the real document text from Postgres (was a placeholder stub).
         document_content = await get_document_content(
-            document_id, current_user.tenant_id
+            db, document_id, current_user.tenant_id
         )
 
         # Extract entities using AI service
@@ -792,11 +791,26 @@ async def extract_entities_from_document(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-async def get_document_content(document_id: str, tenant_id: str) -> str:
-    """Get document content from document service"""
-    # This would integrate with document service via API call
-    # For now, return placeholder
-    return f"Sample document content for {document_id}"
+async def get_document_content(db: SQLAsyncSession, document_id: str, tenant_id: str) -> str:
+    """Fetch a document's extracted text from Postgres (Document.content_text),
+    scoped to the caller's organization. Replaces the placeholder stub that
+    returned 'Sample document content for ...' (entities were extracted from
+    fake text)."""
+    from src.models.document import Document
+
+    row = (
+        await db.execute(
+            select(Document.content_text).where(
+                Document.id == document_id,
+                Document.organization_id == tenant_id,
+            )
+        )
+    ).first()
+    if not row or not row[0]:
+        raise HTTPException(
+            status_code=404, detail="Document content not found or empty"
+        )
+    return row[0]
 
 
 # WebSocket endpoint for real-time updates
