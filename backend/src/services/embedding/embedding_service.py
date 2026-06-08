@@ -30,6 +30,22 @@ from src.services.infrastructure.azure_openai_service import azure_openai_servic
 
 logger = logging.getLogger(__name__)
 
+# Cache SentenceTransformer instances by (model_name, device). Loading a model is
+# expensive (disk read + weights into memory); a non-default per-request model was
+# previously reloaded on every call.
+_MODEL_CACHE: Dict[tuple, Any] = {}
+
+
+def _get_sentence_transformer(model_name: str, device: str):
+    """Return a cached SentenceTransformer for (model_name, device), loading once."""
+    cache_key = (model_name, device)
+    model = _MODEL_CACHE.get(cache_key)
+    if model is None:
+        logger.info(f"Loading SentenceTransformer model: {model_name}")
+        model = SentenceTransformer(model_name, device=device)
+        _MODEL_CACHE[cache_key] = model
+    return model
+
 
 class EmbeddingService:
     """Service for generating text embeddings using multiple providers (sentence transformers, Azure OpenAI)"""
@@ -338,8 +354,7 @@ class EmbeddingService:
             else:
                 # If different model requested, load it
                 if model_to_use != self.model_name:
-                    logger.info(f"Loading different model: {model_to_use}")
-                    temp_model = SentenceTransformer(model_to_use, device=self.device)
+                    temp_model = _get_sentence_transformer(model_to_use, self.device)
                     embedding = temp_model.encode(request.text, convert_to_tensor=True)
                     embedding_dimension = temp_model.get_sentence_embedding_dimension()
                 else:
@@ -424,8 +439,7 @@ class EmbeddingService:
 
             # If different model requested, load it
             if model_to_use != self.model_name:
-                logger.info(f"Loading different model for batch: {model_to_use}")
-                temp_model = SentenceTransformer(model_to_use, device=self.device)
+                temp_model = _get_sentence_transformer(model_to_use, self.device)
                 embeddings = temp_model.encode(valid_texts, convert_to_tensor=True)
                 embedding_dimension = temp_model.get_sentence_embedding_dimension()
             else:
