@@ -757,8 +757,16 @@ def extract_entities_from_document(
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:
-        # Get document from database
-        document = db.query(Document).filter(Document.id == document_id).first()
+        # Get document from database — scoped to the caller's organization so a
+        # user cannot extract/attach entities to another org's document.
+        document = (
+            db.query(Document)
+            .filter(
+                Document.id == document_id,
+                Document.organization_id == current_user.organization_id,
+            )
+            .first()
+        )
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
