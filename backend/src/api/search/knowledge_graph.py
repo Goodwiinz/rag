@@ -153,7 +153,7 @@ def _safe_graph_relationship_type(raw_type: str) -> RelationshipType:
 
 # Entity Management Endpoints
 @router.post("/entities", response_model=EntityResponse)
-async def create_entity(
+def create_entity(
     request: CreateEntityRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -178,7 +178,7 @@ async def create_entity(
 
 
 @router.get("/entities/{entity_id}", response_model=EntityResponse)
-async def get_entity(
+def get_entity(
     entity_id: str,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -192,7 +192,7 @@ async def get_entity(
 
 
 @router.put("/entities/{entity_id}", response_model=EntityResponse)
-async def update_entity(
+def update_entity(
     entity_id: str,
     request: UpdateEntityRequest,
     current_user: User = Depends(get_current_user),
@@ -209,7 +209,7 @@ async def update_entity(
 
 
 @router.delete("/entities/{entity_id}")
-async def delete_entity(
+def delete_entity(
     entity_id: str,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -223,7 +223,7 @@ async def delete_entity(
 
 
 @router.get("/entities", response_model=PaginatedEntitiesResponse)
-async def get_all_entities(
+def get_all_entities(
     limit: int = Query(
         default=100, ge=1, le=1000, description="Maximum results to return"
     ),
@@ -273,7 +273,7 @@ async def get_all_entities(
 
 
 @router.get("/entities/search", response_model=List[EntityResponse])
-async def search_entities(
+def search_entities(
     query: str = Query(..., description="Search query"),
     entity_types: Optional[List[EntityType]] = Query(
         None, description="Filter by entity types"
@@ -302,7 +302,7 @@ async def search_entities(
 @router.get(
     "/entities/{entity_id}/relationships", response_model=List[RelationshipResponse]
 )
-async def get_entity_relationships(
+def get_entity_relationships(
     entity_id: str,
     relationship_types: Optional[List[RelationshipType]] = Query(
         None, description="Filter by relationship types"
@@ -323,7 +323,7 @@ async def get_entity_relationships(
 
 
 @router.get("/entities/{entity_id}/related", response_model=List[EntityResponse])
-async def get_related_entities(
+def get_related_entities(
     entity_id: str,
     max_depth: int = Query(
         default=2, ge=1, le=5, description="Maximum traversal depth"
@@ -349,7 +349,7 @@ async def get_related_entities(
 
 
 @router.get("/entities/{entity_id}/neighborhood")
-async def get_entity_neighborhood(
+def get_entity_neighborhood(
     entity_id: str,
     max_depth: int = Query(
         default=2, ge=1, le=5, description="Maximum traversal depth"
@@ -376,7 +376,7 @@ async def get_entity_neighborhood(
 
 # Relationship Management Endpoints
 @router.get("/relationships", response_model=List[RelationshipResponse])
-async def get_all_relationships(
+def get_all_relationships(
     limit: int = Query(
         default=500, ge=1, le=2000, description="Maximum results to return"
     ),
@@ -405,7 +405,7 @@ async def get_all_relationships(
 
 
 @router.post("/relationships", response_model=RelationshipResponse)
-async def create_relationship(
+def create_relationship(
     request: CreateRelationshipRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -423,7 +423,7 @@ async def create_relationship(
 
 
 @router.get("/relationships/{relationship_id}", response_model=RelationshipResponse)
-async def get_relationship(
+def get_relationship(
     relationship_id: str,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -449,7 +449,7 @@ async def get_relationship(
 
 
 @router.delete("/relationships/{relationship_id}")
-async def delete_relationship(
+def delete_relationship(
     relationship_id: str,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -470,7 +470,7 @@ async def delete_relationship(
 
 # Graph Search and Traversal Endpoints
 @router.post("/search", response_model=GraphSearchResponse)
-async def search_graph(
+def search_graph(
     request: GraphSearchRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -535,7 +535,7 @@ async def search_graph(
 
 
 @router.get("/paths/{source_id}/{target_id}", response_model=List[GraphPath])
-async def find_paths(
+def find_paths(
     source_id: str,
     target_id: str,
     max_depth: int = Query(default=3, ge=1, le=5, description="Maximum path length"),
@@ -560,7 +560,7 @@ async def find_paths(
 
 # Batch Operations Endpoints
 @router.post("/batch", response_model=BatchEntityResponse)
-async def batch_create_entities(
+def batch_create_entities(
     request: BatchEntityRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -578,7 +578,7 @@ async def batch_create_entities(
 
 
 @router.post("/merge-jobs", status_code=status.HTTP_202_ACCEPTED)
-async def create_merge_job(
+def create_merge_job(
     request: CreateMergeJobRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -674,7 +674,7 @@ async def create_merge_job(
 
 
 @router.post("/extraction-jobs", status_code=status.HTTP_202_ACCEPTED)
-async def create_extraction_job(
+def create_extraction_job(
     request: CreateExtractionJobRequest,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -728,7 +728,7 @@ async def create_extraction_job(
 
 # Document Integration Endpoints
 @router.post("/documents/{document_id}/extract-entities", response_model=Dict[str, Any])
-async def extract_entities_from_document(
+def extract_entities_from_document(
     document_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """Extract entities from a document and add them to the knowledge graph"""
@@ -872,7 +872,7 @@ async def extract_entities_from_document(
 
 
 @router.get("/documents/{document_id}/entities", response_model=List[EntityResponse])
-async def get_document_entities(
+def get_document_entities(
     document_id: str,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
@@ -901,7 +901,7 @@ async def get_document_entities(
 
 # Analytics and Statistics Endpoints
 @router.get("/analytics", response_model=GraphAnalytics)
-async def get_graph_analytics(
+def get_graph_analytics(
     project_id: Optional[UUID] = Query(
         None, description="Scope to documents attached to a project (collection)"
     ),
@@ -923,7 +923,7 @@ async def get_graph_analytics(
 
 
 @router.get("/health", response_model=GraphHealthStatus)
-async def get_graph_health(current_user: User = Depends(get_current_user)):
+def get_graph_health(current_user: User = Depends(get_current_user)):
     """Get health status of the graph database"""
     try:
         health = knowledge_graph_service.get_health_status()
@@ -935,7 +935,7 @@ async def get_graph_health(current_user: User = Depends(get_current_user)):
 
 # Visualization Endpoints
 @router.get("/visualization/{entity_id}", response_model=GraphVisualizationData)
-async def get_entity_visualization(
+def get_entity_visualization(
     entity_id: str,
     depth: int = Query(default=2, ge=1, le=3, description="Neighborhood depth"),
     max_nodes: int = Query(
@@ -1043,20 +1043,20 @@ async def get_entity_visualization(
 
 # Entity Type and Relationship Management
 @router.get("/entity-types", response_model=List[str])
-async def get_entity_types(current_user: User = Depends(get_current_user)):
+def get_entity_types(current_user: User = Depends(get_current_user)):
     """Get all available entity types"""
     return [t.value for t in EntityType]
 
 
 @router.get("/relationship-types", response_model=List[str])
-async def get_relationship_types(current_user: User = Depends(get_current_user)):
+def get_relationship_types(current_user: User = Depends(get_current_user)):
     """Get all available relationship types"""
     return [t.value for t in RelationshipType]
 
 
 # Maintenance Endpoints
 @router.post("/maintenance/fix-null-types")
-async def fix_null_entity_types(
+def fix_null_entity_types(
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -1109,7 +1109,7 @@ async def fix_null_entity_types(
 
 # Schema Management
 @router.post("/schema/reset")
-async def reset_graph_schema(
+def reset_graph_schema(
     confirm: bool = Query(..., description="Confirmation to reset schema"),
     current_user: User = Depends(get_current_user),
 ):
