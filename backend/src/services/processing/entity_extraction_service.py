@@ -4,7 +4,7 @@ Kept temporarily for reference. Remove after confirming no callers."""
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import spacy
@@ -133,7 +133,7 @@ class EntityExtractionService:
                 ),
                 confidence=confidence,
                 extraction_method=ExtractionMethod.SPACY,
-                extracted_at=datetime.now(),
+                extracted_at=datetime.now(timezone.utc),
                 extraction_model="en_core_web_sm",
                 properties=properties,
                 document_id=document.id,
@@ -158,7 +158,7 @@ class EntityExtractionService:
                 name=match.group(),
                 confidence=0.95,
                 extraction_method=ExtractionMethod.REGEX,
-                extracted_at=datetime.now(),
+                extracted_at=datetime.now(timezone.utc),
                 extraction_model="email_pattern",
                 properties={
                     "pattern": "email_regex",
@@ -180,7 +180,7 @@ class EntityExtractionService:
                 name=match.group(),
                 confidence=0.90,
                 extraction_method=ExtractionMethod.REGEX,
-                extracted_at=datetime.now(),
+                extracted_at=datetime.now(timezone.utc),
                 extraction_model="phone_pattern",
                 properties={
                     "pattern": "phone_regex",
@@ -200,7 +200,7 @@ class EntityExtractionService:
                 name=match.group(),
                 confidence=0.98,
                 extraction_method=ExtractionMethod.REGEX,
-                extracted_at=datetime.now(),
+                extracted_at=datetime.now(timezone.utc),
                 extraction_model="url_pattern",
                 properties={
                     "pattern": "url_regex",
@@ -222,7 +222,7 @@ class EntityExtractionService:
                 canonical_name=match.group().upper(),
                 confidence=0.85,
                 extraction_method=ExtractionMethod.REGEX,
-                extracted_at=datetime.now(),
+                extracted_at=datetime.now(timezone.utc),
                 extraction_model="project_pattern",
                 properties={
                     "pattern": "project_regex",
