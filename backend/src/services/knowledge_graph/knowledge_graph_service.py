@@ -1690,20 +1690,9 @@ class KnowledgeGraphService:
                     rel_where = ""
                     params = {}
 
-                # Get basic counts
-                node_count_result = session.run(
-                    f"MATCH (e:Entity) {entity_where} RETURN count(e) as count",
-                    params,
-                ).single()
-                relationship_count_result = session.run(
-                    f"MATCH (source:Entity)-[r:RELATED_TO]->() {rel_where} RETURN count(r) as count",
-                    params,
-                ).single()
-
-                total_entities = node_count_result["count"]
-                total_relationships = relationship_count_result["count"]
-
-                # Get entity type distribution
+                # Get the type distributions, then DERIVE the totals from them
+                # (sum of per-type counts) instead of running two extra full
+                # count scans — 5 scans -> 3.
                 entity_types_result = session.run(
                     f"MATCH (e:Entity) {entity_where} RETURN e.type as type, count(e) as count",
                     params,
@@ -1711,8 +1700,8 @@ class KnowledgeGraphService:
                 entity_type_counts = {
                     record["type"]: record["count"] for record in entity_types_result
                 }
+                total_entities = sum(entity_type_counts.values())
 
-                # Get relationship type distribution
                 rel_types_result = session.run(
                     f"MATCH (source:Entity)-[r:RELATED_TO]->() {rel_where} RETURN r.type as type, count(r) as count",
                     params,
@@ -1720,6 +1709,7 @@ class KnowledgeGraphService:
                 relationship_type_counts = {
                     record["type"]: record["count"] for record in rel_types_result
                 }
+                total_relationships = sum(relationship_type_counts.values())
 
                 # Calculate average degree
                 if total_entities > 0:
