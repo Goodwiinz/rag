@@ -1496,8 +1496,13 @@ class KnowledgeGraphService:
         try:
             with self.get_session() as session:
                 with session.begin_transaction() as tx:
-                    # Create entities
-                    for entity_req in request.entities:
+                    # Create entities in ONE UNWIND batch (single round-trip for
+                    # all entities); fall back to per-entity on any error.
+                    batched = self._batch_merge_entities(tx, request.entities)
+                    if batched is not None:
+                        response.created_entities.extend(batched)
+                    else:
+                      for entity_req in request.entities:
                         try:
                             entity = self._create_entity_in_transaction(tx, entity_req)
                             if entity:
@@ -1539,6 +1544,70 @@ class KnowledgeGraphService:
             response.processing_time = time.time() - start_time
             response.errors.append({"type": "batch_processing_error", "error": str(e)})
             return response
+
+    def _batch_merge_entities(self, tx, entities) -> Optional[List[EntityResponse]]:
+        """MERGE all entities in a single UNWIND (one round-trip) via
+        apoc.merge.node (dynamic :Entity:<type> label). Returns the created
+        EntityResponse list, or None if anything goes wrong (caller falls back
+        to the per-entity path). Idempotent — same (canonical_key, type) merges.
+        """
+        valid = [e for e in entities if e.name and e.name.strip()]
+        if not valid:
+            return []
+        rows = []
+        for i, e in enumerate(valid):
+            e.name = e.name.strip()
+            rows.append({
+                "idx": i,
+                "etype": e.entity_type.value,
+                "canonical_key": e.name.lower(),
+                "props": {
+                    "id": str(uuid.uuid4()),
+                    "name": e.name,
+                    "confidence_score": e.confidence_score,
+                    "extraction_method": e.extraction_method.value,
+                    "position": e.position,
+                    "context": e.context,
+                    "metadata": json.dumps(e.metadata) if e.metadata else "{}",
+                    "source_document_id": e.source_document_id,
+                },
+            })
+        query = """
+        UNWIND $rows AS row
+        CALL apoc.merge.node(['Entity', row.etype],
+            {canonical_key: row.canonical_key, type: row.etype},
+            row.props) YIELD node
+        SET node.created_at = coalesce(node.created_at, datetime()),
+            node.updated_at = datetime(),
+            node.name = row.props.name,
+            node.confidence_score = CASE
+                WHEN row.props.confidence_score > coalesce(node.confidence_score, 0.0)
+                THEN row.props.confidence_score ELSE node.confidence_score END
+        RETURN row.idx AS idx, node.id AS id
+        """
+        try:
+            id_by_idx = {rec["idx"]: rec["id"] for rec in tx.run(query, {"rows": rows})}
+        except Exception as e:
+            logger.warning("Batch UNWIND entity merge failed, falling back per-entity: %s", e)
+            return None
+        out = []
+        for row, ent in zip(rows, valid):
+            out.append(
+                EntityResponse(
+                    id=id_by_idx.get(row["idx"], row["props"]["id"]),
+                    name=ent.name,
+                    entity_type=ent.entity_type,
+                    confidence_score=ent.confidence_score,
+                    extraction_method=ent.extraction_method,
+                    position=ent.position,
+                    context=ent.context,
+                    metadata=ent.metadata,
+                    source_document_id=ent.source_document_id,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+            )
+        return out
 
     def _create_entity_in_transaction(
         self, tx, request: CreateEntityRequest
