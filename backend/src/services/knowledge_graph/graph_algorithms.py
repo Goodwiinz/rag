@@ -464,7 +464,10 @@ class GraphAlgorithms:
                    totalCost,
                    nodeIds,
                    relationshipIds,
-                   costs
+                   costs,
+                   [nid IN nodeIds | gds.util.asNode(nid).id] AS node_entity_ids,
+                   [nid IN nodeIds | gds.util.asNode(nid).name] AS node_entity_names,
+                   [nid IN nodeIds | gds.util.asNode(nid).type] AS node_entity_types
             ORDER BY totalCost
             LIMIT $max_paths
             """
@@ -484,23 +487,23 @@ class GraphAlgorithms:
             async for record in result:
                 # Convert path to steps
                 steps = []
-                node_ids = record["nodeIds"]
                 costs = record["costs"]
+                # Node props are projected by the GDS query (gds.util.asNode in a
+                # list comprehension) — no per-node MATCH (was N+1: one query per
+                # node in every path).
+                ids = record["node_entity_ids"]
+                names = record["node_entity_names"]
+                types = record["node_entity_types"]
 
-                for i, node_id in enumerate(node_ids):
-                    # Get node information
-                    node_query = "MATCH (n:Entity) WHERE id(n) = $node_id RETURN n.id AS id, n.name AS name, n.type AS type"
-                    node_result = await session.run(node_query, {"node_id": node_id})
-                    node_record = await node_result.single()
-
-                    if node_record:
-                        step = PathStep(
-                            entity_id=node_record["id"],
-                            entity_name=node_record["name"],
-                            entity_type=node_record["type"],
+                for i in range(len(ids)):
+                    steps.append(
+                        PathStep(
+                            entity_id=ids[i],
+                            entity_name=names[i],
+                            entity_type=types[i],
                             weight=costs[i] if i < len(costs) else 0.0,
                         )
-                        steps.append(step)
+                    )
 
                 path = GraphPath(
                     path_id=f"path_{record['index']}",
@@ -668,20 +671,25 @@ class GraphAlgorithms:
             YIELD nodeId, communityId, intermediateCommunityIds
             RETURN communityId,
                    collect(gds.util.asNode(nodeId).id) AS entities,
+                   collect(gds.util.asNode(nodeId).type) AS entity_types,
                    count(gds.util.asNode(nodeId)) AS entity_count
             ORDER BY entity_count DESC
             """
 
             result = await session.run(query, {"resolution": resolution})
 
+            from collections import Counter
+
             communities = []
             community_count = 0
             total_modularity = 0.0
 
             async for record in result:
-                # Get dominant entity type for this community
-                dominant_type = await self._get_dominant_entity_type(
-                    session, record["entities"]
+                # Dominant type computed from the types collected in the SAME
+                # Louvain stream (was a separate UNWIND query per community — N+1).
+                type_list = [t for t in (record["entity_types"] or []) if t]
+                dominant_type = (
+                    Counter(type_list).most_common(1)[0][0] if type_list else None
                 )
 
                 community = Community(
