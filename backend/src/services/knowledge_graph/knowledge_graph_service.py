@@ -1498,8 +1498,13 @@ class KnowledgeGraphService:
                 tenant_filter, scope_params = _two_endpoint_scope(
                     "start", "end", source_document_ids, organization_id
                 )
+                # Type the traversal to :RELATED_TO and clamp depth: an untyped
+                # `[*1..N]` follows ANY relationship type and an unbounded N
+                # explodes into combinatorial fanout on hub nodes (matches the
+                # find_related_entities / get_neighborhood hardening).
+                safe_depth = max(1, min(int(max_depth), 5))
                 query = f"""
-                MATCH path = (start:Entity {{id: $source_id}})-[*1..{max_depth}]-(end:Entity {{id: $target_id}})
+                MATCH path = (start:Entity {{id: $source_id}})-[:RELATED_TO*1..{safe_depth}]-(end:Entity {{id: $target_id}})
                 WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
                 RETURN path, length(path) as path_length
                 ORDER BY path_length, reduce(strength = 1.0, rel in relationships(path) | strength * coalesce(rel.strength, 1.0)) DESC
