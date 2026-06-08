@@ -157,11 +157,16 @@ async def backfill_org(
             progress.failed_count = (progress.failed_count or 0) + (
                 0 if ds_uuid else 1
             )
-            await session.commit()
 
         if dry_run:
             # In dry-run we still iterate every batch but never commit indexing.
             continue
+
+        # Commit once per BATCH (not per document). The cursor advances by whole
+        # batches; a crash re-runs at most one batch, which is safe because
+        # sync_document_to_kb is idempotent (skips docs that already have a
+        # data-source uuid). Avoids N round-trips per batch (audit A2).
+        await session.commit()
 
     if not dry_run and org.do_kb_uuid:
         try:

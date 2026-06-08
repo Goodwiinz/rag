@@ -14,6 +14,7 @@ upload + re-index — no per-doc data source spam on the KB.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -58,7 +59,7 @@ def _resolve_spaces_source(document: Document) -> Optional[tuple[str, str]]:
     return None
 
 
-def _upload_canonical_text(document: Document) -> Optional[tuple[str, str]]:
+async def _upload_canonical_text(document: Document) -> Optional[tuple[str, str]]:
     """Mirror the document's text into the KB bucket under the canonical key
     ``documents/{org}/{doc}.txt`` and return ``(bucket, key)``.
 
@@ -77,7 +78,10 @@ def _upload_canonical_text(document: Document) -> Optional[tuple[str, str]]:
 
         helper = S3StorageHelper()
         key = _canonical_key(document, "txt")
-        helper.upload_file(
+        # upload_file is sync/blocking (boto3); offload so we don't stall the
+        # event loop for every document during bulk ingest (audit A8).
+        await asyncio.to_thread(
+            helper.upload_file,
             key,
             text.encode("utf-8"),
             content_type="text/plain; charset=utf-8",
@@ -133,7 +137,7 @@ async def sync_document_to_kb(
     # Prefer the canonical text object in the KB bucket (guarantees presence
     # under the documents/{org}/ prefix the data source reads). Only fall back to
     # the original Spaces object when the document has no extracted text.
-    source = _upload_canonical_text(document) or _resolve_spaces_source(document)
+    source = await _upload_canonical_text(document) or _resolve_spaces_source(document)
     if source is None:
         logger.info(
             "do_kb skip — no source",
