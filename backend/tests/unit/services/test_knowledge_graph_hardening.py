@@ -418,3 +418,43 @@ class TestEntityScopePredicate:
         params = {}
         pred = self._fn()("source", None, "org-1", params)
         assert pred == "(source.organization_id = $organization_id)"
+
+
+@pytest.mark.unit
+class TestTwoEndpointScope:
+    """`_two_endpoint_scope` scopes relationship/traversal queries by BOTH endpoint
+    aliases — org-wide prefers indexed organization_id, project falls back to docs."""
+
+    def _fn(self):
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            _two_endpoint_scope,
+        )
+
+        return _two_endpoint_scope
+
+    def test_unscoped(self):
+        frag, params = self._fn()("start", "related", None, None)
+        assert frag == ""
+        assert params == {}
+
+    def test_org_wide_uses_indexed_equality_on_both_endpoints(self):
+        frag, params = self._fn()("start", "related", None, "org-1")
+        assert frag == (
+            "\n  AND start.organization_id = $organization_id"
+            "\n  AND related.organization_id = $organization_id"
+        )
+        assert params == {"organization_id": "org-1"}
+
+    def test_project_falls_back_to_doc_list_on_both_endpoints(self):
+        frag, params = self._fn()("source", "target", ["d1", "d2"], None)
+        assert frag == (
+            "\n  AND source.source_document_id IN $source_document_ids"
+            "\n  AND target.source_document_id IN $source_document_ids"
+        )
+        assert params == {"source_document_ids": ["d1", "d2"]}
+
+    def test_org_takes_precedence_over_docs(self):
+        frag, params = self._fn()("start", "end", ["d1"], "org-1")
+        assert "organization_id" in frag
+        assert "source_document_id" not in frag
+        assert params == {"organization_id": "org-1"}
