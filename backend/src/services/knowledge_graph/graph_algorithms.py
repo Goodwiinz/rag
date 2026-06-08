@@ -26,7 +26,7 @@ from src.services.models.knowledge_graph_models import EntityType
 
 logger = logging.getLogger(__name__)
 
-_TENANT_ID_RE = re.compile(
+_ORG_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
@@ -46,13 +46,18 @@ def _validate_entity_types(entity_types: Optional[List[str]]) -> List[str]:
     return entity_types
 
 
-def _validate_tenant_id(tenant_id: Optional[str]) -> Optional[str]:
-    """Validate tenant_id is a UUID to prevent injection in GDS nodeFilter."""
-    if tenant_id is None:
-        return None
-    if not _TENANT_ID_RE.match(tenant_id):
-        raise ValueError(f"tenant_id must be a valid UUID, got: {tenant_id!r}")
-    return tenant_id
+def _validate_organization_id(organization_id: Optional[str]) -> str:
+    """Validate organization_id is a UUID. REQUIRED: analytics must be org-scoped —
+    running unscoped would compute over the entire cross-org graph and leak results
+    between tenants (audit D2/D3). The UUID check also prevents injection into the
+    GDS nodeFilter string (which cannot use bound parameters)."""
+    if not organization_id:
+        raise ValueError("organization_id is required for graph analytics")
+    if not _ORG_ID_RE.match(organization_id):
+        raise ValueError(
+            f"organization_id must be a valid UUID, got: {organization_id!r}"
+        )
+    return organization_id
 
 
 class GraphAlgorithms:
@@ -65,7 +70,7 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute PageRank centrality"""
@@ -73,7 +78,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             if validated_types:
@@ -81,8 +86,8 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
+            if validated_org:
+                where_clauses.append(f"e.organization_id = '{validated_org}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -156,14 +161,14 @@ class GraphAlgorithms:
             logger.error(f"Error computing PageRank: {e}")
             # Fallback to simpler implementation if GDS not available
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "pagerank"
+                session, entity_types, organization_id, limit, "pagerank"
             )
 
     async def compute_betweenness_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute betweenness centrality"""
@@ -171,7 +176,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             if validated_types:
@@ -179,8 +184,8 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
+            if validated_org:
+                where_clauses.append(f"e.organization_id = '{validated_org}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -241,14 +246,14 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error computing betweenness centrality: {e}")
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "betweenness"
+                session, entity_types, organization_id, limit, "betweenness"
             )
 
     async def compute_closeness_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute closeness centrality"""
@@ -256,7 +261,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             if validated_types:
@@ -264,8 +269,8 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
+            if validated_org:
+                where_clauses.append(f"e.organization_id = '{validated_org}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -326,14 +331,14 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error computing closeness centrality: {e}")
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "closeness"
+                session, entity_types, organization_id, limit, "closeness"
             )
 
     async def compute_degree_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute degree centrality"""
@@ -341,7 +346,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             params: Dict[str, Any] = {"limit": limit}
@@ -350,9 +355,9 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append("e.tenant_id = $tenant_id")
-                params["tenant_id"] = validated_tenant
+            if validated_org:
+                where_clauses.append("e.organization_id = $organization_id")
+                params["organization_id"] = validated_org
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -423,13 +428,13 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]],
-        tenant_id: Optional[str],
+        organization_id: Optional[str],
         limit: int,
         algorithm: str,
     ) -> Dict[str, Any]:
         """Fallback centrality computation using simple degree"""
         return await self.compute_degree_centrality(
-            session, entity_types, tenant_id, limit
+            session, entity_types, organization_id, limit
         )
 
     async def find_shortest_path_dijkstra(
@@ -437,7 +442,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         weight_property: str = "strength",
         max_paths: int = 10,
     ) -> Dict[str, Any]:
@@ -446,8 +451,8 @@ class GraphAlgorithms:
 
         try:
             query = """
-            MATCH (start:Entity {id: $source_entity_id, tenant_id: $tenant_id})
-            MATCH (end:Entity {id: $target_entity_id, tenant_id: $tenant_id})
+            MATCH (start:Entity {id: $source_entity_id, organization_id: $organization_id})
+            MATCH (end:Entity {id: $target_entity_id, organization_id: $organization_id})
             CALL gds.shortestPath.dijkstra.stream({
                 nodeProjection: 'Entity',
                 relationshipProjection: {
@@ -481,7 +486,7 @@ class GraphAlgorithms:
                 {
                     "source_entity_id": source_entity_id,
                     "target_entity_id": target_entity_id,
-                    "tenant_id": tenant_id,
+                    "organization_id": organization_id,
                     "weight_property": weight_property,
                     "max_paths": max_paths,
                 },
@@ -529,7 +534,7 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error finding shortest paths with Dijkstra: {e}")
             return await self._find_shortest_path_fallback(
-                session, source_entity_id, target_entity_id, tenant_id, max_paths
+                session, source_entity_id, target_entity_id, organization_id, max_paths
             )
 
     async def find_shortest_path_bfs(
@@ -537,7 +542,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         max_depth: int = 5,
         max_paths: int = 10,
     ) -> Dict[str, Any]:
@@ -550,8 +555,8 @@ class GraphAlgorithms:
             # paths). Clamp to a validated int and interpolate it as a literal.
             safe_depth = max(1, min(int(max_depth), 10))
             query = f"""
-            MATCH (start:Entity {{id: $source_entity_id, tenant_id: $tenant_id}})
-            MATCH (end:Entity {{id: $target_entity_id, tenant_id: $tenant_id}})
+            MATCH (start:Entity {{id: $source_entity_id, organization_id: $organization_id}})
+            MATCH (end:Entity {{id: $target_entity_id, organization_id: $organization_id}})
             MATCH path = shortestPath((start)-[:RELATED_TO*1..{safe_depth}]-(end))
             RETURN path, length(path) as path_length
             ORDER BY path_length
@@ -563,7 +568,7 @@ class GraphAlgorithms:
                 {
                     "source_entity_id": source_entity_id,
                     "target_entity_id": target_entity_id,
-                    "tenant_id": tenant_id,
+                    "organization_id": organization_id,
                     "max_paths": max_paths,
                 },
             )
@@ -612,7 +617,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         max_paths: int,
     ) -> Dict[str, Any]:
         """Fallback path finding using simple Cypher queries"""
@@ -620,7 +625,7 @@ class GraphAlgorithms:
             session,
             source_entity_id,
             target_entity_id,
-            tenant_id,
+            organization_id,
             max_depth=5,
             max_paths=max_paths,
         )
@@ -629,7 +634,7 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         resolution: float = 1.0,
     ) -> Dict[str, Any]:
         """Detect communities using Louvain algorithm"""
@@ -637,7 +642,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             if validated_types:
@@ -645,8 +650,8 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
+            if validated_org:
+                where_clauses.append(f"e.organization_id = '{validated_org}'")
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -729,7 +734,7 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         max_iterations: int = 100,
     ) -> Dict[str, Any]:
         """Detect communities using label propagation"""
@@ -780,16 +785,16 @@ class GraphAlgorithms:
 
     # Insights methods
     async def find_key_entities(
-        self, session: AsyncSession, tenant_id: str, limit: int = 10
+        self, session: AsyncSession, organization_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find key entities in the graph"""
         try:
             # Combine multiple centrality measures
             pagerank_result = await self.compute_pagerank(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
             betweenness_result = await self.compute_betweenness_centrality(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
 
             # Combine results to find consensus key entities
@@ -834,13 +839,13 @@ class GraphAlgorithms:
             return []
 
     async def find_bridge_entities(
-        self, session: AsyncSession, tenant_id: str, limit: int = 10
+        self, session: AsyncSession, organization_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find bridge entities (entities that connect different communities)"""
         try:
             # Use betweenness centrality as proxy for bridge entities
             betweenness_result = await self.compute_betweenness_centrality(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
 
             bridge_entities = []
@@ -864,13 +869,13 @@ class GraphAlgorithms:
             return []
 
     async def identify_graph_clusters(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Identify graph clusters"""
         try:
             # Use community detection to identify clusters
             community_result = await self.detect_communities_louvain(
-                session, tenant_id=tenant_id
+                session, organization_id=organization_id
             )
 
             clusters = []
@@ -895,7 +900,7 @@ class GraphAlgorithms:
             return []
 
     async def detect_graph_anomalies(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Detect graph anomalies"""
         try:
@@ -903,13 +908,13 @@ class GraphAlgorithms:
 
             # Look for isolated entities (no connections)
             query = """
-            MATCH (e:Entity {tenant_id: $tenant_id})
+            MATCH (e:Entity {organization_id: $organization_id})
             WHERE NOT (e)-[:RELATED_TO]-()
             RETURN e.id AS entity_id, e.name AS entity_name, e.type AS entity_type
             LIMIT 10
             """
 
-            result = await session.run(query, {"tenant_id": tenant_id})
+            result = await session.run(query, {"organization_id": organization_id})
             async for record in result:
                 anomalies.append(
                     AnomalyInsight(
@@ -929,7 +934,7 @@ class GraphAlgorithms:
             return []
 
     async def analyze_growth_trends(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Analyze growth trends in the graph"""
         try:
@@ -937,7 +942,7 @@ class GraphAlgorithms:
 
             # Simple trend analysis based on creation dates
             query = """
-            MATCH (e:Entity {tenant_id: $tenant_id})
+            MATCH (e:Entity {organization_id: $organization_id})
             WITH date(e.created_at) AS creation_date, count(e) AS daily_count
             RETURN creation_date, daily_count
             ORDER BY creation_date DESC
@@ -945,7 +950,7 @@ class GraphAlgorithms:
             """
 
             daily_counts = []
-            result = await session.run(query, {"tenant_id": tenant_id})
+            result = await session.run(query, {"organization_id": organization_id})
             async for record in result:
                 daily_counts.append(
                     {"date": record["creation_date"], "count": record["daily_count"]}
