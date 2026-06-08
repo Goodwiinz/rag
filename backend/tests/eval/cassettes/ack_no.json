@@ -1,0 +1,15 @@
+{
+  "case": "ack_no",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "Okay \u2014 do you want to continue with something else, or should I undo or stop the last action?",
+        "tool_calls": []
+      }
+    }
+  ]
+}

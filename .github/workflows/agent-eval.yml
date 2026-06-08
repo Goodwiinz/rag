@@ -75,8 +75,13 @@ jobs:
       # (incl. plan_adherence) are registered separately via
       # `python tests/eval/upload_trajectory_rules.py` after evaluator changes.
       - name: Run regression sweep
+        # `langsmith or golden`: the remote-dataset sweep AND the local golden
+        # cases run LIVE here. The golden cases are the weekly drift backstop
+        # for the committed replay cassettes — if a cassette no longer matches
+        # live model behavior, this job goes red. (Per-PR the golden cases run
+        # creds-free via AGENT_GOLDEN_REPLAY in test-pipeline.yml.)
         run: |
-          .venv/bin/pytest -m langsmith tests/eval/test_agent_regression.py -v --tb=short
+          .venv/bin/pytest -m "langsmith or golden" tests/eval/test_agent_regression.py -v --tb=short
 
       - name: Summary on failure
         if: failure()

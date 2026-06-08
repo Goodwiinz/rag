@@ -379,6 +379,22 @@ class TestGoldenCaseInvariants:
         dups = [n for n, c in Counter(c.name for c in LOCAL_CASES).items() if c > 1]
         assert not dups, f"duplicate golden case names: {dups}"
 
+    def test_every_local_case_has_replay_cassette(self):
+        # Staleness guard (B2 Phase 3): a golden case with no recorded cassette
+        # would silently skip the creds-free replay gate. Fail loud so a newly
+        # added case must be recorded (record_golden_cassette.py) before merge.
+        from tests.eval._replay_llm import CASSETTE_DIR
+        from tests.eval.golden_examples import LOCAL_CASES
+
+        missing = [
+            c.name for c in LOCAL_CASES
+            if not (CASSETTE_DIR / f"{c.name}.json").exists()
+        ]
+        assert not missing, (
+            "golden cases missing a replay cassette — record with "
+            f"`python -m tests.eval.record_golden_cassette {' '.join(missing)}`: {missing}"
+        )
+
 
 @pytest.mark.unit
 class TestKnownToolsRegistry:
@@ -443,6 +459,82 @@ class TestEvaluatorExtractorRoundTrip:
                 {"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}}
             )
             assert isinstance(result.get("score"), (int, float))
+
+
+from pydantic import BaseModel as _PydBaseModel
+
+
+class _FakeIntent(_PydBaseModel):
+    intent: str
+    confidence: float = 0.0
+
+
+def _cassette(calls):
+    from tests.eval._replay_llm import GoldenCassette
+
+    return GoldenCassette({"case": "t", "calls": calls})
+
+
+@pytest.mark.unit
+class TestGoldenReplayLLM:
+    @pytest.mark.asyncio
+    async def test_structured_output_returns_recorded_instance(self):
+        from tests.eval._replay_llm import GoldenReplayLLM
+
+        fake = GoldenReplayLLM(_cassette([
+            {"slot": 0, "kind": "structured", "schema": "_FakeIntent",
+             "payload": {"intent": "research", "confidence": 0.9}},
+        ]))
+        chain = fake.with_structured_output(_FakeIntent)
+        result = await chain.ainvoke(["msg"])
+        assert isinstance(result, _FakeIntent)
+        assert result.intent == "research" and result.confidence == 0.9
+
+    @pytest.mark.asyncio
+    async def test_bind_tools_returns_scripted_tool_call(self):
+        from tests.eval._replay_llm import GoldenReplayLLM
+
+        fake = GoldenReplayLLM(_cassette([
+            {"slot": 0, "kind": "tool", "message": {
+                "content": "",
+                "tool_calls": [{"name": "do_kb_retrieve", "args": {"q": "x"}, "id": "c0"}]}},
+        ]))
+        msg = await fake.bind_tools([]).ainvoke(["msg"])
+        assert [tc["name"] for tc in msg.tool_calls] == ["do_kb_retrieve"]
+
+    @pytest.mark.asyncio
+    async def test_tool_exhaustion_returns_terminal_message(self):
+        # Script spent -> tool-less AIMessage ends the loop gracefully.
+        from tests.eval._replay_llm import GoldenReplayLLM
+
+        msg = await GoldenReplayLLM(_cassette([])).bind_tools([]).ainvoke(["m"])
+        assert msg.tool_calls == []
+
+    @pytest.mark.asyncio
+    async def test_text_path(self):
+        from tests.eval._replay_llm import GoldenReplayLLM
+
+        fake = GoldenReplayLLM(_cassette([
+            {"slot": 0, "kind": "text", "message": {"content": "the answer", "tool_calls": []}},
+        ]))
+        msg = await fake.ainvoke(["msg"])
+        assert msg.content == "the answer"
+
+    @pytest.mark.asyncio
+    async def test_structured_exhaustion_fails_loud(self):
+        # An un-recorded structured call must raise, never silently go live.
+        from tests.eval._replay_llm import CassetteExhausted, GoldenReplayLLM
+
+        with pytest.raises(CassetteExhausted):
+            await GoldenReplayLLM(_cassette([])).with_structured_output(_FakeIntent).ainvoke(["m"])
+
+    def test_replay_disabled_by_default(self):
+        # Phase 1 must stay inert unless explicitly enabled.
+        import os
+
+        from tests.eval._replay_llm import replay_enabled
+
+        assert replay_enabled() == (os.environ.get("AGENT_GOLDEN_REPLAY") == "1")
 
 
 @pytest.mark.asyncio

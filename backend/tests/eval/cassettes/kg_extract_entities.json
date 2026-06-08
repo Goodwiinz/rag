@@ -1,0 +1,25 @@
+{
+  "case": "kg_extract_entities",
+  "expected_intent": "knowledge_graph",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "knowledge_graph",
+        "confidence": 0.92,
+        "reasoning": "User asks to extract key entities from a document, which is an entity extraction task over a graph/ontology \u2014 fits the knowledge_graph intent."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "I can do that, but I need the document context first.\n\nIf you\u2019re referring to a document already in your workspace, send me either:\n- the document title, or\n- the `document_id`\n\nIf you want, I can also help find it by title/keyword first.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

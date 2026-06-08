@@ -1,0 +1,15 @@
+{
+  "case": "thanks_skip",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "You\u2019re welcome \u2014 glad to help! Anything else you\u2019d like me to do for your project or search for papers?",
+        "tool_calls": []
+      }
+    }
+  ]
+}

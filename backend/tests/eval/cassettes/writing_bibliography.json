@@ -1,0 +1,25 @@
+{
+  "case": "writing_bibliography",
+  "expected_intent": "writing",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "writing",
+        "confidence": 0.92,
+        "reasoning": "Request to export a project bibliography in BibTeX is a writing/formatting task (creating bibliographic output), not searching documents or querying a knowledge graph."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "I can do that, but I need the document IDs for the papers in that project to export them as BibTeX.\n\nIf you already have the project\u2019s papers loaded in this chat, I can use those IDs directly. Otherwise, send me the document IDs you want included, and I\u2019ll export the bibliography in BibTeX format.",
+        "tool_calls": []
+      }
+    }
+  ]
+}
