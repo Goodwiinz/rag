@@ -472,19 +472,21 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     if not last_user_msg or not current_user:
         return {"retrieved_contexts": [], **state_update}
 
-    # Clean the retrieval query: drop instruction clauses, prefer quoted
-    # entity names. Keep last_user_msg raw for project-id/intent checks above.
-    search_query = _build_search_query(last_user_msg)
-
-    # Test-time injection still supported.
+    # Test-time injection / custom retriever override receives the query
+    # verbatim — the caller owns it. Query cleaning below applies only to the
+    # built-in DO KB + hybrid retrieval.
     search_fn = configurable.get("search_fn")
     if search_fn:
         try:
-            contexts = await search_fn(search_query, str(current_user.id))
+            contexts = await search_fn(last_user_msg, str(current_user.id))
             return {"retrieved_contexts": contexts, **state_update}
         except Exception as e:
             logger.warning("injected search_fn failed", exc_info=e)
             return {"retrieved_contexts": [], **state_update}
+
+    # Clean the retrieval query: drop instruction clauses, prefer quoted
+    # entity names. Keep last_user_msg raw for project-id/intent checks above.
+    search_query = _build_search_query(last_user_msg)
 
     # Skip the org-wide knowledge-base read when no project context is
     # active. Trace 019e191a showed a chat-mode "Find recent transformer
