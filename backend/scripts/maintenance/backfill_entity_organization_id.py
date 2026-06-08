@@ -27,7 +27,7 @@ import sys
 
 from sqlalchemy import select
 
-from src.core.database import get_db
+from src.core.database import SessionLocal
 from src.models.document import Document
 from src.services.knowledge_graph.knowledge_graph_service import (
     knowledge_graph_service,
@@ -55,7 +55,7 @@ def main() -> int:
         logger.error("No Neo4j connection.")
         return 1
 
-    db = next(get_db())
+    db = SessionLocal()
     try:
         doc_org = _doc_org_map(db)
     finally:
