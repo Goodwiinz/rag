@@ -110,6 +110,26 @@ class TestMergeEntities:
         result = merge_entities([e1, e2])
         assert len(result) == 2
 
+    def test_same_name_different_type_not_merged(self):
+        """Same canonical name but different type must stay distinct — merging
+        on name alone wrongly collapsed e.g. 'Apple' ORG and PRODUCT into one."""
+        org = ExtractedEntity(
+            name="Apple", type="ORGANIZATION", canonical_name="apple", confidence=0.9
+        )
+        product = ExtractedEntity(
+            name="Apple", type="PRODUCT", canonical_name="apple", confidence=0.8
+        )
+        result = merge_entities([org, product])
+        assert len(result) == 2
+        assert {r.type for r in result} == {"ORGANIZATION", "PRODUCT"}
+
+    def test_same_name_and_type_still_merges(self):
+        a = ExtractedEntity(name="Apple", type="ORGANIZATION", canonical_name="apple", confidence=0.7)
+        b = ExtractedEntity(name="apple", type="ORGANIZATION", canonical_name="apple", confidence=0.95)
+        result = merge_entities([a, b])
+        assert len(result) == 1
+        assert result[0].confidence == 0.95
+
     def test_empty_input(self):
         assert merge_entities([]) == []
 

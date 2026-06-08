@@ -368,10 +368,11 @@ def extract_entities(self, job_id: str):
         job.start_job(worker_id=self.request.id)
         db.commit()
 
-        # Extract entities
-        import asyncio as _asyncio
+        # Extract entities. asyncio.run creates + manages a fresh loop;
+        # get_event_loop().run_until_complete raises "no current event loop"
+        # / deprecation on Python 3.10+ in a worker thread.
         service = LLMEntityExtractionService()
-        extraction_result = _asyncio.get_event_loop().run_until_complete(
+        extraction_result = asyncio.run(
             service.extract_entities(document.content_text)
         )
 
@@ -557,7 +558,6 @@ def kg_extract_entities_job(self, job_id: str):
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
 
-        import asyncio as _asyncio
         document_ids = []
         if job.parameters:
             if job.parameters.get("document_ids"):
@@ -592,7 +592,7 @@ def kg_extract_entities_job(self, job_id: str):
             db.commit()
 
             service = LLMEntityExtractionService()
-            extraction_result = _asyncio.get_event_loop().run_until_complete(
+            extraction_result = asyncio.run(
                 service.extract_entities(content, timeout_seconds=300.0)
             )
             extracted_entities = extraction_result.entities
