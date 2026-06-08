@@ -418,4 +418,3 @@ class TestEntityScopePredicate:
         params = {}
         pred = self._fn()("source", None, "org-1", params)
         assert pred == "(source.organization_id = $organization_id)"
-        assert KnowledgeGraphService._to_native_dt(native) is native
