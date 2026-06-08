@@ -6,6 +6,7 @@ import asyncio
 import logging
 import re
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from neo4j import AsyncSession
@@ -60,11 +61,84 @@ def _validate_organization_id(organization_id: Optional[str]) -> str:
     return organization_id
 
 
+def _org_projection_queries(
+    validated_org: str, validated_types: List[str]
+) -> tuple[str, str]:
+    """Build the (nodeQuery, relationshipQuery) for a GDS 2.x Cypher projection
+    scoped to one organization. The org is a validated UUID and entity types come
+    from the enum allowlist, so interpolation here is injection-safe (GDS Cypher
+    projection queries cannot take bound parameters)."""
+    type_pred = ""
+    if validated_types:
+        tf = " OR ".join([f"e.type = '{t}'" for t in validated_types])
+        type_pred = f" AND ({tf})"
+    node_q = (
+        f"MATCH (e:Entity) WHERE e.organization_id = '{validated_org}'{type_pred} "
+        "RETURN id(e) AS id"
+    )
+    rel_q = (
+        "MATCH (s:Entity)-[r:RELATED_TO]-(t:Entity) "
+        f"WHERE s.organization_id = '{validated_org}' "
+        f"AND t.organization_id = '{validated_org}' "
+        "RETURN id(s) AS source, id(t) AS target, "
+        "coalesce(r.strength, 1.0) AS weight"
+    )
+    return node_q, rel_q
+
+
 class GraphAlgorithms:
     """Service implementing various graph algorithms"""
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+
+    async def _gds_centrality_2x(
+        self,
+        session: AsyncSession,
+        algo: str,
+        validated_org: str,
+        validated_types: List[str],
+        limit: int,
+        cfg: Optional[Dict[str, Any]] = None,
+    ) -> List[tuple]:
+        """Run a GDS 2.x centrality algo over an org-scoped, named Cypher projection.
+
+        GDS 2.x removed the inline anonymous projection the legacy queries used, so
+        we project a uniquely-named graph (concurrency-safe), stream the algo by
+        name, and ALWAYS drop the graph. Raises on any GDS error so the caller can
+        fall back to the legacy path / degree centrality — i.e. this is a pure
+        upgrade: best case GDS acceleration on 2.x, worst case identical fallback.
+
+        Returns rows of (entity_id, entity_name, entity_type, score).
+        """
+        graph_name = "kg_" + uuid.uuid4().hex
+        node_q, rel_q = _org_projection_queries(validated_org, validated_types)
+        try:
+            await session.run(
+                "CALL gds.graph.project.cypher($g, $nq, $rq)",
+                {"g": graph_name, "nq": node_q, "rq": rel_q},
+            )
+            result = await session.run(
+                f"CALL {algo}.stream($g, $cfg) YIELD nodeId, score "
+                "RETURN gds.util.asNode(nodeId).id AS entity_id, "
+                "gds.util.asNode(nodeId).name AS entity_name, "
+                "gds.util.asNode(nodeId).type AS entity_type, score AS score "
+                "ORDER BY score DESC LIMIT $limit",
+                {"g": graph_name, "cfg": cfg or {}, "limit": limit},
+            )
+            rows = []
+            async for r in result:
+                rows.append(
+                    (r["entity_id"], r["entity_name"], r["entity_type"], r["score"])
+                )
+            return rows
+        finally:
+            try:
+                await session.run(
+                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
+                )
+            except Exception:  # noqa: BLE001 - cleanup best-effort
+                pass
 
     async def compute_pagerank(
         self,
@@ -80,86 +154,43 @@ class GraphAlgorithms:
             validated_types = _validate_entity_types(entity_types)
             validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_org:
-                where_clauses.append(f"e.organization_id = '{validated_org}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
-            )
-
-            query = f"""
-            CALL gds.pageRank.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED',
-                        properties: ['strength']
-                    }}
-                }},
-                maxIterations: $max_iterations,
-                dampingFactor: $damping_factor,
-                tolerance: $tolerance
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS pagerank_score
-            ORDER BY pagerank_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(
-                query,
-                {
-                    "max_iterations": config.PAGERANK_MAX_ITERATIONS,
-                    "damping_factor": config.PAGERANK_DAMPING_FACTOR,
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.pageRank",
+                validated_org,
+                validated_types,
+                limit,
+                cfg={
+                    "maxIterations": config.PAGERANK_MAX_ITERATIONS,
+                    "dampingFactor": config.PAGERANK_DAMPING_FACTOR,
                     "tolerance": config.PAGERANK_TOLERANCE,
-                    "limit": limit,
+                    "relationshipWeightProperty": "weight",
                 },
             )
 
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["pagerank_score"],
-                        rank=rank,
-                        metadata={"algorithm": "pagerank"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "pagerank"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
 
         except Exception as e:
             logger.error(f"Error computing PageRank: {e}")
-            # Fallback to simpler implementation if GDS not available
+            # GDS 2.x projection failed (or GDS unavailable) → degree fallback.
             return await self._compute_degree_centrality_fallback(
                 session, entity_types, organization_id, limit, "pagerank"
             )
@@ -178,67 +209,30 @@ class GraphAlgorithms:
             validated_types = _validate_entity_types(entity_types)
             validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_org:
-                where_clauses.append(f"e.organization_id = '{validated_org}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.betweenness",
+                validated_org,
+                validated_types,
+                limit,
             )
 
-            query = f"""
-            CALL gds.betweenness.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }}
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS betweenness_score
-            ORDER BY betweenness_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(query, {"limit": limit})
-
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["betweenness_score"],
-                        rank=rank,
-                        metadata={"algorithm": "betweenness"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "betweenness"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
@@ -263,67 +257,30 @@ class GraphAlgorithms:
             validated_types = _validate_entity_types(entity_types)
             validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_org:
-                where_clauses.append(f"e.organization_id = '{validated_org}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.closeness",
+                validated_org,
+                validated_types,
+                limit,
             )
 
-            query = f"""
-            CALL gds.closeness.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }}
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS closeness_score
-            ORDER BY closeness_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(query, {"limit": limit})
-
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["closeness_score"],
-                        rank=rank,
-                        metadata={"algorithm": "closeness"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "closeness"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
