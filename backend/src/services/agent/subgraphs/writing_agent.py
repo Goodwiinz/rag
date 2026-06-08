@@ -98,6 +98,16 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and sanitized
         and isinstance(sanitized[-1], ToolMessage)
     )
+
+    # Inject the planner's plan on the pre-tool pass so the executor follows
+    # it instead of refusing. Skipped on synthesis turns — by then the tools
+    # have already run and the plan would only re-trigger completed steps.
+    if not use_synthesis:
+        from src.services.agent.planner import render_plan_directive
+
+        plan_directive = render_plan_directive(state.get("plan"))
+        if plan_directive:
+            messages.insert(1, SystemMessage(content=plan_directive))
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 

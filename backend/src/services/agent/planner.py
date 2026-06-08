@@ -178,6 +178,46 @@ async def generate_plan(
     return result
 
 
+def render_plan_directive(plan: list[dict] | None) -> str | None:
+    """Render the planner's plan into an execution directive for an executor LLM.
+
+    The planner writes its plan to ``state["plan"]``, but the executor LLM
+    nodes historically only ever read ``state["messages"]`` — so the plan was
+    consumed only by the reflection gate and ledger and never reached the
+    model that acts. Trace 019ea8f0 showed the planner correctly choosing
+    ``create_draft`` → ``create_project_note`` while the executor ignored it
+    and refused, demanding document_id / arXiv IDs the user can't supply.
+    Injecting this directive into the executor prompt closes the
+    plan→execute handoff. Shared by writing/research/data subgraphs and the
+    main ``llm_node`` so the four executors behave consistently.
+    """
+    if not plan:
+        return None
+    lines: list[str] = []
+    for step in plan:
+        tool = (step.get("tool") or "").strip()
+        desc = (step.get("description") or "").strip()
+        if not desc:
+            continue
+        if tool and tool.upper() != "N/A":
+            args = step.get("args_hint")
+            arg_str = f"  args: {args}" if args else ""
+            lines.append(f"{step.get('step', '?')}. [{tool}] {desc}{arg_str}")
+        else:
+            lines.append(f"{step.get('step', '?')}. {desc}")
+    if not lines:
+        return None
+    plan_block = "\n".join(lines)
+    return (
+        "ACTIVE PLAN (produced by the planner for this turn — follow it). "
+        "Execute the next incomplete step now by emitting the listed tool "
+        "call. Do NOT ask the user for document_ids or arXiv IDs that you can "
+        "resolve yourself via the available ingest/search tools — search or "
+        "ingest first, then continue.\n"
+        f"{plan_block}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Graph node factory
 # ---------------------------------------------------------------------------
@@ -249,32 +289,6 @@ def make_planner_node(
         # Simple ingest-and-add imperatives need neither complexity nor plan.
         if _is_simple_add_flow(query):
             logger.info("Skipping planner entirely for simple add flow")
-            # region agent log
-            try:
-                import json as _json
-                import time as _time
-
-                with open(
-                    "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log",
-                    "a",
-                    encoding="utf-8",
-                ) as _fh:
-                    _fh.write(
-                        _json.dumps(
-                            {
-                                "sessionId": "682ae9",
-                                "hypothesisId": "H6",
-                                "location": "planner.py:planner_node",
-                                "message": "skipping planner entirely for simple add flow",
-                                "data": {"query_preview": query[:120]},
-                                "timestamp": int(_time.time() * 1000),
-                            }
-                        )
-                        + "\n"
-                    )
-            except Exception:
-                pass
-            # endregion
             return {}
 
         # 2. Check complexity

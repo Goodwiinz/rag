@@ -172,6 +172,18 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         )
         dynamic_parts.append(f"Retrieved context:\n{context_text}")
 
+    # Close the plan→execute handoff (see planner.render_plan_directive). The
+    # planner writes state["plan"] but the executor only ever read messages,
+    # so the plan was discarded and the model refused instead of acting.
+    # Inject on the pre-tool pass only (last message not a ToolMessage).
+    raw_msgs = state.get("messages") or []
+    if raw_msgs and not isinstance(raw_msgs[-1], ToolMessage):
+        from src.services.agent.planner import render_plan_directive
+
+        plan_directive = render_plan_directive(state.get("plan"))
+        if plan_directive:
+            dynamic_parts.append(plan_directive)
+
     system_text = _LLM_NODE_STATIC_PROMPT
     if dynamic_parts:
         system_text += "\n\n" + "\n\n".join(dynamic_parts)
