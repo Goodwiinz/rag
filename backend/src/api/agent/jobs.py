@@ -295,6 +295,51 @@ async def _resolve_thread(
     return thread, conversation_id
 
 
+async def _resolve_thread_project(
+    db: AsyncSession, thread_obj: Any
+) -> tuple[Optional[str], Optional[str]]:
+    """Resolve the project a thread is scoped to, for ``page_context``.
+
+    Reads ``thread.source_project_id`` (the originating-project column) and
+    falls back to the ``project_threads`` join table when it is NULL. The
+    column can desync from the join table — some attach paths only wrote the
+    link row, leaving ``source_project_id`` unset, so the agent forgot the
+    attached project (reported: "does not remember when I attached project").
+    Resolving the project name via an explicit query also avoids a lazy-load
+    of the ``source_project`` relationship in the async context (raises
+    MissingGreenlet when not eager-loaded).
+
+    Returns ``(project_id, project_name)`` as strings, or ``(None, None)``.
+    """
+    if thread_obj is None:
+        return None, None
+
+    from sqlalchemy import select
+
+    from src.models.collection import Collection
+
+    pid = getattr(thread_obj, "source_project_id", None)
+    if not pid:
+        from src.models.project_thread import ProjectThread
+
+        pid = (
+            await db.execute(
+                select(ProjectThread.project_id)
+                .where(ProjectThread.thread_id == thread_obj.id)
+                .order_by(ProjectThread.linked_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+    if not pid:
+        return None, None
+
+    name = (
+        await db.execute(select(Collection.name).where(Collection.id == pid))
+    ).scalar_one_or_none()
+    return str(pid), (name or None)
+
+
 async def _persist_user_message(
     db: AsyncSession,
     current_user: User,
@@ -589,16 +634,14 @@ async def _run_agent_graph(
             ]
 
             page_context = _page_context_to_dict(request.page_context)
-            if (
-                thread_obj is not None
-                and getattr(thread_obj, "source_project_id", None)
-                and not page_context.get("project_id")
-            ):
-                page_context["project_id"] = str(thread_obj.source_project_id)
-                if hasattr(thread_obj, "source_project") and thread_obj.source_project:
-                    page_context["project_name"] = thread_obj.source_project.name
-                if not page_context.get("type") or page_context["type"] == "chat":
-                    page_context["type"] = "project"
+            if thread_obj is not None and not page_context.get("project_id"):
+                _proj_id, _proj_name = await _resolve_thread_project(db, thread_obj)
+                if _proj_id:
+                    page_context["project_id"] = _proj_id
+                    if _proj_name:
+                        page_context["project_name"] = _proj_name
+                    if not page_context.get("type") or page_context["type"] == "chat":
+                        page_context["type"] = "project"
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks

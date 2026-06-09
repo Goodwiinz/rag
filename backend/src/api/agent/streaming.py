@@ -307,16 +307,16 @@ async def stream_event_generator(
         ]
 
         page_context = _page_context_to_dict(request_body.page_context)
-        if (
-            thread_obj is not None
-            and getattr(thread_obj, "source_project_id", None)
-            and not page_context.get("project_id")
-        ):
-            page_context["project_id"] = str(thread_obj.source_project_id)
-            if hasattr(thread_obj, "source_project") and thread_obj.source_project:
-                page_context["project_name"] = thread_obj.source_project.name
-            if not page_context.get("type") or page_context["type"] == "chat":
-                page_context["type"] = "project"
+        if thread_obj is not None and not page_context.get("project_id"):
+            from src.api.agent.jobs import _resolve_thread_project
+
+            _proj_id, _proj_name = await _resolve_thread_project(db, thread_obj)
+            if _proj_id:
+                page_context["project_id"] = _proj_id
+                if _proj_name:
+                    page_context["project_name"] = _proj_name
+                if not page_context.get("type") or page_context["type"] == "chat":
+                    page_context["type"] = "project"
 
         # Project-scoped memory recall (best-effort; never blocks a turn).
         project_memories: list = []
