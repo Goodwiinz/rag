@@ -322,9 +322,8 @@ class TestLinkThreadToProject:
 
     @pytest.mark.asyncio
     async def test_link_prevents_duplicate(self, mock_project_thread, mock_db):
-        """Test that duplicate links are prevented"""
-        # If link already exists, should raise 409 Conflict
-        # This tests the behavior expectation
+        """Test that duplicate links are idempotent (re-link returns existing)."""
+        # The endpoint no longer raises 409; re-linking is idempotent.
         existing_link = mock_project_thread
         assert existing_link.project_id is not None
         assert existing_link.thread_id is not None
@@ -348,12 +347,14 @@ class TestLinkThreadToProject:
         mock_thread.source_project_id = None
         mock_thread.rag_document_scope = None
 
-        existing_result = MagicMock()
-        existing_result.scalar_one_or_none.return_value = None
+        # attach_thread_to_project queries document scope FIRST, then checks
+        # for an existing link — order matters for mock side_effect.
         doc_id = uuid4()
         doc_result = MagicMock()
         doc_result.all.return_value = [(doc_id,)]
-        mock_db.execute.side_effect = [existing_result, doc_result]
+        existing_result = MagicMock()
+        existing_result.scalar_one_or_none.return_value = None
+        mock_db.execute.side_effect = [doc_result, existing_result]
 
         async def _refresh(entity):
             if getattr(entity, "id", None) is None:
