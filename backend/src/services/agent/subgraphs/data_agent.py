@@ -80,6 +80,15 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and sanitized
         and isinstance(sanitized[-1], ToolMessage)
     )
+
+    # Close the plan→execute handoff (see planner.render_plan_directive).
+    if not use_synthesis:
+        from src.services.agent.planner import render_plan_directive
+
+        plan_directive = render_plan_directive(state.get("plan"))
+        if plan_directive:
+            messages.insert(1, SystemMessage(content=plan_directive))
+
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 

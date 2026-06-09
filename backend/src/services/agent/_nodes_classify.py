@@ -174,6 +174,13 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
         "last_error_info": {},
         "user_confirmed": False,
         "pending_confirmation": {},
+        # compaction_count is documented "reset per turn" (state.py) but was
+        # omitted, so it accumulated for the life of the thread. _force_-
+        # synthesis_fired is last-write-wins and, left True from a prior turn,
+        # permanently disables forced synthesis (empty-content + orphan
+        # tool_calls "no response" exit). Reset both per turn.
+        "compaction_count": 0,
+        "_force_synthesis_fired": False,
     }
     for result, default in zip(results, defaults):
         if isinstance(result, asyncio.CancelledError):

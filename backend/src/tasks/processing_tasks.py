@@ -35,6 +35,42 @@ from src.services.search.fulltext_search_service import fulltext_search_service
 logger = logging.getLogger(__name__)
 
 
+def _sync_document_to_kb_blocking(document) -> str | None:
+    """Push a document to DO KB from a synchronous Celery task.
+
+    DO KB (DigitalOcean Knowledge Base) is the retrieval backend after Qdrant
+    was dropped. ``sync_document_to_kb`` is async and needs an async session,
+    while these tasks hold a sync ``SessionLocal`` — bridge the sync-loaded ORM
+    object into a fresh ``AsyncSessionLocal`` via ``merge()`` (synchronous in
+    SQLAlchemy 2.0 — do NOT await), mirroring ``api/agent/tools_impl.py``.
+
+    Returns the data-source uuid, or ``None`` when DO KB is disabled or the
+    sync fails. Never raises — ingestion must not fail on a KB outage.
+    """
+    async def _run() -> str | None:
+        from src.core.database import AsyncSessionLocal
+        from src.services.do_kb import sync_document_to_kb
+
+        async with AsyncSessionLocal() as kb_db:
+            # merge() is synchronous in SQLAlchemy 2.0; awaiting it raises.
+            merged = kb_db.merge(document)
+            return await sync_document_to_kb(kb_db, merged)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_run())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "DO KB sync failed for document %s: %s",
+            getattr(document, "id", "?"),
+            exc,
+        )
+        return None
+    finally:
+        loop.close()
+
+
 class ProcessingTask(Task):
     """Base class for processing tasks"""
 
@@ -199,25 +235,16 @@ def process_document_ingestion(self, job_id: str):
                     "Entities are still available in PostgreSQL."
                 )
 
-        # Step 3: Embedding Generation
+        # Step 3: Embedding Generation — push the document to DO KB, the
+        # retrieval backend (replaces the dead Qdrant write). Idempotent and
+        # gated by DO_KB_ENABLED; a None result (KB disabled/outage) is a clean
+        # no-op so ingestion still completes.
         job.update_progress("Generating embeddings", 75)
         db.commit()
 
         if document.content_text:
-            # Run embedding generation in event loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                embedding_id = loop.run_until_complete(
-                    processing_service.process_embedding_generation(
-                        document, document.content_text
-                    )
-                )
-            finally:
-                loop.close()
-
-            if embedding_id:
-                document.embedding_id = embedding_id
+            ds_uuid = _sync_document_to_kb_blocking(document)
+            if ds_uuid:
                 document.is_embedded = True
         db.commit()
 
@@ -451,25 +478,26 @@ def generate_embeddings(self, job_id: str):
         job.start_job(worker_id=self.request.id)
         db.commit()
 
-        # Generate embeddings
-        processing_service = ProcessingPipeline(db)
-        embedding_id = processing_service.process_embedding_generation(
-            document, document.content_text
-        )
+        # Push the document to DO KB (retrieval backend; replaces dead Qdrant).
+        ds_uuid = _sync_document_to_kb_blocking(document)
 
         # Update document
-        if embedding_id:
-            document.embedding_id = embedding_id
+        if ds_uuid:
             document.is_embedded = True
             db.commit()
 
             # Complete job
-            job.complete_job(result={"embedding_id": embedding_id})
+            job.complete_job(result={"do_kb_data_source_uuid": ds_uuid})
             db.commit()
 
-            return {"embedding_id": embedding_id, "status": "success"}
+            return {"do_kb_data_source_uuid": ds_uuid, "status": "success"}
         else:
-            raise ValueError("Failed to generate embeddings")
+            # DO KB disabled or returned nothing — not a failure. Complete the
+            # job cleanly rather than raising (there is no other embedding
+            # backend now that Qdrant is gone).
+            job.complete_job(result={"status": "skipped", "reason": "do_kb_unavailable"})
+            db.commit()
+            return {"status": "skipped", "reason": "do_kb_unavailable"}
 
     except Exception as e:
         logger.error(f"Embedding generation failed for job {job_id}: {str(e)}")

@@ -340,6 +340,60 @@ async def _legacy_hybrid_search_fallback(
 
 
 # ---------------------------------------------------------------------------
+# Query construction
+# ---------------------------------------------------------------------------
+
+# Leading imperative tokens that add no retrieval signal ("Summarize this
+# document ...", "make notes ...").
+_INSTRUCTION_LEAD_RE = re.compile(
+    r"^\s*(please\s+)?(summari[sz]e|make|create|save|add|write|draft|compare|"
+    r"take\s+notes|note|find|search|get|show|list|export)\b[\s,:-]*",
+    re.IGNORECASE,
+)
+# Quoted entity spans (paper titles). 6+ chars to avoid matching stray quotes.
+_QUOTED_SPAN_RE = re.compile(r"[\"“”']([^\"“”']{6,})[\"“”']")
+
+
+def _coerce_text(content: Any) -> str:
+    """Flatten a possibly-multimodal HumanMessage.content into plain text.
+
+    ``content`` may be a list of content blocks; the raw value was previously
+    used directly and any downstream ``.lower()/.split()`` would raise.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for p in content:
+            if isinstance(p, str):
+                parts.append(p)
+            elif isinstance(p, dict) and p.get("type") == "text":
+                parts.append(p.get("text", ""))
+        return " ".join(parts)
+    return str(content or "")
+
+
+def _build_search_query(raw: str) -> str:
+    """Derive a focused retrieval query from a raw user message.
+
+    Trace 019ea8f0 fed the retriever the whole message — three quoted paper
+    titles glued to "make notes and save them" — as one literal query. It
+    embedded to a degenerate centroid that matched nothing, and the
+    instruction tokens diluted lexical search. Prefer the quoted entity names
+    (what the user actually wants retrieved); otherwise strip a leading
+    imperative clause. Fall back to the raw text when nothing structured is
+    found.
+    """
+    if not raw:
+        return raw
+    quoted = _QUOTED_SPAN_RE.findall(raw)
+    if quoted:
+        return " ".join(q.strip() for q in quoted)[:512]
+    cleaned = _INSTRUCTION_LEAD_RE.sub("", raw).strip()
+    return (cleaned or raw)[:512]
+
+
+# ---------------------------------------------------------------------------
 # RAG node
 # ---------------------------------------------------------------------------
 
@@ -357,7 +411,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     last_user_msg: Optional[str] = None
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            last_user_msg = _coerce_text(msg.content)
             break
 
     # Fast-path: skip retrieval entirely for short, clearly-conversational
@@ -432,7 +486,9 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     if not last_user_msg or not current_user:
         return {"retrieved_contexts": [], **state_update}
 
-    # Test-time injection still supported.
+    # Test-time injection / custom retriever override receives the query
+    # verbatim — the caller owns it. Query cleaning below applies only to the
+    # built-in DO KB + hybrid retrieval.
     search_fn = configurable.get("search_fn")
     if search_fn:
         try:
@@ -441,6 +497,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
         except Exception as e:
             logger.warning("injected search_fn failed", exc_info=e)
             return {"retrieved_contexts": [], **state_update}
+
+    # Clean the retrieval query: drop instruction clauses, prefer quoted
+    # entity names. Keep last_user_msg raw for project-id/intent checks above.
+    search_query = _build_search_query(last_user_msg)
 
     # Skip the org-wide knowledge-base read when no project context is
     # active. Trace 019e191a showed a chat-mode "Find recent transformer
@@ -458,12 +518,12 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Pass resolved_project_id so KB results stay scoped to the active project
     # — org-scoped KB otherwise leaks chunks from sibling projects.
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
-        last_user_msg, current_user, project_id=resolved_project_id
+        search_query, current_user, project_id=resolved_project_id
     )
     if primary_contexts:
         return {"retrieved_contexts": primary_contexts, **state_update}
 
-    contexts = await _legacy_hybrid_search_fallback(last_user_msg, current_user)
+    contexts = await _legacy_hybrid_search_fallback(search_query, current_user)
     return {"retrieved_contexts": contexts, **state_update}
 
 
