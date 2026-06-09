@@ -1,4 +1,4 @@
-import { logger, task, wait } from "@trigger.dev/sdk/v3";
+import { logger, task, wait } from "@trigger.dev/sdk";
 import { backendClient, BackendApiError } from "../_lib/backend-client";
 import { cacheWarmAfterProcessing } from "./cache-warm";
 import {
