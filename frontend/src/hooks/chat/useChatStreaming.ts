@@ -88,7 +88,22 @@ export function useChatStreaming(
 
   // ---- Project context (for agent page_context) ----
   const searchParams = useSearchParams();
-  const boundProjectId = searchParams.get('projectId') ?? undefined;
+  // Thread row first (source_project_id is the durable binding), URL param
+  // only as the initial intent — the param is dropped by thread navigation.
+  // `null` = thread loaded and unbound (ignore any stale URL param);
+  // `undefined` = thread not in store yet (URL param is the intent).
+  const threadProjectId = useChatStore((s) => {
+    if (!s.currentThreadId) return undefined;
+    for (const list of Object.values(s.threads)) {
+      const t = list.find((x) => x.id === s.currentThreadId);
+      if (t) return t.source_project_id ?? null;
+    }
+    return undefined;
+  });
+  const boundProjectId =
+    threadProjectId === null
+      ? undefined
+      : (threadProjectId ?? searchParams.get('projectId') ?? undefined);
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const resolvedProjectName = boundProjectId
@@ -592,6 +607,9 @@ export function useChatStreaming(
       selectedModel,
       isAuthenticated,
       addMessageToStore,
+      boundProjectId,
+      resolvedProjectName,
+      rememberAgentThread,
     ]
   );
 

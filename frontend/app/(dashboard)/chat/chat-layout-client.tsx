@@ -313,7 +313,25 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const projectId = searchParams.get('projectId') ?? undefined;
+  const { currentThreadId, currentWorkspaceId } = useChatPersistence();
+  // The binding's source of truth is the thread row (source_project_id) —
+  // the ?projectId= param is only the initial intent (e.g. arriving from a
+  // project page) and is dropped by thread navigation, so deriving from it
+  // alone made the rail "forget" the project on every thread switch.
+  // `null` = thread loaded and unbound (ignore any stale URL param);
+  // `undefined` = thread not in store yet (URL param is the intent).
+  const threadProjectId = useChatStore((s) => {
+    if (!s.currentThreadId) return undefined;
+    for (const list of Object.values(s.threads)) {
+      const t = list.find((x) => x.id === s.currentThreadId);
+      if (t) return t.source_project_id ?? null;
+    }
+    return undefined;
+  });
+  const projectId =
+    threadProjectId === null
+      ? undefined
+      : (threadProjectId ?? searchParams.get('projectId') ?? undefined);
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const fetchProject = useProjectStore((s) => s.fetchProject);
@@ -322,7 +340,6 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
       ? currentProject.name
       : (projectStoreProjects.find((p) => p.id === projectId)?.name ?? null)
     : null;
-  const { currentThreadId, currentWorkspaceId } = useChatPersistence();
   const storeWorkspaces = useChatStore((s) => s.workspaces);
   const workspaceName = isAuthenticated
     ? (storeWorkspaces.find((w) => w.id === currentWorkspaceId)?.name ?? null)
@@ -337,11 +354,18 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleProjectBound = useCallback(
     (boundProjectId: string) => {
+      // Persist into the store thread so the binding survives thread
+      // switches/reloads (the URL param below is just immediate intent).
+      if (currentThreadId) {
+        useChatStore
+          .getState()
+          .setThreadProjectBinding(currentThreadId, boundProjectId);
+      }
       const params = new URLSearchParams(searchParams.toString());
       params.set('projectId', boundProjectId);
       router.replace(`/chat?${params.toString()}`);
     },
-    [router, searchParams]
+    [router, searchParams, currentThreadId]
   );
 
   // Global keyboard shortcut for command palette

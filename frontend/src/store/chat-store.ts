@@ -175,6 +175,8 @@ interface ChatActions {
   setCurrentWorkspace: (workspaceId: string | null) => void;
   setCurrentConversation: (conversationId: string | null) => void;
   setCurrentThread: (threadId: string | null) => void;
+  setThreadProjectBinding: (threadId: string, projectId: string | null) => void;
+  getThreadById: (threadId: string | null) => Thread | undefined;
 
   // Workspace actions
   loadWorkspaces: () => Promise<void>;
@@ -443,6 +445,30 @@ export const useChatStore = create<ChatStore>()(
         if (threadId) {
           get().loadMessages(threadId);
         }
+      },
+
+      // The project binding lives on the thread row (source_project_id), not
+      // in the URL — keep the store copy in sync after a bind/unbind so the
+      // context rail survives thread switches and reloads.
+      setThreadProjectBinding: (threadId, projectId) => {
+        set((state) => {
+          for (const list of Object.values(state.threads)) {
+            const t = list.find((x) => x.id === threadId);
+            if (t) {
+              t.source_project_id = projectId;
+              break;
+            }
+          }
+        });
+      },
+
+      getThreadById: (threadId) => {
+        if (!threadId) return undefined;
+        for (const list of Object.values(get().threads)) {
+          const t = list.find((x) => x.id === threadId);
+          if (t) return t;
+        }
+        return undefined;
       },
 
       // ========================================================================
