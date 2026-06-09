@@ -215,15 +215,20 @@ neo4j:
   persistence:
     size: 5Gi
   resources:
-    heapSize: "128m"
-    pagecacheSize: "64m"
+    # 128m heap + 64m pagecache under a 512Mi container limit was guaranteed
+    # OOMKill: the JVM base + Neo4j overhead alone exceeds that. Neo4j was
+    # crash-looping (OOMKilled, not Ready), taking the whole KG offline.
+    # heap 1g + pagecache 512m fit under a 2Gi limit with room for JVM
+    # metaspace/threads/direct buffers. request == limit so it is not evicted.
+    heapSize: "1g"
+    pagecacheSize: "512m"
     container:
       limits:
-        cpu: 300m
-        memory: 512Mi
+        cpu: "1"
+        memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 250m
+        memory: 2Gi
 qdrant:
   enabled: true
   persistence:
