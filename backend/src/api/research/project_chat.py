@@ -104,6 +104,7 @@ async def _get_thread_with_auth(
             and_(
                 Thread.id == thread_id,
                 Workspace.owner_id == current_user.id,
+                Thread.is_deleted == False,
             )
         )
     )
@@ -212,26 +213,14 @@ async def start_chat_from_project(
                     detail="Conversation and project must be in the same workspace",
                 )
 
-        # Create thread with project context
+        # Create thread
         thread = Thread(
             conversation_id=conversation_id,
             title=request.thread_title or f"Discussion: {project.name}",
             created_by_id=current_user.id,
-            source_project_id=project_id,  # Link to originating project
-            rag_document_scope={"document_ids": document_ids},  # Store RAG scope
         )
         db.add(thread)
         await db.flush()  # Get thread ID
-
-        # Create project-thread link
-        project_thread = ProjectThread(
-            project_id=project_id,
-            thread_id=thread.id,
-            link_type=ProjectThreadLinkType.AUTO.value,
-            linked_by_id=current_user.id,
-            context_note="Auto-linked when starting chat from project",
-        )
-        db.add(project_thread)
 
         # Create initial message if provided
         if request.initial_message:
@@ -243,6 +232,21 @@ async def start_chat_from_project(
             )
             db.add(message)
             thread.message_count = 1
+
+        # Atomic link via the single source of truth (sets source_project_id,
+        # rag_document_scope, and the join row in one unit of work).
+        from src.services.research.project_thread_service import (
+            attach_thread_to_project,
+        )
+
+        project_thread = await attach_thread_to_project(
+            db,
+            thread,
+            project_id,
+            link_type=ProjectThreadLinkType.AUTO.value,
+            linked_by_id=current_user.id,
+            context_note="Auto-linked when starting chat from project",
+        )
 
         await db.commit()
         await db.refresh(thread)
@@ -260,7 +264,9 @@ async def start_chat_from_project(
             thread_id=thread.id,
             conversation_id=conversation_id,
             project_thread_id=project_thread.id,
-            document_scope=[UUID(doc_id) for doc_id in document_ids],
+            document_scope=[
+                UUID(doc_id) for doc_id in (thread.rag_document_scope or {}).get("document_ids", [])
+            ],
         )
 
     except HTTPException:
@@ -272,7 +278,7 @@ async def start_chat_from_project(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start chat from project: {str(e)}",
+            detail="Failed to start chat from project",
         )
 
 
@@ -360,7 +366,7 @@ async def link_thread_to_project(
         logger.error("link_thread_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to link thread: {str(e)}",
+            detail="Failed to link thread",
         )
 
 
@@ -390,11 +396,16 @@ async def list_project_threads(
         # Verify project access
         await _get_project_with_auth(project_id, current_user, db)
 
-        # Get linked threads with thread details
+        # Get linked threads with thread details (exclude soft-deleted links)
         query = (
             select(ProjectThread)
             .options(selectinload(ProjectThread.thread))
-            .where(ProjectThread.project_id == project_id)
+            .where(
+                and_(
+                    ProjectThread.project_id == project_id,
+                    ProjectThread.is_deleted == False,
+                )
+            )
             .order_by(ProjectThread.linked_at.desc())
         )
         result = await db.execute(query)
@@ -430,7 +441,7 @@ async def list_project_threads(
         logger.error("list_project_threads_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list threads: {str(e)}",
+            detail="Failed to list threads",
         )
 
 
@@ -478,21 +489,27 @@ async def unlink_thread_from_project(
             )
 
         thread = await _get_thread_with_auth(thread_id, current_user, db)
-        await db.delete(project_thread)
+        project_thread.soft_delete()
 
-        if getattr(thread, "source_project_id", None) == project_id:
-            remaining_query = (
-                select(ProjectThread)
-                .where(
-                    and_(
-                        ProjectThread.thread_id == thread_id,
-                        ProjectThread.project_id != project_id,
-                    )
+        # Reassign the scalar source whenever the unlinked project was the
+        # scalar source, OR whenever the scalar is NULL but other links remain
+        # (fixes desync where source_project_id was already cleared).
+        scalar = getattr(thread, "source_project_id", None)
+        remaining_query = (
+            select(ProjectThread)
+            .where(
+                and_(
+                    ProjectThread.thread_id == thread_id,
+                    ProjectThread.project_id != project_id,
+                    ProjectThread.is_deleted == False,
                 )
-                .order_by(ProjectThread.linked_at.desc())
             )
-            remaining_result = await db.execute(remaining_query)
-            remaining_link = remaining_result.scalars().first()
+            .order_by(ProjectThread.linked_at.desc())
+        )
+        remaining_result = await db.execute(remaining_query)
+        remaining_link = remaining_result.scalars().first()
+
+        if scalar == project_id or (scalar is None and remaining_link):
             if remaining_link:
                 document_ids = await _get_project_document_scope(
                     remaining_link.project_id, db
@@ -519,7 +536,7 @@ async def unlink_thread_from_project(
         logger.error("unlink_thread_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to unlink thread: {str(e)}",
+            detail="Failed to unlink thread",
         )
 
 
@@ -633,5 +650,5 @@ async def save_thread_to_note(
         logger.error("save_thread_to_note_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save thread to note: {str(e)}",
+            detail="Failed to save thread to note",
         )

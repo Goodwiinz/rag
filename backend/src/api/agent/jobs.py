@@ -222,6 +222,49 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
+async def _resolve_project_for_thread(
+    db: AsyncSession,
+    thread_obj: Any,
+) -> tuple[Optional[str], Optional[str]]:
+    """Return (project_id, project_name) for a thread, using scalar or join fallback.
+
+    If ``source_project_id`` is set, the scalar path is used (fast).  If it is
+    NULL, the newest ``project_threads`` row is queried as a fallback so a
+    half-linked thread (row exists but column is NULL) still gets correct RAG
+    scoping.
+    """
+    if thread_obj is None:
+        return None, None
+
+    scalar = getattr(thread_obj, "source_project_id", None)
+    if scalar:
+        name = None
+        if thread_obj.source_project is not None:
+            name = thread_obj.source_project.name
+        return str(scalar), name
+
+    # Fallback: newest project_threads row
+    from sqlalchemy import desc, select
+    from src.models import Collection, ProjectThread
+
+    stmt = (
+        select(ProjectThread, Collection)
+        .join(Collection, ProjectThread.project_id == Collection.id)
+        .where(
+            ProjectThread.thread_id == thread_obj.id,
+            ProjectThread.is_deleted == False,
+        )
+        .order_by(ProjectThread.linked_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+    if row:
+        pt, coll = row
+        return str(pt.project_id), coll.name
+    return None, None
+
+
 async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
@@ -241,6 +284,7 @@ async def _resolve_thread(
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
+    from sqlalchemy.orm import selectinload
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
@@ -250,6 +294,7 @@ async def _resolve_thread(
             select(Thread)
             .join(Conversation, Thread.conversation_id == Conversation.id)
             .join(Workspace, Conversation.workspace_id == Workspace.id)
+            .options(selectinload(Thread.source_project))
             .where(Thread.id == UUID(request.thread_id))
             .where(Workspace.owner_id == current_user.id)
         )
@@ -589,16 +634,14 @@ async def _run_agent_graph(
             ]
 
             page_context = _page_context_to_dict(request.page_context)
-            if (
-                thread_obj is not None
-                and getattr(thread_obj, "source_project_id", None)
-                and not page_context.get("project_id")
-            ):
-                page_context["project_id"] = str(thread_obj.source_project_id)
-                if hasattr(thread_obj, "source_project") and thread_obj.source_project:
-                    page_context["project_name"] = thread_obj.source_project.name
-                if not page_context.get("type") or page_context["type"] == "chat":
-                    page_context["type"] = "project"
+            if thread_obj is not None and not page_context.get("project_id"):
+                proj_id, proj_name = await _resolve_project_for_thread(db, thread_obj)
+                if proj_id:
+                    page_context["project_id"] = proj_id
+                    if proj_name:
+                        page_context["project_name"] = proj_name
+                    if not page_context.get("type") or page_context["type"] == "chat":
+                        page_context["type"] = "project"
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks
