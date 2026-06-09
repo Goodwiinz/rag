@@ -624,7 +624,7 @@ def kg_extract_entities_job(self, job_id: str):
                 service.extract_entities(content, timeout_seconds=300.0)
             )
             extracted_entities = extraction_result.entities
-            extracted_relationships = []
+            extracted_relationships = extraction_result.relationships
             entities_found_total += len(extracted_entities)
             relationships_found_total += len(extracted_relationships)
 
@@ -659,41 +659,33 @@ def kg_extract_entities_job(self, job_id: str):
             entities_created_total += len(entity_result.created_entities)
             errors_total += len(entity_result.errors)
 
-            # Build a lookup from extracted entity signature to created graph node ID.
-            created_entity_id_by_key = {}
+            # Map created graph node IDs by entity name. Relationships from the
+            # LLM extractor reference entity names (already remapped to the kept
+            # merged entity's name in _resolve_relationships), so a name lookup
+            # is sufficient to resolve endpoints to the nodes just created.
+            created_id_by_name = {}
             for created in entity_result.created_entities:
-                created_key = (
-                    created.entity_type.value,
-                    created.name.strip().lower(),
-                )
-                created_entity_id_by_key[created_key] = created.id
+                created_id_by_name[created.name.strip().lower()] = created.id
 
             relationship_requests = []
             for relationship in extracted_relationships:
-                source_entity = relationship.get("source_entity")
-                target_entity = relationship.get("target_entity")
-                if not source_entity or not target_entity:
-                    continue
-
-                source_graph_type = _map_llm_entity_type_to_graph(source_entity.entity_type)
-                target_graph_type = _map_llm_entity_type_to_graph(target_entity.entity_type)
-
-                source_key = (source_graph_type.value, (source_entity.name or "").strip().lower())
-                target_key = (target_graph_type.value, (target_entity.name or "").strip().lower())
-                source_entity_id = created_entity_id_by_key.get(source_key)
-                target_entity_id = created_entity_id_by_key.get(target_key)
+                source_entity_id = created_id_by_name.get(
+                    relationship.source.strip().lower()
+                )
+                target_entity_id = created_id_by_name.get(
+                    relationship.target.strip().lower()
+                )
                 if not source_entity_id or not target_entity_id:
                     continue
 
-                confidence = float(relationship.get("confidence", 0.7))
-                confidence = min(1.0, max(0.0, confidence))
-                evidence = relationship.get("evidence")
+                confidence = min(1.0, max(0.0, float(relationship.confidence)))
+                evidence = relationship.evidence
                 relationship_requests.append(
                     CreateRelationshipRequest(
                         source_entity_id=source_entity_id,
                         target_entity_id=target_entity_id,
                         relationship_type=_safe_relationship_type(
-                            relationship.get("relationship_type", "")
+                            relationship.relationship_type
                         ),
                         strength=confidence,
                         confidence_score=confidence,
@@ -702,7 +694,6 @@ def kg_extract_entities_job(self, job_id: str):
                         metadata={
                             "source": "background_extraction_job",
                             "document_id": str(document.id),
-                            "pattern_matched": relationship.get("pattern_matched"),
                         },
                         source_document_id=str(document.id),
                     )

@@ -156,13 +156,80 @@ def merge_entities(entities: list[ExtractedEntity]) -> list[ExtractedEntity]:
     return merged
 
 
+@dataclass
+class ExtractedRelationship:
+    """Relationship between two extracted entities, by entity name."""
+
+    source: str
+    target: str
+    relationship_type: str = "RELATED_TO"
+    confidence: float = 0.7
+    evidence: str = ""
+
+
 ENTITY_TYPES = [
     "PERSON", "ORGANIZATION", "CONCEPT", "METHOD", "MODEL",
     "DATASET", "TECHNOLOGY", "METRIC", "LOCATION", "RESEARCH",
 ]
 
+# Constrained vocabulary the LLM may use for relationship types. Anything it
+# returns is still validated by _safe_relationship_type downstream (unknown ->
+# RELATED_TO), but giving it real options yields typed edges instead of every
+# edge collapsing to the generic RELATED_TO.
+RELATIONSHIP_TYPES = [
+    "WORKS_FOR", "PART_OF", "LOCATED_IN", "CREATED_BY", "OWNS",
+    "MANAGES", "MEMBER_OF", "COLLABORATES_WITH", "PUBLISHED_BY",
+    "REFERENCES", "RELATED_TO",
+]
+
+
+def _resolve_relationships(
+    relationships: list[ExtractedRelationship],
+    entities: list[ExtractedEntity],
+) -> list[ExtractedRelationship]:
+    """Keep only relationships whose endpoints map to a surviving merged entity.
+
+    LLM relationships reference entity names; after merge those names may be an
+    alias/canonical of the kept entity. Remap each endpoint to the kept entity's
+    name (so it matches the node that actually gets created), drop edges with a
+    dangling endpoint or a self-loop, and dedupe on (source, target, type).
+    """
+    if not relationships or not entities:
+        return []
+
+    name_to_entity: dict[str, str] = {}
+    for ent in entities:
+        kept = ent.name
+        name_to_entity.setdefault(ent.name.strip().lower(), kept)
+        name_to_entity.setdefault(ent.canonical_name.strip().lower(), kept)
+        for alias in ent.aliases:
+            name_to_entity.setdefault(alias.strip().lower(), kept)
+
+    resolved: list[ExtractedRelationship] = []
+    seen: set[tuple[str, str, str]] = set()
+    for rel in relationships:
+        src = name_to_entity.get(rel.source.strip().lower())
+        tgt = name_to_entity.get(rel.target.strip().lower())
+        if not src or not tgt or src.strip().lower() == tgt.strip().lower():
+            continue
+        key = (src.lower(), tgt.lower(), rel.relationship_type.upper())
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append(
+            ExtractedRelationship(
+                source=src,
+                target=tgt,
+                relationship_type=rel.relationship_type,
+                confidence=rel.confidence,
+                evidence=rel.evidence,
+            )
+        )
+    return resolved
+
 EXTRACTION_SYSTEM_PROMPT = """\
-Extract named entities from the following text. Return a JSON object with an "entities" array.
+Extract named entities and the relationships between them from the following text.
+Return a JSON object with an "entities" array and a "relationships" array.
 
 For each entity include:
 - "name": exact name as it appears in the text
@@ -172,7 +239,16 @@ For each entity include:
 - "confidence": 0.0-1.0 how confident you are this is a real entity
 - "aliases": array of alternate names/abbreviations seen in the text
 
-Focus on entities that carry domain meaning. Skip generic words, stopwords, and formatting artifacts.
+For each relationship include:
+- "source": name of the source entity (must match an entity "name" above)
+- "target": name of the target entity (must match an entity "name" above)
+- "type": one of {relationship_types}
+- "confidence": 0.0-1.0 how confident you are this relationship is stated/implied
+- "evidence": short text snippet supporting the relationship
+
+Only emit a relationship when both entities are in the "entities" array and the text
+supports the link. Focus on entities that carry domain meaning. Skip generic words,
+stopwords, and formatting artifacts.
 Return ONLY the JSON object, no other text."""
 
 EXTRACTION_USER_TEMPLATE = "Extract entities from this text:\n\n{text}"
@@ -180,11 +256,48 @@ EXTRACTION_USER_TEMPLATE = "Extract entities from this text:\n\n{text}"
 
 def _build_system_prompt(entity_types: list[str] | None = None) -> str:
     types = entity_types or ENTITY_TYPES
-    return EXTRACTION_SYSTEM_PROMPT.format(entity_types=", ".join(types))
+    return EXTRACTION_SYSTEM_PROMPT.format(
+        entity_types=", ".join(types),
+        relationship_types=", ".join(RELATIONSHIP_TYPES),
+    )
 
 
-def parse_llm_response(raw: str) -> list[ExtractedEntity]:
-    """Parse LLM JSON response into ExtractedEntity list. Returns empty on failure."""
+def _parse_relationships(data: dict) -> list[ExtractedRelationship]:
+    """Parse the optional 'relationships' array. Skips malformed rows."""
+    raw_rels = data.get("relationships")
+    if not isinstance(raw_rels, list):
+        return []
+
+    relationships: list[ExtractedRelationship] = []
+    for raw_rel in raw_rels:
+        if not isinstance(raw_rel, dict):
+            continue
+        source = str(raw_rel.get("source", "")).strip()
+        target = str(raw_rel.get("target", "")).strip()
+        # A self-loop or a missing endpoint is not a usable edge.
+        if not source or not target or source.lower() == target.lower():
+            continue
+        rel_type = str(raw_rel.get("type", "RELATED_TO")).strip().upper() or "RELATED_TO"
+        try:
+            confidence = max(0.0, min(1.0, float(raw_rel.get("confidence", 0.7))))
+        except (TypeError, ValueError):
+            confidence = 0.7
+        relationships.append(
+            ExtractedRelationship(
+                source=source,
+                target=target,
+                relationship_type=rel_type,
+                confidence=confidence,
+                evidence=str(raw_rel.get("evidence", "") or ""),
+            )
+        )
+    return relationships
+
+
+def parse_llm_response(
+    raw: str,
+) -> tuple[list[ExtractedEntity], list[ExtractedRelationship]]:
+    """Parse LLM JSON into (entities, relationships). Returns ([], []) on failure."""
     text = raw.strip()
 
     # Strip markdown code fences
@@ -197,11 +310,11 @@ def parse_llm_response(raw: str) -> list[ExtractedEntity]:
         data = json.loads(text)
     except json.JSONDecodeError:
         logger.warning("Failed to parse LLM entity response as JSON")
-        return []
+        return [], []
 
     if not isinstance(data, dict) or "entities" not in data:
         logger.warning("LLM response missing 'entities' key")
-        return []
+        return [], []
 
     entities: list[ExtractedEntity] = []
     for raw_ent in data["entities"]:
@@ -241,7 +354,7 @@ def parse_llm_response(raw: str) -> list[ExtractedEntity]:
         except Exception as e:  # noqa: BLE001 - skip one bad row, keep the rest
             logger.warning("Skipping malformed entity %r: %s", name, e)
 
-    return entities
+    return entities, _parse_relationships(data)
 
 
 from src.models.entity import EntityType
@@ -279,6 +392,7 @@ class ExtractionResult:
     chunks_failed: int
     processing_time_ms: float
     error: str | None = None
+    relationships: list[ExtractedRelationship] = field(default_factory=list)
 
 
 class LLMEntityExtractionService:
@@ -293,8 +407,8 @@ class LLMEntityExtractionService:
         chunk: str,
         system_prompt: str,
         semaphore: asyncio.Semaphore,
-    ) -> list[ExtractedEntity]:
-        """Extract entities from a single text chunk."""
+    ) -> tuple[list[ExtractedEntity], list[ExtractedRelationship]]:
+        """Extract entities and relationships from a single text chunk."""
         async with semaphore:
             if not self._breaker.can_execute():
                 raise RuntimeError("Circuit breaker open")
@@ -334,6 +448,7 @@ class LLMEntityExtractionService:
         semaphore = asyncio.Semaphore(_MAX_CONCURRENT_CHUNKS)
 
         all_entities: list[ExtractedEntity] = []
+        all_relationships: list[ExtractedRelationship] = []
         chunks_failed = 0
         chunks_attempted = 0
 
@@ -364,9 +479,12 @@ class LLMEntityExtractionService:
                     chunks_failed += 1
                     logger.warning("Chunk extraction failed: %s", result)
                 else:
-                    all_entities.extend(result)
+                    chunk_entities, chunk_relationships = result
+                    all_entities.extend(chunk_entities)
+                    all_relationships.extend(chunk_relationships)
 
         merged = merge_entities(all_entities)
+        relationships = _resolve_relationships(all_relationships, merged)
         elapsed_ms = (time.monotonic() - start) * 1000
 
         # chunks_processed = succeeded only (attempted minus failed). Chunks
@@ -394,4 +512,5 @@ class LLMEntityExtractionService:
             chunks_failed=chunks_failed,
             processing_time_ms=elapsed_ms,
             error=error,
+            relationships=relationships,
         )
