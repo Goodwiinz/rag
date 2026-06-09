@@ -5,6 +5,7 @@ Graph Analytics Service with Neo4j algorithms
 import asyncio
 import logging
 import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
