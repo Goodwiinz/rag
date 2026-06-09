@@ -104,6 +104,17 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and sanitized
         and isinstance(sanitized[-1], ToolMessage)
     )
+
+    # Close the plan→execute handoff (see planner.render_plan_directive).
+    # Inject on the pre-tool pass only; skip on synthesis turns where tools
+    # have already run.
+    if not use_lightweight_synthesis:
+        from src.services.agent.planner import render_plan_directive
+
+        plan_directive = render_plan_directive(state.get("plan"))
+        if plan_directive:
+            messages.insert(1, SystemMessage(content=plan_directive))
+
     if use_lightweight_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 

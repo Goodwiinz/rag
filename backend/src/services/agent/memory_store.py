@@ -1,8 +1,10 @@
-"""Persistent agent memory store with PostgreSQL + Qdrant semantic retrieval.
+"""Persistent agent memory store (PostgreSQL).
 
 Stores user insights, preferences, and context extracted from conversations.
-PostgreSQL provides durability; Qdrant provides semantic search.
-Gracefully degrades if Qdrant or embeddings are unavailable.
+Durable rows live in the ``agent_memories`` table. Semantic recall is served
+by the LangGraph ``AsyncPostgresStore`` (pgvector) in ``memory.py`` — the
+former Qdrant client here was orphaned after Qdrant was dropped and has been
+removed. See [[project_rag_dropped_qdrant]].
 """
 
 import logging
@@ -12,8 +14,6 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,48 +37,9 @@ agent_memories = sa.Table(
     sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false")),
 )
 
-# Qdrant collection name for agent memories
-QDRANT_COLLECTION = "agent_memories"
-EMBEDDING_DIMENSION = 384  # sentence-transformers default
-
-
 # ---------------------------------------------------------------------------
 # Service helpers (patchable for testing)
 # ---------------------------------------------------------------------------
-
-
-def _get_embedding_service():
-    """Get or create the embedding service. Returns None if unavailable."""
-    try:
-        from src.services.embedding.embedding_service import EmbeddingService
-        return EmbeddingService(lazy=True)
-    except Exception as e:
-        logger.warning("Embedding service unavailable: %s", e)
-        return None
-
-
-_QDRANT_CLIENT = None
-
-
-def _get_qdrant_client():
-    """Get a Qdrant client. Returns None if unavailable.
-
-    Cached at module level to avoid HTTP-client setup on every call.
-    """
-    global _QDRANT_CLIENT
-    if _QDRANT_CLIENT is not None:
-        return _QDRANT_CLIENT
-    try:
-        from qdrant_client import QdrantClient
-        settings = get_settings()
-        url = getattr(settings, "QDRANT_URL", None) or "http://localhost:6333"
-        api_key = getattr(settings, "QDRANT_API_KEY", None)
-        client = QdrantClient(url=url, api_key=api_key, timeout=10)
-        _QDRANT_CLIENT = client
-        return client
-    except Exception as e:
-        logger.warning("Qdrant client unavailable: %s", e)
-        return None
 
 
 def _build_insights_llm():
