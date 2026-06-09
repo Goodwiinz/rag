@@ -9,7 +9,11 @@ import {
 } from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
-import { useChatStore } from '@/store/chat-store';
+import {
+  resolveBoundProjectId,
+  selectCurrentThreadProjectId,
+  useChatStore,
+} from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
@@ -20,6 +24,8 @@ import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 
 // localStorage key for the workspace→agent thread map (see agentThreadMapRef).
 const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
+// Warn once per session when the map can't be persisted (quota/private mode).
+let warnedAgentMapWriteFailed = false;
 
 // ============================================
 // TYPES
@@ -89,21 +95,13 @@ export function useChatStreaming(
   // ---- Project context (for agent page_context) ----
   const searchParams = useSearchParams();
   // Thread row first (source_project_id is the durable binding), URL param
-  // only as the initial intent — the param is dropped by thread navigation.
-  // `null` = thread loaded and unbound (ignore any stale URL param);
-  // `undefined` = thread not in store yet (URL param is the intent).
-  const threadProjectId = useChatStore((s) => {
-    if (!s.currentThreadId) return undefined;
-    for (const list of Object.values(s.threads)) {
-      const t = list.find((x) => x.id === s.currentThreadId);
-      if (t) return t.source_project_id ?? null;
-    }
-    return undefined;
-  });
-  const boundProjectId =
-    threadProjectId === null
-      ? undefined
-      : (threadProjectId ?? searchParams.get('projectId') ?? undefined);
+  // only as the initial intent — thread navigation (getSelectedThreadUrl)
+  // drops it. Sentinel semantics documented on selectCurrentThreadProjectId.
+  const threadProjectId = useChatStore(selectCurrentThreadProjectId);
+  const boundProjectId = resolveBoundProjectId(
+    threadProjectId,
+    searchParams.get('projectId')
+  );
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const resolvedProjectName = boundProjectId
@@ -129,13 +127,29 @@ export function useChatStreaming(
     try {
       const stored = window.localStorage.getItem(AGENT_THREAD_MAP_KEY);
       if (stored) {
-        agentThreadMapRef.current = {
-          ...JSON.parse(stored),
-          ...agentThreadMapRef.current,
-        };
+        const parsed: unknown = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          agentThreadMapRef.current = {
+            ...(parsed as Record<string, string>),
+            ...agentThreadMapRef.current,
+          };
+        } else {
+          window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+        }
       }
-    } catch {
-      // Corrupt/unavailable storage: start with an empty map.
+    } catch (err) {
+      // Without the map every reload mints a fresh agent thread, so the
+      // agent "forgets" project context — make that diagnosable, and clear
+      // a corrupt value so it doesn't re-fail on every mount.
+      console.warn(
+        '[Chat] agent thread map unreadable; reloads will mint new agent threads',
+        err
+      );
+      try {
+        window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+      } catch {
+        // Storage unavailable entirely (private mode/policy) — nothing to clear.
+      }
     }
   }, []);
   const rememberAgentThread = useCallback(
@@ -146,8 +160,14 @@ export function useChatStreaming(
           AGENT_THREAD_MAP_KEY,
           JSON.stringify(agentThreadMapRef.current)
         );
-      } catch {
-        // Best-effort persistence only.
+      } catch (err) {
+        if (!warnedAgentMapWriteFailed) {
+          warnedAgentMapWriteFailed = true;
+          console.warn(
+            '[Chat] failed to persist agent thread map; agent context will not survive reload',
+            err
+          );
+        }
       }
     },
     []
@@ -240,6 +260,12 @@ export function useChatStreaming(
               projectId: boundProjectId,
             })
           );
+
+          // Register in the chat store: the binding selectors and
+          // setThreadProjectBinding read store.threads, and without this the
+          // thread is invisible there until the next full loadThreads — a
+          // project attached to it would be silently dropped from the UI.
+          useChatStore.getState().registerThread(newThread);
 
           currentConversationId = newThread.id;
           currentThreadId = newThread.id;

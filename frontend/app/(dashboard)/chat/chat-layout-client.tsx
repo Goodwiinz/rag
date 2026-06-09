@@ -3,7 +3,11 @@
 import { ContextRail } from '@/components/context-rail';
 import { useChatPersistence } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { useChatStore } from '@/store/chat-store';
+import {
+  resolveBoundProjectId,
+  selectCurrentThreadProjectId,
+  useChatStore,
+} from '@/store/chat-store';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/stores/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -315,23 +319,16 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { currentThreadId, currentWorkspaceId } = useChatPersistence();
   // The binding's source of truth is the thread row (source_project_id) —
-  // the ?projectId= param is only the initial intent (e.g. arriving from a
-  // project page) and is dropped by thread navigation, so deriving from it
-  // alone made the rail "forget" the project on every thread switch.
-  // `null` = thread loaded and unbound (ignore any stale URL param);
-  // `undefined` = thread not in store yet (URL param is the intent).
-  const threadProjectId = useChatStore((s) => {
-    if (!s.currentThreadId) return undefined;
-    for (const list of Object.values(s.threads)) {
-      const t = list.find((x) => x.id === s.currentThreadId);
-      if (t) return t.source_project_id ?? null;
-    }
-    return undefined;
-  });
-  const projectId =
-    threadProjectId === null
-      ? undefined
-      : (threadProjectId ?? searchParams.get('projectId') ?? undefined);
+  // the ?projectId= param is only the initial intent and is dropped by
+  // thread navigation (getSelectedThreadUrl builds /chat?thread=… with no
+  // other params), so deriving from it alone made the rail "forget" the
+  // project on every thread switch. Sentinel semantics documented on
+  // selectCurrentThreadProjectId.
+  const threadProjectId = useChatStore(selectCurrentThreadProjectId);
+  const projectId = resolveBoundProjectId(
+    threadProjectId,
+    searchParams.get('projectId')
+  );
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const fetchProject = useProjectStore((s) => s.fetchProject);
@@ -354,18 +351,22 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleProjectBound = useCallback(
     (boundProjectId: string) => {
-      // Persist into the store thread so the binding survives thread
-      // switches/reloads (the URL param below is just immediate intent).
-      if (currentThreadId) {
+      // Mirror into the store thread so the rail updates immediately and the
+      // binding survives in-session thread switches (the server row, written
+      // before this callback fires, covers reloads). Read the thread id live:
+      // the picker popover can stay open across a thread switch, and a
+      // closure-captured id would bind the wrong thread.
+      const liveThreadId = useChatStore.getState().currentThreadId;
+      if (liveThreadId) {
         useChatStore
           .getState()
-          .setThreadProjectBinding(currentThreadId, boundProjectId);
+          .setThreadProjectBinding(liveThreadId, boundProjectId);
       }
       const params = new URLSearchParams(searchParams.toString());
       params.set('projectId', boundProjectId);
       router.replace(`/chat?${params.toString()}`);
     },
-    [router, searchParams, currentThreadId]
+    [router, searchParams]
   );
 
   // Global keyboard shortcut for command palette
