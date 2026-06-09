@@ -314,33 +314,21 @@ async def link_thread_to_project(
                 detail="Thread and project must be in the same workspace",
             )
 
-        # Check if link already exists
-        existing_query = select(ProjectThread).where(
-            and_(
-                ProjectThread.project_id == project_id,
-                ProjectThread.thread_id == request.thread_id,
-            )
+        # Idempotent attach: writes source_project_id + the join row atomically
+        # and reuses an existing link, so re-linking repairs a desync instead of
+        # erroring (the old 409 left half-linked threads unfixable).
+        from src.services.research.project_thread_service import (
+            attach_thread_to_project,
         )
-        existing_result = await db.execute(existing_query)
-        if existing_result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Thread is already linked to this project",
-            )
 
-        # Create link
-        document_ids = await _get_project_document_scope(project_id, db)
-        thread.source_project_id = project_id
-        thread.rag_document_scope = {"document_ids": document_ids}
-
-        project_thread = ProjectThread(
-            project_id=project_id,
-            thread_id=request.thread_id,
+        project_thread = await attach_thread_to_project(
+            db,
+            thread,
+            project_id,
             link_type=ProjectThreadLinkType.MANUAL.value,
             linked_by_id=current_user.id,
             context_note=request.context_note,
         )
-        db.add(project_thread)
         await db.commit()
         await db.refresh(project_thread)
 
