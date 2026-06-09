@@ -401,7 +401,7 @@ class ChatService:
         # Update conversation activity
         conversation.update_activity()
 
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(thread)
 
         logger.info(f"Created thread: {thread.id}")

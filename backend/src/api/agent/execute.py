@@ -483,7 +483,7 @@ async def list_agent_threads(
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
+            Thread.rag_document_scope.contains(AGENT_THREAD_MARKER),
         )
         .order_by(desc(Thread.updated_at))
         .limit(50)
