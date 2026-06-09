@@ -7,10 +7,12 @@
 // Enums
 // ============================================================================
 
+// Values are lowercase to match the backend wire format
+// (ProjectThreadLinkType in backend/src/models/project_thread.py).
 export enum ProjectThreadLinkType {
-  AUTO = 'AUTO',
-  MANUAL = 'MANUAL',
-  FROM_CHAT = 'FROM_CHAT',
+  AUTO = 'auto',
+  MANUAL = 'manual',
+  FROM_CHAT = 'from_chat',
 }
 
 // ============================================================================

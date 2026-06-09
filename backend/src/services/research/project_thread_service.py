@@ -16,6 +16,7 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import and_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import CollectionDocument, ProjectThread
@@ -53,8 +54,26 @@ async def attach_thread_to_project(
     """
     thread.source_project_id = project_id
     thread.rag_document_scope = {
-        "document_ids": await get_project_document_scope(project_id, db)
+        **(thread.rag_document_scope or {}),
+        "document_ids": await get_project_document_scope(project_id, db),
     }
+
+    # Upsert with conflict-do-nothing so concurrent attaches are idempotent.
+    # The unique constraint uq_project_thread prevents duplicates; the
+    # re-select below returns the live row (restoring it if soft-deleted).
+    await db.execute(
+        pg_insert(ProjectThread)
+        .values(
+            project_id=project_id,
+            thread_id=thread.id,
+            link_type=link_type,
+            linked_by_id=linked_by_id,
+            context_note=context_note,
+        )
+        .on_conflict_do_nothing(
+            index_elements=["project_id", "thread_id"],
+        )
+    )
 
     existing = (
         await db.execute(
@@ -67,14 +86,12 @@ async def attach_thread_to_project(
         )
     ).scalar_one_or_none()
     if existing is not None:
+        if existing.is_deleted:
+            existing.restore()
         return existing
 
-    link = ProjectThread(
-        project_id=project_id,
-        thread_id=thread.id,
-        link_type=link_type,
-        linked_by_id=linked_by_id,
-        context_note=context_note,
+    # Should never reach here: on_conflict_do_nothing ensures the row
+    # exists, and the re-select above should have found it.
+    raise RuntimeError(
+        f"ProjectThread row missing after upsert for project={project_id} thread={thread.id}"
     )
-    db.add(link)
-    return link

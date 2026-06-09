@@ -13,7 +13,14 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Clock, FileText, Link2, Trash2, ExternalLink } from 'lucide-react';
+import {
+  MessageSquare,
+  Clock,
+  FileText,
+  Link2,
+  Trash2,
+  ExternalLink,
+} from 'lucide-react';
 import { ProjectThread, ProjectThreadLinkType } from '@/types/project-chat';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -34,7 +41,10 @@ const COLORS = {
 };
 
 // Link type badge colors
-const LINK_TYPE_COLORS: Record<ProjectThreadLinkType, { bg: string; text: string; border: string }> = {
+const LINK_TYPE_COLORS: Record<
+  ProjectThreadLinkType,
+  { bg: string; text: string; border: string }
+> = {
   [ProjectThreadLinkType.AUTO]: {
     bg: 'rgba(212, 160, 57, 0.1)',
     text: COLORS.phosphorGreen,
@@ -113,9 +123,9 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
     setShowUnlinkConfirm(false);
   };
 
-  // Handle case-insensitive link type lookup (backend returns lowercase)
-  const normalizedLinkType = thread.link_type?.toUpperCase() as ProjectThreadLinkType;
-  const linkTypeColors = LINK_TYPE_COLORS[normalizedLinkType] || LINK_TYPE_COLORS[ProjectThreadLinkType.AUTO];
+  const linkTypeColors =
+    LINK_TYPE_COLORS[thread.link_type] ||
+    LINK_TYPE_COLORS[ProjectThreadLinkType.AUTO];
 
   return (
     <div
@@ -137,7 +147,14 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
       }}
     >
       {/* Header Row - Title + Link Type Badge */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
+          marginBottom: '12px',
+        }}
+      >
         <h3
           onClick={handleTitleClick}
           style={{
@@ -382,7 +399,8 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
                 transition: 'all 0.2s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.backgroundColor =
+                  'rgba(255, 255, 255, 0.05)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'transparent';
