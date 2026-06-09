@@ -268,6 +268,144 @@ async def _resolve_project_for_thread(
     return None, None
 
 
+async def _resolve_and_bind_project(
+    db: AsyncSession,
+    current_user: User,
+    thread_obj: Any,
+    page_context: Dict[str, Any],
+) -> None:
+    """Fill ``page_context`` project fields and durably bind the agent thread.
+
+    The chat UI binds a project to its *workspace* thread, but agent runs
+    execute on a separate auto-created agent thread, and the only other
+    bridge (``?projectId=`` → ``page_context.project_id``) is dropped by
+    thread navigation. Without this resolver the agent forgets the attached
+    project on the very next turn / reload.
+
+    Resolution order:
+      1. Client-sent ``page_context.project_id`` — ownership-verified; junk
+         or foreign IDs are dropped rather than trusted.
+      2. The agent thread's own link (scalar column or join row).
+      3. The workspace thread named in
+         ``page_context.metadata.workspace_thread_id`` (ownership-verified).
+
+    Whenever a project is resolved and the agent thread is not yet linked to
+    it, attach it via the idempotent single writer so every future turn
+    resolves through path 2 with no client state required. The attach is
+    best-effort: a failure there never blocks the turn.
+    """
+    if thread_obj is None and not page_context.get("project_id"):
+        return
+
+    from uuid import UUID as _UUID
+
+    from sqlalchemy import and_, select
+
+    from src.models import Collection, Conversation, Thread, Workspace
+
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+
+    # Path 1: client-sent project — verify the caller owns it.
+    raw_pid = page_context.get("project_id")
+    if raw_pid:
+        try:
+            pid = _UUID(str(raw_pid))
+        except (ValueError, TypeError):
+            pid = None
+        if pid is not None:
+            row = (
+                await db.execute(
+                    select(Collection.id, Collection.name)
+                    .join(Workspace, Collection.workspace_id == Workspace.id)
+                    .where(
+                        and_(
+                            Collection.id == pid,
+                            Workspace.owner_id == current_user.id,
+                        )
+                    )
+                )
+            ).first()
+            if row:
+                project_id, project_name = str(row[0]), row[1]
+        if project_id is None:
+            # Unowned/invalid client value: drop it so it can't scope
+            # memory recall or RAG, then fall through to the thread paths.
+            page_context["project_id"] = None
+            page_context["project_name"] = None
+
+    # Path 2: the agent thread's own link.
+    if project_id is None and thread_obj is not None:
+        project_id, project_name = await _resolve_project_for_thread(db, thread_obj)
+
+    # Path 3: the workspace thread the chat UI actually binds projects to.
+    if project_id is None and thread_obj is not None:
+        ws_tid = (page_context.get("metadata") or {}).get("workspace_thread_id")
+        if ws_tid and str(ws_tid) != str(thread_obj.id):
+            try:
+                ws_uuid = _UUID(str(ws_tid))
+            except (ValueError, TypeError):
+                ws_uuid = None
+            if ws_uuid is not None:
+                ws_thread = (
+                    await db.execute(
+                        select(Thread)
+                        .join(Conversation, Thread.conversation_id == Conversation.id)
+                        .join(Workspace, Conversation.workspace_id == Workspace.id)
+                        .where(
+                            and_(
+                                Thread.id == ws_uuid,
+                                Workspace.owner_id == current_user.id,
+                                Thread.is_deleted == False,  # noqa: E712
+                            )
+                        )
+                    )
+                ).scalar_one_or_none()
+                if ws_thread is not None:
+                    project_id, project_name = await _resolve_project_for_thread(
+                        db, ws_thread
+                    )
+
+    if project_id is None:
+        return
+
+    page_context["project_id"] = project_id
+    if project_name and not page_context.get("project_name"):
+        page_context["project_name"] = project_name
+    if not page_context.get("type") or page_context.get("type") == "chat":
+        page_context["type"] = "project"
+
+    # Durably bind the agent thread so paths 1/3 are only ever needed once.
+    if (
+        thread_obj is not None
+        and str(getattr(thread_obj, "source_project_id", None) or "") != project_id
+    ):
+        try:
+            from src.models import ProjectThreadLinkType
+            from src.services.research.project_thread_service import (
+                attach_thread_to_project,
+            )
+
+            await attach_thread_to_project(
+                db,
+                thread_obj,
+                _UUID(project_id),
+                link_type=ProjectThreadLinkType.FROM_CHAT.value,
+                linked_by_id=current_user.id,
+                context_note="Auto-bound from chat project context",
+            )
+            await db.commit()
+        except Exception:
+            logger.warning(
+                "agent_thread_project_bind_failed",
+                exc_info=True,
+            )
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
+
 async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
@@ -637,14 +775,7 @@ async def _run_agent_graph(
             ]
 
             page_context = _page_context_to_dict(request.page_context)
-            if thread_obj is not None and not page_context.get("project_id"):
-                proj_id, proj_name = await _resolve_project_for_thread(db, thread_obj)
-                if proj_id:
-                    page_context["project_id"] = proj_id
-                    if proj_name:
-                        page_context["project_name"] = proj_name
-                    if not page_context.get("type") or page_context["type"] == "chat":
-                        page_context["type"] = "project"
+            await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
 
             # Project-scoped memory: durable facts the user saved for this
             # project, recalled across every thread. Best-effort; never blocks

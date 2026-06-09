@@ -25,7 +25,7 @@ from .jobs import (
     _persist_assistant_message,
     _persist_thread_messages,
     _persist_user_message,
-    _resolve_project_for_thread,
+    _resolve_and_bind_project,
     _resolve_thread,
 )
 from .trace_context import build_trace_payload
@@ -308,14 +308,7 @@ async def stream_event_generator(
         ]
 
         page_context = _page_context_to_dict(request_body.page_context)
-        if thread_obj is not None and not page_context.get("project_id"):
-            proj_id, proj_name = await _resolve_project_for_thread(db, thread_obj)
-            if proj_id:
-                page_context["project_id"] = proj_id
-                if proj_name:
-                    page_context["project_name"] = proj_name
-                if not page_context.get("type") or page_context["type"] == "chat":
-                    page_context["type"] = "project"
+        await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
 
         # Project-scoped memory recall (best-effort; never blocks a turn).
         project_memories: list = []
