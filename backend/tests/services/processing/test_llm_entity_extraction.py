@@ -8,8 +8,10 @@ import pytest
 from src.models.entity import EntityType
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
+    ExtractedRelationship,
     LLMEntityExtractionService,
     _count_tokens,
+    _resolve_relationships,
     chunk_text,
     map_to_entity_type,
     merge_entities,
@@ -158,25 +160,25 @@ class TestParseLLMResponse:
                 }
             ]
         })
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].name == "LoopMDM"
         assert entities[0].type == "MODEL"
         assert entities[0].confidence == 0.95
 
     def test_malformed_json_returns_empty(self):
-        entities = parse_llm_response("not json {{{")
+        entities, _ = parse_llm_response("not json {{{")
         assert entities == []
 
     def test_json_wrapped_in_markdown_code_block(self):
         raw = '```json\n{"entities": [{"name": "BERT", "type": "MODEL"}]}\n```'
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].name == "BERT"
 
     def test_missing_fields_use_defaults(self):
         raw = json.dumps({"entities": [{"name": "GPT-4", "type": "MODEL"}]})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].confidence == 0.8
         assert entities[0].aliases == []
@@ -184,7 +186,7 @@ class TestParseLLMResponse:
 
     def test_empty_entities_array(self):
         raw = json.dumps({"entities": []})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert entities == []
 
     def test_bad_confidence_does_not_abort_other_entities(self):
@@ -196,19 +198,19 @@ class TestParseLLMResponse:
                 {"name": "B", "type": "MODEL", "confidence": 0.9},
             ]
         })
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert {e.name for e in entities} == {"A", "B"}
         by_name = {e.name: e for e in entities}
         assert by_name["A"].confidence == 0.8  # fallback
 
     def test_confidence_is_clamped(self):
         raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "confidence": 5.0}]})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert entities[0].confidence == 1.0
 
     def test_non_list_aliases_coerced(self):
         raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "aliases": "solo"}]})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert entities[0].aliases == ["solo"]
 
 
@@ -371,3 +373,73 @@ class TestIntegrationSmoke:
             assert "PERSON" in types_found
             assert "METHOD" in types_found
             assert "CONCEPT" in types_found
+
+
+class TestRelationshipExtraction:
+    def test_parses_entities_and_relationships(self):
+        raw = json.dumps({
+            "entities": [
+                {"name": "Ada Lovelace", "type": "PERSON"},
+                {"name": "Analytical Engine", "type": "TECHNOLOGY"},
+            ],
+            "relationships": [
+                {
+                    "source": "Ada Lovelace",
+                    "target": "Analytical Engine",
+                    "type": "REFERENCES",
+                    "confidence": 0.9,
+                    "evidence": "she wrote the first algorithm for it",
+                }
+            ],
+        })
+        entities, relationships = parse_llm_response(raw)
+        assert {e.name for e in entities} == {"Ada Lovelace", "Analytical Engine"}
+        assert len(relationships) == 1
+        rel = relationships[0]
+        assert rel.source == "Ada Lovelace"
+        assert rel.target == "Analytical Engine"
+        assert rel.relationship_type == "REFERENCES"
+        assert rel.confidence == 0.9
+
+    def test_missing_relationships_key_returns_empty(self):
+        _, relationships = parse_llm_response(json.dumps({"entities": []}))
+        assert relationships == []
+
+    def test_self_loop_and_bad_confidence_handled(self):
+        raw = json.dumps({
+            "entities": [{"name": "A", "type": "CONCEPT"}],
+            "relationships": [
+                {"source": "A", "target": "A", "type": "RELATED_TO"},  # self-loop dropped
+                {"source": "A", "target": "B", "confidence": "nope"},  # bad conf -> default
+            ],
+        })
+        _, relationships = parse_llm_response(raw)
+        assert len(relationships) == 1
+        assert relationships[0].confidence == 0.7
+
+    def test_resolve_drops_dangling_and_remaps_aliases(self):
+        entities = [
+            ExtractedEntity(name="GPT-4", type="MODEL", aliases=["GPT4"]),
+            ExtractedEntity(name="OpenAI", type="ORGANIZATION"),
+        ]
+        rels = [
+            # alias on source should remap to the kept entity name "GPT-4"
+            ExtractedRelationship(source="GPT4", target="OpenAI", relationship_type="CREATED_BY"),
+            # dangling target -> dropped
+            ExtractedRelationship(source="GPT-4", target="Nonexistent"),
+        ]
+        resolved = _resolve_relationships(rels, entities)
+        assert len(resolved) == 1
+        assert resolved[0].source == "GPT-4"
+        assert resolved[0].target == "OpenAI"
+
+    def test_resolve_dedupes(self):
+        entities = [
+            ExtractedEntity(name="A", type="CONCEPT"),
+            ExtractedEntity(name="B", type="CONCEPT"),
+        ]
+        rels = [
+            ExtractedRelationship(source="A", target="B", relationship_type="RELATED_TO"),
+            ExtractedRelationship(source="A", target="B", relationship_type="RELATED_TO"),
+        ]
+        assert len(_resolve_relationships(rels, entities)) == 1
