@@ -264,9 +264,10 @@ async def start_chat_from_project(
             thread_id=thread.id,
             conversation_id=conversation_id,
             project_thread_id=project_thread.id,
-            document_scope=[
-                UUID(doc_id) for doc_id in (thread.rag_document_scope or {}).get("document_ids", [])
-            ],
+            # Pydantic coerces the stored strings to UUIDs (field is List[UUID])
+            document_scope=(thread.rag_document_scope or {}).get(
+                "document_ids", []
+            ),
         )
 
     except HTTPException:

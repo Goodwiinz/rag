@@ -347,14 +347,25 @@ class TestLinkThreadToProject:
         mock_thread.source_project_id = None
         mock_thread.rag_document_scope = None
 
-        # attach_thread_to_project queries document scope FIRST, then checks
-        # for an existing link — order matters for mock side_effect.
+        # attach_thread_to_project executes: document scope query, the
+        # on_conflict_do_nothing upsert, then a re-select that must return
+        # the (now guaranteed) link row — order matters for mock side_effect.
         doc_id = uuid4()
         doc_result = MagicMock()
         doc_result.all.return_value = [(doc_id,)]
+        upsert_result = MagicMock()
+        link_row = MagicMock()
+        link_row.id = uuid4()
+        link_row.project_id = mock_project.id
+        link_row.thread_id = mock_thread.id
+        link_row.link_type = "manual"
+        link_row.linked_at = datetime.utcnow()
+        link_row.linked_by_id = mock_user.id
+        link_row.context_note = None
+        link_row.is_deleted = False
         existing_result = MagicMock()
-        existing_result.scalar_one_or_none.return_value = None
-        mock_db.execute.side_effect = [doc_result, existing_result]
+        existing_result.scalar_one_or_none.return_value = link_row
+        mock_db.execute.side_effect = [doc_result, upsert_result, existing_result]
 
         async def _refresh(entity):
             if getattr(entity, "id", None) is None:
