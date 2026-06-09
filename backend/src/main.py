@@ -83,7 +83,6 @@ from src.api.search import (
     multi_agent_search_v2_router,
     search_quality_router,
     search_router,
-    vectors_router,
 )
 from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.security import compliance_router, encryption_router, rbac_router
@@ -444,7 +443,6 @@ app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")
-app.include_router(vectors_router, prefix="/api/v1")
 app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
