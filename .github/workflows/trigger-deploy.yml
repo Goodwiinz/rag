@@ -35,4 +35,4 @@ jobs:
           secret-path: "/trigger"
           export-type: "env"
 
-      - run: pnpm dlx trigger.dev@latest deploy
+      - run: pnpm dlx trigger.dev@4.4.6 deploy

@@ -1,4 +1,4 @@
-import { logger, task, metadata } from "@trigger.dev/sdk/v3";
+import { logger, task, metadata } from "@trigger.dev/sdk";
 import { backendClient } from "../_lib/backend-client";
 
 const DOCUMENT_EXTENSIONS = new Set([

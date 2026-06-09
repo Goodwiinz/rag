@@ -1,4 +1,4 @@
-import { logger } from "@trigger.dev/sdk/v3";
+import { logger } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8000";

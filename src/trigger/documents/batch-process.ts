@@ -1,4 +1,4 @@
-import { logger, task, metadata } from "@trigger.dev/sdk/v3";
+import { logger, task, metadata } from "@trigger.dev/sdk";
 import { orchestrateDocumentProcessing } from "./process-document";
 import { backendClient } from "../_lib/backend-client";
 import type { BatchProcessPayload } from "../_lib/schemas";
