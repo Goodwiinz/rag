@@ -190,11 +190,9 @@ async def create_thread(
         try:
             from sqlalchemy import and_
 
-            from src.models import (
-                Collection,
-                ProjectThread,
-                ProjectThreadLinkType,
-                Workspace,
+            from src.models import Collection, ProjectThreadLinkType, Workspace
+            from src.services.research.project_thread_service import (
+                attach_thread_to_project,
             )
 
             # Verify project exists and user has access
@@ -212,31 +210,16 @@ async def create_thread(
             project = project_result.scalar_one_or_none()
 
             if project:
-                # Create project-thread link
-                project_thread = ProjectThread(
-                    project_id=data.project_id,
-                    thread_id=thread.id,
+                # Single atomic writer for source_project_id + the join row, so
+                # the two cannot desync (see project_thread_service).
+                await attach_thread_to_project(
+                    db,
+                    thread,
+                    data.project_id,
                     link_type=ProjectThreadLinkType.FROM_CHAT.value,
                     linked_by_id=current_user.id,
                     context_note="Auto-linked when creating thread with project_id",
                 )
-                db.add(project_thread)
-
-                # Set source_project_id on thread
-                thread.source_project_id = data.project_id
-
-                # Get project documents for RAG scope
-                from src.models import CollectionDocument
-
-                doc_query = select(CollectionDocument.document_id).where(
-                    CollectionDocument.collection_id == data.project_id
-                )
-                doc_result = await db.execute(doc_query)
-                document_ids = [str(row[0]) for row in doc_result.all()]
-
-                if document_ids:
-                    thread.rag_document_scope = {"document_ids": document_ids}
-
                 await db.commit()
                 await db.refresh(thread)
 
@@ -244,7 +227,6 @@ async def create_thread(
                     "thread_auto_linked_to_project",
                     thread_id=str(thread.id),
                     project_id=str(data.project_id),
-                    document_count=len(document_ids),
                 )
             else:
                 logger.warning(
@@ -253,8 +235,21 @@ async def create_thread(
                     thread_id=str(thread.id),
                 )
         except Exception as e:
-            logger.error(f"Failed to auto-link thread to project: {e}")
-            # Don't fail the request, just log the error
+            # Best-effort: the thread already exists, so we don't fail the
+            # request. But roll back the partial link so the column + join row
+            # never desync (better a clean re-attachable thread than a
+            # half-linked one). The agent's read path also falls back to the
+            # join table (see jobs._resolve_thread_project).
+            logger.error(
+                "thread_auto_link_failed",
+                thread_id=str(thread.id),
+                project_id=str(data.project_id),
+                error=str(e),
+            )
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
 
     # Broadcast thread creation event via WebSocket
     try:
