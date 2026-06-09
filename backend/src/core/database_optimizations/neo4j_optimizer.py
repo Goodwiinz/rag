@@ -355,25 +355,35 @@ class Neo4jOptimizer:
                             """
 
                     elif index_def["type"] == "RANGE":
+                        # Index names must be derived from label + properties.
+                        # Hardcoding "entity_*" / "entity_composite_idx" meant
+                        # indexes on different labels (or different composites)
+                        # collided on one name and, with IF NOT EXISTS, all but
+                        # the first were silently skipped — leaving the rest
+                        # unindexed (full label scans).
+                        label_slug = index_def["label"].lower()
                         if len(index_def["properties"]) == 1:
+                            prop = index_def["properties"][0]
                             query = f"""
-                            CREATE INDEX entity_{index_def['properties'][0]}_idx IF NOT EXISTS
+                            CREATE INDEX {label_slug}_{prop}_idx IF NOT EXISTS
                             FOR (n:{index_def['label']})
-                            ON (n.{index_def['properties'][0]})
+                            ON (n.{prop})
                             """
                         else:
                             # Composite range index
                             props = ", ".join(index_def["properties"])
+                            name_slug = "_".join(index_def["properties"])
                             query = f"""
-                            CREATE INDEX entity_composite_idx IF NOT EXISTS
+                            CREATE INDEX {label_slug}_{name_slug}_idx IF NOT EXISTS
                             FOR (n:{index_def['label']})
                             ON ({props})
                             """
 
                     elif index_def["type"] == "FULLTEXT":
+                        label_slug = index_def["label"].lower()
                         props = ", ".join([f"n.{p}" for p in index_def["properties"]])
                         query = f"""
-                        CREATE FULLTEXT INDEX entity_fulltext_idx IF NOT EXISTS
+                        CREATE FULLTEXT INDEX {label_slug}_fulltext_idx IF NOT EXISTS
                         FOR (n:{index_def['label']})
                         ON EACH [{props}]
                         """
