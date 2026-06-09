@@ -498,21 +498,45 @@ jobs:
               | grep -c '"healthy"' || true
           }
 
-          echo "Waiting for infrastructure services (5 expected)..."
+          # Only postgres, redis and neo4j ship in-container healthchecks that
+          # can actually pass. qdrant and gotrue use distroless images with no
+          # wget/shell, so their wget-based healthchecks are perpetually
+          # "unhealthy" even when the service is fine — gating on them here is
+          # what was timing out the E2E job (exit 124). Gate on the 3 working
+          # healthchecks, then poll qdrant/gotrue over their published ports
+          # from the host (the runner has curl).
+          echo "Waiting for core services with healthchecks (3 expected)..."
           SECONDS=0
-          while (( $(healthy_count) < 5 )); do
+          while (( $(healthy_count) < 3 )); do
             if (( SECONDS > 300 )); then
-              echo "::error::Timed out after 300s waiting for healthy services"
+              echo "::error::Timed out after 300s waiting for healthy core services"
               docker compose -p rag_system -f docker-compose.ci.yml ps
               exit 124
             fi
             if (( SECONDS % 30 == 0 )); then
-              echo "  ${SECONDS}s — $(healthy_count)/5 healthy"
+              echo "  ${SECONDS}s — $(healthy_count)/3 healthy"
               docker compose -p rag_system -f docker-compose.ci.yml ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
             fi
             sleep 5
           done
-          echo "All 5 infrastructure services healthy (${SECONDS}s)"
+          echo "Core services healthy (${SECONDS}s)"
+
+          # Distroless services: poll readiness from the host over published ports.
+          for probe in "qdrant=http://localhost:6333/healthz" "gotrue=http://localhost:9999/health"; do
+            name="${probe%%=*}"; url="${probe#*=}"
+            echo "Waiting for ${name} at ${url} ..."
+            t=0
+            until curl -sf "$url" >/dev/null 2>&1; do
+              if (( t > 120 )); then
+                echo "::error::Timed out after 120s waiting for ${name}"
+                docker compose -p rag_system -f docker-compose.ci.yml logs "$name" --tail=50 || true
+                exit 124
+              fi
+              t=$((t+3)); sleep 3
+            done
+            echo "${name} ready (${t}s)"
+          done
+          echo "All infrastructure services ready"
       - name: Start application services
         run: |
           # Start backend with pre-built image
