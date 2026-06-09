@@ -170,6 +170,11 @@ async def generate_plan(
         "from the plan entirely.\n"
         "- args_hint: suggested arguments (can reference prior steps)\n"
         "- depends_on: list of step numbers this step depends on\n\n"
+        "Ordering rule: data must exist before it is used. If the user refers "
+        "to papers by title or arXiv id, the FIRST steps must resolve/ingest "
+        "them (e.g. search_arxiv → ingest_arxiv_papers) BEFORE any step that "
+        "summarizes, drafts, or saves notes about them — a write step must "
+        "depend_on the resolve/ingest steps.\n"
         "Also provide a top-level ``reasoning`` string explaining the "
         "overall approach (required)."
     )
@@ -209,11 +214,16 @@ def render_plan_directive(plan: list[dict] | None) -> str | None:
         return None
     plan_block = "\n".join(lines)
     return (
-        "ACTIVE PLAN (produced by the planner for this turn — follow it). "
-        "Execute the next incomplete step now by emitting the listed tool "
-        "call. Do NOT ask the user for document_ids or arXiv IDs that you can "
-        "resolve yourself via the available ingest/search tools — search or "
-        "ingest first, then continue.\n"
+        "ACTIVE PLAN (produced by the planner for this turn — advisory, follow "
+        "its intent). Execute the next incomplete step now by emitting the "
+        "appropriate tool call. Do NOT ask the user for document_ids or arXiv "
+        "IDs that you can resolve yourself via the available ingest/search "
+        "tools. IMPORTANT: a write/create step (e.g. create_draft, "
+        "create_project_note, summarize_document) requires its source "
+        "documents to already be resolved + ingested — if the plan lists a "
+        "write step before the sources exist, run the search/ingest steps "
+        "FIRST, then the write. Never write a note/draft/summary for a paper "
+        "you only have a title for.\n"
         f"{plan_block}"
     )
 

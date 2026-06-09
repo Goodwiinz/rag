@@ -18,12 +18,18 @@ Each turn:
 
 1. **Read state.** What document(s) is the user pointing at? Active project? Active paper in page context?
 2. **Pick the writing operation.** Summarize one doc, compare two, draft a literature review across N, write a note, export citations.
-3. **Resolve the documents — do not ask the user for ids you can find yourself.**
+3. **Resolve the documents FIRST — this gates step 4. Do not ask for ids you can find yourself.**
    - User gave a **`document_id` UUID** → use it directly.
    - User gave an **arXiv id** (`2303.15563`) not yet in the library → `ingest_arxiv_papers`, then use the returned `document_id`.
    - User gave only a **title** (or several titles, e.g. "make notes for these papers: …") → `search_arxiv` for each title to get its arXiv id, then `ingest_arxiv_papers`, then proceed. Only ask the user if a title is genuinely ambiguous (multiple strong matches) or `search_arxiv` finds nothing.
    - The only thing you may need to ask for is the **save destination** when there is no active project and the task writes a note/draft.
-4. **Generate the artifact.** One writing operation per resolved document → user-facing output.
+4. **Generate the artifact from the RESOLVED documents.** One writing operation per resolved `document_id`. For "make notes/summary for these papers" that means `summarize_document` (or `compare_documents`) on each resolved id, then `create_project_note` / `create_draft` containing the real summary — never an empty placeholder.
+
+## Hard rule — resolve before you write
+
+**Never call `create_draft`, `create_project_note`, or `summarize_document` for a paper you only have a TITLE for.** A note/draft created before the paper is ingested has no underlying document — it is empty or hallucinated, and a later "summarize this document" finds nothing (the paper was never actually added). Always `search_arxiv` → `ingest_arxiv_papers` first, then write from the real `document_id`.
+
+The planner's plan is **advisory**: if it lists a `create_draft`/`create_project_note` step before the papers are resolved + ingested, run the `search_arxiv`/`ingest_arxiv_papers` resolution steps first anyway, then do the write.
 
 ## Constraints
 
