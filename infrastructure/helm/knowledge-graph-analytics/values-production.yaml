@@ -113,7 +113,7 @@ backend:
     - name: TIMEOUT
       value: "300"
     - name: CORS_ORIGINS
-      value: "https://app.gen-text.app,https://gen-text.app"
+      value: "https://app.gen-text.app,https://gen-text.app,https://goodwiinz.tech,https://www.goodwiinz.tech"
     # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=prod) → synced into
     # `app-secrets` Secret, exposed via envFrom above. MUST be pinned to the
     # project-specific Vercel slug (e.g.

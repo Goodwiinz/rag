@@ -132,10 +132,7 @@ export class APIClient {
     try {
       const response = await fetch(url, {
         ...fetchOptions,
-        headers: {
-          ...this.getHeaders(),
-          ...fetchOptions.headers,
-        },
+        headers: this.mergeHeaders(fetchOptions.headers, fetchOptions.body),
         signal: controller.signal,
       });
 
@@ -192,10 +189,7 @@ export class APIClient {
       endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`,
       {
         ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options.headers,
-        },
+        headers: this.mergeHeaders(options.headers, options.body),
       }
     );
 
@@ -246,11 +240,8 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
   }
 
@@ -262,11 +253,8 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
   }
 
@@ -278,12 +266,74 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
+  }
+
+  /**
+   * Build headers for a body-carrying request. FormData bodies must NOT get a
+   * JSON Content-Type — the browser sets multipart/form-data with the boundary.
+   */
+  private bodyHeaders(data: unknown, extra?: HeadersInit): HeadersInit {
+    const isFormData =
+      typeof FormData !== 'undefined' && data instanceof FormData;
+    return {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...extra,
+    };
+  }
+
+  /**
+   * Pass FormData through untouched; JSON-encode everything else. Returns
+   * undefined for empty (null/undefined) bodies. A non-serializable body
+   * (circular ref, BigInt) is surfaced as an APIErrorClass so callers can
+   * handle it uniformly instead of a raw TypeError leaking out.
+   */
+  private serializeBody(data: unknown): BodyInit | undefined {
+    if (data === undefined || data === null) return undefined;
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      return data;
+    }
+    try {
+      return JSON.stringify(data);
+    } catch (error) {
+      throw new APIErrorClass({
+        message: `Failed to serialize request body: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+        status_code: 0,
+        type: 'validation_error',
+        details: {},
+      });
+    }
+  }
+
+  /**
+   * Merge default + auth headers with caller overrides. For FormData bodies the
+   * inherited JSON Content-Type (from DEFAULT_HEADERS) is stripped — the browser
+   * must set multipart/form-data with the boundary itself, or the server rejects
+   * the body with 422. The strip is case-insensitive so a caller-supplied
+   * `content-type` can't leak through.
+   */
+  private mergeHeaders(
+    extra: HeadersInit | undefined,
+    body: BodyInit | null | undefined
+  ): Record<string, string> {
+    const merged: Record<string, string> = {
+      ...(this.getHeaders() as Record<string, string>),
+      ...(extra as Record<string, string>),
+    };
+
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      for (const key of Object.keys(merged)) {
+        if (key.toLowerCase() === 'content-type') {
+          delete merged[key];
+        }
+      }
+    }
+
+    return merged;
   }
 
   async delete<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
@@ -316,12 +366,15 @@ export class APIClient {
       return this.uploadWithProgress<T>(endpoint, formData, options.onProgress);
     }
 
+    // Content-Type is intentionally not set here. request() strips the
+    // application/json default (from DEFAULT_HEADERS) for FormData bodies so the
+    // browser can set multipart/form-data with the boundary. Removing that strip
+    // would silently break this upload path — an empty headers object alone does
+    // NOT prevent the inherited JSON Content-Type.
     return this.request<T>(endpoint, {
       method: 'POST',
       body: formData,
-      headers: {
-        // Don't set Content-Type - browser will set it with boundary
-      },
+      headers: {},
     });
   }
 

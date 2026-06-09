@@ -236,23 +236,26 @@ async def _resolve_project_for_thread(
     if thread_obj is None:
         return None, None
 
-    scalar = getattr(thread_obj, "source_project_id", None)
-    if scalar:
-        name = None
-        if thread_obj.source_project is not None:
-            name = thread_obj.source_project.name
-        return str(scalar), name
-
-    # Fallback: newest project_threads row
-    from sqlalchemy import desc, select
+    from sqlalchemy import select
     from src.models import Collection, ProjectThread
 
+    scalar = getattr(thread_obj, "source_project_id", None)
+    if scalar:
+        # Resolve the name via an explicit query rather than the
+        # ``source_project`` relationship: not every caller eager-loads it,
+        # and an implicit lazy-load raises MissingGreenlet in async context.
+        name = (
+            await db.execute(select(Collection.name).where(Collection.id == scalar))
+        ).scalar_one_or_none()
+        return str(scalar), name
+
+    # Fallback: newest live project_threads row
     stmt = (
         select(ProjectThread, Collection)
         .join(Collection, ProjectThread.project_id == Collection.id)
         .where(
             ProjectThread.thread_id == thread_obj.id,
-            ProjectThread.is_deleted == False,
+            ProjectThread.is_deleted == False,  # noqa: E712
         )
         .order_by(ProjectThread.linked_at.desc())
         .limit(1)
