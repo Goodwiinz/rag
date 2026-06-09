@@ -4,17 +4,17 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
-    BarChart3,
-    Book,
-    Bot,
-    ChevronDown,
-    Database,
-    FileText,
-    Home,
-    LogOut,
-    Search,
-    Settings,
-    Terminal
+  BarChart3,
+  Book,
+  Bot,
+  ChevronDown,
+  Database,
+  FileText,
+  Home,
+  LogOut,
+  Search,
+  Settings,
+  Terminal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -27,7 +27,10 @@ interface SimpleLayoutProps {
 
 // Terminal Observatory Theme
 
-export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps) {
+export function SimpleLayout({
+  children,
+  showHeader = true,
+}: SimpleLayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -42,7 +45,10 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
         setUserMenuOpen(false);
       }
     };
@@ -84,24 +90,27 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                 <h1 className="text-sm font-mono font-medium text-white/90 group-hover:text-primary transition-colors">
                   RAG System
                 </h1>
-                <p className="text-[10px] font-mono text-white/40">Terminal Observatory</p>
+                <p className="text-[10px] font-mono text-white/40">
+                  Terminal Observatory
+                </p>
               </div>
             </Link>
 
             {/* Navigation */}
             <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => {
-                const isActive = pathname === item.href ||
+                const isActive =
+                  pathname === item.href ||
                   (item.href !== '/' && pathname?.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-all",
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-all',
                       isActive
-                        ? "text-primary bg-primary/10 border border-primary/30"
-                        : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                        ? 'text-primary bg-primary/10 border border-primary/30'
+                        : 'text-white/50 hover:text-white/80 hover:bg-white/5'
                     )}
                   >
                     <item.icon className="w-3.5 h-3.5" />
@@ -140,11 +149,14 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="User menu"
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all",
+                    'flex items-center gap-2 px-3 py-1.5 rounded border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
                     userMenuOpen
-                      ? "border-primary/40 bg-primary/10"
-                      : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                      ? 'border-primary/40 bg-primary/10'
+                      : 'border-white/10 bg-white/[0.02] hover:border-white/20'
                   )}
                 >
                   <div className="w-6 h-6 rounded bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30 flex items-center justify-center">
@@ -160,19 +172,28 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                       Admin
                     </p>
                   </div>
-                  <ChevronDown className={cn(
-                    "w-3 h-3 text-white/40 transition-transform",
-                    userMenuOpen && "rotate-180"
-                  )} />
+                  <ChevronDown
+                    className={cn(
+                      'w-3 h-3 text-white/40 transition-transform',
+                      userMenuOpen && 'rotate-180'
+                    )}
+                  />
                 </button>
 
                 {/* Dropdown */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-card shadow-xl shadow-black/50 overflow-hidden">
+                  <div
+                    className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-card shadow-xl shadow-black/50 overflow-hidden"
+                    role="menu"
+                  >
                     {/* User info */}
                     <div className="px-3 py-2 border-b border-white/10 bg-white/[0.02]">
-                      <p className="text-xs font-mono text-white/80">{user?.email}</p>
-                      <p className="text-[10px] font-mono text-primary">Administrator</p>
+                      <p className="text-xs font-mono text-white/80">
+                        {user?.email}
+                      </p>
+                      <p className="text-[10px] font-mono text-primary">
+                        Administrator
+                      </p>
                     </div>
 
                     {/* Menu items */}
@@ -180,7 +201,8 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                       <Link
                         href="/settings"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                        role="menuitem"
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:text-white"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         Settings
@@ -188,7 +210,8 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                       <Link
                         href="/analytics"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                        role="menuitem"
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:bg-white/5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:text-white"
                       >
                         <BarChart3 className="w-3.5 h-3.5" />
                         Analytics
@@ -202,7 +225,8 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                           setUserMenuOpen(false);
                           handleLogout();
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                        role="menuitem"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors focus-visible:bg-red-500/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-400"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Sign Out
@@ -216,9 +240,9 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                 <Button
                   size="sm"
                   className={cn(
-                    "h-8 px-4 font-mono text-xs",
-                    "bg-primary/10 text-primary border border-primary/30",
-                    "hover:bg-primary/20 hover:border-primary/50"
+                    'h-8 px-4 font-mono text-xs',
+                    'bg-primary/10 text-primary border border-primary/30',
+                    'hover:bg-primary/20 hover:border-primary/50'
                   )}
                 >
                   Sign In
@@ -230,9 +254,7 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
     </div>
   );
 }
