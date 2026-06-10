@@ -329,7 +329,10 @@ class TestFallbackClassifier:
         mock_llm.assert_not_called()
         assert result.intent == "general"
         assert result.source == "shortcut"
-        assert result.confidence >= 0.7
+        # 0.5, not the old fabricated 0.9 — the shortcut is a no-signal
+        # guess, and nothing routes off confidence (intent string only),
+        # so the value should reflect the actual certainty in telemetry.
+        assert result.confidence == 0.5
 
     async def test_shortcut_does_not_fire_with_prior_tool(self):
         """Retry phrases (short, zero keywords) must still reach the LLM when prior_tool exists."""

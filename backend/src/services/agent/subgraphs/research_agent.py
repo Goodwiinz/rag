@@ -77,11 +77,13 @@ def _build_research_system_prompt() -> str:
     )
 
 
+# Only tools actually in RESEARCH_TOOLS belong here — the filtered tool
+# node can never execute anything else, so extra entries are dead weight
+# that misleads readers about what this subgraph can run.
 RESEARCH_DESTRUCTIVE_TOOLS = {
     "ingest_arxiv_papers",
     "add_document_to_project",
     "create_project",
-    "execute_code",
 }
 
 

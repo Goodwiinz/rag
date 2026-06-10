@@ -232,6 +232,10 @@ async def compact_messages(
                     ],
                     config=config,
                 )
+        except asyncio.CancelledError:
+            # User abort / shutdown — propagate, never swallow into a
+            # "leave intact" no-op (house pattern, see classifier).
+            raise
         except Exception:
             logger.warning(
                 "Compaction LLM call failed for tool_call_id=%s; "

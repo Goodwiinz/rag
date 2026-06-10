@@ -79,12 +79,17 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
     which wraps this with ``@track_node_execution`` for callers that
     invoke it as a graph node.
     """
+    from src.services.agent._nodes_rag import _coerce_text
     from src.services.agent.classifier import classify_intent_with_fallback
 
+    # Coerce: multimodal content is a list of blocks; the classifier's
+    # keyword path calls .lower()/.split() on it, which would raise and be
+    # swallowed by the gather(return_exceptions=True) in preprocessing_node,
+    # silently defaulting the intent to "general".
     last_user_msg = ""
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            last_user_msg = _coerce_text(msg.content)
             break
 
     if not last_user_msg:
@@ -99,7 +104,7 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
             found_user = True
             continue
         if found_user and isinstance(msg, AIMessage) and msg.content:
-            previous_turn = msg.content
+            previous_turn = _coerce_text(msg.content)
             break
 
     prior_tool = _extract_prior_tool(state["messages"])

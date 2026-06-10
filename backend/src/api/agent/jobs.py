@@ -416,6 +416,7 @@ async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
+    create_if_missing: bool = True,
 ) -> tuple[Optional[Any], str]:
     """Resolve or create the Thread + Conversation for this request.
 
@@ -423,6 +424,13 @@ async def _resolve_thread(
     workspace exists for the user (caller should treat this as "skip
     persistence"). When a fresh thread/conversation is created it is
     committed so the row has an ``id`` callers can reference.
+
+    ``create_if_missing=False`` skips the create-on-miss branch and returns
+    ``(None, "")`` when the thread cannot be found. Confirm/resume paths
+    must use this: their thread already exists (ownership was verified
+    against the checkpoint snapshot), so a lookup miss there is a transient
+    failure and creating a fresh "Agent Chat" thread would silently split
+    the conversation in two.
     """
     from uuid import UUID
 
@@ -447,6 +455,9 @@ async def _resolve_thread(
         )
         result = await db.execute(stmt)
         thread = result.scalar_one_or_none()
+
+    if thread is None and not create_if_missing:
+        return None, ""
 
     if thread is None:
         ws_stmt = (
@@ -685,6 +696,7 @@ async def _persist_thread_messages(
     assistant_content: str,
     tool_executions_out: Optional[list] = None,
     retrieved_contexts: Optional[list] = None,
+    create_if_missing: bool = True,
 ) -> tuple[str, str]:
     """Persist thread & messages to the database (deprecated shim).
 
@@ -692,9 +704,20 @@ async def _persist_thread_messages(
     notice above: this function is preserved for compatibility while Task 5
     migrates the streaming path to background tasks; new code should call
     ``_persist_user_message`` / ``_persist_assistant_message`` directly.
+
+    Confirm/resume callers pass ``create_if_missing=False`` — see
+    ``_resolve_thread`` for why a lookup miss there must skip persistence
+    rather than create a fresh thread.
     """
-    thread, conversation_id = await _resolve_thread(db, current_user, request)
+    thread, conversation_id = await _resolve_thread(
+        db, current_user, request, create_if_missing=create_if_missing
+    )
     if thread is None:
+        if not create_if_missing and request.thread_id:
+            logger.warning(
+                "Confirm/resume persist skipped: thread %s not found on re-lookup",
+                request.thread_id,
+            )
         return request.thread_id or "", ""
 
     thread_id = str(thread.id)
@@ -1093,6 +1116,7 @@ async def _resume_agent_graph(
                         original_request,
                         assistant_content,
                         tool_executions_out,
+                        create_if_missing=False,
                     )
             except Exception as e:
                 logger.warning(
