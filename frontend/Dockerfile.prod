@@ -9,6 +9,9 @@ FROM node:25-alpine AS base
 # Install pnpm if needed
 RUN npm install -g pnpm
 
+# Install curl for healthchecks
+RUN apk add --no-cache curl
+
 # Set working directory
 WORKDIR /app
 

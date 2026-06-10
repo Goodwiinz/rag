@@ -9,7 +9,7 @@ import asyncio
 import time
 import uuid
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from httpx import AsyncClient, ASGITransport
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -152,7 +152,7 @@ class TestEvaluationLoadScenarios:
         print(f"   Requests per user: {requests_per_user}")
         print(f"   Total requests: {concurrent_users * requests_per_user}")
 
-        results.start_time = datetime.utcnow()
+        results.start_time = datetime.now(timezone.utc)
 
         # Run concurrent users
         tasks = [
@@ -162,7 +162,7 @@ class TestEvaluationLoadScenarios:
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        results.end_time = datetime.utcnow()
+        results.end_time = datetime.now(timezone.utc)
 
         # Analyze results
         stats = results.get_statistics()
@@ -209,7 +209,7 @@ class TestEvaluationLoadScenarios:
         print(f"\n⚡ Starting real-time evaluation throughput load test")
         print(f"   Burst size: {burst_size}")
 
-        results.start_time = datetime.utcnow()
+        results.start_time = datetime.now(timezone.utc)
 
         # Generate burst of real-time evaluation requests
         tasks = []
@@ -241,7 +241,7 @@ class TestEvaluationLoadScenarios:
         # Execute all requests concurrently
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        results.end_time = datetime.utcnow()
+        results.end_time = datetime.now(timezone.utc)
 
         # Analyze results
         stats = results.get_statistics()
@@ -298,7 +298,7 @@ class TestEvaluationLoadScenarios:
             with patch('src.api.evaluation.rag_evaluation_service') as mock_service:
                 mock_service.get_evaluation_metrics.return_value = metrics_data
 
-                results.start_time = datetime.utcnow()
+                results.start_time = datetime.now(timezone.utc)
                 end_time = results.start_time.timestamp() + (duration_minutes * 60)
 
                 request_count = 0
@@ -331,7 +331,7 @@ class TestEvaluationLoadScenarios:
                     if elapsed < 1.0:
                         await asyncio.sleep(1.0 - elapsed)
 
-                results.end_time = datetime.utcnow()
+                results.end_time = datetime.now(timezone.utc)
 
         # Analyze results
         stats = results.get_statistics()
@@ -395,7 +395,7 @@ class TestEvaluationLoadScenarios:
                 response_time = time.time() - start_time
                 results.add_result(False, response_time, str(e))
 
-        results.start_time = datetime.utcnow()
+        results.start_time = datetime.now(timezone.utc)
 
         # Process batches concurrently
         tasks = [
@@ -405,7 +405,7 @@ class TestEvaluationLoadScenarios:
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        results.end_time = datetime.utcnow()
+        results.end_time = datetime.now(timezone.utc)
 
         # Analyze results
         stats = results.get_statistics()
@@ -515,7 +515,7 @@ class TestEvaluationLoadScenarios:
 
         random.shuffle(request_types)
 
-        results.start_time = datetime.utcnow()
+        results.start_time = datetime.now(timezone.utc)
 
         # Execute requests with controlled timing
         interval = duration_seconds / len(request_types)
@@ -523,7 +523,7 @@ class TestEvaluationLoadScenarios:
             await execute_mixed_request(request_type)
             await asyncio.sleep(interval)
 
-        results.end_time = datetime.utcnow()
+        results.end_time = datetime.now(timezone.utc)
 
         # Analyze results
         stats = results.get_statistics()
@@ -590,7 +590,7 @@ class TestEvaluationLoadScenarios:
                     response_time = time.time() - start_time
                     step_results.add_result(False, response_time, str(e))
 
-            step_results.start_time = datetime.utcnow()
+            step_results.start_time = datetime.now(timezone.utc)
 
             # Run concurrent requests
             tasks = [
@@ -600,7 +600,7 @@ class TestEvaluationLoadScenarios:
 
             await asyncio.gather(*tasks, return_exceptions=True)
 
-            step_results.end_time = datetime.utcnow()
+            step_results.end_time = datetime.now(timezone.utc)
             step_stats = step_results.get_statistics()
             results_by_step.append((concurrent, step_stats))
 

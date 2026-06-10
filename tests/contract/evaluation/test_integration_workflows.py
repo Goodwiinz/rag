@@ -6,11 +6,12 @@ Tests end-to-end evaluation processes combining multiple API endpoints
 import pytest
 import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
 from typing import Dict, Any, List
 
+from tests.constants import TEST_JWT_SECRET
 from tests.contract.evaluation.fixtures.data_generators import (
     EvaluationDataGenerator, JobDataGenerator, MetricDataGenerator
 )
@@ -49,7 +50,7 @@ class TestEvaluationIntegrationWorkflows:
         mock_job.id = uuid.uuid4()
         mock_job.name = request_data["name"]
         mock_job.status = "pending"
-        mock_job.created_at = datetime.utcnow()
+        mock_job.created_at = datetime.now(timezone.utc)
         mock_job.dataset_size = len(request_data["questions"])
 
         with patch('src.api.evaluation.rag_evaluation_service') as mock_service:
@@ -417,7 +418,7 @@ class TestEvaluationIntegrationWorkflows:
         """Test evaluation workflow with multiple users and roles"""
         # Generate tokens for different users
         import jwt
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
 
         # User token
         user_payload = {
@@ -425,8 +426,8 @@ class TestEvaluationIntegrationWorkflows:
             "email": test_user.email,
             "role": "user",
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
         user_token = jwt.encode(user_payload, secret, algorithm="HS256")
 
@@ -436,8 +437,8 @@ class TestEvaluationIntegrationWorkflows:
             "email": test_admin_user.email,
             "role": "admin",
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
         admin_token = jwt.encode(admin_payload, secret, algorithm="HS256")
 
@@ -503,7 +504,7 @@ class TestEvaluationIntegrationWorkflows:
             mock_user_job_obj.name = mock_user_job.name
             mock_user_job_obj.status = mock_user_job.status
             mock_user_job_obj.evaluation_type = "rag_triad"
-            mock_user_job_obj.created_at = datetime.utcnow()
+            mock_user_job_obj.created_at = datetime.now(timezone.utc)
             mock_user_job_obj.dataset_size = mock_user_job.dataset_size
             mock_user_job_obj.processed_count = 0
             mock_user_job_obj.overall_score = None
@@ -528,7 +529,7 @@ class TestEvaluationIntegrationWorkflows:
             mock_admin_job_obj.name = mock_admin_job.name
             mock_admin_job_obj.status = mock_admin_job.status
             mock_admin_job_obj.evaluation_type = "rag_triad"
-            mock_admin_job_obj.created_at = datetime.utcnow()
+            mock_admin_job_obj.created_at = datetime.now(timezone.utc)
             mock_admin_job_obj.dataset_size = mock_admin_job.dataset_size
             mock_admin_job_obj.processed_count = 0
             mock_admin_job_obj.overall_score = None
@@ -662,7 +663,7 @@ class TestEvaluationIntegrationWorkflows:
                     mock_job.dataset_size = len(request_data["questions"])
                     mock_service.create_evaluation_job.return_value = mock_job
 
-                    start_time = datetime.utcnow()
+                    start_time = datetime.now(timezone.utc)
 
                     response = await async_client.post(
                         "/api/v1/evaluation/jobs",
@@ -670,7 +671,7 @@ class TestEvaluationIntegrationWorkflows:
                         json=request_data
                     )
 
-                    end_time = datetime.utcnow()
+                    end_time = datetime.now(timezone.utc)
                     duration = (end_time - start_time).total_seconds()
 
                     return {

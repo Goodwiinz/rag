@@ -10,7 +10,7 @@ import asyncio
 import json
 import uuid
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -234,7 +234,7 @@ class TestWebSocketErrorHandling:
                 "type": MessageType.PING.value,
                 "data": {
                     "sequence": i,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 

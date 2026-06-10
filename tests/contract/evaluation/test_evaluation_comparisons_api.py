@@ -10,7 +10,7 @@ import random
 import asyncio
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from tests.contract.evaluation.fixtures.data_generators import EvaluationDataGenerator, JobDataGenerator
@@ -456,7 +456,7 @@ class TestEvaluationComparisonsContract:
                 "comparison_score": random.uniform(0.6, 0.9),
                 "improvement_percentage": random.uniform(-20, 30),
                 "statistical_significance": random.uniform(0.01, 0.1),
-                "created_at": datetime.utcnow() - timedelta(hours=i)
+                "created_at": datetime.now(timezone.utc) - timedelta(hours=i)
             }
             comparison_records.append(record)
 
@@ -524,7 +524,7 @@ class TestEvaluationComparisonsContract:
                 "description": f"Description {i}",
                 "baseline_job_id": str(uuid.uuid4()),
                 "comparison_job_id": str(uuid.uuid4()),
-                "created_at": datetime.utcnow() - timedelta(hours=i)
+                "created_at": datetime.now(timezone.utc) - timedelta(hours=i)
             }
             comparison_records.append(record)
 

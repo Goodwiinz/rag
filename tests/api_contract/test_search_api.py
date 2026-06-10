@@ -7,7 +7,7 @@ import pytest
 import json
 import uuid
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -405,7 +405,7 @@ class TestSearchHistoryAPI:
         headers = auth_headers({"email": "datefilter@example.com", "first_name": "Date", "last_name": "Filter"})
 
         # Get search history for last 7 days
-        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         response = test_client.get(
             f"/api/v1/search/history?start_date={seven_days_ago}",
             headers=headers

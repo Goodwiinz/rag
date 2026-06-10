@@ -6,7 +6,7 @@ Validates all endpoints match the OpenAPI specification in /docs/api/knowledge-g
 import pytest
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 import yaml
 from httpx import AsyncClient
@@ -15,6 +15,7 @@ from conftest import (
     TEST_CONFIG, APIAssertions, create_auth_headers,
     sample_organization, sample_user, sample_dashboard, sample_report, sample_alert
 )
+from tests.constants import TEST_JWT_SECRET
 
 
 class TestAPIContracts:
@@ -38,9 +39,9 @@ class TestAPIContracts:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         return create_auth_headers(token)
@@ -495,8 +496,8 @@ class TestAPIContracts:
                 "organization_id": str(org_id),
                 "metric_type": test_case["metric_type"],
                 "time_bucket": test_case["time_bucket"],
-                "start_time": (datetime.utcnow() - timedelta(days=7)).isoformat(),
-                "end_time": datetime.utcnow().isoformat(),
+                "start_time": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat(),
                 "aggregations": test_case["aggregations"]
             }
 
@@ -609,8 +610,8 @@ class TestAPIContracts:
                 "organization_id": str(org_id),
                 "metric_type": "entity",
                 "time_bucket": "invalid_bucket",
-                "start_time": datetime.utcnow().isoformat(),
-                "end_time": datetime.utcnow().isoformat()
+                "start_time": datetime.now(timezone.utc).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat()
             },
             headers=auth_headers
         )
