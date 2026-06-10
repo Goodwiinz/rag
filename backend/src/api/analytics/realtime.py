@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
-from src.auth.dependencies import get_current_user
+from src.core.dependencies import get_current_user
 from src.models.analytics.realtime_models import (
     ChannelMetrics,
     ConnectionStats,
@@ -36,15 +36,30 @@ router = APIRouter(prefix="/realtime", tags=["analytics-realtime"])
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(
-    websocket: WebSocket, token: str = Query(..., description="Authentication token")
-):
-    """WebSocket endpoint for real-time analytics"""
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time analytics.
+
+    Authenticated via the platform's Sec-WebSocket-Protocol handshake — the
+    previous implementation accepted a ``token`` query param, never validated
+    it, and assigned a random ``user_id``, so the stream was effectively
+    unauthenticated.
+    """
+    from src.core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
+
     try:
-        # Authenticate user from token
-        # This is a simplified implementation
-        # In production, you'd validate the JWT token properly
-        user_id = uuid.uuid4()  # Would extract from token
+        user_payload = await WebSocketAuthenticator.authenticate(websocket)
+    except WebSocketAuthError as e:
+        logger.warning(f"Analytics WebSocket auth failed: {e.message}")
+        await websocket.close(code=e.code, reason=e.message)
+        return
+
+    user_id = user_payload.get("sub")
+    if not user_id:
+        logger.warning("Analytics WebSocket: authenticated token missing 'sub'")
+        await websocket.close(code=4001, reason="Invalid token: missing subject")
+        return
+
+    try:
         session_id = str(uuid.uuid4())
 
         # Handle WebSocket connection
@@ -53,8 +68,10 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        await websocket.close(code=1000, reason="Internal server error")
+        # 1011 (internal error), not 1000 (normal) — a crash must not look like
+        # a clean client-initiated close to monitoring.
+        logger.error(f"WebSocket error: {e}", exc_info=True)
+        await websocket.close(code=1011, reason="Internal server error")
 
 
 @router.post(

@@ -6,12 +6,12 @@ from .dashboard_service import DashboardService
 from .graph_analytics_service import GraphAnalyticsService
 from .metrics_service import MetricsService
 from .realtime_service import RealtimeAnalyticsService
-from .report_service import ReportService
+from .report_service import ReportGenerationService
 
 __all__ = [
     "RealtimeAnalyticsService",
     "GraphAnalyticsService",
     "DashboardService",
-    "ReportService",
+    "ReportGenerationService",
     "MetricsService",
 ]

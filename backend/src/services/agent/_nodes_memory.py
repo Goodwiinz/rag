@@ -22,7 +22,7 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from src.services.agent._nodes_rag import is_conversational
+from src.services.agent._nodes_rag import _coerce_text, is_conversational
 from src.services.agent._pii_redact import redact_pii
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
@@ -130,14 +130,17 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         if not store:
             return {}
 
-        # Extract the last assistant message for memory
+        # Extract the last assistant message for memory. Coerce: multimodal
+        # content is a list of blocks, and the slice/encode below would
+        # raise on it (the save is best-effort, so the memory would just be
+        # silently lost).
         last_ai_content = ""
         last_user_content = ""
         for msg in reversed(state["messages"]):
             if isinstance(msg, AIMessage) and msg.content and not last_ai_content:
-                last_ai_content = msg.content
+                last_ai_content = _coerce_text(msg.content)
             if isinstance(msg, HumanMessage) and not last_user_content:
-                last_user_content = msg.content
+                last_user_content = _coerce_text(msg.content)
             if last_ai_content and last_user_content:
                 break
 

@@ -22,6 +22,12 @@ services:
       start_period: 10s
     tmpfs:
       - /var/lib/postgresql/data
+    volumes:
+      # Pre-create the `auth` schema so GoTrue migrations (which CREATE TABLE
+      # auth.* without CREATE SCHEMA) succeed. initdb runs these on every fresh
+      # CI start because the data dir is tmpfs. Path is relative to the repo root
+      # (where `docker compose -f docker-compose.ci.yml` is invoked).
+      - ./database/ci-init:/docker-entrypoint-initdb.d:ro
 
   # Redis Cache
   redis:

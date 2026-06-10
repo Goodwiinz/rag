@@ -2,8 +2,11 @@
 Analytics models for Knowledge Graph Analytics Dashboard
 """
 
+# AnalyticsEvent is re-exported from the canonical model module
+# (src/models/analytics_event.py), not analytics_models, to avoid a duplicate
+# ORM mapping of the `analytics_events` table.
+from ..analytics_event import AnalyticsEvent
 from .analytics_models import (
-    AnalyticsEvent,
     AnalyticsFilter,
     AnalyticsKPI,
     AnalyticsMetric,

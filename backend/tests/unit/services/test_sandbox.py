@@ -744,3 +744,79 @@ class TestToolExecuteCode:
             call_kwargs[1].get("thread_id") == "my-thread-id"
             or call_kwargs[0][0] == "my-thread-id"
         )
+
+    async def test_nonzero_exit_without_structured_error_sets_stderr_as_error(self):
+        """Regression: non-zero exit with error=None used to return NO "error"
+        key, so classify_error_from_payload marked the run completed and the
+        LLM was told the code succeeded."""
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="",
+                stderr="Traceback: ZeroDivisionError\n",
+                exit_code=1,
+                execution_time_ms=12,
+                error=None,
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "1/0"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "error"
+        assert result["error"] == "Traceback: ZeroDivisionError"
+
+    async def test_nonzero_exit_with_empty_stderr_gets_generic_error(self):
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="", stderr="", exit_code=137, execution_time_ms=12, error=None
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "while True: pass"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "error"
+        assert result["error"] == "Code exited with status 137"
+
+    async def test_zero_exit_has_no_spurious_error_key(self):
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="ok\n", stderr="", exit_code=0, execution_time_ms=5
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "print('ok')"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "success"
+        assert "error" not in result
