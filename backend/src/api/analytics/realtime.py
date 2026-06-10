@@ -53,8 +53,13 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=e.code, reason=e.message)
         return
 
+    user_id = user_payload.get("sub")
+    if not user_id:
+        logger.warning("Analytics WebSocket: authenticated token missing 'sub'")
+        await websocket.close(code=4001, reason="Invalid token: missing subject")
+        return
+
     try:
-        user_id = user_payload.get("sub")
         session_id = str(uuid.uuid4())
 
         # Handle WebSocket connection
@@ -63,8 +68,10 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        await websocket.close(code=1000, reason="Internal server error")
+        # 1011 (internal error), not 1000 (normal) — a crash must not look like
+        # a clean client-initiated close to monitoring.
+        logger.error(f"WebSocket error: {e}", exc_info=True)
+        await websocket.close(code=1011, reason="Internal server error")
 
 
 @router.post(

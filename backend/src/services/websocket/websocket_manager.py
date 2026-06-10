@@ -605,12 +605,25 @@ class EnhancedConnectionManager(BaseService):
                 if connection_info.should_receive_message(message):
                     await self.send_message_to_connection(connection_id, message)
 
-        # Broadcast to other instances via Redis
+        # Broadcast to other instances via Redis. Serialize explicitly in the
+        # shape the receiver (`_redis_message_listener`) reconstructs from —
+        # ``asdict()`` emits raw Enum/datetime objects that json.dumps cannot
+        # encode, so the previous payload raised TypeError and no message ever
+        # crossed instances (defeating multi-worker tenant scoping). Carries
+        # target_organization so the org gate holds across workers.
         if self.redis_client:
             try:
                 broadcast_payload = {
                     "channel": channel,
-                    "message": asdict(message),
+                    "message": {
+                        "type": message.type.value,
+                        "data": message.data,
+                        "timestamp": message.timestamp.isoformat(),
+                        "message_id": message.message_id,
+                        "priority": message.priority.value,
+                        "target_channels": message.target_channels,
+                        "target_organization": message.target_organization,
+                    },
                     "source_instance": getattr(self, "instance_id", "unknown"),
                 }
                 await self.redis_client.publish(
@@ -683,6 +696,20 @@ class EnhancedConnectionManager(BaseService):
                             channel,
                             connection_id,
                             role,
+                        )
+                        # Tell the client explicitly — a silent skip is
+                        # indistinguishable from a successful-but-quiet channel.
+                        await self.send_message_to_connection(
+                            connection_id,
+                            WebSocketMessage(
+                                type=MessageType.ERROR,
+                                data={
+                                    "error": "subscription_denied",
+                                    "channel": channel,
+                                    "reason": "insufficient_role",
+                                },
+                                timestamp=datetime.now(dt_timezone.utc),
+                            ),
                         )
                     else:
                         await self.subscribe_to_channel(connection_id, channel)

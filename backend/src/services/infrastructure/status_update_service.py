@@ -232,24 +232,38 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message. target_organization scopes the
-                # shared-channel broadcast to the owning tenant so other orgs'
-                # connections subscribed to document_processing never receive it.
+                # target_organization scopes the shared-channel broadcast to
+                # the owning tenant. A document MUST have a resolvable org — a
+                # tenant payload is never global, so fail CLOSED if it is
+                # missing (skip the channel fan-out) rather than treat None as
+                # "broadcast to everyone".
+                target_org = (
+                    str(document.organization_id)
+                    if document.organization_id
+                    else None
+                )
                 message = WebSocketMessage(
                     type=MessageType.DOCUMENT_PROCESSING,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_status(status),
                     target_channels=[Channel.DOCUMENT_PROCESSING.value],
-                    target_organization=str(document.organization_id)
-                    if document.organization_id
-                    else None,
+                    target_organization=target_org,
                 )
 
-                # Add to update queue
-                await self._queue_update(
-                    "document_processing", document_id, update_data, message
-                )
+                # Channel broadcast only when the tenant is known. The
+                # per-user direct send below still delivers to the owner.
+                if target_org:
+                    await self._queue_update(
+                        "document_processing", document_id, update_data, message
+                    )
+                else:
+                    logger.error(
+                        "status_update.missing_org: skipping channel broadcast "
+                        "for document %s (status=%s)",
+                        document_id,
+                        status,
+                    )
 
                 # Broadcast to specific user
                 await connection_manager.broadcast_to_user(
@@ -329,22 +343,31 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message. target_organization scopes the
-                # shared-channel broadcast to the owning tenant (see the
+                # target_organization scopes the shared-channel broadcast to
+                # the owning tenant. Fail CLOSED on a missing org (see the
                 # document path above for rationale).
+                target_org = (
+                    str(job.organization_id) if job.organization_id else None
+                )
                 message = WebSocketMessage(
                     type=MessageType.JOB_STATUS,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_job_status(status),
                     target_channels=[Channel.JOB_STATUS.value],
-                    target_organization=str(job.organization_id)
-                    if job.organization_id
-                    else None,
+                    target_organization=target_org,
                 )
 
-                # Add to update queue
-                await self._queue_update("job_status", job_id, update_data, message)
+                # Channel broadcast only when the tenant is known.
+                if target_org:
+                    await self._queue_update("job_status", job_id, update_data, message)
+                else:
+                    logger.error(
+                        "status_update.missing_org: skipping channel broadcast "
+                        "for job %s (status=%s)",
+                        job_id,
+                        status,
+                    )
 
                 # Broadcast to user if job has one
                 if job.created_by_user_id:

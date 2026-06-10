@@ -54,3 +54,45 @@ async def test_batch_splits_by_organization():
     assert by_org == {"org-A": 2, "org-B": 1}
     # Every batch message carries exactly one org.
     assert all(org is not None for _ch, org, _total in sent)
+
+
+async def test_document_update_without_org_skips_channel_broadcast():
+    """Fail CLOSED: a document with no org must NOT fan out onto the shared
+    channel (target_organization=None would otherwise = broadcast to all)."""
+    from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock
+
+    import src.services.infrastructure.status_update_service as sus
+    from src.models.document import ProcessingStatus
+
+    svc = sus.StatusUpdateService()
+    queued = []
+    svc._queue_update = AsyncMock(side_effect=lambda *a, **k: queued.append(a))
+
+    # org-less document (arXiv ingest mints empty-string orgs). MagicMock
+    # auto-stubs the many fields update_data reads; only organization_id is
+    # pinned (to the empty string that triggers the fail-closed path).
+    document = MagicMock()
+    document.organization_id = ""
+    document.id = "d-1"
+    document.uploaded_by_user_id = "u-1"
+
+    session = MagicMock()
+    exec_result = MagicMock()
+    exec_result.scalar_one_or_none.return_value = document
+    session.execute = AsyncMock(return_value=exec_result)
+
+    @asynccontextmanager
+    async def _fake_session():
+        yield session
+
+    with patch.object(sus, "get_async_session", _fake_session), patch.object(
+        sus, "connection_manager"
+    ) as cm, patch.object(svc, "_log_status_update", AsyncMock()):
+        cm.broadcast_to_user = AsyncMock()
+        await svc.broadcast_document_update("d-1", ProcessingStatus.PROCESSING)
+
+    # No channel broadcast was queued for the org-less document.
+    assert queued == []
+    # The owner still got the direct per-user delivery.
+    cm.broadcast_to_user.assert_awaited()

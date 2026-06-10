@@ -57,7 +57,12 @@ def test_message_delivered_to_matching_org():
 
 
 def test_message_without_target_org_is_not_blocked_by_gate():
-    # No tenant restriction → falls through to channel-subscription check.
+    # Gate semantics: target_organization=None means "genuinely global" (e.g.
+    # system notifications) and falls through to the channel-subscription
+    # check. The fail-CLOSED guarantee for tenant payloads lives at the
+    # PRODUCER (status_update_service skips the channel broadcast when a
+    # document/job has no org) — see test_status_update_batch_scoping, not
+    # here, so this None=global gate behavior is correct.
     conn = _conn("org-A")
     assert conn.should_receive_message(_msg(None)) is True
 
