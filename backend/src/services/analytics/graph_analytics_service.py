@@ -447,9 +447,14 @@ class GraphAnalyticsService:
                 "source_node_id and target_id are required for shortest path analysis"
             )
 
-        query = """
+        # Scope the endpoints to the caller's org — the sibling path-analysis
+        # finders do the same. Without this a caller passing raw internal node
+        # ids could shortest-path across another tenant's graph.
+        org = _require_current_org()
+        query = f"""
         MATCH (start), (end)
         WHERE id(start) = $source_id AND id(end) = $target_id
+          AND start.organization_id = '{org}' AND end.organization_id = '{org}'
         CALL apoc.algo.shortestPath(start, end, 'BOTH') YIELD path, weight
         RETURN length(path) as path_length,
                [node in nodes(path) | toString(id(node))] as path_nodes,

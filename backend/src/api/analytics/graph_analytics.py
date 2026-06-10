@@ -272,8 +272,11 @@ async def check_graph_health(current_user: User = Depends(get_current_user)):
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-        # Test basic connectivity
-        stats = await graph_analytics_service.get_graph_statistics()
+        # Test basic connectivity (org-scoped — get_graph_statistics now
+        # requires an org; the counts double as this caller's tenant view).
+        stats = await graph_analytics_service.get_graph_statistics(
+            organization_id=str(current_user.organization_id)
+        )
 
         return {
             "status": "healthy",

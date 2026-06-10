@@ -138,3 +138,48 @@ def test_cypher_literal_safe_values():
 def test_cypher_literal_rejects_metachars(bad):
     with pytest.raises(ValueError):
         svc._cypher_literal(bad)
+
+
+# --- shortest-path analysis is org-scoped (reachable-leak regression) --------
+
+
+@pytest.mark.asyncio
+async def test_run_shortest_path_analysis_scopes_endpoints(scoped):
+    """The SHORTEST_PATH algorithm path matched nodes by raw internal id with
+    no org predicate — a caller could path across another tenant's graph."""
+    import contextlib
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+
+    captured = {}
+
+    session = MagicMock()
+
+    async def _run(query, params=None):
+        captured["query"] = query
+        result = MagicMock()
+        result.single = AsyncMock(return_value=None)
+
+        async def _aiter():
+            return
+            yield  # pragma: no cover
+
+        result.__aiter__ = lambda self_: _aiter()
+        return result
+
+    session.run = AsyncMock(side_effect=_run)
+
+    @contextlib.asynccontextmanager
+    async def _get_session():
+        yield session
+
+    scoped.get_session = _get_session
+    request = SimpleNamespace(
+        parameters={"source_node_id": 1, "target_node_id": 2}
+    )
+
+    with contextlib.suppress(Exception):
+        await scoped._run_shortest_path_analysis(None, request)
+
+    assert f"start.organization_id = '{_ORG}'" in captured["query"]
+    assert f"end.organization_id = '{_ORG}'" in captured["query"]
