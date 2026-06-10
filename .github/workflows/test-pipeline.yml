@@ -233,11 +233,13 @@ jobs:
       - name: Install security tools
         run: pip install bandit safety
       - name: Run Bandit (Python security)
+        # Blocking: with continue-on-error the SECURITY_RESULT gate in
+        # test-summary could never fire. -ll -ii already limits this to
+        # medium+ severity/confidence findings.
         run: bandit -r backend/src -ll -ii -x tests
-        continue-on-error: true # Allow failures while security issues are addressed
       - name: Run Safety (dependency vulnerabilities)
         run: safety check -r backend/requirements.txt
-        continue-on-error: true # Allow failures for unmaintained packages
+        continue-on-error: true # Advisory only: flags unmaintained upstream packages we can't fix here
   # ==========================================================================
   # Frontend Tests
   # ==========================================================================
@@ -279,7 +281,6 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    continue-on-error: true # Don't block workflow if integration tests fail/timeout
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -352,7 +353,6 @@ jobs:
     name: Resilience Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: unit-tests
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -406,7 +406,6 @@ jobs:
   api-contract-tests:
     name: API Contract Tests
     runs-on: ubuntu-latest
-    continue-on-error: true # Non-critical in PR checks; don't block merges
     needs: [unit-tests, frontend-tests]
     services:
       postgres:
@@ -858,13 +857,21 @@ jobs:
           GOLDEN_RESULT: ${{ needs.golden-replay.result }}
           FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
           SECURITY_RESULT: ${{ needs.security-scan.result }}
+          INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+          CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
+          RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
         run: |
-          # Only fail on truly critical tests (unit, golden replay, frontend, security)
-          # Integration tests have continue-on-error so they don't block
-          if [ "$UNIT_RESULT" == "failure" ] || \
-             [ "$GOLDEN_RESULT" == "failure" ] || \
-             [ "$FRONTEND_RESULT" == "failure" ] || \
-             [ "$SECURITY_RESULT" == "failure" ]; then
-            echo "One or more critical test suites failed!"
-            exit 1
-          fi
+          # Blocking lanes: unit, golden replay, frontend, security, integration,
+          # contract, resilience. E2E and performance remain non-blocking
+          # (continue-on-error) until the E2E infra is stabilized.
+          failed=0
+          for pair in "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" "frontend:$FRONTEND_RESULT" \
+                      "security:$SECURITY_RESULT" "integration:$INTEGRATION_RESULT" \
+                      "contract:$CONTRACT_RESULT" "resilience:$RESILIENCE_RESULT"; do
+            name="${pair%%:*}"; result="${pair#*:}"
+            if [ "$result" == "failure" ]; then
+              echo "Blocking suite failed: $name"
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "One or more critical test suites failed!"; exit 1; }
