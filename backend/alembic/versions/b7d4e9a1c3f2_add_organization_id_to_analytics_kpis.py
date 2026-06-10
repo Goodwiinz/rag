@@ -11,7 +11,7 @@ match, which excludes NULL rows — those legacy KPIs become invisible (fail
 closed) rather than world-readable. New KPIs are stamped with the creator's
 org.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: b7d4e9a1c3f2
 Revises: z4a5b6c7d8e9
 Create Date: 2026-06-10
 """
@@ -19,7 +19,7 @@ Create Date: 2026-06-10
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "a1b2c3d4e5f6"
+revision = "b7d4e9a1c3f2"
 down_revision = "z4a5b6c7d8e9"
 branch_labels = None
 depends_on = None
