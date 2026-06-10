@@ -34,6 +34,9 @@ env:
   HELM_CHART_PATH: infrastructure/helm/knowledge-graph-analytics
   CLUSTER_NAME: rag-cluster
 
+permissions:
+  contents: read
+
 jobs:
   # Gate: Only deploy if Docker build succeeded
   check-build:

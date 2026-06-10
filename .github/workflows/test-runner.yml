@@ -5,6 +5,9 @@ on:
     branches: [feature/project-chat-integration]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: [self-hosted, linux]
