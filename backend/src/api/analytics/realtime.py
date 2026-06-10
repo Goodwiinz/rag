@@ -36,15 +36,25 @@ router = APIRouter(prefix="/realtime", tags=["analytics-realtime"])
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(
-    websocket: WebSocket, token: str = Query(..., description="Authentication token")
-):
-    """WebSocket endpoint for real-time analytics"""
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time analytics.
+
+    Authenticated via the platform's Sec-WebSocket-Protocol handshake — the
+    previous implementation accepted a ``token`` query param, never validated
+    it, and assigned a random ``user_id``, so the stream was effectively
+    unauthenticated.
+    """
+    from src.core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
+
     try:
-        # Authenticate user from token
-        # This is a simplified implementation
-        # In production, you'd validate the JWT token properly
-        user_id = uuid.uuid4()  # Would extract from token
+        user_payload = await WebSocketAuthenticator.authenticate(websocket)
+    except WebSocketAuthError as e:
+        logger.warning(f"Analytics WebSocket auth failed: {e.message}")
+        await websocket.close(code=e.code, reason=e.message)
+        return
+
+    try:
+        user_id = user_payload.get("sub")
         session_id = str(uuid.uuid4())
 
         # Handle WebSocket connection

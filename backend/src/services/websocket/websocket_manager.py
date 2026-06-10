@@ -72,6 +72,12 @@ class WebSocketMessage:
     priority: Priority = Priority.NORMAL
     target_channels: List[str] = None
     expires_at: Optional[datetime] = None
+    # When set, only connections belonging to this organization may receive the
+    # message — even if they are subscribed to the broadcast channel. Document
+    # and job status updates set this so per-tenant payloads queued onto the
+    # shared ``document_processing``/``job_status`` channels cannot fan out
+    # across tenants. ``None`` = no org restriction (global/system messages).
+    target_organization: Optional[str] = None
 
     def __post_init__(self):
         if self.message_id is None:
@@ -108,6 +114,15 @@ class ConnectionInfo:
 
     def should_receive_message(self, message: WebSocketMessage) -> bool:
         """Check if connection should receive this message"""
+        # Tenant gate: a message addressed to a specific organization must
+        # never reach a connection from another org, even via a shared
+        # broadcast channel. Closes the cross-tenant document/job leak.
+        if (
+            message.target_organization is not None
+            and str(self.organization_id) != str(message.target_organization)
+        ):
+            return False
+
         # Check channel subscription
         if message.target_channels and not any(
             self.is_subscribed_to_channel(ch) for ch in message.target_channels
@@ -127,6 +142,13 @@ class ConnectionInfo:
                         return False
 
         return True
+
+
+# Channels that require an admin role to subscribe to. Kept here (not just in
+# the websocket_v2 connect handler) so the mid-session SUBSCRIBE command path
+# enforces the same gate — otherwise a non-admin could connect with no channels
+# and then subscribe to an admin channel at runtime.
+_ADMIN_ONLY_CHANNELS = {"system_status", "admin_alerts"}
 
 
 class EnhancedConnectionManager(BaseService):
@@ -645,7 +667,25 @@ class EnhancedConnectionManager(BaseService):
             elif message_type == MessageType.SUBSCRIBE.value:
                 channel = message_data.get("channel")
                 if channel:
-                    await self.subscribe_to_channel(connection_id, channel)
+                    # Authorize admin-only channels against the connection's
+                    # stored role before subscribing — mirrors the connect-time
+                    # gate so a non-admin cannot escalate mid-session.
+                    conn = self.active_connections.get(connection_id)
+                    role = str(
+                        (conn.client_info or {}).get("role", "USER")
+                        if conn
+                        else "USER"
+                    ).lower()
+                    if channel in _ADMIN_ONLY_CHANNELS and role != "admin":
+                        logger.warning(
+                            "Denied mid-session subscribe to admin channel %s "
+                            "for connection %s (role=%s)",
+                            channel,
+                            connection_id,
+                            role,
+                        )
+                    else:
+                        await self.subscribe_to_channel(connection_id, channel)
 
             elif message_type == MessageType.UNSUBSCRIBE.value:
                 channel = message_data.get("channel")
@@ -789,14 +829,20 @@ class EnhancedConnectionManager(BaseService):
                         channel = broadcast_data["channel"]
                         message_dict = broadcast_data["message"]
 
-                        # Reconstruct WebSocketMessage
+                        # Reconstruct WebSocketMessage. target_organization MUST
+                        # round-trip — without it a cross-instance broadcast
+                        # loses its tenant scope and should_receive_message can
+                        # no longer gate it, reopening the cross-org leak on
+                        # multi-worker deployments.
                         message = WebSocketMessage(
                             type=MessageType(message_dict["type"]),
                             data=message_dict["data"],
                             timestamp=datetime.fromisoformat(message_dict["timestamp"]),
-                            message_id=message_dict["id"],
+                            message_id=message_dict.get("message_id")
+                            or message_dict.get("id"),
                             priority=Priority(message_dict["priority"]),
                             target_channels=message_dict.get("target_channels", []),
+                            target_organization=message_dict.get("target_organization"),
                         )
 
                         # Forward to local subscribers

@@ -232,13 +232,18 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message
+                # Create WebSocket message. target_organization scopes the
+                # shared-channel broadcast to the owning tenant so other orgs'
+                # connections subscribed to document_processing never receive it.
                 message = WebSocketMessage(
                     type=MessageType.DOCUMENT_PROCESSING,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_status(status),
                     target_channels=[Channel.DOCUMENT_PROCESSING.value],
+                    target_organization=str(document.organization_id)
+                    if document.organization_id
+                    else None,
                 )
 
                 # Add to update queue
@@ -324,13 +329,18 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message
+                # Create WebSocket message. target_organization scopes the
+                # shared-channel broadcast to the owning tenant (see the
+                # document path above for rationale).
                 message = WebSocketMessage(
                     type=MessageType.JOB_STATUS,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_job_status(status),
                     target_channels=[Channel.JOB_STATUS.value],
+                    target_organization=str(job.organization_id)
+                    if job.organization_id
+                    else None,
                 )
 
                 # Add to update queue
@@ -601,19 +611,22 @@ class StatusUpdateService(BaseService):
         self._batch_updates[update_type].clear()
 
         try:
-            # Group updates by channel
-            channel_batches = {}
+            # Group updates by (channel, target_organization). Grouping by
+            # channel alone would bundle different tenants' updates into one
+            # batch message with no single org to scope it by, re-opening the
+            # cross-tenant leak — a per-org key keeps each batch addressable to
+            # exactly one organization (None = global).
+            channel_batches: Dict[tuple, list] = {}
             for batch_item in batch:
                 message_dict = batch_item["message"]
                 message = WebSocketMessage(**message_dict)
 
                 for channel in message.target_channels:
-                    if channel not in channel_batches:
-                        channel_batches[channel] = []
-                    channel_batches[channel].append(message)
+                    key = (channel, message.target_organization)
+                    channel_batches.setdefault(key, []).append(message)
 
-            # Broadcast each channel batch
-            for channel, messages in channel_batches.items():
+            # Broadcast each (channel, org) batch
+            for (channel, target_organization), messages in channel_batches.items():
                 # Create batch message
                 batch_message = WebSocketMessage(
                     type=MessageType.STATUS_UPDATE,
@@ -634,6 +647,7 @@ class StatusUpdateService(BaseService):
                     },
                     timestamp=datetime.now(dt_timezone.utc),
                     target_channels=[channel],
+                    target_organization=target_organization,
                 )
 
                 await connection_manager.broadcast_to_channel(channel, batch_message)
