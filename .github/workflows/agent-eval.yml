@@ -14,6 +14,9 @@ on:
         required: false
         default: "agent-regression"
 
+permissions:
+  contents: read
+
 jobs:
   eval:
     runs-on: [self-hosted, linux]
@@ -43,7 +46,7 @@ jobs:
       REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Resolve experiment prefix
         run: |
