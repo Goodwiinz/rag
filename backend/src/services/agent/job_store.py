@@ -171,6 +171,11 @@ async def set_job(job_id: str, data: dict) -> None:
         _seq += 1
         data["_seq"] = _seq
         existing = _l1.get(job_id)
+        # set_job REPLACES the record. Carry the owner forward when a status
+        # update omits it — the GET ownership check fails closed on a missing
+        # user_id, so dropping it would lock the owner out of their own job.
+        if "user_id" not in data and existing is not None and existing.get("user_id"):
+            data["user_id"] = existing["user_id"]
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()

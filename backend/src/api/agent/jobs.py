@@ -73,6 +73,12 @@ def _set_job(job_id: str, data: dict):
 
     data["created_at"] = time.time()
     with _jobs_lock:
+        # Same owner carry-forward as job_store.set_job: replacement writes
+        # that omit user_id must not orphan the record (the GET ownership
+        # check fails closed on a missing user_id).
+        existing = _jobs.get(job_id)
+        if "user_id" not in data and existing is not None and existing.get("user_id"):
+            data["user_id"] = existing["user_id"]
         _jobs[job_id] = data
 
     try:
@@ -924,6 +930,7 @@ async def _run_agent_graph(
                     "status": "completed",
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
+                    "user_id": str(current_user.id),
                 },
             )
         except asyncio.CancelledError:
@@ -934,7 +941,12 @@ async def _run_agent_graph(
             logger.warning("Agent graph execution cancelled", extra={"job_id": job_id})
             try:
                 await _set_job_async(
-                    job_id, {"status": "cancelled", "error": "execution cancelled"}
+                    job_id,
+                    {
+                        "status": "cancelled",
+                        "error": "execution cancelled",
+                        "user_id": str(current_user.id),
+                    },
                 )
             except Exception:
                 logger.exception("Failed to mark cancelled job %s", job_id)
@@ -943,11 +955,22 @@ async def _run_agent_graph(
             logger.error("Agent graph execution timed out", extra={"job_id": job_id})
             await _set_job_async(
                 job_id,
-                {"status": "failed", "error": "Agent execution timed out after 360s"},
+                {
+                    "status": "failed",
+                    "error": "Agent execution timed out after 360s",
+                    "user_id": str(current_user.id),
+                },
             )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
-            await _set_job_async(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(
+                job_id,
+                {
+                    "status": "failed",
+                    "error": str(e),
+                    "user_id": str(current_user.id),
+                },
+            )
 
 
 async def _resume_agent_graph(
@@ -1009,11 +1032,14 @@ async def _resume_agent_graph(
                         snapshot_user_id,
                         current_user.id,
                     )
+                    # Stamp the *requesting* user so their polling sees the
+                    # error; never the snapshot owner.
                     await _set_job_async(
                         job_id,
                         {
                             "status": "error",
                             "error": "Thread not found",
+                            "user_id": str(current_user.id),
                         },
                     )
                     return
@@ -1097,6 +1123,7 @@ async def _resume_agent_graph(
                     "status": "completed",
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
+                    "user_id": str(current_user.id),
                 },
             )
         except asyncio.CancelledError:
@@ -1105,7 +1132,12 @@ async def _resume_agent_graph(
             logger.warning("Agent graph resume cancelled", extra={"job_id": job_id})
             try:
                 await _set_job_async(
-                    job_id, {"status": "cancelled", "error": "resume cancelled"}
+                    job_id,
+                    {
+                        "status": "cancelled",
+                        "error": "resume cancelled",
+                        "user_id": str(current_user.id),
+                    },
                 )
             except Exception:
                 logger.exception("Failed to mark cancelled resume job %s", job_id)
@@ -1114,8 +1146,19 @@ async def _resume_agent_graph(
             logger.error("Agent graph resume timed out", extra={"job_id": job_id})
             await _set_job_async(
                 job_id,
-                {"status": "failed", "error": "Agent execution timed out after 360s"},
+                {
+                    "status": "failed",
+                    "error": "Agent execution timed out after 360s",
+                    "user_id": str(current_user.id),
+                },
             )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
-            await _set_job_async(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(
+                job_id,
+                {
+                    "status": "failed",
+                    "error": str(e),
+                    "user_id": str(current_user.id),
+                },
+            )

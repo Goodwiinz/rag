@@ -214,25 +214,32 @@ class TestJobOwnershipEndpoints:
         assert response.status_code == 400
 
 
-class TestJobOwnershipBackwardsCompat:
-    """Jobs without user_id (from before the fix) should still be accessible."""
+class TestJobOwnershipFailClosed:
+    """Ownerless job records must NOT be accessible."""
 
-    def test_legacy_job_without_user_id_is_accessible(self, client):
-        """Jobs created before the ownership fix (no user_id) should be accessible."""
+    def test_job_without_user_id_returns_404(self, client):
+        """Fail closed on a missing user_id.
+
+        The old guard skipped the ownership check when user_id was absent,
+        which let any authenticated user read another user's completed job
+        (terminal status writes used to drop user_id from the record). Every
+        write path now stamps the owner, so an ownerless record means
+        corruption or a pre-fix legacy entry — treat it as not found.
+        Records expire after 1h, so locking out legacy entries is a
+        one-time, bounded cost.
+        """
         job_id = str(uuid4())
         _set_job(
             job_id,
             {
                 "status": "running",
                 "tool_executions": [],
-                # No user_id — legacy job
+                # No user_id — ownerless record
             },
         )
 
         response = client.get(f"/api/v1/agent/jobs/{job_id}")
-        # Should still work — the ownership check uses job.get("user_id")
-        # which returns None for legacy jobs, skipping the check
-        assert response.status_code == 200
+        assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

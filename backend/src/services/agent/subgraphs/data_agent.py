@@ -41,6 +41,10 @@ DATA_TOOLS = [
 
 DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]
 
+# Mirrors MAX_RESEARCH_TOOL_LOOPS — a named ceiling so the forced-synthesis
+# routing below and the bump in data_force_synthesis_node stay in sync.
+MAX_DATA_TOOL_LOOPS = 8
+
 def _build_data_system_prompt() -> str:
     """Construct the data subgraph system prompt with shared rules embedded.
 
@@ -137,13 +141,85 @@ def data_should_continue(state: AgentState) -> str:
     if state.get("error_count", 0) >= 3:
         return "data_reflection_gate"
     last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < 8
-    ):
-        return "data_tool_node"
+    if isinstance(last, AIMessage) and last.tool_calls:
+        if state.get("tool_loop_count", 0) < MAX_DATA_TOOL_LOOPS:
+            return "data_tool_node"
+        # Loop ceiling tripped while the model still wants more tools.
+        # Without forced synthesis the subgraph would exit with an AIMessage
+        # whose tool_calls have no ToolMessages — see
+        # research_should_continue (trace 019e1903) for the failure mode.
+        if state.get("_force_synthesis_fired"):
+            return "data_reflection_gate"
+        return "data_force_synthesis_node"
     return "data_reflection_gate"
+
+
+async def data_force_synthesis_node(
+    state: AgentState, config: RunnableConfig
+) -> dict:
+    """Final-answer LLM call when the tool-loop ceiling was hit.
+
+    Mirrors ``research_force_synthesis_node``: strip the trailing AIMessage
+    with unanswered tool_calls and re-invoke the LLM with NO tools bound so
+    it must produce text. See that node's docstring for the prompt-embedding
+    and loop-guard rationale.
+    """
+    from src.services.agent.llm_factory import build_synthesis_llm
+
+    messages = list(state["messages"])
+    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        messages.pop()
+
+    sanitized = _sanitize_messages(messages)
+    base_prompt = _build_data_system_prompt()
+    synthesis_addendum = (
+        "\n\n## Final synthesis turn\n"
+        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "the per-turn tool budget. Do not request any more tools. Write a "
+        "final answer drawn from the tool results already in this "
+        "conversation: present the entities, relationships, or graph "
+        "findings gathered so far in a structured format, and state plainly "
+        "any query you could not complete. Do NOT repeat or quote these "
+        "instructions in your reply."
+    )
+    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
+
+    llm = build_synthesis_llm(max_tokens=4096)
+    # No bind_tools — force a pure text response.
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="data_force_synthesis_node",
+        tags=["intent:knowledge_graph", "subgraph:data", "phase:synthesis"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(full, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "data_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+            AGENT_LLM_TIMEOUT_SECONDS,
+        )
+        response = AIMessage(
+            content=(
+                "I gathered results but ran out of time composing a final "
+                "summary. Please ask me to summarize the findings above."
+            ),
+        )
+
+    return {
+        "messages": [response],
+        # Bump past ceiling so a defective response with stray tool_calls
+        # cannot re-enter forced synthesis (would loop infinitely).
+        "tool_loop_count": MAX_DATA_TOOL_LOOPS + 1,
+        "_force_synthesis_fired": True,
+    }
 
 
 def _data_reflection_route(state: AgentState) -> str:
@@ -194,6 +270,7 @@ def build_data_subgraph() -> StateGraph:
     graph.add_node("data_llm_node", data_llm_node)
     graph.add_node("data_tool_node", filtered_tool)
     graph.add_node("data_compactor_node", compactor)
+    graph.add_node("data_force_synthesis_node", data_force_synthesis_node)
     graph.add_node("data_reflection_gate", reflection_node)
 
     # Edges
@@ -205,9 +282,13 @@ def build_data_subgraph() -> StateGraph:
         data_should_continue,
         {
             "data_tool_node": "data_tool_node",
+            "data_force_synthesis_node": "data_force_synthesis_node",
             "data_reflection_gate": "data_reflection_gate",
         },
     )
+
+    # Forced synthesis always goes to reflection (it produced a final answer).
+    graph.add_edge("data_force_synthesis_node", "data_reflection_gate")
 
     graph.add_edge("data_tool_node", "data_compactor_node")
     graph.add_edge("data_compactor_node", "data_llm_node")
