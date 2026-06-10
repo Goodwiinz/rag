@@ -13,17 +13,22 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
+_BACKEND = pathlib.Path(__file__).parents[3]
+
 
 def test_kpi_model_has_organization_id_column():
-    from src.models.analytics.analytics_models import AnalyticsKPI
-
-    col = AnalyticsKPI.__table__.columns.get("organization_id")
-    assert col is not None, "AnalyticsKPI needs an organization_id column"
-    assert col.nullable is True  # backward-compat; reads filter NULL out
-    assert col.index is True
-
-
-_BACKEND = pathlib.Path(__file__).parents[3]
+    # Source-text, not introspection: importing AnalyticsKPI pulls
+    # src.models.analytics → analytics_models, which registers a SECOND
+    # `analytics_events` table that collides with src/models/analytics_event.py
+    # (duplicate indexes) and poisons every later test's create_all. Assert the
+    # column definition in the model source instead.
+    src = (_BACKEND / "src/models/analytics/analytics_models.py").read_text()
+    # nullable=True (backward-compat; reads filter NULL out), indexed.
+    assert (
+        "organization_id = Column(" in src
+        and 'ForeignKey("organizations.id"), nullable=True, index=True' in src
+    )
+    assert "class AnalyticsKPI" in src
 
 
 def test_create_kpi_accepts_organization_id_and_stamps_it():
@@ -79,43 +84,47 @@ def test_migration_revision_id_is_unique_across_versions():
 
 # --- behavioral: the read filter actually isolates tenants --------------------
 #
-# Importing the metrics endpoint module triggers the analytics package's
-# pre-existing broken __init__, so we can't call the endpoints directly. Instead
-# we run the EXACT WHERE predicate the endpoints build against a real (SQLite)
-# DB, which proves the security property — that org A's query returns only org
-# A's rows and never org B's or the legacy NULL-org row.
+# Proves the security property (org A's query returns only org A's rows, never
+# org B's or the legacy NULL-org row) by running the EXACT WHERE predicate the
+# endpoints build against a real SQLite table. Uses a standalone throwaway
+# table on a LOCAL MetaData — importing the real AnalyticsKPI model would pull
+# the poisoned analytics package (duplicate analytics_events table) and break
+# every later test's create_all.
 
 
 @pytest.mark.asyncio
 async def test_read_filter_isolates_tenants_and_excludes_null_org():
     import uuid
 
-    from sqlalchemy import select
+    from sqlalchemy import (
+        Boolean,
+        Column,
+        MetaData,
+        String,
+        Table,
+        Uuid,
+        select,
+    )
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from src.models.analytics.analytics_models import AggregationType, AnalyticsKPI
+    md = MetaData()  # local — never touches the shared Base.metadata
+    tbl = Table(
+        "kpi_isolation_probe",
+        md,
+        Column("id", Uuid, primary_key=True),
+        Column("name", String),
+        Column("organization_id", Uuid, nullable=True),
+        Column("is_active", Boolean),
+    )
 
-    tbl = AnalyticsKPI.__table__
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
-        await conn.run_sync(tbl.create)
+        await conn.run_sync(md.create_all)
 
     org_a, org_b = uuid.uuid4(), uuid.uuid4()
 
     def _row(name, org):
-        # Core insert avoids ORM relationship/mapper configuration.
-        return {
-            "id": uuid.uuid4(),
-            "name": name,
-            "display_name": name,
-            "metric_id": uuid.uuid4(),
-            "aggregation_type": AggregationType.SUM,
-            "time_window": 3600,
-            "time_range": "1h",
-            "is_active": True,
-            "is_critical": False,
-            "organization_id": org,
-        }
+        return {"id": uuid.uuid4(), "name": name, "organization_id": org, "is_active": True}
 
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
