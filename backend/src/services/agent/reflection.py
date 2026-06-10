@@ -540,6 +540,10 @@ def make_reflection_gate(
                     passed=True, issues=[], severity="none"
                 ),
             }
+        except asyncio.CancelledError:
+            # User abort / shutdown — propagate, never swallow into a
+            # silent "passed" result (house pattern, see classifier).
+            raise
         except Exception as e:
             logger.warning("Reflection failed, proceeding anyway: %s", e)
             # Don't burn a retry budget slot — let the agent recover on the

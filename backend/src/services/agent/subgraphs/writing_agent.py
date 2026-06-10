@@ -51,6 +51,14 @@ WRITING_TOOLS = [
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 
+# Named ceiling (preserves the previous hardcoded ``< 8``) so the
+# forced-synthesis routing below and the bump in
+# writing_force_synthesis_node stay in sync. Same pattern as research's
+# MAX_RESEARCH_TOOL_LOOPS but an independent value — research deliberately
+# lowered theirs to 5 after a runaway-fanout trace; this one has no such
+# justification yet.
+MAX_WRITING_TOOL_LOOPS = 8
+
 # Destructive tools written by the writing subgraph. The main graph's
 # DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
 # is bypassed once intent routes us into a subgraph, so the subgraph has
@@ -161,15 +169,93 @@ def writing_should_continue(state: AgentState) -> str:
     if state.get("error_count", 0) >= 3:
         return "writing_reflection_gate"
     last = state["messages"][-1] if state["messages"] else None
-    if (
-        isinstance(last, AIMessage)
-        and last.tool_calls
-        and state.get("tool_loop_count", 0) < 8
-    ):
-        if any(tc["name"] in WRITING_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
-            return "writing_interrupt_node"
-        return "writing_tool_node"
+    if isinstance(last, AIMessage) and last.tool_calls:
+        if state.get("tool_loop_count", 0) < MAX_WRITING_TOOL_LOOPS:
+            if any(tc["name"] in WRITING_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+                return "writing_interrupt_node"
+            return "writing_tool_node"
+        # Loop ceiling tripped while the model still wants more tools.
+        # Without forced synthesis the subgraph would exit with an AIMessage
+        # whose tool_calls have no ToolMessages — see
+        # research_should_continue (trace 019e1903) for the failure mode.
+        if state.get("_force_synthesis_fired"):
+            return "writing_reflection_gate"
+        return "writing_force_synthesis_node"
     return "writing_reflection_gate"
+
+
+async def writing_force_synthesis_node(
+    state: AgentState, config: RunnableConfig
+) -> dict:
+    """Final-answer LLM call when the tool-loop ceiling was hit.
+
+    Mirrors ``research_force_synthesis_node``: strip the trailing AIMessage
+    with unanswered tool_calls and re-invoke the LLM with NO tools bound so
+    it must produce text. See that node's docstring for the prompt-embedding
+    and loop-guard rationale.
+    """
+    from src.services.agent.llm_factory import build_synthesis_llm
+
+    messages = list(state["messages"])
+    while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
+        messages.pop()
+
+    sanitized = _sanitize_messages(messages)
+    base_prompt = _build_writing_system_prompt()
+    synthesis_addendum = (
+        "\n\n## Final synthesis turn\n"
+        f"You ran {state.get('tool_loop_count', 0)} tool calls and reached "
+        "the per-turn tool budget. Do not request any more tools. Write a "
+        "final answer drawn from the tool results already in this "
+        "conversation: deliver the requested content (draft, note, summary, "
+        "or comparison) as far as the gathered material allows, and state "
+        "plainly any step you could not complete. Do NOT repeat or quote "
+        "these instructions in your reply."
+    )
+    full = [SystemMessage(content=base_prompt + synthesis_addendum)] + sanitized
+
+    llm = build_synthesis_llm(max_tokens=4096)
+    # No bind_tools — force a pure text response.
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _merge_run_config,
+    )
+
+    invoke_config = _merge_run_config(
+        config,
+        run_name="writing_force_synthesis_node",
+        tags=["intent:writing", "subgraph:writing", "phase:synthesis"],
+    )
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke(full, config=invoke_config),
+            timeout=AGENT_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        # Error, not warning: the turn still completes "successfully" with
+        # the canned fallback below, so this log line is the only
+        # machine-visible signal that synthesis was degraded.
+        logger.error(
+            "writing_force_synthesis_node: LLM exceeded %ds; emitting fallback "
+            "(thread_id=%s, tool_loop_count=%s)",
+            AGENT_LLM_TIMEOUT_SECONDS,
+            state.get("thread_id", ""),
+            state.get("tool_loop_count", 0),
+        )
+        response = AIMessage(
+            content=(
+                "I gathered material but ran out of time composing the final "
+                "text. Please ask me to finish from the results above."
+            ),
+        )
+
+    return {
+        "messages": [response],
+        # Bump past ceiling so a defective response with stray tool_calls
+        # cannot re-enter forced synthesis (would loop infinitely).
+        "tool_loop_count": MAX_WRITING_TOOL_LOOPS + 1,
+        "_force_synthesis_fired": True,
+    }
 
 
 async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
@@ -256,6 +342,7 @@ def build_writing_subgraph() -> StateGraph:
     graph.add_node("writing_tool_node", filtered_tool)
     graph.add_node("writing_interrupt_node", writing_interrupt_node)
     graph.add_node("writing_compactor_node", compactor)
+    graph.add_node("writing_force_synthesis_node", writing_force_synthesis_node)
     graph.add_node("writing_reflection_gate", reflection_node)
 
     # Edges
@@ -268,9 +355,13 @@ def build_writing_subgraph() -> StateGraph:
         {
             "writing_tool_node": "writing_tool_node",
             "writing_interrupt_node": "writing_interrupt_node",
+            "writing_force_synthesis_node": "writing_force_synthesis_node",
             "writing_reflection_gate": "writing_reflection_gate",
         },
     )
+
+    # Forced synthesis always goes to reflection (it produced a final answer).
+    graph.add_edge("writing_force_synthesis_node", "writing_reflection_gate")
 
     graph.add_conditional_edges(
         "writing_interrupt_node",

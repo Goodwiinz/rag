@@ -156,6 +156,46 @@ class TestGetJobNotFound:
         assert response.status_code == 404
 
 
+class TestGetJobOwnership:
+    """GET /jobs/{id} must fail closed on ownership."""
+
+    def test_other_users_job_returns_404(self, client):
+        """A job owned by another user is invisible to the caller."""
+        job_id = str(uuid4())
+        _set_job(
+            job_id,
+            {
+                "status": "completed",
+                "result": {"message": {"role": "assistant", "content": "secret"}},
+                "tool_executions": [],
+                "user_id": "someone-else",
+            },
+        )
+
+        response = client.get(f"/api/v1/agent/jobs/{job_id}")
+        assert response.status_code == 404
+
+    def test_job_without_owner_returns_404(self, client):
+        """Fail closed: a record missing user_id must not be readable.
+
+        Regression test — terminal status writes used to drop user_id from
+        the job record, and the old ``if job.get("user_id") and ...`` guard
+        then let ANY authenticated user read the result.
+        """
+        job_id = str(uuid4())
+        _set_job(
+            job_id,
+            {
+                "status": "completed",
+                "result": {"message": {"role": "assistant", "content": "secret"}},
+                "tool_executions": [],
+            },
+        )
+
+        response = client.get(f"/api/v1/agent/jobs/{job_id}")
+        assert response.status_code == 404
+
+
 class TestThreadsList:
     """GET /threads should return 200 with an empty list when DB is mocked."""
 
