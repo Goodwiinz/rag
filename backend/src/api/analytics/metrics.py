@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import and_, or_, select
 
 from src.auth.dependencies import get_current_user
+from src.core.dependencies import require_admin
 from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
     AnalyticsKPI,
@@ -138,7 +139,7 @@ async def get_metric(
 async def update_metric(
     metric_id: uuid.UUID,
     request: MetricUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Update metric"""
     try:
@@ -163,7 +164,7 @@ async def update_metric(
 
 @router.delete("/{metric_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_metric(
-    metric_id: uuid.UUID, current_user: User = Depends(get_current_user)
+    metric_id: uuid.UUID, current_user: User = Depends(require_admin)
 ):
     """Delete metric"""
     try:
@@ -194,7 +195,7 @@ async def ingest_metric_value(
     quality_score: Optional[float] = Query(
         None, ge=0, le=1, description="Data quality score"
     ),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Ingest a single metric value"""
     try:
@@ -238,7 +239,7 @@ async def ingest_metric_value(
 
 @router.post("/ingest/batch", status_code=status.HTTP_200_OK)
 async def ingest_batch_values(
-    values: List[Dict[str, Any]], current_user: User = Depends(get_current_user)
+    values: List[Dict[str, Any]], current_user: User = Depends(require_admin)
 ):
     """Ingest multiple metric values in batch"""
     if len(values) > 1000:
