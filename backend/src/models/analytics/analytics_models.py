@@ -163,6 +163,13 @@ class AnalyticsKPI(SQLBaseModel):
         GUID(), ForeignKey("analytics_metrics.id"), nullable=False, index=True
     )
 
+    # Tenant scope. Nullable for backward-compat with rows created before this
+    # column existed; the read endpoints filter by an exact org match, so those
+    # legacy NULL-org rows are not returned to anyone (fail closed).
+    organization_id = Column(
+        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
     # Targets and thresholds
     target_value = Column(Numeric(15, 4), nullable=True)
     warning_threshold = Column(Numeric(15, 4), nullable=True)

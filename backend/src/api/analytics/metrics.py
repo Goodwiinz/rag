@@ -319,7 +319,9 @@ async def create_kpi(
     """Create a new KPI"""
     try:
         kpi = await metrics_service.create_kpi(
-            request=request, owner_id=current_user.id
+            request=request,
+            owner_id=current_user.id,
+            organization_id=current_user.organization_id,
         )
         return kpi
 
@@ -343,9 +345,13 @@ async def list_kpis(
 ):
     """List KPIs"""
     try:
-        # This is a simplified implementation
         async with get_async_session() as db:
-            query = select(AnalyticsKPI).where(AnalyticsKPI.is_active == True)
+            # Tenant scope: an exact org match also excludes legacy NULL-org
+            # rows (fail closed). Previously unscoped → every org's KPIs.
+            query = select(AnalyticsKPI).where(
+                AnalyticsKPI.is_active == True,
+                AnalyticsKPI.organization_id == current_user.organization_id,
+            )
 
             if metric_id:
                 query = query.where(AnalyticsKPI.metric_id == metric_id)
@@ -402,8 +408,13 @@ async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_us
     """Get KPI by ID"""
     try:
         async with get_async_session() as db:
+            # Scope by org — exact match also excludes legacy NULL-org rows.
             query = select(AnalyticsKPI).where(
-                and_(AnalyticsKPI.id == kpi_id, AnalyticsKPI.is_active == True)
+                and_(
+                    AnalyticsKPI.id == kpi_id,
+                    AnalyticsKPI.is_active == True,
+                    AnalyticsKPI.organization_id == current_user.organization_id,
+                )
             )
             result = await db.execute(query)
             kpi = result.scalar_one_or_none()

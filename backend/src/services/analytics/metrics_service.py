@@ -286,7 +286,12 @@ class MetricsService:
             logger.error(f"Error deleting metric {metric_id}: {e}")
             return False
 
-    async def create_kpi(self, request: KPICreate, owner_id: uuid.UUID) -> KPIResponse:
+    async def create_kpi(
+        self,
+        request: KPICreate,
+        owner_id: uuid.UUID,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> KPIResponse:
         """Create a new KPI"""
         try:
             async with get_async_session() as db:
@@ -306,6 +311,7 @@ class MetricsService:
                     display_name=request.display_name,
                     description=request.description,
                     metric_id=request.metric_id,
+                    organization_id=organization_id,
                     target_value=request.target_value,
                     warning_threshold=request.warning_threshold,
                     critical_threshold=request.critical_threshold,
