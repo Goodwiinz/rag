@@ -333,6 +333,10 @@ async def create_kpi(
         )
         return kpi
 
+    except HTTPException:
+        # Preserve authz/validation status codes (e.g. a 4xx raised inside the
+        # try) — the broad handler below would otherwise mask them as 500.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

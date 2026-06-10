@@ -6,10 +6,11 @@ read). This adds a nullable ``organization_id`` (FK to ``organizations``, with
 an index) so the read endpoints can scope by the caller's org.
 
 Nullable + no backfill: KPIs created before this column existed have no
-derivable owner, so they stay NULL. The read endpoints filter by an exact org
-match, which excludes NULL rows — those legacy KPIs become invisible (fail
-closed) rather than world-readable. New KPIs are stamped with the creator's
-org.
+derivable owner, so they stay NULL. The read endpoints reject NULL-org callers
+up front and filter active rows by ``organization_id IS NOT NULL AND
+= caller_org``, so legacy NULL rows are never returned (fail closed) rather than
+world-readable. New KPIs are stamped with the creator's org (and the service
+refuses to create a NULL-org KPI).
 
 Revision ID: b7d4e9a1c3f2
 Revises: z4a5b6c7d8e9
