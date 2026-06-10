@@ -9,7 +9,7 @@ import asyncio
 import json
 import uuid
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Callable, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import dataclass, asdict
@@ -53,9 +53,9 @@ class MockConnection:
 
     def __post_init__(self):
         if self.connected_at is None:
-            self.connected_at = datetime.utcnow()
+            self.connected_at = datetime.now(timezone.utc)
         if self.last_heartbeat is None:
-            self.last_heartbeat = datetime.utcnow()
+            self.last_heartbeat = datetime.now(timezone.utc)
         if self.subscribed_channels is None:
             self.subscribed_channels = []
         if self.message_filter is None:
@@ -98,8 +98,8 @@ class MockWebSocketServer:
             "user_id": user_id,
             "organization_id": organization_id,
             "token_id": token_id,
-            "issued_at": datetime.utcnow().isoformat(),
-            "expires_at": (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat(),
+            "issued_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat(),
             **kwargs
         }
 
@@ -117,7 +117,7 @@ class MockWebSocketServer:
         token_data = self.auth_tokens[token]
         expires_at = datetime.fromisoformat(token_data["expires_at"])
 
-        if datetime.utcnow() > expires_at:
+        if datetime.now(timezone.utc) > expires_at:
             del self.auth_tokens[token]
             return None
 
@@ -159,10 +159,10 @@ class MockWebSocketServer:
                 "connection_id": connection_id,
                 "user_id": connection.user_id,
                 "organization_id": connection.organization_id,
-                "server_time": datetime.utcnow().isoformat(),
+                "server_time": datetime.now(timezone.utc).isoformat(),
                 "heartbeat_interval": 30
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "id": str(uuid.uuid4()),
             "priority": Priority.NORMAL.value
         }
@@ -205,7 +205,7 @@ class MockWebSocketServer:
         # Add metadata to message
         message_with_metadata = {
             **message,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "id": str(uuid.uuid4()),
             "priority": message.get("priority", Priority.NORMAL.value)
         }
@@ -215,7 +215,7 @@ class MockWebSocketServer:
             "connection_id": connection_id,
             "direction": "sent",
             "message": message_with_metadata,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         })
 
         # Simulate WebSocket send
@@ -238,7 +238,7 @@ class MockWebSocketServer:
             return
 
         connection = self.connections[connection_id]
-        connection.last_heartbeat = datetime.utcnow()
+        connection.last_heartbeat = datetime.now(timezone.utc)
 
         try:
             message = json.loads(raw_message)
@@ -248,7 +248,7 @@ class MockWebSocketServer:
                 "connection_id": connection_id,
                 "direction": "received",
                 "message": message,
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             })
 
             # Handle message types
@@ -266,7 +266,7 @@ class MockWebSocketServer:
             pong_message = {
                 "type": MessageType.PONG.value,
                 "data": {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "sequence": message_data.get("sequence", 0)
                 }
             }
@@ -283,7 +283,7 @@ class MockWebSocketServer:
                 await self.unsubscribe_from_channel(connection_id, channel)
 
         elif message_type == MessageType.STATUS_UPDATE.value:
-            connection.last_heartbeat = datetime.utcnow()
+            connection.last_heartbeat = datetime.now(timezone.utc)
             if "message_filter" in message_data:
                 connection.message_filter = message_data["message_filter"]
 
@@ -341,7 +341,7 @@ class MockWebSocketServer:
             "type": MessageType.ERROR.value,
             "data": {
                 "error": error_message,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         }
 
@@ -531,13 +531,13 @@ class MockStatusUpdateService:
                 # Add unique identifiers
                 if update_type == "document_processing":
                     update["data"]["document_id"] = str(uuid.uuid4())
-                    update["data"]["timestamp"] = datetime.utcnow().isoformat()
+                    update["data"]["timestamp"] = datetime.now(timezone.utc).isoformat()
                 elif update_type == "job_status":
                     update["data"]["job_id"] = str(uuid.uuid4())
-                    update["data"]["timestamp"] = datetime.utcnow().isoformat()
+                    update["data"]["timestamp"] = datetime.now(timezone.utc).isoformat()
                 elif update_type == "system_health":
-                    update["data"]["timestamp"] = datetime.utcnow().isoformat()
-                    update["data"]["last_check"] = datetime.utcnow().isoformat()
+                    update["data"]["timestamp"] = datetime.now(timezone.utc).isoformat()
+                    update["data"]["last_check"] = datetime.now(timezone.utc).isoformat()
 
                 # Add WebSocket message metadata
                 message = {
@@ -731,7 +731,7 @@ class WebSocketTestDataGenerator:
                 "title": f"{title} - Part {i//len(titles) + 1}",
                 "file_type": random.choice(["pdf", "txt", "docx"]),
                 "size_bytes": random.randint(1024, 10 * 1024 * 1024),
-                "created_at": (datetime.utcnow() - timedelta(days=random.randint(0, 30))).isoformat(),
+                "created_at": (datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30))).isoformat(),
                 "processing_status": random.choice(["pending", "processing", "completed", "failed"])
             })
         return documents
@@ -750,8 +750,8 @@ class WebSocketTestDataGenerator:
                 "status": random.choice(["queued", "running", "completed", "failed"]),
                 "total_items": random.randint(10, 1000),
                 "processed_items": random.randint(0, 1000),
-                "created_at": (datetime.utcnow() - timedelta(minutes=random.randint(0, 120))).isoformat(),
-                "estimated_completion": (datetime.utcnow() + timedelta(minutes=random.randint(5, 60))).isoformat()
+                "created_at": (datetime.now(timezone.utc) - timedelta(minutes=random.randint(0, 120))).isoformat(),
+                "estimated_completion": (datetime.now(timezone.utc) + timedelta(minutes=random.randint(5, 60))).isoformat()
             })
         return jobs
 
@@ -781,7 +781,7 @@ class WebSocketTestDataGenerator:
                 "max_results": random.randint(10, 100),
                 "response_time_ms": random.randint(50, 2000),
                 "results_count": random.randint(0, 50),
-                "timestamp": (datetime.utcnow() - timedelta(seconds=random.randint(0, 3600))).isoformat()
+                "timestamp": (datetime.now(timezone.utc) - timedelta(seconds=random.randint(0, 3600))).isoformat()
             })
         return queries
 

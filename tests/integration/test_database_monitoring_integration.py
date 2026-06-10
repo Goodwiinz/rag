@@ -17,7 +17,7 @@ import asyncio
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Union
 from unittest.mock import Mock, AsyncMock, patch
 import psycopg2
@@ -163,7 +163,7 @@ class TestMonitoringSchemaValidation:
             "cpu_usage",
             75.5,
             json.dumps({"host": "server1"}),
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             "api-service",
             "metrics-collector"
         ))
@@ -195,7 +195,7 @@ class TestMonitoringSchemaValidation:
             "critical",
             "active",
             "CPU usage exceeded 90%",
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             json.dumps({"threshold": "90%"})
         ))
         test_db_connection.commit()
@@ -227,8 +227,8 @@ class TestMonitoringSchemaValidation:
             span_id,
             "api_request",
             "user-service",
-            datetime.utcnow().isoformat(),
-            (datetime.utcnow() + timedelta(milliseconds=150)).isoformat(),
+            datetime.now(timezone.utc).isoformat(),
+            (datetime.now(timezone.utc) + timedelta(milliseconds=150)).isoformat(),
             150.0,
             "ok",
             json.dumps({"http.method": "GET", "http.status_code": "200"})
@@ -261,7 +261,7 @@ class TestMonitoringSchemaValidation:
             "ERROR",
             "Database connection failed",
             "user-service",
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             correlation_id,
             json.dumps({"error_code": "DB_CONN_FAILED", "retry_count": 3})
         ))
@@ -291,7 +291,7 @@ class TestMonitoringSchemaValidation:
             "healthy",
             12.5,
             None,
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             json.dumps({"connection_pool": {"active": 5, "idle": 10}})
         ))
         test_db_connection.commit()
@@ -1027,8 +1027,8 @@ class TestDatabaseRetentionAndCleanup:
     async def test_metrics_retention_policy(self, retention_manager):
         """Test metrics data retention policy"""
         # Record metrics with different timestamps
-        old_time = datetime.utcnow() - timedelta(days=10)
-        recent_time = datetime.utcnow() - timedelta(hours=1)
+        old_time = datetime.now(timezone.utc) - timedelta(days=10)
+        recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         # Simulate old metrics (beyond retention period)
         with patch('datetime.datetime.utcnow') as mock_now:
@@ -1072,8 +1072,8 @@ class TestDatabaseRetentionAndCleanup:
         old_logs = []
         recent_logs = []
 
-        old_time = datetime.utcnow() - timedelta(days=35)  # Beyond default retention
-        recent_time = datetime.utcnow() - timedelta(hours=1)
+        old_time = datetime.now(timezone.utc) - timedelta(days=35)  # Beyond default retention
+        recent_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         # Add old logs
         with patch('datetime.datetime.utcnow') as mock_now:
@@ -1361,8 +1361,8 @@ class TestDatabaseMonitoringPerformance:
 
             for _ in range(query_count):
                 await manager.get_metrics(
-                    start_time=datetime.utcnow() - timedelta(hours=1),
-                    end_time=datetime.utcnow()
+                    start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+                    end_time=datetime.now(timezone.utc)
                 )
 
             query_time = time.time() - start_time

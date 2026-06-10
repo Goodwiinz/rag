@@ -8,7 +8,7 @@ import asyncio
 import time
 import uuid
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Tuple
 from concurrent.futures import ThreadPoolExecutor
 import psutil
@@ -338,8 +338,8 @@ class TestPerformanceIntegration:
                         "organization_id": str(org_id),
                         "metric_type": "entity",
                         "time_bucket": "hour",
-                        "start_time": (datetime.utcnow() - timedelta(days=30)).isoformat(),
-                        "end_time": datetime.utcnow().isoformat()
+                        "start_time": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+                        "end_time": datetime.now(timezone.utc).isoformat()
                     },
                     headers=auth_headers
                 )

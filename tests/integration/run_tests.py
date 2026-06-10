@@ -15,7 +15,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -283,7 +283,7 @@ class IntegrationTestRunner:
     async def generate_test_report(self, exit_code: int, duration: float) -> Dict:
         """Generate comprehensive test report"""
         report = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "exit_code": exit_code,
             "duration_seconds": duration,
             "success": exit_code == 0,

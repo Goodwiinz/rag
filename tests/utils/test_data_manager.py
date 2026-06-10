@@ -9,7 +9,7 @@ import asyncio
 import uuid
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Set, Union
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -67,7 +67,7 @@ class TestDataSet:
     tokens: Dict[str, str] = field(default_factory=dict)  # user_id -> token
 
     # Metadata
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     test_run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config: TestDataConfiguration = field(default_factory=TestDataConfiguration)
 
@@ -395,14 +395,14 @@ class TestDataGenerator:
     def _random_timestamp(self, days_back: float = 0, days_forward: float = 0) -> datetime:
         """Generate random timestamp within specified range"""
         if days_back > 0:
-            start_date = datetime.utcnow() - timedelta(days=days_back)
-            end_date = datetime.utcnow()
+            start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+            end_date = datetime.now(timezone.utc)
         elif days_forward > 0:
-            start_date = datetime.utcnow()
-            end_date = datetime.utcnow() + timedelta(days=days_forward)
+            start_date = datetime.now(timezone.utc)
+            end_date = datetime.now(timezone.utc) + timedelta(days=days_forward)
         else:
-            start_date = datetime.utcnow() - timedelta(hours=1)
-            end_date = datetime.utcnow()
+            start_date = datetime.now(timezone.utc) - timedelta(hours=1)
+            end_date = datetime.now(timezone.utc)
 
         if self.config.randomize_timestamps:
             random_seconds = random.randint(0, int((end_date - start_date).total_seconds()))
@@ -477,7 +477,7 @@ class TestDataGenerator:
     def _generate_update_data_for_type(self, update_type: str) -> Dict[str, Any]:
         """Generate appropriate data payload for update type"""
         base_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "source": "websocket_test"
         }
 
@@ -552,8 +552,8 @@ class TestDataGenerator:
             "email": user["email"],
             "organization_id": user.get("organization_id"),
             "role": user.get("role", "user"),
-            "iat": int(datetime.utcnow().timestamp()),
-            "exp": int((datetime.utcnow() + timedelta(hours=24)).timestamp())
+            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "exp": int((datetime.now(timezone.utc) + timedelta(hours=24)).timestamp())
         }
 
         # Simple encoding (not real JWT)
@@ -576,7 +576,7 @@ class TestDataManager:
     async def isolated_test_environment(self, test_name: str = None):
         """Context manager for isolated test environment"""
         test_name = test_name or f"test_{uuid.uuid4().hex[:8]}"
-        dataset_id = f"{test_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        dataset_id = f"{test_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         try:
             # Create isolated dataset
@@ -667,7 +667,7 @@ class TestDataManager:
 
     async def cleanup_expired_datasets(self):
         """Clean up expired test datasets"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=self.config.cleanup_after_hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=self.config.cleanup_after_hours)
 
         expired_datasets = [
             dataset_id for dataset_id, dataset in self.active_datasets.items()
@@ -714,7 +714,7 @@ class TestDataManager:
         dataset = self.generator.generate_complete_dataset(load_config)
 
         # Mark as load test data
-        dataset.test_run_id = f"load_test_{connection_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        dataset.test_run_id = f"load_test_{connection_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         return dataset
 

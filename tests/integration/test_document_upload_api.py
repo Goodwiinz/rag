@@ -9,7 +9,7 @@ import json
 import io
 import uuid
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, AsyncGenerator
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
@@ -577,7 +577,7 @@ class TestDocumentQualityAssessment:
                     "file_integrity": "verified",
                     "threats": [],
                     "warnings": [],
-                    "scan_timestamp": datetime.utcnow()
+                    "scan_timestamp": datetime.now(timezone.utc)
                 })
 
                 response = test_client.post(f"/api/v2/documents/upload/{document_data.id}/rescan")

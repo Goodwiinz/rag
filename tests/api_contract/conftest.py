@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import json
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Generator, AsyncGenerator, List
 from unittest.mock import Mock, AsyncMock, patch
 from pathlib import Path
@@ -192,8 +192,8 @@ def create_test_user(test_database):
         org = Organization(
             id=str(uuid.uuid4()),
             name=user_data.get("organization_name", "Test Organization"),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
         test_database.add(org)
 
@@ -206,8 +206,8 @@ def create_test_user(test_database):
             organization_id=org.id,
             role=UserRole.ADMIN if is_admin else UserRole.USER,
             is_active=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
         # Set password (would be hashed in real implementation)
         user.hashed_password = f"hashed_{user_data['password']}"

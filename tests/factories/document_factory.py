@@ -5,7 +5,7 @@ Creates realistic test documents, processing jobs, and related entities
 
 import uuid
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from faker import Faker
@@ -143,7 +143,7 @@ class DocumentFactory:
             config.file_size_bytes = random.randint(*size_range)
 
         # Generate timestamps
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         created_at = config.created_at or now - timedelta(days=random.randint(1, 365))
         updated_at = config.updated_at or created_at + timedelta(minutes=random.randint(1, 60))
 
@@ -251,7 +251,7 @@ class DocumentFactory:
             config = ProcessingJobConfig()
 
         # Generate timestamps
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         created_at = config.created_at or now - timedelta(minutes=random.randint(1, 60))
 
         started_at = config.started_at
@@ -334,7 +334,7 @@ class DocumentFactory:
             config.processing_time_ms = random.randint(500, 5000)
 
         # Generate timestamp
-        created_at = config.created_at or datetime.utcnow()
+        created_at = config.created_at or datetime.now(timezone.utc)
 
         # Create quality assessment instance
         assessment = QualityMetric(

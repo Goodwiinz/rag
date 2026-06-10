@@ -52,12 +52,6 @@ export default defineConfig({
     actionTimeout: 10 * 1000,
     navigationTimeout: 30 * 1000,
 
-    /* Browser storage */
-    storageState: {
-      cookies: [],
-      origins: [],
-    },
-
     /* Network configuration */
     bypassCSP: true,
     userAgent: "RAG-E2E-Tests/1.0",
@@ -110,7 +104,6 @@ export default defineConfig({
       testMatch: "**/accessibility/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Accessibility-specific configuration
       },
     },
 
@@ -119,7 +112,6 @@ export default defineConfig({
       testMatch: "**/visual/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Visual regression configuration
         screenshot: {
           mode: "only-on-failure",
           fullPage: true,
@@ -133,7 +125,6 @@ export default defineConfig({
       testMatch: "**/performance/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Performance testing configuration
         launchOptions: {
           args: [
             "--disable-web-security",
@@ -151,17 +142,11 @@ export default defineConfig({
       testMatch: "**/multi-tenant/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Multi-tenant specific configuration
       },
     },
   ],
 
-  /* Web servers - frontend starts via npm locally; in CI the frontend
-   * container is brought up by docker-compose, so skip Playwright's webServer
-   * (the e2e-tests container does not mount ../../frontend, and BASE_URL
-   * points at http://frontend:3000 — not localhost — so reuseExistingServer
-   * cannot connect and Playwright tries to spawn an npm run dev with a
-   * missing cwd, surfacing as "spawn /bin/sh ENOENT"). */
+  /* Web server - only used locally, not in CI */
   webServer: process.env.CI
     ? undefined
     : {

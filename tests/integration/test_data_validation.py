@@ -7,7 +7,7 @@ import pytest
 import asyncio
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,8 +125,8 @@ class TestDataValidationIntegration:
                     "organization_id": str(org_id),
                     "metric_type": "entity",
                     "time_bucket": "invalid_bucket",  # Should be hour, day, week, month
-                    "start_time": datetime.utcnow().isoformat(),
-                    "end_time": datetime.utcnow().isoformat()
+                    "start_time": datetime.now(timezone.utc).isoformat(),
+                    "end_time": datetime.now(timezone.utc).isoformat()
                 },
                 "expected_error": "time_bucket"
             },
@@ -137,7 +137,7 @@ class TestDataValidationIntegration:
                     "metric_type": "entity",
                     "time_bucket": "hour",
                     "start_time": "invalid-date",  # Invalid ISO format
-                    "end_time": datetime.utcnow().isoformat()
+                    "end_time": datetime.now(timezone.utc).isoformat()
                 },
                 "expected_error": "start_time"
             },
@@ -147,8 +147,8 @@ class TestDataValidationIntegration:
                     "organization_id": str(org_id),
                     "metric_type": "entity",
                     "time_bucket": "hour",
-                    "start_time": datetime.utcnow().isoformat(),
-                    "end_time": (datetime.utcnow() - timedelta(hours=1)).isoformat()  # Earlier than start
+                    "start_time": datetime.now(timezone.utc).isoformat(),
+                    "end_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()  # Earlier than start
                 },
                 "expected_error": "time_range"
             }
@@ -626,8 +626,8 @@ class TestDataValidationIntegration:
             },
             {
                 "name": "Future date",
-                "start_time": (datetime.utcnow() + timedelta(days=30)).isoformat() + "Z",
-                "end_time": (datetime.utcnow() + timedelta(days=60)).isoformat() + "Z",
+                "start_time": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat() + "Z",
+                "end_time": (datetime.now(timezone.utc) + timedelta(days=60)).isoformat() + "Z",
                 "should_succeed": True  # Future dates might be allowed
             },
             {
