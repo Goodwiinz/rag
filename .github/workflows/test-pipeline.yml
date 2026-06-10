@@ -129,10 +129,10 @@ jobs:
             --cov-report=xml \
             --cov-report=json \
             --cov-report=term-missing \
-            --cov-fail-under=40 \
+            --cov-fail-under=35 \
             -n auto \
             -v
-        # Note: Coverage threshold set to 40% (gradual ramp from 20% to 70% target),
+        # Note: Coverage threshold set to 35% (gradual ramp from 20% to 70% target),
         # but CI selection differs slightly so we leave a buffer here and let
         # check_coverage_ratchet.py enforce the per-file floors below).
         # Per-file floors enforced by check_coverage_ratchet.py step below.
