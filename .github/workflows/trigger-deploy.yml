@@ -8,15 +8,18 @@ on:
       - "trigger.config.ts"
       - "package.json"
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: pnpm
@@ -24,7 +27,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Fetch Trigger.dev secrets from Infisical
-        uses: Infisical/secrets-action@v1.0.9
+        uses: Infisical/secrets-action@8a06c1bdcd5b8635d510c52d4b57a92c1ccef785 # v1.0.9
         with:
           method: "universal"
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
