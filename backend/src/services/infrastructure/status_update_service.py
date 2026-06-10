@@ -232,19 +232,38 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message
+                # target_organization scopes the shared-channel broadcast to
+                # the owning tenant. A document MUST have a resolvable org — a
+                # tenant payload is never global, so fail CLOSED if it is
+                # missing (skip the channel fan-out) rather than treat None as
+                # "broadcast to everyone".
+                target_org = (
+                    str(document.organization_id)
+                    if document.organization_id
+                    else None
+                )
                 message = WebSocketMessage(
                     type=MessageType.DOCUMENT_PROCESSING,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_status(status),
                     target_channels=[Channel.DOCUMENT_PROCESSING.value],
+                    target_organization=target_org,
                 )
 
-                # Add to update queue
-                await self._queue_update(
-                    "document_processing", document_id, update_data, message
-                )
+                # Channel broadcast only when the tenant is known. The
+                # per-user direct send below still delivers to the owner.
+                if target_org:
+                    await self._queue_update(
+                        "document_processing", document_id, update_data, message
+                    )
+                else:
+                    logger.error(
+                        "status_update.missing_org: skipping channel broadcast "
+                        "for document %s (status=%s)",
+                        document_id,
+                        status,
+                    )
 
                 # Broadcast to specific user
                 await connection_manager.broadcast_to_user(
@@ -324,17 +343,31 @@ class StatusUpdateService(BaseService):
                         }
                     )
 
-                # Create WebSocket message
+                # target_organization scopes the shared-channel broadcast to
+                # the owning tenant. Fail CLOSED on a missing org (see the
+                # document path above for rationale).
+                target_org = (
+                    str(job.organization_id) if job.organization_id else None
+                )
                 message = WebSocketMessage(
                     type=MessageType.JOB_STATUS,
                     data=update_data,
                     timestamp=datetime.now(dt_timezone.utc),
                     priority=self._get_priority_for_job_status(status),
                     target_channels=[Channel.JOB_STATUS.value],
+                    target_organization=target_org,
                 )
 
-                # Add to update queue
-                await self._queue_update("job_status", job_id, update_data, message)
+                # Channel broadcast only when the tenant is known.
+                if target_org:
+                    await self._queue_update("job_status", job_id, update_data, message)
+                else:
+                    logger.error(
+                        "status_update.missing_org: skipping channel broadcast "
+                        "for job %s (status=%s)",
+                        job_id,
+                        status,
+                    )
 
                 # Broadcast to user if job has one
                 if job.created_by_user_id:
@@ -601,19 +634,22 @@ class StatusUpdateService(BaseService):
         self._batch_updates[update_type].clear()
 
         try:
-            # Group updates by channel
-            channel_batches = {}
+            # Group updates by (channel, target_organization). Grouping by
+            # channel alone would bundle different tenants' updates into one
+            # batch message with no single org to scope it by, re-opening the
+            # cross-tenant leak — a per-org key keeps each batch addressable to
+            # exactly one organization (None = global).
+            channel_batches: Dict[tuple, list] = {}
             for batch_item in batch:
                 message_dict = batch_item["message"]
                 message = WebSocketMessage(**message_dict)
 
                 for channel in message.target_channels:
-                    if channel not in channel_batches:
-                        channel_batches[channel] = []
-                    channel_batches[channel].append(message)
+                    key = (channel, message.target_organization)
+                    channel_batches.setdefault(key, []).append(message)
 
-            # Broadcast each channel batch
-            for channel, messages in channel_batches.items():
+            # Broadcast each (channel, org) batch
+            for (channel, target_organization), messages in channel_batches.items():
                 # Create batch message
                 batch_message = WebSocketMessage(
                     type=MessageType.STATUS_UPDATE,
@@ -634,6 +670,7 @@ class StatusUpdateService(BaseService):
                     },
                     timestamp=datetime.now(dt_timezone.utc),
                     target_channels=[channel],
+                    target_organization=target_organization,
                 )
 
                 await connection_manager.broadcast_to_channel(channel, batch_message)
