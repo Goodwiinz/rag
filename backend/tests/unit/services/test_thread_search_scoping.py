@@ -69,6 +69,64 @@ def test_message_count_query_is_scoped():
     _assert_scoped(sql, params, uid)
 
 
+def test_combined_search_both_ctes_are_scoped():
+    """combined_search builds its UNION SQL inline (not via the _build_*
+    helpers), so it needs its own pin: both the thread and message CTE must
+    carry the access predicate and the bound caller id."""
+    from unittest.mock import MagicMock
+
+    uid = uuid4()
+    db = MagicMock()
+    executed = {}
+
+    def _capture(clause, params=None):
+        executed["sql"] = str(clause)
+        executed["params"] = params
+        result = MagicMock()
+        result.fetchall.return_value = []
+        return result
+
+    db.execute.side_effect = _capture
+    _svc().combined_search("neural", user_id=uid, db=db)
+
+    sql, params = executed["sql"], executed["params"]
+    # Predicate must appear in BOTH CTE bodies (thread_matches + message_matches).
+    assert sql.count("w.owner_id = :access_user_id") == 2
+    assert sql.count("workspace_members wm") == 2
+    assert params["access_user_id"] == str(uid)
+
+
+def test_suggestions_query_is_scoped_to_caller_not_org():
+    """get_search_suggestions previously leaked NULL-org workspace titles; it
+    must now scope by the caller's id (owner/public/member), not organization."""
+    from unittest.mock import MagicMock
+
+    from src.api.threads.thread_search import get_search_suggestions
+
+    user = MagicMock()
+    user.id = uuid4()
+    user.organization_id = uuid4()
+    db = MagicMock()
+    executed = {}
+
+    def _capture(clause, params=None):
+        executed["sql"] = str(clause)
+        executed["params"] = params
+        return []
+
+    db.execute.side_effect = _capture
+    get_search_suggestions(
+        query="neur", workspace_id=None, limit=5, current_user=user, db=db
+    )
+
+    sql, params = executed["sql"], executed["params"]
+    for marker in _ACCESS_MARKERS:
+        assert marker in sql
+    assert params["access_user_id"] == str(user.id)
+    # The old org-leak clause must be gone.
+    assert "organization_id IS NULL" not in sql
+
+
 def test_message_author_filter_does_not_collide_with_access_param():
     """The message-author search filter binds ``:user_id``; the access
     predicate binds ``:access_user_id`` — both must be present and distinct."""

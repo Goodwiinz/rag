@@ -345,6 +345,15 @@ async def chat_completions(
 
         # If RAG is enabled, retrieve context based on the last user message
         if request.use_rag:
+            # Guard before stringifying: str(None) == "None" is truthy and would
+            # slip past retrieve_context's `if not organization_id` check, passing
+            # the literal "None" as the tenant filter. A user without an org
+            # cannot run org-scoped retrieval.
+            if not current_user.organization_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="User has no organization; RAG retrieval is unavailable.",
+                )
             if last_query:
                 retrieved_contexts, diagnostics_trace_id = await retrieve_context(
                     last_query,

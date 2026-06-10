@@ -975,6 +975,10 @@ async def get_citation_graph(
 
         return graph_data
 
+    except HTTPException:
+        # Preserve authz 400/404s — never let them collapse into a 500 if a
+        # future edit moves a guard inside this try.
+        raise
     except Exception as e:
         logger.error("get_graph_failed", error=str(e))
         raise HTTPException(

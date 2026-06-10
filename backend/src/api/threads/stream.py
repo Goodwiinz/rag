@@ -104,7 +104,14 @@ async def stream_thread_chat(
             chat_service = ChatService(db)
             # Bind the caller's org/user so RAG retrieval is tenant-scoped.
             # StreamService calls retrieve_context_fn(content, max_docs)
-            # positionally; partial injects the keyword-only scope.
+            # positionally; partial injects the keyword-only scope. Guard
+            # before stringifying — str(None) == "None" is truthy and would
+            # pass the literal "None" as the tenant filter.
+            if body.use_rag and not current_user.organization_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="User has no organization; RAG retrieval is unavailable.",
+                )
             scoped_retrieve_context = partial(
                 retrieve_context,
                 organization_id=str(current_user.organization_id),
