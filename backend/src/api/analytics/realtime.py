@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
-from src.auth.dependencies import get_current_user
+from src.core.dependencies import get_current_user
 from src.models.analytics.realtime_models import (
     ChannelMetrics,
     ConnectionStats,

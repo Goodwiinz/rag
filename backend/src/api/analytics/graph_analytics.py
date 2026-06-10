@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.auth.dependencies import get_current_user
+from src.core.dependencies import get_current_user
 from src.models.analytics.graph_analytics import (
     CentralityAnalysis,
     GraphAnalysisRequest,
