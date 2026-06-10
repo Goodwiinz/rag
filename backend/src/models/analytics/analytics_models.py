@@ -67,44 +67,12 @@ class EventType(str, Enum):
     SYSTEM = "system"
 
 
-class AnalyticsEvent(SQLBaseModel):
-    """Analytics event model"""
-
-    __tablename__ = "analytics_events"
-    __table_args__ = {"extend_existing": True}
-
-    # Event identification
-    event_type = Column(SQLEnum(EventType), nullable=False, index=True)
-    event_name = Column(String(255), nullable=False, index=True)
-    event_category = Column(String(100), nullable=True, index=True)
-
-    # User and session
-    user_id = Column(GUID(), ForeignKey("users.id"), nullable=True, index=True)
-    session_id = Column(String(255), nullable=True, index=True)
-    organization_id = Column(
-        GUID(), ForeignKey("organizations.id"), nullable=True, index=True
-    )
-
-    # Request context
-    request_id = Column(String(255), nullable=True, index=True)
-    ip_address = Column(String(45), nullable=True)
-    user_agent = Column(Text, nullable=True)
-    referrer = Column(Text, nullable=True)
-
-    # Event properties
-    properties = Column(JSON, nullable=True)  # Event-specific properties
-    value = Column(Numeric(15, 4), nullable=True)  # Numeric value
-    tags = Column(JSON, nullable=True)  # Event tags
-
-    # Geographic and temporal
-    country = Column(String(2), nullable=True)
-    city = Column(String(100), nullable=True)
-    timezone = Column(String(50), nullable=True)
-
-    # Processing metadata
-    processed = Column(Boolean, default=False, nullable=False, index=True)
-    processed_at = Column(DateTime(timezone=True), nullable=True)
-    processing_error = Column(Text, nullable=True)
+# NOTE: The `AnalyticsEvent` ORM model lives in src/models/analytics_event.py
+# (the canonical 26-column schema). A second `AnalyticsEvent` mapping the same
+# `analytics_events` table used to live here; it registered duplicate indexes on
+# the shared metadata and broke create_all (`index ix_analytics_events_* already
+# exists`). It has been removed. The `EventType` enum above is retained because
+# the API-facing Pydantic models (EventCreate/EventResponse) reference it.
 
 
 class AnalyticsMetric(SQLBaseModel):

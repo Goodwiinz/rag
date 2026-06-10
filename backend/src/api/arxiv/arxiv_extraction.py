@@ -288,15 +288,18 @@ async def get_extracted_features(
         async for db in get_db_session():
             # Build query — scoped to the caller's org and non-deleted docs.
             # Previously unscoped, returning every org's extracted features.
+            # The arXiv id is stored in the document_metadata JSON under
+            # "arxiv_id" (Document has no external_id column), so filter on that.
             stmt = select(Document).where(
-                Document.external_id.isnot(None),
                 Document.document_metadata.isnot(None),
                 Document.organization_id == current_user.organization_id,
                 Document.is_deleted == False,
             )
 
             if paper_id:
-                stmt = stmt.where(Document.external_id == paper_id)
+                stmt = stmt.where(
+                    Document.document_metadata["arxiv_id"].astext == paper_id
+                )
 
             stmt = stmt.limit(limit)
 
@@ -310,7 +313,7 @@ async def get_extracted_features(
 
                 extracted_features.append(
                     {
-                        "paper_id": doc.external_id,
+                        "paper_id": metadata.get("arxiv_id"),
                         "title": doc.title,
                         "features": metadata.get("extracted_features", {}),
                         "extracted_at": metadata.get("features_extracted_at"),
