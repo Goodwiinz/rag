@@ -17,6 +17,7 @@ import { useChatStore, selectCurrentWorkspace } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
 type ProjectType = 'research' | 'literature_review' | 'thesis' | 'paper';
@@ -81,6 +82,10 @@ export default function ProjectsPage() {
   const [tagFilter, setTagFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
@@ -169,16 +174,24 @@ export default function ProjectsPage() {
     router.push(`/projects/${project.id}`);
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Are you sure you want to delete this project?')) return;
+  const handleDeleteProject = (projectId: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    setPendingDelete({ id: projectId, name: project.name });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
     // Clear any leftover error from a previous action so the banner doesn't
     // linger under a successful toast.
     clearError();
     try {
-      await deleteProject(projectId);
+      await deleteProject(pendingDelete.id);
       toast.success('Project deleted');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to delete project'));
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -409,6 +422,18 @@ export default function ProjectsPage() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateProject}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        title={`Delete project "${pendingDelete?.name ?? ''}"?`}
+        description="This action cannot be undone. This will permanently delete the project and all of its data, including documents, notes, and drafts."
+        confirmLabel="Delete project"
+        variant="destructive"
+        onConfirm={confirmDelete}
       />
     </div>
   );

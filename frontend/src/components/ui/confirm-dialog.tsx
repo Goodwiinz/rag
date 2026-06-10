@@ -13,7 +13,9 @@ import { cn } from '@/lib/utils';
 import * as React from 'react';
 
 interface ConfirmDialogProps {
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   description: string;
   confirmLabel?: string;
@@ -25,6 +27,8 @@ interface ConfirmDialogProps {
 
 export function ConfirmDialog({
   trigger,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
   title,
   description,
   confirmLabel = 'Confirm',
@@ -33,7 +37,13 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const [open, setOpen] = React.useState(false);
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChangeProp?.(next);
+  };
 
   const handleConfirm = () => {
     onConfirm();
@@ -45,9 +55,18 @@ export function ConfirmDialog({
     setOpen(false);
   };
 
+  // Uncontrolled mode requires a trigger
+  if (!isControlled && !trigger) {
+    throw new Error(
+      'ConfirmDialog: either `trigger` (uncontrolled) or `open`/`onOpenChange` (controlled) must be provided.'
+    );
+  }
+
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      {!isControlled && (
+        <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      )}
       <AlertDialogContent className="rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] shadow-[var(--nous-shadow-lg)]">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-[var(--nous-fg-1)] tracking-tight">

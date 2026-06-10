@@ -39,9 +39,9 @@ export function NoteList({
 
   if (notes.length === 0) {
     return (
-      <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-        <StickyNote className="h-12 w-12 text-foreground mx-auto mb-4" />
-        <p className="text-muted-foreground font-mono">No notes yet</p>
+      <div className="text-center py-12 bg-card border border-border rounded-lg">
+        <StickyNote aria-hidden="true" className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-foreground font-medium">No notes yet</p>
         <p className="text-sm text-muted-foreground mt-2">
           Create notes to organize your research
         </p>

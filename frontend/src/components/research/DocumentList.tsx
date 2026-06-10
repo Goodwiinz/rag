@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ProjectDocument } from '@/services/projectService';
 
 interface DocumentListProps {
@@ -82,6 +83,10 @@ export function DocumentList({
   const [sortKey, setSortKey] = useState<SortKey>('added_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingRemove, setPendingRemove] = useState<{
+    documentIds: string[];
+    title: string;
+  } | null>(null);
 
   const filtered = useMemo(() => {
     let result = documents;
@@ -129,11 +134,19 @@ export function DocumentList({
   }, []);
 
   const handleBulkRemove = useCallback(() => {
-    if (!confirm(`Remove ${selectedIds.size} document(s) from the project?`))
-      return;
-    selectedIds.forEach((id) => onRemove(id));
+    if (selectedIds.size === 0) return;
+    setPendingRemove({
+      documentIds: Array.from(selectedIds),
+      title: `${selectedIds.size} document${selectedIds.size === 1 ? '' : 's'}`,
+    });
+  }, [selectedIds]);
+
+  const confirmRemove = useCallback(() => {
+    if (!pendingRemove) return;
+    pendingRemove.documentIds.forEach((id) => onRemove(id));
     setSelectedIds(new Set());
-  }, [selectedIds, onRemove]);
+    setPendingRemove(null);
+  }, [pendingRemove, onRemove]);
 
   if (loading) {
     return (
@@ -314,9 +327,10 @@ export function DocumentList({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
-                        if (confirm('Remove this document from the project?')) {
-                          onRemove(doc.document_id);
-                        }
+                        setPendingRemove({
+                          documentIds: [doc.document_id],
+                          title: doc.document?.title || doc.document?.filename || 'this document',
+                        });
                       }}
                       className="text-destructive focus:text-destructive"
                     >
@@ -339,6 +353,26 @@ export function DocumentList({
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null);
+        }}
+        title={
+          pendingRemove && pendingRemove.documentIds.length > 1
+            ? `Remove ${pendingRemove.documentIds.length} documents from project?`
+            : `Remove "${pendingRemove?.title ?? ''}" from project?`
+        }
+        description="This action cannot be undone. The documents will be removed from this project, but will still be available in your library."
+        confirmLabel={
+          pendingRemove && pendingRemove.documentIds.length > 1
+            ? 'Remove documents'
+            : 'Remove from project'
+        }
+        variant="destructive"
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

@@ -90,6 +90,13 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Created {new Date(project.created_at).toLocaleDateString()}
+              {project.updated_at &&
+                project.updated_at !== project.created_at && (
+                  <span className="text-muted-foreground/70">
+                    {' · last edited '}
+                    {new Date(project.updated_at).toLocaleDateString()}
+                  </span>
+                )}
             </span>
           </div>
 

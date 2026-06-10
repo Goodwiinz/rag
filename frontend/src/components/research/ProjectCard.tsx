@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import type { Project } from '@/services/projectService';
 
 export interface ProjectCardProps {
@@ -55,7 +56,7 @@ export function ProjectCard({
   const isArchived = status === 'archived';
   const statusClass = statusStyles[status] || statusStyles.active;
   const statusLabel = statusLabels[status] || status;
-  const createdLabel = project.updated_at
+  const lastEditedLabel = project.updated_at
     ? new Date(project.updated_at).toLocaleDateString()
     : '';
 
@@ -166,12 +167,13 @@ export function ProjectCard({
       {project.tags && project.tags.length > 0 && (
         <div className="flex items-center flex-wrap gap-1 mt-3">
           {project.tags.slice(0, 3).map((tag) => (
-            <span
+            <Badge
               key={tag}
-              className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[11px]"
+              variant="secondary"
+              className="text-[11px] font-normal"
             >
               {tag}
-            </span>
+            </Badge>
           ))}
           {project.tags.length > 3 && (
             <span className="text-[11px] text-muted-foreground">
@@ -182,7 +184,7 @@ export function ProjectCard({
       )}
 
       <div className="mt-3 text-xs text-muted-foreground">
-        Updated {createdLabel}
+        Last edited {lastEditedLabel}
       </div>
     </div>
   );

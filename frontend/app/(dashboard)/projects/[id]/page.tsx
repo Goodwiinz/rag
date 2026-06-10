@@ -48,6 +48,7 @@ import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type TabType =
   | 'documents'
@@ -130,6 +131,10 @@ export default function ProjectDetailPage() {
     null
   );
   const [showUploadWizard, setShowUploadWizard] = useState(false);
+  const [pendingNoteDelete, setPendingNoteDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [projectError, setProjectError] = useState<{
     status: number;
     message: string;
@@ -345,6 +350,35 @@ export default function ProjectDetailPage() {
     [projectId, bibFormat, fetchBibliography]
   );
 
+  // WAI-ARIA tablist keyboard navigation: ArrowLeft/Right moves between tabs,
+  // Home/End jumps to first/last. Activates the focused tab.
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const tabIds = tabs.map((t) => t.id);
+      let nextIndex: number | null = null;
+      if (event.key === 'ArrowRight') {
+        nextIndex = (index + 1) % tabIds.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (index - 1 + tabIds.length) % tabIds.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = tabIds.length - 1;
+      }
+      if (nextIndex !== null) {
+        event.preventDefault();
+        const nextId = tabIds[nextIndex];
+        handleTabChange(nextId);
+        // Move focus to the newly selected tab
+        const nextButton = document.getElementById(`project-tab-${nextId}`);
+        nextButton?.focus();
+      }
+    },
+    // tabs array is rebuilt on every render; rely on closure capture
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [handleTabChange]
+  );
+
   const handleRemoveDocument = async (documentId: string) => {
     try {
       await removeDocument(projectId, documentId);
@@ -382,12 +416,20 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Delete this note?')) return;
+  const handleDeleteNote = (noteId: string) => {
+    const note = projectNotes.find((n) => n.id === noteId);
+    if (!note) return;
+    setPendingNoteDelete({ id: noteId, title: note.title || 'Untitled note' });
+  };
+
+  const confirmDeleteNote = async () => {
+    if (!pendingNoteDelete) return;
     try {
-      await deleteNote(projectId, noteId);
+      await deleteNote(projectId, pendingNoteDelete.id);
     } catch (err) {
       console.error('Failed to delete note:', err);
+    } finally {
+      setPendingNoteDelete(null);
     }
   };
 
@@ -567,32 +609,36 @@ export default function ProjectDetailPage() {
   const tabs: Array<{
     id: TabType;
     label: string;
+    shortLabel: string;
     icon: React.ElementType;
     count?: number;
   }> = [
     {
       id: 'documents',
       label: 'Documents',
+      shortLabel: 'Docs',
       icon: FileText,
       count: projectDocuments.length,
     },
     {
       id: 'notes',
       label: 'Notes',
+      shortLabel: 'Notes',
       icon: StickyNote,
       count: projectNotes.length,
     },
-    { id: 'bibliography', label: 'Bibliography', icon: BookOpen },
+    { id: 'bibliography', label: 'Bibliography', shortLabel: 'Bibs', icon: BookOpen },
     {
       id: 'drafts',
       label: 'Drafts',
+      shortLabel: 'Drafts',
       icon: Sparkles,
       count: draftVersions.length || undefined,
     },
-    { id: 'chat', label: 'Chat', icon: MessageSquare },
-    { id: 'matrix', label: 'Matrix', icon: Grid3X3 },
-    { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
-    { id: 'knowledge', label: 'Knowledge', icon: Network },
+    { id: 'chat', label: 'Chat', shortLabel: 'Chat', icon: MessageSquare },
+    { id: 'matrix', label: 'Matrix', shortLabel: 'Matrix', icon: Grid3X3 },
+    { id: 'pipeline', label: 'Pipeline', shortLabel: 'Steps', icon: GitBranch },
+    { id: 'knowledge', label: 'Knowledge', shortLabel: 'Graph', icon: Network },
   ];
 
   return (
@@ -642,47 +688,73 @@ export default function ProjectDetailPage() {
           </button>
         </div>
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
-            {tabs.map((tab, index) => (
-              <React.Fragment key={tab.id}>
-                {index === 3 && (
-                  <div className="w-px h-4 bg-border mx-0.5 sm:mx-1 shrink-0" />
-                )}
-                <button
-                  onClick={() => handleTabChange(tab.id)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    activeTab === tab.id
-                      ? 'text-foreground bg-muted/60 border-b-2 border-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
-                  }`}
-                >
-                  <tab.icon
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 sm:h-4 sm:w-4"
-                  />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.label.slice(0, 4)}</span>
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span
-                      className={`ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 ${
-                        activeTab === tab.id
-                          ? 'bg-primary/15 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
+          <div
+            role="tablist"
+            aria-label="Project sections"
+            className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap"
+          >
+            {tabs.map((tab, index) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <React.Fragment key={tab.id}>
+                  {index === 3 && (
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      className="w-px h-4 bg-border mx-0.5 sm:mx-1 shrink-0"
+                    />
                   )}
-                </button>
-              </React.Fragment>
-            ))}
+                  <button
+                    role="tab"
+                    id={`project-tab-${tab.id}`}
+                    aria-selected={isActive}
+                    aria-controls={`project-tabpanel-${tab.id}`}
+                    tabIndex={isActive ? 0 : -1}
+                    onClick={() => handleTabChange(tab.id)}
+                    onKeyDown={(e) => handleTabKeyDown(e, index)}
+                    className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                      isActive
+                        ? 'text-foreground bg-muted/60 border-b-2 border-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                    }`}
+                  >
+                    <tab.icon
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                    />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.shortLabel}</span>
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span
+                        aria-label={`${tab.count} items`}
+                        className={`ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 ${
+                          isActive
+                            ? 'bg-primary/15 text-primary'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Tab Content */}
-      <div className="min-h-[200px] sm:min-h-[400px]">
+      <div
+        className="min-h-[200px] sm:min-h-[400px]"
+        role="tabpanel"
+        id={`project-tabpanel-${activeTab}`}
+        aria-labelledby={`project-tab-${activeTab}`}
+      >
+        {/* Heading for each tab panel (visually hidden, exposed to screen readers) */}
+        <h2 className="sr-only">
+          {tabs.find((t) => t.id === activeTab)?.label}
+        </h2>
         {/* Documents Tab */}
         {activeTab === 'documents' && (
           <DocumentList
@@ -1138,6 +1210,18 @@ export default function ProjectDetailPage() {
         isOpen={showUploadWizard}
         onClose={() => setShowUploadWizard(false)}
         onComplete={handleUploadComplete}
+      />
+
+      <ConfirmDialog
+        open={pendingNoteDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingNoteDelete(null);
+        }}
+        title={`Delete note "${pendingNoteDelete?.title ?? ''}"?`}
+        description="This action cannot be undone. This will permanently delete the note and any links to project documents."
+        confirmLabel="Delete note"
+        variant="destructive"
+        onConfirm={confirmDeleteNote}
       />
     </div>
   );

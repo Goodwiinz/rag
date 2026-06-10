@@ -6,7 +6,7 @@
  * Connects PipelineStepper + step components + pipelineStore.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { usePipelineStore } from '@/store/pipelineStore';
 import { useProjectStore } from '@/store/projectStore';
@@ -16,6 +16,7 @@ import { ExtractStep } from './steps/ExtractStep';
 import { CiteStep } from './steps/CiteStep';
 import { DraftStep } from './steps/DraftStep';
 import { ExportStep } from './steps/ExportStep';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface ResearchPipelineProps {
   projectId: string;
@@ -40,6 +41,11 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
   const documentsLoading = useProjectStore((s) => s.documentsLoading);
   const removeDocument = useProjectStore((s) => s.removeDocument);
 
+  const [pendingRemove, setPendingRemove] = useState<{
+    documentId: string;
+    documentTitle: string;
+  } | null>(null);
+
   const fetchedRef = useRef(false);
   useEffect(() => {
     if (fetchedRef.current) return;
@@ -55,12 +61,21 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
     );
   }
 
-  const handleRemoveDocument = async (documentId: string) => {
-    if (!confirm('Remove this document from the project?')) return;
+  const handleRemoveDocument = (documentId: string, documentTitle?: string) => {
+    setPendingRemove({
+      documentId,
+      documentTitle: documentTitle || 'this document',
+    });
+  };
+
+  const confirmRemoveDocument = async () => {
+    if (!pendingRemove) return;
     try {
-      await removeDocument(projectId, documentId);
+      await removeDocument(projectId, pendingRemove.documentId);
     } catch (err) {
       console.error('Failed to remove document:', err);
+    } finally {
+      setPendingRemove(null);
     }
   };
 
@@ -160,6 +175,18 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
           />
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null);
+        }}
+        title={`Remove "${pendingRemove?.documentTitle ?? ''}" from project?`}
+        description="This action cannot be undone. The document will be removed from this project, but will still be available in your library."
+        confirmLabel="Remove from project"
+        variant="destructive"
+        onConfirm={confirmRemoveDocument}
+      />
     </div>
   );
 };
