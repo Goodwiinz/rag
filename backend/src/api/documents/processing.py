@@ -74,7 +74,9 @@ async def start_document_processing(
     """Start processing for a document"""
     try:
         job = await processing_service.process_document(
-            document_id=document_id, user_id=str(current_user.id)
+            document_id=document_id,
+            user_id=str(current_user.id),
+            organization_id=str(current_user.organization_id),
         )
 
         return {
@@ -248,8 +250,14 @@ async def start_batch_processing(
     # Process found documents
     for document in documents:
         try:
+            # Pass org explicitly (defense-in-depth) — these documents were
+            # pre-filtered by org above, but process_document shouldn't rely on
+            # the caller having scoped first; a future refactor of that filter
+            # would otherwise silently reopen the id-only-lookup IDOR.
             job = await processing_service.process_document(
-                document_id=str(document.id), user_id=str(current_user.id)
+                document_id=str(document.id),
+                user_id=str(current_user.id),
+                organization_id=str(organization.id),
             )
             results.append(
                 {

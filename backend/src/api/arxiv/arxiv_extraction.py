@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.core.dependencies import get_current_user
+from src.models.user import User
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
 from src.services.processing.entity_extraction_service import EntityExtractionService
@@ -270,7 +271,7 @@ async def get_extracted_features(
         None, description="Get features for specific paper"
     ),
     limit: int = Query(default=50, description="Maximum number of papers to return"),
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get previously extracted features for papers
@@ -285,10 +286,13 @@ async def get_extracted_features(
         extracted_features = []
 
         async for db in get_db_session():
-            # Build query
+            # Build query — scoped to the caller's org and non-deleted docs.
+            # Previously unscoped, returning every org's extracted features.
             stmt = select(Document).where(
                 Document.external_id.isnot(None),
                 Document.document_metadata.isnot(None),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
             )
 
             if paper_id:

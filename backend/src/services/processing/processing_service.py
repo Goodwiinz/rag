@@ -69,11 +69,22 @@ class ProcessingPipeline:
         self.audio_processor = AudioProcessingService()
         self.video_processor = VideoProcessingService()
 
-    async def process_document(self, document_id: str, user_id: str) -> ProcessingJob:
-        """Start processing for a document"""
-        stmt = select(Document).where(
-            Document.id == document_id, Document.is_deleted == False
-        ).with_for_update()
+    async def process_document(
+        self,
+        document_id: str,
+        user_id: str,
+        organization_id: Optional[str] = None,
+    ) -> ProcessingJob:
+        """Start processing for a document.
+
+        ``organization_id`` scopes the lookup to the caller's tenant — without
+        it any authenticated user could start (and create a job against)
+        another org's document by id.
+        """
+        conditions = [Document.id == document_id, Document.is_deleted == False]
+        if organization_id is not None:
+            conditions.append(Document.organization_id == organization_id)
+        stmt = select(Document).where(*conditions).with_for_update()
         document = self.db.execute(stmt).scalar_one_or_none()
 
         if not document:
