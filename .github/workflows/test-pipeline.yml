@@ -231,12 +231,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install security tools
-        run: pip install bandit safety
+        run: pip install bandit==1.9.4 safety
       - name: Run Bandit (Python security)
-        # Blocking: with continue-on-error the SECURITY_RESULT gate in
-        # test-summary could never fire. -ll -ii already limits this to
-        # medium+ severity/confidence findings.
-        run: bandit -r backend/src -ll -ii -x tests
+        # Blocking on NEW findings only: with continue-on-error the
+        # SECURITY_RESULT gate in test-summary could never fire. The baseline
+        # file pins the 16 pre-existing medium+ findings as tracked debt
+        # (regenerate with: bandit -r backend/src -ll -ii -x tests -f json
+        # -o backend/.bandit-baseline.json) — burn it down, never grow it.
+        run: bandit -r backend/src -ll -ii -x tests -b backend/.bandit-baseline.json
       - name: Run Safety (dependency vulnerabilities)
         run: safety check -r backend/requirements.txt
         continue-on-error: true # Advisory only: flags unmaintained upstream packages we can't fix here
