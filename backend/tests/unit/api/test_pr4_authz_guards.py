@@ -86,3 +86,23 @@ async def test_process_document_scopes_by_org():
         await svc.process_document("doc-1", user_id="u-1", organization_id=org)
 
     assert "organization_id" in captured["sql"]
+
+
+async def test_query_history_filters_to_caller():
+    """The /query-history filter only works if the producer stamps user_id —
+    pin the producer→filter contract so the endpoint isn't silently empty."""
+    import src.services.search.multi_agent_search_service_v2 as mod
+
+    svc = mod.MultiAgentSearchServiceV2.__new__(mod.MultiAgentSearchServiceV2)
+    svc.query_history = []
+
+    await svc._update_learning(
+        "my query", {"workflow_type": None}, [], 1.0, user_id="user-A"
+    )
+
+    assert svc.query_history, "producer must append an entry"
+    entry = svc.query_history[-1]
+    assert entry["user_id"] == "user-A"
+    # The endpoint filter keeps it for user-A, drops it for user-B.
+    assert [e for e in svc.query_history if str(e.get("user_id", "")) == "user-A"]
+    assert not [e for e in svc.query_history if str(e.get("user_id", "")) == "user-B"]
