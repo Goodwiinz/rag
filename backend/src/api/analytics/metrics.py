@@ -318,12 +318,26 @@ async def create_kpi(
     request: KPICreate, current_user: User = Depends(get_current_user)
 ):
     """Create a new KPI"""
+    # Reject org-less creation rather than writing an orphan NULL-org KPI that
+    # would be invisible to its creator (and, without the read guards, visible
+    # to other org-less users).
+    if current_user.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An organization is required to create a KPI.",
+        )
     try:
         kpi = await metrics_service.create_kpi(
-            request=request, owner_id=current_user.id
+            request=request,
+            owner_id=current_user.id,
+            organization_id=current_user.organization_id,
         )
         return kpi
 
+    except HTTPException:
+        # Preserve authz/validation status codes (e.g. a 4xx raised inside the
+        # try) — the broad handler below would otherwise mask them as 500.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
@@ -344,9 +358,21 @@ async def list_kpis(
 ):
     """List KPIs"""
     try:
-        # This is a simplified implementation
+        # A null-org caller must NOT match legacy NULL-org rows: the SQL
+        # `organization_id == None` compiles to `IS NULL`, which would return
+        # exactly the un-owned legacy KPIs. Short-circuit to empty.
+        if current_user.organization_id is None:
+            return []
+
         async with get_async_session() as db:
-            query = select(AnalyticsKPI).where(AnalyticsKPI.is_active == True)
+            # Tenant scope: an exact org match (plus IS NOT NULL) excludes
+            # legacy NULL-org rows (fail closed). Previously unscoped → every
+            # org's KPIs.
+            query = select(AnalyticsKPI).where(
+                AnalyticsKPI.is_active == True,
+                AnalyticsKPI.organization_id.isnot(None),
+                AnalyticsKPI.organization_id == current_user.organization_id,
+            )
 
             if metric_id:
                 query = query.where(AnalyticsKPI.metric_id == metric_id)
@@ -402,9 +428,21 @@ async def list_kpis(
 async def get_kpi(kpi_id: uuid.UUID, current_user: User = Depends(get_current_user)):
     """Get KPI by ID"""
     try:
+        # See list_kpis: a null-org caller would otherwise match NULL-org rows.
+        if current_user.organization_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="KPI not found"
+            )
+
         async with get_async_session() as db:
+            # Scope by org — exact match + IS NOT NULL excludes legacy rows.
             query = select(AnalyticsKPI).where(
-                and_(AnalyticsKPI.id == kpi_id, AnalyticsKPI.is_active == True)
+                and_(
+                    AnalyticsKPI.id == kpi_id,
+                    AnalyticsKPI.is_active == True,
+                    AnalyticsKPI.organization_id.isnot(None),
+                    AnalyticsKPI.organization_id == current_user.organization_id,
+                )
             )
             result = await db.execute(query)
             kpi = result.scalar_one_or_none()

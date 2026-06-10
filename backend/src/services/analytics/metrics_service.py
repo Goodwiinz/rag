@@ -286,8 +286,19 @@ class MetricsService:
             logger.error(f"Error deleting metric {metric_id}: {e}")
             return False
 
-    async def create_kpi(self, request: KPICreate, owner_id: uuid.UUID) -> KPIResponse:
+    async def create_kpi(
+        self,
+        request: KPICreate,
+        owner_id: uuid.UUID,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> KPIResponse:
         """Create a new KPI"""
+        # Enforce the tenant invariant at the write boundary, not only at the
+        # endpoint: a NULL-org KPI is invisible to every read path (fail
+        # closed), so persisting one is always a silent orphan. Reject it here
+        # so any future caller (job, seeder, other endpoint) can't write one.
+        if organization_id is None:
+            raise ValueError("organization_id is required to create a KPI")
         try:
             async with get_async_session() as db:
                 # Check if metric exists
@@ -306,6 +317,7 @@ class MetricsService:
                     display_name=request.display_name,
                     description=request.description,
                     metric_id=request.metric_id,
+                    organization_id=organization_id,
                     target_value=request.target_value,
                     warning_threshold=request.warning_threshold,
                     critical_threshold=request.critical_threshold,
