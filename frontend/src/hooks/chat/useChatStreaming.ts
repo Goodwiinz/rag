@@ -9,7 +9,11 @@ import {
 } from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
-import { useChatStore } from '@/store/chat-store';
+import {
+  resolveBoundProjectId,
+  selectCurrentThreadProjectId,
+  useChatStore,
+} from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
@@ -17,6 +21,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import type { ChatMessage as DBChatMessage } from '@/types/workspace';
+
+// localStorage key for the workspace→agent thread map (see agentThreadMapRef).
+const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
+// Warn once per session when the map can't be persisted (quota/private mode).
+let warnedAgentMapWriteFailed = false;
 
 // ============================================
 // TYPES
@@ -85,7 +94,14 @@ export function useChatStreaming(
 
   // ---- Project context (for agent page_context) ----
   const searchParams = useSearchParams();
-  const boundProjectId = searchParams.get('projectId') ?? undefined;
+  // Thread row first (source_project_id is the durable binding), URL param
+  // only as the initial intent — thread navigation (getSelectedThreadUrl)
+  // drops it. Sentinel semantics documented on selectCurrentThreadProjectId.
+  const threadProjectId = useChatStore(selectCurrentThreadProjectId);
+  const boundProjectId = resolveBoundProjectId(
+    threadProjectId,
+    searchParams.get('projectId')
+  );
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const resolvedProjectName = boundProjectId
@@ -103,7 +119,59 @@ export function useChatStreaming(
   const [isConfirming, setIsConfirming] = useState(false);
 
   // ---- Refs ----
+  // workspace thread id -> agent thread id. Persisted so a reload reuses the
+  // same agent thread (and therefore its project binding) instead of letting
+  // the backend mint a fresh unlinked one every session.
   const agentThreadMapRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(AGENT_THREAD_MAP_KEY);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          agentThreadMapRef.current = {
+            ...(parsed as Record<string, string>),
+            ...agentThreadMapRef.current,
+          };
+        } else {
+          window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+        }
+      }
+    } catch (err) {
+      // Without the map every reload mints a fresh agent thread, so the
+      // agent "forgets" project context — make that diagnosable, and clear
+      // a corrupt value so it doesn't re-fail on every mount.
+      console.warn(
+        '[Chat] agent thread map unreadable; reloads will mint new agent threads',
+        err
+      );
+      try {
+        window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+      } catch {
+        // Storage unavailable entirely (private mode/policy) — nothing to clear.
+      }
+    }
+  }, []);
+  const rememberAgentThread = useCallback(
+    (workspaceThreadId: string, agentThreadId: string) => {
+      agentThreadMapRef.current[workspaceThreadId] = agentThreadId;
+      try {
+        window.localStorage.setItem(
+          AGENT_THREAD_MAP_KEY,
+          JSON.stringify(agentThreadMapRef.current)
+        );
+      } catch (err) {
+        if (!warnedAgentMapWriteFailed) {
+          warnedAgentMapWriteFailed = true;
+          console.warn(
+            '[Chat] failed to persist agent thread map; agent context will not survive reload',
+            err
+          );
+        }
+      }
+    },
+    []
+  );
   const lastStreamedContentRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
   // Set the instant the user hits Stop, read by the stream-completion path so a
@@ -193,6 +261,12 @@ export function useChatStreaming(
             })
           );
 
+          // Register in the chat store: the binding selectors and
+          // setThreadProjectBinding read store.threads, and without this the
+          // thread is invisible there until the next full loadThreads — a
+          // project attached to it would be silently dropped from the UI.
+          useChatStore.getState().registerThread(newThread);
+
           currentConversationId = newThread.id;
           currentThreadId = newThread.id;
 
@@ -275,6 +349,13 @@ export function useChatStreaming(
                 project_id: boundProjectId,
                 project_name: resolvedProjectName || '',
               }),
+              // The project is bound to the WORKSPACE thread, but this stream
+              // runs on a separate agent thread. The backend uses this id to
+              // resolve (and durably adopt) the bound project when the URL
+              // param has been dropped by thread navigation.
+              ...(currentThreadId && {
+                metadata: { workspace_thread_id: currentThreadId },
+              }),
             },
             use_rag: enableRAG,
             thread_id: existingAgentThreadId,
@@ -347,7 +428,7 @@ export function useChatStreaming(
             onTrace: (threadId) => {
               // Capture agent thread_id from trace event for subsequent sends
               if (currentThreadId) {
-                agentThreadMapRef.current[currentThreadId] = threadId;
+                rememberAgentThread(currentThreadId, threadId);
               }
             },
             onConfirmation: (threadId, confirmation) => {
@@ -355,7 +436,7 @@ export function useChatStreaming(
               streamHadConfirmation = true;
               // Store agent thread ID for confirmation flow
               if (currentThreadId) {
-                agentThreadMapRef.current[currentThreadId] = threadId;
+                rememberAgentThread(currentThreadId, threadId);
               }
               setPendingConfirmation({
                 threadId,
@@ -552,6 +633,9 @@ export function useChatStreaming(
       selectedModel,
       isAuthenticated,
       addMessageToStore,
+      boundProjectId,
+      resolvedProjectName,
+      rememberAgentThread,
     ]
   );
 

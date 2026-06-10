@@ -228,6 +228,7 @@ class ThreadResponse(ThreadBase, TimestampMixin):
     message_count: int = 0
     token_count: int = 0
     created_by_id: Optional[UUID] = None
+    source_project_id: Optional[UUID] = None
 
 
 class ThreadDetailResponse(ThreadResponse):

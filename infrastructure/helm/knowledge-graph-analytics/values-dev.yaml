@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "9caf44e"
+    tag: "ee1c383"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -106,7 +106,7 @@ backend:
     - name: MALLOC_ARENA_MAX
       value: "2"
     - name: CORS_ORIGINS
-      value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
+      value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000,https://goodwiinz.tech,https://www.goodwiinz.tech"
     # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=dev) → synced into
     # the `app-secrets` K8s Secret, exposed via envFrom above. Set the regex
     # there to the project-specific Vercel slug (e.g.

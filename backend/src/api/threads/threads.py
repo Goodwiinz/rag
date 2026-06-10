@@ -187,69 +187,50 @@ async def create_thread(
 
     # Auto-link to project if project_id provided (Phase 2: Project-Chat Integration)
     if data.project_id:
-        try:
-            from sqlalchemy import and_
+        from sqlalchemy import and_
 
-            from src.models import Collection, ProjectThreadLinkType, Workspace
-            from src.services.research.project_thread_service import (
-                attach_thread_to_project,
-            )
+        from src.models import Collection, ProjectThreadLinkType, Workspace
+        from src.services.research.project_thread_service import (
+            attach_thread_to_project,
+        )
 
-            # Verify project exists and user has access
-            project_query = (
-                select(Collection)
-                .join(Workspace, Collection.workspace_id == Workspace.id)
-                .where(
-                    and_(
-                        Collection.id == data.project_id,
-                        Workspace.owner_id == current_user.id,
-                    )
+        # Verify project exists and user has access
+        project_query = (
+            select(Collection)
+            .join(Workspace, Collection.workspace_id == Workspace.id)
+            .where(
+                and_(
+                    Collection.id == data.project_id,
+                    Workspace.owner_id == current_user.id,
                 )
             )
-            project_result = await db.execute(project_query)
-            project = project_result.scalar_one_or_none()
+        )
+        project_result = await db.execute(project_query)
+        project = project_result.scalar_one_or_none()
 
-            if project:
-                # Single atomic writer for source_project_id + the join row, so
-                # the two cannot desync (see project_thread_service).
-                await attach_thread_to_project(
-                    db,
-                    thread,
-                    data.project_id,
-                    link_type=ProjectThreadLinkType.FROM_CHAT.value,
-                    linked_by_id=current_user.id,
-                    context_note="Auto-linked when creating thread with project_id",
-                )
-                await db.commit()
-                await db.refresh(thread)
-
-                logger.info(
-                    "thread_auto_linked_to_project",
-                    thread_id=str(thread.id),
-                    project_id=str(data.project_id),
-                )
-            else:
-                logger.warning(
-                    "project_not_found_for_auto_link",
-                    project_id=str(data.project_id),
-                    thread_id=str(thread.id),
-                )
-        except Exception as e:
-            # Best-effort: the thread already exists, so we don't fail the
-            # request. But roll back the partial link so the column + join row
-            # never desync (better a clean re-attachable thread than a
-            # half-linked one). The agent's read path also falls back to the
-            # join table (see jobs._resolve_thread_project).
-            logger.error(
-                "thread_auto_link_failed",
+        if project:
+            await attach_thread_to_project(
+                db,
+                thread,
+                data.project_id,
+                link_type=ProjectThreadLinkType.FROM_CHAT.value,
+                linked_by_id=current_user.id,
+                context_note="Auto-linked when creating thread with project_id",
+            )
+            logger.info(
+                "thread_auto_linked_to_project",
                 thread_id=str(thread.id),
                 project_id=str(data.project_id),
-                error=str(e),
             )
-            try:
-                await db.rollback()
-            except Exception:  # noqa: BLE001
-                pass
+        else:
+            logger.warning(
+                "project_not_found_for_auto_link",
+                project_id=str(data.project_id),
+                thread_id=str(thread.id),
+            )
+
+    await db.commit()
+    await db.refresh(thread)
 
     # Broadcast thread creation event via WebSocket
     try:
@@ -274,6 +255,7 @@ async def create_thread(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
     )
 
 
@@ -319,6 +301,7 @@ async def list_threads(
                 created_by_id=t.created_by_id,
                 created_at=t.created_at,
                 updated_at=t.updated_at,
+                source_project_id=t.source_project_id,
             )
             for t in threads
         ],
@@ -470,6 +453,7 @@ async def get_thread(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
         messages=messages,
     )
 

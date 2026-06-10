@@ -175,6 +175,11 @@ interface ChatActions {
   setCurrentWorkspace: (workspaceId: string | null) => void;
   setCurrentConversation: (conversationId: string | null) => void;
   setCurrentThread: (threadId: string | null) => void;
+  setThreadProjectBinding: (
+    threadId: string,
+    projectId: string | null
+  ) => boolean;
+  registerThread: (thread: Thread) => void;
 
   // Workspace actions
   loadWorkspaces: () => Promise<void>;
@@ -443,6 +448,55 @@ export const useChatStore = create<ChatStore>()(
         if (threadId) {
           get().loadMessages(threadId);
         }
+      },
+
+      // The project binding lives on the thread row (source_project_id), not
+      // in the URL — mirror binding changes into the store copy so the rail
+      // updates immediately and survives in-session thread switches. Reload
+      // survival comes from the server row (the threads API returns
+      // source_project_id). Bind passes a project id; pass null on unbind.
+      setThreadProjectBinding: (threadId, projectId) => {
+        let found = false;
+        set((state) => {
+          const conversationId = state.threadToConversation[threadId];
+          const indexed = conversationId
+            ? state.threads[conversationId]?.find((x) => x.id === threadId)
+            : undefined;
+          if (indexed) {
+            indexed.source_project_id = projectId;
+            found = true;
+            return;
+          }
+          // Reverse index can lag a fresh thread; fall back to a full scan.
+          for (const list of Object.values(state.threads)) {
+            const t = list.find((x) => x.id === threadId);
+            if (t) {
+              t.source_project_id = projectId;
+              found = true;
+              break;
+            }
+          }
+        });
+        if (!found) {
+          console.warn(
+            '[ChatStore] setThreadProjectBinding: thread not in store; binding not cached locally',
+            { threadId, projectId }
+          );
+        }
+        return found;
+      },
+
+      // Register a thread created outside the store (e.g. the chat composer
+      // creates via workspaceService directly) so bindings and lookups work
+      // without waiting for the next loadThreads.
+      registerThread: (thread) => {
+        set((state) => {
+          const list = (state.threads[thread.conversation_id] ??= []);
+          if (!list.some((t) => t.id === thread.id)) {
+            list.unshift(thread);
+          }
+          state.threadToConversation[thread.id] = thread.conversation_id;
+        });
       },
 
       // ========================================================================
@@ -1398,6 +1452,43 @@ export const selectCurrentThread = (state: ChatStore) => {
   const threads = state.threads[state.currentConversationId] || [];
   return threads.find((t) => t.id === state.currentThreadId) || null;
 };
+
+/**
+ * Project binding of the current thread, with three states:
+ * - `string`  — bound to that project
+ * - `null`    — thread is loaded and unbound (a stale ?projectId= URL param
+ *               must be ignored)
+ * - `undefined` — no thread selected, or thread not in the store yet (the
+ *               URL param is the caller's intent)
+ */
+export const selectCurrentThreadProjectId = (
+  state: ChatStore
+): string | null | undefined => {
+  if (!state.currentThreadId) return undefined;
+  const conversationId = state.threadToConversation[state.currentThreadId];
+  const indexed = conversationId
+    ? state.threads[conversationId]?.find((t) => t.id === state.currentThreadId)
+    : undefined;
+  if (indexed) return indexed.source_project_id ?? null;
+  for (const list of Object.values(state.threads)) {
+    const t = list.find((x) => x.id === state.currentThreadId);
+    if (t) return t.source_project_id ?? null;
+  }
+  return undefined;
+};
+
+/**
+ * Collapse the three-state thread binding with the URL param fallback.
+ * The thread row wins; the param only stands in while the thread has not
+ * loaded (e.g. arriving from a project page before threads fetch).
+ */
+export const resolveBoundProjectId = (
+  threadProjectId: string | null | undefined,
+  urlProjectId: string | null
+): string | undefined =>
+  threadProjectId === null
+    ? undefined
+    : (threadProjectId ?? urlProjectId ?? undefined);
 
 export const selectCurrentMessages = (state: ChatStore) => {
   if (!state.currentThreadId) return [];

@@ -22,6 +22,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { useProjectChat } from '@/hooks/useProjectChat';
+import { useProjectChatStore } from '@/store/projectChatStore';
 import { ThreadCard } from './ThreadCard';
 import { StartChatModal } from './StartChatModal';
 import { LinkThreadModal } from './LinkThreadModal';
@@ -138,9 +139,20 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     }
   };
 
-  // Handle link thread
+  // Handle link thread. The store returns null on failure (it never throws),
+  // so throw here to let LinkThreadModal display the error instead of
+  // closing as if the link succeeded.
   const handleLinkThread = async (threadId: string, contextNote?: string) => {
-    await linkThread({ thread_id: threadId, context_note: contextNote });
+    const result = await linkThread({
+      thread_id: threadId,
+      context_note: contextNote,
+    });
+    if (!result) {
+      throw new Error(
+        useProjectChatStore.getState().errors[projectId] ||
+          'Failed to link thread'
+      );
+    }
     setIsLinkThreadModalOpen(false);
     refreshThreads();
   };
