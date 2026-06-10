@@ -1,8 +1,9 @@
 """Endpoint-guard / IDOR fixes (authz PR4).
 
-Covers the pipeline project-ownership check and the processing-service org
-scoping. Connectors auth and metric admin-gating are router/dependency-level
-and exercised via the app's dependency wiring elsewhere.
+Covers the pipeline project-ownership check, the processing-service org
+scoping, the query-history producer→filter contract, plus router/dependency
+introspection for the connectors auth and the metric admin-gating (so a guard
+removed from one route is caught).
 """
 
 from __future__ import annotations
@@ -106,3 +107,83 @@ async def test_query_history_filters_to_caller():
     # The endpoint filter keeps it for user-A, drops it for user-B.
     assert [e for e in svc.query_history if str(e.get("user_id", "")) == "user-A"]
     assert not [e for e in svc.query_history if str(e.get("user_id", "")) == "user-B"]
+
+
+# --- comprehensive-review additions -----------------------------------------
+
+
+async def test_pipeline_update_and_reset_enforce_access_before_service():
+    """update/reset got the same _ensure_project_access line as get — pin that
+    each call site enforces before touching PipelineService."""
+    from unittest.mock import patch
+
+    from src.api.research import pipeline as mod
+
+    db = _db_scalar(None)  # caller owns no matching project
+    body = mod.UpdatePipelineRequest()
+    with patch.object(mod.PipelineService, "update_pipeline", AsyncMock()) as up, patch.object(
+        mod.PipelineService, "reset_pipeline", AsyncMock()
+    ) as rp:
+        with pytest.raises(HTTPException) as e1:
+            await mod.update_pipeline(uuid4(), body=body, current_user=_user(), db=db)
+        with pytest.raises(HTTPException) as e2:
+            await mod.reset_pipeline(uuid4(), current_user=_user(), db=db)
+    assert e1.value.status_code == 404 and e2.value.status_code == 404
+    up.assert_not_called()
+    rp.assert_not_called()
+
+
+def test_all_connector_routes_require_auth():
+    """Router-level dependency must attach get_current_user to every route —
+    survives someone adding a 4th connector route without re-guarding."""
+    from fastapi.routing import APIRoute
+
+    from src.api.connectors.router import router
+    from src.core.dependencies import get_current_user
+
+    assert any(d.dependency is get_current_user for d in router.dependencies)
+    routes = [r for r in router.routes if isinstance(r, APIRoute)]
+    assert routes
+    for route in routes:
+        calls = [d.call for d in route.dependant.dependencies]
+        assert get_current_user in calls, f"{route.path} not auth-guarded"
+
+
+def test_metrics_source_gates_mutations_with_require_admin():
+    """src.api.analytics.metrics imports a pre-existing-broken
+    `src.auth.dependencies`, so the router can't be introspected here — assert
+    on the source instead: the 4 mutations depend on require_admin, not
+    get_current_user."""
+    import pathlib
+
+    backend = pathlib.Path(__file__).parents[3]
+    src = (backend / "src/api/analytics/metrics.py").read_text()
+    # 4 mutation endpoints carry require_admin.
+    assert src.count("Depends(require_admin)") >= 4
+    assert "from src.core.dependencies import require_admin" in src
+
+
+def test_require_admin_rejects_non_admin():
+    from src.core.dependencies import require_role
+    from src.models.user import UserRole
+
+    checker = require_role(UserRole.ADMIN)
+    non_admin = Mock()
+    non_admin.has_permission = Mock(return_value=False)
+    with pytest.raises(HTTPException) as exc:
+        checker(current_user=non_admin)
+    assert exc.value.status_code == 403
+
+
+def test_get_extracted_features_query_is_org_scoped():
+    """The arxiv extracted-features query must constrain organization_id +
+    is_deleted (was unscoped, returning every org's features). Source-text
+    assertion: the underlying query references Document.external_id, a column
+    that doesn't exist on that model (pre-existing bug), so the query can't be
+    executed in a behavioral test — pin the scoping clauses in the source."""
+    import pathlib
+
+    backend = pathlib.Path(__file__).parents[3]
+    src = (backend / "src/api/arxiv/arxiv_extraction.py").read_text()
+    assert "Document.organization_id == current_user.organization_id" in src
+    assert "Document.is_deleted == False" in src
