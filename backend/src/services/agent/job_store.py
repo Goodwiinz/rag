@@ -174,6 +174,9 @@ async def set_job(job_id: str, data: dict) -> None:
         # set_job REPLACES the record. Carry the owner forward when a status
         # update omits it — the GET ownership check fails closed on a missing
         # user_id, so dropping it would lock the owner out of their own job.
+        # Scope: L1 only. If the entry was evicted from L1 but still lives in
+        # Redis, an ownerless write is NOT enriched — acceptable because every
+        # writer stamps user_id explicitly; this is a same-process backstop.
         if "user_id" not in data and existing is not None and existing.get("user_id"):
             data["user_id"] = existing["user_id"]
         if existing is None or _is_newer_or_equal(data, existing):

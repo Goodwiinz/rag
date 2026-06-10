@@ -22,7 +22,7 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from src.services.agent._nodes_rag import is_conversational
+from src.services.agent._nodes_rag import _coerce_text, is_conversational
 from src.services.agent._pii_redact import redact_pii
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
@@ -134,8 +134,6 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         # content is a list of blocks, and the slice/encode below would
         # raise on it (the save is best-effort, so the memory would just be
         # silently lost).
-        from src.services.agent._nodes_rag import _coerce_text
-
         last_ai_content = ""
         last_user_content = ""
         for msg in reversed(state["messages"]):

@@ -51,8 +51,12 @@ WRITING_TOOLS = [
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
 
-# Mirrors MAX_RESEARCH_TOOL_LOOPS — a named ceiling so the forced-synthesis
-# routing below and the bump in writing_force_synthesis_node stay in sync.
+# Named ceiling (preserves the previous hardcoded ``< 8``) so the
+# forced-synthesis routing below and the bump in
+# writing_force_synthesis_node stay in sync. Same pattern as research's
+# MAX_RESEARCH_TOOL_LOOPS but an independent value — research deliberately
+# lowered theirs to 5 after a runaway-fanout trace; this one has no such
+# justification yet.
 MAX_WRITING_TOOL_LOOPS = 8
 
 # Destructive tools written by the writing subgraph. The main graph's
@@ -228,9 +232,15 @@ async def writing_force_synthesis_node(
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        logger.warning(
-            "writing_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+        # Error, not warning: the turn still completes "successfully" with
+        # the canned fallback below, so this log line is the only
+        # machine-visible signal that synthesis was degraded.
+        logger.error(
+            "writing_force_synthesis_node: LLM exceeded %ds; emitting fallback "
+            "(thread_id=%s, tool_loop_count=%s)",
             AGENT_LLM_TIMEOUT_SECONDS,
+            state.get("thread_id", ""),
+            state.get("tool_loop_count", 0),
         )
         response = AIMessage(
             content=(

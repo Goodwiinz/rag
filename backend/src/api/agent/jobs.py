@@ -713,10 +713,14 @@ async def _persist_thread_messages(
         db, current_user, request, create_if_missing=create_if_missing
     )
     if thread is None:
-        if not create_if_missing and request.thread_id:
+        if not create_if_missing:
+            # Always log the skip — the job still reports completed, so this
+            # line is the only record that the turn was not durably stored.
             logger.warning(
-                "Confirm/resume persist skipped: thread %s not found on re-lookup",
-                request.thread_id,
+                "Confirm/resume persist skipped: thread %s not found on "
+                "re-lookup (user_id=%s)",
+                request.thread_id or "<none>",
+                current_user.id,
             )
         return request.thread_id or "", ""
 

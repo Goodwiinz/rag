@@ -29,7 +29,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_memory import memory_retrieval_node
-from src.services.agent._nodes_rag import rag_node
+from src.services.agent._nodes_rag import _coerce_text, rag_node
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
@@ -79,7 +79,6 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
     which wraps this with ``@track_node_execution`` for callers that
     invoke it as a graph node.
     """
-    from src.services.agent._nodes_rag import _coerce_text
     from src.services.agent.classifier import classify_intent_with_fallback
 
     # Coerce: multimodal content is a list of blocks; the classifier's
