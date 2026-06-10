@@ -19,6 +19,7 @@ from fastapi import (
     Query,
     status,
 )
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db_sync
@@ -418,7 +419,18 @@ def get_search_suggestions(
         suggestions = [row.title for row in result if row.title]
 
         return {"query": query, "suggestions": suggestions}
+    except (ProgrammingError, OperationalError) as e:
+        # Don't mask a structurally broken query (bad column/join, param
+        # mismatch on the access predicate) as "no suggestions" — that would
+        # hide a broken authz query behind an empty 200 forever. Surface it
+        # like the sibling search endpoints do.
+        logger.error(f"Search suggestions query failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Suggestions failed",
+        )
     except Exception as e:
+        # Genuinely unexpected (non-SQL) errors: fail soft to empty suggestions.
         logger.error(f"Error getting search suggestions: {e}")
         return {"query": query, "suggestions": []}
 

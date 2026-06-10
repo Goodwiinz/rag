@@ -76,7 +76,7 @@ async def _load_accessible_citation(
     """Load a citation with the relationships ``_citation_is_accessible`` needs
     and enforce access. Raises 404 if missing or not accessible (404, not 403,
     so a caller cannot probe which citation ids exist). Eager-load shape mirrors
-    ``get_citation`` (citations.py:232)."""
+    ``get_citation``."""
     result = await db.execute(
         select(Citation)
         .options(

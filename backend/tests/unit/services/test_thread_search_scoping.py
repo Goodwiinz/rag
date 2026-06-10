@@ -90,10 +90,15 @@ def test_combined_search_both_ctes_are_scoped():
     _svc().combined_search("neural", user_id=uid, db=db)
 
     sql, params = executed["sql"], executed["params"]
-    # Predicate must appear in BOTH CTE bodies (thread_matches + message_matches).
-    assert sql.count("w.owner_id = :access_user_id") == 2
-    assert sql.count("workspace_members wm") == 2
     assert params["access_user_id"] == str(uid)
+    # Per-CTE: split on the message CTE boundary and assert EACH half carries
+    # the predicate — a plain count==2 would still pass if both predicates
+    # landed in the same CTE (the real leak: one CTE left unscoped).
+    assert "message_matches AS (" in sql
+    thread_cte, message_cte = sql.split("message_matches AS (", 1)
+    for half, label in ((thread_cte, "thread"), (message_cte, "message")):
+        assert "w.owner_id = :access_user_id" in half, f"{label} CTE unscoped"
+        assert "workspace_members wm" in half, f"{label} CTE missing member check"
 
 
 def test_suggestions_query_is_scoped_to_caller_not_org():
