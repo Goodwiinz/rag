@@ -59,8 +59,9 @@ _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def _validate_organization_id(organization_id: Optional[str]) -> str:
     """Org is REQUIRED for analytics — running unscoped would compute over the
     whole cross-tenant graph and leak results between orgs. The UUID check also
-    makes the value safe to interpolate into Cypher (these queries build
-    apoc/string clauses that cannot take bound parameters)."""
+    makes the value safe to interpolate into Cypher: many of these queries
+    build apoc/string clauses or project node collections that can't take bound
+    parameters, so the org is interpolated uniformly."""
     if not organization_id:
         raise ValueError("organization_id is required for graph analytics")
     if not _ORG_ID_RE.match(str(organization_id)):
@@ -176,6 +177,8 @@ class GraphAnalyticsService:
         analysis_result = None
 
         org_token = _current_org.set(_validate_organization_id(organization_id))
+        db_result = None  # bound before the try so the except handler's
+        # `if db_result:` can't NameError if the INSERT below raises early.
         try:
             # Create analysis record
             async with get_async_session() as db:
@@ -321,9 +324,7 @@ class GraphAnalyticsService:
         self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
     ) -> Dict[str, Any]:
         """Run betweenness centrality algorithm"""
-        # Build Cypher query
         node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
 
         query = f"""
         MATCH (n) {node_filter}
@@ -363,12 +364,16 @@ class GraphAnalyticsService:
             request.parameters.get("resolution", 1.0) if request.parameters else 1.0
         )
 
+        # Scope BOTH the primary node and the neighbor (m) to the org. The
+        # prior `(n)-[r] {edge_filter}-(m)` spliced a WHERE clause mid-pattern
+        # (invalid Cypher) and left m cross-tenant; the neighbor org predicate
+        # also closes the cross-org leak in the relationship set.
         node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
+        org = _require_current_org()
 
         query = f"""
         MATCH (n) {node_filter}
-        OPTIONAL MATCH (n)-[r] {edge_filter}-(m)
+        OPTIONAL MATCH (n)-[r]-(m) WHERE m.organization_id = '{org}'
         WITH n, collect(r) as relationships
         CALL apoc.algo.community(n, relationships, 'louvain', {{resolution: $resolution}})
         YIELD community, node
@@ -402,12 +407,14 @@ class GraphAnalyticsService:
         self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
     ) -> Dict[str, Any]:
         """Run connected components algorithm"""
+        # connectedComponents takes no relationship-filter arg in this form;
+        # the prior `{edge_filter}` injected a WHERE string as a positional arg
+        # (invalid). Org scope comes from node_filter on the projection.
         node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
 
         query = f"""
         MATCH (n) {node_filter}
-        CALL apoc.algo.connectedComponents(n, {edge_filter}) YIELD component
+        CALL apoc.algo.connectedComponents(n) YIELD component
         RETURN count(DISTINCT n) as node_count,
                count(DISTINCT component) as component_count,
                collect({{node_id: toString(id(n)), component_id: toString(component)}}) as assignments
@@ -490,15 +497,20 @@ class GraphAnalyticsService:
         self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
     ) -> Dict[str, Any]:
         """Run triangle counting algorithm"""
-        node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
+        # Primary node bound as `a`, so node_filter must use that alias.
+        # Every node in the triangle (a/b/c) is org-scoped — otherwise a
+        # triangle spanning into another tenant's nodes would be counted and
+        # its foreign node ids returned.
+        node_filter = self._build_node_filter(request.node_filters, alias="a")
+        org = _require_current_org()
 
         query = f"""
         MATCH (a) {node_filter}
-        MATCH (a)-[r1] {edge_filter}-(b)
-        MATCH (b)-[r2] {edge_filter}-(c)
-        MATCH (c)-[r3] {edge_filter}-(a)
+        MATCH (a)-[r1]-(b)
+        MATCH (b)-[r2]-(c)
+        MATCH (c)-[r3]-(a)
         WHERE id(a) < id(b) AND id(b) < id(c)
+          AND b.organization_id = '{org}' AND c.organization_id = '{org}'
         RETURN count(DISTINCT a) as node_count,
                count(*) as triangle_count,
                collect({{nodes: [toString(id(a)), toString(id(b)), toString(id(c))]}}) as triangles
@@ -527,14 +539,16 @@ class GraphAnalyticsService:
         self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
     ) -> Dict[str, Any]:
         """Run clustering coefficient calculation"""
+        # Scope the primary node and both neighbor hops (a, b) to the org so
+        # the coefficient isn't inflated by cross-tenant neighbors.
         node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
+        org = _require_current_org()
 
         query = f"""
         MATCH (n) {node_filter}
-        OPTIONAL MATCH (n)-[r1] {edge_filter}-(a)
-        OPTIONAL MATCH (a)-[r2] {edge_filter}-(b)
-        OPTIONAL MATCH (b)-[r3] {edge_filter}-(n)
+        OPTIONAL MATCH (n)-[r1]-(a) WHERE a.organization_id = '{org}'
+        OPTIONAL MATCH (a)-[r2]-(b) WHERE b.organization_id = '{org}'
+        OPTIONAL MATCH (b)-[r3]-(n)
         WHERE id(a) > id(n) AND id(b) > id(a)
         WITH n, count(DISTINCT a) as neighbors, count(DISTINCT b) as triangles
         WITH n, neighbors, triangles,
@@ -1125,26 +1139,32 @@ class GraphAnalyticsService:
         """
         return f"{alias}.organization_id = '{_require_current_org()}'"
 
-    def _build_node_filter(self, node_filters: Optional[Dict[str, Any]]) -> str:
+    def _build_node_filter(
+        self, node_filters: Optional[Dict[str, Any]], alias: str = "n"
+    ) -> str:
         """Build node filter Cypher clause, ALWAYS scoped to the active org.
 
         Previously this returned ``""`` for no filters (unscoped → cross-tenant)
         and f-stringed user values straight into Cypher (injection). Now it
         always emits the org predicate and allowlists labels / property keys /
-        values.
+        values. ``alias`` must match the variable the query binds for the
+        primary node (e.g. ``a`` in triangle count) — hardcoding ``n`` produced
+        an unbound-variable error when spliced onto a ``MATCH (a)``.
         """
-        conditions = [self._org_node_clause("n")]
+        conditions = [self._org_node_clause(alias)]
         if node_filters:
             for key, value in node_filters.items():
                 if key == "labels":
                     for label in value:
                         _validate_identifier(label, "node label")
-                    conditions.extend(f"'{label}' in labels(n)" for label in value)
+                    conditions.extend(
+                        f"'{label}' in labels({alias})" for label in value
+                    )
                 elif key == "properties":
                     for prop_key, prop_value in value.items():
                         _validate_identifier(prop_key, "node property")
                         conditions.append(
-                            f"n.{prop_key} = {_cypher_literal(prop_value)}"
+                            f"{alias}.{prop_key} = {_cypher_literal(prop_value)}"
                         )
         return f"WHERE {' AND '.join(conditions)}"
 

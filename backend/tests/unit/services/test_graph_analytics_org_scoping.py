@@ -183,3 +183,124 @@ async def test_run_shortest_path_analysis_scopes_endpoints(scoped):
 
     assert f"start.organization_id = '{_ORG}'" in captured["query"]
     assert f"end.organization_id = '{_ORG}'" in captured["query"]
+
+
+# --- additional scoping coverage (comprehensive-review pass) ------------------
+
+
+def _capture_all_session(captured_list, single_value=None):
+    """Fake Neo4j session capturing every executed query; .single() returns a
+    dict-like, async iteration yields nothing."""
+    import contextlib
+    from unittest.mock import AsyncMock, MagicMock
+
+    async def _run(query, params=None):
+        captured_list.append(query)
+        result = MagicMock()
+        result.single = AsyncMock(return_value=single_value or {})
+
+        async def _aiter():
+            return
+            yield  # pragma: no cover
+
+        result.__aiter__ = lambda self_: _aiter()
+        return result
+
+    session = MagicMock()
+    session.run = AsyncMock(side_effect=_run)
+
+    @contextlib.asynccontextmanager
+    async def _get_session():
+        yield session
+
+    return _get_session
+
+
+def _service():
+    return svc.GraphAnalyticsService()
+
+
+@pytest.mark.asyncio
+async def test_get_graph_statistics_scopes_every_query():
+    import contextlib
+
+    inst = _service()
+    inst.initialized = True
+    captured = []
+    inst.get_session = _capture_all_session(
+        captured, single_value={"total_nodes": 0, "total_edges": 0}
+    )
+
+    with contextlib.suppress(Exception):
+        await inst.get_graph_statistics(organization_id=_ORG)
+
+    assert captured, "should have run statistics queries"
+    for q in captured:
+        assert f"organization_id = '{_ORG}'" in q, f"unscoped stats query: {q!r}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("algo", ["pagerank", "betweenness", "degree"])
+async def test_centrality_rankings_scope_by_org(algo):
+    import contextlib
+
+    inst = _service()
+    inst.initialized = True
+    captured = []
+    inst.get_session = _capture_all_session(captured)
+
+    with contextlib.suppress(Exception):
+        await inst.get_centrality_analysis(
+            algorithm=algo, top_k=5, organization_id=_ORG
+        )
+
+    assert captured
+    assert f"n.organization_id = '{_ORG}'" in captured[0]
+    if algo == "degree":
+        assert f"m.organization_id = '{_ORG}'" in captured[0]  # neighbor scoped
+
+
+@pytest.mark.asyncio
+async def test_context_var_reset_after_success_and_error():
+    import contextlib
+
+    inst = _service()
+    inst.initialized = True
+    inst.get_session = _capture_all_session([], single_value={"total_nodes": 0, "total_edges": 0})
+
+    assert svc._current_org.get() is None
+    with contextlib.suppress(Exception):
+        await inst.get_graph_statistics(organization_id=_ORG)
+    # The ContextVar must be reset so the org can't leak into the next request.
+    assert svc._current_org.get() is None
+
+    # Error path: force the session to raise, assert still reset.
+    def _boom():
+        raise RuntimeError("neo4j down")
+
+    inst.get_session = _boom
+    with contextlib.suppress(Exception):
+        await inst.get_graph_statistics(organization_id=_ORG)
+    assert svc._current_org.get() is None
+
+
+@pytest.mark.asyncio
+async def test_triangle_count_scopes_all_three_nodes(scoped):
+    # `scoped` fixture sets the contextvar (this is a sub-method, not an entry
+    # point, so it relies on the org already being in context).
+    import contextlib
+    from types import SimpleNamespace
+
+    captured = []
+    scoped.get_session = _capture_all_session(captured)
+    request = SimpleNamespace(node_filters=None, edge_filters=None, max_results=10)
+
+    with contextlib.suppress(Exception):
+        await scoped._run_triangle_count(None, request)
+
+    q = captured[0]
+    # primary node bound as `a` (alias fix: no unbound `n`), neighbors scoped
+    assert f"a.organization_id = '{_ORG}'" in q
+    assert f"b.organization_id = '{_ORG}'" in q
+    assert f"c.organization_id = '{_ORG}'" in q
+    assert "WHERE n.organization_id" not in q  # the alias-mismatch bug is gone

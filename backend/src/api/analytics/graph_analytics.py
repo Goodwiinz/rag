@@ -90,6 +90,10 @@ async def get_graph_statistics(current_user: User = Depends(get_current_user)):
         )
         return stats
 
+    except ValueError as e:
+        # Missing/invalid org (e.g. a user with no organization) — a clean 400,
+        # not an opaque 500.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
