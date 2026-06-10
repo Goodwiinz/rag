@@ -144,6 +144,11 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             "connection error",
             "connection closed",
             "connection failed",
+            # Canonical requests/urllib3 failure string:
+            # ('Connection aborted.', RemoteDisconnected(...))
+            "connection aborted",
+            "econnrefused",
+            "econnreset",
         )
     ):
         return ToolError(category="transient", message=error_msg)
