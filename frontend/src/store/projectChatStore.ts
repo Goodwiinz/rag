@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { projectChatService } from '@/services/projectChatService';
+import { useChatStore } from '@/store/chat-store';
 import type {
   ProjectThread,
   StartChatFromProjectRequest,
@@ -210,6 +211,13 @@ export const useProjectChatStore = create<ProjectChatState>()(
           state.linkingThread[projectId] = false;
         });
 
+        // Mirror into the chat store's thread row — the chat rail and the
+        // agent page_context derive the binding from source_project_id, so a
+        // link made from the project page must be visible there too.
+        useChatStore
+          .getState()
+          .setThreadProjectBinding(response.thread_id, projectId);
+
         return response;
       } catch (error: any) {
         const status = error?.error?.status_code ?? error?.status_code;
@@ -259,6 +267,11 @@ export const useProjectChatStore = create<ProjectChatState>()(
           }
           state.unlinkingThread[projectId] = false;
         });
+
+        // Clear the chat store's copy too. Without this the chat rail keeps
+        // showing the removed project and the agent keeps receiving its
+        // project_id until a full reload.
+        useChatStore.getState().setThreadProjectBinding(threadId, null);
       } catch (error: any) {
         console.error(
           '[ProjectChatStore] unlinkThreadFromProject failed:',
