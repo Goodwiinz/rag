@@ -91,3 +91,95 @@ def test_admin_only_channel_set_matches_permission_map():
 
     admin = {c.value for c in Channel if _get_channel_permissions(c) == "admin"}
     assert admin == _ADMIN_ONLY_CHANNELS
+
+
+# --- Redis cross-instance round-trip (sev-9 gap) -----------------------------
+
+
+def test_asdict_not_json_serializable_but_explicit_payload_roundtrips_org():
+    """Documents WHY the publish path hand-builds a dict instead of asdict():
+    asdict leaves Enum/datetime raw → json.dumps raises. The explicit payload
+    round-trips target_organization so the org gate holds across workers."""
+    import json
+    from dataclasses import asdict
+    from datetime import datetime
+
+    msg = _msg("org-A")
+
+    with pytest.raises(TypeError):  # the old asdict() path could not encode
+        json.dumps(asdict(msg))
+
+    # The explicit payload the publisher builds (websocket_manager.py:619-626).
+    payload = {
+        "type": msg.type.value,
+        "data": msg.data,
+        "timestamp": msg.timestamp.isoformat(),
+        "message_id": msg.message_id,
+        "priority": msg.priority.value,
+        "target_channels": msg.target_channels,
+        "target_organization": msg.target_organization,
+    }
+    rebuilt = json.loads(json.dumps(payload))
+
+    # The receiver reconstruction (websocket_manager.py:866-873).
+    out = WebSocketMessage(
+        type=MessageType(rebuilt["type"]),
+        data=rebuilt["data"],
+        timestamp=datetime.fromisoformat(rebuilt["timestamp"]),
+        message_id=rebuilt.get("message_id") or rebuilt.get("id"),
+        target_channels=rebuilt.get("target_channels", []),
+        target_organization=rebuilt.get("target_organization"),
+    )
+    assert out.target_organization == "org-A"  # org scope survives the hop
+    assert out.message_id == msg.message_id
+
+
+# --- mid-session SUBSCRIBE gate (sev-8 gap) ----------------------------------
+
+
+def _mgr_with_conn(role):
+    import json as _json
+    from unittest.mock import AsyncMock
+
+    from src.services.websocket.websocket_manager import EnhancedConnectionManager
+
+    mgr = EnhancedConnectionManager()
+    conn = _conn("org-A", role=role)
+    mgr.active_connections[conn.connection_id] = conn
+    mgr.subscribe_to_channel = AsyncMock()
+    mgr.send_message_to_connection = AsyncMock()
+    return mgr, conn, _json
+
+
+@pytest.mark.asyncio
+async def test_mid_session_subscribe_denies_admin_channel_for_non_admin():
+    mgr, conn, _json = _mgr_with_conn("USER")
+    await mgr.handle_client_message(
+        conn.connection_id,
+        _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
+    )
+    mgr.subscribe_to_channel.assert_not_awaited()  # denied
+    mgr.send_message_to_connection.assert_awaited()  # explicit denial frame
+    sent = mgr.send_message_to_connection.await_args.args[1]
+    assert sent.type == MessageType.ERROR
+    assert sent.data["error"] == "subscription_denied"
+
+
+@pytest.mark.asyncio
+async def test_mid_session_subscribe_allows_admin_channel_for_admin():
+    mgr, conn, _json = _mgr_with_conn("ADMIN")
+    await mgr.handle_client_message(
+        conn.connection_id,
+        _json.dumps({"type": "subscribe", "data": {"channel": "admin_alerts"}}),
+    )
+    mgr.subscribe_to_channel.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mid_session_subscribe_allows_normal_channel_for_user():
+    mgr, conn, _json = _mgr_with_conn("USER")
+    await mgr.handle_client_message(
+        conn.connection_id,
+        _json.dumps({"type": "subscribe", "data": {"channel": "document_processing"}}),
+    )
+    mgr.subscribe_to_channel.assert_awaited_once()  # normal channel allowed
