@@ -32,7 +32,9 @@ async def run_graph_analysis(
     """Run graph analysis with specified algorithm"""
     try:
         result = await graph_analytics_service.run_graph_analysis(
-            request=request, user_id=current_user.id
+            request=request,
+            user_id=current_user.id,
+            organization_id=str(current_user.organization_id),
         )
         return result
 
@@ -58,7 +60,9 @@ async def run_path_analysis(
     """Run path analysis between nodes"""
     try:
         result = await graph_analytics_service.run_path_analysis(
-            request=request, user_id=current_user.id
+            request=request,
+            user_id=current_user.id,
+            organization_id=str(current_user.organization_id),
         )
         return result
 
@@ -81,7 +85,9 @@ async def run_path_analysis(
 async def get_graph_statistics(current_user: User = Depends(get_current_user)):
     """Get overall graph statistics"""
     try:
-        stats = await graph_analytics_service.get_graph_statistics()
+        stats = await graph_analytics_service.get_graph_statistics(
+            organization_id=str(current_user.organization_id)
+        )
         return stats
 
     except RuntimeError:
@@ -113,7 +119,9 @@ async def get_centrality_analysis(
             )
 
         analysis = await graph_analytics_service.get_centrality_analysis(
-            algorithm=algorithm, top_k=top_k
+            algorithm=algorithm,
+            top_k=top_k,
+            organization_id=str(current_user.organization_id),
         )
         return analysis
 

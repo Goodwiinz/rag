@@ -4,9 +4,11 @@ Graph Analytics Service with Neo4j algorithms
 
 import asyncio
 import logging
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -38,6 +40,64 @@ from src.models.analytics.graph_analytics import (
 from src.models.base import GUID
 
 logger = logging.getLogger(__name__)
+
+# Per-request organization scope. The service is a singleton shared across
+# requests, so a ContextVar (not an instance attribute) is the concurrency-safe
+# way to thread the validated org into every Cypher builder without changing a
+# dozen method signatures. Each async task gets its own value.
+_current_org: ContextVar[Optional[str]] = ContextVar(
+    "graph_analytics_current_org", default=None
+)
+
+_ORG_ID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_organization_id(organization_id: Optional[str]) -> str:
+    """Org is REQUIRED for analytics — running unscoped would compute over the
+    whole cross-tenant graph and leak results between orgs. The UUID check also
+    makes the value safe to interpolate into Cypher (these queries build
+    apoc/string clauses that cannot take bound parameters)."""
+    if not organization_id:
+        raise ValueError("organization_id is required for graph analytics")
+    if not _ORG_ID_RE.match(str(organization_id)):
+        raise ValueError(
+            f"organization_id must be a valid UUID, got: {organization_id!r}"
+        )
+    return str(organization_id)
+
+
+def _require_current_org() -> str:
+    """Return the validated org for the active request, or raise. Belt-and-
+    suspenders: a builder must never run without a scope set by the entrypoint."""
+    return _validate_organization_id(_current_org.get())
+
+
+def _validate_identifier(name: Any, kind: str) -> str:
+    """Allowlist a Cypher label / property / relationship-type token. These are
+    interpolated (Cypher can't bind identifiers), so reject anything that isn't
+    a plain identifier to prevent injection."""
+    if not isinstance(name, str) or not _IDENT_RE.match(name):
+        raise ValueError(f"Invalid {kind}: {name!r}")
+    return name
+
+
+def _cypher_literal(value: Any) -> str:
+    """Render a filter *value* as a safe Cypher literal. Values can't be bound
+    params in these string-built queries, so reject (not escape) anything with
+    Cypher metacharacters — filter values are simple scalars."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        if any(c in value for c in "'\"\\\n\r`$;{}()"):
+            raise ValueError(f"Invalid filter value: {value!r}")
+        return f"'{value}'"
+    raise ValueError(f"Unsupported filter value type: {type(value).__name__}")
 
 
 class GraphAnalyticsService:
@@ -103,15 +163,19 @@ class GraphAnalyticsService:
             raise
 
     async def run_graph_analysis(
-        self, request: GraphAnalysisRequest, user_id: uuid.UUID
+        self,
+        request: GraphAnalysisRequest,
+        user_id: uuid.UUID,
+        organization_id: str,
     ) -> GraphAnalysisResponse:
-        """Run graph analysis with specified algorithm"""
+        """Run graph analysis with specified algorithm, scoped to one org."""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
 
         start_time = time.time()
         analysis_result = None
 
+        org_token = _current_org.set(_validate_organization_id(organization_id))
         try:
             # Create analysis record
             async with get_async_session() as db:
@@ -201,39 +265,31 @@ class GraphAnalyticsService:
                     await db.commit()
 
             raise
+        finally:
+            _current_org.reset(org_token)
 
     async def _run_pagerank(
         self, analysis_id: uuid.UUID, request: GraphAnalysisRequest
     ) -> Dict[str, Any]:
         """Run PageRank algorithm"""
-        damping_factor = (
-            request.parameters.get("damping_factor", 0.85)
-            if request.parameters
-            else 0.85
-        )
-        max_iterations = (
-            request.parameters.get("max_iterations", 20) if request.parameters else 20
-        )
-
-        # Build Cypher query with filters
+        # Build Cypher query. Scope via an org-filtered node projection (a
+        # real WHERE clause), mirroring _run_betweenness_centrality. The prior
+        # form embedded the filter string inside an apoc config literal, which
+        # both broke once the filter contained quotes and could not be
+        # org-scoped — it ran apoc.algo.pageRank over the entire graph.
         node_filter = self._build_node_filter(request.node_filters)
-        edge_filter = self._build_edge_filter(request.edge_filters)
 
         query = f"""
-        CALL apoc.algo.pageRank([{{
-            node_filter: '{node_filter}',
-            edge_filter: '{edge_filter}'
-        }}]) YIELD node, score
+        MATCH (n) {node_filter}
+        WITH collect(n) as nodes
+        CALL apoc.algo.pageRank(nodes) YIELD node, score
         RETURN count(DISTINCT node) as node_count,
                sum(size((node)-[]->())) as edge_count,
                collect({{node_id: toString(id(node)), score: score}}) as rankings
         """
 
         async with self.get_session() as session:
-            result = await session.run(
-                query,
-                {"damping_factor": damping_factor, "max_iterations": max_iterations},
-            )
+            result = await session.run(query)
             record = await result.single()
 
             node_count = record["node_count"]
@@ -515,14 +571,18 @@ class GraphAnalyticsService:
             }
 
     async def run_path_analysis(
-        self, request: PathAnalysisRequest, user_id: uuid.UUID
+        self,
+        request: PathAnalysisRequest,
+        user_id: uuid.UUID,
+        organization_id: str,
     ) -> PathAnalysisResponse:
-        """Run path analysis between nodes"""
+        """Run path analysis between nodes, scoped to one org."""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
 
         start_time = time.time()
 
+        org_token = _current_org.set(_validate_organization_id(organization_id))
         try:
             # Create path analysis record
             async with get_async_session() as db:
@@ -622,20 +682,18 @@ class GraphAnalyticsService:
                     await db.commit()
 
             raise
+        finally:
+            _current_org.reset(org_token)
 
     async def _find_shortest_paths(
         self, request: PathAnalysisRequest
     ) -> List[Dict[str, Any]]:
-        """Find shortest paths between nodes"""
-        weight_clause = (
-            f"weight: r.{request.weight_property}"
-            if request.weight_property
-            else "weight: 1"
-        )
-
+        """Find shortest paths between nodes (endpoints scoped to the org)."""
+        org = _require_current_org()
         query = f"""
         MATCH (start), (end)
         WHERE id(start) = $source_id AND id(end) = $target_id
+          AND start.organization_id = '{org}' AND end.organization_id = '{org}'
         CALL apoc.algo.shortestPath(start, end, 'BOTH', $weight_property) YIELD path, weight
         RETURN [node in nodes(path) | toString(id(node))] as nodes,
                [rel in relationships(path) | toString(id(rel))] as edges,
@@ -669,12 +727,14 @@ class GraphAnalyticsService:
     async def _find_all_paths(
         self, request: PathAnalysisRequest
     ) -> List[Dict[str, Any]]:
-        """Find all paths between nodes"""
+        """Find all paths between nodes (endpoints scoped to the org)."""
+        org = _require_current_org()
         max_depth = request.max_depth or 5
 
-        query = """
+        query = f"""
         MATCH (start), (end)
         WHERE id(start) = $source_id AND id(end) = $target_id
+          AND start.organization_id = '{org}' AND end.organization_id = '{org}'
         MATCH path = (start)-[*1..$max_depth]-(end)
         RETURN [node in nodes(path) | toString(id(node))] as nodes,
                [rel in relationships(path) | toString(id(rel))] as edges
@@ -701,12 +761,14 @@ class GraphAnalyticsService:
     async def _find_k_shortest_paths(
         self, request: PathAnalysisRequest
     ) -> List[Dict[str, Any]]:
-        """Find k shortest paths between nodes"""
+        """Find k shortest paths between nodes (endpoints scoped to the org)."""
+        org = _require_current_org()
         k = request.path_count_limit or 5
 
-        query = """
+        query = f"""
         MATCH (start), (end)
         WHERE id(start) = $source_id AND id(end) = $target_id
+          AND start.organization_id = '{org}' AND end.organization_id = '{org}'
         CALL apoc.algo.kShortestPaths(start, end, $k, 'BOTH', $weight_property) YIELD path, weight
         RETURN [node in nodes(path) | toString(id(node))] as nodes,
                [rel in relationships(path) | toString(id(rel))] as edges,
@@ -736,16 +798,27 @@ class GraphAnalyticsService:
 
             return paths
 
-    async def get_graph_statistics(self) -> GraphStatistics:
-        """Get overall graph statistics"""
+    async def get_graph_statistics(self, organization_id: str) -> GraphStatistics:
+        """Get graph statistics for a single organization."""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
 
+        org_token = _current_org.set(_validate_organization_id(organization_id))
         try:
+            org = _require_current_org()
             async with self.get_session() as session:
-                # Get node and edge counts
-                node_count_query = "MATCH (n) RETURN count(n) as total_nodes"
-                edge_count_query = "MATCH ()-[r]->() RETURN count(r) as total_edges"
+                # Every count/distribution is org-scoped — an unscoped MATCH (n)
+                # counted the entire cross-tenant graph. Node org is a property;
+                # edges are scoped via their endpoint nodes.
+                node_count_query = (
+                    f"MATCH (n) WHERE n.organization_id = '{org}' "
+                    "RETURN count(n) as total_nodes"
+                )
+                edge_count_query = (
+                    f"MATCH (a)-[r]->(b) WHERE a.organization_id = '{org}' "
+                    f"AND b.organization_id = '{org}' "
+                    "RETURN count(r) as total_edges"
+                )
 
                 node_result = await session.run(node_count_query)
                 node_record = await node_result.single()
@@ -756,10 +829,10 @@ class GraphAnalyticsService:
                 total_edges = edge_record["total_edges"]
 
                 # Get node types distribution
-                node_types_query = """
-                MATCH (n)
-                RETURN labels(n)[0] as node_type, count(n) as count
-                """
+                node_types_query = (
+                    f"MATCH (n) WHERE n.organization_id = '{org}' "
+                    "RETURN labels(n)[0] as node_type, count(n) as count"
+                )
                 node_types_result = await session.run(node_types_query)
                 node_types = {}
                 async for record in node_types_result:
@@ -767,10 +840,11 @@ class GraphAnalyticsService:
                     node_types[node_type] = record["count"]
 
                 # Get edge types distribution
-                edge_types_query = """
-                MATCH ()-[r]->()
-                RETURN type(r) as edge_type, count(r) as count
-                """
+                edge_types_query = (
+                    f"MATCH (a)-[r]->(b) WHERE a.organization_id = '{org}' "
+                    f"AND b.organization_id = '{org}' "
+                    "RETURN type(r) as edge_type, count(r) as count"
+                )
                 edge_types_result = await session.run(edge_types_query)
                 edge_types = {}
                 async for record in edge_types_result:
@@ -784,18 +858,12 @@ class GraphAnalyticsService:
                     else 0
                 )
 
-                # Get connected components (simplified)
-                components_query = """
-                CALL apoc.algo.connectedComponents() Yield component
-                RETURN count(DISTINCT component) as connected_components
-                """
-                components_result = await session.run(components_query)
-                components_record = await components_result.single()
-                connected_components = (
-                    components_record["connected_components"]
-                    if components_record
-                    else 0
-                )
+                # Connected-component count is left unset: the only available
+                # apoc call here (apoc.algo.connectedComponents()) runs over the
+                # entire cross-tenant graph and cannot be org-scoped, so
+                # computing it would leak a cross-org figure. Optional[int] in
+                # the response model — None means "not computed".
+                connected_components = None
 
                 # Calculate average degree
                 avg_degree = (2 * total_edges) / total_nodes if total_nodes > 0 else 0
@@ -815,14 +883,17 @@ class GraphAnalyticsService:
         except Exception as e:
             logger.error(f"Error getting graph statistics: {e}")
             raise
+        finally:
+            _current_org.reset(org_token)
 
     async def get_centrality_analysis(
-        self, algorithm: str, top_k: int = 100
+        self, algorithm: str, top_k: int = 100, *, organization_id: str
     ) -> CentralityAnalysis:
-        """Get centrality analysis for the graph"""
+        """Get centrality analysis for the graph, scoped to one org."""
         if not self.initialized:
             raise RuntimeError("Graph analytics service not initialized")
 
+        org_token = _current_org.set(_validate_organization_id(organization_id))
         try:
             if algorithm == "pagerank":
                 rankings = await self._get_pagerank_rankings(top_k)
@@ -861,11 +932,16 @@ class GraphAnalyticsService:
         except Exception as e:
             logger.error(f"Error getting centrality analysis: {e}")
             raise
+        finally:
+            _current_org.reset(org_token)
 
     async def _get_pagerank_rankings(self, top_k: int) -> List[CentralityRanking]:
-        """Get PageRank rankings"""
-        query = """
-        CALL apoc.algo.pageRank() YIELD node, score
+        """Get PageRank rankings (org-scoped projection)."""
+        org = _require_current_org()
+        query = f"""
+        MATCH (n) WHERE n.organization_id = '{org}'
+        WITH collect(n) as nodes
+        CALL apoc.algo.pageRank(nodes) YIELD node, score
         RETURN toString(id(node)) as node_id, labels(node)[0] as node_label, score
         ORDER BY score DESC
         LIMIT $limit
@@ -910,10 +986,12 @@ class GraphAnalyticsService:
             return rankings
 
     async def _get_betweenness_rankings(self, top_k: int) -> List[CentralityRanking]:
-        """Get betweenness centrality rankings"""
-        query = """
-        MATCH (n)
-        CALL apoc.algo.betweenness([n]) YIELD node, score
+        """Get betweenness centrality rankings (org-scoped projection)."""
+        org = _require_current_org()
+        query = f"""
+        MATCH (n) WHERE n.organization_id = '{org}'
+        WITH collect(n) as nodes
+        CALL apoc.algo.betweenness(nodes) YIELD node, score
         RETURN toString(id(node)) as node_id, labels(node)[0] as node_label, score
         ORDER BY score DESC
         LIMIT $limit
@@ -958,10 +1036,11 @@ class GraphAnalyticsService:
             return rankings
 
     async def _get_degree_rankings(self, top_k: int) -> List[CentralityRanking]:
-        """Get degree centrality rankings"""
-        query = """
-        MATCH (n)
-        OPTIONAL MATCH (n)-[r]-()
+        """Get degree centrality rankings (org-scoped)."""
+        org = _require_current_org()
+        query = f"""
+        MATCH (n) WHERE n.organization_id = '{org}'
+        OPTIONAL MATCH (n)-[r]-(m) WHERE m.organization_id = '{org}'
         WITH n, count(r) as degree
         RETURN toString(id(n)) as node_id, labels(n)[0] as node_label,
                toFloat(degree) as score
@@ -1033,45 +1112,61 @@ class GraphAnalyticsService:
 
         return distribution
 
+    def _org_node_clause(self, alias: str = "n") -> str:
+        """``<alias>.organization_id = '<validated-uuid>'`` for the active org.
+
+        The org is a validated UUID so interpolation is injection-safe. Used to
+        scope every node match (primary and neighbor) to the caller's tenant.
+        """
+        return f"{alias}.organization_id = '{_require_current_org()}'"
+
     def _build_node_filter(self, node_filters: Optional[Dict[str, Any]]) -> str:
-        """Build node filter Cypher clause"""
-        if not node_filters:
-            return ""
+        """Build node filter Cypher clause, ALWAYS scoped to the active org.
 
-        conditions = []
-        for key, value in node_filters.items():
-            if key == "labels":
-                labels_str = " AND ".join(
-                    [f"'{label}' in labels(n)" for label in value]
-                )
-                conditions.append(labels_str)
-            elif key == "properties":
-                for prop_key, prop_value in value.items():
-                    if isinstance(prop_value, str):
-                        conditions.append(f"n.{prop_key} = '{prop_value}'")
-                    else:
-                        conditions.append(f"n.{prop_key} = {prop_value}")
-
-        return f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        Previously this returned ``""`` for no filters (unscoped → cross-tenant)
+        and f-stringed user values straight into Cypher (injection). Now it
+        always emits the org predicate and allowlists labels / property keys /
+        values.
+        """
+        conditions = [self._org_node_clause("n")]
+        if node_filters:
+            for key, value in node_filters.items():
+                if key == "labels":
+                    for label in value:
+                        _validate_identifier(label, "node label")
+                    conditions.extend(f"'{label}' in labels(n)" for label in value)
+                elif key == "properties":
+                    for prop_key, prop_value in value.items():
+                        _validate_identifier(prop_key, "node property")
+                        conditions.append(
+                            f"n.{prop_key} = {_cypher_literal(prop_value)}"
+                        )
+        return f"WHERE {' AND '.join(conditions)}"
 
     def _build_edge_filter(self, edge_filters: Optional[Dict[str, Any]]) -> str:
-        """Build edge filter Cypher clause"""
+        """Build edge filter Cypher clause (injection-safe).
+
+        Edges carry no org of their own — they are scoped transitively because
+        both endpoint nodes are org-filtered. Values/keys are allowlisted.
+        """
         if not edge_filters:
             return ""
 
         conditions = []
         for key, value in edge_filters.items():
             if key == "types":
+                for edge_type in value:
+                    _validate_identifier(edge_type, "edge type")
                 types_str = " OR ".join(
                     [f"type(r) = '{edge_type}'" for edge_type in value]
                 )
                 conditions.append(f"({types_str})")
             elif key == "properties":
                 for prop_key, prop_value in value.items():
-                    if isinstance(prop_value, str):
-                        conditions.append(f"r.{prop_key} = '{prop_value}'")
-                    else:
-                        conditions.append(f"r.{prop_key} = {prop_value}")
+                    _validate_identifier(prop_key, "edge property")
+                    conditions.append(
+                        f"r.{prop_key} = {_cypher_literal(prop_value)}"
+                    )
 
         return f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
