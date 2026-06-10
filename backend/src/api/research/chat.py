@@ -105,15 +105,26 @@ Always be precise and ensure EVERY factual claim is properly cited using [Doc N]
 
 
 async def retrieve_context(
-    query: str, max_docs: int = 5
+    query: str,
+    max_docs: int = 5,
+    *,
+    organization_id: str,
+    user_id: Optional[str] = None,
 ) -> tuple[List[RetrievedContext], Optional[str]]:
     """
     Retrieve relevant context from indexed documents using hybrid search.
+
+    ``organization_id`` is REQUIRED and is the tenant boundary: both search
+    legs skip filtering when it is falsy, so passing None (as this function
+    used to hardcode) returned document chunks from every organization into
+    the chat answer + citations. Callers must pass the requesting user's org.
 
     Returns:
         Tuple of (contexts, diagnostics_trace_id).
         diagnostics_trace_id is None if diagnostics storage fails.
     """
+    if not organization_id:
+        raise ValueError("organization_id is required for RAG retrieval")
     try:
         search_request = SearchQuery(query=query, limit=max_docs, search_type="hybrid")
 
@@ -124,7 +135,9 @@ async def retrieve_context(
         search_response, trace = await loop.run_in_executor(
             None,
             lambda: hybrid_search_service.search_with_diagnostics(
-                search_request=search_request, user_id=None, organization_id=None
+                search_request=search_request,
+                user_id=user_id,
+                organization_id=organization_id,
             ),
         )
 
@@ -300,7 +313,9 @@ def build_context_prompt(contexts: List[RetrievedContext]) -> str:
 
 @router.post("/completions", response_model=ChatCompletionResponse)
 async def chat_completions(
-    request: ChatCompletionRequest, background_tasks: BackgroundTasks
+    request: ChatCompletionRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get chat completion from Azure OpenAI.
@@ -308,6 +323,10 @@ async def chat_completions(
     Supports multi-turn conversations by accepting full message history.
     Optionally enables RAG to retrieve context from indexed documents.
     Uses semantic caching to reduce API costs for similar queries.
+
+    Requires authentication: RAG retrieval is scoped to the caller's
+    organization, so an unauthenticated request can never be served without
+    leaking other tenants' documents.
     """
     try:
         # Check if Azure OpenAI chat is available
@@ -328,7 +347,10 @@ async def chat_completions(
         if request.use_rag:
             if last_query:
                 retrieved_contexts, diagnostics_trace_id = await retrieve_context(
-                    last_query, request.max_context_docs
+                    last_query,
+                    request.max_context_docs,
+                    organization_id=str(current_user.organization_id),
+                    user_id=str(current_user.id),
                 )
                 logger.info(f"Retrieved {len(retrieved_contexts)} documents for RAG")
 

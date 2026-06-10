@@ -375,6 +375,11 @@ def get_search_suggestions(
             """Escape SQL LIKE special characters."""
             return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+        # Scope to workspaces the caller can access (owner / public / member).
+        # The previous ``organization_id = :org OR organization_id IS NULL``
+        # clause leaked every NULL-org (personal) workspace's thread titles to
+        # all users, and within an org showed all members' titles regardless of
+        # membership.
         suggestion_sql = """
             SELECT DISTINCT t.title
             FROM threads t
@@ -385,12 +390,21 @@ def get_search_suggestions(
                 AND w.is_deleted = false
                 AND t.title IS NOT NULL
                 AND LOWER(t.title) LIKE LOWER(:query_pattern)
-                AND (w.organization_id = :organization_id OR w.organization_id IS NULL)
+                AND (
+                    w.owner_id = :access_user_id
+                    OR w.is_public = true
+                    OR EXISTS (
+                        SELECT 1 FROM workspace_members wm
+                        WHERE wm.workspace_id = w.id
+                          AND wm.user_id = :access_user_id
+                          AND wm.is_deleted = false
+                    )
+                )
         """
 
         params = {
             "query_pattern": f"%{_escape_like(query)}%",
-            "organization_id": str(current_user.organization_id),
+            "access_user_id": str(current_user.id),
         }
 
         if workspace_id:

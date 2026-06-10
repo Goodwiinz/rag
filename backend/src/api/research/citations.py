@@ -70,6 +70,33 @@ def _citation_is_accessible(citation: Citation, current_user: User) -> bool:
     ) or _message_is_accessible(getattr(citation, "message", None), current_user)
 
 
+async def _load_accessible_citation(
+    citation_id: UUID, current_user: User, db: AsyncSession
+) -> Citation:
+    """Load a citation with the relationships ``_citation_is_accessible`` needs
+    and enforce access. Raises 404 if missing or not accessible (404, not 403,
+    so a caller cannot probe which citation ids exist). Eager-load shape mirrors
+    ``get_citation`` (citations.py:232)."""
+    result = await db.execute(
+        select(Citation)
+        .options(
+            selectinload(Citation.document),
+            selectinload(Citation.message)
+            .selectinload(ChatMessage.thread)
+            .selectinload(Thread.conversation)
+            .selectinload(Conversation.workspace),
+        )
+        .where(Citation.id == citation_id)
+    )
+    citation = result.scalar_one_or_none()
+    if citation is None or not _citation_is_accessible(citation, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Citation not found",
+        )
+    return citation
+
+
 async def _ensure_project_access(
     project_id: UUID,
     current_user: User,
@@ -728,6 +755,18 @@ async def list_citation_relationships(
     """
     from src.models import CitationRelationship
 
+    # Require an anchor citation and verify the caller can access it — otherwise
+    # this endpoint enumerated every tenant's citation relationships (including
+    # citation_context text). Relationships hang off the anchor the user owns.
+    if not source_id and not target_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="source_id or target_id is required",
+        )
+    for anchor_id in (source_id, target_id):
+        if anchor_id:
+            await _load_accessible_citation(anchor_id, current_user, db)
+
     try:
         query = select(CitationRelationship)
 
@@ -803,26 +842,11 @@ async def create_citation_relationship(
         )
 
     try:
-        # Verify both citations exist
-        source_query = select(Citation).where(Citation.id == source_citation_id)
-        target_query = select(Citation).where(Citation.id == target_citation_id)
-
-        source_result = await db.execute(source_query)
-        target_result = await db.execute(target_query)
-
-        source_citation = source_result.scalar_one_or_none()
-        target_citation = target_result.scalar_one_or_none()
-
-        if not source_citation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Source citation {source_citation_id} not found",
-            )
-        if not target_citation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Target citation {target_citation_id} not found",
-            )
+        # Verify both citations exist AND are accessible to the caller —
+        # existence-only let a user link/pollute arbitrary cross-tenant
+        # citations by id.
+        await _load_accessible_citation(source_citation_id, current_user, db)
+        await _load_accessible_citation(target_citation_id, current_user, db)
 
         # Create relationship in PostgreSQL
         relationship = CitationRelationship(
@@ -892,6 +916,7 @@ async def get_citation_graph(
     depth: int = Query(2, ge=1, le=5, description="Graph traversal depth"),
     include_external: bool = Query(True, description="Include external papers"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get citation graph data for visualization.
 
@@ -906,6 +931,29 @@ async def get_citation_graph(
         Graph data with nodes, edges, and metadata
     """
     from src.services.research.citation_graph_service import get_citation_graph_service
+
+    # Require an anchor and verify ownership — an unscoped graph traversed every
+    # tenant's citations. project_id → workspace owner; document_id → org.
+    if not project_id and not document_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id or document_id is required",
+        )
+    if project_id:
+        await _ensure_project_access(project_id, current_user, db)
+    if document_id:
+        doc_check = await db.execute(
+            select(Document.id).where(
+                Document.id == document_id,
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
+            )
+        )
+        if doc_check.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found",
+            )
 
     try:
         graph_service = await get_citation_graph_service()
@@ -939,6 +987,7 @@ async def get_citation_graph(
 async def get_graph_node_details(
     citation_id: UUID,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get detailed information about a graph node.
 
@@ -950,6 +999,9 @@ async def get_graph_node_details(
         Node details with citation counts and influence score
     """
     from src.services.research.citation_graph_service import get_citation_graph_service
+
+    # Verify the caller can access this citation before returning node details.
+    await _load_accessible_citation(citation_id, current_user, db)
 
     try:
         graph_service = await get_citation_graph_service()

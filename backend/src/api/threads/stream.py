@@ -12,6 +12,8 @@ import logging
 from typing import Optional, Set
 from uuid import UUID
 
+from functools import partial
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -100,10 +102,18 @@ async def stream_thread_chat(
         _active_streams.add(thread_id)
         async with AsyncSessionLocal() as db:
             chat_service = ChatService(db)
+            # Bind the caller's org/user so RAG retrieval is tenant-scoped.
+            # StreamService calls retrieve_context_fn(content, max_docs)
+            # positionally; partial injects the keyword-only scope.
+            scoped_retrieve_context = partial(
+                retrieve_context,
+                organization_id=str(current_user.organization_id),
+                user_id=str(current_user.id),
+            )
             stream_service = StreamService(
                 chat_service=chat_service,
                 openai_service=azure_openai_service,
-                retrieve_context_fn=retrieve_context,
+                retrieve_context_fn=scoped_retrieve_context,
                 build_context_prompt_fn=build_context_prompt,
                 rag_system_prompt=RAG_SYSTEM_PROMPT,
             )
