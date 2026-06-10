@@ -416,7 +416,7 @@ export function ChatInput({
             >
               <div className="flex items-center gap-0.5">
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -428,12 +428,21 @@ export function ChatInput({
                   }}
                   aria-label="Attach file"
                   title="Attach file"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      const input = e.currentTarget.querySelector('input');
+                      input?.click();
+                    }
+                  }}
                 >
                   <Paperclip className="w-3.5 h-3.5" strokeWidth={1.7} />
                   <input
                     type="file"
                     multiple
                     className="hidden"
+                    tabIndex={-1}
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files && files.length > 0 && onAttach) {
@@ -444,7 +453,7 @@ export function ChatInput({
                   />
                 </label>
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
                   style={{ color: 'var(--nous-fg-3)' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
@@ -456,6 +465,14 @@ export function ChatInput({
                   }}
                   aria-label="Attach image"
                   title="Attach image"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      const input = e.currentTarget.querySelector('input');
+                      input?.click();
+                    }
+                  }}
                 >
                   <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.7} />
                   <input
@@ -463,6 +480,7 @@ export function ChatInput({
                     accept="image/*"
                     multiple
                     className="hidden"
+                    tabIndex={-1}
                     onChange={(e) => {
                       const files = e.target.files;
                       if (files && files.length > 0 && onAttach) {
