@@ -21,6 +21,8 @@ vi.mock('@/store/chat-store', () => ({
     selector({
       workspaces: [{ id: 'workspace-1', name: 'Default workspace' }],
     }),
+  selectCurrentThreadProjectId: () => null,
+  resolveBoundProjectId: () => null,
 }));
 
 vi.mock('@/stores/authStore', () => ({
