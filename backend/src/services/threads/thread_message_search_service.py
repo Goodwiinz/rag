@@ -26,6 +26,27 @@ from src.models.thread import Thread, ThreadStatus
 logger = logging.getLogger(__name__)
 
 
+# Workspace access predicate shared by every search query builder. The search
+# builders previously accepted ``user_id`` but never applied it, so any
+# authenticated user could full-text search every workspace's threads and
+# messages across all tenants. This mirrors
+# ``ChatService._user_can_access_workspace`` (owner OR public OR active member)
+# as a SQL predicate. Bound as ``:access_user_id`` — a distinct name from the
+# ``:user_id`` message-author search filter so the two never collide.
+_WORKSPACE_ACCESS_PREDICATE = (
+    "    AND (\n"
+    "        w.owner_id = :access_user_id\n"
+    "        OR w.is_public = true\n"
+    "        OR EXISTS (\n"
+    "            SELECT 1 FROM workspace_members wm\n"
+    "            WHERE wm.workspace_id = w.id\n"
+    "              AND wm.user_id = :access_user_id\n"
+    "              AND wm.is_deleted = false\n"
+    "        )\n"
+    "    )"
+)
+
+
 # ============================================================================
 # Search Schemas
 # ============================================================================
@@ -517,10 +538,16 @@ class ThreadMessageSearchService:
                 LIMIT :limit
             """
 
-            # Build filters
-            thread_filters = ""
-            message_filters = ""
-            params = {"query": search_terms, "limit": limit}
+            # Build filters. Seed both CTE filter strings with the workspace
+            # access predicate so the combined search is tenant-scoped like the
+            # thread/message builders (both CTEs alias the workspace as ``w``).
+            thread_filters = _WORKSPACE_ACCESS_PREDICATE
+            message_filters = _WORKSPACE_ACCESS_PREDICATE
+            params = {
+                "query": search_terms,
+                "limit": limit,
+                "access_user_id": str(user_id),
+            }
 
             if workspace_id:
                 thread_filters += " AND w.id = :workspace_id"
@@ -619,9 +646,10 @@ class ThreadMessageSearchService:
             "        t.search_vector @@ plainto_tsquery(:query)",
             "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query))",
             "    )",
+            _WORKSPACE_ACCESS_PREDICATE,
         ]
 
-        params = {"query": search_terms}
+        params = {"query": search_terms, "access_user_id": str(user_id)}
 
         # Add filters
         if request.filters:
@@ -687,9 +715,10 @@ class ThreadMessageSearchService:
             "        t.search_vector @@ plainto_tsquery(:query)",
             "        OR EXISTS (SELECT 1 FROM chat_messages cm WHERE cm.thread_id = t.id AND cm.search_vector @@ plainto_tsquery(:query))",
             "    )",
+            _WORKSPACE_ACCESS_PREDICATE,
         ]
 
-        params = {"query": search_terms}
+        params = {"query": search_terms, "access_user_id": str(user_id)}
 
         # Add same filters as main query
         if request.filters:
@@ -734,9 +763,10 @@ class ThreadMessageSearchService:
             "    AND t.is_deleted = false",
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
+            _WORKSPACE_ACCESS_PREDICATE,
         ]
 
-        params = {"query": search_terms}
+        params = {"query": search_terms, "access_user_id": str(user_id)}
 
         # Add filters
         if request.filters:
@@ -808,9 +838,10 @@ class ThreadMessageSearchService:
             "    AND t.is_deleted = false",
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
+            _WORKSPACE_ACCESS_PREDICATE,
         ]
 
-        params = {"query": search_terms}
+        params = {"query": search_terms, "access_user_id": str(user_id)}
 
         # Add same filters as main query
         if request.filters:
