@@ -685,6 +685,18 @@ jobs:
           echo "=== Frontend Logs ==="
           docker logs frontend-e2e --tail=100 2>&1 || true
           echo ""
+          # GoTrue logs the SQL error behind opaque 500s like "Database error
+          # checking email" (seen from the seed-mirror step) only to its own
+          # stdout — without this dump those failures are undiagnosable.
+          echo "=== GoTrue Logs ==="
+          docker logs rag_system-gotrue-1 --tail=100 2>&1 || true
+          echo ""
+          echo "=== Postgres Logs ==="
+          docker logs rag_system-postgres-1 --tail=60 2>&1 || true
+          echo ""
+          echo "=== auth schema contents ==="
+          docker exec rag_system-postgres-1 psql -U test -d test_db -c '\dt auth.*' 2>&1 || true
+          echo ""
           echo "=== Docker Compose Status ==="
           docker compose -p rag_system -f docker-compose.ci.yml ps
       - name: Cleanup
