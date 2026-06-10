@@ -7,7 +7,7 @@ import pytest
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from unittest.mock import Mock, AsyncMock
 

@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Generator, AsyncGenerator, List
 from unittest.mock import Mock, AsyncMock
 from pathlib import Path

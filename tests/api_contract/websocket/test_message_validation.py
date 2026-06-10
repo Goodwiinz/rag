@@ -9,7 +9,7 @@ import pytest
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from jsonschema import validate, ValidationError
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -44,7 +44,7 @@ class TestWebSocketMessageValidation:
         valid_messages = [
             {
                 "type": MessageType.PING.value,
-                "data": {"timestamp": datetime.utcnow().isoformat()}
+                "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
             },
             {
                 "type": MessageType.SUBSCRIBE.value,
@@ -201,7 +201,7 @@ class TestWebSocketMessageValidation:
             {
                 "type": MessageType.PING.value,
                 "data": {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "sequence": 1
                 }
             },
@@ -251,7 +251,7 @@ class TestWebSocketMessageValidation:
         # 2. Ping-Pong
         ping_message = {
             "type": MessageType.PING.value,
-            "data": {"timestamp": datetime.utcnow().isoformat()}
+            "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
         }
         await websocket_test_client.send_message(ping_message)
 
@@ -338,12 +338,12 @@ class TestWebSocketMessageValidation:
                 }
             }
 
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             await websocket_test_client.send_message(message)
 
             # Measure processing time
-            processing_time = (datetime.utcnow() - start_time).total_seconds()
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Should be processed successfully (unless too large)
             try:
@@ -444,7 +444,7 @@ class TestWebSocketMessageValidation:
                 "data": {
                     "test": True,
                     "priority": priority,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
             messages.append(message)
@@ -487,9 +487,9 @@ class TestWebSocketMessageValidation:
         # Test various timestamp formats
         timestamp_tests = [
             # Valid ISO 8601 formats
-            datetime.utcnow().isoformat(),
-            datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-            datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            datetime.now(timezone.utc).isoformat(),
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 
             # Invalid formats
             "invalid-timestamp",
@@ -619,7 +619,7 @@ class TestStatusUpdateValidation:
                     "status": "queued",
                     "total_items": 100,
                     "processed_items": 0,
-                    "estimated_completion": (datetime.utcnow() + timedelta(minutes=10)).isoformat()
+                    "estimated_completion": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
                 }
             },
             {
@@ -662,7 +662,7 @@ class TestStatusUpdateValidation:
                     "status": "healthy",
                     "response_time_ms": 45,
                     "uptime_percentage": 99.9,
-                    "last_check": datetime.utcnow().isoformat()
+                    "last_check": datetime.now(timezone.utc).isoformat()
                 }
             },
             {

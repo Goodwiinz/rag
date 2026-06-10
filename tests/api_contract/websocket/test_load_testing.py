@@ -14,7 +14,7 @@ import time
 import psutil
 import os
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -250,7 +250,7 @@ class WebSocketLoadTester:
                         "type": MessageType.PING.value,
                         "data": {
                             "message_id": message_count,
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                             "generator_id": id(connections)
                         }
                     }

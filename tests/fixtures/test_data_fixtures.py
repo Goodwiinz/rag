@@ -6,7 +6,7 @@ Provides comprehensive mock data generation utilities for testing
 import json
 import uuid
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -179,7 +179,7 @@ class DocumentFixture:
         }
 
         processing_status = random.choice(list(ProcessingStatus))
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         processing_times = {
             ProcessingStatus.COMPLETED: {

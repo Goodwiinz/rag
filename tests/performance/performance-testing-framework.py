@@ -16,7 +16,7 @@ import psutil
 import requests
 from typing import Dict, List, Any, Optional, Callable, Union
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import aiohttp

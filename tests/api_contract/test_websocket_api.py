@@ -8,7 +8,7 @@ import json
 import uuid
 import asyncio
 import websockets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -32,7 +32,7 @@ class TestWebSocketConnectionAPI:
         # Send a test message
         test_message = {
             "type": "ping",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         await websocket_client.send_message(test_message)
@@ -564,7 +564,7 @@ class TestWebSocketPerformance:
             ping_message = {
                 "type": "ping",
                 "message_id": i,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             await websocket_client.send_message(ping_message)

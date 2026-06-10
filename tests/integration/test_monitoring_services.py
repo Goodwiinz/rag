@@ -21,7 +21,7 @@ import pytest
 import asyncio
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, AsyncGenerator
 from unittest.mock import Mock, AsyncMock, patch
 import httpx
@@ -152,7 +152,7 @@ class TestObservabilityManagerIntegration:
             "name": "test_metric",
             "value": 42.5,
             "labels": {"service": "test", "environment": "test"},
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         result = await observability_manager.collect_metric(metric_data)
@@ -164,7 +164,7 @@ class TestObservabilityManagerIntegration:
             "span_id": "test-span-456",
             "operation_name": "test_operation",
             "duration_ms": 150,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
 
         result = await observability_manager.record_trace(trace_data)
@@ -221,21 +221,21 @@ class TestMetricsCollectorIntegration:
                 "value": 125.5,
                 "type": MetricType.HISTOGRAM,
                 "labels": {"endpoint": "/api/search", "method": "POST"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             },
             {
                 "name": "active_connections",
                 "value": 42,
                 "type": MetricType.GAUGE,
                 "labels": {"service": "websocket"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             },
             {
                 "name": "total_requests",
                 "value": 1,
                 "type": MetricType.COUNTER,
                 "labels": {"status": "200"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             }
         ]
 
@@ -257,7 +257,7 @@ class TestMetricsCollectorIntegration:
     async def test_metrics_aggregation_and_querying(self, metrics_collector, test_db_session):
         """Test metrics aggregation and querying capabilities"""
         # Insert test metrics with different timestamps
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i in range(10):
             metric = {
                 "name": "response_time",
@@ -290,21 +290,21 @@ class TestMetricsCollectorIntegration:
                 "value": 1,
                 "type": MetricType.COUNTER,
                 "labels": {"endpoint": "/api/search", "method": "GET", "status": "200"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             },
             {
                 "name": "api_requests",
                 "value": 1,
                 "type": MetricType.COUNTER,
                 "labels": {"endpoint": "/api/upload", "method": "POST", "status": "201"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             },
             {
                 "name": "api_requests",
                 "value": 1,
                 "type": MetricType.COUNTER,
                 "labels": {"endpoint": "/api/search", "method": "POST", "status": "400"},
-                "timestamp": datetime.utcnow()
+                "timestamp": datetime.now(timezone.utc)
             }
         ]
 
@@ -342,7 +342,7 @@ class TestTracingCollectorIntegration:
                     "parent_span_id": None,
                     "operation_name": "HTTP POST /api/search",
                     "duration_ms": 150,
-                    "start_time": datetime.utcnow(),
+                    "start_time": datetime.now(timezone.utc),
                     "tags": {"http.method": "POST", "http.status_code": "200"},
                     "logs": []
                 },
@@ -351,7 +351,7 @@ class TestTracingCollectorIntegration:
                     "parent_span_id": "span-1",
                     "operation_name": "vector_search",
                     "duration_ms": 75,
-                    "start_time": datetime.utcnow(),
+                    "start_time": datetime.now(timezone.utc),
                     "tags": {"service": "vector_store", "query_type": "semantic"},
                     "logs": []
                 },
@@ -360,7 +360,7 @@ class TestTracingCollectorIntegration:
                     "parent_span_id": "span-1",
                     "operation_name": "graph_search",
                     "duration_ms": 50,
-                    "start_time": datetime.utcnow(),
+                    "start_time": datetime.now(timezone.utc),
                     "tags": {"service": "knowledge_graph", "nodes_returned": "5"},
                     "logs": []
                 }
@@ -383,7 +383,7 @@ class TestTracingCollectorIntegration:
     async def test_trace_querying_and_filtering(self, tracing_collector, test_db_session):
         """Test trace querying and filtering capabilities"""
         # Create multiple traces
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         trace_ids = ["trace-1", "trace-2", "trace-3"]
 
         for i, trace_id in enumerate(trace_ids):
@@ -427,7 +427,7 @@ class TestTracingCollectorIntegration:
                 "parent_span_id": None,
                 "operation_name": "slow_operation",
                 "duration_ms": 5000,  # 5 seconds - slow
-                "start_time": datetime.utcnow(),
+                "start_time": datetime.now(timezone.utc),
                 "tags": {"service": "database", "query_complexity": "high"},
                 "logs": []
             }]
@@ -440,7 +440,7 @@ class TestTracingCollectorIntegration:
                 "parent_span_id": None,
                 "operation_name": "fast_operation",
                 "duration_ms": 50,  # 50ms - fast
-                "start_time": datetime.utcnow(),
+                "start_time": datetime.now(timezone.utc),
                 "tags": {"service": "cache", "hit": "true"},
                 "logs": []
             }]
@@ -451,8 +451,8 @@ class TestTracingCollectorIntegration:
 
         # Test performance analysis
         analysis = await tracing_collector.analyze_trace_performance(
-            start_time=datetime.utcnow() - timedelta(hours=1),
-            end_time=datetime.utcnow() + timedelta(hours=1)
+            start_time=datetime.now(timezone.utc) - timedelta(hours=1),
+            end_time=datetime.now(timezone.utc) + timedelta(hours=1)
         )
 
         assert 'avg_duration' in analysis
@@ -476,21 +476,21 @@ class TestHealthCheckIntegration:
             mock_db.return_value = HealthCheckResult(
                 component="database",
                 status=ComponentStatus.HEALTHY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 details={"connection_time_ms": 5}
             )
 
             mock_vector.return_value = HealthCheckResult(
                 component="vector_store",
                 status=ComponentStatus.HEALTHY,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 details={"collections_count": 10}
             )
 
             mock_graph.return_value = HealthCheckResult(
                 component="graph_db",
                 status=ComponentStatus.WARNING,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 details={"node_count": 1000, "memory_usage": "85%"}
             )
 
@@ -517,7 +517,7 @@ class TestHealthCheckIntegration:
             return HealthCheckResult(
                 component="test_component",
                 status=ComponentStatus.HEALTHY,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
 
         with patch.object(health_check_service, 'check_database_health', side_effect=mock_health_check):
@@ -540,7 +540,7 @@ class TestHealthCheckIntegration:
         unhealthy_result = HealthCheckResult(
             component="database",
             status=ComponentStatus.ERROR,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             details={"error": "Connection timeout", "timeout_ms": 30000}
         )
 
@@ -684,7 +684,7 @@ class TestPerformanceAnalyticsIntegration:
     async def test_performance_metrics_analysis(self, performance_analytics, test_db_session):
         """Test performance metrics collection and analysis"""
         # Insert performance metrics
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i in range(100):
             metric = {
                 "name": "request_duration",
@@ -721,7 +721,7 @@ class TestPerformanceAnalyticsIntegration:
     async def test_performance_trend_analysis(self, performance_analytics, test_db_session):
         """Test performance trend analysis over time"""
         # Create metrics with trend (improving performance)
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for hour in range(24):
             response_time = 500 - (hour * 10)  # Improving from 500ms to 260ms
 
@@ -757,7 +757,7 @@ class TestPerformanceAnalyticsIntegration:
     async def test_performance_anomaly_detection(self, performance_analytics, test_db_session):
         """Test performance anomaly detection"""
         # Create normal performance baseline
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i in range(50):
             metric = {
                 "name": "cpu_usage",
@@ -826,7 +826,7 @@ class TestMonitoringAPIIntegration:
             "value": 123.45,
             "type": "gauge",
             "labels": {"source": "api_test"},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         response = test_client.post("/api/monitoring/metrics", json=metric_data)
@@ -851,7 +851,7 @@ class TestMonitoringAPIIntegration:
                 "span_id": "api-test-span",
                 "operation_name": "api_test_operation",
                 "duration_ms": 100,
-                "start_time": datetime.utcnow().isoformat(),
+                "start_time": datetime.now(timezone.utc).isoformat(),
                 "tags": {"test": "true"}
             }]
         }
@@ -952,7 +952,7 @@ class TestWebSocketIntegration:
                 "value": 42,
                 "type": "gauge",
                 "labels": {"service": "test_service"},
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             # This would normally trigger a WebSocket message
@@ -1008,14 +1008,14 @@ class TestEndToEndMonitoringWorkflow:
                 "value": 2500,  # High response time
                 "type": "histogram",
                 "labels": {"endpoint": "/api/search"},
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             },
             {
                 "name": "error_rate",
                 "value": 0.15,  # 15% error rate
                 "type": "gauge",
                 "labels": {"service": "api_server"},
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         ]
 
@@ -1030,7 +1030,7 @@ class TestEndToEndMonitoringWorkflow:
                 "span_id": "slow-operation",
                 "operation_name": "database_query",
                 "duration_ms": 3000,  # Slow operation
-                "start_time": datetime.utcnow().isoformat(),
+                "start_time": datetime.now(timezone.utc).isoformat(),
                 "tags": {"service": "database", "slow": "true"}
             }]
         }
@@ -1088,7 +1088,7 @@ class TestEndToEndMonitoringWorkflow:
             "name": "recovery_test",
             "value": 42,
             "type": "gauge",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         response = test_client.post("/api/monitoring/metrics", json=valid_metric)

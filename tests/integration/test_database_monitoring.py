@@ -16,7 +16,7 @@ import pytest
 import asyncio
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, AsyncGenerator
 from unittest.mock import Mock, AsyncMock, patch
 import psycopg2
@@ -188,8 +188,8 @@ class TestPostgreSQLMonitoringIntegration:
                 content=f"Test content for document {i}",
                 document_type=DocumentType.PDF,
                 processing_status=ProcessingStatus.COMPLETED,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
             )
             test_documents.append(doc)
             postgres_session.add(doc)
@@ -301,7 +301,7 @@ class TestPostgreSQLMonitoringIntegration:
             value=42.5,
             type=MetricType.GAUGE,
             labels={"test": "integrity"},
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         postgres_session.add(test_metric)
 
@@ -343,7 +343,7 @@ class TestPostgreSQLMonitoringIntegration:
                 name="transaction_test_1",
                 value=1.0,
                 type=MetricType.COUNTER,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             postgres_session.add(metric1)
             postgres_session.flush()  # Get ID without committing
@@ -364,7 +364,7 @@ class TestPostgreSQLMonitoringIntegration:
             name="transaction_test_2",
             value=2.0,
             type=MetricType.COUNTER,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         postgres_session.add(metric2)
         postgres_session.commit()
@@ -411,7 +411,7 @@ class TestRedisMonitoringIntegration:
             metric = {
                 "name": f"cache_test_metric_{i}",
                 "value": np.random.random() * 100,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "labels": {"service": f"service_{i % 5}"}
             }
             test_metrics.append(metric)
@@ -499,7 +499,7 @@ class TestRedisMonitoringIntegration:
         test_data = {
             "metric_name": "test_expiration",
             "value": 42,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         # Set with 2 second TTL
@@ -533,7 +533,7 @@ class TestRedisMonitoringIntegration:
             value = json.dumps({
                 "metric": f"metric_{i % 10}",
                 "value": np.random.random() * 100,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
             redis_client.set(key, value)
 
@@ -860,7 +860,7 @@ class TestQdrantMonitoringIntegration:
                 "document_id": f"doc_{i}",
                 "category": f"category_{i % 5}",
                 "importance": np.random.choice(['low', 'medium', 'high']),
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "size": np.random.randint(100, 10000)
             }
 
@@ -999,7 +999,7 @@ class TestQdrantMonitoringIntegration:
                 payload = {
                     "test_id": f"{i}_{j}",
                     "collection": collection_name,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
 
                 client.upsert(
@@ -1061,7 +1061,7 @@ class TestCrossDatabaseIntegration:
             content="This document tests cross-database integration",
             document_type=DocumentType.PDF,
             processing_status=ProcessingStatus.COMPLETED,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         postgres_session.add(document)
         postgres_session.commit()
@@ -1107,7 +1107,7 @@ class TestCrossDatabaseIntegration:
             "id": str(doc_id),
             "title": document.title,
             "status": "completed",
-            "cached_at": datetime.utcnow().isoformat()
+            "cached_at": datetime.now(timezone.utc).isoformat()
         }
         redis_client.setex(cache_key, timedelta(minutes=5), json.dumps(cache_data))
 
@@ -1169,7 +1169,7 @@ class TestCrossDatabaseIntegration:
             value=42.5,
             type=MetricType.GAUGE,
             labels={"test": "consistency"},
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         postgres_session.add(metric)
         postgres_session.commit()
@@ -1242,7 +1242,7 @@ class TestCrossDatabaseIntegration:
             "redis_operation_time": redis_time,
             "neo4j_query_time": neo4j_time,
             "total_time": pg_time + redis_time + neo4j_time,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
         # Store in PostgreSQL for historical analysis
@@ -1251,7 +1251,7 @@ class TestCrossDatabaseIntegration:
             value=performance_metrics["total_time"],
             type=MetricType.HISTOGRAM,
             labels=performance_metrics,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         postgres_session.add(performance_metric)
         postgres_session.commit()
