@@ -20,7 +20,13 @@ vi.mock('@/store/chat-store', () => ({
   useChatStore: (selector: (state: unknown) => unknown) =>
     selector({
       workspaces: [{ id: 'workspace-1', name: 'Default workspace' }],
+      // Fields read by selectCurrentThreadProjectId — no thread selected.
+      currentThreadId: null,
+      threadToConversation: {},
+      threads: {},
     }),
+  selectCurrentThreadProjectId: () => undefined,
+  resolveBoundProjectId: () => undefined,
 }));
 
 vi.mock('@/stores/authStore', () => ({

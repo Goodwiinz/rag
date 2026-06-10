@@ -171,3 +171,125 @@ def test_data_graph_has_force_synthesis_node():
 
     compiled = build_data_subgraph().compile()
     assert "data_force_synthesis_node" in compiled.get_graph().nodes
+
+
+# ---------------------------------------------------------------------------
+# Force-synthesis node bodies — strip-and-synthesize + timeout fallback
+# ---------------------------------------------------------------------------
+
+import asyncio  # noqa: E402
+from unittest.mock import AsyncMock, patch  # noqa: E402
+
+
+def _ceiling_state(tool_name: str, loop_count: int) -> dict:
+    return {
+        "messages": [
+            HumanMessage(content="do the thing"),
+            AIMessage(content="partial findings from tools"),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "call_n", "name": tool_name, "args": {}}],
+            ),
+        ],
+        "tool_loop_count": loop_count,
+        "error_count": 0,
+        "thread_id": "t-ceiling",
+    }
+
+
+def _capturing_llm(response_text: str):
+    llm = AsyncMock()
+    captured: dict = {}
+
+    async def fake_ainvoke(messages, config=None):
+        captured["messages"] = messages
+        return AIMessage(content=response_text)
+
+    llm.ainvoke = fake_ainvoke
+    return llm, captured
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_writing_force_synthesis_strips_tool_calls_and_synthesizes():
+    from src.services.agent.subgraphs.writing_agent import (
+        writing_force_synthesis_node,
+    )
+
+    llm, captured = _capturing_llm("final synthesized draft")
+    state = _ceiling_state("summarize_document", MAX_WRITING_TOOL_LOOPS)
+
+    with patch(
+        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
+    ):
+        result = await writing_force_synthesis_node(state, {"configurable": {}})
+
+    assert result["messages"][0].content == "final synthesized draft"
+    assert result["tool_loop_count"] == MAX_WRITING_TOOL_LOOPS + 1
+    assert result["_force_synthesis_fired"] is True
+    # The trailing tool-call AIMessage was stripped before the LLM saw it.
+    assert not any(
+        getattr(m, "tool_calls", None) for m in captured["messages"]
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_writing_force_synthesis_timeout_emits_fallback():
+    from src.services.agent.subgraphs.writing_agent import (
+        writing_force_synthesis_node,
+    )
+
+    llm = AsyncMock()
+    llm.ainvoke = AsyncMock(side_effect=asyncio.TimeoutError())
+    state = _ceiling_state("summarize_document", MAX_WRITING_TOOL_LOOPS)
+
+    with patch(
+        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
+    ):
+        result = await writing_force_synthesis_node(state, {"configurable": {}})
+
+    # Degraded but never dangling: a real AIMessage with content, flag set.
+    assert result["messages"][0].content
+    assert not result["messages"][0].tool_calls
+    assert result["_force_synthesis_fired"] is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_data_force_synthesis_strips_tool_calls_and_synthesizes():
+    from src.services.agent.subgraphs.data_agent import data_force_synthesis_node
+
+    llm, captured = _capturing_llm("entities: A relates to B")
+    state = _ceiling_state("search_knowledge_graph", MAX_DATA_TOOL_LOOPS)
+
+    with patch(
+        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
+    ):
+        result = await data_force_synthesis_node(state, {"configurable": {}})
+
+    assert result["messages"][0].content == "entities: A relates to B"
+    assert result["tool_loop_count"] == MAX_DATA_TOOL_LOOPS + 1
+    assert result["_force_synthesis_fired"] is True
+    assert not any(
+        getattr(m, "tool_calls", None) for m in captured["messages"]
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_data_force_synthesis_timeout_emits_fallback():
+    from src.services.agent.subgraphs.data_agent import data_force_synthesis_node
+
+    llm = AsyncMock()
+    llm.ainvoke = AsyncMock(side_effect=asyncio.TimeoutError())
+    state = _ceiling_state("search_knowledge_graph", MAX_DATA_TOOL_LOOPS)
+
+    with patch(
+        "src.services.agent.llm_factory.build_synthesis_llm", return_value=llm
+    ):
+        result = await data_force_synthesis_node(state, {"configurable": {}})
+
+    assert result["messages"][0].content
+    assert not result["messages"][0].tool_calls
+    assert result["_force_synthesis_fired"] is True
