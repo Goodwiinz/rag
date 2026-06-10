@@ -29,7 +29,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_memory import memory_retrieval_node
-from src.services.agent._nodes_rag import rag_node
+from src.services.agent._nodes_rag import _coerce_text, rag_node
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
@@ -81,10 +81,14 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
     """
     from src.services.agent.classifier import classify_intent_with_fallback
 
+    # Coerce: multimodal content is a list of blocks; the classifier's
+    # keyword path calls .lower()/.split() on it, which would raise and be
+    # swallowed by the gather(return_exceptions=True) in preprocessing_node,
+    # silently defaulting the intent to "general".
     last_user_msg = ""
     for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content
+            last_user_msg = _coerce_text(msg.content)
             break
 
     if not last_user_msg:
@@ -99,7 +103,7 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
             found_user = True
             continue
         if found_user and isinstance(msg, AIMessage) and msg.content:
-            previous_turn = msg.content
+            previous_turn = _coerce_text(msg.content)
             break
 
     prior_tool = _extract_prior_tool(state["messages"])

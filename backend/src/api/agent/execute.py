@@ -302,7 +302,10 @@ async def get_job_status(job_id: str, current_user: User = Depends(get_current_u
         job = await _get_job_async_local(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("user_id") and job["user_id"] != str(current_user.id):
+    # Fail closed: a job record without an owner must not be readable. Every
+    # write path stamps user_id; its absence means a corrupted/legacy record,
+    # not a public one.
+    if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**job)
 

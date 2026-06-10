@@ -2252,6 +2252,14 @@ async def _tool_execute_code(
 
     if result.error:
         response["error"] = result.error
+    elif result.exit_code != 0:
+        # A non-zero exit with no structured error must still carry an
+        # "error" key — the tool node's classify_error_from_payload keys
+        # off it, and without one a failed run is reported to the LLM as
+        # success.
+        response["error"] = (
+            result.stderr.strip() or f"Code exited with status {result.exit_code}"
+        )
 
     if result.results:
         response["outputs"] = result.results

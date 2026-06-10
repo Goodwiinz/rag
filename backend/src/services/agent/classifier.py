@@ -399,9 +399,15 @@ async def classify_intent_with_fallback(
             "Short zero-confidence query (%d words, no prior tool) — skipping LLM classifier",
             len(query.split()),
         )
+        # Confidence 0.5, not 0.9 — this is a no-signal guess, not a
+        # classification. Nothing downstream routes off this value
+        # (route_by_intent keys off the intent string; the >= threshold
+        # branches below apply to keyword/LLM results, not this return),
+        # so it's telemetry only: dashboards can separate "shortcut
+        # guessed general" from "classifier was sure".
         return ClassificationResult(
             intent="general",
-            confidence=0.9,
+            confidence=0.5,
             reasoning="Short query with no keyword signal.",
             source="shortcut",
         )

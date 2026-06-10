@@ -32,33 +32,6 @@ from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
 
-_DEBUG_LOG_PATH = "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log"
-
-
-def _debug_log(
-    *,
-    hypothesis_id: str,
-    location: str,
-    message: str,
-    data: dict | None = None,
-) -> None:
-    # region agent log
-    try:
-        payload = {
-            "sessionId": "682ae9",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data or {},
-            "timestamp": int(time.time() * 1000),
-        }
-        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as fh:
-            fh.write(_json.dumps(payload) + "\n")
-    except Exception:
-        pass
-    # endregion
-
-
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
@@ -262,20 +235,7 @@ async def stream_event_generator(
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
-    keepalive_count = 0
-    first_graph_event_logged = False
     try:
-        _debug_log(
-            hypothesis_id="H7",
-            location="streaming.py:stream_event_generator",
-            message="stream_start",
-            data={
-                "thread_id": stream_thread_id,
-                "query_preview": (_get_latest_user_content(request_body.messages) or "")[
-                    :120
-                ],
-            },
-        )
         # Persist the user turn BEFORE the LLM call so a mid-stream client
         # disconnect (or any failure inside ``astream_events``) still leaves
         # the user row durable. The assistant row is written after the
@@ -403,17 +363,7 @@ async def stream_event_generator(
                             client_disconnected = True
                             break
                         if item["type"] == "keepalive":
-                            keepalive_count += 1
                             elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
-                            _debug_log(
-                                hypothesis_id="H8",
-                                location="streaming.py:keepalive",
-                                message="sse_keepalive",
-                                data={
-                                    "count": keepalive_count,
-                                    "elapsed_ms": elapsed_ms,
-                                },
-                            )
                             yield (
                                 "event: heartbeat\n"
                                 f"data: {_json.dumps({'elapsed_ms': elapsed_ms})}\n\n"
@@ -422,21 +372,6 @@ async def stream_event_generator(
 
                         event = item["event"]
                         first_event_yielded = True
-                        if not first_graph_event_logged:
-                            first_graph_event_logged = True
-                            _debug_log(
-                                hypothesis_id="H9",
-                                location="streaming.py:first_graph_event",
-                                message="first_graph_event",
-                                data={
-                                    "kind": event.get("event", ""),
-                                    "name": event.get("name", ""),
-                                    "elapsed_ms": int(
-                                        (time.monotonic() - stream_started_at) * 1000
-                                    ),
-                                },
-                            )
-
                         kind = event.get("event", "")
                         name = event.get("name", "")
 
@@ -455,17 +390,6 @@ async def stream_event_generator(
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
                             args_preview = str(tool_input)[:500] if tool_input else ""
-                            _debug_log(
-                                hypothesis_id="H11",
-                                location="streaming.py:tool_start",
-                                message="tool_start",
-                                data={
-                                    "tool": name,
-                                    "elapsed_ms": int(
-                                        (time.monotonic() - stream_started_at) * 1000
-                                    ),
-                                },
-                            )
                             yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                         elif kind == "on_tool_end":
@@ -525,17 +449,6 @@ async def stream_event_generator(
         if client_disconnected:
             with contextlib.suppress(Exception):
                 await event_stream_iter.aclose()
-            _debug_log(
-                hypothesis_id="H10",
-                location="streaming.py:client_disconnect",
-                message="stream_cancelled_on_disconnect",
-                data={
-                    "elapsed_ms": int(
-                        (time.monotonic() - stream_started_at) * 1000
-                    ),
-                    "keepalive_count": keepalive_count,
-                },
-            )
             logger.info(
                 "SSE client disconnected; cancelled agent run for thread %s",
                 stream_thread_id,
@@ -616,26 +529,8 @@ async def stream_event_generator(
             )
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
-        _debug_log(
-            hypothesis_id="H7",
-            location="streaming.py:stream_event_generator",
-            message="stream_done",
-            data={
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
 
     except asyncio.CancelledError:
-        _debug_log(
-            hypothesis_id="H10",
-            location="streaming.py:stream_event_generator",
-            message="stream_cancelled",
-            data={
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
         raise
 
     except GraphInterrupt as exc:
@@ -670,16 +565,6 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
-        _debug_log(
-            hypothesis_id="H10",
-            location="streaming.py:stream_event_generator",
-            message="stream_error",
-            data={
-                "error": str(e)[:300],
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
         yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
 
     finally:
@@ -900,6 +785,7 @@ async def stream_confirm_event_generator(
                 assistant_content,
                 tool_executions_out,
                 retrieved_contexts=final_values.get("retrieved_contexts"),
+                create_if_missing=False,
             )
         except Exception as e:
             logger.warning(

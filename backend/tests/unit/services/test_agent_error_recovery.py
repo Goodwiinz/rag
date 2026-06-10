@@ -114,3 +114,43 @@ class TestRetryTransient:
             await retry_transient(fn, max_attempts=3, base_delay=0.01)
 
         assert call_count == 1
+
+
+@pytest.mark.unit
+class TestConnectionKeywordScoping:
+    """The transient match must be scoped to connection-FAILURE phrases.
+
+    A bare "connection" substring used to match benign payload text like
+    "no connection found between entities" (a KG tool result), triggering a
+    retry of a non-transient error. The scoped list was then re-widened once
+    because it missed the canonical requests/urllib3 failure strings — both
+    directions are pinned here so neither regression can recur silently.
+    """
+
+    def test_benign_connection_text_is_not_transient(self):
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload(
+            "find_entity_paths",
+            {"error": "no connection found between entities"},
+        )
+        assert err.category != "transient"
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "connection refused by host",
+            "connection reset by peer",
+            "connection error while contacting Qdrant",
+            "connection closed unexpectedly",
+            "connection failed after 3 attempts",
+            "('Connection aborted.', RemoteDisconnected('Remote end closed'))",
+            "ECONNREFUSED 127.0.0.1:7687",
+            "ECONNRESET while reading response",
+        ],
+    )
+    def test_connection_failure_strings_are_transient(self, message: str):
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload("search_documents", {"error": message})
+        assert err.category == "transient"

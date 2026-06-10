@@ -77,11 +77,13 @@ def _build_research_system_prompt() -> str:
     )
 
 
+# Only tools actually in RESEARCH_TOOLS belong here — the filtered tool
+# node can never execute anything else, so extra entries are dead weight
+# that misleads readers about what this subgraph can run.
 RESEARCH_DESTRUCTIVE_TOOLS = {
     "ingest_arxiv_papers",
     "add_document_to_project",
     "create_project",
-    "execute_code",
 }
 
 
@@ -262,9 +264,15 @@ async def research_force_synthesis_node(
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        logger.warning(
-            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+        # Error, not warning: the turn still completes "successfully" with
+        # the canned fallback below, so this log line is the only
+        # machine-visible signal that synthesis was degraded.
+        logger.error(
+            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback "
+            "(thread_id=%s, tool_loop_count=%s)",
             AGENT_LLM_TIMEOUT_SECONDS,
+            state.get("thread_id", ""),
+            state.get("tool_loop_count", 0),
         )
         response = AIMessage(
             content=(
