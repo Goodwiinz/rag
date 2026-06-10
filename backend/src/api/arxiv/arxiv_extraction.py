@@ -285,10 +285,13 @@ async def get_extracted_features(
         extracted_features = []
 
         async for db in get_db_session():
-            # Build query
+            # Build query — scoped to the caller's org and non-deleted docs.
+            # Previously unscoped, returning every org's extracted features.
             stmt = select(Document).where(
                 Document.external_id.isnot(None),
                 Document.document_metadata.isnot(None),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
             )
 
             if paper_id:

@@ -12,8 +12,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
+from sqlalchemy import and_, select
+
 from src.core.database import get_db
-from src.models import User
+from src.models import Collection, User, Workspace
 from src.services.research.pipeline_service import PipelineService
 from src.core.dependencies import get_current_user
 
@@ -50,6 +52,23 @@ class UpdatePipelineRequest(BaseModel):
 # --- Helpers ---
 
 
+async def _ensure_project_access(
+    project_id: UUID, current_user: User, db: AsyncSession
+) -> None:
+    """Verify the caller owns the project (via its workspace) before touching
+    its pipeline. These endpoints previously took project_id with no ownership
+    check, so any user could read/mutate/reset another project's pipeline.
+    Mirrors projects._get_project_with_auth. 404 (not 403) to avoid id probing.
+    """
+    result = await db.execute(
+        select(Collection.id)
+        .join(Workspace, Collection.workspace_id == Workspace.id)
+        .where(and_(Collection.id == project_id, Workspace.owner_id == current_user.id))
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
 def _pipeline_to_response(pipeline) -> PipelineResponse:
     return PipelineResponse(
         id=str(pipeline.id),
@@ -77,6 +96,7 @@ async def get_pipeline(
     db: AsyncSession = Depends(get_db),
 ):
     """Get or create pipeline state for a project."""
+    await _ensure_project_access(project_id, current_user, db)
     pipeline = await PipelineService.get_or_create(db, project_id)
     await db.commit()
     return _pipeline_to_response(pipeline)
@@ -93,6 +113,7 @@ async def update_pipeline(
     db: AsyncSession = Depends(get_db),
 ):
     """Update pipeline state (step navigation, completions, data)."""
+    await _ensure_project_access(project_id, current_user, db)
     try:
         pipeline = await PipelineService.update_pipeline(
             db,
@@ -119,6 +140,7 @@ async def reset_pipeline(
     db: AsyncSession = Depends(get_db),
 ):
     """Reset pipeline to initial state (step 0, no completions)."""
+    await _ensure_project_access(project_id, current_user, db)
     try:
         pipeline = await PipelineService.reset_pipeline(db, project_id)
         await db.commit()

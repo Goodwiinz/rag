@@ -74,7 +74,9 @@ async def start_document_processing(
     """Start processing for a document"""
     try:
         job = await processing_service.process_document(
-            document_id=document_id, user_id=str(current_user.id)
+            document_id=document_id,
+            user_id=str(current_user.id),
+            organization_id=str(current_user.organization_id),
         )
 
         return {

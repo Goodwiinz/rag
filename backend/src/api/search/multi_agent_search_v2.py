@@ -498,8 +498,16 @@ async def get_query_history(
     Used for analytics and learning.
     """
     try:
-        # Get user's query history
-        history = multi_agent_search_service_v2.query_history[-limit:]
+        # Scope to the caller's own queries. query_history is a process-global
+        # list shared across all users/tenants; returning it unfiltered leaked
+        # every user's raw query strings. Entries without an owner are excluded
+        # (fail closed).
+        uid = str(current_user.id)
+        history = [
+            e
+            for e in multi_agent_search_service_v2.query_history
+            if str(e.get("user_id", "")) == uid
+        ][-limit:]
 
         # Format for response
         formatted_history = []
