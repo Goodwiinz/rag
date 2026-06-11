@@ -5,8 +5,9 @@
  * Displays literature review draft content with citations
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import DOMPurify from 'dompurify';
+import React, { useCallback, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Download, FileText, Code, History } from 'lucide-react';
 import type { Draft } from '@/services/projectService';
 import { ToneToolbar } from './ToneToolbar';
@@ -146,16 +147,6 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
     [onTextRewrite]
   );
 
-  // Convert [Doc N] citations to clickable badges
-  const formattedContent = useMemo(() => {
-    if (!draft.content) return '';
-
-    return draft.content.replace(
-      /\[Doc (\d+)\]/g,
-      '<span class="inline-flex items-center px-1 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono cursor-pointer hover:bg-primary/20 transition-colors">[Doc $1]</span>'
-    );
-  }, [draft.content]);
-
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       {/* Header */}
@@ -163,9 +154,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
         <div className="flex items-center gap-3">
           <FileText className="h-5 w-5 text-primary" />
           <div>
-            <h3 className="font-semibold text-foreground">
-              {draft.title}
-            </h3>
+            <h3 className="font-semibold text-foreground">{draft.title}</h3>
             <p className="text-xs text-muted-foreground">
               Version {draft.version} • {draft.word_count} words •{' '}
               {draft.citation_count} citations
@@ -219,9 +208,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
       {/* Themes */}
       {draft.themes && draft.themes.length > 0 && (
         <div className="px-4 py-2 border-b border-border flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            Themes:
-          </span>
+          <span className="text-xs text-muted-foreground">Themes:</span>
           {draft.themes.map((theme, idx) => (
             <span
               key={idx}
@@ -233,16 +220,48 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
         </div>
       )}
 
-      {/* Content — HTML is sanitized via DOMPurify before rendering */}
+      {/* Content — rendered with react-markdown (no rehype-raw), which escapes
+          any raw HTML in the LLM-generated draft instead of executing it. The
+          previous regex-built-HTML + dangerouslySetInnerHTML pipeline (audit
+          #9) relied on DOMPurify as its only XSS defense. */}
       <div className="p-6 max-h-[600px] overflow-y-auto">
         <div
           ref={contentRef}
           className="prose prose-sm max-w-none text-muted-foreground relative"
           onMouseUp={handleTextSelect}
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(formatMarkdown(formattedContent)),
-          }}
-        />
+        >
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkDocBadges]}
+            components={{
+              h2: ({ children }) => (
+                <h2 className="text-lg font-bold text-primary mt-6 mb-3">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-base font-bold text-primary/80 mt-4 mb-2">
+                  {children}
+                </h3>
+              ),
+              p: ({ children }) => <p className="mb-4">{children}</p>,
+              a: ({ href, children }) => (
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </a>
+              ),
+              span: ({ className, children }) =>
+                className === 'doc-badge' ? (
+                  <span className="inline-flex items-center px-1 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono">
+                    {children}
+                  </span>
+                ) : (
+                  <span className={className}>{children}</span>
+                ),
+            }}
+          >
+            {draft.content || ''}
+          </ReactMarkdown>
+        </div>
         {toneToolbarPos && selectedText && !rewriteResult && (
           <ToneToolbar
             selectedText={selectedText}
@@ -321,28 +340,52 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
   );
 };
 
-// Simple markdown to HTML conversion
-function formatMarkdown(content: string): string {
-  return (
-    content
-      // Headers
-      .replace(
-        /^## (.+)$/gm,
-        '<h2 class="text-lg font-bold text-primary mt-6 mb-3">$1</h2>'
-      )
-      .replace(
-        /^### (.+)$/gm,
-        '<h3 class="text-base font-bold text-primary/80 mt-4 mb-2">$1</h3>'
-      )
-      // Paragraphs
-      .replace(/\n\n/g, '</p><p class="mb-4">')
-      // Wrap in paragraph
-      .replace(/^(.+)$/gm, '<p class="mb-4">$1</p>')
-      // Clean up
-      .replace(/<p class="mb-4"><h/g, '<h')
-      .replace(/<\/h2><\/p>/g, '</h2>')
-      .replace(/<\/h3><\/p>/g, '</h3>')
-  );
+// remark plugin: turn literal "[Doc N]" citation markers into a styled, inert
+// badge node. Walks the mdast tree directly (no extra deps) and splits text
+// nodes; the badge is a real element produced by the plugin, NOT raw HTML from
+// the content, so it carries no XSS risk. The "[Doc N]" text is the only
+// content-derived part and react-markdown escapes it like any other text.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Non-global on purpose: String.split() still splits on every match and keeps
+// the capture group, and a stateless .test() avoids the lastIndex footgun.
+const DOC_BADGE_RE = /(\[Doc \d+\])/;
+
+function remarkDocBadges() {
+  return (tree: any): void => {
+    const walk = (node: any): void => {
+      if (!Array.isArray(node.children)) return;
+      const next: any[] = [];
+      for (const child of node.children) {
+        if (
+          child.type === 'text' &&
+          typeof child.value === 'string' &&
+          DOC_BADGE_RE.test(child.value)
+        ) {
+          for (const part of child.value.split(DOC_BADGE_RE)) {
+            if (part === '') continue;
+            if (/^\[Doc \d+\]$/.test(part)) {
+              next.push({
+                type: 'docBadge',
+                data: {
+                  hName: 'span',
+                  hProperties: { className: 'doc-badge' },
+                },
+                children: [{ type: 'text', value: part }],
+              });
+            } else {
+              next.push({ type: 'text', value: part });
+            }
+          }
+        } else {
+          walk(child);
+          next.push(child);
+        }
+      }
+      node.children = next;
+    };
+    walk(tree);
+  };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default DraftViewer;
