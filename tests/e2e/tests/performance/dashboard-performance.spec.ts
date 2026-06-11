@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
-import { createTestHelpers, TEST_DATA } from '../utils/test-helpers';
+import { test, expect } from "@playwright/test";
+import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 
-test.describe('Dashboard Performance Tests', () => {
+test.describe("Dashboard Performance Tests", () => {
   let helpers: ReturnType<typeof createTestHelpers>;
 
   test.beforeEach(async ({ page, context }, testInfo) => {
@@ -9,9 +9,11 @@ test.describe('Dashboard Performance Tests', () => {
     await helpers.login(TEST_DATA.USERS.ADMIN);
   });
 
-  test.describe('Page Load Performance', () => {
-    test('should load analytics dashboard within performance thresholds', async ({ page }) => {
-      helpers.logStep('Testing analytics dashboard load performance');
+  test.describe("Page Load Performance", () => {
+    test("should load analytics dashboard within performance thresholds", async ({
+      page,
+    }) => {
+      helpers.logStep("Testing analytics dashboard load performance");
 
       // Start performance monitoring
       const navigationStart = await page.evaluate(() => performance.now());
@@ -21,7 +23,7 @@ test.describe('Dashboard Performance Tests', () => {
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
       // Wait for all critical content to load
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState("networkidle");
       await helpers.expectElementVisible('[data-testid="metric-card"]');
       await helpers.expectElementVisible('[data-testid="chart"]');
 
@@ -34,16 +36,25 @@ test.describe('Dashboard Performance Tests', () => {
 
       // Get detailed performance metrics
       const metrics = await page.evaluate(() => {
-        const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-        const paint = performance.getEntriesByType('paint');
+        const navigation = performance.getEntriesByType(
+          "navigation",
+        )[0] as PerformanceNavigationTiming;
+        const paint = performance.getEntriesByType("paint");
 
         return {
-          domContentLoaded: navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
+          domContentLoaded:
+            navigation.domContentLoadedEventEnd -
+            navigation.domContentLoadedEventStart,
           loadComplete: navigation.loadEventEnd - navigation.loadEventStart,
-          firstPaint: paint.find(p => p.name === 'first-paint')?.startTime || 0,
-          firstContentfulPaint: paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0,
-          firstMeaningfulPaint: navigation.domContentLoadedEventEnd - navigation.navigationStart,
-          timeToInteractive: navigation.loadEventEnd - navigation.navigationStart,
+          firstPaint:
+            paint.find((p) => p.name === "first-paint")?.startTime || 0,
+          firstContentfulPaint:
+            paint.find((p) => p.name === "first-contentful-paint")?.startTime ||
+            0,
+          firstMeaningfulPaint:
+            navigation.domContentLoadedEventEnd - navigation.navigationStart,
+          timeToInteractive:
+            navigation.loadEventEnd - navigation.navigationStart,
         };
       });
 
@@ -58,14 +69,14 @@ test.describe('Dashboard Performance Tests', () => {
       expect(metrics.timeToInteractive).toBeLessThan(5000); // 5s for TTI
 
       // Take performance screenshot
-      await helpers.takeScreenshot('performance-dashboard-loaded');
+      await helpers.takeScreenshot("performance-dashboard-loaded");
     });
 
-    test('should handle large datasets efficiently', async ({ page }) => {
-      helpers.logStep('Testing performance with large datasets');
+    test("should handle large datasets efficiently", async ({ page }) => {
+      helpers.logStep("Testing performance with large datasets");
 
       // Mock large dataset response
-      await page.route('**/api/v1/analytics/**', async route => {
+      await page.route("**/api/v1/analytics/**", async (route) => {
         const largeData = {
           metrics: Array.from({ length: 1000 }, (_, i) => ({
             id: `metric-${i}`,
@@ -75,7 +86,7 @@ test.describe('Dashboard Performance Tests', () => {
           })),
           charts: Array.from({ length: 50 }, (_, i) => ({
             id: `chart-${i}`,
-            type: 'line',
+            type: "line",
             data: Array.from({ length: 500 }, (_, j) => ({
               x: j,
               y: Math.random() * 100,
@@ -85,7 +96,7 @@ test.describe('Dashboard Performance Tests', () => {
 
         await route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(largeData),
         });
       });
@@ -115,11 +126,13 @@ test.describe('Dashboard Performance Tests', () => {
       helpers.logStep(`Interaction completed in ${interactionTime}ms`);
 
       // Restore normal API behavior
-      await page.unroute('**/api/v1/analytics/**');
+      await page.unroute("**/api/v1/analytics/**");
     });
 
-    test('should maintain performance during rapid navigation', async ({ page }) => {
-      helpers.logStep('Testing performance during rapid navigation');
+    test("should maintain performance during rapid navigation", async ({
+      page,
+    }) => {
+      helpers.logStep("Testing performance during rapid navigation");
 
       const navigationTimes: number[] = [];
 
@@ -137,8 +150,10 @@ test.describe('Dashboard Performance Tests', () => {
 
           try {
             await helpers.waitAndClick(pageSelector);
-            await page.waitForLoadState('networkidle');
-            await page.waitForTimeout(500); // Brief pause
+            await page.waitForLoadState("networkidle");
+            await expect(
+              page.locator('[data-testid="main-content"]'),
+            ).toBeVisible();
 
             const navigationTime = Date.now() - startTime;
             navigationTimes.push(navigationTime);
@@ -151,7 +166,8 @@ test.describe('Dashboard Performance Tests', () => {
 
       // Analyze navigation performance
       if (navigationTimes.length > 0) {
-        const avgTime = navigationTimes.reduce((a, b) => a + b, 0) / navigationTimes.length;
+        const avgTime =
+          navigationTimes.reduce((a, b) => a + b, 0) / navigationTimes.length;
         const maxTime = Math.max(...navigationTimes);
 
         helpers.logStep(`Average navigation time: ${avgTime.toFixed(2)}ms`);
@@ -162,13 +178,15 @@ test.describe('Dashboard Performance Tests', () => {
         expect(maxTime).toBeLessThan(4000); // 4 seconds maximum
       }
 
-      helpers.logStep('Rapid navigation performance test completed');
+      helpers.logStep("Rapid navigation performance test completed");
     });
   });
 
-  test.describe('Memory Performance', () => {
-    test('should not cause memory leaks during extended use', async ({ page }) => {
-      helpers.logStep('Testing memory usage during extended use');
+  test.describe("Memory Performance", () => {
+    test("should not cause memory leaks during extended use", async ({
+      page,
+    }) => {
+      helpers.logStep("Testing memory usage during extended use");
 
       // Navigate to analytics dashboard
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
@@ -180,23 +198,33 @@ test.describe('Dashboard Performance Tests', () => {
       for (let i = 0; i < 10; i++) {
         // Perform various interactions
         await helpers.waitAndClick('[data-testid="refresh-button"]');
-        await page.waitForTimeout(1000);
+        await expect(
+          page.locator('[data-testid="analytics-dashboard"]'),
+        ).toBeVisible();
 
         await helpers.waitAndClick('[data-testid="filter-dropdown"]');
-        await page.waitForTimeout(500);
+        await expect(
+          page.locator('[data-testid="filter-option-all"]'),
+        ).toBeVisible();
         await helpers.waitAndClick('[data-testid="filter-option-all"]');
-        await page.waitForTimeout(500);
+        await expect(
+          page.locator('[data-testid="filter-option-all"]'),
+        ).not.toBeVisible();
 
         // Measure memory usage
         const memoryInfo = await page.evaluate(() => {
-          return (performance as any).memory || {
-            usedJSHeapSize: 0,
-            totalJSHeapSize: 0,
-          };
+          return (
+            (performance as any).memory || {
+              usedJSHeapSize: 0,
+              totalJSHeapSize: 0,
+            }
+          );
         });
 
         memoryMeasurements.push(memoryInfo.usedJSHeapSize);
-        helpers.logStep(`Memory usage at iteration ${i + 1}: ${(memoryInfo.usedJSHeapSize / 1024 / 1024).toFixed(2)}MB`);
+        helpers.logStep(
+          `Memory usage at iteration ${i + 1}: ${(memoryInfo.usedJSHeapSize / 1024 / 1024).toFixed(2)}MB`,
+        );
 
         // Force garbage collection if available
         await page.evaluate(() => {
@@ -212,26 +240,32 @@ test.describe('Dashboard Performance Tests', () => {
         const finalMemory = memoryMeasurements[memoryMeasurements.length - 1];
         const memoryGrowth = finalMemory - initialMemory;
 
-        helpers.logStep(`Initial memory: ${(initialMemory / 1024 / 1024).toFixed(2)}MB`);
-        helpers.logStep(`Final memory: ${(finalMemory / 1024 / 1024).toFixed(2)}MB`);
-        helpers.logStep(`Memory growth: ${(memoryGrowth / 1024 / 1024).toFixed(2)}MB`);
+        helpers.logStep(
+          `Initial memory: ${(initialMemory / 1024 / 1024).toFixed(2)}MB`,
+        );
+        helpers.logStep(
+          `Final memory: ${(finalMemory / 1024 / 1024).toFixed(2)}MB`,
+        );
+        helpers.logStep(
+          `Memory growth: ${(memoryGrowth / 1024 / 1024).toFixed(2)}MB`,
+        );
 
         // Memory growth should be reasonable
         expect(memoryGrowth).toBeLessThan(50 * 1024 * 1024); // 50MB max growth
       }
 
-      helpers.logStep('Memory usage test completed');
+      helpers.logStep("Memory usage test completed");
     });
 
-    test('should efficiently manage DOM nodes', async ({ page }) => {
-      helpers.logStep('Testing DOM node management');
+    test("should efficiently manage DOM nodes", async ({ page }) => {
+      helpers.logStep("Testing DOM node management");
 
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
       // Monitor DOM node count
       const getNodeCount = async () => {
-        return await page.evaluate(() => document.querySelectorAll('*').length);
+        return await page.evaluate(() => document.querySelectorAll("*").length);
       };
 
       const initialNodeCount = await getNodeCount();
@@ -240,12 +274,18 @@ test.describe('Dashboard Performance Tests', () => {
       // Perform operations that might create DOM nodes
       for (let i = 0; i < 5; i++) {
         await helpers.waitAndClick('[data-testid="refresh-button"]');
-        await page.waitForTimeout(1000);
+        await expect(
+          page.locator('[data-testid="analytics-dashboard"]'),
+        ).toBeVisible();
 
         await helpers.waitAndClick('[data-testid="filter-dropdown"]');
-        await page.waitForTimeout(500);
+        await expect(
+          page.locator('[data-testid="filter-option-all"]'),
+        ).toBeVisible();
         await helpers.waitAndClick('[data-testid="filter-option-all"]');
-        await page.waitForTimeout(500);
+        await expect(
+          page.locator('[data-testid="filter-option-all"]'),
+        ).not.toBeVisible();
       }
 
       const finalNodeCount = await getNodeCount();
@@ -260,14 +300,14 @@ test.describe('Dashboard Performance Tests', () => {
     });
   });
 
-  test.describe('Network Performance', () => {
-    test('should optimize API requests and caching', async ({ page }) => {
-      helpers.logStep('Testing API request optimization');
+  test.describe("Network Performance", () => {
+    test("should optimize API requests and caching", async ({ page }) => {
+      helpers.logStep("Testing API request optimization");
 
       let apiCallCount = 0;
 
       // Intercept and count API calls
-      await page.route('**/api/v1/**', route => {
+      await page.route("**/api/v1/**", (route) => {
         apiCallCount++;
         route.continue();
       });
@@ -281,17 +321,17 @@ test.describe('Dashboard Performance Tests', () => {
 
       // Refresh dashboard
       await helpers.waitAndClick('[data-testid="refresh-button"]');
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState("networkidle");
 
       const refreshApiCalls = apiCallCount - initialApiCalls;
       helpers.logStep(`API calls during refresh: ${refreshApiCalls}`);
 
       // Navigate away and back
       await helpers.waitAndClick('[data-testid="dashboard-nav-link"]');
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState("networkidle");
 
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState("networkidle");
 
       const returnApiCalls = apiCallCount - initialApiCalls - refreshApiCalls;
       helpers.logStep(`API calls on return: ${returnApiCalls}`);
@@ -299,15 +339,15 @@ test.describe('Dashboard Performance Tests', () => {
       // Should use cached data when appropriate
       expect(returnApiCalls).toBeLessThanOrEqual(refreshApiCalls);
 
-      helpers.logStep('API optimization test completed');
+      helpers.logStep("API optimization test completed");
     });
 
-    test('should handle slow network gracefully', async ({ page }) => {
-      helpers.logStep('Testing slow network handling');
+    test("should handle slow network gracefully", async ({ page }) => {
+      helpers.logStep("Testing slow network handling");
 
       // Simulate slow network
-      await page.route('**/api/v1/**', async route => {
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      await page.route("**/api/v1/**", async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
         route.continue();
       });
 
@@ -328,28 +368,30 @@ test.describe('Dashboard Performance Tests', () => {
       helpers.logStep(`Slow network load completed in ${loadTime}ms`);
 
       // Should not show error states due to timeout
-      expect(await helpers.elementExists('[data-testid="error-state"]')).toBeFalsy();
+      expect(
+        await helpers.elementExists('[data-testid="error-state"]'),
+      ).toBeFalsy();
 
       // Restore normal network
-      await page.unroute('**/api/v1/**');
+      await page.unroute("**/api/v1/**");
 
-      helpers.logStep('Slow network handling test completed');
+      helpers.logStep("Slow network handling test completed");
     });
   });
 
-  test.describe('Rendering Performance', () => {
-    test('should maintain 60fps during animations', async ({ page }) => {
-      helpers.logStep('Testing animation performance');
+  test.describe("Rendering Performance", () => {
+    test("should maintain 60fps during animations", async ({ page }) => {
+      helpers.logStep("Testing animation performance");
 
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
       // Test chart animations
       const chart = page.locator('[data-testid="chart"]').first();
-      if (await chart.count() > 0) {
+      if ((await chart.count()) > 0) {
         // Monitor frame rate during animation
         const frameMetrics = await page.evaluate(() => {
-          return new Promise(resolve => {
+          return new Promise((resolve) => {
             const frames: number[] = [];
             let frameCount = 0;
             const maxFrames = 60;
@@ -366,7 +408,8 @@ test.describe('Dashboard Performance Tests', () => {
                 for (let i = 1; i < frames.length; i++) {
                   frameTimes.push(frames[i] - frames[i - 1]);
                 }
-                const avgFrameTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+                const avgFrameTime =
+                  frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
                 const fps = 1000 / avgFrameTime;
                 resolve(fps);
               }
@@ -375,7 +418,7 @@ test.describe('Dashboard Performance Tests', () => {
             // Start animation by triggering chart update
             const chart = document.querySelector('[data-testid="chart"]');
             if (chart) {
-              chart.dispatchEvent(new Event('mouseenter'));
+              chart.dispatchEvent(new Event("mouseenter"));
             }
 
             recordFrame();
@@ -389,18 +432,18 @@ test.describe('Dashboard Performance Tests', () => {
         expect(fps).toBeGreaterThan(30); // Minimum 30fps
       }
 
-      helpers.logStep('Animation performance test completed');
+      helpers.logStep("Animation performance test completed");
     });
 
-    test('should efficiently render large lists', async ({ page }) => {
-      helpers.logStep('Testing large list rendering performance');
+    test("should efficiently render large lists", async ({ page }) => {
+      helpers.logStep("Testing large list rendering performance");
 
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
       // Navigate to data table view if available
       const dataTableTab = page.locator('[data-testid="data-table-tab"]');
-      if (await dataTableTab.count() > 0) {
+      if ((await dataTableTab.count()) > 0) {
         await dataTableTab.click();
         await helpers.expectElementVisible('[data-testid="data-table"]');
 
@@ -415,6 +458,9 @@ test.describe('Dashboard Performance Tests', () => {
           }
         });
 
+        // Intentional settle (not a sync wait): give the virtualized list a
+        // fixed window to render after the programmatic scroll before sampling
+        // the perf timing below.
         await page.waitForTimeout(1000);
 
         const scrollTime = Date.now() - scrollStart;
@@ -424,23 +470,23 @@ test.describe('Dashboard Performance Tests', () => {
         expect(scrollTime).toBeLessThan(2000); // 2 seconds max
       }
 
-      helpers.logStep('Large list rendering test completed');
+      helpers.logStep("Large list rendering test completed");
     });
   });
 
-  test.describe('Resource Loading Performance', () => {
-    test('should optimize resource loading', async ({ page }) => {
-      helpers.logStep('Testing resource loading optimization');
+  test.describe("Resource Loading Performance", () => {
+    test("should optimize resource loading", async ({ page }) => {
+      helpers.logStep("Testing resource loading optimization");
 
       const resourceMetrics: any[] = [];
 
       // Monitor resource loading
-      page.on('response', response => {
-        if (response.url().includes('/api/v1/')) {
+      page.on("response", (response) => {
+        if (response.url().includes("/api/v1/")) {
           resourceMetrics.push({
             url: response.url(),
             status: response.status(),
-            size: parseInt(response.headers()['content-length'] || '0'),
+            size: parseInt(response.headers()["content-length"] || "0"),
             timing: Date.now(),
           });
         }
@@ -451,12 +497,19 @@ test.describe('Dashboard Performance Tests', () => {
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
       // Analyze resource loading
-      const totalSize = resourceMetrics.reduce((sum, resource) => sum + resource.size, 0);
-      const avgResponseTime = resourceMetrics.length > 0
-        ? resourceMetrics.reduce((sum, resource) => sum + 1, 0) / resourceMetrics.length
-        : 0;
+      const totalSize = resourceMetrics.reduce(
+        (sum, resource) => sum + resource.size,
+        0,
+      );
+      const avgResponseTime =
+        resourceMetrics.length > 0
+          ? resourceMetrics.reduce((sum, resource) => sum + 1, 0) /
+            resourceMetrics.length
+          : 0;
 
-      helpers.logStep(`Total API response size: ${(totalSize / 1024).toFixed(2)}KB`);
+      helpers.logStep(
+        `Total API response size: ${(totalSize / 1024).toFixed(2)}KB`,
+      );
       helpers.logStep(`Number of API calls: ${resourceMetrics.length}`);
 
       // Should optimize resource usage
@@ -464,30 +517,33 @@ test.describe('Dashboard Performance Tests', () => {
       expect(resourceMetrics.length).toBeLessThan(20); // Max 20 API calls
 
       // Test compression
-      const compressedResponses = resourceMetrics.filter(r =>
-        r.headers && r.headers['content-encoding']?.includes('gzip')
+      const compressedResponses = resourceMetrics.filter(
+        (r) => r.headers && r.headers["content-encoding"]?.includes("gzip"),
       );
-      const compressionRatio = compressedResponses.length / Math.max(resourceMetrics.length, 1);
+      const compressionRatio =
+        compressedResponses.length / Math.max(resourceMetrics.length, 1);
 
-      helpers.logStep(`Compression ratio: ${(compressionRatio * 100).toFixed(1)}%`);
+      helpers.logStep(
+        `Compression ratio: ${(compressionRatio * 100).toFixed(1)}%`,
+      );
 
-      helpers.logStep('Resource loading optimization test completed');
+      helpers.logStep("Resource loading optimization test completed");
     });
 
-    test('should implement proper caching strategies', async ({ page }) => {
-      helpers.logStep('Testing caching strategies');
+    test("should implement proper caching strategies", async ({ page }) => {
+      helpers.logStep("Testing caching strategies");
 
       let cacheHeaders: any[] = [];
 
       // Monitor cache headers
-      await page.route('**/api/v1/**', async route => {
+      await page.route("**/api/v1/**", async (route) => {
         const response = await route.continue();
         const headers = response.headers();
         cacheHeaders.push({
           url: route.request().url(),
-          cacheControl: headers['cache-control'],
-          etag: headers['etag'],
-          lastModified: headers['last-modified'],
+          cacheControl: headers["cache-control"],
+          etag: headers["etag"],
+          lastModified: headers["last-modified"],
         });
       });
 
@@ -495,35 +551,40 @@ test.describe('Dashboard Performance Tests', () => {
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
-      // Load page second time
+      // Load page second time — wait for the refresh's network to settle so the
+      // cache-header analysis below sees the completed responses.
       await helpers.waitAndClick('[data-testid="refresh-button"]');
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState("networkidle");
 
       // Analyze caching
-      const cachedResponses = cacheHeaders.filter(headers =>
-        headers.cacheControl?.includes('max-age') ||
-        headers.etag ||
-        headers.lastModified
+      const cachedResponses = cacheHeaders.filter(
+        (headers) =>
+          headers.cacheControl?.includes("max-age") ||
+          headers.etag ||
+          headers.lastModified,
       );
 
-      const cacheUtilization = cachedResponses.length / Math.max(cacheHeaders.length, 1);
-      helpers.logStep(`Cache utilization: ${(cacheUtilization * 100).toFixed(1)}%`);
+      const cacheUtilization =
+        cachedResponses.length / Math.max(cacheHeaders.length, 1);
+      helpers.logStep(
+        `Cache utilization: ${(cacheUtilization * 100).toFixed(1)}%`,
+      );
 
       // Should implement caching for static resources
       expect(cacheUtilization).toBeGreaterThan(0.5); // At least 50% of responses should be cacheable
 
-      helpers.logStep('Caching strategy test completed');
+      helpers.logStep("Caching strategy test completed");
     });
   });
 
-  test.describe('Critical Rendering Path', () => {
-    test('should prioritize above-the-fold content', async ({ page }) => {
-      helpers.logStep('Testing critical rendering path optimization');
+  test.describe("Critical Rendering Path", () => {
+    test("should prioritize above-the-fold content", async ({ page }) => {
+      helpers.logStep("Testing critical rendering path optimization");
 
       // Enable request interception to analyze loading order
       const requests: any[] = [];
 
-      page.on('request', request => {
+      page.on("request", (request) => {
         requests.push({
           url: request.url(),
           resourceType: request.resourceType(),
@@ -544,9 +605,11 @@ test.describe('Dashboard Performance Tests', () => {
       const metricTime = Date.now() - startTime;
 
       // Analyze loading sequence
-      const cssRequests = requests.filter(r => r.resourceType === 'stylesheet');
-      const jsRequests = requests.filter(r => r.resourceType === 'script');
-      const apiRequests = requests.filter(r => r.url.includes('/api/v1/'));
+      const cssRequests = requests.filter(
+        (r) => r.resourceType === "stylesheet",
+      );
+      const jsRequests = requests.filter((r) => r.resourceType === "script");
+      const apiRequests = requests.filter((r) => r.url.includes("/api/v1/"));
 
       helpers.logStep(`Header visible in: ${headerTime}ms`);
       helpers.logStep(`Metrics visible in: ${metricTime}ms`);
@@ -558,22 +621,22 @@ test.describe('Dashboard Performance Tests', () => {
       expect(headerTime).toBeLessThan(1000); // Header in 1 second
       expect(metricTime).toBeLessThan(2500); // Metrics in 2.5 seconds
 
-      helpers.logStep('Critical rendering path test completed');
+      helpers.logStep("Critical rendering path test completed");
     });
 
-    test('should implement progressive enhancement', async ({ page }) => {
-      helpers.logStep('Testing progressive enhancement');
+    test("should implement progressive enhancement", async ({ page }) => {
+      helpers.logStep("Testing progressive enhancement");
 
       // Disable JavaScript to test basic functionality
-      await page.context().route('**/*.js', route => route.abort());
+      await page.context().route("**/*.js", (route) => route.abort());
 
-      await page.goto('/dashboard');
+      await page.goto("/dashboard");
 
       // Should show basic content without JavaScript
-      await expect(page.locator('body')).toContainText('Analytics Dashboard');
+      await expect(page.locator("body")).toContainText("Analytics Dashboard");
 
       // Re-enable JavaScript
-      await page.context().unroute('**/*.js');
+      await page.context().unroute("**/*.js");
       await page.reload();
 
       await helpers.login(TEST_DATA.USERS.ADMIN);
@@ -583,7 +646,7 @@ test.describe('Dashboard Performance Tests', () => {
       await helpers.expectElementVisible('[data-testid="metric-card"]');
       await helpers.expectElementVisible('[data-testid="chart"]');
 
-      helpers.logStep('Progressive enhancement test completed');
+      helpers.logStep("Progressive enhancement test completed");
     });
   });
 });
