@@ -45,6 +45,10 @@ describe('DraftGenerator', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /technical/i }));
 
+    // Max sections + Include abstract are inside the collapsed "Advanced
+    // options" disclosure — expand it before interacting with them.
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
+
     const slider = screen.getByRole('slider');
     fireEvent.change(slider, { target: { value: '7' } });
 
