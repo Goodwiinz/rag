@@ -229,11 +229,18 @@ export default function DashboardPage() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-background relative flex flex-col">
+      <div
+        data-testid="dashboard-container"
+        className="min-h-screen bg-background relative flex flex-col"
+      >
         {/* Content */}
-        <div className="relative p-6 space-y-6 flex-1 overflow-y-auto">
+        <div
+          data-testid="main-content"
+          className="relative p-6 space-y-6 flex-1 overflow-y-auto"
+        >
           {/* Header */}
           <motion.div
+            data-testid="dashboard-header"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-border bg-card shadow-sm"

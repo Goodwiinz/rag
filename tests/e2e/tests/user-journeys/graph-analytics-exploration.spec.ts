@@ -1,9 +1,10 @@
 /**
- * QUARANTINED — not run on the push lane (see tests/e2e/playwright.config.ts
- * chromium `testIgnore`). This suite asserts an analytics-dashboard UI contract
- * (analytics-nav-link, analytics-dashboard, dashboard-container, …) the product
- * has never implemented; the shared login helper times out on that missing
- * surface, so every test here fails. Re-enable once the UI + testids ship.
+ * QUARANTINED (chromium testIgnore in playwright.config.ts). Fails on the shared
+ * login helper sentinel (analytics-nav-link | user-menu | dashboard-container):
+ * the dashboard shell renders AppRail, not AppSidebar, and the authenticated
+ * subtree does not paint under the e2e form-login. Its own assertions
+ * (analytics-dashboard, Overview h1, auth redirect) render today — un-quarantine
+ * once the login/render issue is resolved.
  */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";

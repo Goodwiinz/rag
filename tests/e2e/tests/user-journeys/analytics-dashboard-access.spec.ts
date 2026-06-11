@@ -1,9 +1,12 @@
 /**
- * QUARANTINED — not run on the push lane (see tests/e2e/playwright.config.ts
- * chromium `testIgnore`). This suite asserts an analytics-dashboard UI contract
- * (analytics-nav-link, analytics-dashboard, dashboard-container, …) the product
- * has never implemented; the shared login helper times out on that missing
- * surface, so every test here fails. Re-enable once the UI + testids ship.
+ * QUARANTINED (chromium testIgnore in playwright.config.ts). Fails on the shared
+ * login helper: its sentinel waits for analytics-nav-link | user-menu |
+ * dashboard-container, but the dashboard shell renders AppRail (not AppSidebar,
+ * which owns the first two) and the authenticated subtree does not paint the
+ * sentinel under the e2e form-login (page reaches networkidle, then nothing).
+ * The spec-level bugs below are already fixed (REGULAR user key, relative gotos
+ * instead of an un-awaited page.evaluate, scoped role=alert) so this suite is
+ * ready to un-quarantine once the login/render issue is resolved.
  */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
@@ -44,9 +47,7 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
       await helpers.takeScreenshot("dashboard-loaded");
 
       // Step 4: Navigate to analytics dashboard
-      await page.goto(
-        `${helpers.page.evaluate(() => location.origin)}/analytics`,
-      );
+      await page.goto("/analytics");
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
       helpers.logStep("Successfully navigated to analytics dashboard");
     });
@@ -58,8 +59,8 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
 
       // Step 1: Login as regular user
       await helpers.login({
-        email: TEST_DATA.USERS.USER.email,
-        password: TEST_DATA.USERS.USER.password,
+        email: TEST_DATA.USERS.REGULAR.email,
+        password: TEST_DATA.USERS.REGULAR.password,
       });
       helpers.logStep("Successfully logged in as regular user");
 
@@ -67,9 +68,7 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
       await expect(page.locator("h1")).toContainText("Overview");
 
       // Step 3: Navigate to analytics
-      await page.goto(
-        `${helpers.page.evaluate(() => location.origin)}/analytics`,
-      );
+      await page.goto("/analytics");
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
     });
 
@@ -90,8 +89,11 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
       );
       await helpers.waitAndClick('[data-testid="login-button"]');
 
-      // Step 3: Verify error message appears (error div with role="alert")
-      await helpers.expectElementVisible('[role="alert"]');
+      // Step 3: Verify error message appears. Scope away Next's route-announcer
+      // (also role="alert") to avoid a strict-mode match of 2 elements.
+      await helpers.expectElementVisible(
+        '[role="alert"]:not(#__next-route-announcer__)',
+      );
       helpers.logStep("Error message displayed correctly");
 
       // Step 4: Verify user stays on login page
@@ -122,9 +124,7 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
     test("should navigate to analytics page", async ({ page }) => {
       helpers.logStep("Testing analytics navigation");
 
-      await page.goto(
-        `${helpers.page.evaluate(() => location.origin)}/analytics`,
-      );
+      await page.goto("/analytics");
       await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
       helpers.logStep("Analytics page loaded");
     });
@@ -136,9 +136,7 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
     }) => {
       helpers.logStep("Testing auth guard on dashboard");
 
-      await page.goto(
-        `${helpers.page.evaluate(() => location.origin)}/dashboard`,
-      );
+      await page.goto("/dashboard");
       await page.waitForURL(/.*login/, { timeout: 10000 });
       await expect(page).toHaveURL(/.*login/);
       helpers.logStep("Correctly redirected to login");
@@ -149,9 +147,7 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
     }) => {
       helpers.logStep("Testing auth guard on analytics");
 
-      await page.goto(
-        `${helpers.page.evaluate(() => location.origin)}/analytics`,
-      );
+      await page.goto("/analytics");
       await page.waitForURL(/.*login/, { timeout: 10000 });
       await expect(page).toHaveURL(/.*login/);
       helpers.logStep("Correctly redirected to login");

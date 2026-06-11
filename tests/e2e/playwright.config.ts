@@ -83,17 +83,24 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // QUARANTINED — aspirational specs. user-journeys/** and data-flow/**
-        // assert a large analytics-dashboard / data-integrity UI contract
-        // (testids: analytics-nav-link, analytics-dashboard, dashboard-container,
-        // acid-results, atomicity-result, batch-upload-zone, clustering-algorithm,
-        // …) that the product has never implemented. Their shared login helper
-        // (test-helpers.ts:51) times out waiting for analytics-nav-link |
-        // user-menu | dashboard-container post-login, so every test in both
-        // suites fails. They were invisible for months because the push lane was
-        // always cancelled mid-run (fixed in #701); the first completed run
-        // surfaced 15 failures. Re-enable per-suite once the corresponding UI +
-        // testids ship. See tests/e2e/tests/{user-journeys,data-flow}/* headers.
+        // QUARANTINED. All of these fail today on the shared login helper.
+        // Root cause (verified via a workflow_dispatch full-suite run on
+        // feat/e2e-foundation-dashboard-testids): TestHelpers.login waits for a
+        // sentinel `analytics-nav-link | user-menu | dashboard-container`, but
+        //  (a) analytics-nav-link / user-menu live in AppSidebar, while the
+        //      dashboard shell renders AppRail (SidebarLayout.tsx:77) — neither
+        //      testid is ever emitted on an authenticated page; and
+        //  (b) adding dashboard-container to the /dashboard page root did NOT
+        //      satisfy the sentinel either: after the e2e form-login the page
+        //      reaches networkidle but the authenticated dashboard subtree never
+        //      paints the sentinel (smoke's inline login reaches /dashboard, so
+        //      the server cookie is set, but the client auth shell does not
+        //      stabilise — likely a client-session/redirect issue under the
+        //      e2e login). Un-quarantining needs that render/auth issue resolved
+        //      AND the helper sentinel aligned with what AppRail renders.
+        // data-flow/** additionally asserts distributed-ACID/corruption/
+        // clustering UIs that are test fantasy (no backend, no product intent)
+        // — trim, do not build. See the gap plan (EPIC 0) + the spec headers.
         "**/user-journeys/**",
         "**/data-flow/**",
       ],
