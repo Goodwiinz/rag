@@ -47,8 +47,12 @@ def _mock_llm_structured(return_value):
 
 
 class TestComplexityCheck:
-    async def test_complexity_check_simple(self):
-        """'Search for papers' should return step_count < 3."""
+    # check_complexity is a thin prompt → LLM → step_count passthrough, so the
+    # contract under test is what gets SENT (prompt content, structured-output
+    # schema) and that the model's estimate is returned unmodified — not the
+    # numeric value we just told the mock to return.
+
+    async def test_complexity_prompt_carries_query_tools_and_context(self):
         mock_llm = _mock_llm_structured(ComplexityCheck(step_count=1))
 
         with patch(
@@ -58,10 +62,24 @@ class TestComplexityCheck:
                 "search for papers", TOOL_NAMES, PAGE_CONTEXT
             )
 
-        assert result < 3
+        # Structured output bound to the ComplexityCheck schema
+        mock_llm.with_structured_output.assert_called_once_with(ComplexityCheck)
 
-    async def test_complexity_check_complex(self):
-        """Multi-step query should return step_count >= 3."""
+        # The single message sent must contain the query, every tool name,
+        # and the page context the estimate is supposed to be based on.
+        ainvoke = mock_llm.with_structured_output.return_value.ainvoke
+        (messages,), _ = ainvoke.call_args
+        assert len(messages) == 1 and isinstance(messages[0], HumanMessage)
+        prompt = messages[0].content
+        assert "search for papers" in prompt
+        for tool in TOOL_NAMES:
+            assert tool in prompt
+        assert "proj-123" in prompt
+
+        # And the model's estimate passes through unmodified.
+        assert result == 1
+
+    async def test_complexity_returns_model_estimate_verbatim(self):
         mock_llm = _mock_llm_structured(ComplexityCheck(step_count=5))
 
         with patch(
@@ -74,7 +92,7 @@ class TestComplexityCheck:
                 PAGE_CONTEXT,
             )
 
-        assert result >= 3
+        assert result == 5
 
 
 # ---------------------------------------------------------------------------

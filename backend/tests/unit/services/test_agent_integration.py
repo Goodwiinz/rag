@@ -608,7 +608,16 @@ class TestSSEStreamPersistence:
         assert "asyncio.timeout" in source
 
     def test_stream_endpoint_passes_full_page_context(self, client):
-        """SSE /stream should pass the same page context fields as the polling flow."""
+        """SSE /stream forwards page context, with project fields fail-closed.
+
+        Since the thread-project binding work (#664/#666),
+        _resolve_and_bind_project ownership-verifies any client-sent
+        project_id and DROPS it (None) when no owned project matches — the
+        client's claim is never trusted verbatim. With no DB rows behind the
+        mocks, the sent proj-123 is unverifiable, so the graph must receive
+        project_id/project_name as None while every other field passes
+        through untouched.
+        """
         from langchain_core.messages import AIMessage
 
         payload = {
@@ -664,7 +673,13 @@ class TestSSEStreamPersistence:
 
         initial_state = mock_graph.astream_events.call_args.args[0]
         config = mock_graph.astream_events.call_args.kwargs["config"]
-        expected_context = payload["page_context"]
+        # Unverifiable client project claim is dropped (fail-closed); the
+        # rest of the context passes through unchanged.
+        expected_context = {
+            **payload["page_context"],
+            "project_id": None,
+            "project_name": None,
+        }
         assert initial_state["page_context"] == expected_context
         assert config["configurable"]["page_context"] == expected_context
 
