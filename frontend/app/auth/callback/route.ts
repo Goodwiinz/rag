@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getSafeAuthRedirect } from '@/utils/authRedirect';
+import { isTrustedForwardedHost } from '@/utils/trustedHost';
 import { NextResponse } from 'next/server';
 
 const VERIFY_EMAIL_PATH = '/verify-email';
@@ -32,13 +33,16 @@ function buildVerifyEmailErrorRedirect(
 }
 
 // request.url resolves to the internal K8s pod hostname when behind nginx
-// ingress, which would 502 on redirect. Honor X-Forwarded-Host/Proto so the
-// browser is redirected back to the public origin.
+// ingress, which would 502 on redirect. Honor X-Forwarded-Host/Proto — but only
+// for allowlisted hosts (isTrustedForwardedHost, audit #13), else an attacker
+// could set the header and open-redirect the just-authenticated user to their
+// domain. Deploys terminating TLS at an ingress must set TRUSTED_PROXY_HOSTS (or
+// NEXT_PUBLIC_FRONTEND_URL); on Vercel request.url is already the public origin.
 function getPublicOrigin(request: Request): string {
   const headers = new Headers(request.headers);
   const forwardedHost = headers.get('x-forwarded-host');
   const forwardedProto = headers.get('x-forwarded-proto') || 'https';
-  if (forwardedHost) {
+  if (forwardedHost && isTrustedForwardedHost(forwardedHost)) {
     return `${forwardedProto}://${forwardedHost}`;
   }
   return new URL(request.url).origin;
