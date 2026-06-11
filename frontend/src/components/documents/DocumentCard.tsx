@@ -205,7 +205,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               >
                 {document.title}
               </h3>
-              <p className="text-xs text-muted-foreground truncate mb-2 font-mono">
+              <p className="text-xs text-muted-foreground truncate mb-2">
                 {document.filename}
               </p>
 

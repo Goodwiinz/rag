@@ -128,7 +128,7 @@ export function ProjectKnowledgeTree({ projectId }: ProjectKnowledgeTreeProps) {
       </div>
 
       {error && (
-        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+        <div role="alert" className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
           {error}
         </div>
       )}

@@ -1,19 +1,18 @@
 'use client';
 
-/**
- * StartChatModal Component
- * Modal for starting a new chat thread from project context
- *
- * Features:
- * - Initial message input (required)
- * - Optional thread title
- * - Terminal Observatory theme styling
- * - Loading state during submission
- * - Form validation
- */
-
 import React, { useState } from 'react';
-import { MessageSquare, X, Loader2, Send } from 'lucide-react';
+import { MessageSquare, Loader2, Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export interface StartChatModalProps {
   isOpen: boolean;
@@ -31,8 +30,6 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -45,7 +42,6 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
     setIsSubmitting(true);
     try {
       await onStartChat(initialMessage.trim(), threadTitle.trim() || undefined);
-      // Reset form
       setInitialMessage('');
       setThreadTitle('');
       onClose();
@@ -56,8 +52,8 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
     }
   };
 
-  const handleClose = () => {
-    if (!isSubmitting) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
       setInitialMessage('');
       setThreadTitle('');
       setError(null);
@@ -66,112 +62,95 @@ export const StartChatModal: React.FC<StartChatModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-muted-foreground">
-              Start New Chat
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            Start new chat
+          </DialogTitle>
+          <DialogDescription>
+            This message will start the chat with project documents as context
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Initial Message */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-              Initial Message <span className="text-red-400">*</span>
-            </label>
+            <Label htmlFor="initial-message" className="mb-1.5 block">
+              Initial message <span className="text-destructive">*</span>
+            </Label>
             <textarea
+              id="initial-message"
               value={initialMessage}
               onChange={(e) => setInitialMessage(e.target.value)}
               placeholder="Enter your first message to start the conversation..."
               disabled={isSubmitting}
-              className="w-full h-32 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50 resize-none"
+              className="w-full h-32 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
               required
             />
-            <p className="text-xs text-foreground font-mono mt-1">
-              This message will start the chat with project documents as context
-            </p>
           </div>
 
-          {/* Thread Title (Optional) */}
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-              Thread Title <span className="text-foreground">(optional)</span>
-            </label>
-            <input
+            <Label htmlFor="thread-title" className="mb-1.5 block">
+              Thread title <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="thread-title"
               type="text"
               value={threadTitle}
               onChange={(e) => setThreadTitle(e.target.value)}
               placeholder="e.g., Research Discussion - Methods Analysis"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50"
             />
-            <p className="text-xs text-foreground font-mono mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               If not provided, a title will be generated automatically
             </p>
           </div>
 
-          {/* Error Display */}
           {error && (
             <div
               role="alert"
-              className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400"
+              className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive"
             >
               {error}
             </div>
           )}
 
-          {/* Info Box */}
-          <div className="p-3 bg-sol/10 border border-sol/30 rounded text-xs font-mono text-sol">
+          <div className="p-3 bg-primary/10 border border-primary/30 rounded text-xs text-primary">
             This chat will use all documents in this project as RAG context. You
             can ask questions and have natural conversations about your research
             materials.
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#1a1a1a]">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
-              onClick={handleClose}
+              variant="outline"
+              onClick={handleOpenChange.bind(null, false)}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isSubmitting || !initialMessage.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting Chat...
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Starting chat...
                 </>
               ) : (
                 <>
-                  <Send className="h-4 w-4" />
-                  Start Chat
+                  <Send className="h-4 w-4 mr-2" />
+                  Start chat
                 </>
               )}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

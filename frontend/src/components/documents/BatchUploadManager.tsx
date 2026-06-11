@@ -525,14 +525,14 @@ export const BatchUploadManager: React.FC<BatchUploadManagerProps> = ({
 
       {/* Summary */}
       {uploadState.completedCount > 0 && !uploadState.isUploading && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div role="status" className="rounded-lg border border-terra/30 bg-terra/10 p-4">
           <div className="flex items-center space-x-2">
-            <CheckCircleIcon className="h-5 w-5 text-green-600" />
-            <span className="text-sm font-medium text-green-900">
+            <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />
+            <span className="text-sm font-medium text-[var(--nous-terra)]">
               Upload completed successfully!
             </span>
           </div>
-          <p className="text-sm text-green-700 mt-1">
+          <p className="text-sm text-[var(--nous-terra)]/80 mt-1">
             {uploadState.completedCount} files have been uploaded and processed.
           </p>
         </div>

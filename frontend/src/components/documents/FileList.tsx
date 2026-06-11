@@ -120,6 +120,8 @@ const FileListItem: React.FC<FileListItemProps> = ({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn(
         'group bg-card border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer',
         isSelected && 'ring-2 ring-primary bg-primary/5'
@@ -127,6 +129,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
     >
       <div className="flex items-start space-x-3">
         {/* Checkbox */}
@@ -355,7 +358,7 @@ export const FileList: React.FC<FileListProps> = ({
           No documents
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Get started by uploading your first document.
+          Upload documents to build your research knowledge base.
         </p>
       </div>
     );

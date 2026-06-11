@@ -85,7 +85,7 @@ export const WriterToolbar: React.FC<WriterToolbarProps> = ({
   return (
     <div
       ref={toolbarRef}
-      className="absolute z-50 flex items-center gap-1 rounded-lg border border-[#1a1a1a] bg-[#0a0a0a] px-2 py-1.5 shadow-lg shadow-black/50"
+      className="absolute z-50 flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1.5 shadow-lg"
       style={{ top: position.top, left: position.left }}
     >
       {writerButtons.map(({ action, label, icon: Icon }) => {
@@ -96,7 +96,7 @@ export const WriterToolbar: React.FC<WriterToolbarProps> = ({
             variant="ghost"
             size="sm"
             className={cn(
-              'h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground',
+              'h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground',
               isLoading && 'pointer-events-none opacity-70'
             )}
             disabled={loadingAction !== null}
@@ -113,12 +113,12 @@ export const WriterToolbar: React.FC<WriterToolbarProps> = ({
         );
       })}
 
-      <div className="mx-1 h-5 w-px bg-[#1a1a1a]" />
+      <div className="mx-1 h-5 w-px bg-border" />
 
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 w-7 p-0 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
+        className="h-7 w-7 p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
         onClick={onClose}
         aria-label="Close toolbar"
       >

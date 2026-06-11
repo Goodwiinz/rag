@@ -1,9 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Pencil, Save, X } from 'lucide-react';
+import { Eye, Pencil, Save } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import type {
   ProjectDocument,
   ProjectNote,
@@ -148,7 +157,11 @@ export function NoteEditor({
     [content]
   );
 
-  if (!isOpen) return null;
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !saving) {
+      onClose();
+    }
+  };
 
   const handleAddTag = () => {
     const next = tagInput.trim();
@@ -182,16 +195,21 @@ export function NoteEditor({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <h2 className="text-lg font-mono font-bold text-sol">
-            {initialNote ? 'Edit Note' : 'Create Note'}
-          </h2>
-          <div className="flex items-center gap-2">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader className="shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>
+                {initialNote ? 'Edit note' : 'Create note'}
+              </DialogTitle>
+              <DialogDescription>
+                Write your note in markdown format
+              </DialogDescription>
+            </div>
             <button
               onClick={() => setPreview((prev) => !prev)}
-              className="px-3 py-1.5 text-xs font-mono border border-[#333] rounded text-muted-foreground hover:border-sol/50"
+              className="px-3 py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {preview ? (
                 <span className="inline-flex items-center gap-1">
@@ -203,32 +221,25 @@ export function NoteEditor({
                 </span>
               )}
             </button>
-            <button
-              aria-label="Close"
-              onClick={onClose}
-              className="p-1 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
           </div>
-        </div>
+        </DialogHeader>
 
-        <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+        <div className="space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
-              Title *
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Title
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
+              className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Content (Markdown)
             </label>
             {!preview ? (
@@ -265,7 +276,7 @@ export function NoteEditor({
                   onKeyUp={handleTextSelect}
                   placeholder="Write note content in markdown..."
                   rows={12}
-                  className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
+                  className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
                 {rewriteResult && (
                   <div className="mt-3">
@@ -294,9 +305,7 @@ export function NoteEditor({
                 )}
               </div>
             ) : (
-              <div className="p-3 bg-[#111] border border-[#333] rounded min-h-[180px] prose prose-invert prose-sm max-w-none">
-                {/* SECURITY (audit #22): agent-authored note links open with
-                    rel="noopener noreferrer" to block reverse tabnabbing. */}
+              <div className="p-3 bg-muted border border-border rounded min-h-[180px] prose prose-sm max-w-none">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -314,7 +323,7 @@ export function NoteEditor({
           </div>
 
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Tags
             </label>
             <div className="flex gap-2">
@@ -329,11 +338,11 @@ export function NoteEditor({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
+                className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <button
                 onClick={handleAddTag}
-                className="px-3 py-2 text-xs font-mono border border-sol/30 text-sol rounded hover:bg-sol/10"
+                className="px-3 py-2 text-xs border border-primary/30 text-primary rounded hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Add
               </button>
@@ -346,7 +355,7 @@ export function NoteEditor({
                     onClick={() =>
                       setTags((prev) => prev.filter((t) => t !== tag))
                     }
-                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground hover:border-red-400 hover:text-red-300"
+                    className="px-2 py-1 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-destructive hover:text-destructive"
                   >
                     {tag}
                   </button>
@@ -357,21 +366,21 @@ export function NoteEditor({
 
           {availableDocuments.length > 0 && (
             <div>
-              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-                Link Documents
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Link documents
               </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {availableDocuments.map((doc) => (
                   <label
                     key={doc.document_id || doc.id}
-                    className="flex items-center gap-2 px-3 py-2 border border-[#333] rounded text-sm text-muted-foreground"
+                    className="flex items-center gap-2 px-3 py-2 border border-border rounded text-sm text-foreground"
                   >
                     <input
                       type="checkbox"
                       checked={linkedDocumentIds.includes(doc.document_id)}
                       onChange={() => toggleDocumentLink(doc.document_id)}
                     />
-                    <span className="truncate font-mono text-xs">
+                    <span className="truncate text-xs">
                       {doc.document?.title ||
                         doc.document?.filename ||
                         doc.document_id}
@@ -383,24 +392,17 @@ export function NoteEditor({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a]">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
-          >
+        <DialogFooter className="shrink-0">
+          <Button variant="outline" onClick={handleOpenChange.bind(null, false)}>
             Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSave}
-            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            {saving ? 'Saving...' : 'Save Note'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button onClick={handleSubmit} disabled={!canSave}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Saving...' : 'Save note'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

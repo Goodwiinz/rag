@@ -17,7 +17,6 @@ import {
   FileText,
   HardDrive,
   Share2,
-  Tag,
   Trash2,
   RefreshCw,
   AlertTriangle,
@@ -30,17 +29,28 @@ import {
   BookOpen,
   Loader2,
   Table2,
-  Crop,
 } from 'lucide-react';
 import { ProcessingStatus } from '@/components/documents/ProcessingStatus';
 import { IntegrityBadge } from '@/components/documents/IntegrityBadge';
 import { IntegrityDetail } from '@/components/documents/IntegrityDetail';
 import { citationService } from '@/services/citationService';
 import { getIntegrityScore, extractTables } from '@/services/scispaceService';
-import { ExtractedTablePreview } from '@/components/documents/ExtractedTablePreview';
-import { CropExtractOverlay } from '@/components/documents/CropExtractOverlay';
+import { DocumentOverviewTab } from '@/components/documents/DocumentOverviewTab';
+import { DocumentMetadataTab } from '@/components/documents/DocumentMetadataTab';
+import { DocumentPreviewTab } from '@/components/documents/DocumentPreviewTab';
+import { DocumentTablesTab } from '@/components/documents/DocumentTablesTab';
 import type { ExtractedTable, ExtractRegionResponse } from '@/types/scispace';
 import type { CitationResponse } from '@/types/research';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -71,6 +81,7 @@ export default function DocumentDetailPage() {
     ai_probability: number;
     human_probability: number;
   } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const documentId = params.id as string;
 
@@ -113,19 +124,17 @@ export default function DocumentDetailPage() {
 
   const handleDelete = async () => {
     if (!document) return;
+    setDeleteDialogOpen(true);
+  };
 
-    if (
-      confirm(
-        'Are you sure you want to delete this document? This action cannot be undone.'
-      )
-    ) {
-      try {
-        await api.delete(`/documents/${document.id}`);
-        router.push('/documents');
-      } catch (err) {
-        console.error('Failed to delete document:', err);
-        alert('Failed to delete document');
-      }
+  const confirmDelete = async () => {
+    if (!document) return;
+    try {
+      await api.delete(`/documents/${document.id}`);
+      router.push('/documents');
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -137,7 +146,6 @@ export default function DocumentDetailPage() {
       fetchDocument();
     } catch (err) {
       console.error('Failed to retry processing:', err);
-      alert('Failed to retry processing');
     }
   };
 
@@ -277,7 +285,7 @@ export default function DocumentDetailPage() {
             <button
               type="button"
               onClick={fetchDocument}
-              className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Retry
             </button>
@@ -331,14 +339,14 @@ export default function DocumentDetailPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Download aria-hidden="true" className="w-3.5 h-3.5" />
               Download
             </button>
             <button
               type="button"
-              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Share2 aria-hidden="true" className="w-3.5 h-3.5" />
               Share
@@ -605,252 +613,32 @@ export default function DocumentDetailPage() {
             {/* Tab Content */}
             <div className="min-h-[400px]">
               {activeTab === 'overview' && (
-                <div className="py-6">
-                  {/* Summary / Description */}
-                  <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-                    <h3 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
-                      <FileText
-                        aria-hidden="true"
-                        className="w-4 h-4 text-muted-foreground"
-                      />
-                      Content summary
-                    </h3>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {document.content_summary ||
-                        document.content_preview ||
-                        document.description ||
-                        'No summary available for this document yet.'}
-                    </p>
-
-                    {/* Tags */}
-                    {document.tags && document.tags.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-border">
-                        <div className="flex flex-wrap gap-2">
-                          {document.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="px-2 py-1 rounded bg-muted text-xs text-muted-foreground border border-border inline-flex items-center gap-1.5"
-                            >
-                              <Tag
-                                aria-hidden="true"
-                                className="w-3 h-3 text-primary"
-                              />
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <DocumentOverviewTab document={document} />
               )}
 
               {activeTab === 'metadata' && (
-                <div className="py-6">
-                  <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-muted/30 text-xs text-muted-foreground border-b border-border">
-                        <tr>
-                          <th className="px-6 py-3 font-medium">Property</th>
-                          <th className="px-6 py-3 font-medium">Value</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border text-sm">
-                        {Object.entries(document.metadata || {}).map(
-                          ([key, value]) => (
-                            <tr
-                              key={key}
-                              className="hover:bg-muted/30 transition-colors"
-                            >
-                              <td className="px-6 py-3 font-medium text-foreground align-top">
-                                {key}
-                              </td>
-                              <td className="px-6 py-3 text-muted-foreground break-words">
-                                {typeof value === 'object'
-                                  ? JSON.stringify(value)
-                                  : String(value)}
-                              </td>
-                            </tr>
-                          )
-                        )}
-                        {(!document.metadata ||
-                          Object.keys(document.metadata).length === 0) && (
-                          <tr>
-                            <td
-                              colSpan={2}
-                              className="px-6 py-10 text-center text-sm text-muted-foreground"
-                            >
-                              No metadata extracted yet.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <DocumentMetadataTab metadata={document.metadata || {}} />
               )}
 
               {activeTab === 'preview' && (
-                <div className="py-6 flex items-center justify-center min-h-[400px] rounded-xl border border-dashed border-border bg-card/50">
-                  <div className="text-center">
-                    <Eye
-                      aria-hidden="true"
-                      className="w-10 h-10 text-muted-foreground mx-auto mb-4"
-                    />
-                    <p className="text-sm font-medium text-foreground mb-1">
-                      Preview not available here
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Open the original file to view its contents.
-                    </p>
-                    <button
-                      type="button"
-                      className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      Open original file
-                    </button>
-                  </div>
-                </div>
+                <DocumentPreviewTab />
               )}
 
               {activeTab === 'tables' && (
-                <div
-                  ref={tablesContainerRef}
-                  className="py-6 space-y-6 relative"
-                >
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
-                      <Table2
-                        aria-hidden="true"
-                        className="w-4 h-4 text-primary"
-                      />
-                      Extracted tables and formulas
-                    </h3>
-                    {isPdf && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setCropActive(true)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)] transition-colors inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                          <Crop aria-hidden="true" className="w-3.5 h-3.5" />
-                          Crop extract
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleFetchTables}
-                          disabled={tablesLoading || !isIndexed}
-                          title={
-                            !isIndexed
-                              ? 'Tables can be extracted once the document is indexed'
-                              : undefined
-                          }
-                          className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                            tablesLoading || !isIndexed
-                              ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                              : 'bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20'
-                          )}
-                        >
-                          {tablesLoading ? (
-                            <Loader2
-                              aria-hidden="true"
-                              className="w-3.5 h-3.5 animate-spin"
-                            />
-                          ) : (
-                            <Table2
-                              aria-hidden="true"
-                              className="w-3.5 h-3.5"
-                            />
-                          )}
-                          {tablesLoading ? 'Extracting…' : 'Extract tables'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {isPdf ? (
-                    <>
-                      {regionResult && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-2">
-                            Crop extraction result
-                          </h4>
-                          <ExtractedTablePreview
-                            documentId={documentId}
-                            regionResult={regionResult}
-                            onClose={() => setRegionResult(null)}
-                          />
-                        </div>
-                      )}
-
-                      {tablesLoading ? (
-                        <div className="space-y-4">
-                          <div className="h-40 rounded-lg border border-border bg-card animate-pulse" />
-                          <div className="h-40 rounded-lg border border-border bg-card animate-pulse" />
-                          <span className="sr-only" role="status">
-                            Extracting tables…
-                          </span>
-                        </div>
-                      ) : tables.length > 0 ? (
-                        <div className="space-y-4">
-                          {tables.map((table, idx) => (
-                            <ExtractedTablePreview
-                              key={idx}
-                              documentId={documentId}
-                              table={table}
-                              onClose={() =>
-                                setTables((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-12 rounded-xl border border-dashed border-border bg-card/50">
-                          <Table2
-                            aria-hidden="true"
-                            className="w-10 h-10 text-muted-foreground mx-auto mb-4"
-                          />
-                          <p className="text-sm font-medium text-foreground mb-1">
-                            No tables yet
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {isIndexed
-                              ? 'Run extraction to find tables in this document.'
-                              : 'Tables become available once the document is indexed.'}
-                          </p>
-                        </div>
-                      )}
-
-                      <CropExtractOverlay
-                        active={cropActive}
-                        pageNumber={1}
-                        documentId={documentId}
-                        containerRef={tablesContainerRef}
-                        onCancel={() => setCropActive(false)}
-                        onExtracted={(data) => {
-                          setRegionResult(data);
-                          setCropActive(false);
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <div className="text-center py-12 rounded-xl border border-dashed border-border bg-card/50">
-                      <Table2
-                        aria-hidden="true"
-                        className="w-10 h-10 text-muted-foreground mx-auto mb-4"
-                      />
-                      <p className="text-sm font-medium text-foreground mb-1">
-                        Table extraction needs a PDF
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Upload a PDF document to use this feature.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <DocumentTablesTab
+                  isPdf={isPdf}
+                  isIndexed={isIndexed}
+                  tables={tables}
+                  tablesLoading={tablesLoading}
+                  regionResult={regionResult}
+                  cropActive={cropActive}
+                  tablesContainerRef={tablesContainerRef}
+                  documentId={documentId}
+                  onFetchTables={handleFetchTables}
+                  onSetTables={setTables}
+                  onSetRegionResult={setRegionResult}
+                  onSetCropActive={setCropActive}
+                />
               )}
             </div>
           </div>
@@ -936,7 +724,7 @@ export default function DocumentDetailPage() {
               <button
                 type="button"
                 onClick={() => setIntegrityOpen(true)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-muted/20 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-muted/20 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 View details
               </button>
@@ -949,6 +737,26 @@ export default function DocumentDetailPage() {
         isOpen={integrityOpen}
         onClose={() => setIntegrityOpen(false)}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this document. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

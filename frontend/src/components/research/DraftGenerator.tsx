@@ -6,8 +6,9 @@
  */
 
 import React, { useState, useId, useRef } from 'react';
-import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
+import { Sparkles, Plus, X, Loader2, ChevronDown } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 export interface DraftGeneratorProps {
   onGenerate: (config: GenerationConfig) => void;
@@ -34,6 +35,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const [style, setStyle] = useState<GenerationConfig['style']>('academic');
   const [maxSections, setMaxSections] = useState(5);
   const [includeAbstract, setIncludeAbstract] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const themesInputId = useId();
   const maxSectionsId = useId();
@@ -179,46 +181,55 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
           </div>
         </fieldset>
 
-        {/* Max Sections Slider */}
-        <div>
-          <label
-            htmlFor={maxSectionsId}
-            className="block text-sm font-medium text-foreground mb-2"
-          >
-            Max sections: <span className="text-primary">{maxSections}</span>
-          </label>
-          <input
-            id={maxSectionsId}
-            type="range"
-            min={2}
-            max={10}
-            value={maxSections}
-            onChange={(e) => setMaxSections(parseInt(e.target.value, 10))}
-            className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>2</span>
-            <span>6</span>
-            <span>10</span>
-          </div>
-        </div>
+        {/* Advanced Options */}
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+            Advanced options
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-5 mt-5">
+            {/* Max Sections Slider */}
+            <div>
+              <label
+                htmlFor={maxSectionsId}
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Max sections: <span className="text-primary">{maxSections}</span>
+              </label>
+              <input
+                id={maxSectionsId}
+                type="range"
+                min={2}
+                max={10}
+                value={maxSections}
+                onChange={(e) => setMaxSections(parseInt(e.target.value, 10))}
+                className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>2</span>
+                <span>6</span>
+                <span>10</span>
+              </div>
+            </div>
 
-        {/* Include Abstract Toggle */}
-        <div className="flex items-center justify-between">
-          <label
-            id={includeAbstractId}
-            htmlFor={`${includeAbstractId}-switch`}
-            className="text-sm font-medium text-foreground"
-          >
-            Include abstract
-          </label>
-          <Switch
-            id={`${includeAbstractId}-switch`}
-            checked={includeAbstract}
-            onCheckedChange={setIncludeAbstract}
-            aria-labelledby={includeAbstractId}
-          />
-        </div>
+            {/* Include Abstract Toggle */}
+            <div className="flex items-center justify-between">
+              <label
+                id={includeAbstractId}
+                htmlFor={`${includeAbstractId}-switch`}
+                className="text-sm font-medium text-foreground"
+              >
+                Include abstract
+              </label>
+              <Switch
+                id={`${includeAbstractId}-switch`}
+                checked={includeAbstract}
+                onCheckedChange={setIncludeAbstract}
+                aria-labelledby={includeAbstractId}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Document Count Info */}
         {documentCount > 0 && (

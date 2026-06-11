@@ -166,7 +166,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 
   if (compact) {
     return (
-      <div className={cn(
+      <div role="alert" className={cn(
         "flex items-center space-x-2 p-2 rounded-md border text-sm",
         getContainerStyles(severity),
         className
@@ -203,7 +203,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   }
 
   return (
-    <div className={cn(
+    <div role="alert" className={cn(
       "p-4 rounded-md border",
       getContainerStyles(severity),
       className

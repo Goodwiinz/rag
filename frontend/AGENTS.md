@@ -11,3 +11,7 @@ This project uses **Tambo AI** for building AI assistants with generative UI and
 **Documentation**: https://docs.tambo.co/llms.txt
 
 **CLI**: Use `npx tambo` to add UI components or upgrade. Run `npx tambo help` to learn more.
+
+## Context7
+
+When you need library/API documentation, code examples, or config steps, use the `context7` MCP tools to fetch up-to-date docs. Append `use context7` to prompts.

@@ -22,6 +22,7 @@ import {
   GitBranch,
   Network,
   Upload,
+  MoreHorizontal,
 } from 'lucide-react';
 import { ProjectHeader } from '@/components/research/ProjectHeader';
 import { DocumentList } from '@/components/research/DocumentList';
@@ -48,6 +49,22 @@ import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type TabType =
   | 'documents'
@@ -130,6 +147,8 @@ export default function ProjectDetailPage() {
     null
   );
   const [showUploadWizard, setShowUploadWizard] = useState(false);
+  const [deleteNoteDialogOpen, setDeleteNoteDialogOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [projectError, setProjectError] = useState<{
     status: number;
     message: string;
@@ -382,12 +401,20 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm('Delete this note?')) return;
+  const handleDeleteNote = (noteId: string) => {
+    setNoteToDelete(noteId);
+    setDeleteNoteDialogOpen(true);
+  };
+
+  const confirmDeleteNote = async () => {
+    if (!noteToDelete) return;
     try {
-      await deleteNote(projectId, noteId);
+      await deleteNote(projectId, noteToDelete);
     } catch (err) {
       console.error('Failed to delete note:', err);
+    } finally {
+      setNoteToDelete(null);
+      setDeleteNoteDialogOpen(false);
     }
   };
 
@@ -564,36 +591,50 @@ export default function ProjectDetailPage() {
     );
   }
 
-  const tabs: Array<{
+  const primaryTabs: Array<{
     id: TabType;
     label: string;
+    mobileLabel: string;
     icon: React.ElementType;
     count?: number;
   }> = [
     {
       id: 'documents',
       label: 'Documents',
+      mobileLabel: 'Docs',
       icon: FileText,
       count: projectDocuments.length,
     },
     {
       id: 'notes',
       label: 'Notes',
+      mobileLabel: 'Notes',
       icon: StickyNote,
       count: projectNotes.length,
     },
-    { id: 'bibliography', label: 'Bibliography', icon: BookOpen },
     {
       id: 'drafts',
       label: 'Drafts',
+      mobileLabel: 'Drafts',
       icon: Sparkles,
       count: draftVersions.length || undefined,
     },
-    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'chat', label: 'Chat', mobileLabel: 'Chat', icon: MessageSquare },
+  ];
+
+  const secondaryTabs: Array<{
+    id: TabType;
+    label: string;
+    icon: React.ElementType;
+  }> = [
+    { id: 'bibliography', label: 'Bibliography', icon: BookOpen },
     { id: 'matrix', label: 'Matrix', icon: Grid3X3 },
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'knowledge', label: 'Knowledge', icon: Network },
   ];
+
+  const allTabs = [...primaryTabs, ...secondaryTabs.map(t => ({ ...t, mobileLabel: t.label.slice(0, 4) }))];
+  const isSecondaryTabActive = secondaryTabs.some(t => t.id === activeTab);
 
   return (
     <div className="p-3 sm:p-6 pb-20 md:pb-6 max-w-7xl mx-auto">
@@ -646,60 +687,90 @@ export default function ProjectDetailPage() {
             role="tablist"
             className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap"
             onKeyDown={(e) => {
-              const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+              const currentIndex = allTabs.findIndex((t) => t.id === activeTab);
               let nextIndex = -1;
               if (e.key === 'ArrowRight') {
-                nextIndex = (currentIndex + 1) % tabs.length;
+                nextIndex = (currentIndex + 1) % allTabs.length;
               } else if (e.key === 'ArrowLeft') {
                 nextIndex =
-                  (currentIndex - 1 + tabs.length) % tabs.length;
+                  (currentIndex - 1 + allTabs.length) % allTabs.length;
               } else if (e.key === 'Home') {
                 nextIndex = 0;
               } else if (e.key === 'End') {
-                nextIndex = tabs.length - 1;
+                nextIndex = allTabs.length - 1;
               }
               if (nextIndex !== -1 && nextIndex !== currentIndex) {
                 e.preventDefault();
-                handleTabChange(tabs[nextIndex].id);
+                handleTabChange(allTabs[nextIndex].id);
               }
             }}
           >
-            {tabs.map((tab, index) => (
-              <React.Fragment key={tab.id}>
-                {index === 3 && (
-                  <div className="w-px h-4 bg-border mx-0.5 sm:mx-1 shrink-0" />
+            {primaryTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  activeTab === tab.id
+                    ? 'text-foreground bg-muted/60 border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                }`}
+              >
+                <tab.icon
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.mobileLabel}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span
+                    className={`ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 ${
+                      activeTab === tab.id
+                        ? 'bg-primary/15 text-primary'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
                 )}
+              </button>
+            ))}
+
+            {/* More dropdown for secondary tabs */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
-                  onClick={() => handleTabChange(tab.id)}
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  tabIndex={activeTab === tab.id ? 0 : -1}
                   className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    activeTab === tab.id
+                    isSecondaryTabActive
                       ? 'text-foreground bg-muted/60 border-b-2 border-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
                   }`}
+                  aria-label="More tabs"
                 >
-                  <tab.icon
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 sm:h-4 sm:w-4"
-                  />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.label.slice(0, 4)}</span>
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span
-                      className={`ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 ${
-                        activeTab === tab.id
-                          ? 'bg-primary/15 text-primary'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {tab.count}
+                  <MoreHorizontal aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">More</span>
+                  {isSecondaryTabActive && (
+                    <span className="ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 bg-primary/15 text-primary">
+                      {secondaryTabs.find(t => t.id === activeTab)?.label.slice(0, 4)}
                     </span>
                   )}
                 </button>
-              </React.Fragment>
-            ))}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {secondaryTabs.map((tab) => (
+                  <DropdownMenuItem
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`gap-2 ${activeTab === tab.id ? 'bg-primary/10 text-primary' : ''}`}
+                  >
+                    <tab.icon aria-hidden="true" className="h-4 w-4" />
+                    {tab.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -1162,6 +1233,26 @@ export default function ProjectDetailPage() {
         onClose={() => setShowUploadWizard(false)}
         onComplete={handleUploadComplete}
       />
+
+      <AlertDialog open={deleteNoteDialogOpen} onOpenChange={setDeleteNoteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this note. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteNote}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

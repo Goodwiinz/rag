@@ -45,19 +45,19 @@ export class ResearchErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="p-8 bg-[#0a0a0a] border border-red-500/30 rounded-lg text-center">
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h3 className="font-mono font-bold text-red-400 text-lg mb-2">
+        <div className="p-8 bg-card border border-destructive/30 rounded-lg text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h3 className="font-semibold text-destructive text-lg mb-2">
             Something went wrong
           </h3>
-          <p className="text-sm text-muted-foreground font-mono mb-6 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
             {this.state.error?.message ||
               'An unexpected error occurred in the research component'}
           </p>
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={this.handleReset}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded font-mono text-sm hover:bg-red-500/20 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded text-sm hover:bg-destructive/20 transition-colors"
             >
               <RefreshCw className="h-4 w-4" />
               Try Again
@@ -65,7 +65,7 @@ export class ResearchErrorBoundary extends Component<Props, State> {
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Class component error boundary intentionally uses native anchor for reliable navigation during error states */}
             <a
               href="/projects"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] text-muted-foreground border border-[#333] rounded font-mono text-sm hover:border-[#555] transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground border border-border rounded text-sm hover:border-foreground/30 transition-colors"
             >
               <Home className="h-4 w-4" />
               Back to Projects

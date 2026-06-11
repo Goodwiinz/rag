@@ -439,7 +439,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
                     </>
                   ) : (
                     <>
-                      <span className="inline-block w-2 h-2 bg-gray-400 rounded-full mr-1" />
+                      <span className="inline-block w-2 h-2 bg-muted-foreground rounded-full mr-1" />
                       Offline
                     </>
                   )}

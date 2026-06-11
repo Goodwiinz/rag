@@ -154,10 +154,10 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg border-[#1a1a1a] bg-black/30 backdrop-blur-xl sm:max-w-xl">
+      <DialogContent className="max-w-lg sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-muted-foreground">
-            <Shield className="h-5 w-5 text-brand-cyan" />
+            <Shield className="h-5 w-5 text-primary" />
             AI Integrity Analysis
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -168,7 +168,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
         <div className="space-y-6 py-2">
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-brand-cyan" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="text-sm text-muted-foreground">
                 Loading score...
               </span>
@@ -176,9 +176,9 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
           )}
 
           {error && !loading && (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-8">
-              <AlertCircle className="h-8 w-8 text-red-400" />
-              <p className="text-sm text-red-300">{error}</p>
+            <div role="alert" className="flex flex-col items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-8">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
@@ -200,7 +200,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
                 {renderGauge(score.ai_probability)}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 rounded-lg border border-[#1a1a1a] bg-black/20 p-4">
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted p-4">
                 <div>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Method
@@ -229,7 +229,7 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
                       return (
                         <div
                           key={idx}
-                          className="rounded-md border border-[#1a1a1a] bg-black/20 p-3"
+                          className="rounded-md border border-border bg-muted p-3"
                         >
                           <p className="mb-2 line-clamp-2 text-xs text-muted-foreground">
                             {segment.text_preview}
@@ -245,25 +245,25 @@ export const IntegrityDetail: React.FC<IntegrityDetailProps> = ({
           )}
         </div>
 
-        <DialogFooter className="border-t border-[#1a1a1a] pt-4">
+        <DialogFooter className="border-t border-border pt-4">
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-muted-foreground hover:text-white"
+            className="text-muted-foreground hover:text-foreground"
           >
             Close
           </Button>
           <Button
             onClick={handleRunCheck}
             disabled={checking || loading}
-            className="gap-2 border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan hover:bg-brand-cyan/20"
+            className="gap-2 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
           >
             {checking ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            {checking ? 'Analyzing...' : 'Run New Check'}
+            {checking ? 'Analyzing...' : 'Run new check'}
           </Button>
         </DialogFooter>
       </DialogContent>

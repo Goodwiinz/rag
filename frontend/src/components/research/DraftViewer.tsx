@@ -187,7 +187,6 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
               <button
                 onClick={() => onExport('markdown')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title="Export as Markdown"
               >
                 <Download className="h-3 w-3" />
                 MD
@@ -195,7 +194,6 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
               <button
                 onClick={() => onExport('latex')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title="Export as LaTeX"
               >
                 <Code className="h-3 w-3" />
                 TeX

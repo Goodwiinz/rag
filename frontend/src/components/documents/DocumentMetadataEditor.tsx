@@ -254,6 +254,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
               onClick={onClose}
               variant="ghost"
               size="sm"
+              aria-label="Close dialog"
               className="h-6 w-6 p-0"
             >
               <XMarkIcon className="h-4 w-4" />
@@ -297,7 +298,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                   onChange={handleDescriptionChange}
                   placeholder="Document description"
                   rows={3}
-                  className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
                 />
               </div>
             </div>
@@ -388,7 +389,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                           type: e.target.value as CustomField['type'],
                         }))
                       }
-                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                     >
                       {FIELD_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
@@ -402,6 +403,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                       onClick={handleAddCustomField}
                       variant="outline"
                       size="sm"
+                      aria-label="Add custom field"
                       className="w-full"
                       disabled={
                         !newCustomField.key.trim() ||
@@ -420,7 +422,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                   {formData.customFields.map((field) => (
                     <div
                       key={field.id}
-                      className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center space-x-2 p-3 bg-muted rounded-lg"
                     >
                       <div className="flex-1 grid grid-cols-12 gap-2">
                         <div className="col-span-4">
@@ -443,7 +445,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                   value: e.target.value,
                                 })
                               }
-                              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                             >
                               <option value="true">True</option>
                               <option value="false">False</option>
@@ -457,7 +459,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                   value: e.target.value,
                                 })
                               }
-                              className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                             />
                           ) : (
                             <Input
@@ -480,7 +482,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                 type: e.target.value as CustomField['type'],
                               })
                             }
-                            className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                            className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                           >
                             {FIELD_TYPES.map((type) => (
                               <option key={type.value} value={type.value}>
@@ -494,7 +496,8 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                             onClick={() => handleRemoveCustomField(field.id)}
                             variant="outline"
                             size="sm"
-                            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                            aria-label="Remove custom field"
+                            className="w-full text-destructive hover:text-destructive/80 hover:bg-destructive/10"
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>

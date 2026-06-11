@@ -1012,7 +1012,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Error Display */}
                     {file.error && (
-                      <div className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
+                      <div role="alert" className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
                         <div className="flex items-start space-x-2">
                           <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-mars)] mt-0.5" />
                           <div className="text-sm text-[var(--nous-mars)]">

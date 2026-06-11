@@ -37,29 +37,29 @@ export function CellCitation({
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-brand-cyan hover:bg-brand-cyan/10 transition-colors"
+          className="inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
           aria-label="View citation"
         >
           <Quote className="h-3 w-3" />
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 bg-[#0a0a0a] border-[#1a1a1a] p-4"
+        className="w-80 bg-card border-border p-4"
         side="top"
         align="start"
       >
-        <p className="text-xs font-mono text-muted-foreground italic leading-relaxed mb-3">
+        <p className="text-xs text-muted-foreground italic leading-relaxed mb-3">
           {citation_snippet}
         </p>
         {confidence !== null && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">
+              <span className="text-[10px] text-muted-foreground">
                 Confidence
               </span>
               <span
                 className={cn(
-                  'text-[10px] font-mono',
+                  'text-[10px]',
                   conf > 0.8
                     ? 'text-sol'
                     : conf > 0.5
@@ -70,7 +70,7 @@ export function CellCitation({
                 {getConfidenceLabel(conf)} ({Math.round(conf * 100)}%)
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-[#1a1a1a] overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all',

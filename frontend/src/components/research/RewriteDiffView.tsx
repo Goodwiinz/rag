@@ -65,8 +65,8 @@ const toneConfig: Record<
 > = {
   academic: {
     label: 'Academic',
-    color: 'text-brand-cyan',
-    bg: 'bg-brand-cyan/10 border-brand-cyan/30',
+    color: 'text-primary',
+    bg: 'bg-primary/10 border-primary/30',
   },
   simplified: {
     label: 'Simplified',
@@ -113,10 +113,10 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
   const tone = toneConfig[toneApplied];
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#1a1a1a] bg-[#0a0a0a]">
-      <div className="flex items-center justify-between border-b border-[#1a1a1a] px-4 py-3">
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <h3 className="font-mono text-sm font-bold text-muted-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             Tone Rewrite
           </h3>
           <Badge className={cn('border text-xs', tone.bg, tone.color)}>
@@ -134,10 +134,10 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 divide-y divide-[#1a1a1a] md:grid-cols-2 md:divide-x md:divide-y-0">
+      <div className="grid grid-cols-1 divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">
         <div className="flex flex-col">
-          <div className="border-b border-[#1a1a1a] px-4 py-2">
-            <span className="font-mono text-xs uppercase text-muted-foreground">
+          <div className="border-b border-border px-4 py-2">
+            <span className="text-xs text-muted-foreground">
               Original
             </span>
           </div>
@@ -159,8 +159,8 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
         </div>
 
         <div className="flex flex-col">
-          <div className="border-b border-[#1a1a1a] px-4 py-2">
-            <span className="font-mono text-xs uppercase text-muted-foreground">
+          <div className="border-b border-border px-4 py-2">
+            <span className="text-xs text-muted-foreground">
               Rewritten
             </span>
           </div>
@@ -171,7 +171,7 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
                   key={idx}
                   className={cn(
                     entry.type === 'added' &&
-                      'rounded-sm bg-sol/20 px-0.5 text-[#8ef9d0]'
+                      'rounded-sm bg-primary/20 px-0.5 text-primary'
                   )}
                 >
                   {entry.word}{' '}
@@ -182,11 +182,11 @@ export const RewriteDiffView: React.FC<RewriteDiffViewProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-[#1a1a1a] px-4 py-3">
+      <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
+          className="gap-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={onReject}
           aria-label="Reject rewrite"
         >

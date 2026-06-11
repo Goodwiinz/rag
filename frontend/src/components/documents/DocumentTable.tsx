@@ -94,7 +94,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                 {getStatusBadge(document.status)}
                 {document.progress && document.status === 'processing' && (
                   <div className="mt-1">
-                    <div className="w-24 bg-gray-200 rounded-full h-1.5">
+                    <div className="w-24 bg-muted rounded-full h-1.5">
                       <div
                         className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${document.progress}%` }}

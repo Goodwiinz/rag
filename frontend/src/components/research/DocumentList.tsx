@@ -29,6 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { ProjectDocument } from '@/services/projectService';
 
 interface DocumentListProps {
@@ -82,6 +92,9 @@ export function DocumentList({
   const [sortKey, setSortKey] = useState<SortKey>('added_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRemoveOpen, setBulkRemoveOpen] = useState(false);
+  const [singleRemoveOpen, setSingleRemoveOpen] = useState(false);
+  const [documentToRemove, setDocumentToRemove] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = documents;
@@ -129,16 +142,47 @@ export function DocumentList({
   }, []);
 
   const handleBulkRemove = useCallback(() => {
-    if (!confirm(`Remove ${selectedIds.size} document(s) from the project?`))
-      return;
+    setBulkRemoveOpen(true);
+  }, [selectedIds]);
+
+  const confirmBulkRemove = useCallback(() => {
     selectedIds.forEach((id) => onRemove(id));
     setSelectedIds(new Set());
+    setBulkRemoveOpen(false);
   }, [selectedIds, onRemove]);
+
+  const handleSingleRemove = useCallback((documentId: string) => {
+    setDocumentToRemove(documentId);
+    setSingleRemoveOpen(true);
+  }, []);
+
+  const confirmSingleRemove = useCallback(() => {
+    if (documentToRemove) {
+      onRemove(documentToRemove);
+      setDocumentToRemove(null);
+      setSingleRemoveOpen(false);
+    }
+  }, [documentToRemove, onRemove]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+          >
+            <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+            <div className="h-5 w-5 rounded bg-muted animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="h-5 w-16 rounded bg-muted animate-pulse hidden sm:block" />
+            <div className="h-4 w-16 rounded bg-muted animate-pulse hidden sm:block" />
+            <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -280,7 +324,7 @@ export function DocumentList({
                   )}
                 </div>
                 {doc.document?.filename && doc.document?.title && (
-                  <p className="text-xs text-muted-foreground truncate font-mono">
+                  <p className="text-xs text-muted-foreground truncate">
                     {doc.document.filename}
                   </p>
                 )}
@@ -333,11 +377,7 @@ export function DocumentList({
                       View document
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (confirm('Remove this document from the project?')) {
-                          onRemove(doc.document_id);
-                        }
-                      }}
+                      onClick={() => handleSingleRemove(doc.document_id)}
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -359,6 +399,49 @@ export function DocumentList({
           </p>
         </div>
       )}
+
+      <AlertDialog open={bulkRemoveOpen} onOpenChange={setBulkRemoveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove selected documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {selectedIds.size} document
+              {selectedIds.size !== 1 ? 's' : ''} from the project. The
+              documents will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={singleRemoveOpen} onOpenChange={setSingleRemoveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the document from the project. The document will
+              not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSingleRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
