@@ -30,7 +30,10 @@ env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
   DOCKER_BUILDKIT: "1"
-  PIP_NO_CACHE_DIR: "1"
+  # NOTE: PIP_NO_CACHE_DIR is intentionally NOT set here. Setting it globally
+  # makes pip ignore ~/.cache/pip on the runner, which silently turns every
+  # actions/cache pip step in this file into a no-op. Slim Docker layers are
+  # handled inside the Dockerfiles, not on the runner shell.
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   # Browser-facing Supabase URL. supabase-js calls {URL}/auth/v1/<route> —
   # the prefix Kong strips in the hosted stack. Bare GoTrue serves at root,
@@ -118,7 +121,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-test-
             ${{ runner.os }}-pip-
@@ -186,7 +189,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt') }}
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-test-
             ${{ runner.os }}-pip-
@@ -319,6 +322,14 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
@@ -374,6 +385,14 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-cov
@@ -437,6 +456,14 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
@@ -762,6 +789,14 @@ jobs:
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           docker system prune -af || true
           df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio pytest-benchmark locust
