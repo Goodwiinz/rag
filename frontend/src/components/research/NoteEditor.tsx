@@ -295,7 +295,18 @@ export function NoteEditor({
               </div>
             ) : (
               <div className="p-3 bg-[#111] border border-[#333] rounded min-h-[180px] prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {/* SECURITY (audit #22): agent-authored note links open with
+                    rel="noopener noreferrer" to block reverse tabnabbing. */}
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ href, children }) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
                   {content || '_Nothing to preview yet_'}
                 </ReactMarkdown>
               </div>

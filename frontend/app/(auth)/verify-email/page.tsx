@@ -14,11 +14,12 @@ const PENDING_AUTH_TIMEOUT_MS = 6000;
 
 type ViewState = 'pending' | 'verified' | 'error';
 
-function describeError(
-  code: string | null,
-  description: string | null
-): string {
-  if (description) return description;
+function describeError(code: string | null): string {
+  // SECURITY (audit #23): never reflect the raw OAuth error_description from
+  // the redirect URL — an attacker can craft an arbitrary "error" message
+  // (e.g. "Re-enter your password at evil.com") that renders verbatim. Map the
+  // known error CODE to a hardcoded message; everything else gets the generic
+  // fallback.
   switch (code) {
     case 'access_denied':
       return 'The confirmation link was rejected. It may have expired or already been used.';
@@ -42,7 +43,6 @@ function VerifyEmailContent(): React.JSX.Element | null {
   const { isAuthenticated, isLoading } = useAuth();
 
   const errorCode = searchParams.get('error');
-  const errorDescription = searchParams.get('error_description');
   const tokenHash = searchParams.get('token_hash');
   const tokenType = searchParams.get('type');
 
@@ -134,8 +134,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
   if (!mounted) return null;
 
   if (view === 'error') {
-    const message =
-      otpErrorMessage ?? describeError(errorCode, errorDescription);
+    const message = otpErrorMessage ?? describeError(errorCode);
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <motion.div

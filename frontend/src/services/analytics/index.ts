@@ -90,7 +90,10 @@ export class AnalyticsServiceFactory {
 
   getWebSocketService(config?: any) {
     if (!this.services.has('websocket')) {
-      this.services.set('websocket', config ? createWebSocketService(config) : analyticsWebSocket);
+      this.services.set(
+        'websocket',
+        config ? createWebSocketService(config) : analyticsWebSocket
+      );
     }
     return this.services.get('websocket');
   }
@@ -118,9 +121,10 @@ export const initializeAnalyticsServices = (config?: {
     process.env.NEXT_PUBLIC_WEBSOCKET_URL = config.websocketUrl;
   }
 
-  if (config?.authToken) {
-    localStorage.setItem('authToken', config.authToken);
-  }
+  // SECURITY (audit #18): do NOT persist the auth token to localStorage — it
+  // is readable by any XSS payload and outlives the session. Supabase manages
+  // auth via ssr cookies; the analytics client sources its token from the live
+  // session at call time, not a cached copy.
 
   // Return service instances
   return {
@@ -204,7 +208,7 @@ export const performHealthCheck = async () => {
         api: { status: 'healthy', responseTime: Date.now() },
         websocket: {
           status: analyticsWebSocket.isConnected() ? 'healthy' : 'unhealthy',
-          stats: analyticsWebSocket.getConnectionStats()
+          stats: analyticsWebSocket.getConnectionStats(),
         },
       },
     };
@@ -215,7 +219,7 @@ export const performHealthCheck = async () => {
         api: { status: 'unhealthy', error: handleApiError(error) },
         websocket: {
           status: analyticsWebSocket.isConnected() ? 'healthy' : 'unhealthy',
-          stats: analyticsWebSocket.getConnectionStats()
+          stats: analyticsWebSocket.getConnectionStats(),
         },
       },
     };

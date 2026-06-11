@@ -6,7 +6,10 @@ import dynamic from 'next/dynamic';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then((mod) => mod.default),
+  () =>
+    import('react-syntax-highlighter/dist/esm/prism').then(
+      (mod) => mod.default
+    ),
   {
     loading: () => (
       <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
@@ -53,7 +56,20 @@ export function CitationRenderer({
       <div
         className={cn('prose prose-sm dark:prose-invert max-w-none', className)}
       >
-        <ReactMarkdown>{content}</ReactMarkdown>
+        {/* SECURITY (audit #21): LLM-authored links open with
+            rel="noopener noreferrer" so a malicious target can't reach back
+            via window.opener (reverse tabnabbing). */}
+        <ReactMarkdown
+          components={{
+            a: ({ href, children }) => (
+              <a href={href} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     );
   }

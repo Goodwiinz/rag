@@ -50,12 +50,11 @@ function resolvePostLoginPath(rawNextPath: string | null): string {
   return rawNextPath;
 }
 
-function describeAuthCallbackError(
-  code: string | null,
-  description: string | null
-): string {
+function describeAuthCallbackError(code: string | null): string {
+  // SECURITY (audit #23): never reflect the raw error_description from the
+  // redirect URL — it's attacker-controlled and would render a fabricated
+  // message verbatim. Map the known error CODE to a hardcoded message only.
   if (!code) return '';
-  if (description) return description;
   switch (code) {
     case 'auth_callback_failed':
       return 'Authentication callback failed. Please try signing in again.';
@@ -78,10 +77,7 @@ function LoginPageContent(): React.JSX.Element | null {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = resolvePostLoginPath(searchParams.get('next'));
-  const callbackError = describeAuthCallbackError(
-    searchParams.get('error'),
-    searchParams.get('error_description')
-  );
+  const callbackError = describeAuthCallbackError(searchParams.get('error'));
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
