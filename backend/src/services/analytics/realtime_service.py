@@ -22,6 +22,7 @@ from src.core.database import get_async_session
 from src.models.analytics.realtime_models import (
     ChannelMetrics,
     ConnectionStats,
+    ConnectionStatus,
     EventStream,
     EventStreamData,
     LiveMetric,
@@ -142,13 +143,19 @@ class RealtimeAnalyticsService:
 
             # Track connection in database
             async with get_async_session() as db:
+                # Canonical WebSocketConnection (src/models/websocket_status.py)
+                # requires a non-null organization_id — resolve it from the
+                # connecting user so the tenant boundary is recorded.
+                from src.models.user import User
+
+                user = await db.get(User, user_id)
                 db_connection = WebSocketConnection(
                     connection_id=connection_id,
                     user_id=user_id,
+                    organization_id=user.organization_id if user else None,
                     session_id=session_id,
-                    client_ip=websocket.client.host if websocket.client else "unknown",
+                    ip_address=websocket.client.host if websocket.client else "unknown",
                     user_agent=websocket.headers.get("user-agent"),
-                    origin=websocket.headers.get("origin"),
                 )
                 db.add(db_connection)
                 await db.commit()
@@ -376,7 +383,7 @@ class RealtimeAnalyticsService:
                 query = (
                     update(WebSocketConnection)
                     .where(WebSocketConnection.connection_id == connection_id)
-                    .values(last_pong=datetime.utcnow())
+                    .values(last_heartbeat=datetime.utcnow())
                 )
                 await db.execute(query)
                 await db.commit()
@@ -641,7 +648,10 @@ class RealtimeAnalyticsService:
                 query = (
                     update(WebSocketConnection)
                     .where(WebSocketConnection.connection_id == connection_id)
-                    .values(is_connected=False, disconnected_at=datetime.utcnow())
+                    .values(
+                        connection_status=ConnectionStatus.DISCONNECTED,
+                        disconnected_at=datetime.utcnow(),
+                    )
                 )
                 await db.execute(query)
 
@@ -686,11 +696,15 @@ class RealtimeAnalyticsService:
                     update(WebSocketConnection)
                     .where(
                         and_(
-                            WebSocketConnection.is_connected == True,
-                            WebSocketConnection.last_pong < cutoff_time,
+                            WebSocketConnection.connection_status
+                            == ConnectionStatus.CONNECTED,
+                            WebSocketConnection.last_heartbeat < cutoff_time,
                         )
                     )
-                    .values(is_connected=False, disconnected_at=datetime.utcnow())
+                    .values(
+                        connection_status=ConnectionStatus.DISCONNECTED,
+                        disconnected_at=datetime.utcnow(),
+                    )
                 )
                 result = await db.execute(query)
                 await db.commit()
@@ -770,18 +784,23 @@ class RealtimeAnalyticsService:
                         connection_id=connection.connection_id,
                         user_id=connection.user_id,
                         session_id=connection.session_id,
-                        client_ip=connection.client_ip,
-                        is_connected=connection.is_connected,
+                        client_ip=connection.ip_address,
+                        is_connected=connection.connection_status
+                        == ConnectionStatus.CONNECTED,
                         connected_at=connection.connected_at,
                         disconnected_at=connection.disconnected_at,
-                        last_ping=connection.last_ping,
-                        last_pong=connection.last_pong,
+                        # Canonical model keeps one heartbeat timestamp, not a
+                        # ping/pong pair — surface it in both stat slots.
+                        last_ping=connection.last_heartbeat,
+                        last_pong=connection.last_heartbeat,
                         messages_sent=connection.messages_sent,
                         messages_received=connection.messages_received,
                         bytes_sent=connection.bytes_sent,
                         bytes_received=connection.bytes_received,
-                        active_subscriptions=connection.active_subscriptions,
-                        max_subscriptions=connection.max_subscriptions,
+                        active_subscriptions=len(
+                            connection.subscription_channels or []
+                        ),
+                        max_subscriptions=0,  # no per-connection cap on canonical model
                         uptime_seconds=uptime,
                     )
 
@@ -796,7 +815,7 @@ class RealtimeAnalyticsService:
             async with get_async_session() as db:
                 # Count active connections
                 connections_query = select(WebSocketConnection).where(
-                    WebSocketConnection.is_connected == True
+                    WebSocketConnection.connection_status == ConnectionStatus.CONNECTED
                 )
                 result = await db.execute(connections_query)
                 total_connections = len(result.scalars().all())
