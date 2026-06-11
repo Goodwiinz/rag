@@ -3,13 +3,6 @@
 /**
  * ProjectChatTab Component
  * Main tab in project detail view for managing linked chat threads
- *
- * Features:
- * - List of linked threads with ThreadCard components
- * - Start new chat from project context
- * - Empty state when no threads linked
- * - Loading and error states
- * - Responsive grid layout
  */
 
 import React, { useEffect, useState } from 'react';
@@ -21,6 +14,7 @@ import {
   RefreshCw,
   Link2,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useProjectChat } from '@/hooks/useProjectChat';
 import { useProjectChatStore } from '@/store/projectChatStore';
 import { ThreadCard } from './ThreadCard';
@@ -57,7 +51,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     clearError,
   } = useProjectChat(projectId);
 
-  // Modal state management
   const [isStartChatModalOpen, setIsStartChatModalOpen] = useState(false);
   const [isLinkThreadModalOpen, setIsLinkThreadModalOpen] = useState(false);
   const [isSaveToNoteModalOpen, setIsSaveToNoteModalOpen] = useState(false);
@@ -66,18 +59,15 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     null
   );
 
-  // Unlink confirmation dialog
   const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
   const [threadToUnlink, setThreadToUnlink] = useState<string | null>(null);
 
-  // Fetch threads on mount (only if projectId is valid)
   useEffect(() => {
     if (projectId && projectId !== 'undefined') {
       refreshThreads();
     }
   }, [projectId, refreshThreads]);
 
-  // Fetch project workspace ID for LinkThreadModal
   useEffect(() => {
     async function fetchProjectWorkspace() {
       if (!projectId || projectId === 'undefined') return;
@@ -92,7 +82,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     fetchProjectWorkspace();
   }, [projectId]);
 
-  // Handle start chat
   const handleStartChat = async (
     initialMessage: string,
     threadTitle?: string
@@ -104,7 +93,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     setIsStartChatModalOpen(false);
   };
 
-  // Handle unlink thread
   const handleUnlinkClick = (threadId: string) => {
     setThreadToUnlink(threadId);
     setUnlinkDialogOpen(true);
@@ -118,7 +106,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     }
   };
 
-  // Handle save to note
   const handleSaveToNoteClick = (threadId: string) => {
     setSelectedThreadId(threadId);
     setIsSaveToNoteModalOpen(true);
@@ -139,9 +126,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     }
   };
 
-  // Handle link thread. The store returns null on failure (it never throws),
-  // so throw here to let LinkThreadModal display the error instead of
-  // closing as if the link succeeded.
   const handleLinkThread = async (threadId: string, contextNote?: string) => {
     const result = await linkThread({
       thread_id: threadId,
@@ -157,92 +141,84 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     refreshThreads();
   };
 
-  // Handle retry
   const handleRetry = () => {
     clearError();
     refreshThreads();
   };
 
-  // Loading state
   if (isLoading && threads.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sol" />
-          <p className="text-sm text-muted-foreground font-mono">
-            Loading threads...
-          </p>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading threads…</p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-4 max-w-md text-center">
-          <div className="p-3 rounded-full bg-red-500/10 border border-red-500/30">
-            <AlertCircle className="h-8 w-8 text-red-400" />
+          <div className="p-3 rounded-full bg-destructive/10 border border-destructive/30">
+            <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
           <div>
-            <h3 className="text-lg font-mono font-bold text-muted-foreground mb-2">
-              Failed to Load Threads
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              Failed to load threads
             </h3>
-            <p className="text-sm text-muted-foreground font-mono mb-4">
-              {error}
-            </p>
-            <button
+            <p className="text-sm text-muted-foreground mb-4">{error}</p>
+            <Button
+              variant="outline"
               onClick={handleRetry}
-              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors mx-auto"
+              className="mx-auto"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4 mr-2" />
               Retry
-            </button>
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
-  // Empty state
   if (threads.length === 0) {
     return (
       <>
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
-            <div className="p-4 rounded-full bg-[#1a1a1a] border border-[#333]">
+            <div className="p-4 rounded-full bg-muted border border-border">
               <MessageSquare className="h-12 w-12 text-muted-foreground" />
             </div>
             <div>
-              <h3 className="text-lg font-mono font-bold text-muted-foreground mb-2">
-                No Chat Threads Linked
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                No chat threads linked
               </h3>
-              <p className="text-sm text-muted-foreground font-mono mb-4">
-                Start a new chat using this project's documents as context, or
-                link an existing thread.
+              <p className="text-sm text-muted-foreground mb-4">
+                Start a new chat using this project&apos;s documents as
+                context, or link an existing thread.
               </p>
               <div className="flex items-center gap-3 justify-center">
-                <button
+                <Button
                   onClick={() => setIsStartChatModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
+                  variant="outline"
                 >
-                  <Plus className="h-4 w-4" />
-                  Start Chat
-                </button>
-                <button
+                  <Plus className="h-4 w-4 mr-2" />
+                  Start chat
+                </Button>
+                <Button
                   onClick={() => setIsLinkThreadModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 rounded font-mono text-sm hover:bg-brand-cyan/20 transition-colors"
+                  variant="secondary"
                 >
-                  <Link2 className="h-4 w-4" />
-                  Link Existing
-                </button>
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Link existing
+                </Button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Modals must be rendered even in empty state */}
         <StartChatModal
           isOpen={isStartChatModalOpen}
           onClose={() => setIsStartChatModalOpen(false)}
@@ -261,36 +237,35 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
     );
   }
 
-  // Threads list
   return (
     <div className="space-y-4">
-      {/* Header with action button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-sol" />
-          <h3 className="text-lg font-mono font-bold text-muted-foreground">
-            Linked Threads ({threads.length})
+          <MessageSquare className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-semibold text-foreground">
+            Linked threads ({threads.length})
           </h3>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setIsLinkThreadModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 rounded font-mono text-sm hover:bg-brand-cyan/20 transition-colors"
           >
-            <Link2 className="h-4 w-4" />
-            Link Existing
-          </button>
-          <button
+            <Link2 className="h-4 w-4 mr-2" />
+            Link existing
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsStartChatModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
           >
-            <Plus className="h-4 w-4" />
-            Start Chat
-          </button>
+            <Plus className="h-4 w-4 mr-2" />
+            Start chat
+          </Button>
         </div>
       </div>
 
-      {/* Thread grid - responsive layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {threads.map((thread) => (
           <ThreadCard
@@ -302,7 +277,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
         ))}
       </div>
 
-      {/* Modals */}
       <StartChatModal
         isOpen={isStartChatModalOpen}
         onClose={() => setIsStartChatModalOpen(false)}
@@ -327,23 +301,20 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({
         />
       )}
 
-      {/* Unlink confirmation dialog */}
       <AlertDialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
-        <AlertDialogContent className="bg-[#0a0a0a] border-[#1a1a1a]">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-mono text-muted-foreground">
-              Unlink Thread from Project?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="font-mono text-muted-foreground">
+            <AlertDialogTitle>Unlink thread from project?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will remove the connection between this thread and the
               project. The thread and its messages will not be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-mono">Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmUnlink}
-              className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 font-mono"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Unlink
             </AlertDialogAction>

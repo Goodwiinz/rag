@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Loader2, Pencil, Play, Trash2, X } from 'lucide-react';
+import { Download, Pencil, Play, Trash2, X } from 'lucide-react';
 import type {
   ExtractionColumn,
   ExtractionMatrix as ExtractionMatrixType,
@@ -62,13 +62,11 @@ export function ExtractionMatrix({
   ]);
   const [creating, setCreating] = useState(false);
 
-  // Edit mode state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editColumns, setEditColumns] = useState<ExtractionColumn[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Auto-extraction progress state
   const [autoExtractionTaskId, setAutoExtractionTaskId] = useState<
     string | null
   >(null);
@@ -93,7 +91,6 @@ export function ExtractionMatrix({
     if (matrixId) {
       fetchMatrix(matrixId);
     } else {
-      // Fetch existing matrices for this project
       setLoading(true);
       listMatrices(projectId)
         .then((data) => {
@@ -101,14 +98,11 @@ export function ExtractionMatrix({
             fetchMatrix(data.matrices[0].id);
           }
         })
-        .catch(() => {
-          // No existing matrices — show create form
-        })
+        .catch(() => {})
         .finally(() => setLoading(false));
     }
   }, [matrixId, projectId, fetchMatrix]);
 
-  // Poll auto-extraction status
   useEffect(() => {
     if (!autoExtractionTaskId) return;
 
@@ -124,7 +118,6 @@ export function ExtractionMatrix({
           }
           setAutoExtractionTaskId(null);
 
-          // Refetch matrix to show new cells
           if (status.status === 'completed' && matrix) {
             await fetchMatrix(matrix.id);
           }
@@ -135,7 +128,6 @@ export function ExtractionMatrix({
     };
 
     pollRef.current = setInterval(poll, 3000);
-    // Run immediately too
     poll();
 
     return () => {
@@ -162,7 +154,6 @@ export function ExtractionMatrix({
       });
       await fetchMatrix(result.id);
 
-      // Start polling if auto-extraction was triggered
       if (result.extraction_task_id) {
         setAutoExtractionTaskId(result.extraction_task_id);
       }
@@ -240,7 +231,6 @@ export function ExtractionMatrix({
       setEditing(false);
       await fetchMatrix(matrix.id);
 
-      // If columns changed, auto-trigger extraction for all documents
       if (result.columns_changed && documents.length > 0) {
         try {
           await triggerExtraction(matrix.id, {
@@ -248,7 +238,7 @@ export function ExtractionMatrix({
           });
           await fetchMatrix(matrix.id);
         } catch {
-          // Non-critical — user can manually re-extract
+          // Non-critical
         }
       }
     } catch (err) {
@@ -303,25 +293,22 @@ export function ExtractionMatrix({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-brand-cyan" />
-        <span className="ml-2 text-sm font-mono text-muted-foreground">
-          Loading matrix...
-        </span>
+      <div className="flex items-center justify-center py-16 gap-2">
+        <span className="text-sm text-muted-foreground">Loading matrix…</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-md border border-red-500/30 bg-red-500/5 p-4">
-        <p className="text-sm font-mono text-red-400">{error}</p>
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+        <p className="text-sm text-destructive">{error}</p>
         {matrixId && (
           <Button
             variant="outline"
             size="sm"
-            className="mt-3 border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
             onClick={() => fetchMatrix(matrixId)}
+            className="mt-3"
           >
             Retry
           </Button>
@@ -332,40 +319,35 @@ export function ExtractionMatrix({
 
   if (!matrix && !matrixId) {
     return (
-      <div className="space-y-6 rounded-lg border border-border bg-black/30 p-6">
-        <div>
-          <h3 className="text-sm font-mono font-bold text-brand-cyan uppercase tracking-wide mb-4">
-            Create Extraction Matrix
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <Label className="text-xs text-muted-foreground font-mono uppercase tracking-wide">
-                Matrix Name
-              </Label>
-              <Input
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder="e.g. Literature Review 2024"
-                className="mt-1.5 bg-muted border-border text-sm font-mono text-foreground placeholder:text-muted-foreground focus:border-secondary"
-              />
-            </div>
-
-            <ColumnEditor columns={createColumns} onChange={setCreateColumns} />
-
-            <Button
-              className="bg-brand-cyan/10 text-brand-cyan border border-brand-cyan/30 hover:bg-brand-cyan/20 font-mono text-sm"
-              disabled={
-                creating ||
-                !createName.trim() ||
-                createColumns.filter((c) => c.name.trim()).length === 0
-              }
-              isLoading={creating}
-              loadingText="Creating..."
-              onClick={handleCreate}
-            >
-              Create Matrix
-            </Button>
+      <div className="space-y-6 rounded-lg border border-border bg-card p-6">
+        <h3 className="text-base font-semibold text-foreground mb-4">
+          Create extraction matrix
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <Label className="mb-1.5 block">Matrix name</Label>
+            <Input
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              placeholder="e.g. Literature Review 2024"
+            />
           </div>
+
+          <ColumnEditor columns={createColumns} onChange={setCreateColumns} />
+
+          <Button
+            variant="outline"
+            disabled={
+              creating ||
+              !createName.trim() ||
+              createColumns.filter((c) => c.name.trim()).length === 0
+            }
+            isLoading={creating}
+            loadingText="Creating…"
+            onClick={handleCreate}
+          >
+            Create matrix
+          </Button>
         </div>
       </div>
     );
@@ -375,33 +357,30 @@ export function ExtractionMatrix({
 
   return (
     <div className="space-y-4">
-      {/* Auto-extraction progress indicator */}
       {autoExtractionTaskId && autoExtractionStatus && (
-        <div className="flex items-center gap-2 rounded-md border border-brand-cyan/30 bg-brand-cyan/5 px-4 py-2">
-          <Loader2 className="h-4 w-4 animate-spin text-brand-cyan" />
-          <span className="text-xs font-mono text-brand-cyan">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2">
+          <span className="text-xs text-muted-foreground">
             Extracting {autoExtractionStatus.completed}/
-            {autoExtractionStatus.total}...
+            {autoExtractionStatus.total}…
           </span>
           {autoExtractionStatus.failed > 0 && (
-            <span className="text-xs font-mono text-red-400">
+            <span className="text-xs text-destructive">
               ({autoExtractionStatus.failed} failed)
             </span>
           )}
         </div>
       )}
 
-      <div className="flex items-center justify-between rounded-lg border border-border bg-black/30 px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
         {editing ? (
           <div className="flex-1 mr-4">
             <Input
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="bg-muted border-border text-sm font-mono text-foreground focus:border-secondary"
             />
           </div>
         ) : (
-          <h3 className="text-sm font-mono font-bold text-brand-cyan">
+          <h3 className="text-sm font-medium text-foreground">
             {matrix.name}
           </h3>
         )}
@@ -411,22 +390,20 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-sol/30 text-sol hover:bg-sol/10 font-mono text-xs"
                 disabled={
                   saving ||
                   !editName.trim() ||
                   editColumns.filter((c) => c.name.trim()).length === 0
                 }
                 isLoading={saving}
-                loadingText="Saving..."
+                loadingText="Saving…"
                 onClick={handleSaveEdit}
               >
                 Save
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="border-border text-muted-foreground hover:bg-white/5 font-mono text-xs"
                 onClick={handleCancelEdit}
                 disabled={saving}
               >
@@ -439,7 +416,6 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-brand-cyan/30 text-brand-cyan hover:bg-brand-cyan/10 font-mono text-xs"
                 onClick={handleStartEdit}
               >
                 <Pencil className="h-3 w-3 mr-1" />
@@ -448,10 +424,9 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-sol/30 text-sol hover:bg-sol/10 font-mono text-xs"
                 disabled={extracting || documents.length === 0}
                 isLoading={extracting}
-                loadingText="Extracting..."
+                loadingText="Extracting…"
                 onClick={handleExtract}
               >
                 <Play className="h-3 w-3 mr-1" />
@@ -460,7 +435,6 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-helios/30 text-helios hover:bg-helios/10 font-mono text-xs"
                 onClick={handleExportCsv}
                 disabled={matrix.cells.length === 0}
               >
@@ -470,10 +444,9 @@ export function ExtractionMatrix({
               <Button
                 variant="outline"
                 size="sm"
-                className="border-red-500/30 text-red-400 hover:bg-red-500/10 font-mono text-xs"
                 onClick={() => setDeleteOpen(true)}
               >
-                <Trash2 className="h-3 w-3 mr-1" />
+                <Trash2 className="h-3 w-3 mr-1 text-destructive" />
                 Delete
               </Button>
             </>
@@ -481,24 +454,23 @@ export function ExtractionMatrix({
         </div>
       </div>
 
-      {/* Column editor in edit mode */}
       {editing && (
-        <div className="rounded-lg border border-border bg-black/30 p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <ColumnEditor columns={editColumns} onChange={setEditColumns} />
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-black/30 overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-xs font-mono text-muted-foreground uppercase tracking-wide bg-card min-w-[200px]">
+              <TableHead className="text-xs font-medium text-muted-foreground bg-card min-w-[200px]">
                 Document
               </TableHead>
               {matrix.columns.map((col) => (
                 <TableHead
                   key={col.name}
-                  className="text-xs font-mono text-muted-foreground uppercase tracking-wide bg-card min-w-[150px]"
+                  className="text-xs font-medium text-muted-foreground bg-card min-w-[150px]"
                   title={col.description}
                 >
                   {col.name}
@@ -511,7 +483,7 @@ export function ExtractionMatrix({
               <TableRow className="border-border">
                 <TableCell
                   colSpan={matrix.columns.length + 1}
-                  className="text-center text-sm font-mono text-muted-foreground py-8"
+                  className="text-center text-sm text-muted-foreground py-8"
                 >
                   No documents available
                 </TableCell>
@@ -520,9 +492,9 @@ export function ExtractionMatrix({
               documents.map((doc) => (
                 <TableRow
                   key={doc.id}
-                  className="border-border hover:bg-white/[0.02]"
+                  className="border-border hover:bg-muted/50"
                 >
-                  <TableCell className="text-sm font-mono text-muted-foreground font-medium">
+                  <TableCell className="text-sm text-foreground font-medium">
                     {doc.title}
                   </TableCell>
                   {matrix.columns.map((col) => {
@@ -530,7 +502,7 @@ export function ExtractionMatrix({
                     return (
                       <TableCell
                         key={col.name}
-                        className="text-sm font-mono text-muted-foreground"
+                        className="text-sm text-muted-foreground"
                       >
                         <div className="flex items-start gap-1.5">
                           <span className="flex-1">{cell?.value ?? ''}</span>
@@ -550,12 +522,10 @@ export function ExtractionMatrix({
       </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="bg-card border-border">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-mono text-muted-foreground">
-              Delete Matrix
-            </DialogTitle>
-            <DialogDescription className="font-mono text-muted-foreground">
+            <DialogTitle>Delete matrix</DialogTitle>
+            <DialogDescription>
               This will permanently delete &quot;{matrix.name}&quot; and all
               extracted data. This action cannot be undone.
             </DialogDescription>
@@ -564,7 +534,6 @@ export function ExtractionMatrix({
             <Button
               variant="outline"
               size="sm"
-              className="font-mono text-xs border-border text-muted-foreground"
               onClick={() => setDeleteOpen(false)}
             >
               Cancel
@@ -572,10 +541,9 @@ export function ExtractionMatrix({
             <Button
               variant="destructive"
               size="sm"
-              className="font-mono text-xs"
               disabled={deleting}
               isLoading={deleting}
-              loadingText="Deleting..."
+              loadingText="Deleting…"
               onClick={handleDelete}
             >
               Delete
