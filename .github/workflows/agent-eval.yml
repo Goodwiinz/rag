@@ -62,6 +62,21 @@ jobs:
           if [ -z "$PREFIX" ]; then PREFIX="agent-regression"; fi
           echo "AGENT_EVAL_EXPERIMENT_PREFIX=$PREFIX" >> "$GITHUB_ENV"
 
+      # actions/cache `path` is workspace-relative (it ignores the job's
+      # working-directory: backend), hence backend/.venv. Cache restore runs
+      # AFTER checkout's clean, so the restored venv survives. On a hit the
+      # `if [ ! -d .venv ]` guard skips the rebuild and pip finds everything
+      # already satisfied — the ~49-package ML tree is no longer re-downloaded.
+      - name: Cache pip + venv
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.cache/pip
+            backend/.venv
+          key: ${{ runner.os }}-pip-eval-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-eval-
+            ${{ runner.os }}-pip-
       - name: Ensure venv
         run: |
           if [ ! -d .venv ]; then
