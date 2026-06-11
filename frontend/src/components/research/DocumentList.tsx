@@ -55,7 +55,7 @@ const statusConfig: Record<
 function getFileIcon(filename?: string) {
   if (!filename) return <FileText className="h-5 w-5" />;
   const ext = filename.split('.').pop()?.toLowerCase();
-  if (ext === 'pdf') return <File className="h-5 w-5 text-red-400" />;
+  if (ext === 'pdf') return <File className="h-5 w-5 text-destructive" />;
   return <FileText className="h-5 w-5" />;
 }
 
@@ -162,7 +162,10 @@ export function DocumentList({
       {/* Toolbar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
             placeholder="Search documents..."
             value={search}
@@ -170,10 +173,11 @@ export function DocumentList({
             className="pl-9 h-9 text-sm"
           />
           {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+              >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -236,8 +240,8 @@ export function DocumentList({
           aria-label="Select all documents"
         />
         <span className="flex-1">Document</span>
-        <span className="w-24 text-right hidden sm:block">Status</span>
-        <span className="w-24 text-right hidden sm:block">Added</span>
+        <span className="w-24 text-right hidden sm:inline">Status</span>
+        <span className="w-24 text-right hidden sm:inline">Added</span>
         <span className="w-10" />
       </div>
 
@@ -264,14 +268,30 @@ export function DocumentList({
                 {getFileIcon(doc.document?.filename)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {doc.document?.title || doc.document?.filename || 'Untitled'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {doc.document?.title || doc.document?.filename || 'Untitled'}
+                  </p>
+                  {/* Mobile-only status badge */}
+                  {status && (
+                    <Badge variant={status.variant} className="text-[10px] sm:hidden shrink-0">
+                      {status.label}
+                    </Badge>
+                  )}
+                </div>
                 {doc.document?.filename && doc.document?.title && (
                   <p className="text-xs text-muted-foreground truncate font-mono">
                     {doc.document.filename}
                   </p>
                 )}
+                {/* Mobile-only relative time */}
+                <span className="text-[11px] text-muted-foreground sm:hidden mt-0.5 block">
+                  {formatRelativeTime(
+                    doc.added_at ||
+                      doc.document?.created_at ||
+                      new Date().toISOString()
+                  )}
+                </span>
               </div>
               <div className="w-24 text-right shrink-0 hidden sm:block">
                 {status ? (

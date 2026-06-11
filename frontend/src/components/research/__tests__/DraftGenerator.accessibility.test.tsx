@@ -15,7 +15,7 @@ describe('DraftGenerator Accessibility', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
     // Check if label is associated with input
-    const input = screen.getByLabelText(/Themes \/ Topics/i);
+    const input = screen.getByLabelText(/Themes/i);
     expect(input).toBeInTheDocument();
     expect(input).toHaveAttribute('type', 'text');
   });
@@ -30,8 +30,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible label for Remove Theme button when themes exist', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    // Add a theme first
-    const input = screen.getByLabelText(/Themes \/ Topics/i);
+    const input = screen.getByLabelText(/Themes/i);
     fireEvent.change(input, { target: { value: 'test-theme' } });
 
     const addButton = screen.getByLabelText('Add theme');
@@ -45,7 +44,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible radio group for Writing Style', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    const radioGroup = screen.getByRole('radiogroup', { name: /Writing Style/i });
+    const radioGroup = screen.getByRole('radiogroup', { name: /Writing style/i });
     expect(radioGroup).toBeInTheDocument();
 
     const radios = screen.getAllByRole('radio');
@@ -59,7 +58,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible label for Max Sections slider', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    const slider = screen.getByLabelText(/Max Sections/i);
+    const slider = screen.getByLabelText(/Max sections/i);
     expect(slider).toBeInTheDocument();
     expect(slider).toHaveAttribute('type', 'range');
   });
@@ -67,7 +66,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible toggle switch for Include Abstract', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    const toggle = screen.getByRole('switch', { name: /Include Abstract/i });
+    const toggle = screen.getByRole('switch', { name: /Include abstract/i });
     expect(toggle).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-checked', 'true');
 

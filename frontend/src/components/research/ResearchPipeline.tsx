@@ -50,7 +50,7 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
   if (loading || !pipeline) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
@@ -77,11 +77,11 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
     <div className="space-y-2">
       {/* Error banner */}
       {error && (
-        <div className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4">
-          <p className="text-red-400 font-mono text-sm">{error}</p>
+        <div className="flex items-center justify-between p-3 bg-destructive/10 border border-destructive/30 rounded-lg mb-4">
+          <p className="text-destructive text-sm">{error}</p>
           <button
             onClick={clearError}
-            className="text-xs text-red-400 underline"
+            className="text-xs text-destructive underline"
           >
             Dismiss
           </button>
@@ -112,7 +112,7 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
       )}
 
       {/* Active step content */}
-      <div className="bg-[#111] border border-[#1a1a1a] rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         {pipeline.current_step === 0 && (
           <CollectStep
             projectId={projectId}
