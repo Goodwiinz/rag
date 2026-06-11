@@ -627,12 +627,20 @@ jobs:
               'lab-admin@multimodal-rag.com': 'admin123',
           }
           headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
+          # GoTrue v2.151 IGNORES a client-supplied id on /admin/users and
+          # generates its own UUID, so the original same-id plan never held:
+          # the JWT sub matched no app user, get_current_user fell into the
+          # auto-provisioning INSERT, and that died on EncryptedString columns
+          # (no active DATA key in the server process) -> /auth/me 500s.
+          # Instead, adopt gotrue's generated id as the app user's id — the
+          # users were seeded moments ago on a fresh DB and have no dependent
+          # rows, so the primary-key update is safe.
+          import uuid as _uuid
           with SessionLocal() as db:
               users = db.query(User).filter(User.email.in_(list(PASSWORDS))).all()
               assert len(users) == len(PASSWORDS), f'expected {len(PASSWORDS)} seeded users, got {len(users)}'
               for u in users:
                   payload = {
-                      'id': str(u.id),
                       'email': u.email,
                       'password': PASSWORDS[u.email],
                       'email_confirm': True,
@@ -642,9 +650,14 @@ jobs:
                   if r.status_code >= 400:
                       print(r.text)
                       r.raise_for_status()
+                  gid = _uuid.UUID(r.json()['id'])
+                  if gid != u.id:
+                      db.query(User).filter(User.id == u.id).update({User.id: gid})
+                      print(f'  app user id {u.id} -> {gid} (adopted gotrue id)')
+              db.commit()
           "
       - name: Setup Node.js for Playwright
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '20'
       - name: Install Playwright dependencies
