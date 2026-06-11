@@ -106,7 +106,14 @@ export const DraftGenerationProgress: React.FC<
             {status.progress}%
           </span>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-2 bg-muted rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={status.progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Draft generation progress"
+        >
           <div
             className={`h-full transition-all duration-500 ${
               isFailed

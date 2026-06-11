@@ -61,8 +61,16 @@ export function ProjectCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(project.id)}
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(project.id);
+        }
+      }}
+      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-sm hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">

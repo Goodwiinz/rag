@@ -1,17 +1,18 @@
 'use client';
 
-/**
- * LinkThreadModal Component
- * Modal for linking an existing chat thread to a project
- *
- * Features:
- * - Search/select from existing threads
- * - Optional context note
- * - Terminal Observatory theme styling
- */
-
 import React, { useState, useEffect } from 'react';
-import { Link2, X, Loader2, Search, MessageSquare, Clock } from 'lucide-react';
+import { Link2, Loader2, Search, MessageSquare, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { workspaceService } from '@/services/workspaceService';
 import type { Thread } from '@/types/workspace';
 
@@ -37,14 +38,12 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch threads when modal opens
   useEffect(() => {
     if (isOpen && projectWorkspaceId) {
       fetchThreads();
     }
   }, [isOpen, projectWorkspaceId]);
 
-  // Filter threads based on search
   useEffect(() => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -64,13 +63,11 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
     setIsLoadingThreads(true);
     setError(null);
     try {
-      // Get all conversations in the workspace
       const conversationsResponse = await workspaceService.listConversations(
         projectWorkspaceId,
         { limit: 100 }
       );
 
-      // Get threads from all conversations
       const allThreads: Thread[] = [];
       for (const conv of conversationsResponse.conversations) {
         try {
@@ -83,7 +80,6 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
         }
       }
 
-      // Sort by last activity
       allThreads.sort(
         (a, b) =>
           new Date(b.last_message_at || b.created_at).getTime() -
@@ -100,8 +96,6 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -114,7 +108,6 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
     setIsSubmitting(true);
     try {
       await onLinkThread(selectedThreadId, contextNote.trim() || undefined);
-      // Reset form
       setSelectedThreadId(null);
       setContextNote('');
       setSearchQuery('');
@@ -130,8 +123,8 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
     }
   };
 
-  const handleClose = () => {
-    if (!isSubmitting) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
       setSelectedThreadId(null);
       setContextNote('');
       setSearchQuery('');
@@ -151,53 +144,41 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a] shrink-0">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-muted-foreground">
-              Link Existing Thread
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-primary" />
+            Link existing thread
+          </DialogTitle>
+          <DialogDescription>
+            Select a thread from your workspace to link to this project
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
         <form
           onSubmit={handleSubmit}
           className="flex flex-col flex-1 overflow-hidden"
         >
-          <div className="p-4 space-y-4 overflow-y-auto flex-1">
-            {/* Search */}
+          <div className="space-y-4 overflow-y-auto flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
+              <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search threads..."
                 disabled={isSubmitting}
-                className="w-full pl-10 pr-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 disabled:opacity-50"
+                className="pl-10"
               />
             </div>
 
-            {/* Thread List */}
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {isLoadingThreads ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-sol" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : filteredThreads.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground font-mono text-sm">
+                <div className="text-center py-8 text-muted-foreground text-sm">
                   {threads.length === 0
                     ? 'No threads found in this workspace'
                     : 'No threads match your search'}
@@ -209,31 +190,31 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                     type="button"
                     onClick={() => setSelectedThreadId(thread.id)}
                     disabled={isSubmitting}
-                    className={`w-full p-3 rounded border text-left transition-colors ${
+                    className={`w-full p-3 rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selectedThreadId === thread.id
-                        ? 'bg-sol/10 border-sol/50'
-                        : 'bg-[#1a1a1a] border-[#333] hover:border-sol/30'
+                        ? 'bg-primary/10 border-primary/50'
+                        : 'bg-card border-border hover:border-primary/30'
                     } disabled:opacity-50`}
                   >
                     <div className="flex items-start gap-3">
                       <MessageSquare
                         className={`h-4 w-4 mt-0.5 shrink-0 ${
                           selectedThreadId === thread.id
-                            ? 'text-sol'
+                            ? 'text-primary'
                             : 'text-muted-foreground'
                         }`}
                       />
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`font-mono text-sm truncate ${
+                          className={`text-sm truncate ${
                             selectedThreadId === thread.id
-                              ? 'text-sol'
-                              : 'text-muted-foreground'
+                              ? 'text-primary font-medium'
+                              : 'text-foreground'
                           }`}
                         >
-                          {thread.title || 'Untitled Thread'}
+                          {thread.title || 'Untitled thread'}
                         </p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span>{thread.message_count} messages</span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -244,7 +225,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                         </div>
                       </div>
                       {selectedThreadId === thread.id && (
-                        <div className="w-2 h-2 rounded-full bg-sol shrink-0 mt-1.5" />
+                        <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
                       )}
                     </div>
                   </button>
@@ -252,66 +233,63 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
               )}
             </div>
 
-            {/* Context Note */}
             <div>
-              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-                Context Note <span className="text-foreground">(optional)</span>
-              </label>
+              <Label htmlFor="context-note" className="mb-1.5 block">
+                Context note <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <textarea
+                id="context-note"
                 value={contextNote}
                 onChange={(e) => setContextNote(e.target.value)}
                 placeholder="Add a note about why this thread is linked..."
                 disabled={isSubmitting}
                 maxLength={500}
-                className="w-full h-20 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 disabled:opacity-50 resize-none"
+                className="w-full h-20 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
               />
-              <p className="text-xs text-foreground font-mono mt-1 text-right">
+              <p className="text-xs text-muted-foreground mt-1 text-right">
                 {contextNote.length}/500
               </p>
             </div>
 
-            {/* Error Display */}
             {error && (
               <div
                 role="alert"
-                className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400"
+                className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive"
               >
                 {error}
               </div>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a] shrink-0">
-            <button
+          <DialogFooter className="shrink-0 mt-4">
+            <Button
               type="button"
-              onClick={handleClose}
+              variant="outline"
+              onClick={handleOpenChange.bind(null, false)}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isSubmitting || !selectedThreadId}
-              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Linking...
                 </>
               ) : (
                 <>
-                  <Link2 className="h-4 w-4" />
-                  Link Thread
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Link thread
                 </>
               )}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

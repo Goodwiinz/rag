@@ -92,7 +92,7 @@ export function NoteList({
                 <button
                   onClick={() => onTogglePin(note.id)}
                   className="p-1.5 text-muted-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                  title={note.is_pinned ? 'Unpin' : 'Pin'}
+                  aria-label={note.is_pinned ? 'Unpin note' : 'Pin note'}
                 >
                   {note.is_pinned ? (
                     <PinOff className="h-4 w-4" />
@@ -103,14 +103,14 @@ export function NoteList({
                 <button
                   onClick={() => onEdit(note)}
                   className="p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                  title="Edit note"
+                  aria-label="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => onDelete(note.id)}
                   className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-                  title="Delete note"
+                  aria-label="Delete note"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

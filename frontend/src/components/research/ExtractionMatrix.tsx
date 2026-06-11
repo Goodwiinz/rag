@@ -461,7 +461,8 @@ export function ExtractionMatrix({
       )}
 
       <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-xs font-medium text-muted-foreground bg-card min-w-[200px]">
@@ -489,10 +490,10 @@ export function ExtractionMatrix({
                 </TableCell>
               </TableRow>
             ) : (
-              documents.map((doc) => (
+              documents.map((doc, idx) => (
                 <TableRow
                   key={doc.id}
-                  className="border-border hover:bg-muted/50"
+                  className={`border-border hover:bg-muted transition-colors ${idx % 2 === 1 ? 'bg-muted/20' : ''}`}
                 >
                   <TableCell className="text-sm text-foreground font-medium">
                     {doc.title}
@@ -518,7 +519,8 @@ export function ExtractionMatrix({
               ))
             )}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

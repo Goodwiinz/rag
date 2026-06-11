@@ -10,6 +10,16 @@ import { DocumentStats } from './components/DocumentStats';
 import { DocumentFilters } from './components/DocumentFilters';
 import { DocumentList } from './components/DocumentList';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 export default function DocumentsPage() {
@@ -38,6 +48,9 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -71,33 +84,37 @@ export default function DocumentsPage() {
     };
   }, [pagination.total, rawDocuments]);
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e?.stopPropagation();
-    if (confirm('Are you sure you want to delete this document?')) {
-      try {
-        await deleteDocument(id);
-      } catch (err) {
-        console.error('Failed to delete document:', err);
-        alert('Failed to delete document');
-      }
+    setDocumentToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!documentToDelete) return;
+    try {
+      await deleteDocument(documentToDelete);
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+    } finally {
+      setDocumentToDelete(null);
+      setDeleteDialogOpen(false);
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedDocuments.size} documents?`
-      )
-    ) {
-      setIsBulkDeleting(true);
-      try {
-        await deleteSelectedDocuments();
-      } catch (err) {
-        console.error('Failed to delete documents:', err);
-        alert('Failed to delete some documents');
-      } finally {
-        setIsBulkDeleting(false);
-      }
+  const handleBulkDelete = () => {
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    try {
+      await deleteSelectedDocuments();
+    } catch (err) {
+      console.error('Failed to delete documents:', err);
+    } finally {
+      setIsBulkDeleting(false);
+      setBulkDeleteDialogOpen(false);
     }
   };
 
@@ -220,6 +237,46 @@ export default function DocumentsPage() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this document. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedDocuments.size} documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedDocuments.size} selected documents. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

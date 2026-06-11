@@ -202,7 +202,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     // For images, show thumbnail
     if (document?.file_type === 'jpg' || document?.file_type === 'png') {
       return (
-        <div className="flex items-center justify-center bg-gray-50 rounded-lg p-4">
+        <div className="flex items-center justify-center bg-muted rounded-lg p-4">
           {document.thumbnail_url ? (
             <img
               src={document.thumbnail_url}
@@ -222,7 +222,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     // For PDFs and text files, show placeholder
     if (document?.file_type === 'pdf' || document?.file_type === 'txt') {
       return (
-        <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
+        <div className="flex items-center justify-center bg-muted rounded-lg p-8">
           <div className="text-center">
             <DocumentTextIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg font-medium text-foreground mb-2">
@@ -249,7 +249,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     // For audio files
     if (document?.file_type === 'mp3') {
       return (
-        <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
+        <div className="flex items-center justify-center bg-muted rounded-lg p-8">
           <div className="text-center">
             <MusicalNoteIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg font-medium text-foreground mb-2">
@@ -274,7 +274,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     // For video files
     if (document?.file_type === 'mp4') {
       return (
-        <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
+        <div className="flex items-center justify-center bg-muted rounded-lg p-8">
           <div className="text-center">
             <VideoCameraIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg font-medium text-foreground mb-2">
@@ -298,7 +298,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
     // Default fallback
     return (
-      <div className="flex items-center justify-center bg-gray-50 rounded-lg p-8">
+      <div className="flex items-center justify-center bg-muted rounded-lg p-8">
         <div className="text-center">
           <DocumentTextIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <p className="text-lg font-medium text-foreground mb-2">
@@ -427,8 +427,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
                       </span>
                     </div>
                     {document.processing_error && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="text-sm text-red-600">
+                      <div role="alert" className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                        <p className="text-sm text-destructive">
                           {document.processing_error}
                         </p>
                       </div>

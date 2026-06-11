@@ -14,6 +14,7 @@ import {
   X,
   Sparkles,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
@@ -99,8 +100,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-mono font-semibold text-foreground">
-            Generate Draft
+          <h3 className="text-lg font-semibold text-foreground">
+            Generate draft
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Generate a literature review draft from your project documents and
@@ -109,7 +110,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
         </div>
         <button
           onClick={() => setChatOpen(!chatOpen)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded font-mono text-xs transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-colors ${
             chatOpen
               ? 'bg-accent text-accent-foreground border border-border'
               : 'text-muted-foreground border border-border hover:text-foreground hover:border-muted-foreground/50'
@@ -120,7 +121,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           ) : (
             <MessageSquare className="h-3.5 w-3.5" />
           )}
-          {chatOpen ? 'Close Chat' : 'RAG Chat'}
+          {chatOpen ? 'Close chat' : 'RAG chat'}
         </button>
       </div>
 
@@ -213,7 +214,7 @@ export const DraftStep: React.FC<DraftStepProps> = ({
                 ) : (
                   <div className="bg-card border border-dashed border-border rounded-lg p-12 text-center">
                     <Sparkles className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
-                    <p className="text-muted-foreground font-mono">
+                    <p className="text-muted-foreground">
                       No draft generated yet
                     </p>
                     <p className="text-sm text-muted-foreground/70 mt-2">
@@ -229,8 +230,8 @@ export const DraftStep: React.FC<DraftStepProps> = ({
           {chatOpen && (
             <div className="lg:col-span-1 bg-card border border-border rounded-lg overflow-hidden">
               <div className="p-2 border-b border-border flex items-center justify-between">
-                <span className="text-xs font-mono text-muted-foreground">
-                  RAG Chat
+                <span className="text-xs text-muted-foreground">
+                  RAG chat
                 </span>
                 <button
                   onClick={() => setChatOpen(false)}
@@ -249,21 +250,14 @@ export const DraftStep: React.FC<DraftStepProps> = ({
       )}
 
       <div className="flex items-center justify-between pt-4 border-t border-border">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground font-mono text-sm transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
-        </button>
-        <button
-          onClick={onContinue}
-          disabled={!hasDraft}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        </Button>
+        <Button onClick={onContinue} disabled={!hasDraft}>
           Continue
-          <ArrowRight className="h-4 w-4" />
-        </button>
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Button>
       </div>
     </div>
   );

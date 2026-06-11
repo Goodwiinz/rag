@@ -413,7 +413,7 @@ export default function DocumentUploadPage() {
                     'rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                     isDragActive
                       ? 'border-[var(--nous-helios)] bg-primary/5'
-                      : 'border-border hover:border-[var(--nous-helios)]',
+                      : 'border-border hover:bg-muted/50',
                     isUploading && 'opacity-50 cursor-not-allowed'
                   )}
                 >
@@ -486,7 +486,7 @@ export default function DocumentUploadPage() {
                             type="button"
                             onClick={uploadAllFiles}
                             disabled={isUploading || !isAuthenticated}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                           >
                             <Upload aria-hidden="true" className="w-4 h-4" />
                             {isUploading

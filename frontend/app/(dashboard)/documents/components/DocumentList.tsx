@@ -214,7 +214,7 @@ export function DocumentList({
                       'group relative rounded-xl border bg-card px-4 py-3 transition-all duration-200 cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 shadow-sm',
                       isSelected
                         ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-[var(--nous-helios)] hover:shadow-md'
+                        : 'border-border hover:bg-muted/50 hover:shadow-md'
                     )}
                   >
                     {/* Checkbox */}

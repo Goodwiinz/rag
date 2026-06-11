@@ -75,38 +75,38 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                 onClick={() => isClickable && onStepClick(index)}
                 disabled={!isClickable}
                 className={`
-                  relative flex items-center justify-center w-10 h-10 rounded-full
-                  transition-all duration-300 text-xs
+                  relative flex items-center justify-center w-12 h-12 rounded-full
+                  transition-all duration-300 text-sm
                   ${
                     status === 'completed'
-                      ? 'bg-primary/10 border-2 border-primary text-primary cursor-pointer hover:bg-primary/20'
+                      ? 'bg-primary/10 border-2 border-primary text-primary cursor-pointer hover:bg-primary/20 hover:scale-105'
                       : status === 'active'
-                        ? 'bg-primary border-2 border-primary text-primary-foreground animate-pulse'
+                        ? 'bg-primary border-2 border-primary text-primary-foreground shadow-lg shadow-primary/20'
                         : status === 'skipped'
-                          ? 'bg-muted/50 border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:border-muted-foreground/50'
+                          ? 'bg-muted/50 border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:border-muted-foreground/50 hover:scale-105'
                           : status === 'invalidated'
-                            ? 'bg-[var(--nous-helios)]/10 border-2 border-[var(--nous-helios)] text-[var(--nous-helios)] cursor-pointer hover:bg-[var(--nous-helios)]/20'
+                            ? 'bg-[var(--nous-helios)]/10 border-2 border-[var(--nous-helios)] text-[var(--nous-helios)] cursor-pointer hover:bg-[var(--nous-helios)]/20 hover:scale-105'
                             : 'bg-muted/30 border-2 border-border text-muted-foreground'
                   }
                 `}
                 aria-label={`Step ${index + 1}: ${step.label} (${status})`}
               >
                 {status === 'completed' ? (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-5 w-5" />
                 ) : status === 'skipped' ? (
-                  <SkipForward className="h-3.5 w-3.5" />
+                  <SkipForward className="h-4 w-4" />
                 ) : status === 'invalidated' ? (
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <AlertTriangle className="h-4 w-4" />
                 ) : (
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-5 w-5" />
                 )}
               </button>
               <span
-                className={`mt-2 text-[11px] font-medium tracking-wide ${
+                className={`mt-2 text-xs font-medium ${
                   status === 'completed'
                     ? 'text-primary'
                     : status === 'active'
-                      ? 'text-primary-foreground font-semibold'
+                      ? 'text-foreground font-semibold'
                       : status === 'skipped'
                         ? 'text-muted-foreground'
                         : status === 'invalidated'
@@ -117,7 +117,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                 {step.label}
               </span>
               {status === 'skipped' && (
-                <span className="text-[9px] text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground">
                   skipped
                 </span>
               )}
@@ -126,13 +126,13 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
             {/* Connector line */}
             {index < PIPELINE_STEPS.length - 1 && (
               <div
-                className={`flex-1 h-0.5 mx-2 mt-[-20px] ${
+                className={`flex-1 h-0.5 mx-2 mt-[-24px] ${
                   status === 'completed'
-                    ? 'bg-primary/30'
+                    ? 'bg-primary/40'
                     : status === 'skipped'
                       ? 'border-t-2 border-dashed border-border bg-transparent'
                       : status === 'invalidated'
-                        ? 'bg-[var(--nous-helios)]/20'
+                        ? 'bg-[var(--nous-helios)]/30'
                         : 'bg-muted'
                 }`}
               />

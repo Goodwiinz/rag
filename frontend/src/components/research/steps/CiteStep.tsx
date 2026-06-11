@@ -1,11 +1,5 @@
 'use client';
 
-/**
- * CiteStep - Step 3 of the Research Pipeline
- * Displays citations from the project's bibliography.
- * Completion criteria: >= 1 citation exists.
- */
-
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRight,
@@ -14,6 +8,7 @@ import {
   Loader2,
   Download,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useProjectStore } from '@/store/projectStore';
 
 interface CiteStepProps {
@@ -36,8 +31,6 @@ export const CiteStep: React.FC<CiteStepProps> = ({
   );
   useEffect(() => {
     fetchBibliography(projectId, bibFormat);
-    // Only re-fetch when projectId or bibFormat changes, not when the
-    // store function reference changes (which would cause an infinite loop).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, bibFormat]);
 
@@ -47,8 +40,8 @@ export const CiteStep: React.FC<CiteStepProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-mono font-semibold text-white">
-            Manage Citations
+          <h3 className="text-lg font-semibold text-foreground">
+            Manage citations
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Review and manage citations extracted from your documents. At least
@@ -57,19 +50,16 @@ export const CiteStep: React.FC<CiteStepProps> = ({
         </div>
       </div>
 
-      {/* Format selector + download */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground font-mono">
-            Format:
-          </span>
+          <span className="text-sm text-muted-foreground">Format:</span>
           <select
             value={bibFormat}
             onChange={(e) => {
               const format = e.target.value as typeof bibFormat;
               setBibFormat(format);
             }}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
+            className="px-3 py-1.5 bg-background border border-border rounded text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="bibtex">BibTeX</option>
             <option value="ieee">IEEE</option>
@@ -82,61 +72,51 @@ export const CiteStep: React.FC<CiteStepProps> = ({
             void downloadBibliography(projectId, bibFormat);
           }}
           disabled={!hasCitations}
-          className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
         >
           <Download className="h-4 w-4" />
           Download
         </button>
       </div>
 
-      {/* Bibliography content */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sol" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : bibliography ? (
-        <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+        <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground font-mono">
+            <span className="text-sm text-muted-foreground">
               {bibliography.citation_count} citation
               {bibliography.citation_count !== 1 ? 's' : ''}
             </span>
-            <span className="text-xs text-foreground font-mono">
+            <span className="text-xs text-muted-foreground">
               Generated {new Date(bibliography.generated_at).toLocaleString()}
             </span>
           </div>
-          <pre className="text-sm text-muted-foreground font-mono overflow-x-auto whitespace-pre-wrap max-h-[350px] overflow-y-auto">
+          <pre className="text-sm text-foreground overflow-x-auto whitespace-pre-wrap max-h-[350px] overflow-y-auto">
             {bibliography.content}
           </pre>
         </div>
       ) : (
-        <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-          <BookOpen className="h-12 w-12 text-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground font-mono">
-            No citations available
-          </p>
+        <div className="text-center py-12 bg-card border border-border rounded-lg">
+          <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No citations available</p>
           <p className="text-sm text-muted-foreground mt-2">
             Citations are automatically extracted from your project documents
           </p>
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-center justify-between pt-4 border-t border-border">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
-        </button>
-        <button
-          onClick={onContinue}
-          disabled={!hasCitations}
-          className="flex items-center gap-2 px-5 py-2.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        </Button>
+        <Button onClick={onContinue} disabled={!hasCitations}>
           Continue
-          <ArrowRight className="h-4 w-4" />
-        </button>
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Button>
       </div>
     </div>
   );

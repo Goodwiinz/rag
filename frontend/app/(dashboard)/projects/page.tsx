@@ -17,6 +17,16 @@ import { useChatStore, selectCurrentWorkspace } from '@/store/chat-store';
 import { useAuthStore } from '@/stores/authStore';
 import { workspaceService } from '@/services/workspaceService';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type ProjectStatus = 'active' | 'paused' | 'completed' | 'archived';
 type ProjectType = 'research' | 'literature_review' | 'thesis' | 'paper';
@@ -81,6 +91,8 @@ export default function ProjectsPage() {
   const [tagFilter, setTagFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
@@ -169,16 +181,22 @@ export default function ProjectsPage() {
     router.push(`/projects/${project.id}`);
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Are you sure you want to delete this project?')) return;
-    // Clear any leftover error from a previous action so the banner doesn't
-    // linger under a successful toast.
+  const handleDeleteProject = (projectId: string) => {
+    setProjectToDelete(projectId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
     clearError();
     try {
-      await deleteProject(projectId);
+      await deleteProject(projectToDelete);
       toast.success('Project deleted');
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Failed to delete project'));
+    } finally {
+      setProjectToDelete(null);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -410,6 +428,27 @@ export default function ProjectsPage() {
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateProject}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this project and all associated data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

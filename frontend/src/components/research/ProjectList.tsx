@@ -39,7 +39,6 @@ export function ProjectList({
                 ? 'bg-primary/10 text-primary'
                 : 'bg-card text-muted-foreground hover:text-foreground'
             }`}
-            title="Grid view"
             aria-label="Grid view"
             aria-pressed={viewMode === 'grid'}
           >
@@ -54,7 +53,6 @@ export function ProjectList({
                 ? 'bg-primary/10 text-primary'
                 : 'bg-card text-muted-foreground hover:text-foreground'
             }`}
-            title="List view"
             aria-label="List view"
             aria-pressed={viewMode === 'list'}
           >

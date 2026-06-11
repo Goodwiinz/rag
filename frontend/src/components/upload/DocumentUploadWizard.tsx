@@ -21,6 +21,16 @@ import { FileValidationError, validateFileBatch } from '@/utils/fileValidation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export interface DocumentUploadWizardProps {
   isOpen: boolean;
@@ -53,6 +63,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   const [validationErrors, setValidationErrors] = useState<FileValidationError[]>([]);
   const [showPreview, setShowPreview] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -181,11 +192,14 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
   const handleClose = useCallback(() => {
     if (hasActiveUploads) {
-      if (!confirm('Uploads are still in progress. Are you sure you want to close?')) {
-        return;
-      }
+      setShowCloseConfirm(true);
+      return;
     }
 
+    performClose();
+  }, [hasActiveUploads]);
+
+  const performClose = useCallback(() => {
     setIsClosing(true);
 
     // Cleanup
@@ -217,7 +231,12 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
         onComplete(completedDocumentIds);
       }
     }
-  }, [hasActiveUploads, selectedFiles, onClose, onComplete, allCompleted, queueItems, cancelAllUploads]);
+  }, [selectedFiles, hasActiveUploads, cancelAllUploads, onClose, onComplete, allCompleted, queueItems]);
+
+  const handleConfirmClose = useCallback(() => {
+    setShowCloseConfirm(false);
+    performClose();
+  }, [performClose]);
 
   const removeFile = useCallback((fileId: string) => {
     setSelectedFiles(prev => prev.filter(file => file.id !== fileId));
@@ -302,6 +321,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
   if (!isOpen) return null;
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -323,7 +343,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   currentStep === step
                     ? "bg-primary text-primary-foreground"
                     : currentStepIndex(step) < currentStepIndex(currentStep)
-                    ? "bg-green-500 text-white"
+                    ? "bg-[var(--nous-terra)] text-terra-foreground"
                     : "bg-muted text-muted-foreground"
                 )}
               >
@@ -338,7 +358,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                   className={cn(
                     "w-12 h-0.5",
                     currentStepIndex(step) < currentStepIndex(currentStep)
-                      ? "bg-green-500"
+                      ? "bg-[var(--nous-terra)]"
                       : "bg-muted"
                   )}
                 />
@@ -353,7 +373,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
             <div className="space-y-6">
               {/* Validation Errors */}
               {validationErrors.length > 0 && (
-                <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <div role="alert" className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <div className="flex items-start space-x-3">
                     <ExclamationTriangleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
@@ -387,7 +407,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                 className={cn(
                   "relative border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors",
                   "hover:border-primary hover:bg-primary/5",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent",
                   isDragActive && "border-primary bg-primary/10"
                 )}
               >
@@ -469,6 +489,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label="Preview file"
                               onClick={() => setShowPreview(file.preview!)}
                             >
                               <EyeIcon className="h-4 w-4" />
@@ -477,6 +498,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label="Remove file"
                             onClick={() => removeFile(file.id)}
                             className="text-muted-foreground hover:text-destructive"
                           >
@@ -533,6 +555,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Preview file"
                           onClick={() => setShowPreview(file.preview!)}
                         >
                           <EyeIcon className="h-4 w-4" />
@@ -541,6 +564,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
                       <Button
                         variant="ghost"
                         size="sm"
+                        aria-label="Remove file"
                         onClick={() => removeFile(file.id)}
                         className="text-muted-foreground hover:text-destructive"
                       >
@@ -592,19 +616,19 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="text-center">
-                    <div className="text-lg font-medium text-green-600">
+                    <div className="text-lg font-medium text-[var(--nous-terra)]">
                       {stats.completedFiles}
                     </div>
                     <div className="text-muted-foreground">Completed</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-medium text-blue-600">
+                    <div className="text-lg font-medium text-[var(--nous-helios)]">
                       {stats.processingFiles}
                     </div>
                     <div className="text-muted-foreground">Processing</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-medium text-red-600">
+                    <div className="text-lg font-medium text-[var(--nous-mars)]">
                       {stats.failedFiles}
                     </div>
                     <div className="text-muted-foreground">Failed</div>
@@ -690,7 +714,7 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
           {currentStep === 'complete' && (
             <div className="space-y-6 text-center">
               <div className="p-8">
-                <CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                <CheckCircleIcon className="h-16 w-16 text-[var(--nous-terra)] mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">
                   Upload Complete!
                 </h3>
@@ -709,13 +733,13 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
 
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                 <div className="p-4 bg-card border rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-bold text-[var(--nous-terra)]">
                     {stats.completedFiles}
                   </div>
                   <div className="text-sm text-muted-foreground">Successful</div>
                 </div>
                 <div className="p-4 bg-card border rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">
+                  <div className="text-2xl font-bold text-[var(--nous-mars)]">
                     {stats.failedFiles}
                   </div>
                   <div className="text-sm text-muted-foreground">Failed</div>
@@ -779,6 +803,27 @@ export const DocumentUploadWizard: React.FC<DocumentUploadWizardProps> = ({
         </Dialog>
       )}
     </Dialog>
+
+    <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Close during upload?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Uploads are still in progress. Closing will cancel all active uploads. Are you sure?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmClose}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Close anyway
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
 

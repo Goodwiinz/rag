@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Loader2,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DraftExportModal } from '@/components/research/DraftExportModal';
 import { projectService, type Draft } from '@/services/projectService';
 
@@ -63,7 +64,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
@@ -71,8 +72,8 @@ export const ExportStep: React.FC<ExportStepProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-mono font-semibold text-white">
-          Export Your Research
+        <h3 className="text-lg font-semibold text-foreground">
+          Export your research
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           Export your draft, bibliography, and extraction data in various
@@ -81,10 +82,10 @@ export const ExportStep: React.FC<ExportStepProps> = ({
       </div>
 
       {/* Success banner */}
-      <div className="flex items-center gap-3 p-4 bg-sol/5 border border-sol/20 rounded-lg">
-        <CheckCircle className="h-5 w-5 text-sol flex-shrink-0" />
+      <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+        <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
         <div>
-          <p className="text-sm font-mono text-sol">Pipeline Complete</p>
+          <p className="text-sm font-medium text-primary">Pipeline complete</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Your research workflow is finished. Choose your export format below.
           </p>
@@ -100,13 +101,13 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-sol/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <div className="p-3 bg-sol/10 rounded-lg">
-            <FileText className="h-5 w-5 text-sol" />
+          <div className="p-3 bg-primary/10 rounded-lg">
+            <FileText className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="font-mono text-sm text-white">Export Draft</p>
+            <p className="text-sm text-foreground">Export draft</p>
             <p className="text-xs text-muted-foreground mt-1">
               Markdown or LaTeX with optional bibliography
             </p>
@@ -120,13 +121,13 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg hover:border-brand-cyan/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <div className="p-3 bg-brand-cyan/10 rounded-lg">
-            <Download className="h-5 w-5 text-brand-cyan" />
+          <div className="p-3 bg-primary/10 rounded-lg">
+            <Download className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="font-mono text-sm text-white">Export as LaTeX</p>
+            <p className="text-sm text-foreground">Export as LaTeX</p>
             <p className="text-xs text-muted-foreground mt-1">
               Full LaTeX document with BibTeX references
             </p>
@@ -135,21 +136,15 @@ export const ExportStep: React.FC<ExportStepProps> = ({
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-center justify-between pt-4 border-t border-border">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
-        </button>
-        <button
-          onClick={onReset}
-          className="flex items-center gap-2 px-4 py-2 text-muted-foreground border border-border rounded font-mono text-sm hover:text-white hover:border-border transition-colors"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Start New Pipeline
-        </button>
+        </Button>
+        <Button variant="outline" onClick={onReset}>
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Start new pipeline
+        </Button>
       </div>
 
       {currentDraft && (
