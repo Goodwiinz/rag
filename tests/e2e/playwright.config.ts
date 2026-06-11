@@ -71,6 +71,19 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // Functional lane. Suites below are owned by other projects:
+      // accessibility/visual/performance have dedicated projects further down;
+      // mobile-responsive needs device emulation (Mobile Chrome/Safari/Tablet
+      // projects) and crashes on Desktop Chrome (touch APIs). Without this
+      // ignore, --project=chromium re-runs all of them and CI's push lane
+      // (102 tests x 1 worker x 60s timeout x 2 retries) can never finish
+      // inside the job budget.
+      testIgnore: [
+        "**/accessibility/**",
+        "**/visual/**",
+        "**/performance/**",
+        "**/mobile-responsive/**",
+      ],
     },
     {
       name: "firefox",

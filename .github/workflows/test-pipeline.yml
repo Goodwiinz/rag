@@ -458,7 +458,10 @@ jobs:
     runs-on: ubuntu-latest
     # Run on both push and PR, but use different test suites
     needs: [integration-tests]
-    timeout-minutes: 25
+    # Docker image builds alone take ~17 minutes on a cold runner; 25 minutes
+    # left the actual test run ~8 minutes and the push lane was killed mid-run
+    # on every develop push (reported "cancelled", never a pass/fail).
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Free runner disk space
@@ -683,7 +686,10 @@ jobs:
             npx playwright test --grep "@smoke" --project=chromium --reporter=html,github
           else
             echo "Running full E2E tests..."
-            npx playwright test --project=chromium --reporter=html,github
+            # --max-failures: a systemic failure (stack misconfig, dead
+            # selector everywhere) exits fast and REPORTS instead of burning
+            # the whole job budget and getting killed as "cancelled".
+            npx playwright test --project=chromium --reporter=html,github --max-failures=15
           fi
       - name: Upload E2E test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
