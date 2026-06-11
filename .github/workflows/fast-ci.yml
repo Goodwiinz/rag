@@ -1,5 +1,10 @@
 name: Fast CI (GitHub-hosted)
 
+# Fast, honest signal only. The former test-backend / test-frontend (npm+Jest)
+# jobs were continue-on-error duplicates of Test Pipeline lanes that swallowed
+# every failure ("|| echo") and always reported green — removed. Anything here
+# must be able to fail.
+
 on:
   push:
     branches: [develop, main]
@@ -23,9 +28,7 @@ jobs:
   lint:
     name: Lint (Fast)
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    continue-on-error: true
     env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
       PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -33,64 +36,29 @@ jobs:
       - name: Setup Python
         run: |
           python3 --version
-          pip3 install ruff black isort --quiet --user
-          export PATH="$HOME/.local/bin:$PATH"
+          pip3 install ruff --quiet --user
 
-      - name: Backend Lint
+      - name: Backend Lint (ruff)
         working-directory: backend
-        continue-on-error: true
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          echo "Running ruff..."
-          ruff check src/ --output-format=concise 2>/dev/null || echo "Ruff found issues"
+          ruff check src/ --output-format=concise
 
-      - name: Frontend Lint
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Frontend Lint (eslint)
         working-directory: frontend
-        continue-on-error: true
         run: |
-          npm install --prefer-offline --silent 2>/dev/null
-          npm run lint 2>/dev/null || echo "ESLint found issues"
-
-  test-backend:
-    name: Backend Tests (Fast)
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    continue-on-error: true
-    env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
-      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install Dependencies
-        working-directory: backend
-        run: |
-          pip3 install -r requirements.txt --quiet --user 2>/dev/null || true
-          pip3 install pytest pytest-cov --quiet --user
-
-      - name: Run Tests
-        working-directory: backend
-        continue-on-error: true
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          python3 -m pytest tests/unit/ -x -q --tb=short 2>/dev/null || echo "Tests completed"
-
-  test-frontend:
-    name: Frontend Tests (Fast)
-    runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    continue-on-error: true
-    env:
-      NPM_CONFIG_CACHE: ${{ github.workspace }}/.npm-cache
-      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install & Test
-        working-directory: frontend
-        continue-on-error: true
-        run: |
-          npm install --prefer-offline --silent 2>/dev/null
-          npm run type-check 2>/dev/null || echo "Type check done"
-          npm test -- --passWithNoTests 2>/dev/null || echo "Tests done"
+          pnpm install --frozen-lockfile
+          pnpm run lint
 
   test-frontend-vitest:
     name: Frontend Tests (Vitest)
@@ -127,12 +95,25 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
-    needs: [lint, test-backend, test-frontend, test-frontend-vitest]
+    needs: [lint, test-frontend-vitest]
     if: always()
     env:
       RUNNER_LABEL: ${{ github.event.inputs.runner || vars.FAST_CI_RUNNER || 'ubuntu-latest' }}
+      LINT_RESULT: ${{ needs.lint.result }}
+      VITEST_RESULT: ${{ needs.test-frontend-vitest.result }}
     steps:
       - name: Summary
         run: |
-          echo "## ✅ Fast CI Complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "All jobs finished on ${RUNNER_LABEL}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Fast CI"
+            echo "| Job | Result |"
+            echo "|-----|--------|"
+            echo "| Lint | $LINT_RESULT |"
+            echo "| Frontend Tests (Vitest) | $VITEST_RESULT |"
+            echo ""
+            echo "Runner: ${RUNNER_LABEL}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$LINT_RESULT" != "success" ] || [ "$VITEST_RESULT" != "success" ]; then
+            echo "Fast CI failed: lint=$LINT_RESULT vitest=$VITEST_RESULT"
+            exit 1
+          fi

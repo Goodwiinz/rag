@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - ".github/workflows/**"
+      - ".github/actions/**"
+  push:
+    branches: [develop, main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
   workflow_dispatch:
 
 permissions:
@@ -26,25 +32,24 @@ jobs:
       - name: Run actionlint
         env:
           SHELLCHECK_OPTS: "-e SC2086 -e SC2129"
+        # Whole tree, always. The previous diff-only mode let breakage in
+        # unchanged workflows (e.g. from a renamed composite action) ride
+        # through untouched PRs.
+        run: actionlint
+
+      - name: Validate composite actions
+        # actionlint only checks workflow files; composite action.yml files
+        # were previously unvalidated entirely. Parse them and assert the
+        # minimal contract (name + runs).
         run: |
-          if [ -n "${GITHUB_BASE_REF:-}" ]; then
-            git fetch --no-tags origin "$GITHUB_BASE_REF"
-            changed_files=$(git diff --name-only "origin/$GITHUB_BASE_REF"...HEAD -- ".github/workflows/*.yml" ".github/workflows/*.yaml")
-
-            if [ -z "$changed_files" ]; then
-              echo "No workflow file changes detected."
-              exit 0
-            fi
-
-            echo "Linting changed workflow files:"
-            printf '%s\n' "$changed_files"
-
-            while IFS= read -r file; do
-              [ -n "$file" ] || continue
-              # Skip deleted files
-              [ -f "$file" ] || continue
-              actionlint "$file"
-            done <<< "$changed_files"
-          else
-            actionlint
-          fi
+          shopt -s nullglob
+          status=0
+          for f in .github/actions/*/action.yml .github/actions/*/action.yaml; do
+            echo "Validating $f"
+            python3 - "$f" <<'EOF' || status=1
+          import sys, yaml
+          d = yaml.safe_load(open(sys.argv[1]))
+          assert isinstance(d, dict) and "runs" in d and "name" in d, "missing name/runs"
+          EOF
+          done
+          exit "$status"
