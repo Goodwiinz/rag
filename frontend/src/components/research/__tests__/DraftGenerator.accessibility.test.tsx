@@ -44,7 +44,9 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible radio group for Writing Style', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    const radioGroup = screen.getByRole('radiogroup', { name: /Writing style/i });
+    const radioGroup = screen.getByRole('radiogroup', {
+      name: /Writing style/i,
+    });
     expect(radioGroup).toBeInTheDocument();
 
     const radios = screen.getAllByRole('radio');
@@ -58,6 +60,9 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible label for Max Sections slider', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
+    // Max sections lives under the collapsed "Advanced options" disclosure.
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
+
     const slider = screen.getByLabelText(/Max sections/i);
     expect(slider).toBeInTheDocument();
     expect(slider).toHaveAttribute('type', 'range');
@@ -65,6 +70,9 @@ describe('DraftGenerator Accessibility', () => {
 
   it('has accessible toggle switch for Include Abstract', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
+
+    // Include abstract lives under the collapsed "Advanced options" disclosure.
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
 
     const toggle = screen.getByRole('switch', { name: /Include abstract/i });
     expect(toggle).toBeInTheDocument();
