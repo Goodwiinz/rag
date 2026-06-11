@@ -18,10 +18,7 @@ export async function POST(
 
   const supabase = await createClient();
   // getUser() verifies the JWT with Supabase, not just the presence of a
-  // (forgeable) session cookie. NOTE: this only authenticates the caller —
-  // it does NOT yet verify the caller owns this runId / tokenId (HITL hijack,
-  // audit #6); ownership enforcement (wiring the unused runId param) lands in
-  // the follow-up PR.
+  // (forgeable) session cookie.
   const {
     data: { user },
     error: authError,
@@ -30,7 +27,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { runId: _runId } = await params;
+  const { runId } = await params;
   const body = await request.json();
   const { tokenId, confirmed } = body;
 
@@ -38,6 +35,31 @@ export async function POST(
     return NextResponse.json(
       { error: 'tokenId and confirmed are required' },
       { status: 400 }
+    );
+  }
+
+  // Ownership check (audit #6 HITL hijack): previously the runId path param
+  // was ignored (`_runId`) and ANY authenticated user could complete ANY
+  // pending HITL waitpoint with a known tokenId — auto-approving a victim's
+  // document ingest / note creation. Verify against the run's metadata
+  // (set by execute-agent.ts): the caller must OWN the run (metadata.userId)
+  // AND the supplied tokenId must be the run's CURRENT pending token
+  // (metadata.waitTokenId). The second check prevents pairing an
+  // attacker-owned runId with a victim's tokenId. Both fail closed.
+  const runRes = await fetch(`${TRIGGER_API_URL}/api/v3/runs/${runId}`, {
+    headers: { Authorization: `Bearer ${TRIGGER_SECRET_KEY}` },
+  });
+  if (!runRes.ok) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const run = await runRes.json();
+  if (run?.metadata?.userId !== user.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  if (!run?.metadata?.waitTokenId || run.metadata.waitTokenId !== tokenId) {
+    return NextResponse.json(
+      { error: 'Token does not belong to this run' },
+      { status: 403 }
     );
   }
 
