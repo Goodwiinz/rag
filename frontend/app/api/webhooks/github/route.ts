@@ -28,10 +28,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // SECURITY (audit #20): fail closed. The signature check used to be gated on
+  // `GITHUB_WEBHOOK_SECRET &&` — so on any deployment where the env var was
+  // unset (staging clones), an UNAUTHENTICATED attacker could POST a crafted
+  // push event and trigger a reindex job with arbitrary payload. The secret is
+  // now mandatory: no secret → 503, and the signature is always verified.
+  if (!GITHUB_WEBHOOK_SECRET) {
+    return NextResponse.json(
+      { error: 'Webhook secret not configured' },
+      { status: 503 }
+    );
+  }
+
   const rawBody = await request.text();
   const signature = request.headers.get('x-hub-signature-256');
 
-  if (GITHUB_WEBHOOK_SECRET && !verifySignature(rawBody, signature)) {
+  if (!verifySignature(rawBody, signature)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
