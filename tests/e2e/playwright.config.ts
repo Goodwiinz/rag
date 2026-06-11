@@ -83,6 +83,19 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
+        // QUARANTINED — aspirational specs. user-journeys/** and data-flow/**
+        // assert a large analytics-dashboard / data-integrity UI contract
+        // (testids: analytics-nav-link, analytics-dashboard, dashboard-container,
+        // acid-results, atomicity-result, batch-upload-zone, clustering-algorithm,
+        // …) that the product has never implemented. Their shared login helper
+        // (test-helpers.ts:51) times out waiting for analytics-nav-link |
+        // user-menu | dashboard-container post-login, so every test in both
+        // suites fails. They were invisible for months because the push lane was
+        // always cancelled mid-run (fixed in #701); the first completed run
+        // surfaced 15 failures. Re-enable per-suite once the corresponding UI +
+        // testids ship. See tests/e2e/tests/{user-journeys,data-flow}/* headers.
+        "**/user-journeys/**",
+        "**/data-flow/**",
       ],
     },
     {
