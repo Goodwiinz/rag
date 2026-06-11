@@ -32,7 +32,7 @@ interface AuthState {
     last_name: string;
     organization_name?: string;
   }) => Promise<RegisterResult>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
@@ -58,6 +58,9 @@ function getSupabaseClient(): SupabaseClient {
 
       if (event === 'SIGNED_OUT') {
         clearWorkspaceServiceCache();
+        // Drop the cached bearer token so the shared APIClient singleton can't
+        // keep sending the signed-out user's JWT.
+        api.clearAuth();
         useAuthStore.setState({
           user: null,
           organization: null,
@@ -176,17 +179,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  signOut: () => {
+  signOut: async () => {
     clearWorkspaceServiceCache();
+    // Clear the shared APIClient token immediately so no in-flight or
+    // subsequent request can carry the old JWT, even if the network call
+    // below fails.
+    api.clearAuth();
 
-    try {
-      getSupabaseClient()
-        .auth.signOut()
-        .catch(() => {});
-    } catch {
-      // If browser auth was never configured correctly, still clear local state.
-    }
-
+    // Always clear local state first so the UI reflects signed-out
+    // immediately regardless of the network outcome.
     set({
       user: null,
       organization: null,
@@ -194,6 +195,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       error: null,
       pendingEmailConfirmation: false,
     });
+
+    try {
+      const { error } = (await getSupabaseClient().auth.signOut()) ?? {};
+      if (error) throw error;
+    } catch (error) {
+      // Surface the failure: the server-side token may NOT be revoked, so the
+      // caller can decide whether to retry / warn rather than assume a clean
+      // logout. Local state is already cleared above.
+      const message =
+        error instanceof Error ? error.message : 'Sign out failed';
+      set({ error: message });
+      throw error instanceof Error ? error : new Error(message);
+    }
   },
 
   resetPassword: async (email: string) => {

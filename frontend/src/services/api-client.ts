@@ -47,6 +47,7 @@ export interface UploadOptions {
 export class APIClient {
   private baseURL: string;
   private token: string | null = null;
+  private explicitToken: string | null = null;
   private organizationId: string | null = null;
   private defaultTimeout: number;
 
@@ -60,18 +61,34 @@ export class APIClient {
   // --------------------------------------------------------------------------
 
   setAuth(token: string, organizationId: string): void {
+    this.explicitToken = token;
     this.token = token;
     this.organizationId = organizationId;
   }
 
   clearAuth(): void {
+    this.explicitToken = null;
     this.token = null;
     this.organizationId = null;
   }
 
-  /** Load auth from Supabase session (used before each request if no token set) */
+  /** Load auth from the CURRENT Supabase session before each request.
+   *
+   * Reads the session every call rather than caching the first token forever:
+   * the old short-circuit (`if (this.token) return`) kept the very first
+   * access token for the singleton's whole lifetime, so after a token refresh
+   * the client sent a stale token and — worse — after sign-out (or a second
+   * user logging in on the same tab) it kept sending the previous user's
+   * still-valid JWT until a hard reload. An explicit token set via setAuth()
+   * still wins; otherwise the live session (which getSession() auto-refreshes)
+   * is the source of truth, and a null session clears the token rather than
+   * stranding the old one.
+   */
   private async ensureAuth(): Promise<void> {
-    if (this.token) return;
+    if (this.explicitToken) {
+      this.token = this.explicitToken;
+      return;
+    }
     if (typeof window === 'undefined') return;
 
     try {
@@ -80,11 +97,9 @@ export class APIClient {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        this.token = session.access_token;
-        this.organizationId =
-          session.user?.user_metadata?.organization_id ?? null;
-      }
+      this.token = session?.access_token ?? null;
+      this.organizationId =
+        session?.user?.user_metadata?.organization_id ?? null;
     } catch (error) {
       console.warn('Failed to load auth from Supabase session:', error);
     }
