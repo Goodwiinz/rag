@@ -238,10 +238,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   fetchProfile: async () => {
     try {
       const supabase = getSupabaseClient();
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      // SECURITY (audit #7): gate on getUser(), which verifies the JWT with
+      // Supabase, rather than getSession(), which only reads the (forgeable)
+      // cookie — a forged session cookie must not make the app look
+      // authenticated. getSession() is then used solely to read the token to
+      // forward to /auth/me (the backend re-validates it).
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError || !sessionData.session) {
+      if (userError || !user) {
         set({
           user: null,
           organization: null,
@@ -251,7 +258,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return;
       }
 
-      const accessToken = sessionData.session.access_token;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        set({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        return;
+      }
 
       const profileData = await api.get<ProfileResponse>('/auth/me', {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -313,10 +333,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   initialize: async () => {
     try {
       const supabase = getSupabaseClient();
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      // SECURITY (audit #7): verify the JWT with getUser() before treating the
+      // app as authenticated; getSession() alone trusts the cookie.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError || !sessionData.session) {
+      if (userError || !user) {
         set({ isAuthenticated: false, isLoading: false });
         return;
       }

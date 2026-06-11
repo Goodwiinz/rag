@@ -83,6 +83,12 @@ export class APIClient {
    * still wins; otherwise the live session (which getSession() auto-refreshes)
    * is the source of truth, and a null session clears the token rather than
    * stranding the old one.
+   *
+   * Deliberately getSession() (audit #7): this only reads a token to attach to
+   * an API call the backend re-validates — it makes no authz decision here, so
+   * getUser()'s extra network round-trip per request would add latency for no
+   * security gain. The two authz-decision sites (authStore initialize/
+   * fetchProfile) use getUser().
    */
   private async ensureAuth(): Promise<void> {
     if (this.explicitToken) {
