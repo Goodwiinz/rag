@@ -113,7 +113,17 @@ class AnalyticsMetric(SQLBaseModel):
 
     # Relationships
     kpis = relationship("AnalyticsKPI", back_populates="metric")
-    aggregations = relationship("MetricAggregation", back_populates="metric")
+    # Module-qualified target: a second `MetricAggregation` class exists in
+    # src/models/quality_metrics.py on the same declarative Base, so the bare
+    # "MetricAggregation" name is ambiguous and configure_mappers() raises
+    # "Multiple classes found" the moment this module is imported alongside the
+    # rest of src.models (i.e. every analytics ORM query/instantiation). Qualify
+    # the path to the intended class. (Same class of bug as the duplicate
+    # `analytics_events` mapping removed in #675.)
+    aggregations = relationship(
+        "src.models.analytics.analytics_models.MetricAggregation",
+        back_populates="metric",
+    )
 
 
 class AnalyticsKPI(SQLBaseModel):

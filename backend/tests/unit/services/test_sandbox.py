@@ -20,11 +20,17 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 # ---------------------------------------------------------------------------
 # Stub heavy imports so tools_impl can be imported in a minimal test env.
-# These stubs are only applied when the real packages are absent.
+#
+# Stubs are installed by the module-scoped `_isolated_import_stubs` fixture
+# below and sys.modules is fully restored afterwards. They used to be
+# installed at import time and never removed; "not in sys.modules" means
+# "not imported yet", not "not installed", so on a fresh interpreter this
+# replaced real packages (boto3, PIL, tiktoken, ...) with mocks for every
+# test collected after this file — silent cross-test poisoning.
 # ---------------------------------------------------------------------------
 
 def _stub_if_missing(name: str) -> None:
-    """Insert a MagicMock stub for *name* (and each prefix) if not installed."""
+    """Insert an empty module stub for *name* (and each prefix) if not loaded."""
     if name not in sys.modules:
         parts = name.split(".")
         for i in range(1, len(parts) + 1):
@@ -33,7 +39,7 @@ def _stub_if_missing(name: str) -> None:
                 sys.modules[key] = ModuleType(key)
 
 
-for _mod in [
+_LIGHT_STUBS = [
     "langchain_core",
     "langchain_core.runnables",
     "langchain_core.tools",
@@ -47,8 +53,29 @@ for _mod in [
     "qdrant_client",
     "neo4j",
     "structlog",
-]:
-    _stub_if_missing(_mod)
+]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_import_stubs():
+    """Install the import stubs this module needs, then restore sys.modules.
+
+    Everything added while this module's tests run (stubs, the fake
+    src.api.agent package hierarchy from _import_tools_impl, transitively
+    imported modules) is removed at teardown, and any entry that was
+    overwritten is restored — later test modules import the real thing.
+    """
+    saved = dict(sys.modules)
+    for _mod in _LIGHT_STUBS:
+        _stub_if_missing(_mod)
+    for _stub_name in _HEAVY_STUBS:
+        _make_stub(_stub_name)
+    yield
+    for key in [k for k in sys.modules if k not in saved]:
+        del sys.modules[key]
+    for key, mod in saved.items():
+        if sys.modules.get(key) is not mod:
+            sys.modules[key] = mod
 
 
 # ---------------------------------------------------------------------------
@@ -509,8 +536,8 @@ _HEAVY_STUBS = [
     "pymupdf",
     "fitz",
 ]
-for _stub_name in _HEAVY_STUBS:
-    _make_stub(_stub_name)
+# Installed (and later removed) by the module-scoped _isolated_import_stubs
+# fixture at the top of this file — never at import time.
 
 
 def _import_tools_impl():

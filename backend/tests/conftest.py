@@ -166,15 +166,20 @@ def pytest_collection_modifyitems(config, items):
         elif "test_document" in test_path:
             item.add_marker(pytest.mark.documents)
 
-        if "integration" in test_path:
+        # Stage markers come from the suite DIRECTORY, not a path substring.
+        # Bare-substring matching tagged files like tests/unit/services/
+        # test_agent_integration.py as `integration`, so the unit CI lane
+        # (-m "unit or not (integration or e2e or slow)") silently skipped
+        # them and no lane ever ran them.
+        if "/tests/integration/" in test_path:
             item.add_marker(pytest.mark.integration)
-        elif "performance" in test_path:
+        elif "/tests/performance/" in test_path:
             item.add_marker(pytest.mark.performance)
-        elif "e2e" in test_path:
+        elif "/tests/e2e/" in test_path:
             item.add_marker(pytest.mark.e2e)
-        elif "unit" in test_path:
+        elif "/tests/unit/" in test_path:
             item.add_marker(pytest.mark.unit)
-        elif "resilience" in test_path:
+        elif "/tests/resilience/" in test_path:
             item.add_marker(pytest.mark.resilience)
 
 

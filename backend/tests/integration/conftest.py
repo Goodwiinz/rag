@@ -2,10 +2,24 @@
 Integration Test Configuration
 
 Sets up environment variables BEFORE importing the application to ensure
-tests use SQLite in-memory database instead of PostgreSQL.
+tests use SQLite in-memory database instead of PostgreSQL. This prevents the
+'database does not exist' error when running integration tests without a
+PostgreSQL server running.
 
-This prevents the 'database does not exist' error when running integration tests
-without a PostgreSQL server running.
+This module also provides the shared fixtures for the integration suite:
+  - Auto-mocking of external services (Redis, Qdrant, Neo4j) and Celery.
+  - Optional testcontainers-backed PostgreSQL/Redis fixtures, gated behind
+    @pytest.mark.requires_postgres / @pytest.mark.requires_redis.
+  - Async SQLite database + HTTP client fixtures plus the model fixtures used
+    by the Project-Chat integration tests (organizations, users, workspaces,
+    projects, conversations, threads, messages, and project-thread links).
+
+NOTE: This file was previously two concatenated module bodies (a second
+docstring and a duplicate import block appeared mid-file). It has been
+consolidated into a single coherent module: one docstring, imports hoisted
+and deduplicated, fixtures grouped in logical order. Fixture behavior is
+unchanged. The environment-variable bootstrap below is intentionally left
+as-is.
 """
 
 import os
@@ -54,6 +68,46 @@ try:
 except Exception:
     pass  # Encryption module may not be available in all test envs
 
+
+# ----------------------------------------------------------------------------
+# Imports hoisted from the (formerly duplicated) second module body.
+#
+# The src.* imports MUST stay below the environment-variable bootstrap above so
+# the application picks up the SQLite test configuration. `pytest_asyncio` is a
+# hard module-level import here (the second body already required it); it backs
+# all of the async fixtures below.
+# ----------------------------------------------------------------------------
+
+import pytest_asyncio
+from uuid import uuid4
+
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.main import app
+from src.core.database import get_db
+from src.models import (
+    Base,
+    Organization,
+    StorageTier,
+    User,
+    UserRole,
+    Workspace,
+    WorkspaceRole,
+    Collection,
+    Conversation,
+    Thread,
+    ChatMessage,
+    MessageRole,
+    ProjectThread,
+    ProjectThreadLinkType,
+)
+
+
+# ============================================================================
+# External Service Auto-Mocking
+# ============================================================================
 
 @pytest.fixture(autouse=True)
 def mock_external_services(request):
@@ -270,58 +324,38 @@ def redis_client(redis_container):
         client.close()
 
 
-try:
-    import pytest_asyncio
+# NOTE: `async_redis_client` was originally wrapped in a
+# `try: import pytest_asyncio ... except ImportError` guard. That guard is now
+# redundant because `pytest_asyncio` is imported unconditionally at module level
+# above (the second module body already required it), so the fixture is defined
+# directly. Its body is unchanged.
+@pytest_asyncio.fixture(scope="function")
+async def async_redis_client(redis_container):
+    """
+    Create an async Redis client connected to the Redis container.
 
-    @pytest_asyncio.fixture(scope="function")
-    async def async_redis_client(redis_container):
-        """
-        Create an async Redis client connected to the Redis container.
+    Use for testing async cache operations.
+    """
+    import redis.asyncio as aioredis
 
-        Use for testing async cache operations.
-        """
-        import redis.asyncio as aioredis
+    client = aioredis.from_url(
+        redis_container["url"],
+        encoding="utf-8",
+        decode_responses=True,
+    )
 
-        client = aioredis.from_url(
-            redis_container["url"],
-            encoding="utf-8",
-            decode_responses=True,
-        )
+    try:
+        yield client
+    finally:
+        await client.flushdb()
+        await client.close()
 
-        try:
-            yield client
-        finally:
-            await client.flushdb()
-            await client.close()
-except ImportError:
-    # pytest_asyncio not installed
-    pass
-"""
-Fixtures for Project-Chat Integration Tests
 
-Provides database fixtures for testing project-chat API endpoints.
-"""
-
-import pytest
-import pytest_asyncio
-from uuid import uuid4
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
-from src.main import app
-from src.core.database import get_db
-from src.models import (
-    Base,
-    Organization,
-    StorageTier,
-    User,
-    UserRole,
-    Workspace,
-    WorkspaceRole,
-    Collection, Conversation, Thread, ChatMessage,
-    MessageRole, ProjectThread, ProjectThreadLinkType
-)
+# ============================================================================
+# Project-Chat Integration Fixtures
+# ============================================================================
+# Database + HTTP client fixtures and the model fixtures used by the
+# Project-Chat integration tests (test_project_chat_api.py, test_citations_api.py).
 
 try:
     import greenlet  # noqa: F401
@@ -330,9 +364,9 @@ except ImportError:
     GREENLET_AVAILABLE = False
 
 
-# ============================================================================
+# ----------------------------------------------------------------------------
 # Database Setup
-# ============================================================================
+# ----------------------------------------------------------------------------
 
 @pytest_asyncio.fixture(scope="function")
 async def test_db():
@@ -390,9 +424,9 @@ async def async_client(test_db, test_user):
     app.dependency_overrides.clear()
 
 
-# ============================================================================
+# ----------------------------------------------------------------------------
 # Model Fixtures
-# ============================================================================
+# ----------------------------------------------------------------------------
 
 @pytest_asyncio.fixture(scope="function")
 async def test_organization(test_db: AsyncSession):

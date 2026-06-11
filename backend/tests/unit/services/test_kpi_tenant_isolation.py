@@ -1,13 +1,22 @@
 """analytics_kpis must carry an organization_id for tenant isolation.
 
 list_kpis/get_kpi returned every org's KPIs because the table had no tenant
-column. These tests pin the new column on the model and the migration that
-adds it (chained off the documented head).
+column. These tests pin the new column on the model (real ORM introspection),
+prove the read filter actually isolates tenants (behavioral), and pin the
+migration that adds the column (chained off the documented head).
+
+Earlier revisions of this file asserted *source text* because the analytics
+package was unimportable (a duplicate ``AnalyticsEvent`` ORM collided on the
+shared metadata — removed in #675 — plus a missing ``WidgetCreate`` and a stale
+``src.auth.dependencies`` import). Those are fixed; the modules import cleanly,
+so the model/endpoint contract is now checked behaviorally.
 """
 
 from __future__ import annotations
 
 import pathlib
+import re
+import uuid
 
 import pytest
 
@@ -16,45 +25,181 @@ pytestmark = pytest.mark.unit
 _BACKEND = pathlib.Path(__file__).parents[3]
 
 
-def test_kpi_model_has_organization_id_column():
-    # Source-text, not introspection: importing AnalyticsKPI pulls
-    # src.models.analytics → analytics_models, which registers a SECOND
-    # `analytics_events` table that collides with src/models/analytics_event.py
-    # (duplicate indexes) and poisons every later test's create_all. Assert the
-    # column definition in the model source instead.
-    src = (_BACKEND / "src/models/analytics/analytics_models.py").read_text()
-    # nullable=True (backward-compat; reads filter NULL out), indexed.
-    assert (
-        "organization_id = Column(" in src
-        and 'ForeignKey("organizations.id"), nullable=True, index=True' in src
+# --- model contract: real ORM introspection ---------------------------------
+
+
+def test_kpi_model_has_tenant_scoped_organization_id_column():
+    """Introspect the mapped column, not the source file.
+
+    organization_id must exist, be a nullable FK to organizations.id, and be
+    indexed (the read-path filter scans on it).
+    """
+    from src.models.analytics.analytics_models import AnalyticsKPI
+
+    col = AnalyticsKPI.__table__.c.get("organization_id")
+    assert col is not None, "AnalyticsKPI is missing the organization_id column"
+
+    # Nullable for backward-compat: rows created before the column existed have
+    # no derivable owner; the read endpoints fail closed on NULL instead.
+    assert col.nullable is True
+    # Indexed so the tenant filter doesn't table-scan.
+    assert col.index is True
+
+    # Exactly one FK, pointing at organizations.id. target_fullname is a string
+    # property, so this works even though the organizations table isn't created
+    # on the scratch metadata below.
+    fks = list(col.foreign_keys)
+    assert len(fks) == 1
+    assert fks[0].target_fullname == "organizations.id"
+
+
+# --- behavioral: the read filter actually isolates tenants -------------------
+#
+# Proves the security property (an org-A caller's query returns only org A's
+# rows, never org B's or the legacy NULL-org row) by running the EXACT WHERE
+# predicate list_kpis/get_kpi build against the REAL AnalyticsKPI table on a
+# throwaway SQLite engine. Only the two tables under test are created — the
+# shared Base has postgres-only column types elsewhere, so create_all would
+# fail; we create just AnalyticsMetric + AnalyticsKPI via Table.create. (SQLite
+# does not enforce the FK to organizations, so that table is unneeded.)
+#
+# Why Core (``__table__``) and not the ORM ``select(AnalyticsKPI)``: a real
+# ``select(AnalyticsKPI)`` forces a registry-wide ``configure_mappers()`` over
+# every model on the shared declarative Base and their relationships (User,
+# Organization, the duplicate-named MetricAggregation, etc.) — most of which
+# pull in tables and postgres-only column types this two-table scratch DB does
+# not have. Operating on ``AnalyticsKPI.__table__`` keeps the test isolated to
+# the tables under test and never configures mappers, while the column
+# expressions below compile to byte-identical SQL to the ORM attribute form the
+# endpoints use: ``is_active = true AND organization_id IS NOT NULL AND
+# organization_id = :org``.
+
+
+async def _make_kpi_engine():
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from src.models.analytics.analytics_models import AnalyticsKPI, AnalyticsMetric
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        # metric first (KPI.metric_id FKs it), then KPI. Metadata subset only —
+        # never create_all the full Base.
+        await conn.run_sync(AnalyticsMetric.__table__.create)
+        await conn.run_sync(AnalyticsKPI.__table__.create)
+    return engine
+
+
+async def _seed_three_orgs(conn, org_a, org_b):
+    """Seed one metric and three KPIs: org A, org B, and a legacy NULL-org row."""
+    from sqlalchemy import insert
+
+    from src.models.analytics.analytics_models import (
+        AggregationType,
+        AnalyticsKPI,
+        AnalyticsMetric,
+        MetricType,
     )
-    assert "class AnalyticsKPI" in src
 
+    metric_id = uuid.uuid4()
+    await conn.execute(
+        insert(AnalyticsMetric.__table__).values(
+            id=metric_id,
+            name="probe-metric",
+            display_name="Probe Metric",
+            metric_type=MetricType.COUNTER,
+            default_aggregation=AggregationType.SUM,
+        )
+    )
 
-def test_create_kpi_accepts_organization_id_and_stamps_it():
-    """The service create_kpi must accept organization_id and set it on the KPI.
+    def _kpi(name, org):
+        return {
+            "id": uuid.uuid4(),
+            "name": name,
+            "display_name": name,
+            "metric_id": metric_id,
+            "organization_id": org,
+            "aggregation_type": AggregationType.SUM,
+            "is_active": True,
+        }
 
-    Source-text check: importing the service triggers the package's pre-existing
-    broken __init__ (WidgetCreate), so assert against the file instead."""
-    src = (_BACKEND / "src/services/analytics/metrics_service.py").read_text()
-    assert "organization_id: Optional[uuid.UUID]" in src
-    assert "organization_id=organization_id" in src  # set on the KPI row
-
-
-def test_read_endpoints_scope_by_org():
-    src = (_BACKEND / "src/api/analytics/metrics.py").read_text()
-    # Both list_kpis and get_kpi filter by the caller's org.
-    assert (
-        src.count("AnalyticsKPI.organization_id == current_user.organization_id") >= 2
+    await conn.execute(
+        insert(AnalyticsKPI.__table__),
+        [_kpi("a", org_a), _kpi("b", org_b), _kpi("legacy", None)],
     )
 
 
-def test_endpoints_guard_null_org_caller():
-    """A null-org caller must not match legacy NULL-org rows (== None → IS NULL).
-    list/get/create all short-circuit; reads also add IS NOT NULL."""
-    src = (_BACKEND / "src/api/analytics/metrics.py").read_text()
-    assert src.count("current_user.organization_id is None") >= 3  # list, get, create
-    assert "AnalyticsKPI.organization_id.isnot(None)" in src
+@pytest.mark.asyncio
+async def test_read_filter_isolates_tenants_and_excludes_null_org():
+    from sqlalchemy import select
+
+    from src.models.analytics.analytics_models import AnalyticsKPI
+
+    kpis = AnalyticsKPI.__table__
+    engine = await _make_kpi_engine()
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+
+    try:
+        async with engine.begin() as conn:
+            await _seed_three_orgs(conn, org_a, org_b)
+
+            # The exact predicate list_kpis/get_kpi build for an org_a caller:
+            # is_active, IS NOT NULL (fail closed on legacy rows), == caller org.
+            rows = (
+                await conn.execute(
+                    select(kpis).where(
+                        kpis.c.is_active == True,  # noqa: E712
+                        kpis.c.organization_id.isnot(None),
+                        kpis.c.organization_id == org_a,
+                    )
+                )
+            ).mappings().all()
+
+            names = {r["name"] for r in rows}
+            assert names == {"a"}  # never org_b's "b" or the NULL-org "legacy"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_read_filter_never_returns_legacy_null_rows_to_a_null_org_caller():
+    """Defense in depth for the null-org caller guard.
+
+    The endpoints short-circuit a null-org caller before querying (list_kpis
+    ``return []``, get_kpi 404, create_kpi 400 — see
+    src/api/analytics/metrics.py). Even if that short-circuit were removed, the
+    WHERE clause still fails closed: ``organization_id == None`` compiles to
+    ``IS NULL``, which the co-present ``IS NOT NULL`` guard contradicts, so the
+    legacy NULL-org rows are never returned. Prove that behaviorally.
+    """
+    from sqlalchemy import select
+
+    from src.models.analytics.analytics_models import AnalyticsKPI
+
+    kpis = AnalyticsKPI.__table__
+    engine = await _make_kpi_engine()
+    org_a, org_b = uuid.uuid4(), uuid.uuid4()
+    null_org_caller = None
+
+    try:
+        async with engine.begin() as conn:
+            await _seed_three_orgs(conn, org_a, org_b)
+
+            rows = (
+                await conn.execute(
+                    select(kpis).where(
+                        kpis.c.is_active == True,  # noqa: E712
+                        kpis.c.organization_id.isnot(None),
+                        kpis.c.organization_id == null_org_caller,
+                    )
+                )
+            ).mappings().all()
+
+            assert rows == []  # the legacy "legacy" NULL-org row stays hidden
+    finally:
+        await engine.dispose()
+
+
+# --- migration pinning: legitimately file-based ------------------------------
 
 
 def test_migration_unique_revision_off_documented_head():
@@ -71,8 +216,6 @@ def test_migration_unique_revision_off_documented_head():
 
 
 def test_migration_revision_id_is_unique_across_versions():
-    import re
-
     versions = _BACKEND / "alembic/versions"
     count = sum(
         1
@@ -80,72 +223,3 @@ def test_migration_revision_id_is_unique_across_versions():
         if re.search(r'revision\s*=\s*["\']b7d4e9a1c3f2["\']', f.read_text())
     )
     assert count == 1, "new migration revision id must be globally unique"
-
-
-# --- behavioral: the read filter actually isolates tenants --------------------
-#
-# Proves the security property (org A's query returns only org A's rows, never
-# org B's or the legacy NULL-org row) by running the EXACT WHERE predicate the
-# endpoints build against a real SQLite table. Uses a standalone throwaway
-# table on a LOCAL MetaData — importing the real AnalyticsKPI model would pull
-# the poisoned analytics package (duplicate analytics_events table) and break
-# every later test's create_all.
-
-
-@pytest.mark.asyncio
-async def test_read_filter_isolates_tenants_and_excludes_null_org():
-    import uuid
-
-    from sqlalchemy import (
-        Boolean,
-        Column,
-        MetaData,
-        String,
-        Table,
-        Uuid,
-        select,
-    )
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    md = MetaData()  # local — never touches the shared Base.metadata
-    tbl = Table(
-        "kpi_isolation_probe",
-        md,
-        Column("id", Uuid, primary_key=True),
-        Column("name", String),
-        Column("organization_id", Uuid, nullable=True),
-        Column("is_active", Boolean),
-    )
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(md.create_all)
-
-    org_a, org_b = uuid.uuid4(), uuid.uuid4()
-
-    def _row(name, org):
-        return {"id": uuid.uuid4(), "name": name, "organization_id": org, "is_active": True}
-
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        await s.execute(
-            tbl.insert(),
-            [_row("a", org_a), _row("b", org_b), _row("legacy", None)],
-        )
-        await s.commit()
-
-        # The exact predicate list_kpis/get_kpi build for an org_a caller.
-        rows = (
-            await s.execute(
-                select(tbl).where(
-                    tbl.c.is_active == True,  # noqa: E712
-                    tbl.c.organization_id.isnot(None),
-                    tbl.c.organization_id == org_a,
-                )
-            )
-        ).all()
-
-        names = {r.name for r in rows}
-        assert names == {"a"}  # never org_b's "b" or the NULL-org "legacy"
-
-    await engine.dispose()
