@@ -126,6 +126,22 @@ services:
       retries: 20
       start_period: 10s
 
+  # Kong stand-in for browser auth traffic. supabase-js calls
+  # {SUPABASE_URL}/auth/v1/<route>; bare GoTrue serves at root, so this nginx
+  # strips the prefix and answers CORS preflight — see auth-proxy.conf.
+  # Browser-facing NEXT_PUBLIC_SUPABASE_URL should point here
+  # (http://localhost:8999 from the host, http://auth-proxy from containers).
+  auth-proxy:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./config/docker-compose/auth-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8999:80"
+    depends_on:
+      - gotrue
+    networks:
+      - ci-network
+
   # Backend API Service
   backend:
     build:
