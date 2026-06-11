@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: "20"
           cache: pnpm
+          # Pin to the root workspace lockfile — without this, setup-node globs
+          # **/pnpm-lock.yaml and an unrelated frontend lockfile change busts
+          # this deploy job's cache (it installs only from the root lockfile).
+          cache-dependency-path: pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 
