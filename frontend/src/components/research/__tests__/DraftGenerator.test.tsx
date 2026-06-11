@@ -45,6 +45,9 @@ describe('DraftGenerator', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /technical/i }));
 
+    // Max sections + abstract live behind the "Advanced options" collapsible
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
+
     const slider = screen.getByRole('slider');
     fireEvent.change(slider, { target: { value: '7' } });
 
