@@ -163,10 +163,10 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
         <div className="flex items-center gap-3">
           <FileText className="h-5 w-5 text-primary" />
           <div>
-            <h3 className="font-mono font-medium text-foreground">
+            <h3 className="font-semibold text-foreground">
               {draft.title}
             </h3>
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="text-xs text-muted-foreground">
               Version {draft.version} • {draft.word_count} words •{' '}
               {draft.citation_count} citations
             </p>
@@ -181,7 +181,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
               <select
                 value={draft.version}
                 onChange={(e) => onVersionChange(parseInt(e.target.value, 10))}
-                className="px-2 py-1 bg-muted border border-border rounded text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                className="px-2 py-1 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {versions.map((v) => (
                   <option key={v.version} value={v.version}>
@@ -197,7 +197,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
             <div className="flex items-center gap-1">
               <button
                 onClick={() => onExport('markdown')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs font-mono text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title="Export as Markdown"
               >
                 <Download className="h-3 w-3" />
@@ -205,7 +205,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
               </button>
               <button
                 onClick={() => onExport('latex')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs font-mono text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title="Export as LaTeX"
               >
                 <Code className="h-3 w-3" />
@@ -219,7 +219,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
       {/* Themes */}
       {draft.themes && draft.themes.length > 0 && (
         <div className="px-4 py-2 border-b border-border flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-xs text-muted-foreground">
             Themes:
           </span>
           {draft.themes.map((theme, idx) => (
@@ -237,7 +237,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
       <div className="p-6 max-h-[600px] overflow-y-auto">
         <div
           ref={contentRef}
-          className="prose prose-invert prose-sm max-w-none text-muted-foreground relative"
+          className="prose prose-sm max-w-none text-muted-foreground relative"
           onMouseUp={handleTextSelect}
           dangerouslySetInnerHTML={{
             __html: DOMPurify.sanitize(formatMarkdown(formattedContent)),
@@ -309,7 +309,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
       />
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground font-mono">
+      <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
         Generated {new Date(draft.created_at).toLocaleString()}
         {draft.is_current && (
           <span className="ml-2 px-1.5 py-0.5 bg-primary/10 text-primary rounded">

@@ -177,7 +177,7 @@ describe('ProjectDetailPage agent sync', () => {
 
     await screen.findByText('Project One');
 
-    fireEvent.click(screen.getByRole('button', { name: /drafts/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /drafts/i }));
 
     await waitFor(() => {
       expect(mockProjectService.listDrafts).toHaveBeenCalledTimes(1);

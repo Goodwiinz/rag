@@ -642,7 +642,28 @@ export default function ProjectDetailPage() {
           </button>
         </div>
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
+          <div
+            role="tablist"
+            className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap"
+            onKeyDown={(e) => {
+              const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+              let nextIndex = -1;
+              if (e.key === 'ArrowRight') {
+                nextIndex = (currentIndex + 1) % tabs.length;
+              } else if (e.key === 'ArrowLeft') {
+                nextIndex =
+                  (currentIndex - 1 + tabs.length) % tabs.length;
+              } else if (e.key === 'Home') {
+                nextIndex = 0;
+              } else if (e.key === 'End') {
+                nextIndex = tabs.length - 1;
+              }
+              if (nextIndex !== -1 && nextIndex !== currentIndex) {
+                e.preventDefault();
+                handleTabChange(tabs[nextIndex].id);
+              }
+            }}
+          >
             {tabs.map((tab, index) => (
               <React.Fragment key={tab.id}>
                 {index === 3 && (
@@ -650,7 +671,9 @@ export default function ProjectDetailPage() {
                 )}
                 <button
                   onClick={() => handleTabChange(tab.id)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  tabIndex={activeTab === tab.id ? 0 : -1}
                   className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     activeTab === tab.id
                       ? 'text-foreground bg-muted/60 border-b-2 border-primary'

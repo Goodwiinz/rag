@@ -33,10 +33,14 @@ env:
   PIP_NO_CACHE_DIR: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   # Frontend reaches gotrue (CI's stand-in for the local supabase-cli stack)
-  # via docker DNS from inside the Playwright container's browser. Anon JWT
+  # from the BROWSER. In this workflow Playwright runs on the RUNNER HOST
+  # (not in the compose e2e-tests container), so the docker-DNS name
+  # `gotrue` is unresolvable from the browser — signInWithPassword silently
+  # died and both auth smoke tests timed out on the post-login redirect.
+  # gotrue publishes 9999:9999, so the host browser uses localhost. Anon JWT
   # is signed with the same secret gotrue uses for HS256 verification —
   # see docker-compose.ci.yml gotrue service for the matching env.
-  NEXT_PUBLIC_SUPABASE_URL: "http://gotrue:9999"
+  NEXT_PUBLIC_SUPABASE_URL: "http://localhost:9999"
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
 defaults:
   run:

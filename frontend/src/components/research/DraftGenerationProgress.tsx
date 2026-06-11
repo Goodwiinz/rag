@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, XCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import type { GenerationStatus } from '@/services/projectService';
+import { Button } from '@/components/ui/button';
 
 export interface DraftGenerationProgressProps {
   status: GenerationStatus;
@@ -17,10 +18,10 @@ export interface DraftGenerationProgressProps {
 
 const statusSteps = [
   { key: 'pending', label: 'Initializing' },
-  { key: 'analyzing', label: 'Analyzing Documents' },
-  { key: 'generating', label: 'Generating Content' },
-  { key: 'citing', label: 'Adding Citations' },
-  { key: 'finalizing', label: 'Finalizing Draft' },
+  { key: 'analyzing', label: 'Analyzing documents' },
+  { key: 'generating', label: 'Generating content' },
+  { key: 'citing', label: 'Adding citations' },
+  { key: 'finalizing', label: 'Finalizing draft' },
   { key: 'completed', label: 'Complete' },
 ];
 
@@ -65,48 +66,43 @@ export const DraftGenerationProgress: React.FC<
 
   return (
     <div className="bg-card border border-border rounded-lg p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           {isRunning && (
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           )}
           {isCompleted && <CheckCircle className="h-5 w-5 text-primary" />}
-          {isFailed && <AlertCircle className="h-5 w-5 text-red-400" />}
-          {isCancelled && <XCircle className="h-5 w-5 text-muted-foreground" />}
+          {isFailed && <AlertCircle className="h-5 w-5 text-destructive" />}
+          {isCancelled && (
+            <XCircle className="h-5 w-5 text-muted-foreground" />
+          )}
           <div>
-            <h3 className="font-mono font-medium text-foreground">
+            <h3 className="font-medium text-foreground">
               {isCompleted
-                ? 'Draft Generated'
+                ? 'Draft generated'
                 : isFailed
-                  ? 'Generation Failed'
+                  ? 'Generation failed'
                   : isCancelled
-                    ? 'Generation Cancelled'
-                    : 'Generating Draft'}
+                    ? 'Generation cancelled'
+                    : 'Generating draft'}
             </h3>
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="text-xs text-muted-foreground">
               {status.current_step}
             </p>
           </div>
         </div>
 
         {isRunning && onCancel && (
-          <button
-            onClick={onCancel}
-            className="px-3 py-1.5 text-xs font-mono text-muted-foreground hover:text-red-400 border border-border rounded hover:border-red-400/50 transition-colors"
-          >
+          <Button variant="outline" size="sm" onClick={onCancel}>
             Cancel
-          </button>
+          </Button>
         )}
       </div>
 
-      {/* Progress Bar */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-muted-foreground font-mono">
-            Progress
-          </span>
-          <span className="text-xs text-primary font-mono">
+          <span className="text-xs text-muted-foreground">Progress</span>
+          <span className="text-xs text-primary tabular-nums">
             {status.progress}%
           </span>
         </div>
@@ -114,7 +110,7 @@ export const DraftGenerationProgress: React.FC<
           <div
             className={`h-full transition-all duration-500 ${
               isFailed
-                ? 'bg-red-500'
+                ? 'bg-destructive'
                 : isCancelled
                   ? 'bg-muted-foreground'
                   : 'bg-gradient-to-r from-primary to-primary/60'
@@ -124,7 +120,6 @@ export const DraftGenerationProgress: React.FC<
         </div>
       </div>
 
-      {/* Steps */}
       <div className="space-y-2 mb-4">
         {statusSteps.slice(0, -1).map((step, idx) => {
           const currentIdx = getCurrentStepIndex();
@@ -134,7 +129,7 @@ export const DraftGenerationProgress: React.FC<
           return (
             <div
               key={step.key}
-              className={`flex items-center gap-3 text-sm font-mono ${
+              className={`flex items-center gap-3 text-sm ${
                 isActive
                   ? 'text-primary'
                   : isDone
@@ -162,8 +157,7 @@ export const DraftGenerationProgress: React.FC<
         })}
       </div>
 
-      {/* Time Info */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground font-mono pt-4 border-t border-border">
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-4 border-t border-border">
         <span>Elapsed: {formatTime(elapsed)}</span>
         {status.duration && isCompleted && (
           <span>Completed in {status.duration.toFixed(1)}s</span>

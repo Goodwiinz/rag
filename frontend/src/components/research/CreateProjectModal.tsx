@@ -4,6 +4,24 @@ import { useState } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import type { ProjectCreate } from '@/services/projectService';
 import { getApiErrorMessage } from '@/utils/apiErrorMessage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type CreateProjectPayload = Omit<ProjectCreate, 'workspace_id'>;
 
@@ -27,8 +45,6 @@ export function CreateProjectModal({
   const [tags, setTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
 
   const handleAddTag = () => {
     const next = tagInput.trim();
@@ -79,91 +95,92 @@ export function CreateProjectModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-mono font-bold text-sol">
-            Create Research Project
-          </h2>
-          <button
-            aria-label="Close"
-            onClick={handleClose}
-            className="p-1 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Create project</DialogTitle>
+          <DialogDescription>
+            Set up a new research project to organize documents, notes, and
+            drafts.
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
-              Project Name *
-            </label>
-            <input
+            <Label htmlFor="project-name" className="mb-1.5 block">
+              Project name
+            </Label>
+            <Input
+              id="project-name"
               type="text"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
                 setSubmitError(null);
               }}
-              placeholder="e.g., ML Healthcare"
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
+              placeholder="e.g. ML Healthcare review"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <Label htmlFor="project-description" className="mb-1.5 block">
               Description
-            </label>
-            <textarea
+            </Label>
+            <Input
+              id="project-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short project summary"
-              rows={3}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol resize-none"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
-                Project Type
-              </label>
-              <select
+              <Label htmlFor="project-type" className="mb-1.5 block">
+                Type
+              </Label>
+              <Select
                 value={projectType}
-                onChange={(e) =>
+                onValueChange={(v) =>
                   setProjectType(
-                    e.target.value as CreateProjectPayload['project_type']
+                    v as CreateProjectPayload['project_type']
                   )
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               >
-                <option value="research">Research</option>
-                <option value="literature_review">Literature Review</option>
-                <option value="thesis">Thesis</option>
-                <option value="paper">Paper</option>
-              </select>
+                <SelectTrigger id="project-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="research">Research</SelectItem>
+                  <SelectItem value="literature_review">
+                    Literature review
+                  </SelectItem>
+                  <SelectItem value="thesis">Thesis</SelectItem>
+                  <SelectItem value="paper">Paper</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+              <Label htmlFor="project-deadline" className="mb-1.5 block">
                 Deadline
-              </label>
-              <input
+              </Label>
+              <Input
+                id="project-deadline"
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-1">
+            <Label htmlFor="project-tags" className="mb-1.5 block">
               Tags
-            </label>
+            </Label>
             <div className="flex gap-2">
-              <input
+              <Input
+                id="project-tags"
                 type="text"
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
@@ -173,29 +190,36 @@ export function CreateProjectModal({
                     handleAddTag();
                   }
                 }}
-                placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground placeholder-gray-600 focus:outline-none focus:border-sol"
+                placeholder="Add a tag"
               />
-              <button
+              <Button
                 onClick={handleAddTag}
                 type="button"
-                aria-label="add tag"
-                className="px-3 py-2 bg-sol/10 text-sol border border-sol/30 rounded hover:bg-sol/20 transition-colors"
+                variant="outline"
+                size="icon"
+                aria-label="Add tag"
+                disabled={!tagInput.trim()}
               >
                 <Plus className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {tags.map((tag) => (
-                  <button
-                    type="button"
+                  <span
                     key={tag}
-                    onClick={() => handleRemoveTag(tag)}
-                    className="px-2 py-1 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground hover:border-red-400 hover:text-red-300"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted border border-border rounded text-xs text-foreground"
                   >
                     {tag}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      aria-label={`Remove tag ${tag}`}
+                      className="p-0.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
                 ))}
               </div>
             )}
@@ -203,29 +227,31 @@ export function CreateProjectModal({
         </div>
 
         {submitError && (
-          <p role="alert" className="mt-4 text-sm font-mono text-red-400">
+          <p role="alert" className="text-sm text-destructive">
             {submitError}
           </p>
         )}
 
-        <div className="flex justify-end gap-3 mt-6">
-          <button
+        <DialogFooter>
+          <Button
+            variant="outline"
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
+            disabled={submitting}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
-            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create Project
-          </button>
-        </div>
-      </div>
-    </div>
+            {submitting && (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            )}
+            Create project
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

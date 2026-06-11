@@ -39,10 +39,12 @@ export function NoteList({
 
   if (notes.length === 0) {
     return (
-      <div className="text-center py-12 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg">
-        <StickyNote className="h-12 w-12 text-foreground mx-auto mb-4" />
-        <p className="text-muted-foreground font-mono">No notes yet</p>
-        <p className="text-sm text-muted-foreground mt-2">
+      <div className="text-center py-12 rounded-xl border border-dashed border-border">
+        <StickyNote className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-sm font-medium text-muted-foreground">
+          No notes yet
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
           Create notes to organize your research
         </p>
       </div>
@@ -53,13 +55,11 @@ export function NoteList({
     <div>
       {availableTags.length > 0 && onTagChange && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground font-mono">
-            Filter by tag:
-          </span>
+          <span className="text-xs text-muted-foreground">Filter by tag:</span>
           <select
             value={selectedTag || ''}
             onChange={(e) => onTagChange(e.target.value)}
-            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-xs font-mono text-muted-foreground focus:outline-none focus:border-sol"
+            className="px-3 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">All</option>
             {availableTags.map((tag) => (
@@ -75,23 +75,23 @@ export function NoteList({
         {sortedNotes.map((note) => (
           <div
             key={note.id}
-            className={`p-4 bg-[#0a0a0a] border rounded-lg ${
-              note.is_pinned ? 'border-helios/50' : 'border-[#1a1a1a]'
+            className={`p-4 rounded-lg border bg-card transition-colors ${
+              note.is_pinned ? 'border-primary/40' : 'border-border'
             }`}
           >
             <div className="flex items-start justify-between mb-2 gap-3">
               <div className="flex items-center gap-2 min-w-0">
                 {note.is_pinned && (
-                  <Pin className="h-4 w-4 text-helios shrink-0" />
+                  <Pin className="h-4 w-4 text-primary shrink-0" />
                 )}
-                <h3 className="font-mono font-medium text-muted-foreground truncate">
+                <h3 className="font-medium text-foreground truncate">
                   {note.title}
                 </h3>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => onTogglePin(note.id)}
-                  className="p-1.5 text-muted-foreground hover:text-helios transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   title={note.is_pinned ? 'Unpin' : 'Pin'}
                 >
                   {note.is_pinned ? (
@@ -102,14 +102,14 @@ export function NoteList({
                 </button>
                 <button
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-muted-foreground hover:text-sol transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   title="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => onDelete(note.id)}
-                  className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                  className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   title="Delete note"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -126,13 +126,13 @@ export function NoteList({
                 {(note.tags || []).map((tag) => (
                   <span
                     key={tag}
-                    className="px-1.5 py-0.5 bg-[#1a1a1a] border border-[#333] rounded text-[11px] font-mono text-muted-foreground"
+                    className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] text-muted-foreground"
                   >
                     {tag}
                   </span>
                 ))}
               </div>
-              <p className="text-xs text-foreground font-mono">
+              <p className="text-xs text-muted-foreground">
                 Updated {new Date(note.updated_at).toLocaleDateString()}
               </p>
             </div>

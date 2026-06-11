@@ -289,11 +289,11 @@ export default function ProjectsPage() {
           <button
             onClick={() => setTagFilter('')}
             aria-pressed={tagFilter === ''}
-            className={`px-2.5 py-1 border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              tagFilter === ''
-                ? 'bg-primary/10 border-primary/40 text-primary'
-                : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)]'
-            }`}
+            className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                tagFilter === ''
+                  ? 'bg-primary/10 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)]'
+              }`}
           >
             All
           </button>
@@ -302,7 +302,7 @@ export default function ProjectsPage() {
               key={tag}
               onClick={() => setTagFilter(tag)}
               aria-pressed={tagFilter === tag}
-              className={`px-2.5 py-1 border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 tagFilter === tag
                   ? 'bg-primary/10 border-primary/40 text-primary'
                   : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)]'

@@ -7,6 +7,23 @@
 
 import React, { useEffect, useState } from 'react';
 import { X, Download, FileText, Code, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export interface DraftExportModalProps {
   isOpen: boolean;
@@ -40,8 +57,6 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
     }
   }, [initialFormat, isOpen]);
 
-  if (!isOpen) return null;
-
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -55,60 +70,43 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-md">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <div className="flex items-center gap-2">
-            <Download className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-muted-foreground">
-              Export Draft
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Export draft</DialogTitle>
+          <DialogDescription>
+            Exporting: {draftTitle}
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          <p className="text-sm text-muted-foreground font-mono">
-            Exporting:{' '}
-            <span className="text-muted-foreground">{draftTitle}</span>
-          </p>
-
-          {/* Format Selection */}
+        <div className="space-y-4">
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-              Export Format
-            </label>
+            <span className="text-sm font-medium block mb-2">Format</span>
             <div className="grid grid-cols-2 gap-3">
               <button
+                type="button"
                 onClick={() => setFormat('markdown')}
-                className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   format === 'markdown'
-                    ? 'bg-sol/10 border-sol/50 text-sol'
-                    : 'bg-[#1a1a1a] border-[#333] text-muted-foreground hover:border-[#555]'
+                    ? 'bg-primary/10 border-primary/50 text-primary'
+                    : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/50'
                 }`}
               >
                 <FileText className="h-6 w-6" />
-                <span className="text-sm font-mono">Markdown</span>
+                <span className="text-sm font-medium">Markdown</span>
                 <span className="text-xs text-muted-foreground">.md</span>
               </button>
               <button
+                type="button"
                 onClick={() => setFormat('latex')}
-                className={`flex flex-col items-center gap-2 p-4 rounded border transition-colors ${
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   format === 'latex'
-                    ? 'bg-sol/10 border-sol/50 text-sol'
-                    : 'bg-[#1a1a1a] border-[#333] text-muted-foreground hover:border-[#555]'
+                    ? 'bg-primary/10 border-primary/50 text-primary'
+                    : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/50'
                 }`}
               >
                 <Code className="h-6 w-6" />
-                <span className="text-sm font-mono">LaTeX</span>
+                <span className="text-sm font-medium">LaTeX</span>
                 <span className="text-xs text-muted-foreground">
                   .tex + .bib
                 </span>
@@ -116,92 +114,65 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
             </div>
           </div>
 
-          {/* Include Bibliography Toggle */}
-          <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
             <div>
-              <span className="text-sm text-muted-foreground font-mono">
-                Include Bibliography
-              </span>
+              <span className="text-sm">Include bibliography</span>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {format === 'latex'
                   ? 'Export references.bib file'
                   : 'Add references section'}
               </p>
             </div>
-            <button
-              onClick={() => setIncludeBibliography(!includeBibliography)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                includeBibliography
-                  ? 'bg-sol/30 border-sol'
-                  : 'bg-[#333] border-[#555]'
-              } border`}
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
-                  includeBibliography
-                    ? 'translate-x-6 bg-sol'
-                    : 'translate-x-0.5 bg-gray-500'
-                }`}
-              />
-            </button>
+            <Switch
+              checked={includeBibliography}
+              onCheckedChange={setIncludeBibliography}
+              aria-label="Include bibliography"
+            />
           </div>
 
-          {/* Bibliography Format */}
           {includeBibliography && (
             <div>
-              <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-                Bibliography Format
-              </label>
-              <select
+              <span className="text-sm font-medium block mb-1.5">
+                Bibliography format
+              </span>
+              <Select
                 value={bibliographyFormat}
-                onChange={(e) =>
-                  setBibliographyFormat(e.target.value as 'bibtex' | 'biblatex')
+                onValueChange={(v) =>
+                  setBibliographyFormat(v as 'bibtex' | 'biblatex')
                 }
-                className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
               >
-                <option value="bibtex">BibTeX</option>
-                <option value="biblatex">BibLaTeX</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bibtex">BibTeX</SelectItem>
+                  <SelectItem value="biblatex">BibLaTeX</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           )}
 
-          {/* LaTeX Info */}
           {format === 'latex' && (
-            <div className="p-3 bg-helios/10 border border-helios/30 rounded text-xs font-mono text-helios">
-              LaTeX export includes a .tex file and references.bib. You can
-              compile with pdflatex + bibtex.
+            <div className="p-3 bg-muted rounded text-xs text-muted-foreground">
+              LaTeX export includes a .tex file and references.bib. Compile with
+              pdflatex + bibtex.
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-[#1a1a1a]">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={exporting}>
             Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50"
-          >
-            {exporting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Export
-              </>
+          </Button>
+          <Button onClick={handleExport} disabled={exporting}>
+            {exporting && (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
             )}
-          </button>
-        </div>
-      </div>
-    </div>
+            Export
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
