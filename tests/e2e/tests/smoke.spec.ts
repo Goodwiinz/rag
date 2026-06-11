@@ -57,15 +57,12 @@ test.describe("Smoke Tests @smoke", () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
-  // FIXME: real product gap, not a test bug. The frontend ships the
-  // updateSession helper (src/lib/supabase/middleware.ts) but no root
-  // middleware.ts ever invokes it, so there is NO server-side route
-  // protection — /dashboard renders its shell for anonymous visitors and
-  // this test correctly fails. Un-fixme once auth middleware lands
-  // (PR #561 "preserve chat persistence and auth middleware").
-  test.fixme("should redirect unauthenticated users to login", async ({
-    page,
-  }) => {
+  // Re-enabled: the gap this documented was closed by the server-side
+  // (dashboard)/layout.tsx getUser() guard (#691); proxy.ts session refresh is
+  // the second layer. (The earlier fixme blamed a missing middleware.ts — under
+  // Next 16 the convention is proxy.ts, which was active all along; it just
+  // never redirected, the layout guard does.)
+  test("should redirect unauthenticated users to login", async ({ page }) => {
     await page.goto("http://localhost:3000/dashboard");
 
     // Should redirect to login
