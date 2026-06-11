@@ -150,40 +150,15 @@ class EventStream(SQLBaseModel):
     channels = Column(JSON, nullable=True)  # Channels to publish to
 
 
-class WebSocketConnection(SQLBaseModel):
-    """WebSocket connection tracking"""
-
-    __tablename__ = "websocket_connections"
-    __table_args__ = {"extend_existing": True}
-
-    # Connection identification
-    connection_id = Column(String(255), nullable=False, unique=True, index=True)
-    user_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
-    session_id = Column(String(255), nullable=False, index=True)
-
-    # Connection details
-    client_ip = Column(String(45), nullable=False)
-    user_agent = Column(Text, nullable=True)
-    origin = Column(String(500), nullable=True)
-
-    # Status
-    is_connected = Column(Boolean, default=True, nullable=False)
-    connected_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
-    disconnected_at = Column(DateTime(timezone=True), nullable=True)
-    last_ping = Column(DateTime(timezone=True), nullable=True)
-    last_pong = Column(DateTime(timezone=True), nullable=True)
-
-    # Statistics
-    messages_sent = Column(Integer, default=0, nullable=False)
-    messages_received = Column(Integer, default=0, nullable=False)
-    bytes_sent = Column(BigInteger, default=0, nullable=False)
-    bytes_received = Column(BigInteger, default=0, nullable=False)
-
-    # Subscriptions
-    active_subscriptions = Column(Integer, default=0, nullable=False)
-    max_subscriptions = Column(Integer, default=100, nullable=False)
+# NOTE: The `WebSocketConnection` ORM model lives in src/models/websocket_status.py
+# (the canonical schema, referenced by FKs in indexing_strategy.py and by the
+# StatusUpdate/ConnectionEvent relationships). A second class mapping the same
+# `websocket_connections` table used to live here; registering both made every
+# bare "WebSocketConnection" relationship path ambiguous and configure_mappers()
+# failed with "Multiple classes found" the moment this module loaded alongside
+# src.models. Re-export the canonical class instead. (Same family as the
+# duplicate `analytics_events` mapping removed in #675.)
+from ..websocket_status import ConnectionStatus, WebSocketConnection  # noqa: E402
 
 
 # Pydantic models for API serialization
