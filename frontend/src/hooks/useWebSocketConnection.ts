@@ -75,80 +75,94 @@ export const useWebSocketConnection = ({
   }, []);
 
   // Handle incoming WebSocket messages
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const message: WebSocketMessage = JSON.parse(event.data);
+  const handleMessage = useCallback(
+    (event: MessageEvent) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data);
 
-      // Update latency based on timestamp if available
-      if (message.timestamp) {
-        const now = Date.now();
-        const messageTime = new Date(message.timestamp).getTime();
-        const latency = now - messageTime;
-        updateConnectionState({ latency });
-      }
-
-      switch (message.type) {
-        case 'document_update': {
-          const docMessage = message as DocumentUpdateMessage;
-          updateDocument(docMessage.documentId, {
-            overallProgress: docMessage.payload.progress,
-            currentStage: docMessage.payload.currentStage,
-            status: docMessage.payload.status,
-            error: docMessage.payload.error,
-          });
-          break;
-        }
-
-        case 'queue_update': {
-          const queueMessage = message as QueueUpdateMessage;
-          setQueueSummary(queueMessage.payload.summary);
-          setQueueMetrics(queueMessage.payload.metrics);
-          break;
-        }
-
-        case 'system_metrics': {
-          const metricsMessage = message as SystemMetricsMessage;
-          updateSystemMetrics(metricsMessage.payload);
-          break;
-        }
-
-        case 'notification': {
-          const notificationMessage = message as NotificationMessage;
-          addNotification(notificationMessage.payload);
-          break;
-        }
-
-        case 'connection_status': {
-          const statusMessage = message as ConnectionStatusMessage;
-          setConnectionStatus(statusMessage.payload.status);
-          if (statusMessage.payload.message) {
-            addNotification({
-              type: statusMessage.payload.status === 'connected' ? 'success' : 'warning',
-              title: 'Connection Status',
-              message: statusMessage.payload.message,
-              timestamp: new Date().toISOString(),
-              autoHide: true,
-              autoHideDelay: 5000,
-            });
-          }
-          break;
-        }
-
-        case 'pong': {
-          // Handle heartbeat response
+        // Update latency based on timestamp if available
+        if (message.timestamp) {
           const now = Date.now();
-          const rtt = now - lastPingRef.current;
-          updateConnectionState({ latency: rtt });
-          break;
+          const messageTime = new Date(message.timestamp).getTime();
+          const latency = now - messageTime;
+          updateConnectionState({ latency });
         }
 
-        default:
-          console.warn('Unknown WebSocket message type:', message.type);
+        switch (message.type) {
+          case 'document_update': {
+            const docMessage = message as DocumentUpdateMessage;
+            updateDocument(docMessage.documentId, {
+              overallProgress: docMessage.payload.progress,
+              currentStage: docMessage.payload.currentStage,
+              status: docMessage.payload.status,
+              error: docMessage.payload.error,
+            });
+            break;
+          }
+
+          case 'queue_update': {
+            const queueMessage = message as QueueUpdateMessage;
+            setQueueSummary(queueMessage.payload.summary);
+            setQueueMetrics(queueMessage.payload.metrics);
+            break;
+          }
+
+          case 'system_metrics': {
+            const metricsMessage = message as SystemMetricsMessage;
+            updateSystemMetrics(metricsMessage.payload);
+            break;
+          }
+
+          case 'notification': {
+            const notificationMessage = message as NotificationMessage;
+            addNotification(notificationMessage.payload);
+            break;
+          }
+
+          case 'connection_status': {
+            const statusMessage = message as ConnectionStatusMessage;
+            setConnectionStatus(statusMessage.payload.status);
+            if (statusMessage.payload.message) {
+              addNotification({
+                type:
+                  statusMessage.payload.status === 'connected'
+                    ? 'success'
+                    : 'warning',
+                title: 'Connection Status',
+                message: statusMessage.payload.message,
+                timestamp: new Date().toISOString(),
+                autoHide: true,
+                autoHideDelay: 5000,
+              });
+            }
+            break;
+          }
+
+          case 'pong': {
+            // Handle heartbeat response
+            const now = Date.now();
+            const rtt = now - lastPingRef.current;
+            updateConnectionState({ latency: rtt });
+            break;
+          }
+
+          default:
+            console.warn('Unknown WebSocket message type:', message.type);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  }, [updateDocument, setQueueSummary, setQueueMetrics, updateSystemMetrics, addNotification, updateConnectionState, setConnectionStatus]);
+    },
+    [
+      updateDocument,
+      setQueueSummary,
+      setQueueMetrics,
+      updateSystemMetrics,
+      addNotification,
+      updateConnectionState,
+      setConnectionStatus,
+    ]
+  );
 
   // Send heartbeat ping
   const sendPing = useCallback(() => {
@@ -194,8 +208,14 @@ export const useWebSocketConnection = ({
       clearTimeouts();
       setConnectionStatus('connecting');
 
-      const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
-      const ws = new WebSocket(wsUrl);
+      // SECURITY (audit #2): pass the JWT via the Sec-WebSocket-Protocol
+      // subprotocol, never the URL query string. A `?token=<JWT>` is written
+      // verbatim into every TLS-terminating proxy/CDN access log, where anyone
+      // with log access can lift a live token. The browser WebSocket API can't
+      // set custom headers, but the subprotocol it negotiates is not logged.
+      // Backend reads `auth, <token>` (websocket_v2.py); matches websocket.ts.
+      const protocols = token ? ['auth', token] : undefined;
+      const ws = new WebSocket(url, protocols);
       wsRef.current = ws;
 
       // Connection timeout
@@ -225,12 +245,20 @@ export const useWebSocketConnection = ({
         onDisconnect?.();
 
         // Attempt reconnection if not a normal close and we haven't exceeded max attempts
-        if (event.code !== 1000 && connection.reconnectionAttempts < maxReconnectAttempts) {
+        if (
+          event.code !== 1000 &&
+          connection.reconnectionAttempts < maxReconnectAttempts
+        ) {
           incrementReconnectionAttempts();
-          const delay = Math.min(reconnectInterval * Math.pow(2, connection.reconnectionAttempts), 30000);
+          const delay = Math.min(
+            reconnectInterval * Math.pow(2, connection.reconnectionAttempts),
+            30000
+          );
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            console.log(`Attempting to reconnect... (${connection.reconnectionAttempts + 1}/${maxReconnectAttempts})`);
+            console.log(
+              `Attempting to reconnect... (${connection.reconnectionAttempts + 1}/${maxReconnectAttempts})`
+            );
             connect();
           }, delay);
         }
@@ -243,7 +271,6 @@ export const useWebSocketConnection = ({
         updateConnectionState({ lastError: error.toString() });
         onError?.(error);
       };
-
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
       setConnectionStatus('error');
@@ -280,19 +307,22 @@ export const useWebSocketConnection = ({
   }, [clearTimeouts, setConnectionStatus]);
 
   // Send message to WebSocket
-  const sendMessage = useCallback((message: Omit<WebSocketMessage, 'timestamp'>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const fullMessage: WebSocketMessage = {
-        ...message,
-        timestamp: new Date().toISOString(),
-      };
-      wsRef.current.send(JSON.stringify(fullMessage));
-      return true;
-    } else {
-      console.warn('Cannot send message - WebSocket not connected');
-      return false;
-    }
-  }, []);
+  const sendMessage = useCallback(
+    (message: Omit<WebSocketMessage, 'timestamp'>) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        const fullMessage: WebSocketMessage = {
+          ...message,
+          timestamp: new Date().toISOString(),
+        };
+        wsRef.current.send(JSON.stringify(fullMessage));
+        return true;
+      } else {
+        console.warn('Cannot send message - WebSocket not connected');
+        return false;
+      }
+    },
+    []
+  );
 
   // Manual reconnection
   const reconnect = useCallback(() => {
@@ -331,7 +361,8 @@ export const useWebSocketConnection = ({
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [reconnect, startHeartbeat]);
 
   return {

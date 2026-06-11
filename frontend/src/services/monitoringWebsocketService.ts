@@ -13,7 +13,7 @@ import {
   InfrastructureMetrics,
   Alert,
   UserAnalytics,
-  WebSocketMessage
+  WebSocketMessage,
 } from '@/types/monitoring';
 
 // ============================================================================
@@ -148,11 +148,18 @@ export class MonitoringWebSocketClient extends EventEmitter {
   }
 
   private async createConnection(): Promise<void> {
-    const wsUrl = `${this.url}?token=${encodeURIComponent(this.token!)}&org_id=${encodeURIComponent(this.organizationId!)}`;
+    // SECURITY (audit #3): the JWT travels in the Sec-WebSocket-Protocol
+    // subprotocol, NOT the URL — a `?token=<JWT>` is logged in plaintext by
+    // every reverse proxy/CDN (CLAUDE.md mandates Sec-WebSocket-Protocol, not
+    // query params). org_id is not a secret and stays in the query string.
+    const wsUrl = this.organizationId
+      ? `${this.url}?org_id=${encodeURIComponent(this.organizationId)}`
+      : this.url;
+    const protocols = this.token ? ['auth', this.token] : undefined;
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(wsUrl);
+        this.ws = new WebSocket(wsUrl, protocols);
 
         this.ws.onopen = () => {
           this.isConnecting = false;
@@ -191,7 +198,6 @@ export class MonitoringWebSocketClient extends EventEmitter {
             reject(new Error('Connection timeout'));
           }
         }, 10000);
-
       } catch (error) {
         reject(error);
       }
@@ -199,13 +205,19 @@ export class MonitoringWebSocketClient extends EventEmitter {
   }
 
   private attemptReconnection(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts || this.isDestroyed) {
+    if (
+      this.reconnectAttempts >= this.maxReconnectAttempts ||
+      this.isDestroyed
+    ) {
       this.emit('reconnection_failed');
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
+    const delay = Math.min(
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      this.maxReconnectDelay
+    );
 
     this.emit('reconnecting', { attempt: this.reconnectAttempts, delay });
 
@@ -282,7 +294,6 @@ export class MonitoringWebSocketClient extends EventEmitter {
       // Process monitoring-specific messages
       this.processMonitoringMessage(message);
       this.emit('message', message);
-
     } catch (error) {
       console.error('Failed to parse WebSocket message:', error);
       this.emit('error', new Error('Invalid message format'));
@@ -296,7 +307,7 @@ export class MonitoringWebSocketClient extends EventEmitter {
       timestamp: message.timestamp,
       data: message.payload,
       source: 'monitoring_websocket',
-      version: 1
+      version: 1,
     };
 
     // Add to real-time updates
@@ -305,19 +316,27 @@ export class MonitoringWebSocketClient extends EventEmitter {
     // Update specific store sections based on message type
     switch (message.type) {
       case 'system_health_update':
-        store.updateSystemHealth((message.payload as SystemHealthUpdatePayload).health);
+        store.updateSystemHealth(
+          (message.payload as SystemHealthUpdatePayload).health
+        );
         break;
 
       case 'performance_metrics_update':
-        store.updatePerformanceMetrics((message.payload as PerformanceMetricsUpdatePayload).metrics);
+        store.updatePerformanceMetrics(
+          (message.payload as PerformanceMetricsUpdatePayload).metrics
+        );
         break;
 
       case 'business_metrics_update':
-        store.updateBusinessMetrics((message.payload as BusinessMetricsUpdatePayload).metrics);
+        store.updateBusinessMetrics(
+          (message.payload as BusinessMetricsUpdatePayload).metrics
+        );
         break;
 
       case 'infrastructure_update':
-        store.updateInfrastructureMetrics((message.payload as InfrastructureUpdatePayload).metrics);
+        store.updateInfrastructureMetrics(
+          (message.payload as InfrastructureUpdatePayload).metrics
+        );
         break;
 
       case 'alert_triggered':
@@ -328,18 +347,25 @@ export class MonitoringWebSocketClient extends EventEmitter {
 
       case 'alert_resolved':
         const resolvedPayload = message.payload as AlertResolvedPayload;
-        store.resolveAlert(resolvedPayload.alert_id, resolvedPayload.resolved_by);
+        store.resolveAlert(
+          resolvedPayload.alert_id,
+          resolvedPayload.resolved_by
+        );
         break;
 
       case 'alert_updated':
         const updatedAlert = (message.payload as AlertUpdatedPayload).alert;
         store.updateActiveAlerts(
-          store.activeAlerts.map(alert => alert.id === updatedAlert.id ? updatedAlert : alert)
+          store.activeAlerts.map((alert) =>
+            alert.id === updatedAlert.id ? updatedAlert : alert
+          )
         );
         break;
 
       case 'user_analytics_update':
-        store.updateUserAnalytics((message.payload as UserAnalyticsUpdatePayload).analytics);
+        store.updateUserAnalytics(
+          (message.payload as UserAnalyticsUpdatePayload).analytics
+        );
         break;
 
       case 'connection_status':
@@ -358,32 +384,41 @@ export class MonitoringWebSocketClient extends EventEmitter {
     }
   }
 
-  private convertMessageTypeToUpdateType(messageType: MonitoringMessageType): RealTimeUpdate['type'] {
+  private convertMessageTypeToUpdateType(
+    messageType: MonitoringMessageType
+  ): RealTimeUpdate['type'] {
     const typeMap: Record<MonitoringMessageType, RealTimeUpdate['type']> = {
-      'system_health_update': 'system_status_change',
-      'performance_metrics_update': 'metric_update',
-      'business_metrics_update': 'metric_update',
-      'infrastructure_update': 'metric_update',
-      'alert_triggered': 'alert_triggered',
-      'alert_resolved': 'alert_resolved',
-      'alert_updated': 'alert_triggered',
-      'user_analytics_update': 'user_activity',
-      'connection_status': 'system_status_change',
-      'error': 'error_increase',
-      'ping': 'metric_update',
-      'pong': 'metric_update'
+      system_health_update: 'system_status_change',
+      performance_metrics_update: 'metric_update',
+      business_metrics_update: 'metric_update',
+      infrastructure_update: 'metric_update',
+      alert_triggered: 'alert_triggered',
+      alert_resolved: 'alert_resolved',
+      alert_updated: 'alert_triggered',
+      user_analytics_update: 'user_activity',
+      connection_status: 'system_status_change',
+      error: 'error_increase',
+      ping: 'metric_update',
+      pong: 'metric_update',
     };
 
     return typeMap[messageType] || 'metric_update';
   }
 
-  private emitAlertNotification(alert: Alert, action: 'triggered' | 'resolved'): void {
+  private emitAlertNotification(
+    alert: Alert,
+    action: 'triggered' | 'resolved'
+  ): void {
     const store = useMonitoringStore.getState();
-    const message = action === 'triggered'
-      ? `New ${alert.severity} alert: ${alert.name}`
-      : `Alert resolved: ${alert.name}`;
+    const message =
+      action === 'triggered'
+        ? `New ${alert.severity} alert: ${alert.name}`
+        : `Alert resolved: ${alert.name}`;
 
-    store.showNotification(message, action === 'triggered' ? 'warning' : 'success');
+    store.showNotification(
+      message,
+      action === 'triggered' ? 'warning' : 'success'
+    );
 
     // Also emit a custom event for alert-specific handling
     this.emit('alert_notification', { alert, action });
@@ -403,7 +438,7 @@ export class MonitoringWebSocketClient extends EventEmitter {
       type: type as MonitoringMessageType,
       payload,
       timestamp: new Date().toISOString(),
-      id: this.generateMessageId()
+      id: this.generateMessageId(),
     };
 
     this.ws.send(JSON.stringify(message));
@@ -421,7 +456,11 @@ export class MonitoringWebSocketClient extends EventEmitter {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  public getConnectionStatus(): 'connecting' | 'connected' | 'disconnected' | 'reconnecting' {
+  public getConnectionStatus():
+    | 'connecting'
+    | 'connected'
+    | 'disconnected'
+    | 'reconnecting' {
     if (this.isConnecting) return 'connecting';
     if (this.isConnected()) return 'connected';
     if (this.reconnectAttempts > 0) return 'reconnecting';
@@ -489,7 +528,7 @@ export class MonitoringWebSocketClient extends EventEmitter {
       reconnectAttempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts,
       currentReconnectDelay: this.reconnectDelay,
-      isHeartbeatActive: !!this.heartbeatInterval
+      isHeartbeatActive: !!this.heartbeatInterval,
     };
   }
 }
@@ -536,15 +575,19 @@ class MonitoringWebSocketManager {
 // EXPORTS
 // ============================================================================
 
-export const monitoringWebSocketManager = MonitoringWebSocketManager.getInstance();
+export const monitoringWebSocketManager =
+  MonitoringWebSocketManager.getInstance();
 
-export const createMonitoringWebSocketClient = (url: string): MonitoringWebSocketClient => {
+export const createMonitoringWebSocketClient = (
+  url: string
+): MonitoringWebSocketClient => {
   return monitoringWebSocketManager.initialize(url);
 };
 
-export const getMonitoringWebSocketClient = (): MonitoringWebSocketClient | null => {
-  return monitoringWebSocketManager.getClient();
-};
+export const getMonitoringWebSocketClient =
+  (): MonitoringWebSocketClient | null => {
+    return monitoringWebSocketManager.getClient();
+  };
 
 export const destroyMonitoringWebSocketClient = (): void => {
   monitoringWebSocketManager.destroy();
@@ -564,9 +607,11 @@ export const useMonitoringWebSocket = () => {
     subscribeToAlerts: client?.subscribeToAlerts.bind(client),
     unsubscribeFromAlerts: client?.unsubscribeFromAlerts.bind(client),
     subscribeToSystemHealth: client?.subscribeToSystemHealth.bind(client),
-    unsubscribeFromSystemHealth: client?.unsubscribeFromSystemHealth.bind(client),
+    unsubscribeFromSystemHealth:
+      client?.unsubscribeFromSystemHealth.bind(client),
     subscribeToUserAnalytics: client?.subscribeToUserAnalytics.bind(client),
-    unsubscribeFromUserAnalytics: client?.unsubscribeFromUserAnalytics.bind(client),
+    unsubscribeFromUserAnalytics:
+      client?.unsubscribeFromUserAnalytics.bind(client),
   };
 };
 
