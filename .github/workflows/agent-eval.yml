@@ -44,6 +44,12 @@ jobs:
       NEO4J_USER: ${{ secrets.EVAL_NEO4J_USER }}
       NEO4J_PASSWORD: ${{ secrets.EVAL_NEO4J_PASSWORD }}
       REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
+      # DigitalOcean Knowledge Base (replaces Qdrant)
+      DO_KB_ENABLED: "true"
+      DO_API_TOKEN: ${{ secrets.EVAL_DO_API_TOKEN }}
+      DO_KB_REGION: ${{ secrets.EVAL_DO_KB_REGION }}
+      DO_KB_PROJECT_ID: ${{ secrets.EVAL_DO_KB_PROJECT_ID }}
+      DO_KB_EMBEDDING_MODEL_UUID: ${{ secrets.EVAL_DO_KB_EMBEDDING_MODEL_UUID }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
