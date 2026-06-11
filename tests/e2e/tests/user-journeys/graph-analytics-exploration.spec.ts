@@ -1,10 +1,3 @@
-/**
- * QUARANTINED — not run on the push lane (see tests/e2e/playwright.config.ts
- * chromium `testIgnore`). This suite asserts an analytics-dashboard UI contract
- * (analytics-nav-link, analytics-dashboard, dashboard-container, …) the product
- * has never implemented; the shared login helper times out on that missing
- * surface, so every test here fails. Re-enable once the UI + testids ship.
- */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 
