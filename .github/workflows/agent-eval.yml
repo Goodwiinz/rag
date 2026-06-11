@@ -52,7 +52,7 @@ jobs:
       DO_KB_EMBEDDING_MODEL_UUID: ${{ secrets.EVAL_DO_KB_EMBEDDING_MODEL_UUID }}
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Resolve experiment prefix
         run: |
