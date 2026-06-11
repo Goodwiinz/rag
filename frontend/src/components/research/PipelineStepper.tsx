@@ -76,17 +76,17 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                 disabled={!isClickable}
                 className={`
                   relative flex items-center justify-center w-10 h-10 rounded-full
-                  transition-all duration-300 font-mono text-xs
+                  transition-all duration-300 text-xs
                   ${
                     status === 'completed'
-                      ? 'bg-sol/20 border-2 border-sol text-sol cursor-pointer hover:bg-sol/30'
+                      ? 'bg-primary/10 border-2 border-primary text-primary cursor-pointer hover:bg-primary/20'
                       : status === 'active'
-                        ? 'bg-secondary/10 border-2 border-secondary text-white animate-pulse'
+                        ? 'bg-primary border-2 border-primary text-primary-foreground animate-pulse'
                         : status === 'skipped'
-                          ? 'bg-gray-800/50 border-2 border-border border-dashed text-muted-foreground cursor-pointer hover:border-border'
+                          ? 'bg-muted/50 border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:border-muted-foreground/50'
                           : status === 'invalidated'
-                            ? 'bg-helios/10 border-2 border-helios text-helios cursor-pointer hover:bg-helios/20'
-                            : 'bg-gray-800/30 border-2 border-border text-foreground'
+                            ? 'bg-[var(--nous-helios)]/10 border-2 border-[var(--nous-helios)] text-[var(--nous-helios)] cursor-pointer hover:bg-[var(--nous-helios)]/20'
+                            : 'bg-muted/30 border-2 border-border text-muted-foreground'
                   }
                 `}
                 aria-label={`Step ${index + 1}: ${step.label} (${status})`}
@@ -102,22 +102,22 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                 )}
               </button>
               <span
-                className={`mt-2 text-[11px] font-mono tracking-wide ${
+                className={`mt-2 text-[11px] font-medium tracking-wide ${
                   status === 'completed'
-                    ? 'text-sol'
+                    ? 'text-primary'
                     : status === 'active'
-                      ? 'text-white'
+                      ? 'text-primary-foreground font-semibold'
                       : status === 'skipped'
                         ? 'text-muted-foreground'
                         : status === 'invalidated'
-                          ? 'text-helios'
+                          ? 'text-[var(--nous-helios)]'
                           : 'text-foreground'
                 }`}
               >
                 {step.label}
               </span>
               {status === 'skipped' && (
-                <span className="text-[9px] text-foreground font-mono">
+                <span className="text-[9px] text-muted-foreground">
                   skipped
                 </span>
               )}
@@ -128,12 +128,12 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
               <div
                 className={`flex-1 h-0.5 mx-2 mt-[-20px] ${
                   status === 'completed'
-                    ? 'bg-sol/40'
+                    ? 'bg-primary/30'
                     : status === 'skipped'
                       ? 'border-t-2 border-dashed border-border bg-transparent'
                       : status === 'invalidated'
-                        ? 'bg-helios/30'
-                        : 'bg-gray-800'
+                        ? 'bg-[var(--nous-helios)]/20'
+                        : 'bg-muted'
                 }`}
               />
             )}

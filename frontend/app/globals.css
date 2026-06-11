@@ -523,6 +523,15 @@
   --brand-apollo: var(--nous-apollo);
   --brand-erebus: var(--nous-erebus);
   --brand-selene: var(--nous-selene);
+
+  /* Legacy aliases — maps pre-migration variable names to nous-tokens.css.
+     These keep ~1500 existing call sites working without touching every file. */
+  --phosphor-green: var(--nous-sol);
+  --phosphor-green-dim: var(--nous-sol-muted);
+  --phosphor-green-muted: var(--nous-sol-subtle);
+  --amber-gold: var(--nous-helios);
+  --amber-gold-dim: var(--nous-helios-muted);
+  --amber-gold-muted: var(--nous-helios-glow);
 }
 
 .dark {
