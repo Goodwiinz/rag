@@ -24,7 +24,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache actionlint binary
+        id: cache-actionlint
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: /usr/local/bin/actionlint
+          # Version-pinned key — bump alongside ACTIONLINT_VERSION below.
+          key: actionlint-${{ runner.os }}-v1.7.7
+
       - name: Install actionlint
+        if: steps.cache-actionlint.outputs.cache-hit != 'true'
         run: |
           ACTIONLINT_VERSION="1.7.7"
           curl -sL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" | tar xz -C /usr/local/bin actionlint

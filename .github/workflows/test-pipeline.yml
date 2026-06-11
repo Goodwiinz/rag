@@ -56,8 +56,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
       - name: Build lint image
-        run: docker build -t rag-lint:ci -f backend/docker/Dockerfile.lint .
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: backend/docker/Dockerfile.lint
+          load: true
+          tags: rag-lint:ci
+          cache-from: type=gha,scope=lint-backend
+          cache-to: type=gha,scope=lint-backend,mode=max
       - name: Run Ruff (linting)
         run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
       - name: Run Black (formatting check)
@@ -482,16 +491,39 @@ jobs:
           sudo rm -f /swapfile || true
           docker system prune -af --volumes || true
           df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      # build-push-action with load:true puts the image in the local daemon so
+      # the docker-compose run below can use it. type=gha persists BuildKit
+      # layers across runs (content-addressed → lockfile changes invalidate the
+      # right layers). Distinct scopes keep the two images' caches separate.
+      # The `docker system prune` above only clears the local daemon, not the
+      # remote GHA store, so it does not defeat this.
       - name: Build backend image
-        run: docker build --build-arg PYTHON_VERSION=3.11 --build-arg TORCH_CPU_ONLY=true -t rag-backend:test -f backend/docker/Dockerfile.prod .
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: backend/docker/Dockerfile.prod
+          load: true
+          tags: rag-backend:test
+          build-args: |
+            PYTHON_VERSION=3.11
+            TORCH_CPU_ONLY=true
+          cache-from: type=gha,scope=backend-e2e
+          cache-to: type=gha,scope=backend-e2e,mode=max
       - name: Build frontend image
-        run: >
-          docker build
-          --build-arg NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-          --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-          --build-arg NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
-          -t rag-frontend:test
-          -f frontend/Dockerfile.prod .
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: frontend/Dockerfile.prod
+          load: true
+          tags: rag-frontend:test
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
+          cache-from: type=gha,scope=frontend-e2e
+          cache-to: type=gha,scope=frontend-e2e,mode=max
       - name: Start infrastructure services
         run: |
           # Start infrastructure services (not backend/frontend, they start separately)
@@ -663,11 +695,36 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '20'
+      - name: Cache e2e node_modules
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: tests/e2e/node_modules
+          # No lockfile in tests/e2e (package.json only) — key on it directly.
+          key: ${{ runner.os }}-e2e-node-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-node-
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          # Key on package.json (not the @playwright/test semver RANGE) so a
+          # patch bump invalidates the cached browser binary.
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
       - name: Install Playwright dependencies
         working-directory: tests/e2e
         run: |
           npm install
-          npx playwright install --with-deps chromium
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            # Browser binary restored from cache; still install OS-level libs
+            # (libnss/libatk/libgbm) — they aren't cached and are absent on a
+            # fresh runner, so chromium won't launch without them.
+            npx playwright install-deps chromium
+          fi
       - name: Run E2E Tests
         env:
           CI: true
