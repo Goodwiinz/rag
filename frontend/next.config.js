@@ -188,6 +188,33 @@ const nextConfig = {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin',
           },
+          {
+            // Content-Security-Policy (audit #4). The App Router injects inline
+            // hydration scripts and there is no per-request nonce yet (that
+            // arrives with the auth middleware in PR #561), so script-src/
+            // style-src keep 'unsafe-inline' to avoid breaking the app. The
+            // high-value, zero-breakage directives ARE locked down:
+            // frame-ancestors 'none' (clickjacking), object-src 'none'
+            // (plugins/embeds), base-uri 'self' (base-tag injection),
+            // form-action 'self' (form hijack). connect/img stay permissive so
+            // Supabase / Statsig / Sentry / websockets keep working. Tighten
+            // script-src to a nonce once #561's middleware lands.
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "base-uri 'self'",
+              "object-src 'none'",
+              "frame-ancestors 'none'",
+              "form-action 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https: wss:",
+              "worker-src 'self' blob:",
+              'upgrade-insecure-requests',
+            ].join('; '),
+          },
         ],
       },
     ];
