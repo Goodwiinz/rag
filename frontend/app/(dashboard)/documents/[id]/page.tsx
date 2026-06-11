@@ -20,6 +20,7 @@ import {
   Trash2,
   RefreshCw,
   AlertTriangle,
+  CheckCircle2,
   Eye,
   Shield,
   Sparkles,
@@ -51,6 +52,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function DocumentDetailPage() {
   const params = useParams();
@@ -234,7 +236,7 @@ export default function DocumentDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-10">
+        <header className="border-b border-border bg-card sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-4">
             <div className="h-9 w-9 rounded-lg bg-muted animate-pulse" />
             <div className="h-6 w-px bg-border" />
@@ -309,7 +311,7 @@ export default function DocumentDetailPage() {
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
       {/* Header / Nav */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-10">
+      <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <button
@@ -367,36 +369,59 @@ export default function DocumentDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Status Card */}
-            <section className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-              <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <Activity
+            {/* Processing status: a slim confirmation once indexed (info the
+                user already has), the full card only while it still matters. */}
+            {isIndexed ? (
+              <section className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-5 py-3 shadow-sm">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <CheckCircle2
                     aria-hidden="true"
-                    className="w-4 h-4 text-primary"
+                    className="h-4 w-4 shrink-0 text-[var(--nous-terra)]"
                   />
-                  Processing status
-                </h2>
-                {document.processing_status === 'failed' && (
-                  <button
-                    type="button"
-                    onClick={handleRetry}
-                    className="text-xs font-medium text-primary hover:underline underline-offset-4 inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
-                  >
-                    <RefreshCw aria-hidden="true" className="w-3.5 h-3.5" />
-                    Retry processing
-                  </button>
+                  <span className="text-sm font-medium text-foreground">
+                    Indexed
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    ready for retrieval
+                  </span>
+                </div>
+                {document.processing_completed_at && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {formatDate(document.processing_completed_at)}
+                  </span>
                 )}
-              </div>
-              <div className="p-6">
-                <ProcessingStatus
-                  document={document}
-                  enableRealtime={true}
-                  compact={false}
-                  className="bg-transparent border-none p-0"
-                />
-              </div>
-            </section>
+              </section>
+            ) : (
+              <section className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+                  <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Activity
+                      aria-hidden="true"
+                      className="w-4 h-4 text-primary"
+                    />
+                    Processing status
+                  </h2>
+                  {document.processing_status === 'failed' && (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="text-xs font-medium text-primary hover:underline underline-offset-4 inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                    >
+                      <RefreshCw aria-hidden="true" className="w-3.5 h-3.5" />
+                      Retry processing
+                    </button>
+                  )}
+                </div>
+                <div className="p-6">
+                  <ProcessingStatus
+                    document={document}
+                    enableRealtime={true}
+                    compact={false}
+                    className="bg-transparent border-none p-0"
+                  />
+                </div>
+              </section>
+            )}
 
             {/* Citations Card */}
             <section className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
@@ -576,55 +601,51 @@ export default function DocumentDetailPage() {
               </div>
             </section>
 
-            {/* Tabs */}
-            <div
-              role="tablist"
-              aria-label="Document sections"
-              className="flex items-center gap-1 border-b border-border overflow-x-auto"
+            {/* Tabs (Radix: arrow-key nav + focus management) */}
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+              className="space-y-6"
             >
-              {[
-                { id: 'overview', label: 'Overview', icon: LayoutGrid },
-                { id: 'metadata', label: 'Metadata', icon: Code },
-                { id: 'preview', label: 'Preview', icon: Eye },
-                { id: 'tables', label: 'Tables', icon: Table2 },
-              ].map((tab) => {
-                const active = activeTab === tab.id;
-                return (
-                  <button
+              <TabsList
+                aria-label="Document sections"
+                className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b border-border bg-transparent p-0 text-muted-foreground"
+              >
+                {[
+                  { id: 'overview', label: 'Overview', icon: LayoutGrid },
+                  { id: 'metadata', label: 'Metadata', icon: Code },
+                  { id: 'preview', label: 'Preview', icon: Eye },
+                  { id: 'tables', label: 'Tables', icon: Table2 },
+                ].map((tab) => (
+                  <TabsTrigger
                     key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                    className={cn(
-                      'px-4 py-3 text-sm font-medium inline-flex items-center gap-2 border-b-2 -mb-px transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-t',
-                      active
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    )}
+                    value={tab.id}
+                    className="-mb-px gap-2 rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
                   >
-                    <tab.icon aria-hidden="true" className="w-4 h-4" />
+                    <tab.icon aria-hidden="true" className="h-4 w-4" />
                     {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {/* Tab Content */}
-            <div className="min-h-[400px]">
-              {activeTab === 'overview' && (
+              <TabsContent value="overview" className="mt-0 min-h-[400px]">
                 <DocumentOverviewTab document={document} />
-              )}
+              </TabsContent>
 
-              {activeTab === 'metadata' && (
+              <TabsContent value="metadata" className="mt-0 min-h-[400px]">
                 <DocumentMetadataTab metadata={document.metadata || {}} />
-              )}
+              </TabsContent>
 
-              {activeTab === 'preview' && (
-                <DocumentPreviewTab />
-              )}
+              <TabsContent value="preview" className="mt-0 min-h-[400px]">
+                <DocumentPreviewTab
+                  documentId={documentId}
+                  filename={document.filename}
+                  kind={document.file_type || document.document_type}
+                  mimeType={document.mime_type}
+                />
+              </TabsContent>
 
-              {activeTab === 'tables' && (
+              <TabsContent value="tables" className="mt-0 min-h-[400px]">
                 <DocumentTablesTab
                   isPdf={isPdf}
                   isIndexed={isIndexed}
@@ -639,8 +660,8 @@ export default function DocumentDetailPage() {
                   onSetRegionResult={setRegionResult}
                   onSetCropActive={setCropActive}
                 />
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Sidebar */}
@@ -743,7 +764,8 @@ export default function DocumentDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this document. This action cannot be undone.
+              This will permanently delete this document. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
