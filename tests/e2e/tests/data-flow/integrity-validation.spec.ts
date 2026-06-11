@@ -1,3 +1,11 @@
+/**
+ * QUARANTINED — not run on the push lane (see tests/e2e/playwright.config.ts
+ * chromium `testIgnore`). This suite asserts a data-integrity UI contract
+ * (acid-results, atomicity-result, batch-upload-zone, clustering-algorithm, …)
+ * the product has never implemented; the shared login helper times out on the
+ * missing analytics-dashboard surface, so every test here fails. Re-enable once
+ * the UI + testids ship.
+ */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 
