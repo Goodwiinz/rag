@@ -9,15 +9,31 @@ interface DocumentOverviewTabProps {
 }
 
 export function DocumentOverviewTab({ document }: DocumentOverviewTabProps) {
+  const summary =
+    document.content_summary ||
+    document.content_preview ||
+    document.description;
+
   return (
     <div className="py-6">
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
-          <FileText aria-hidden="true" className="w-4 h-4 text-muted-foreground" />
+          <FileText
+            aria-hidden="true"
+            className="w-4 h-4 text-muted-foreground"
+          />
           Content summary
         </h3>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {document.content_summary || document.content_preview || document.description || 'No summary available for this document yet.'}
+        {/* The document's own words are content, not chrome: render at full
+            foreground. Only the empty-state fallback recedes to muted. */}
+        <p
+          className={
+            summary
+              ? 'text-sm leading-relaxed text-foreground'
+              : 'text-sm leading-relaxed text-muted-foreground'
+          }
+        >
+          {summary || 'No summary available for this document yet.'}
         </p>
 
         {document.tags && document.tags.length > 0 && (
