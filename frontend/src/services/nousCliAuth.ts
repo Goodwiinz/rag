@@ -46,9 +46,12 @@ export interface NousCliAuthPayload {
   organization_id: string;
   organization_name?: string;
   user_email?: string;
-  refresh_token?: string;
+  // NOTE: the refresh_token is intentionally NOT exported. It is long-lived and
+  // exchangeable for fresh access tokens indefinitely; writing it to a
+  // plaintext file on disk (downloads folder, cloud sync, shared machine) is a
+  // standing credential-theft risk. The CLI gets only the short-lived access
+  // token; it must re-authenticate through the browser when that expires.
   token_expires_at: number | null;
-  refresh_expires_at: number | null;
   remember_me: boolean;
 }
 
@@ -66,14 +69,6 @@ function getToken(source: NousCliAuthSource): string | null {
   return source.session?.access_token ?? null;
 }
 
-function getRefreshToken(source: NousCliAuthSource): string | null {
-  if (isLegacyNousCliAuthSource(source)) {
-    return source.refreshTokenValue;
-  }
-
-  return source.session?.refresh_token ?? null;
-}
-
 function getTokenExpiresAt(source: NousCliAuthSource): number | null {
   if (isLegacyNousCliAuthSource(source)) {
     return source.tokenExpiresAt;
@@ -84,14 +79,6 @@ function getTokenExpiresAt(source: NousCliAuthSource): number | null {
   }
 
   return source.session.expires_at * 1000;
-}
-
-function getRefreshExpiresAt(source: NousCliAuthSource): number | null {
-  if (isLegacyNousCliAuthSource(source)) {
-    return source.refreshExpiresAt;
-  }
-
-  return source.refreshExpiresAt ?? null;
 }
 
 function getRememberMe(source: NousCliAuthSource): boolean {
@@ -127,9 +114,10 @@ export function buildNousCliAuthPayload(
     organization_id: organizationId,
     organization_name: organizationName,
     user_email: source.user?.email,
-    refresh_token: getRefreshToken(source) ?? undefined,
+    // refresh_token / refresh_expires_at intentionally omitted — see the
+    // NousCliAuthPayload type note. Only the short-lived access token is
+    // exported.
     token_expires_at: getTokenExpiresAt(source),
-    refresh_expires_at: getRefreshExpiresAt(source),
     remember_me: getRememberMe(source),
   };
 }

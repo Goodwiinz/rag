@@ -17,10 +17,15 @@ export async function GET(
   }
 
   const supabase = await createClient();
+  // getUser() verifies the JWT with Supabase, not just the presence of a
+  // (forgeable) session cookie. NOTE: this only authenticates the caller —
+  // it does NOT yet verify the caller OWNS this runId (IDOR, audit #5);
+  // ownership enforcement lands in the follow-up PR.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
