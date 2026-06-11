@@ -93,7 +93,13 @@ services:
       GOTRUE_API_PORT: "9999"
       API_EXTERNAL_URL: http://gotrue:9999
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://test:test@postgres:5432/test_db?sslmode=disable
+      # search_path=auth: GoTrue's migrations write namespace-qualified tables
+      # (auth.identities, ...) but its runtime Pop queries use UNQUALIFIED
+      # names — without auth on the connection search_path, /admin/users dies
+      # with `relation "identities" does not exist` (the "Database error
+      # checking email" 500 captured by the E2E gotrue log dump). Supabase's
+      # own stack solves this via the supabase_auth_admin role's search_path.
+      GOTRUE_DB_DATABASE_URL: postgres://test:test@postgres:5432/test_db?sslmode=disable&search_path=auth
       GOTRUE_DB_NAMESPACE: auth
       GOTRUE_SITE_URL: http://localhost:3000
       GOTRUE_URI_ALLOW_LIST: http://localhost:3000,http://frontend:3000
