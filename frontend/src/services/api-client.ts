@@ -484,6 +484,36 @@ export class APIClient {
     window.URL.revokeObjectURL(downloadUrl);
   }
 
+  /**
+   * Fetch a file as an authenticated blob and return an object URL for inline
+   * rendering (e.g. a PDF/image preview). Unlike download(), this does not
+   * trigger a save dialog. Follows the backend's 302 redirect to a signed
+   * storage URL transparently. The caller owns the returned objectUrl and MUST
+   * call URL.revokeObjectURL(objectUrl) when done to avoid leaking memory.
+   */
+  async fetchObjectUrl(
+    url: string
+  ): Promise<{ objectUrl: string; contentType: string }> {
+    await this.ensureAuth();
+
+    const response = await fetch(
+      url.startsWith('http') ? url : `${this.baseURL}${url}`,
+      {
+        headers: this.getHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw await this.handleErrorResponse(response);
+    }
+
+    const blob = await response.blob();
+    return {
+      objectUrl: window.URL.createObjectURL(blob),
+      contentType: response.headers.get('content-type') || blob.type || '',
+    };
+  }
+
   // --------------------------------------------------------------------------
   // Helper Methods
   // --------------------------------------------------------------------------
