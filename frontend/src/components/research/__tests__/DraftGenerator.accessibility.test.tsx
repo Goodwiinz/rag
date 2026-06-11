@@ -60,7 +60,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible label for Max Sections slider', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    // Slider is inside the "Advanced options" collapsible; expand it first
+    // Max sections lives under the collapsed "Advanced options" disclosure.
     fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
 
     const slider = screen.getByLabelText(/Max sections/i);
@@ -71,7 +71,7 @@ describe('DraftGenerator Accessibility', () => {
   it('has accessible toggle switch for Include Abstract', () => {
     render(<DraftGenerator onGenerate={mockOnGenerate} />);
 
-    // Switch is inside the "Advanced options" collapsible; expand it first
+    // Include abstract lives under the collapsed "Advanced options" disclosure.
     fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
 
     const toggle = screen.getByRole('switch', { name: /Include abstract/i });
