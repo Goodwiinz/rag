@@ -14,6 +14,16 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient();
+  // getUser() verifies the JWT with Supabase; getSession() only reads the
+  // (forgeable) cookie. Validate first, then pull the session for the access
+  // token we forward downstream.
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -30,7 +40,7 @@ export async function POST(request: NextRequest) {
     useRag: body.use_rag,
     maxContextDocs: body.max_context_docs,
     threadId: body.thread_id,
-    userId: session.user.id,
+    userId: user.id,
     accessToken: session.access_token,
   };
 

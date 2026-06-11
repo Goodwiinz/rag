@@ -20,7 +20,7 @@ interface AuthContextType {
   pendingEmailConfirmation: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (userData: RegisterRequest) => Promise<RegisterResult>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   handleAuthError: () => void;
@@ -46,7 +46,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const handleAuthError = useCallback(() => {
-    store.signOut();
+    // signOut is now async and may reject if the network revocation fails;
+    // local state is cleared regardless, so swallow the rejection here.
+    void store.signOut().catch(() => {});
   }, [store]);
 
   const contextValue: AuthContextType = useMemo(
@@ -70,7 +72,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }),
     // store actions are stable references; only primitives change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [store.user, store.organization, store.isAuthenticated, store.isLoading, store.error, store.pendingEmailConfirmation, handleAuthError]
+    [
+      store.user,
+      store.organization,
+      store.isAuthenticated,
+      store.isLoading,
+      store.error,
+      store.pendingEmailConfirmation,
+      handleAuthError,
+    ]
   );
 
   return React.createElement(

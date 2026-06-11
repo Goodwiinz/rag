@@ -17,10 +17,16 @@ export async function POST(
   }
 
   const supabase = await createClient();
+  // getUser() verifies the JWT with Supabase, not just the presence of a
+  // (forgeable) session cookie. NOTE: this only authenticates the caller —
+  // it does NOT yet verify the caller owns this runId / tokenId (HITL hijack,
+  // audit #6); ownership enforcement (wiring the unused runId param) lands in
+  // the follow-up PR.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

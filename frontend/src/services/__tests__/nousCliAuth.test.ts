@@ -58,12 +58,14 @@ describe('nousCliAuth', () => {
     });
 
     expect(payload.token).toBe('supabase-access-token');
-    expect(payload.refresh_token).toBe('supabase-refresh-token');
+    // refresh_token / refresh_expires_at are intentionally NOT exported — the
+    // long-lived refresh token must never be written to the plaintext file.
+    expect('refresh_token' in payload).toBe(false);
+    expect('refresh_expires_at' in payload).toBe(false);
     expect(payload.organization_id).toBe('org-123');
     expect(payload.organization_name).toBe('Acme');
     expect(payload.user_email).toBe('user@example.com');
     expect(payload.token_expires_at).toBe(123000);
-    expect(payload.refresh_expires_at).toBe(456);
     expect(payload.remember_me).toBe(false);
   });
 
@@ -72,7 +74,8 @@ describe('nousCliAuth', () => {
     const originalRevokeObjectURL = URL.revokeObjectURL;
     const createObjectURLMock = vi.fn(() => 'blob:mock');
     const revokeObjectURLMock = vi.fn();
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => {});
 
     Object.defineProperty(URL, 'createObjectURL', {
