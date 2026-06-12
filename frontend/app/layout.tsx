@@ -32,6 +32,20 @@ export const metadata: Metadata = {
     'NOUS — Multimodal intelligence platform for research, document processing, and knowledge graph capabilities',
 };
 
+/**
+ * Force dynamic rendering app-wide.
+ *
+ * proxy.ts (#699) sets a per-request CSP `script-src 'self' 'nonce-…'
+ * 'strict-dynamic'` with no `unsafe-inline`. Next only stamps that per-request
+ * nonce onto its inline bootstrap scripts when a route renders dynamically; a
+ * statically prerendered page's scripts carry no matching nonce, so
+ * strict-dynamic blocks every script and the page renders blank (login,
+ * register, home and the other auth pages were all statically optimized).
+ * A nonce-based CSP is incompatible with static prerendering, so the app must
+ * render dynamically for the nonce to apply.
+ */
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: {
