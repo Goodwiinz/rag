@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { authCookieOptions } from './cookieOptions';
 
 /**
  * Refresh the Supabase session (SSR cookie auth) from the proxy.
@@ -34,6 +35,7 @@ export async function updateSession(
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: authCookieOptions(),
     cookies: {
       getAll() {
         return request.cookies.getAll().map(({ name, value }) => ({

@@ -285,6 +285,7 @@ export default function DashboardPage() {
 
           {/* Quick Actions */}
           <motion.div
+            data-testid="quick-actions"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
