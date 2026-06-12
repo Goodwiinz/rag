@@ -1,28 +1,33 @@
 # Database Documentation - Multimodal Enterprise RAG System
 
-This document provides comprehensive documentation for the four-database architecture of the Multimodal Enterprise RAG System.
+This document provides comprehensive documentation for the database architecture of the Multimodal Enterprise RAG System.
 
 ## Overview
 
-The system uses a polyglot persistence architecture with four specialized databases:
+The system uses a polyglot persistence architecture with the following data stores:
 
-1. **PostgreSQL** - Primary relational database for structured data
-2. **Neo4j** - Knowledge graph for entities and relationships
-3. **Qdrant** - Vector database for semantic search
-4. **Redis** - Cache and real-time data structures
+1. **PostgreSQL** - Primary relational database for structured data (prod: Supabase managed; dev: `rag-postgres-1` container, DB `multimodal_rag_dev`)
+2. **Neo4j** - Knowledge graph for entities and relationships (self-hosted in-cluster, `bolt://neo4j.gen-text.app`)
+3. **DO Knowledge Base** - Vector/RAG retrieval via DigitalOcean GradientAI (`kbaas.do-ai.run`); manages its own embeddings. Implementation: `backend/src/services/do_kb/`. Controlled by `DO_KB_ENABLED` flag.
+4. **Redis** - Cache and real-time data structures (prod: DO Managed Redis; dev: local container)
+
+> **Qdrant removed**: Qdrant has been fully removed from the production stack (`config.py:173` deprecated, `values-production.yaml qdrant.enabled:false`, `QDRANT_URL` unset → `QdrantClient=None`). All Qdrant documentation below is superseded by DO Knowledge Base.
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │     Neo4j       │    │     Qdrant      │    │      Redis      │
-│                 │    │                 │    │                 │    │                 │
-│ • Users         │◄──►│ • Entities      │◄──►│ • Documents     │◄──►│ • Cache         │
+│   PostgreSQL    │    │     Neo4j       │    │   DO KB (RAG)   │    │      Redis      │
+│  (Supabase/dev) │    │  (self-hosted)  │    │  (GradientAI)   │    │  (DO Managed)   │
+│ • Users         │◄──►│ • Entities      │◄──►│ • RAG retrieval │◄──►│ • Cache         │
 │ • Organizations │    │ • Relationships │    │ • Embeddings    │    │ • Sessions      │
 │ • Documents     │    │ • Graph Traversal│    │ • Similarity    │    │ • Rate Limits   │
-│ • Audit Logs    │    │ • Path Finding  │    │ • Search        │    │ • Pub/Sub       │
-│ • Analytics     │    │ • Communities   │    │ • Multimodal    │    │ • Metrics       │
+│ • Audit Logs    │    │ • Path Finding  │    │ • Document KB   │    │ • Pub/Sub       │
+│ • Agent Memory* │    │ • Communities   │    │ (kbaas.do-ai.run│    │ • Metrics       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+
+* PostgreSQL pgvector (via LangGraph AsyncPostgresStore) provides agent memory semantic recall.
+  RAG retrieval uses DO Knowledge Base, not pgvector.
 ```
 
 ## Database Connections
@@ -31,55 +36,66 @@ The system uses a polyglot persistence architecture with four specialized databa
 
 ```bash
 # PostgreSQL
-export DATABASE_URL="postgresql://raguser:REDACTED@localhost:5432/ragdb"
+# Dev: postgres:postgres@localhost:5432/multimodal_rag_dev (rag-postgres-1 container)
+# Prod: Supabase managed (session-mode pooler) — see Supabase dashboard for connection string
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
 
-# Neo4j
+# Neo4j (self-hosted in-cluster; prod: bolt://neo4j.gen-text.app)
 export NEO4J_URI="bolt://localhost:7687"
 export NEO4J_USER="neo4j"
 export NEO4J_PASSWORD="REDACTED"
 
-# Qdrant
-export QDRANT_URL="http://localhost:6333"
-export QDRANT_API_KEY="REDACTED"
+# DO Knowledge Base (replaces Qdrant for RAG retrieval; off by default, on in eval CI)
+export DO_KB_ENABLED="false"
+export DO_KB_URL="https://kbaas.do-ai.run"
+export DO_KB_API_KEY="<do_kb_api_key>"
 
 # Redis
+# Dev: local container. Prod: DO Managed Redis (external endpoint).
 export REDIS_URL="redis://:REDACTED@localhost:6379/0"
 ```
 
 ### Connection Details
 
-| Database | Host | Port | Database/Collection | Auth |
-|----------|------|------|---------------------|------|
-| PostgreSQL | localhost | 5432 | ragdb | raguser/REDACTED |
-| Neo4j | localhost | 7687 (Bolt) | - | neo4j/REDACTED |
-| Qdrant | localhost | 6333 | documents, entities, multimodal | REDACTED |
-| Redis | localhost | 6379 | - | REDACTED |
+| Service    | Dev Host / Port                      | Prod                                   | Notes                                 |
+| ---------- | ------------------------------------ | -------------------------------------- | ------------------------------------- |
+| PostgreSQL | localhost:5432, `multimodal_rag_dev` | Supabase managed (session-mode pooler) | pgvector used for agent memory        |
+| Neo4j      | localhost:7687 (Bolt)                | bolt://neo4j.gen-text.app              | neo4j:5.26-community in-cluster       |
+| DO KB      | kbaas.do-ai.run                      | kbaas.do-ai.run                        | RAG retrieval; manages own embeddings |
+| Redis      | localhost:6379                       | DO Managed Redis (external)            | —                                     |
+
+> **Qdrant removed**: `QDRANT_URL` is unset in production; `QdrantClient` initialises to `None`. Do not reference Qdrant collections or connection details for any new work.
 
 ## PostgreSQL Schema
 
 ### Core Tables
 
 #### Organizations
+
 - **Purpose**: Multi-tenant organization management
 - **Key Fields**: id, name, slug, storage_tier, max_storage_gb, max_users
 - **Features**: Row-level security, storage quotas
 
 #### Users
+
 - **Purpose**: User authentication and authorization
 - **Key Fields**: id, email, password_hash, role, organization_id
 - **Features**: Role-based access, login tracking
 
 #### Documents
+
 - **Purpose**: Multimodal document storage
 - **Key Fields**: id, title, document_type, content_text, organization_id
 - **Features**: Full-text search, versioning, metadata
 
 #### Entities
+
 - **Purpose**: Named entities extracted from documents
 - **Key Fields**: id, name, entity_type, confidence_score, organization_id
 - **Features**: Entity linking, canonicalization, aliases
 
 #### Search Queries
+
 - **Purpose**: Search analytics and optimization
 - **Key Fields**: id, query_text, query_type, results_count, latency_ms
 - **Features**: Query analysis, performance tracking
@@ -143,52 +159,27 @@ CREATE FULLTEXT INDEX entity_content_index FOR (e:Entity) ON EACH [e.name, e.des
 - **Centrality Measures**: Importance scoring
 - **Similarity**: Graph-based entity similarity
 
-## Qdrant Vector Database
+## DO Knowledge Base (RAG Retrieval)
 
-### Collections
+> **Replaces Qdrant.** Qdrant has been fully removed. RAG retrieval is now handled by the DigitalOcean GradientAI Knowledge Base service (`kbaas.do-ai.run`). Implementation lives in `backend/src/services/do_kb/`. Controlled by the `DO_KB_ENABLED` feature flag (off by default in prod; enabled in eval CI).
 
-#### Documents Collection
-- **Vector Size**: 1536 dimensions
-- **Distance**: Cosine similarity
-- **Payload**: document_id, title, organization_id, document_type
+### Key Characteristics
 
-#### Entities Collection
-- **Vector Size**: 1536 dimensions
-- **Distance**: Cosine similarity
-- **Payload**: entity_id, name, entity_type, confidence_score
+- **Embeddings**: Managed internally by the DO KB service — no client-side embedding step required.
+- **Retrieval**: Semantic similarity search via DO KB API; results are returned as ranked document chunks.
+- **Tenancy**: Queries are scoped per knowledge base ID; organization isolation is enforced at the KB provisioning level.
+- **Storage**: DO Spaces (`rag-system-storage`, nyc3 region) is used for raw document object storage backing the KB.
 
-#### Multimodal Collection
-- **Vector Size**: 1536 dimensions
-- **Distance**: Cosine similarity
-- **Payload**: content_id, modality, coordinates, temporal_data
+### pgvector / PostgreSQL Agent Memory
 
-### Search Operations
-
-```python
-# Semantic search
-client.search(
-    collection_name="documents",
-    query_vector=query_embedding,
-    query_filter={
-        "must": [
-            {"key": "organization_id", "match": {"value": org_id}}
-        ]
-    },
-    limit=10
-)
-```
-
-### Performance Features
-
-- **Quantization**: Scalar quantization for memory efficiency
-- **Disk Storage**: On-disk vector storage for large datasets
-- **Indexing**: HNSW indexing for fast approximate search
+pgvector (`vector` column type, `<=>` operator) is present in the PostgreSQL schema and is used exclusively by the **LangGraph `AsyncPostgresStore`** for agent memory semantic recall. It is **not** the RAG retrieval store — that role belongs to DO KB.
 
 ## Redis Cache System
 
 ### Data Structures
 
 #### Cache Configuration
+
 ```redis
 HSET cache_configs search_ttl 3600
 HSET cache_configs document_ttl 7200
@@ -196,6 +187,7 @@ HSET cache_configs entity_ttl 1800
 ```
 
 #### Rate Limiting
+
 ```redis
 HSET rate_limits search_per_minute 60
 HSET rate_limits upload_per_hour 100
@@ -203,6 +195,7 @@ HSET rate_limits api_requests_per_minute 1000
 ```
 
 #### Session Management
+
 ```redis
 HMSET session:user123 user_id 123 organization_id org456 ...
 EXPIRE session:user123 3600
@@ -220,11 +213,13 @@ EXPIRE session:user123 3600
 ### Quick Start
 
 1. **Ensure Docker containers are running**:
+
    ```bash
    docker-compose ps
    ```
 
 2. **Run database initialization**:
+
    ```bash
    chmod +x database/init/05_database_init.sh
    ./database/init/05_database_init.sh
@@ -238,15 +233,17 @@ EXPIRE session:user123 3600
 ### Manual Setup Steps
 
 #### PostgreSQL
+
 ```bash
-# Create schema
-psql -h localhost -p 5432 -U raguser -d ragdb -f database/init/01_schema.sql
+# Dev container: rag-postgres-1, DB multimodal_rag_dev
+psql -h localhost -p 5432 -U postgres -d multimodal_rag_dev -f database/init/01_schema.sql
 
 # Verify tables
-psql -h localhost -p 5432 -U raguser -d ragdb -c "\dt"
+psql -h localhost -p 5432 -U postgres -d multimodal_rag_dev -c "\dt"
 ```
 
 #### Neo4j
+
 ```bash
 # Run Cypher setup
 cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED -f database/init/02_neo4j_setup.cypher
@@ -255,16 +252,12 @@ cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED -f database/init/02_n
 cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED "MATCH (n) RETURN count(n) as node_count"
 ```
 
-#### Qdrant
-```bash
-# Create collections
-curl -X PUT "http://localhost:6333/collections/documents" \
-  -H "api-key: REDACTED" \
-  -H "Content-Type: application/json" \
-  -d '{"vectors": {"size": 1536, "distance": "Cosine"}}'
-```
+#### DO Knowledge Base
+
+DO KB is provisioned and managed via the DigitalOcean console or API. No local setup step is required; configure `DO_KB_ENABLED`, `DO_KB_URL`, and `DO_KB_API_KEY` environment variables and start the backend. See `backend/src/services/do_kb/` for the client implementation.
 
 #### Redis
+
 ```bash
 # Configure Redis
 redis-cli -h localhost -p 6379 -a REDACTED CONFIG SET maxmemory 256mb
@@ -282,6 +275,7 @@ python3 database/health_checks.py
 ### Manual Health Checks
 
 #### PostgreSQL
+
 ```sql
 -- Check connection
 SELECT 1;
@@ -294,6 +288,7 @@ SELECT pg_size_pretty(pg_database_size('ragdb'));
 ```
 
 #### Neo4j
+
 ```cypher
 -- Check connectivity
 RETURN 1;
@@ -305,16 +300,12 @@ MATCH (n) RETURN labels(n) as type, count(n) as count;
 MATCH ()-[r]->() RETURN type(r) as type, count(r) as count;
 ```
 
-#### Qdrant
-```bash
-# Check health
-curl http://localhost:6333/health
+#### DO Knowledge Base
 
-# List collections
-curl http://localhost:6333/collections -H "api-key: REDACTED"
-```
+DO KB health is monitored via the DigitalOcean dashboard. The backend's `DO_KB_ENABLED` flag gates all KB interactions; if the flag is off, KB calls are skipped.
 
 #### Redis
+
 ```bash
 # Check connectivity
 redis-cli -h localhost -p 6379 -a REDACTED ping
@@ -339,12 +330,10 @@ redis-cli -h localhost -p 6379 -a REDACTED info memory
 - **Query Optimization**: PROFILE command for query analysis
 - **Batch Operations**: Use UNWIND for bulk operations
 
-### Qdrant
+### DO Knowledge Base
 
-- **Vector Quantization**: Enable scalar quantization
-- **Collection Optimization**: Configure search parameters
-- **Memory Management**: On-disk storage for large datasets
-- **Batch Processing**: Upsert multiple vectors at once
+- **Throughput**: Batch document ingestion via the DO KB API where supported
+- **Flag gate**: Keep `DO_KB_ENABLED=false` in prod by default; enable only in eval CI to control costs
 
 ### Redis
 
@@ -359,7 +348,7 @@ redis-cli -h localhost -p 6379 -a REDACTED info memory
 
 - **PostgreSQL**: Role-based access with RLS policies
 - **Neo4j**: User authentication with role-based permissions
-- **Qdrant**: API key authentication
+- **DO Knowledge Base**: API key authentication (`DO_KB_API_KEY`)
 - **Redis**: Password authentication
 
 ### Data Isolation
@@ -391,12 +380,9 @@ neo4j-admin database backup --database=neo4j --to-path=/backup
 neo4j-admin database restore --from-path=/backup --database=neo4j
 ```
 
-### Qdrant
+### DO Knowledge Base
 
-```bash
-# Backup collection
-curl http://localhost:6333/collections/documents/snapshots -H "api-key: REDACTED"
-```
+DO KB data is managed by DigitalOcean. Use the DO console or API snapshots for backup. Raw source documents are stored in DO Spaces (`rag-system-storage`, nyc3) and serve as the authoritative source for re-ingestion.
 
 ### Redis
 
@@ -413,21 +399,25 @@ redis-server --appendonly yes
 ### Common Issues
 
 #### PostgreSQL Connection Issues
+
 - Check user permissions: `\du` in psql
 - Verify database exists: `\l` in psql
 - Check network connectivity: `telnet localhost 5432`
 
 #### Neo4j Performance Issues
+
 - Check memory usage: `CALL dbms.listConnections()`
 - Monitor query performance: Use PROFILE keyword
 - Verify index usage: `EXPLAIN` query plans
 
-#### Qdrant Collection Issues
-- Check collection status: `/collections/{name}`
-- Monitor memory usage: `/telemetry`
-- Verify vector dimensions match
+#### DO Knowledge Base Issues
+
+- Verify `DO_KB_ENABLED=true` and `DO_KB_API_KEY` is set
+- Check DO dashboard for KB service health at `kbaas.do-ai.run`
+- Review backend logs in `backend/src/services/do_kb/` for client-side errors
 
 #### Redis Memory Issues
+
 - Monitor memory usage: `INFO memory`
 - Check eviction policy: `CONFIG GET maxmemory-policy`
 - Analyze key distribution: `INFO keyspace`
@@ -435,6 +425,7 @@ redis-server --appendonly yes
 ### Performance Tuning
 
 #### PostgreSQL Configuration
+
 ```ini
 # postgresql.conf
 shared_buffers = 256MB
@@ -444,6 +435,7 @@ maintenance_work_mem = 64MB
 ```
 
 #### Neo4j Configuration
+
 ```properties
 # neo4j.conf
 dbms.memory.heap.initial_size=1G
@@ -452,6 +444,7 @@ dbms.memory.pagecache.size=1G
 ```
 
 #### Redis Configuration
+
 ```bash
 # redis.conf
 maxmemory 256mb
@@ -466,7 +459,7 @@ save 60 10000
 ### Connection Libraries
 
 ```python
-# PostgreSQL
+# PostgreSQL (dev: asyncpg direct; prod: Supabase session-mode pooler via SQLAlchemy AsyncEngine)
 import asyncpg
 conn = await asyncpg.connect(DATABASE_URL)
 
@@ -474,39 +467,31 @@ conn = await asyncpg.connect(DATABASE_URL)
 from neo4j import AsyncGraphDatabase
 driver = AsyncGraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-# Qdrant
-from qdrant_client import QdrantClient
-client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+# DO Knowledge Base — see backend/src/services/do_kb/ for the client wrapper
+# QdrantClient is NOT used; QDRANT_URL is unset in prod.
 
-# Redis
+# Redis (dev: local; prod: DO Managed Redis external endpoint)
 import redis.asyncio as redis
-redis_client = redis.Redis(host='localhost', port=6379, password=REDIS_PASSWORD)
+redis_client = redis.Redis.from_url(REDIS_URL)
 ```
 
 ### Example Query Patterns
 
 ```python
-# Multi-database search
+# Multi-database search (current architecture)
 async def search_documents(query_text, organization_id):
-    # 1. Get query embedding
-    embedding = await get_embedding(query_text)
+    # 1. RAG retrieval via DO Knowledge Base (manages its own embeddings)
+    #    See backend/src/services/do_kb/ for the client implementation.
+    do_kb_results = await do_kb_client.search(query=query_text, limit=10)
 
-    # 2. Search Qdrant for similar documents
-    qdrant_results = qdrant_client.search(
-        collection_name="documents",
-        query_vector=embedding,
-        query_filter={"must": [{"key": "organization_id", "match": {"value": organization_id}}]},
-        limit=10
-    )
-
-    # 3. Get document details from PostgreSQL
-    document_ids = [point.payload["document_id"] for point in qdrant_results]
+    # 2. Get document details from PostgreSQL
+    document_ids = [r["document_id"] for r in do_kb_results]
     documents = await postgres_conn.fetch(
         "SELECT * FROM documents WHERE id = ANY($1) AND organization_id = $2",
         document_ids, organization_id
     )
 
-    # 4. Get related entities from Neo4j
+    # 3. Get related entities from Neo4j (circuit-breaker gated)
     entity_results = []
     for doc in documents:
         entities = await neo4j_session.run(
@@ -531,6 +516,7 @@ async def search_documents(query_text, organization_id):
 ### Key Metrics
 
 #### PostgreSQL
+
 - Connection count
 - Query latency
 - Database size
@@ -538,18 +524,20 @@ async def search_documents(query_text, organization_id):
 - Index usage
 
 #### Neo4j
+
 - Node/relationship counts
 - Query performance
 - Memory usage
 - Cache hit rates
 
-#### Qdrant
-- Collection sizes
-- Search latency
-- Memory usage
-- Index status
+#### DO Knowledge Base
+
+- Query latency
+- Retrieval result quality (eval CI)
+- API error rates
 
 #### Redis
+
 - Memory usage
 - Hit rates
 - Connection count
@@ -558,6 +546,7 @@ async def search_documents(query_text, organization_id):
 ### Alerting
 
 Set up alerts for:
+
 - Database connection failures
 - High query latency (>2 seconds)
 - Low cache hit rates (<80%)
@@ -566,18 +555,21 @@ Set up alerts for:
 ## Future Enhancements
 
 ### Scalability
+
 - Read replicas for PostgreSQL
 - Neo4j clustering
-- Qdrant sharding
+- DO KB multi-region provisioning
 - Redis clustering
 
 ### Performance
+
 - Materialized views
 - Graph embeddings
 - Advanced caching strategies
 - Query optimization
 
 ### Features
+
 - Real-time synchronization
 - Advanced analytics
 - Machine learning integration
@@ -585,4 +577,4 @@ Set up alerts for:
 
 ---
 
-*Last updated: October 2024*
+_Last updated: June 2026 — Qdrant removed; DO Knowledge Base (GradientAI) is the RAG retrieval store; PostgreSQL prod is Supabase managed; Redis prod is DO Managed Redis._

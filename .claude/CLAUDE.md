@@ -5,23 +5,27 @@
 This project uses a **two-tier memory system**. Always read relevant memory files before starting any non-trivial task.
 
 ### Tier 1 — Hot Cache (this file)
+
 Quick-reference tables for people, terms, projects, and connections. Keep it concise — pointers only, not full logs.
 
 ### Tier 2 — Memory Directory (`memory/`)
+
 Full knowledge base. Read the relevant file(s) before working:
 
-| File | When to read |
-|------|-------------|
-| `memory/people/abdel.md` | Any task involving preferences, context, or ownership |
-| `memory/projects/nous-platform.md` | Any NOUS codebase work |
-| `memory/projects/gap-analysis.md` | Anything related to K-Dense gaps or GOO-187→197 |
-| `memory/context/tooling.md` | MCP connections, branch strategy, local paths |
-| `memory/glossary.md` | Unfamiliar terms (NOUS, HITL, KG, etc.) |
-| `memory/claude-md-updates.md` | Recent changes to memory/CLAUDE.md |
-| `daily-logs/YYYY-MM-DD.md` | Yesterday's shipped work and active WIP |
+| File                               | When to read                                          |
+| ---------------------------------- | ----------------------------------------------------- |
+| `memory/people/abdel.md`           | Any task involving preferences, context, or ownership |
+| `memory/projects/nous-platform.md` | Any NOUS codebase work                                |
+| `memory/projects/gap-analysis.md`  | Anything related to K-Dense gaps or GOO-187→197       |
+| `memory/context/tooling.md`        | MCP connections, branch strategy, local paths         |
+| `memory/glossary.md`               | Unfamiliar terms (NOUS, HITL, KG, etc.)               |
+| `memory/claude-md-updates.md`      | Recent changes to memory/CLAUDE.md                    |
+| `daily-logs/YYYY-MM-DD.md`         | Yesterday's shipped work and active WIP               |
 
 ### Updating Memory
+
 When you complete work, make decisions, or discover new context:
+
 1. Update the relevant `memory/` file with what changed
 2. Update the hot-cache tables below if the change affects people, terms, or projects
 3. Keep updates factual and concise — no narrative fluff
@@ -31,41 +35,45 @@ When you complete work, make decisions, or discover new context:
 
 ## People
 
-| Who | Role |
-|-----|------|
+| Who       | Role                                                    |
+| --------- | ------------------------------------------------------- |
 | **Abdel** | Owner/developer, goodwiins (GitHub), allocs16@gmail.com |
+
 → Full profile: memory/people/abdel.md
 
 ## Terms
 
-| Term | Meaning |
-|------|---------|
-| NOUS | Multimodal Intelligence Platform (Greek: νοῦς — mind/intellect) |
-| RAG | Retrieval-Augmented Generation |
-| HITL | Human-in-the-loop (agent interrupt pattern) |
-| KG | Knowledge Graph (Neo4j) |
-| subgraph | Specialized agent routing (research, writing, data, general) |
-| tool loop | One agent tool call iteration (max 8-10 currently) |
-| destructive tool | ingest, create_note, create_draft — triggers HITL interrupt |
-| circuit breaker | Resilience pattern for Neo4j/Qdrant/Cohere |
+| Term             | Meaning                                                         |
+| ---------------- | --------------------------------------------------------------- |
+| NOUS             | Multimodal Intelligence Platform (Greek: νοῦς — mind/intellect) |
+| RAG              | Retrieval-Augmented Generation                                  |
+| HITL             | Human-in-the-loop (agent interrupt pattern)                     |
+| KG               | Knowledge Graph (Neo4j)                                         |
+| subgraph         | Specialized agent routing (research, writing, data, general)    |
+| tool loop        | One agent tool call iteration (max 8-10 currently)              |
+| destructive tool | ingest, create_note, create_draft — triggers HITL interrupt     |
+| circuit breaker  | Resilience pattern for Neo4j/DO KB/Cohere                       |
+
 → Full glossary: memory/glossary.md
 
 ## Projects
 
-| Name | What |
-|------|------|
-| **NOUS Platform** | Multimodal RAG — Next.js 15 + FastAPI + PG/Qdrant/Neo4j/Redis |
-| **Gap Analysis** | K-Dense competitive analysis — 11 Linear issues (GOO-187→GOO-197) |
-| **Daily Sync** | Scheduled task: GitHub + Linear + Obsidian (weekdays 9:10am) |
+| Name              | What                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| **NOUS Platform** | Multimodal RAG — Next.js 15 + FastAPI + Supabase PG / Neo4j / DO Redis / DO KB (RAG) |
+| **Gap Analysis**  | K-Dense competitive analysis — 11 Linear issues (GOO-187→GOO-197)                    |
+| **Daily Sync**    | Scheduled task: GitHub + Linear + Obsidian (weekdays 9:10am)                         |
+
 → Details: memory/projects/
 
 ## Connections
 
-| Service | Config |
-|---------|--------|
-| **Linear** | Team: Goodwiinz |
-| **GitHub** | Repo: goodwiins/rag |
+| Service      | Config                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| **Linear**   | Team: Goodwiinz                                                                                |
+| **GitHub**   | Repo: goodwiins/rag                                                                            |
 | **Obsidian** | Vault: Mysynic @ `/Users/goodwiinz/Documents/claude-memory` — sync via `./sync-to-obsidian.sh` |
+
 → Full tooling: memory/context/tooling.md
 
 ## Serena Memories
@@ -87,7 +95,7 @@ Read relevant memories before starting tasks:
 ## Agent System Quick Ref
 
 - **Architecture**: LangGraph StateGraph with intent routing → specialized subgraphs (research, writing, data, general)
-- **Checkpointing**: AsyncPostgresSaver (fallback: MemorySaver)
+- **Checkpointing**: AsyncPostgresSaver on **Supabase Postgres** (`postgresql://` psycopg v3); MemorySaver = dev/test only
 - **Tools**: 12 tools with filtered tool nodes per subgraph, 30s timeout, max 3 concurrent via semaphore
 - **Human-in-the-loop**: `interrupt()` for destructive tools → client polls → `Command(resume=...)` to continue
 - **Streaming**: SSE via `/api/v1/agent/stream` (events: token, tool_start, tool_end, rag_context, done, error)
