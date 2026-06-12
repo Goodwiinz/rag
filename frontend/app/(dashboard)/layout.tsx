@@ -25,7 +25,18 @@ export default async function DashboardLayout({
   const supabase = await createClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+  // Surface WHY there's no user: a network/verification failure (unreachable
+  // auth endpoint, bad key, GoTrue 5xx) is otherwise indistinguishable from a
+  // genuinely-anonymous visitor — both fall through to redirect('/login').
+  if (error) {
+    console.error(
+      '[(dashboard)/layout] getUser failed:',
+      error.status,
+      error.message
+    );
+  }
   if (!user) {
     redirect('/login');
   }

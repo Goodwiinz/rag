@@ -15,7 +15,12 @@ export async function createClient(): Promise<SupabaseClient> {
     process.env.SUPABASE_SERVER_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     'http://localhost:54321';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  // Fail fast instead of an empty key that 401s every request and masquerades
+  // as a working auth guard (mirrors the throw in client.ts).
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.');
+  }
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {

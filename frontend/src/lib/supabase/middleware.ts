@@ -26,7 +26,12 @@ export async function updateSession(
     process.env.SUPABASE_SERVER_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     'http://localhost:54321';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  // Fail fast instead of an empty key that 401s every request and masquerades
+  // as a working auth guard (mirrors the throw in client.ts).
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.');
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -48,8 +53,17 @@ export async function updateSession(
     },
   });
 
-  // Refresh the session — this is required for SSR cookie auth
-  await supabase.auth.getUser();
+  // Refresh the session — this is required for SSR cookie auth. Log a
+  // verification/network error so a failing getUser() (unreachable auth
+  // endpoint, bad key, GoTrue 5xx) is distinguishable from a real anon visitor.
+  const { error } = await supabase.auth.getUser();
+  if (error) {
+    console.error(
+      '[updateSession] getUser failed:',
+      error.status,
+      error.message
+    );
+  }
 
   return supabaseResponse;
 }
