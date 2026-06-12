@@ -1,3 +1,10 @@
+/**
+ * QUARANTINED (chromium testIgnore in playwright.config.ts). The e2e login
+ * bounces /dashboard → /login (server layout getUser() returns no user); the
+ * login-helper sentinel never resolves. Pointing the server Supabase client at
+ * the in-network auth-proxy did not fix it — getUser() fails deeper (cookie not
+ * in the RSC request, or GoTrue verification).
+ */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 

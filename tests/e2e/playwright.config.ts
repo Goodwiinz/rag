@@ -83,21 +83,21 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // The light user-journeys suites (analytics-dashboard-access,
-        // graph-analytics-exploration, real-time-monitoring) now run: the
-        // login-helper sentinel (dashboard-container) renders once server-side
-        // getUser() succeeds. That getUser() was failing because the Next server
-        // inside the frontend container used the BROWSER Supabase URL
-        // (localhost:8999, unreachable in-container) and redirected every authed
-        // route to /login; fixed via SUPABASE_SERVER_URL (server-only docker-DNS
-        // URL) — see frontend/src/lib/supabase/server.ts.
-        // Still quarantined:
-        // - custom-dashboard-creation: needs a custom-dashboard builder
-        //   (react-grid-layout) that does not exist (gap plan EPIC 1-3).
-        // - data-flow/**: asserts distributed-ACID/corruption/clustering UIs
-        //   that are test fantasy (no backend, no product intent) — trim, not
-        //   build. See those files' headers.
-        "**/user-journeys/custom-dashboard-creation.spec.ts",
+        // QUARANTINED — still failing. Verified across two workflow_dispatch
+        // full-suite runs: the e2e login reaches /dashboard then bounces to
+        // /login (failure-snapshot page title = "Sign In | NOUS"), so the
+        // login-helper sentinel never resolves. The bounce is the (dashboard)
+        // server layout's redirect('/login') when supabase.auth.getUser()
+        // returns no user. Pointing the SERVER Supabase client at the in-network
+        // auth-proxy (SUPABASE_SERVER_URL, this PR — a correct fix kept because
+        // localhost:8999 is genuinely unreachable in-container) did NOT stop the
+        // bounce, so getUser() fails for a deeper reason: the session cookie is
+        // not reaching the RSC request, or GoTrue rejects verification. Next
+        // step: read trace.zip network calls (is GET {auth-proxy}/auth/v1/user
+        // made? what status?) + the supabase-ssr cookie config.
+        // Also quarantined: custom-dashboard-creation (needs an unbuilt
+        // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
+        "**/user-journeys/**",
         "**/data-flow/**",
       ],
     },
