@@ -83,15 +83,20 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // DIAGNOSTIC: the 3 light user-journeys suites are temporarily
-        // un-quarantined so this dispatch exercises the login bounce while the
-        // new getUser() error logging (layout.tsx + middleware.ts) is active.
-        // The frontend-e2e container logs will name WHY server-side getUser()
-        // fails (cookie-not-in-RSC vs GoTrue verification) — the missing piece.
-        // Re-quarantine or keep based on the result.
-        // Still quarantined: custom-dashboard-creation (needs an unbuilt
+        // QUARANTINED. ROOT CAUSE NAMED (via the getUser() logging this PR adds):
+        // the server logs `getUser failed: 400 Auth session missing!` — the
+        // server-side Supabase client finds NO session cookie. @supabase/ssr
+        // keys the auth cookie on the URL hostname (sb-<hostname>-auth-token).
+        // The browser (NEXT_PUBLIC_SUPABASE_URL=localhost:8999 → sb-localhost-…)
+        // and the server (SUPABASE_SERVER_URL=auth-proxy → sb-auth-proxy-…) look
+        // for DIFFERENT cookies, so the session the browser wrote is invisible
+        // server-side. The two can't share one URL: Playwright runs on the
+        // runner host, the Next server runs in-container. Fix is an e2e-infra
+        // choice (run Playwright in the docker network so both use auth-proxy,
+        // OR pin a shared cookie name) — tracked separately.
+        // Also quarantined: custom-dashboard-creation (needs an unbuilt
         // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
-        "**/user-journeys/custom-dashboard-creation.spec.ts",
+        "**/user-journeys/**",
         "**/data-flow/**",
       ],
     },
