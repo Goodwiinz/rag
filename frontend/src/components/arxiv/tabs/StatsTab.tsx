@@ -21,10 +21,15 @@ export function StatsTab({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-          <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
-          Tracking statistics
-        </h3>
+        <div className="space-y-0.5">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
+            Corpus statistics
+          </h2>
+          <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+            Counts and category breakdown for the papers in your tracked corpus.
+          </p>
+        </div>
         <button
           type="button"
           onClick={onRefresh}
@@ -48,7 +53,7 @@ export function StatsTab({
       {stats ? (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           <div className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               Papers tracked
             </p>
             <p className="mt-2 text-4xl font-semibold tabular-nums text-foreground">
@@ -79,9 +84,9 @@ export function StatsTab({
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 sm:p-6 xl:col-span-8">
-            <h4 className="text-sm font-medium text-foreground">
+            <h3 className="text-sm font-medium text-foreground">
               Top categories
-            </h4>
+            </h3>
             {stats.statistics.top_categories &&
             stats.statistics.top_categories.length > 0 ? (
               <div className="mt-5 space-y-3">
