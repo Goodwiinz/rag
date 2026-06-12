@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
+from src.services.agent._sanitize import _sanitize_prompt_field
 from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
@@ -392,7 +393,9 @@ async def reflect_on_response(
                 # ``str(step)`` instead of crashing with ``AttributeError``.
                 summary = str(step)
             plan_lines.append(f"  {i + 1}. {summary}")
-        plan_text = "\n\nAdvisory plan the agent was following:\n" + "\n".join(plan_lines)
+        plan_text = "\n\nAdvisory plan the agent was following:\n" + "\n".join(
+            plan_lines
+        )
 
     raw_content = last_ai_message.content
     if isinstance(raw_content, list):
@@ -412,7 +415,7 @@ async def reflect_on_response(
         rendered_content = "(no content)"
 
     user_prompt = (
-        f"## User's original request\n{original_user_message}\n\n"
+        f"## User's original request\n{_sanitize_prompt_field(original_user_message)}\n\n"
         f"## Assistant's response\n{rendered_content}"
         f"{plan_text}"
     )
@@ -579,7 +582,14 @@ def make_reflection_gate(
         if result.severity == "minor":
             return "proceed"
 
-        # Major severity: route to revise if we still have budget
+        # Major severity: route to revise if we still have budget.
+        # NOTE: the reflection_node increments reflection_count BEFORE the
+        # router runs, so the value here is already post-increment. The node's
+        # own >= 2 guard caps revisions at 2 (skipping the increment and
+        # returning early), so by the time the router runs current_count is
+        # at most 1 (first revise) or 2 (second revise). Using < 2 here is
+        # consistent with the node's cap: once current_count reaches 2 the
+        # router proceeds instead of revising again.
         current_count = state.get("reflection_count", 0)
         if result.severity == "major" and current_count < 2:
             return "revise"
