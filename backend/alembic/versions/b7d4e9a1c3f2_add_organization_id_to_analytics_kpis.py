@@ -27,16 +27,32 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Idempotent so it is safe on DBs that already have the column and on
-    # fresh DBs alike. FK left implicit (the column references organizations.id
-    # via the ORM); the index is what the read-path filter needs.
+    # Guard the whole body on table existence.
+    #
+    # ``analytics_kpis`` is an ORM-only table (no create migration exists), so
+    # it is present on databases bootstrapped via ``Base.metadata.create_all``
+    # but ABSENT on migrate-only databases. The previous body added the column
+    # with ``ALTER TABLE IF EXISTS`` (table-guarded, safe) but then ran a bare
+    # ``CREATE INDEX ... ON analytics_kpis`` — and ``CREATE INDEX IF NOT EXISTS``
+    # guards the index NAME, not the target table. On a DB without the table
+    # that raised ``UndefinedTable`` and crash-looped the run-migrations init
+    # container, blocking every deploy.
+    #
+    # ``to_regclass`` returns NULL for a missing table without erroring, so the
+    # block runs once where the table exists and no-ops where it does not. The
+    # missing create migration for the analytics_* schema is tracked separately.
     op.execute(
-        "ALTER TABLE IF EXISTS analytics_kpis "
-        "ADD COLUMN IF NOT EXISTS organization_id UUID"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_analytics_kpis_organization_id "
-        "ON analytics_kpis (organization_id)"
+        """
+        DO $$
+        BEGIN
+            IF to_regclass('public.analytics_kpis') IS NOT NULL THEN
+                ALTER TABLE analytics_kpis
+                    ADD COLUMN IF NOT EXISTS organization_id UUID;
+                CREATE INDEX IF NOT EXISTS idx_analytics_kpis_organization_id
+                    ON analytics_kpis (organization_id);
+            END IF;
+        END $$;
+        """
     )
 
 
