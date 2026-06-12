@@ -111,20 +111,22 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
     }) => {
       helpers.logStep("Testing dashboard quick actions");
 
-      // Dashboard should show quick actions. Scope to the exact quick-action
-      // links — a bare `text=Upload` also matches the empty-state "Upload your
-      // first document" link (strict-mode violation).
+      // Dashboard should show quick actions. Scope to the quick-actions
+      // container: Search/Chat/arXiv are ALSO AppRail sidebar nav links, and
+      // Upload also matches the empty-state "Upload your first document" link —
+      // both cause strict-mode violations on a page-wide locator.
+      const quickActions = page.getByTestId("quick-actions");
       await expect(
-        page.getByRole("link", { name: "Upload", exact: true }),
+        quickActions.getByRole("link", { name: "Upload", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "Search", exact: true }),
+        quickActions.getByRole("link", { name: "Search", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "Chat", exact: true }),
+        quickActions.getByRole("link", { name: "Chat", exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("link", { name: "arXiv", exact: true }),
+        quickActions.getByRole("link", { name: "arXiv", exact: true }),
       ).toBeVisible();
       helpers.logStep("Quick actions are visible");
     });
