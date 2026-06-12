@@ -1416,12 +1416,18 @@ class KnowledgeGraphService:
                 # ANY relationship and unbounded N caused combinatorial fanout
                 # on hub nodes).
                 safe_depth = max(1, min(int(max_depth), 5))
+                node_scope = (
+                    "\n              AND all(n IN nodes(path) "
+                    "WHERE n.organization_id = $organization_id)"
+                    if organization_id is not None
+                    else ""
+                )
                 query = f"""
                 MATCH (start:Entity {{id: $entity_id}})
                 MATCH path = (start)-[:RELATED_TO*1..{safe_depth}]-(related:Entity)
                 WHERE related.id <> $entity_id
                   AND all(rel in relationships(path)
-                      WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength){tenant_filter}
+                      WHERE coalesce(rel.strength, rel.confidence, 1.0) >= $min_strength){tenant_filter}{node_scope}
                 WITH DISTINCT related, path, length(path) AS hops
                 ORDER BY hops
                 WITH related,
@@ -1558,9 +1564,15 @@ class KnowledgeGraphService:
                 # explodes into combinatorial fanout on hub nodes (matches the
                 # find_related_entities / get_neighborhood hardening).
                 safe_depth = max(1, min(int(max_depth), 5))
+                node_scope = (
+                    "\n              AND all(n IN nodes(path) "
+                    "WHERE n.organization_id = $organization_id)"
+                    if organization_id is not None
+                    else ""
+                )
                 query = f"""
                 MATCH path = (start:Entity {{id: $source_id}})-[:RELATED_TO*1..{safe_depth}]-(end:Entity {{id: $target_id}})
-                WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}
+                WHERE all(rel in relationships(path) WHERE coalesce(rel.strength, 1.0) >= $min_strength){tenant_filter}{node_scope}
                 RETURN path, length(path) as path_length
                 ORDER BY path_length, reduce(strength = 1.0, rel in relationships(path) | strength * coalesce(rel.strength, 1.0)) DESC
                 LIMIT 10
