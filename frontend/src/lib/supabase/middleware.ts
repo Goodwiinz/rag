@@ -19,8 +19,13 @@ export async function updateSession(
   };
   let supabaseResponse = NextResponse.next(nextInit);
 
+  // Server-side (proxy runtime). Prefer the server-only in-network URL when set
+  // (containerized e2e) — the public URL is a browser host-port unreachable
+  // from inside the container. Falls back to the public URL in production.
   const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+    process.env.SUPABASE_SERVER_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    'http://localhost:54321';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
