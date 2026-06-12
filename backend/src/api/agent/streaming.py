@@ -17,6 +17,7 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from ._errors import client_safe_error
 from . import jobs as _jobs_mod
 from .jobs import (
     _clear_stale_pending_confirmation,
@@ -28,6 +29,7 @@ from .jobs import (
     _resolve_and_bind_project,
     _resolve_thread,
 )
+from src.services.agent._builders import RECURSION_LIMIT
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
@@ -230,7 +232,9 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
-    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
+    config: Dict[str, Any] = (
+        {}
+    )  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
@@ -279,9 +283,7 @@ async def stream_event_generator(
                     load_project_memories,
                 )
 
-                project_memories = await load_project_memories(
-                    db, str(_pm_project_id)
-                )
+                project_memories = await load_project_memories(db, str(_pm_project_id))
             except Exception:
                 logger.warning("project memory load failed", exc_info=True)
 
@@ -310,12 +312,13 @@ async def stream_event_generator(
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
+            "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
-            }
+            },
         }
 
         yield _format_sse_event(
@@ -363,7 +366,9 @@ async def stream_event_generator(
                             client_disconnected = True
                             break
                         if item["type"] == "keepalive":
-                            elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
+                            elapsed_ms = int(
+                                (time.monotonic() - stream_started_at) * 1000
+                            )
                             yield (
                                 "event: heartbeat\n"
                                 f"data: {_json.dumps({'elapsed_ms': elapsed_ms})}\n\n"
@@ -396,9 +401,7 @@ async def stream_event_generator(
                             output = event.get("data", {}).get("output", "")
                             is_error = (
                                 isinstance(output, dict) and bool(output.get("isError"))
-                            ) or (
-                                getattr(output, "status", None) == "error"
-                            )
+                            ) or (getattr(output, "status", None) == "error")
                             yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                         elif kind == "on_chain_end" and name == "rag_node":
@@ -435,9 +438,7 @@ async def stream_event_generator(
                     )
                     await reset_checkpointer()
                     checkpointer = await get_checkpointer()
-                    graph = compile_agent_graph(
-                        checkpointer=checkpointer, store=store
-                    )
+                    graph = compile_agent_graph(checkpointer=checkpointer, store=store)
                     await _clear_stale_pending_confirmation(graph, config)
                     event_stream_iter = await _open_event_stream()
                     continue
@@ -462,9 +463,7 @@ async def stream_event_generator(
 
             # Check for pending interrupts (HITL confirmation needed)
             pending_tasks = final_snapshot.tasks if final_snapshot else ()
-            has_interrupt = any(
-                getattr(t, "interrupts", None) for t in pending_tasks
-            )
+            has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
             if has_interrupt:
                 # Extract confirmation details from the interrupt
@@ -516,9 +515,7 @@ async def stream_event_generator(
                     # tests that directly invoke the generator without
                     # passing one). Run inline through the safe wrapper
                     # so the failure-metric path is still exercised.
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs
-                    )
+                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 
@@ -540,18 +537,27 @@ async def stream_event_generator(
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = (config.get("configurable") or {}).get("thread_id") or stream_thread_id
+        thread_id = (config.get("configurable") or {}).get(
+            "thread_id"
+        ) or stream_thread_id
 
         checkpoint_ok = False
         try:
             if graph is not None:
                 verify_snapshot = await graph.aget_state(config)
                 checkpoint_ok = bool(
-                    verify_snapshot and verify_snapshot.values
-                    and any(getattr(t, "interrupts", None) for t in (verify_snapshot.tasks or ()))
+                    verify_snapshot
+                    and verify_snapshot.values
+                    and any(
+                        getattr(t, "interrupts", None)
+                        for t in (verify_snapshot.tasks or ())
+                    )
                 )
         except Exception:
-            logger.warning("Failed to verify checkpoint after GraphInterrupt for thread %s", thread_id)
+            logger.warning(
+                "Failed to verify checkpoint after GraphInterrupt for thread %s",
+                thread_id,
+            )
 
         if not checkpoint_ok:
             logger.error(
@@ -565,7 +571,7 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
-        yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+        yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
         await db.close()
@@ -654,12 +660,13 @@ async def stream_confirm_event_generator(
         )
 
         config = {
+            "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": request_body.thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
-            }
+            },
         }
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
@@ -710,9 +717,7 @@ async def stream_confirm_event_generator(
                     output = event.get("data", {}).get("output", "")
                     is_error = (
                         isinstance(output, dict) and bool(output.get("isError"))
-                    ) or (
-                        getattr(output, "status", None) == "error"
-                    )
+                    ) or (getattr(output, "status", None) == "error")
                     yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
@@ -735,9 +740,7 @@ async def stream_confirm_event_generator(
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
         final_snapshot = await graph.aget_state(config)
         pending_tasks = final_snapshot.tasks if final_snapshot else ()
-        has_interrupt = any(
-            getattr(t, "interrupts", None) for t in pending_tasks
-        )
+        has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
         if has_interrupt:
             confirmation_details = {}
@@ -767,9 +770,11 @@ async def stream_confirm_event_generator(
                 final_values.get("messages", [])
             )
             resumed_request = AgentExecuteRequest(
-                messages=[
-                    AgentMessage(role="user", content=latest_user_content)
-                ] if latest_user_content else [],
+                messages=(
+                    [AgentMessage(role="user", content=latest_user_content)]
+                    if latest_user_content
+                    else []
+                ),
                 page_context=PageContextRequest(
                     **_page_context_to_dict(
                         final_values.get("page_context", page_context)
@@ -809,7 +814,7 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
-        yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+        yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
         await db.close()
