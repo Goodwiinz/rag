@@ -18,6 +18,10 @@ from typing import Any, Dict, Literal, Optional
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from src.services.agent._sanitize import (  # noqa: F401
+    _PROMPT_FIELD_MAX_CHARS,
+    _sanitize_prompt_field,
+)
 from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY
 
 logger = logging.getLogger(__name__)
@@ -33,12 +37,6 @@ _LLM_CONFIDENCE_THRESHOLD = 0.7
 # endpoint from blocking the agent turn — keyword fallback handles timeouts.
 _CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
 # max_tokens 256→4096 lets gpt-5-mini reason longer before emitting output.
-
-# Maximum length (chars) for any user-supplied string interpolated into the
-# classifier system prompt. Truncating + neutralising braces/newlines is the
-# minimum defence against prompt-injection via previous_turn / prior_tool /
-# page_context. Longer values are clipped with an ellipsis.
-_PROMPT_FIELD_MAX_CHARS = 400
 
 # Cache the classifier LLM at module scope (rebuilding the client per call
 # costs ~50ms and creates pointless connection churn).
@@ -216,30 +214,6 @@ def classify_intent_keywords(query: str) -> ClassificationResult:
 # ---------------------------------------------------------------------------
 
 
-def _sanitize_prompt_field(value: str) -> str:
-    """Neutralise user-controlled text before interpolating into a prompt.
-
-    Strips characters that could either break the ``str.format()`` call
-    (``{`` / ``}``) or attempt to escape the surrounding section header in
-    the system prompt (newlines, markdown headings). Truncates to
-    ``_PROMPT_FIELD_MAX_CHARS`` so an attacker cannot drown the actual
-    classification prompt by stuffing thousands of tokens through one of
-    the dynamic context fields.
-    """
-    if not value:
-        return ""
-    text = str(value)
-    if len(text) > _PROMPT_FIELD_MAX_CHARS:
-        text = text[: _PROMPT_FIELD_MAX_CHARS] + "..."
-    # ``str.format`` interprets ``{`` / ``}`` as field delimiters — escape
-    # them to literal braces.
-    text = text.replace("{", "{{").replace("}", "}}")
-    # Collapse newlines so dynamic content cannot start a new markdown
-    # heading and visually impersonate prompt sections.
-    text = text.replace("\r", " ").replace("\n", " ")
-    return text
-
-
 def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
     """Render the prior tool call as a compact text block for the prompt.
 
@@ -256,13 +230,11 @@ def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
     except (TypeError, ValueError):
         args_text = str(raw_args)[:200]
     result_text = (
-        raw_result if isinstance(raw_result, str) else json.dumps(raw_result, default=str)
+        raw_result
+        if isinstance(raw_result, str)
+        else json.dumps(raw_result, default=str)
     )[:200]
-    return (
-        f"Tool: {name}\n"
-        f"Args: {args_text}\n"
-        f"Result (truncated): {result_text}"
-    )
+    return f"Tool: {name}\n" f"Args: {args_text}\n" f"Result (truncated): {result_text}"
 
 
 async def classify_intent_llm(
@@ -297,9 +269,7 @@ async def classify_intent_llm(
     paper_id = _sanitize_prompt_field(str(page_context.get("paper_id", "")))
     paper_title = _sanitize_prompt_field(str(page_context.get("paper_title", "")))
     if page_type == "project" and project_id:
-        page_context_text = (
-            f"User is on a project page (project_id={project_id})."
-        )
+        page_context_text = f"User is on a project page (project_id={project_id})."
     elif page_type != "unknown":
         page_context_text = f"User is on the {page_type} page."
     else:

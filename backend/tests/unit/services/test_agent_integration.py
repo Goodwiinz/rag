@@ -26,7 +26,6 @@ from src.api.agent.execute import (
     router,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -46,7 +45,9 @@ def _make_mock_user(user_id: str = "user-111"):
 
 def _make_mock_db():
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=Mock(return_value=None)))
+    db.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=Mock(return_value=None))
+    )
     db.add = Mock()
     db.flush = AsyncMock()
     db.commit = AsyncMock()
@@ -106,9 +107,7 @@ def client(app_with_overrides):
 class TestJobOwnershipEndpoints:
     """Integration tests for job ownership enforcement on API endpoints."""
 
-    def test_get_job_status_returns_404_for_wrong_user(
-        self, client, mock_user_a
-    ):
+    def test_get_job_status_returns_404_for_wrong_user(self, client, mock_user_a):
         """GET /jobs/{id} should return 404 if job belongs to different user."""
         job_id = str(uuid4())
         _set_job(
@@ -124,9 +123,7 @@ class TestJobOwnershipEndpoints:
         response = client.get(f"/api/v1/agent/jobs/{job_id}")
         assert response.status_code == 404
 
-    def test_get_job_status_returns_job_for_owner(
-        self, client, mock_user_a
-    ):
+    def test_get_job_status_returns_job_for_owner(self, client, mock_user_a):
         """GET /jobs/{id} should return the job if user owns it."""
         job_id = str(uuid4())
         _set_job(
@@ -148,9 +145,7 @@ class TestJobOwnershipEndpoints:
         response = client.get(f"/api/v1/agent/jobs/{uuid4()}")
         assert response.status_code == 404
 
-    def test_confirm_action_returns_404_for_wrong_user(
-        self, client, mock_user_a
-    ):
+    def test_confirm_action_returns_404_for_wrong_user(self, client, mock_user_a):
         """POST /confirm/{id} should return 404 if job belongs to different user."""
         job_id = str(uuid4())
         _set_job(
@@ -193,10 +188,8 @@ class TestJobOwnershipEndpoints:
         assert response.status_code == 200
         assert response.json()["status"] == "running"
 
-    def test_confirm_action_rejects_non_awaiting_job(
-        self, client, mock_user_a
-    ):
-        """POST /confirm/{id} should return 400 if job is not awaiting confirmation."""
+    def test_confirm_action_rejects_non_awaiting_job(self, client, mock_user_a):
+        """POST /confirm/{id} should return 409 if job is not awaiting confirmation."""
         job_id = str(uuid4())
         _set_job(
             job_id,
@@ -211,7 +204,7 @@ class TestJobOwnershipEndpoints:
             f"/api/v1/agent/confirm/{job_id}",
             json={"confirmed": True},
         )
-        assert response.status_code == 400
+        assert response.status_code == 409
 
 
 class TestJobOwnershipFailClosed:
@@ -661,11 +654,15 @@ class TestSSEStreamPersistence:
             ),
         ):
             mock_graph = MagicMock()
-            mock_graph.astream_events = Mock(side_effect=lambda *args, **kwargs: _empty_events())
+            mock_graph.astream_events = Mock(
+                side_effect=lambda *args, **kwargs: _empty_events()
+            )
             mock_graph.aget_state = AsyncMock(return_value=snapshot)
             mock_compile.return_value = mock_graph
 
-            with client.stream("POST", "/api/v1/agent/stream", json=payload) as response:
+            with client.stream(
+                "POST", "/api/v1/agent/stream", json=payload
+            ) as response:
                 body = "".join(response.iter_text())
 
         assert response.status_code == 200
@@ -728,11 +725,15 @@ class TestSSEStreamPersistence:
             ) as mock_persist,
         ):
             mock_graph = MagicMock()
-            mock_graph.astream_events = Mock(side_effect=lambda *args, **kwargs: _empty_events())
+            mock_graph.astream_events = Mock(
+                side_effect=lambda *args, **kwargs: _empty_events()
+            )
             mock_graph.aget_state = AsyncMock(return_value=snapshot)
             mock_compile.return_value = mock_graph
 
-            with client.stream("POST", "/api/v1/agent/stream/confirm", json=payload) as response:
+            with client.stream(
+                "POST", "/api/v1/agent/stream/confirm", json=payload
+            ) as response:
                 body = "".join(response.iter_text())
 
         assert response.status_code == 200

@@ -86,7 +86,7 @@ app = FastAPI(
 # SECURITY: Restrict allow_headers to specific values instead of "*"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else settings.cors_origins_list,
+    allow_origins=settings.cors_origins_list,
     allow_origin_regex=settings.CORS_ORIGIN_REGEX or None,
     allow_credentials=True,
     allow_methods=["*"],
@@ -209,5 +209,9 @@ if __name__ == "__main__":
     port = int(os.getenv("MONITORING_PORT", 8001))
 
     uvicorn.run(
-        "main:app", host=os.getenv("MONITORING_HOST", "127.0.0.1"), port=port, reload=config.debug, log_level="info"
+        "main:app",
+        host=os.getenv("MONITORING_HOST", "127.0.0.1"),
+        port=port,
+        reload=config.debug,
+        log_level="info",
     )

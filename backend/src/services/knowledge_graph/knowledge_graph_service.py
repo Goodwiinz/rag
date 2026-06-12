@@ -61,6 +61,7 @@ def _parse_metadata(metadata_val) -> Dict[str, Any]:
     # alternative to eval() for parsing Python literal structures.
     try:
         import ast
+
         parsed = ast.literal_eval(metadata_val)  # noqa: S307 — safe, literal-only
         return parsed if isinstance(parsed, dict) else {}
     except (ValueError, SyntaxError):
@@ -421,7 +422,9 @@ class KnowledgeGraphService:
                         "extraction_method": request.extraction_method.value,
                         "position": request.position,
                         "context": request.context,
-                        "metadata": json.dumps(request.metadata) if request.metadata else "{}",
+                        "metadata": (
+                            json.dumps(request.metadata) if request.metadata else "{}"
+                        ),
                         "source_document_id": request.source_document_id,
                         "organization_id": getattr(request, "organization_id", None),
                     },
@@ -494,9 +497,11 @@ class KnowledgeGraphService:
                     metadata=_parse_metadata(e.get("metadata", "{}")),
                     source_document_id=e.get("source_document_id"),
                     created_at=_convert_datetime(e["created_at"]),
-                    updated_at=_convert_datetime(e["updated_at"])
-                    if e.get("updated_at")
-                    else None,
+                    updated_at=(
+                        _convert_datetime(e["updated_at"])
+                        if e.get("updated_at")
+                        else None
+                    ),
                 )
         except Exception as e:
             logger.error(f"Error retrieving entity {entity_id}: {e}")
@@ -568,9 +573,11 @@ class KnowledgeGraphService:
                     metadata=_parse_metadata(e.get("metadata", "{}")),
                     source_document_id=e.get("source_document_id"),
                     created_at=_convert_datetime(e["created_at"]),
-                    updated_at=_convert_datetime(e["updated_at"])
-                    if e.get("updated_at")
-                    else None,
+                    updated_at=(
+                        _convert_datetime(e["updated_at"])
+                        if e.get("updated_at")
+                        else None
+                    ),
                 )
         except Exception as e:
             logger.error(f"Error updating entity {entity_id}: {e}")
@@ -649,9 +656,14 @@ class KnowledgeGraphService:
                     LIMIT $limit
                     """
                     try:
-                        result = list(session.run(ft_query, {**params, "lucene": lucene}))
+                        result = list(
+                            session.run(ft_query, {**params, "lucene": lucene})
+                        )
                     except Exception as ft_err:
-                        logger.warning("Fulltext search failed, falling back to CONTAINS: %s", ft_err)
+                        logger.warning(
+                            "Fulltext search failed, falling back to CONTAINS: %s",
+                            ft_err,
+                        )
                         result = None
 
                 if result is None:
@@ -660,7 +672,9 @@ class KnowledgeGraphService:
                     if query_str:
                         conditions.insert(0, "e.name CONTAINS $query")
                         params["query"] = query_str
-                    where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+                    where_clause = (
+                        (" WHERE " + " AND ".join(conditions)) if conditions else ""
+                    )
                     search_query = f"""
                     MATCH (e:Entity)
                     {where_clause}
@@ -688,9 +702,11 @@ class KnowledgeGraphService:
                             metadata=_parse_metadata(e.get("metadata", "{}")),
                             source_document_id=e.get("source_document_id"),
                             created_at=_convert_datetime(e["created_at"]),
-                            updated_at=_convert_datetime(e["updated_at"])
-                            if e.get("updated_at")
-                            else None,
+                            updated_at=(
+                                _convert_datetime(e["updated_at"])
+                                if e.get("updated_at")
+                                else None
+                            ),
                         )
                     )
 
@@ -792,9 +808,11 @@ class KnowledgeGraphService:
                             created_at=_convert_datetime(
                                 e.get("created_at", datetime.utcnow())
                             ),
-                            updated_at=_convert_datetime(e["updated_at"])
-                            if e.get("updated_at")
-                            else None,
+                            updated_at=(
+                                _convert_datetime(e["updated_at"])
+                                if e.get("updated_at")
+                                else None
+                            ),
                         )
                     )
 
@@ -872,9 +890,7 @@ class KnowledgeGraphService:
                 if source_document_ids is not None:
                     # Use relationship-level source_document_id for filtering
                     # (more reliable than entity node property for scoping)
-                    conditions.append(
-                        "r.source_document_id IN $source_document_ids"
-                    )
+                    conditions.append("r.source_document_id IN $source_document_ids")
                     params["source_document_ids"] = source_document_ids
 
                 where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
@@ -1035,8 +1051,12 @@ class KnowledgeGraphService:
                     conditions.append("target.organization_id = $organization_id")
                     params["organization_id"] = organization_id
                 elif source_document_ids is not None:
-                    conditions.append("source.source_document_id IN $source_document_ids")
-                    conditions.append("target.source_document_id IN $source_document_ids")
+                    conditions.append(
+                        "source.source_document_id IN $source_document_ids"
+                    )
+                    conditions.append(
+                        "target.source_document_id IN $source_document_ids"
+                    )
                     params["source_document_ids"] = source_document_ids
 
                 if relationship_types:
@@ -1073,16 +1093,23 @@ class KnowledgeGraphService:
 
                     relationships.append(
                         RelationshipResponse(
-                            id=r.get("id", f"{record['source_id']}-{rel_label}-{record['target_id']}"),
+                            id=r.get(
+                                "id",
+                                f"{record['source_id']}-{rel_label}-{record['target_id']}",
+                            ),
                             source_entity_id=record["source_id"],
                             target_entity_id=record["target_id"],
                             relationship_type=rel_type,
                             strength=r.get("strength", r.get("confidence", 0.5)),
-                            confidence_score=r.get("confidence_score", r.get("confidence", 0.5)),
+                            confidence_score=r.get(
+                                "confidence_score", r.get("confidence", 0.5)
+                            ),
                             context=r.get("context"),
                             evidence=_parse_evidence(r.get("evidence", [])),
                             metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get("source_document_id", r.get("source_paper")),
+                            source_document_id=r.get(
+                                "source_document_id", r.get("source_paper")
+                            ),
                             created_at=r.get("created_at", datetime.utcnow()),
                             updated_at=r.get("updated_at"),
                         )
@@ -1143,8 +1170,12 @@ class KnowledgeGraphService:
                     conditions.append("target.organization_id = $organization_id")
                     params["organization_id"] = organization_id
                 elif source_document_ids is not None:
-                    conditions.append("source.source_document_id IN $source_document_ids")
-                    conditions.append("target.source_document_id IN $source_document_ids")
+                    conditions.append(
+                        "source.source_document_id IN $source_document_ids"
+                    )
+                    conditions.append(
+                        "target.source_document_id IN $source_document_ids"
+                    )
                     params["source_document_ids"] = source_document_ids
                 where_clause = " AND ".join(conditions)
                 query = f"""
@@ -1153,7 +1184,10 @@ class KnowledgeGraphService:
                 RETURN DISTINCT r, type(r) AS rel_label,
                        source.id AS source_id, target.id AS target_id
                 """
-                return [self._record_to_relationship(rec) for rec in session.run(query, params)]
+                return [
+                    self._record_to_relationship(rec)
+                    for rec in session.run(query, params)
+                ]
         except Exception as e:
             logger.error(f"Error retrieving relationships among entities: {e}")
             return []
@@ -1179,8 +1213,12 @@ class KnowledgeGraphService:
                     conditions.append("target.organization_id = $organization_id")
                     params["organization_id"] = organization_id
                 elif source_document_ids is not None:
-                    conditions.append("source.source_document_id IN $source_document_ids")
-                    conditions.append("target.source_document_id IN $source_document_ids")
+                    conditions.append(
+                        "source.source_document_id IN $source_document_ids"
+                    )
+                    conditions.append(
+                        "target.source_document_id IN $source_document_ids"
+                    )
                     params["source_document_ids"] = source_document_ids
                 where_clause = " AND ".join(conditions)
                 query = f"""
@@ -1189,7 +1227,10 @@ class KnowledgeGraphService:
                 RETURN DISTINCT r, type(r) AS rel_label,
                        source.id AS source_id, target.id AS target_id
                 """
-                return [self._record_to_relationship(rec) for rec in session.run(query, params)]
+                return [
+                    self._record_to_relationship(rec)
+                    for rec in session.run(query, params)
+                ]
         except Exception as e:
             logger.error(f"Error retrieving relationships for entities: {e}")
             return []
@@ -1208,7 +1249,11 @@ class KnowledgeGraphService:
                     "source", "target", source_document_ids, organization_id
                 )
                 params.update(scope_params)
-                where = f"\n                    WHERE true{scope_frag}" if scope_frag else ""
+                where = (
+                    f"\n                    WHERE true{scope_frag}"
+                    if scope_frag
+                    else ""
+                )
                 query = f"""
                     MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity){where}
                     RETURN r, source.id AS source_id, target.id AS target_id
@@ -1335,9 +1380,11 @@ class KnowledgeGraphService:
                                 metadata=_parse_metadata(e.get("metadata", "{}")),
                                 source_document_id=e.get("source_document_id"),
                                 created_at=_convert_datetime(e["created_at"]),
-                                updated_at=_convert_datetime(e["updated_at"])
-                                if e.get("updated_at")
-                                else None,
+                                updated_at=(
+                                    _convert_datetime(e["updated_at"])
+                                    if e.get("updated_at")
+                                    else None
+                                ),
                             )
                         )
 
@@ -1411,7 +1458,9 @@ class KnowledgeGraphService:
                         id=n["id"],
                         name=n["name"],
                         entity_type=_safe_entity_type(n["type"]),
-                        confidence_score=n.get("confidence_score", n.get("confidence", 0.5)),
+                        confidence_score=n.get(
+                            "confidence_score", n.get("confidence", 0.5)
+                        ),
                         extraction_method=_safe_extraction_method(
                             n.get("extraction_method", "unknown")
                         ),
@@ -1420,7 +1469,11 @@ class KnowledgeGraphService:
                         metadata=_parse_metadata(n.get("metadata", "{}")),
                         source_document_id=n.get("source_document_id"),
                         created_at=_convert_datetime(n.get("created_at")),
-                        updated_at=_convert_datetime(n["updated_at"]) if n.get("updated_at") else None,
+                        updated_at=(
+                            _convert_datetime(n["updated_at"])
+                            if n.get("updated_at")
+                            else None
+                        ),
                     )
 
                 for record in result:
@@ -1471,7 +1524,9 @@ class KnowledgeGraphService:
                         )
 
                 # Fetch the intermediate nodes' details in ONE batched query.
-                missing = [nid for nid in intermediate_ids if nid not in seen_entity_ids]
+                missing = [
+                    nid for nid in intermediate_ids if nid not in seen_entity_ids
+                ]
                 if missing:
                     for row in session.run(
                         "MATCH (n:Entity) WHERE n.id IN $ids RETURN n", {"ids": missing}
@@ -1546,9 +1601,11 @@ class KnowledgeGraphService:
                                 metadata=_parse_metadata(e.get("metadata", "{}")),
                                 source_document_id=e.get("source_document_id"),
                                 created_at=_convert_datetime(e["created_at"]),
-                                updated_at=_convert_datetime(e["updated_at"])
-                                if e.get("updated_at")
-                                else None,
+                                updated_at=(
+                                    _convert_datetime(e["updated_at"])
+                                    if e.get("updated_at")
+                                    else None
+                                ),
                             )
                         )
 
@@ -1562,10 +1619,14 @@ class KnowledgeGraphService:
                         total_strength *= strength
                         relationships.append(
                             RelationshipResponse(
-                                id=r.get("id", f"{rel.start_node['id']}-{rel.end_node['id']}"),
+                                id=r.get(
+                                    "id", f"{rel.start_node['id']}-{rel.end_node['id']}"
+                                ),
                                 source_entity_id=rel.start_node["id"],
                                 target_entity_id=rel.end_node["id"],
-                                relationship_type=_safe_relationship_type(r.get("type")),
+                                relationship_type=_safe_relationship_type(
+                                    r.get("type")
+                                ),
                                 strength=strength,
                                 confidence_score=r.get("confidence_score", strength),
                                 context=r.get("context"),
@@ -1621,19 +1682,21 @@ class KnowledgeGraphService:
                     if batched is not None:
                         response.created_entities.extend(batched)
                     else:
-                      for entity_req in request.entities:
-                        try:
-                            entity = self._create_entity_in_transaction(tx, entity_req)
-                            if entity:
-                                response.created_entities.append(entity)
-                        except Exception as e:
-                            response.errors.append(
-                                {
-                                    "type": "entity_creation_error",
-                                    "data": entity_req.dict(),
-                                    "error": str(e),
-                                }
-                            )
+                        for entity_req in request.entities:
+                            try:
+                                entity = self._create_entity_in_transaction(
+                                    tx, entity_req
+                                )
+                                if entity:
+                                    response.created_entities.append(entity)
+                            except Exception as e:
+                                response.errors.append(
+                                    {
+                                        "type": "entity_creation_error",
+                                        "data": entity_req.dict(),
+                                        "error": str(e),
+                                    }
+                                )
 
                     # Create relationships
                     for rel_req in request.relationships:
@@ -1676,22 +1739,24 @@ class KnowledgeGraphService:
         rows = []
         for i, e in enumerate(valid):
             e.name = e.name.strip()
-            rows.append({
-                "idx": i,
-                "etype": e.entity_type.value,
-                "canonical_key": e.name.lower(),
-                "props": {
-                    "id": str(uuid.uuid4()),
-                    "name": e.name,
-                    "confidence_score": e.confidence_score,
-                    "extraction_method": e.extraction_method.value,
-                    "position": e.position,
-                    "context": e.context,
-                    "metadata": json.dumps(e.metadata) if e.metadata else "{}",
-                    "source_document_id": e.source_document_id,
-                    "organization_id": getattr(e, "organization_id", None),
-                },
-            })
+            rows.append(
+                {
+                    "idx": i,
+                    "etype": e.entity_type.value,
+                    "canonical_key": e.name.lower(),
+                    "props": {
+                        "id": str(uuid.uuid4()),
+                        "name": e.name,
+                        "confidence_score": e.confidence_score,
+                        "extraction_method": e.extraction_method.value,
+                        "position": e.position,
+                        "context": e.context,
+                        "metadata": json.dumps(e.metadata) if e.metadata else "{}",
+                        "source_document_id": e.source_document_id,
+                        "organization_id": getattr(e, "organization_id", None),
+                    },
+                }
+            )
         query = """
         UNWIND $rows AS row
         CALL apoc.merge.node(['Entity', row.etype],
@@ -1709,7 +1774,9 @@ class KnowledgeGraphService:
         try:
             id_by_idx = {rec["idx"]: rec["id"] for rec in tx.run(query, {"rows": rows})}
         except Exception as e:
-            logger.warning("Batch UNWIND entity merge failed, falling back per-entity: %s", e)
+            logger.warning(
+                "Batch UNWIND entity merge failed, falling back per-entity: %s", e
+            )
             return None
         out = []
         for row, ent in zip(rows, valid):
@@ -1866,19 +1933,28 @@ class KnowledgeGraphService:
     def get_graph_analytics(
         self,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> GraphAnalytics:
         """Get comprehensive graph analytics, optionally scoped to organization documents"""
         try:
             with self.get_session() as session:
-                # Build tenant-scoped queries
-                if source_document_ids is not None:
+                # Build tenant-scoped queries — prefer indexed organization_id
+                # (mirrors _entity_scope_predicate logic), fall back to
+                # source_document_ids when org is unset.
+                params: Dict[str, Any] = {}
+                if organization_id is not None:
+                    entity_where = "WHERE e.organization_id = $organization_id"
+                    rel_where = "WHERE source.organization_id = $organization_id"
+                    params["organization_id"] = organization_id
+                elif source_document_ids is not None:
                     entity_where = "WHERE e.source_document_id IN $source_document_ids"
-                    rel_where = "WHERE source.source_document_id IN $source_document_ids"
-                    params: Dict[str, Any] = {"source_document_ids": source_document_ids}
+                    rel_where = (
+                        "WHERE source.source_document_id IN $source_document_ids"
+                    )
+                    params["source_document_ids"] = source_document_ids
                 else:
                     entity_where = ""
                     rel_where = ""
-                    params = {}
 
                 # Get the type distributions, then DERIVE the totals from them
                 # (sum of per-type counts) instead of running two extra full
@@ -1915,11 +1991,12 @@ class KnowledgeGraphService:
 
                 try:
                     # Count isolated vs connected entities as a lightweight proxy
-                    iso_filter = (
-                        "AND e.source_document_id IN $source_document_ids"
-                        if source_document_ids is not None
-                        else ""
-                    )
+                    if organization_id is not None:
+                        iso_filter = "AND e.organization_id = $organization_id"
+                    elif source_document_ids is not None:
+                        iso_filter = "AND e.source_document_id IN $source_document_ids"
+                    else:
+                        iso_filter = ""
                     iso_result = session.run(
                         f"""
                         MATCH (e:Entity)
@@ -1985,29 +2062,35 @@ class KnowledgeGraphService:
                         CALL dbms.database.details($db_name) YIELD sizeOnDisk
                         RETURN sizeOnDisk
                         """,
-                        db_name=session._database or "neo4j"
+                        db_name=session._database or "neo4j",
                     ).single()
                     if size_result and size_result["sizeOnDisk"]:
                         database_size = str(size_result["sizeOnDisk"])
                 except Exception:
                     # Fallback: try to get store sizes from dbms.queryJmx
                     try:
-                        jmx_result = session.run(
-                            """
+                        jmx_result = session.run("""
                             CALL dbms.queryJmx('org.neo4j:*')
                             YIELD name, attributes
                             WHERE name CONTAINS 'Store sizes'
                             RETURN attributes
-                            """
-                        ).single()
+                            """).single()
                         if jmx_result and jmx_result["attributes"]:
-                            total_size = jmx_result["attributes"].get("TotalStoreSize", {}).get("value", 0)
+                            total_size = (
+                                jmx_result["attributes"]
+                                .get("TotalStoreSize", {})
+                                .get("value", 0)
+                            )
                             if total_size:
                                 # Format as human-readable
                                 if total_size >= 1024 * 1024 * 1024:
-                                    database_size = f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+                                    database_size = (
+                                        f"{total_size / (1024 * 1024 * 1024):.2f} GB"
+                                    )
                                 elif total_size >= 1024 * 1024:
-                                    database_size = f"{total_size / (1024 * 1024):.2f} MB"
+                                    database_size = (
+                                        f"{total_size / (1024 * 1024):.2f} MB"
+                                    )
                                 else:
                                     database_size = f"{total_size / 1024:.2f} KB"
                     except Exception as size_error:
@@ -2017,13 +2100,11 @@ class KnowledgeGraphService:
                 uptime = None
                 try:
                     # Query server start time from JMX
-                    uptime_result = session.run(
-                        """
+                    uptime_result = session.run("""
                         CALL dbms.queryJmx('java.lang:type=Runtime')
                         YIELD name, attributes
                         RETURN attributes.Uptime.value as uptimeMs
-                        """
-                    ).single()
+                        """).single()
                     if uptime_result and uptime_result["uptimeMs"]:
                         uptime_ms = uptime_result["uptimeMs"]
                         uptime_seconds = uptime_ms // 1000
@@ -2041,18 +2122,18 @@ class KnowledgeGraphService:
 
                 return GraphHealthStatus(
                     status="healthy",
-                    neo4j_version=version_result["version"]
-                    if version_result
-                    else "unknown",
+                    neo4j_version=(
+                        version_result["version"] if version_result else "unknown"
+                    ),
                     database_size=database_size,
                     node_count=node_count_result["count"] if node_count_result else 0,
-                    relationship_count=rel_count_result["count"]
-                    if rel_count_result
-                    else 0,
+                    relationship_count=(
+                        rel_count_result["count"] if rel_count_result else 0
+                    ),
                     index_count=index_result["count"] if index_result else 0,
-                    constraint_count=constraint_result["count"]
-                    if constraint_result
-                    else 0,
+                    constraint_count=(
+                        constraint_result["count"] if constraint_result else 0
+                    ),
                     uptime=uptime,
                     last_error=None,
                     response_time_ms=response_time_ms,
@@ -2069,7 +2150,6 @@ class KnowledgeGraphService:
                 response_time_ms=(time.time() - start_time) * 1000,
                 last_error=str(e),
             )
-
 
     # --- Integration adapter methods ---
     # These adapt the KG service to match contracts expected by search, document
@@ -2137,7 +2217,10 @@ class KnowledgeGraphService:
                     is_public=False,
                     uploaded_by_user_id=user_id or "",
                     organization_id=organization_id or "",
-                    metadata={"entity_id": entity.id, "entity_type": entity.entity_type.value},
+                    metadata={
+                        "entity_id": entity.id,
+                        "entity_type": entity.entity_type.value,
+                    },
                 )
             )
 
@@ -2145,9 +2228,11 @@ class KnowledgeGraphService:
         return SearchResponse(
             query=query_text,
             search_id=str(uuid.uuid4()),
-            search_type=SearchTypeEnum.KNOWLEDGE_GRAPH
-            if hasattr(SearchTypeEnum, "KNOWLEDGE_GRAPH")
-            else "knowledge_graph",
+            search_type=(
+                SearchTypeEnum.KNOWLEDGE_GRAPH
+                if hasattr(SearchTypeEnum, "KNOWLEDGE_GRAPH")
+                else "knowledge_graph"
+            ),
             results=results,
             total_results=len(results),
             returned_results=len(results),
@@ -2184,9 +2269,7 @@ class KnowledgeGraphService:
             logger.error(f"Error in create_entity_node adapter: {e}")
             return None
 
-    def find_entity_node(
-        self, name: str, entity_type: str
-    ) -> Optional[Dict[str, Any]]:
+    def find_entity_node(self, name: str, entity_type: str) -> Optional[Dict[str, Any]]:
         """Adapter for legacy callers that expect find_entity_node.
 
         Returns {"id": ..., "name": ...} on match, None otherwise.

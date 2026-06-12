@@ -77,9 +77,7 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
             from src.services.agent import observability as _obs
 
             max_score = (
-                max((m.get("score") or 0.0) for m in memories)
-                if memories
-                else None
+                max((m.get("score") or 0.0) for m in memories) if memories else None
             )
             _obs.record_memory_recall(hit=bool(memories), max_score=max_score)
         except Exception:
@@ -151,16 +149,16 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         import hashlib
         from datetime import datetime, timezone
 
+        # Compute thread_id and turn_index first so they can be folded into
+        # the hash input. Without them, two different threads (or two turns
+        # in the same thread) whose user messages share the same 100-char
+        # prefix would silently overwrite each other's memory entry.
+        thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
+        turn_index = len([m for m in state["messages"] if isinstance(m, HumanMessage)])
         mem_key = hashlib.md5(
-            last_user_content[:100].encode(), usedforsecurity=False
+            f"{thread_id}:{turn_index}:{last_user_content[:100]}".encode(),
+            usedforsecurity=False,
         ).hexdigest()[:12]
-
-        thread_id = (
-            configurable.get("thread_id") or state.get("thread_id") or ""
-        )
-        turn_index = len(
-            [m for m in state["messages"] if isinstance(m, HumanMessage)]
-        )
 
         await save_memory(
             store,
@@ -169,10 +167,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
             {
                 "query": redact_pii(last_user_content)[:200],
                 "intent": intent,
-                "tools_used": [
-                    te.get("tool_name", "")
-                    for te in tool_executions[-3:]
-                ],
+                "tools_used": [te.get("tool_name", "") for te in tool_executions[-3:]],
                 "thread_id": thread_id,
                 "turn_index": turn_index,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -190,8 +185,10 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
                 from src.services.agent.memory_store import extract_insights
 
                 serialised = [
-                    {"role": "user" if isinstance(m, HumanMessage) else "assistant",
-                     "content": m.content}
+                    {
+                        "role": "user" if isinstance(m, HumanMessage) else "assistant",
+                        "content": m.content,
+                    }
                     for m in state["messages"]
                     if getattr(m, "content", "")
                 ]

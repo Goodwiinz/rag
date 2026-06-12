@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from ._errors import client_safe_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 # All writes go through ``job_store.set_job()`` (async) or the
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
+from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import set_job as _set_job_async
@@ -530,9 +533,7 @@ async def _persist_user_message(
     if request.thread_id is None:
         return False
 
-    last = next(
-        (m for m in reversed(request.messages) if m.role == "user"), None
-    )
+    last = next((m for m in reversed(request.messages) if m.role == "user"), None)
     if last is None:
         return False
 
@@ -851,12 +852,13 @@ async def _run_agent_graph(
             }
 
             config = {
+                "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": request.thread_id or job_id,
                     "db": db,
                     "current_user": current_user,
                     "page_context": page_context,
-                }
+                },
             }
 
             try:
@@ -994,7 +996,7 @@ async def _run_agent_graph(
                 job_id,
                 {
                     "status": "failed",
-                    "error": str(e),
+                    "error": client_safe_error(e),
                     "user_id": str(current_user.id),
                 },
             )
@@ -1035,6 +1037,7 @@ async def _resume_agent_graph(
             )
 
             config = {
+                "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": resume_thread_id,
                     "db": db,
@@ -1044,7 +1047,7 @@ async def _resume_agent_graph(
                         if original_request
                         else {}
                     ),
-                }
+                },
             }
 
             # Verify thread ownership before resuming. Checkpoints without an
@@ -1186,7 +1189,7 @@ async def _resume_agent_graph(
                 job_id,
                 {
                     "status": "failed",
-                    "error": str(e),
+                    "error": client_safe_error(e),
                     "user_id": str(current_user.id),
                 },
             )

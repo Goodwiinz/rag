@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
+from src.services.agent._sanitize import _sanitize_prompt_field
 from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
@@ -21,16 +22,47 @@ logger = logging.getLogger(__name__)
 
 ACTIONABLE_VERBS: frozenset[str] = frozenset(
     {
-        "add", "ingest", "import", "save", "find", "search",
-        "summarize", "summarise", "grab", "get", "show",
-        "fetch", "download", "extract", "list", "create",
+        "add",
+        "ingest",
+        "import",
+        "save",
+        "find",
+        "search",
+        "summarize",
+        "summarise",
+        "grab",
+        "get",
+        "show",
+        "fetch",
+        "download",
+        "extract",
+        "list",
+        "create",
     }
 )
 _CONVERSATIONAL_STARTS: frozenset[str] = frozenset(
     {
-        "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
-        "yes", "no", "sure", "what", "who", "when", "where",
-        "why", "is", "are", "can", "could", "would", "will",
+        "hi",
+        "hello",
+        "hey",
+        "thanks",
+        "thank",
+        "ok",
+        "okay",
+        "yes",
+        "no",
+        "sure",
+        "what",
+        "who",
+        "when",
+        "where",
+        "why",
+        "is",
+        "are",
+        "can",
+        "could",
+        "would",
+        "will",
     }
 )
 _LEADING_PUNCTUATION = "?!,:"
@@ -38,9 +70,7 @@ _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 # Trace 019e69f4: complexity LLM returned >=3 for "Add arXiv X to project Y",
 # triggering a 25s generate_plan call on the full model-router deployment.
 # The research LLM handles this in 1-2 tool rounds without a formal plan.
-_SIMPLE_ADD_TARGET_RE = re.compile(
-    r"\b(project|library|collection)\b", re.IGNORECASE
-)
+_SIMPLE_ADD_TARGET_RE = re.compile(r"\b(project|library|collection)\b", re.IGNORECASE)
 
 # Wall-clock cap for planner LLM calls. Keeps the node inside the ~30s HTTP
 # budget when complexity + plan generation run back-to-back (trace 019e69f4).
@@ -129,12 +159,17 @@ async def check_complexity(
     llm = _build_planner_llm()
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
+    safe_query = _sanitize_prompt_field(query)
+    safe_page_context = {
+        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
+        for k, v in page_context.items()
+    }
     prompt = (
         "Estimate the number of tool calls needed to answer the following "
         "user query.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
-        f"Page context: {page_context}\n\n"
-        f"User query: {query}\n\n"
+        f"Page context: {safe_page_context}\n\n"
+        f"User query: {safe_query}\n\n"
         "Return only the estimated step_count (integer)."
     )
 
@@ -155,12 +190,17 @@ async def generate_plan(
     llm = _build_planner_llm(max_tokens=4096)
     structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
+    safe_query = _sanitize_prompt_field(query)
+    safe_page_context = {
+        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
+        for k, v in page_context.items()
+    }
     prompt = (
         "Given the user query and available tools, generate a step-by-step "
         "execution plan.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
-        f"Page context: {page_context}\n\n"
-        f"User query: {query}\n\n"
+        f"Page context: {safe_page_context}\n\n"
+        f"User query: {safe_query}\n\n"
         "For each step, specify:\n"
         "- step: sequential step number starting at 1\n"
         "- description: what this step does\n"
@@ -281,10 +321,7 @@ def make_planner_node(
         # "Add arxiv 1706.03762 to my library" still reach the planner.
         words = query.split()
         first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION) if words else ""
-        needs_tool = (
-            first_word in ACTIONABLE_VERBS
-            or bool(_ARXIV_ID_RE.search(query))
-        )
+        needs_tool = first_word in ACTIONABLE_VERBS or bool(_ARXIV_ID_RE.search(query))
 
         if not needs_tool:
             if len(words) < 12:
