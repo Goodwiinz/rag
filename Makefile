@@ -1,6 +1,6 @@
 # Multimodal RAG System - Makefile
 
-.PHONY: help build up down clean test lint format init-db reset-db logs shell
+.PHONY: help build up down clean test lint format init-db reset-db logs shell docs-lint docs-scaffold
 
 # Default target
 help:
@@ -21,6 +21,8 @@ help:
 	@echo "  test        Run tests"
 	@echo "  lint        Run linting"
 	@echo "  format      Format code"
+	@echo "  docs-lint   Check directory docs for placeholder/empty content"
+	@echo "  docs-scaffold DIR=path  Scaffold a fill-me-in README for DIR"
 	@echo ""
 	@echo "Utility Commands:"
 	@echo "  logs        Show logs for all services"
@@ -85,6 +87,14 @@ format:
 	@echo "Formatting code..."
 	docker-compose exec backend black src/ tests/
 	docker-compose exec backend isort src/ tests/
+
+# Directory docs (README.md / doc.md). Runs locally — no containers, stdlib only.
+docs-lint:
+	@python3 scripts/docs/check_dir_docs.py
+
+docs-scaffold:
+	@test -n "$(DIR)" || (echo "usage: make docs-scaffold DIR=path/to/dir" && exit 2)
+	@python3 scripts/docs/gen_dir_readme.py --dir "$(DIR)"
 
 # Utility Commands
 logs:

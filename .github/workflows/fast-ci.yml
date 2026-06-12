@@ -58,6 +58,11 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           ruff check src/ --output-format=concise
 
+      # Blocks placeholder / empty directory docs (README.md / doc.md) from being
+      # merged. See scripts/docs/README.md. Stdlib-only, nothing to install.
+      - name: Directory docs lint
+        run: python3 scripts/docs/check_dir_docs.py
+
       - name: Setup pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
