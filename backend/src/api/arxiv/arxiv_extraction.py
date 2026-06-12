@@ -46,12 +46,14 @@ class ExtractionResponse(BaseModel):
     results: List[Dict[str, Any]]
 
 
-def _get_organization_id(current_user: Dict[str, Any]) -> str:
-    """Resolve organization ID from token payload with a deterministic fallback."""
-    organization_id = (
-        current_user.get("organization_id")
-        or (current_user.get("organization") or {}).get("id")
-        or current_user.get("org_id")
+def _get_organization_id(current_user: User) -> str:
+    """Resolve organization ID from the authenticated User with a deterministic fallback.
+
+    ``get_current_user`` returns a ``User`` ORM object (organization eagerly
+    loaded), NOT a dict — so this reads attributes, never ``.get()``.
+    """
+    organization_id = current_user.organization_id or (
+        current_user.organization.id if current_user.organization else None
     )
     return str(organization_id) if organization_id else str(uuid.uuid4())
 
@@ -85,7 +87,7 @@ def _serialize_entities(entities: List[Any]) -> Dict[str, Any]:
 async def extract_paper_features(
     request: ExtractionRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Extract features from ArXiv papers
@@ -333,7 +335,7 @@ async def get_extracted_features(
 
 @router.post("/bulk-extract")
 async def bulk_extract_features(
-    request: dict, current_user: dict = Depends(get_current_user)
+    request: dict, current_user: User = Depends(get_current_user)
 ):
     """
     Bulk extract features from recent papers in specified categories
