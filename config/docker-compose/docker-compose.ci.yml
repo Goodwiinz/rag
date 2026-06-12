@@ -203,6 +203,12 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_WS_URL: ws://localhost:8000
       NODE_ENV: production
+      # Server-only Supabase URL (docker DNS). The browser uses the build-time
+      # NEXT_PUBLIC_SUPABASE_URL (host-published port); the Next server inside
+      # this container must reach the auth proxy in-network instead, or
+      # getUser() fails and authed routes redirect to /login. See
+      # frontend/src/lib/supabase/server.ts.
+      SUPABASE_SERVER_URL: http://auth-proxy
     depends_on:
       backend:
         condition: service_healthy

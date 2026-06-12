@@ -4,8 +4,17 @@ import { cookies } from 'next/headers';
 
 export async function createClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
+  // NEXT_PUBLIC_SUPABASE_URL is a BROWSER URL inlined at build time. In a
+  // containerized deploy (e.g. the e2e stack) that URL is a host-published port
+  // like http://localhost:8999 which is unreachable from INSIDE the server
+  // container, so getUser() fails and every authed route redirects to /login.
+  // SUPABASE_SERVER_URL is an optional server-only runtime override pointing at
+  // the in-network address (docker DNS). Unset in production, where the public
+  // URL is reachable from the server too — so behavior is unchanged.
   const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+    process.env.SUPABASE_SERVER_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    'http://localhost:54321';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {

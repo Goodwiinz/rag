@@ -83,24 +83,20 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // QUARANTINED. All of these fail today on the shared login helper.
-        // Root cause (verified via a workflow_dispatch full-suite run on
-        // feat/e2e-foundation-dashboard-testids): TestHelpers.login waits for a
-        // sentinel `analytics-nav-link | user-menu | dashboard-container`, but
-        //  (a) analytics-nav-link / user-menu live in AppSidebar, while the
-        //      dashboard shell renders AppRail (SidebarLayout.tsx:77) — neither
-        //      testid is ever emitted on an authenticated page; and
-        //  (b) adding dashboard-container to the /dashboard page root did NOT
-        //      satisfy the sentinel either: after the e2e form-login the page
-        //      reaches networkidle but the authenticated dashboard subtree never
-        //      paints the sentinel (smoke's inline login reaches /dashboard, so
-        //      the server cookie is set, but the client auth shell does not
-        //      stabilise — likely a client-session/redirect issue under the
-        //      e2e login). Un-quarantining needs that render/auth issue resolved
-        //      AND the helper sentinel aligned with what AppRail renders.
-        // data-flow/** additionally asserts distributed-ACID/corruption/
-        // clustering UIs that are test fantasy (no backend, no product intent)
-        // — trim, do not build. See the gap plan (EPIC 0) + the spec headers.
+        // QUARANTINED — still failing. Verified across two workflow_dispatch
+        // full-suite runs: the e2e login reaches /dashboard then bounces to
+        // /login (failure-snapshot page title = "Sign In | NOUS"), so the
+        // login-helper sentinel never resolves. The bounce is the (dashboard)
+        // server layout's redirect('/login') when supabase.auth.getUser()
+        // returns no user. Pointing the SERVER Supabase client at the in-network
+        // auth-proxy (SUPABASE_SERVER_URL, this PR — a correct fix kept because
+        // localhost:8999 is genuinely unreachable in-container) did NOT stop the
+        // bounce, so getUser() fails for a deeper reason: the session cookie is
+        // not reaching the RSC request, or GoTrue rejects verification. Next
+        // step: read trace.zip network calls (is GET {auth-proxy}/auth/v1/user
+        // made? what status?) + the supabase-ssr cookie config.
+        // Also quarantined: custom-dashboard-creation (needs an unbuilt
+        // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
         "**/user-journeys/**",
         "**/data-flow/**",
       ],
