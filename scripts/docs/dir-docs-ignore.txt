@@ -1,0 +1,11 @@
+# Directory docs the content lint should skip.
+# One path glob per line (matched against the repo-relative path); '#' comments.
+# Keep this list short and justified — every entry is a doc we've agreed not to
+# hold to the "say something real about this directory" rule.
+
+# Deliberate one-line pointer to a tracking ticket, not a placeholder.
+backend/tests/scaffolding/README.md
+
+# This doc documents the linter itself, so it necessarily quotes the banned
+# boilerplate phrases and the scaffold marker as examples.
+scripts/docs/README.md
