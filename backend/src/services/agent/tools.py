@@ -396,7 +396,11 @@ async def list_project_documents(
     if not resolved_pid:
         return _missing_project_error("list_project_documents")
     return await _tool_list_project_documents(
-        {"project_id": resolved_pid, "limit": limit, "offset": offset},
+        {
+            "project_id": resolved_pid,
+            "limit": _clamp_int(limit, lo=1, hi=500),
+            "offset": _clamp_int(offset, lo=0, hi=2**31 - 1),
+        },
         db,
         current_user,
     )
@@ -434,10 +438,12 @@ async def compare_documents(
     config = config or {}
     from src.api.agent.execute import _tool_compare_documents
 
+    _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
+    safe_type = type if type in _COMPARISON_TYPES else "general"
     db, current_user, _page_ctx = _get_context(config)
     capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
     return await _tool_compare_documents(
-        {"document_ids": capped_ids, "type": type}, db, current_user
+        {"document_ids": capped_ids, "type": safe_type}, db, current_user
     )
 
 
@@ -472,10 +478,11 @@ async def search_knowledge_graph(
     config = config or {}
     from src.api.agent.execute import _tool_search_knowledge_graph
 
+    _db, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {"query": query}
     if entity_types:
         args["entity_types"] = entity_types
-    return await _tool_search_knowledge_graph(args)
+    return await _tool_search_knowledge_graph(args, current_user)
 
 
 @tool
@@ -495,12 +502,14 @@ async def explore_entity_neighborhood(
     config = config or {}
     from src.api.agent.execute import _tool_explore_entity_neighborhood
 
+    _db, current_user, _page_ctx = _get_context(config)
     return await _tool_explore_entity_neighborhood(
         {
             "entity_id": entity_id,
             "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
             "limit": _clamp_int(limit, lo=1, hi=_MAX_GRAPH_LIMIT),
-        }
+        },
+        current_user,
     )
 
 
@@ -520,12 +529,14 @@ async def find_entity_paths(
     config = config or {}
     from src.api.agent.execute import _tool_find_entity_paths
 
+    _db, current_user, _page_ctx = _get_context(config)
     return await _tool_find_entity_paths(
         {
             "source_entity_id": source_entity_id,
             "target_entity_id": target_entity_id,
             "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
-        }
+        },
+        current_user,
     )
 
 
@@ -542,7 +553,8 @@ async def get_graph_stats(
     config = config or {}
     from src.api.agent.execute import _tool_get_graph_stats
 
-    return await _tool_get_graph_stats({})
+    _db, current_user, _page_ctx = _get_context(config)
+    return await _tool_get_graph_stats({}, current_user)
 
 
 @tool
@@ -560,12 +572,14 @@ async def create_draft(
     config = config or {}
     from src.api.agent.execute import _tool_create_draft
 
+    _DRAFT_STYLES = {"academic", "technical", "summary"}
+    safe_style = style if style in _DRAFT_STYLES else "academic"
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
     if not resolved_pid:
         return _missing_project_error("create_draft")
     return await _tool_create_draft(
-        {"project_id": resolved_pid, "themes": themes, "style": style},
+        {"project_id": resolved_pid, "themes": themes, "style": safe_style},
         db,
         current_user,
     )
