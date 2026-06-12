@@ -140,6 +140,12 @@ def _entity_scope_predicate(
         preds.append(f"{alias}.source_document_id IN $source_document_ids")
         params["source_document_ids"] = source_document_ids
     if not preds:
+        # Both scopes None → unscoped, cross-tenant query. Callers should always
+        # pass an organization_id; warn loudly so a dropped scope is visible.
+        logger.warning(
+            "_entity_scope_predicate called with no organization_id or "
+            "source_document_ids — query will span all organizations"
+        )
         return None
     return "(" + " OR ".join(preds) + ")"
 
@@ -1953,6 +1959,13 @@ class KnowledgeGraphService:
                     )
                     params["source_document_ids"] = source_document_ids
                 else:
+                    # No tenant scope at all — counts span every organization.
+                    # Log loudly: a None org reaching here means a caller dropped
+                    # scoping, not a legitimate cross-tenant query.
+                    logger.warning(
+                        "get_graph_analytics running UNSCOPED (no organization_id "
+                        "or source_document_ids) — returning all-org counts"
+                    )
                     entity_where = ""
                     rel_where = ""
 
