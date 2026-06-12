@@ -1,0 +1,13 @@
+# shared
+
+## Overview
+
+Documentation for `./frontend/src/components/chat/shared`.
+
+## Contents
+
+This directory is part of the project.
+
+## Usage
+
+Refer to the main project documentation for more information.

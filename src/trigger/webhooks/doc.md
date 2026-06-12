@@ -1,0 +1,13 @@
+# webhooks
+
+## Overview
+
+Documentation for `./src/trigger/webhooks`.
+
+## Contents
+
+This directory is part of the project.
+
+## Usage
+
+Refer to the main project documentation for more information.
