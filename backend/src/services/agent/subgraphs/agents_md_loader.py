@@ -40,15 +40,13 @@ _VALID_SUBGRAPHS: frozenset[str] = frozenset({"research", "writing", "data"})
 
 
 def load_agents_md(subgraph: str) -> str:
-    """Return the body of ``AGENTS_<subgraph>.md`` (without the YAML/H1
-    boilerplate stripped — the caller composes the full system prompt).
+    """Return the body of ``AGENTS_<subgraph>.md`` without stripping the
+    YAML/H1 boilerplate — the caller composes the full system prompt.
 
-    Returns an empty string for unknown/invalid subgraph names (path-traversal
-    guard) so callers fall back to the inline prompt rather than crashing.
-
-    Returns an empty string if the file is missing — callers should
-    treat that as a "fall back to inline prompt" signal rather than
-    crashing the agent.
+    Returns an empty string in two cases, both of which callers treat as a
+    "fall back to the inline prompt" signal rather than crashing the agent:
+      * the subgraph name is not in the allowlist (path-traversal guard), or
+      * the file is missing / unreadable.
     """
     if subgraph not in _VALID_SUBGRAPHS:
         logger.warning(
