@@ -39,6 +39,11 @@ _PLACEHOLDER_CONTENTS: frozenset[str] = frozenset({'{"status": "skipped"}'})
 # get cut mid-sentence, but small enough to deliver meaningful token savings.
 _COMPACT_MAX_TOKENS = 320
 
+# Maximum number of compaction rounds per conversation. Without a cap,
+# should_compact re-fires every turn once the token threshold is crossed,
+# burning LLM calls on already-compacted context.
+_MAX_COMPACTION_ROUNDS = 3
+
 
 # ---------------------------------------------------------------------------
 # Token estimation
@@ -82,7 +87,14 @@ def should_compact(
     compaction_count: int,
     threshold: int = 8000,
 ) -> bool:
-    """Return ``True`` if estimated tool-message tokens exceed *threshold*."""
+    """Return ``True`` if estimated tool-message tokens exceed *threshold*.
+
+    Also returns ``False`` once ``compaction_count`` reaches
+    ``_MAX_COMPACTION_ROUNDS`` to prevent re-compacting already-compacted
+    context on every subsequent turn.
+    """
+    if compaction_count >= _MAX_COMPACTION_ROUNDS:
+        return False
     tool_msgs = [m for m in messages if isinstance(m, ToolMessage)]
     return estimate_tool_message_tokens(tool_msgs) > threshold
 

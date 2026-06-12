@@ -48,6 +48,7 @@ DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]
 # runaway-fanout trace; this one has no such justification yet.
 MAX_DATA_TOOL_LOOPS = 8
 
+
 def _build_data_system_prompt() -> str:
     """Construct the data subgraph system prompt with shared rules embedded.
 
@@ -76,7 +77,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from langchain_core.messages import ToolMessage
 
     from src.core.config import get_settings
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_data_system_prompt())] + sanitized
@@ -102,8 +103,14 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("data_llm_node: using synthesis model after ToolMessage")
     else:
-        llm = _build_llm()
-    llm_with_tools = llm.bind_tools(DATA_TOOLS)
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug("data_llm_node: using lightweight model for tool decision")
+    llm_with_tools = llm.bind_tools(
+        DATA_TOOLS,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
     from src.services.agent.graph import _merge_run_config
 
     invoke_config = _merge_run_config(
@@ -157,9 +164,7 @@ def data_should_continue(state: AgentState) -> str:
     return "data_reflection_gate"
 
 
-async def data_force_synthesis_node(
-    state: AgentState, config: RunnableConfig
-) -> dict:
+async def data_force_synthesis_node(state: AgentState, config: RunnableConfig) -> dict:
     """Final-answer LLM call when the tool-loop ceiling was hit.
 
     Mirrors ``research_force_synthesis_node``: strip the trailing AIMessage

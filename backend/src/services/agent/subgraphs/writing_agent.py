@@ -69,6 +69,7 @@ WRITING_DESTRUCTIVE_TOOLS = {
     "ingest_arxiv_papers",
 }
 
+
 def _build_writing_system_prompt() -> str:
     """Construct the writing subgraph system prompt with shared rules embedded.
 
@@ -97,7 +98,7 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from langchain_core.messages import ToolMessage
 
     from src.core.config import get_settings
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _build_llm
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
@@ -127,8 +128,14 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("writing_llm_node: using synthesis model after ToolMessage")
     else:
-        llm = _build_llm()
-    llm_with_tools = llm.bind_tools(WRITING_TOOLS)
+        from src.services.agent.llm_factory import build_lightweight_llm
+
+        llm = build_lightweight_llm(max_tokens=4096)
+        logger.debug("writing_llm_node: using lightweight model for tool decision")
+    llm_with_tools = llm.bind_tools(
+        WRITING_TOOLS,
+        parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
+    )
     from src.services.agent.graph import _merge_run_config
 
     invoke_config = _merge_run_config(
@@ -271,9 +278,7 @@ async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> d
 
     confirmation_details = {
         "pending_tools": tool_names,
-        "tools": [
-            {"name": tc["name"], "args": tc["args"]} for tc in destructive_calls
-        ],
+        "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
     user_response = interrupt(confirmation_details)
