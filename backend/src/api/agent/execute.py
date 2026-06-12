@@ -103,9 +103,10 @@ from src.core.rate_limit import create_rate_limiter
 # 30 requests per minute — adjust MAX_AGENT_RPM / AGENT_RATE_WINDOW_MINUTES via
 # env/config if operational needs change.  Uses Redis when available, falls back
 # to InMemoryRateLimiter (not suitable for multi-worker prod without Redis).
-# NOTE: this is a minimal in-process guard; a proper solution should wire into
-# the AnalyticsRateLimitMiddleware or a dedicated Redis-backed dependency that
-# survives worker restarts and load-balanced deployments.
+# TODO(agent-audit): this is a minimal in-process guard; move to a gateway /
+# middleware level for multi-worker prod. Wire into AnalyticsRateLimitMiddleware
+# or a dedicated Redis-backed dependency that survives worker restarts and
+# load-balanced deployments (the InMemory fallback shares no state across workers).
 _AGENT_RATE_LIMIT_RPM = 30
 _AGENT_RATE_WINDOW_MINUTES = 1
 _agent_rate_limiter = create_rate_limiter(
@@ -338,6 +339,11 @@ async def execute_agent(
     )
 
     job_id = str(_uuid.uuid4())
+    # TODO(agent-audit): the full request (incl. user messages) is persisted in
+    # the Redis-backed job record for the resume path, which reconstructs
+    # AgentExecuteRequest(**job["request"]). Reduce at-rest user-content exposure
+    # via a shorter TTL or field-level encryption rather than stripping messages
+    # (stripping breaks HITL resume).
     _set_job(
         job_id,
         {

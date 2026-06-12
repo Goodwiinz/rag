@@ -55,6 +55,9 @@ def _build_memory_index_config() -> dict | None:
         # and query time. Use "search_document" since most calls are
         # writes; query-time mismatch is a small quality dip Cohere
         # tolerates fine.
+        # TODO(agent-audit): split index vs query embeddings — query-side should
+        # use input_type="search_query" for better recall. Needs a LangGraph
+        # Store version that accepts separate embed_query/embed_document callables.
         return await cohere_embed_service.embed_texts(
             list(texts), input_type="search_document"
         )
