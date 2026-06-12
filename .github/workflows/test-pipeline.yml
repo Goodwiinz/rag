@@ -549,6 +549,7 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
+            NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
           cache-from: type=gha,scope=frontend-e2e
           cache-to: type=gha,scope=frontend-e2e,mode=max
       - name: Start infrastructure services
