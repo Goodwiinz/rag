@@ -83,21 +83,15 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // QUARANTINED — still failing. Verified across two workflow_dispatch
-        // full-suite runs: the e2e login reaches /dashboard then bounces to
-        // /login (failure-snapshot page title = "Sign In | NOUS"), so the
-        // login-helper sentinel never resolves. The bounce is the (dashboard)
-        // server layout's redirect('/login') when supabase.auth.getUser()
-        // returns no user. Pointing the SERVER Supabase client at the in-network
-        // auth-proxy (SUPABASE_SERVER_URL, this PR — a correct fix kept because
-        // localhost:8999 is genuinely unreachable in-container) did NOT stop the
-        // bounce, so getUser() fails for a deeper reason: the session cookie is
-        // not reaching the RSC request, or GoTrue rejects verification. Next
-        // step: read trace.zip network calls (is GET {auth-proxy}/auth/v1/user
-        // made? what status?) + the supabase-ssr cookie config.
-        // Also quarantined: custom-dashboard-creation (needs an unbuilt
+        // DIAGNOSTIC: the 3 light user-journeys suites are temporarily
+        // un-quarantined so this dispatch exercises the login bounce while the
+        // new getUser() error logging (layout.tsx + middleware.ts) is active.
+        // The frontend-e2e container logs will name WHY server-side getUser()
+        // fails (cookie-not-in-RSC vs GoTrue verification) — the missing piece.
+        // Re-quarantine or keep based on the result.
+        // Still quarantined: custom-dashboard-creation (needs an unbuilt
         // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
-        "**/user-journeys/**",
+        "**/user-journeys/custom-dashboard-creation.spec.ts",
         "**/data-flow/**",
       ],
     },
