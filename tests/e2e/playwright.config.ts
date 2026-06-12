@@ -83,25 +83,21 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // QUARANTINED. All of these fail today on the shared login helper.
-        // Root cause (verified via a workflow_dispatch full-suite run on
-        // feat/e2e-foundation-dashboard-testids): TestHelpers.login waits for a
-        // sentinel `analytics-nav-link | user-menu | dashboard-container`, but
-        //  (a) analytics-nav-link / user-menu live in AppSidebar, while the
-        //      dashboard shell renders AppRail (SidebarLayout.tsx:77) — neither
-        //      testid is ever emitted on an authenticated page; and
-        //  (b) adding dashboard-container to the /dashboard page root did NOT
-        //      satisfy the sentinel either: after the e2e form-login the page
-        //      reaches networkidle but the authenticated dashboard subtree never
-        //      paints the sentinel (smoke's inline login reaches /dashboard, so
-        //      the server cookie is set, but the client auth shell does not
-        //      stabilise — likely a client-session/redirect issue under the
-        //      e2e login). Un-quarantining needs that render/auth issue resolved
-        //      AND the helper sentinel aligned with what AppRail renders.
-        // data-flow/** additionally asserts distributed-ACID/corruption/
-        // clustering UIs that are test fantasy (no backend, no product intent)
-        // — trim, do not build. See the gap plan (EPIC 0) + the spec headers.
-        "**/user-journeys/**",
+        // The light user-journeys suites (analytics-dashboard-access,
+        // graph-analytics-exploration, real-time-monitoring) now run: the
+        // login-helper sentinel (dashboard-container) renders once server-side
+        // getUser() succeeds. That getUser() was failing because the Next server
+        // inside the frontend container used the BROWSER Supabase URL
+        // (localhost:8999, unreachable in-container) and redirected every authed
+        // route to /login; fixed via SUPABASE_SERVER_URL (server-only docker-DNS
+        // URL) — see frontend/src/lib/supabase/server.ts.
+        // Still quarantined:
+        // - custom-dashboard-creation: needs a custom-dashboard builder
+        //   (react-grid-layout) that does not exist (gap plan EPIC 1-3).
+        // - data-flow/**: asserts distributed-ACID/corruption/clustering UIs
+        //   that are test fantasy (no backend, no product intent) — trim, not
+        //   build. See those files' headers.
+        "**/user-journeys/custom-dashboard-creation.spec.ts",
         "**/data-flow/**",
       ],
     },

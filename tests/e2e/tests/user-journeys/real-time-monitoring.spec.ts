@@ -1,11 +1,3 @@
-/**
- * QUARANTINED (chromium testIgnore in playwright.config.ts). Fails on the shared
- * login helper sentinel (analytics-nav-link | user-menu | dashboard-container):
- * the dashboard shell renders AppRail, not AppSidebar, and the authenticated
- * subtree does not paint under the e2e form-login. Its own assertions
- * (diagnostics-page, "Live", auth redirect) all render today — un-quarantine
- * once the login/render issue is resolved.
- */
 import { test, expect } from "@playwright/test";
 import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 
