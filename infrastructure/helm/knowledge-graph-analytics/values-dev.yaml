@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "5caf18d"
+    tag: "53393e5"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
