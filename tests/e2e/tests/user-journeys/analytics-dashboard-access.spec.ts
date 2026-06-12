@@ -111,11 +111,21 @@ test.describe("Analytics Dashboard Access - User Journey", () => {
     }) => {
       helpers.logStep("Testing dashboard quick actions");
 
-      // Dashboard should show quick actions
-      await expect(page.locator("text=Upload")).toBeVisible();
-      await expect(page.locator("text=Search")).toBeVisible();
-      await expect(page.locator("text=Chat")).toBeVisible();
-      await expect(page.locator("text=arXiv")).toBeVisible();
+      // Dashboard should show quick actions. Scope to the exact quick-action
+      // links — a bare `text=Upload` also matches the empty-state "Upload your
+      // first document" link (strict-mode violation).
+      await expect(
+        page.getByRole("link", { name: "Upload", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Search", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Chat", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "arXiv", exact: true }),
+      ).toBeVisible();
       helpers.logStep("Quick actions are visible");
     });
 
