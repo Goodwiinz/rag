@@ -83,18 +83,17 @@ export default defineConfig({
         "**/visual/**",
         "**/performance/**",
         "**/mobile-responsive/**",
-        // QUARANTINED — still failing. Verified across two workflow_dispatch
-        // full-suite runs: the e2e login reaches /dashboard then bounces to
-        // /login (failure-snapshot page title = "Sign In | NOUS"), so the
-        // login-helper sentinel never resolves. The bounce is the (dashboard)
-        // server layout's redirect('/login') when supabase.auth.getUser()
-        // returns no user. Pointing the SERVER Supabase client at the in-network
-        // auth-proxy (SUPABASE_SERVER_URL, this PR — a correct fix kept because
-        // localhost:8999 is genuinely unreachable in-container) did NOT stop the
-        // bounce, so getUser() fails for a deeper reason: the session cookie is
-        // not reaching the RSC request, or GoTrue rejects verification. Next
-        // step: read trace.zip network calls (is GET {auth-proxy}/auth/v1/user
-        // made? what status?) + the supabase-ssr cookie config.
+        // QUARANTINED. ROOT CAUSE NAMED (via the getUser() logging this PR adds):
+        // the server logs `getUser failed: 400 Auth session missing!` — the
+        // server-side Supabase client finds NO session cookie. @supabase/ssr
+        // keys the auth cookie on the URL hostname (sb-<hostname>-auth-token).
+        // The browser (NEXT_PUBLIC_SUPABASE_URL=localhost:8999 → sb-localhost-…)
+        // and the server (SUPABASE_SERVER_URL=auth-proxy → sb-auth-proxy-…) look
+        // for DIFFERENT cookies, so the session the browser wrote is invisible
+        // server-side. The two can't share one URL: Playwright runs on the
+        // runner host, the Next server runs in-container. Fix is an e2e-infra
+        // choice (run Playwright in the docker network so both use auth-proxy,
+        // OR pin a shared cookie name) — tracked separately.
         // Also quarantined: custom-dashboard-creation (needs an unbuilt
         // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
         "**/user-journeys/**",
