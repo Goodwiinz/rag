@@ -1,6 +1,7 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + PostgreSQL/Qdrant/Neo4j/Redis.
+Next.js 15 + FastAPI + Supabase (Postgres + Auth) / Neo4j / DO Managed Redis / DigitalOcean Spaces.
+Deployed on DigitalOcean Kubernetes (DOKS) via ArgoCD. Frontend on Vercel.
 
 ## Development Workflow
 
@@ -54,7 +55,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Gotchas
 
-- DB name is `multimodal_rag_dev`, container is `rag-postgres-1` (not `rag-db-dev`)
+- **Prod Postgres = Supabase managed** (`SUPABASE_DB_URL` overrides `DATABASE_URL`). Local dev uses container `rag-postgres-1` (`multimodal_rag_dev` DB). Do not assume localhost for prod.
 - WebSocket auth uses `Sec-WebSocket-Protocol` header, NOT URL query params
 - SQL injection prevention via validated enums (`src/shared/enums.py`), never raw strings in sort/filter
 - CORS uses explicit allowlists, no wildcards
@@ -71,14 +72,28 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
+### Local dev (docker-compose.development.yml)
+
 | Service    | Port | URL                         |
 | ---------- | ---- | --------------------------- |
 | PostgreSQL | 5432 | postgres:postgres@localhost |
 | Neo4j      | 7687 | bolt://localhost:7687       |
-| Qdrant     | 6333 | http://localhost:6333       |
 | Redis      | 6379 | redis://localhost:6379      |
 | Backend    | 8000 | http://localhost:8000       |
 | Frontend   | 3000 | http://localhost:3000       |
+
+### Production (DigitalOcean Kubernetes — `rag-cluster`, nyc3)
+
+| Layer          | Provider                           | Notes                                                                     |
+| -------------- | ---------------------------------- | ------------------------------------------------------------------------- |
+| PostgreSQL     | **Supabase** (managed)             | `SUPABASE_DB_URL` overrides `DATABASE_URL`; session-mode pooler           |
+| Auth           | **Supabase** (hosted GoTrue)       | No backend login/register — fully delegated                               |
+| Redis          | **DO Managed Redis**               | In-cluster subchart disabled                                              |
+| Object storage | **DO Spaces** `nyc3`               | Bucket `rag-system-storage`; `STORAGE_BACKEND=s3`                         |
+| Neo4j          | Self-hosted in-cluster             | `neo4j:5.26-community`; prod enablement unconfirmed in repo               |
+| Retrieval/RAG  | **DO Knowledge Base** (GradientAI) | Behind `DO_KB_ENABLED` flag — **off by default in prod**. Qdrant removed. |
+| Secrets        | **Infisical** operator             | Project `nous-platform-pl-3-o`                                            |
+| Frontend       | **Vercel**                         | `app.gen-text.app`                                                        |
 
 ## Branch Strategy
 
