@@ -21,6 +21,7 @@ interface IngestTabProps {
   maxResults: number;
   useCategoryFilterForSearch: boolean;
   selectedCategoriesCount: number;
+  selectedCategories: string[];
   extractContentOnIngest: boolean;
   downloadPdfs: boolean;
   isAnyOperationRunning: boolean;
@@ -50,6 +51,7 @@ export function IngestTab({
   maxResults,
   useCategoryFilterForSearch,
   selectedCategoriesCount,
+  selectedCategories,
   extractContentOnIngest,
   downloadPdfs,
   isAnyOperationRunning,
@@ -75,13 +77,13 @@ export function IngestTab({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
           <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
-          Search and queue ingestion
-        </h3>
+          Search and import papers
+        </h2>
         <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
-          Search by topic, select relevant papers, and queue ingestion in one
-          flow.
+          Find papers by topic, select what is relevant, and import them into
+          your workspace.
         </p>
       </div>
 
@@ -97,7 +99,7 @@ export function IngestTab({
               </p>
               <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
                 Search papers and review results without signing in. Sign in to
-                queue ingestion, send IDs to extraction, and save work to your
+                import papers, send IDs to extraction, and save work to your
                 workspace.
               </p>
               <a
@@ -105,7 +107,7 @@ export function IngestTab({
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
-                Sign in to queue ingestion
+                Sign in to import papers
               </a>
             </div>
           </div>
@@ -150,12 +152,31 @@ export function IngestTab({
               step={1}
             />
 
-            <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+            <div className="space-y-2 p-3">
               <ToggleSwitch
                 checked={useCategoryFilterForSearch}
                 onCheckedChange={onUseCategoryFilterChange}
                 label={`Filter by selected categories (${selectedCategoriesCount})`}
               />
+              {useCategoryFilterForSearch && selectedCategories.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {selectedCategories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {useCategoryFilterForSearch &&
+                selectedCategories.length === 0 && (
+                  <p className="pt-0.5 font-[family-name:var(--nous-font-body)] text-xs leading-relaxed text-muted-foreground">
+                    No categories selected. Choose categories on the New papers
+                    tab to narrow your search.
+                  </p>
+                )}
               <ToggleSwitch
                 checked={extractContentOnIngest}
                 onCheckedChange={onExtractContentChange}
@@ -174,7 +195,7 @@ export function IngestTab({
                 onClick={onSearchPapers}
                 disabled={isAnyOperationRunning || !searchQuery.trim()}
                 className={cn(
-                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-primary transition-colors',
+                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-[var(--nous-sol-safe)] transition-colors',
                   'hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
                 )}
               >
@@ -227,7 +248,7 @@ export function IngestTab({
               ) : (
                 <Database className="h-4 w-4" aria-hidden="true" />
               )}
-              Queue Ingestion
+              Import selected
             </button>
 
             <button
@@ -241,12 +262,12 @@ export function IngestTab({
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Brain className="h-4 w-4" aria-hidden="true" />
-              Send IDs to extract
+              Extract from selected
             </button>
 
             {!isAuthenticated && (
               <p className="rounded-lg border border-border bg-card p-3 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
-                Sign in to queue ingestion and extraction.
+                Sign in to import papers and run extraction.
               </p>
             )}
 
@@ -261,9 +282,9 @@ export function IngestTab({
         <div className="space-y-4 xl:col-span-7">
           <div className="rounded-xl border border-border bg-background p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h4 className="text-sm font-medium text-foreground">
+              <h3 className="text-sm font-medium text-foreground">
                 Search results
-              </h4>
+              </h3>
               {searchResults && searchResults.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -308,7 +329,7 @@ export function IngestTab({
                           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           isSelected
                             ? 'border-primary/45 bg-primary/5'
-                            : 'border-border bg-card hover:border-border'
+                            : 'border-border bg-card hover:border-primary/40'
                         )}
                       >
                         <div className="flex items-start gap-3">
@@ -329,9 +350,9 @@ export function IngestTab({
                           </div>
 
                           <div className="min-w-0 flex-1 space-y-2">
-                            <h5 className="line-clamp-2 text-sm font-medium text-foreground">
+                            <h4 className="line-clamp-2 text-sm font-medium text-foreground">
                               {paper.title}
-                            </h5>
+                            </h4>
                             <p className="line-clamp-2 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
                               {paper.abstract}
                             </p>
@@ -374,7 +395,7 @@ export function IngestTab({
                   aria-hidden="true"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Run a search to build your ingestion list.
+                  Search above to find papers to import.
                 </p>
               </div>
             )}
