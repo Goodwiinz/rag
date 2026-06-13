@@ -98,6 +98,25 @@ def test_write_iteration_appends_with_increment(ledger_dir: Path):
 
 
 @pytest.mark.unit
+def test_next_turn_ignores_leaked_zero_byte_placeholder(ledger_dir: Path):
+    """A 0-byte placeholder left by a crashed claim must not inflate the
+    turn counter: the scan skips it, so the next real turn does not jump
+    past it."""
+    from src.services.agent.iteration_ledger import write_iteration
+
+    # Simulate a leaked high-numbered placeholder with no real records yet.
+    iter_dir = ledger_dir / "thread-ghost" / "iterations"
+    iter_dir.mkdir(parents=True, exist_ok=True)
+    (iter_dir / "0005.json").touch()
+    assert (iter_dir / "0005.json").stat().st_size == 0
+
+    # Without the skip, max(existing)=5 would push the next turn to 0006.
+    p = write_iteration("thread-ghost", _state_with_one_turn())
+    assert p is not None and p.name == "0001.json"
+    assert p.stat().st_size > 0
+
+
+@pytest.mark.unit
 def test_write_iteration_disabled_when_dir_unset(monkeypatch, tmp_path):
     """No AGENT_LEDGER_DIR → write_iteration returns None silently."""
     from src.core.config import settings

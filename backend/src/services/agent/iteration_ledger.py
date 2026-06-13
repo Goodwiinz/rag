@@ -67,8 +67,13 @@ def _next_turn_number(thread_dir: Path) -> int:
         if p.suffix != ".json":
             continue
         try:
+            # Skip 0-byte placeholders left behind by a crashed claim so they
+            # don't permanently inflate the turn counter. A live in-flight
+            # claim is still protected by the O_EXCL check below.
+            if p.stat().st_size == 0:
+                continue
             existing.append(int(p.stem))
-        except ValueError:
+        except (ValueError, OSError):
             continue
     candidate = (max(existing) + 1) if existing else 1
 
@@ -83,8 +88,15 @@ def _next_turn_number(thread_dir: Path) -> int:
         except FileExistsError:
             candidate += 1
 
-    # Fallback: return the candidate even without a claim (better than
-    # blocking the agent flow on an observability-only feature).
+    # Fallback: return the candidate even without a claim. Surface it — a
+    # collision here means the record may overwrite a concurrent turn, which
+    # is otherwise invisible on this write-only ledger.
+    logger.warning(
+        "ledger: turn-number claim exhausted after 100 attempts in %s "
+        "(candidate=%d may overwrite a concurrent turn)",
+        iter_dir,
+        candidate,
+    )
     return candidate
 
 
@@ -250,6 +262,7 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
     root = _ledger_root()
     if not root or not thread_id:
         return None
+    claimed_path: Path | None = None
     try:
         thread_dir = root / thread_id
         iter_dir = thread_dir / "iterations"
@@ -259,9 +272,11 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
         _maybe_write_config(thread_dir, state)
 
         turn = _next_turn_number(thread_dir)
+        # _next_turn_number reserved this path with an empty placeholder.
+        claimed_path = iter_dir / f"{turn:04d}.json"
         record = _build_record(state, turn)
 
-        path = iter_dir / f"{turn:04d}.json"
+        path = claimed_path
         _atomic_write_json(path, record)
 
         # Rewrite final.json with the latest summary on every turn so
@@ -295,4 +310,13 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
         return path
     except Exception as exc:  # noqa: BLE001 - never crash the agent
         logger.warning("ledger write failed for thread %s: %s", thread_id, exc)
+        # Best-effort: remove the empty placeholder left by the turn claim so
+        # it doesn't inflate future turn numbers or get silently skipped on
+        # replay. Only unlink if it's still 0 bytes (never clobber a record).
+        if claimed_path is not None:
+            try:
+                if claimed_path.exists() and claimed_path.stat().st_size == 0:
+                    claimed_path.unlink()
+            except OSError:
+                pass
         return None
