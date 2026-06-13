@@ -202,6 +202,10 @@ async def writing_force_synthesis_node(
     and loop-guard rationale.
     """
     from src.services.agent.llm_factory import build_synthesis_llm
+    from src.services.agent.observability import record_loop_exhaustion
+
+    # Degraded-answer signal: reached the writing tool-loop ceiling.
+    record_loop_exhaustion("writing", "writing")
 
     messages = list(state["messages"])
     while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
