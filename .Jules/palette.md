@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-05-20 - Icon-only Remove Button Refactor
+**Learning:** Found raw `button` and generic `Button` elements being used without ARIA labels or standard icon-only tooltip handling in the entity creation and relationship forms (e.g. `X` to remove an alias, `Trash2` to remove metadata properties).
+**Action:** Always refactor generic buttons carrying only an icon for user actions (like removal) into the dedicated `IconButtonSm` component to provide explicit accessible labels (e.g., `label="Remove alias"`) and consistent tooltip feedback.

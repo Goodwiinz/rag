@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, Plus, Trash2, AlertTriangle, Loader2, Database, Tag, Shield, Terminal, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { IconButtonSm } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -379,13 +380,13 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 {formData.metadata.aliases?.map((alias, index) => (
                   <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] rounded">
                     <span className="text-xs font-mono text-[var(--nous-fg-1)]">{alias}</span>
-                    <button
+                    <IconButtonSm
                       type="button"
                       onClick={() => removeAlias(index)}
-                      className="text-[var(--nous-fg-3)] hover:text-red-400 p-0.5 rounded transition-colors"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                      className="text-[var(--nous-fg-3)] hover:text-red-400 p-0.5 rounded transition-colors h-5 w-5"
+                      icon={<X className="h-3 w-3" />}
+                      label={`Remove alias ${alias}`}
+                    />
                   </div>
                 ))}
               </div>
@@ -474,15 +475,14 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                   onChange={(e) => updateMetadataField(index, { value: e.target.value })}
                   className="flex-1 bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] font-mono text-xs text-[var(--nous-fg-1)] h-8"
                 />
-                <Button
+                <IconButtonSm
                   type="button"
                   variant="ghost"
-                  size="sm"
                   onClick={() => removeMetadataField(index)}
                   className="h-8 w-8 text-red-500/50 hover:text-red-400 hover:bg-red-400/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  icon={<Trash2 className="h-4 w-4" />}
+                  label="Remove extended property"
+                />
               </div>
             ))
           )}
