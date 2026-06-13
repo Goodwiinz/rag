@@ -38,6 +38,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 
+from src.services.agent._pii_redact import redact_pii
 from src.services.agent.error_recovery import (
     classify_error,
     classify_error_from_payload,
@@ -64,6 +65,46 @@ DESTRUCTIVE_TOOLS = {
 }
 
 
+_SENSITIVE_ARG_KEYS = {
+    "content",
+    "text",
+    "body",
+    "abstract",
+    "note",
+    "theme",
+    "summary",
+    "draft",
+}
+
+
+def _scrub_tool_args(args: dict) -> dict:
+    """PII/secret-safe view of tool args for the HITL audit trail.
+
+    Free-text bodies are dropped entirely; remaining string values are
+    PII-redacted and length-capped. Never log raw user content.
+    """
+    out: dict = {}
+    for k, v in (args or {}).items():
+        if k in _SENSITIVE_ARG_KEYS:
+            out[k] = "[REDACTED]"
+        elif isinstance(v, str):
+            out[k] = redact_pii(v)[:200]
+        else:
+            out[k] = v
+    return out
+
+
+def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:
+    """(user_id, org_id, thread_id) for audit logging, from the run config."""
+    configurable = (config or {}).get("configurable", {}) if config else {}
+    cu = configurable.get("current_user")
+    return (
+        str(getattr(cu, "id", "") or ""),
+        str(getattr(cu, "organization_id", "") or ""),
+        str(configurable.get("thread_id", "") or ""),
+    )
+
+
 @track_node_execution("interrupt_node")
 async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Check if pending tool calls are destructive and interrupt for confirmation."""
@@ -83,10 +124,38 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
         "message": f"The agent wants to execute {len(destructive_calls)} action(s) that modify your data. Please confirm.",
     }
 
+    user_id, org_id, thread_id = _hitl_actor(config)
+    tool_names = [tc["name"] for tc in destructive_calls]
+    # Audit: destructive action awaiting approval. Note this node re-executes
+    # on resume, so this line fires on both raise and resume; the decision log
+    # below fires only on resume and is the authoritative who-decided event.
+    logger.info(
+        "hitl_interrupt_raised",
+        extra={
+            "user_id": user_id,
+            "org_id": org_id,
+            "thread_id": thread_id,
+            "tools": tool_names,
+            "tool_args": [_scrub_tool_args(tc["args"]) for tc in destructive_calls],
+        },
+    )
+
     # LangGraph interrupt — pauses graph, saves state, returns to caller
     user_response = interrupt(confirmation_details)
 
-    if user_response and user_response.get("confirmed"):
+    confirmed = bool(user_response and user_response.get("confirmed"))
+    logger.info(
+        "hitl_decision",
+        extra={
+            "user_id": user_id,
+            "org_id": org_id,
+            "thread_id": thread_id,
+            "tools": tool_names,
+            "decision": "approve" if confirmed else "reject",
+        },
+    )
+
+    if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     # User denied — add a message explaining and skip tool execution

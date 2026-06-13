@@ -28,7 +28,12 @@ def _escape_like(value: str) -> str:
 
 
 def _sanitize_metadata(metadata: Any) -> dict:
-    """Convert datetime objects in metadata dict to ISO strings for JSON serialization."""
+    """Coerce datetimes in a metadata dict to ISO strings for JSON serialization.
+
+    NOT a PII/secret scrubber despite the name — it only makes the dict
+    JSON-safe. Do not rely on it to redact sensitive values; use
+    ``redact_pii`` / ``_scrub_tool_args`` for that.
+    """
     if not isinstance(metadata, dict):
         return {}
     sanitized = {}

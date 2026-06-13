@@ -39,10 +39,15 @@ def configure_langsmith():
     os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
+    # Separate traces per deploy environment so dev/staging/prod don't
+    # co-mingle (an explicit LANGSMITH_PROJECT/LANGCHAIN_PROJECT still wins).
+    deploy_env = (
+        os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "dev"
+    ).lower()
     project = (
         os.environ.get("LANGSMITH_PROJECT")
         or os.environ.get("LANGCHAIN_PROJECT")
-        or "rag-agent"
+        or f"rag-agent-{deploy_env}"
     )
     os.environ.setdefault("LANGSMITH_PROJECT", project)
     os.environ.setdefault("LANGCHAIN_PROJECT", project)
@@ -51,6 +56,16 @@ def configure_langsmith():
     os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
     os.environ.setdefault("LANGSMITH_TRACING", "true")
 
+    # PII guard: outside dev, do NOT upload run inputs/outputs (user prompts,
+    # RAG chunks, tool args) to LangSmith — tags, metadata, latency, and token
+    # usage still flow, so dashboards keep working. Override with
+    # LANGSMITH_HIDE_IO=false to opt back in. Dev keeps full I/O for debugging.
+    hide_io_default = "false" if deploy_env == "dev" else "true"
+    hide_io = os.environ.get("LANGSMITH_HIDE_IO", hide_io_default).lower() == "true"
+    if hide_io:
+        os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
+        os.environ.setdefault("LANGCHAIN_HIDE_OUTPUTS", "true")
+
     endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
         "LANGCHAIN_ENDPOINT"
     )
@@ -58,7 +73,9 @@ def configure_langsmith():
         os.environ.setdefault("LANGSMITH_ENDPOINT", endpoint)
         os.environ.setdefault("LANGCHAIN_ENDPOINT", endpoint)
 
-    logger.info("LangSmith tracing enabled (project: %s)", project)
+    logger.info(
+        "LangSmith tracing enabled (project: %s, hide_io: %s)", project, hide_io
+    )
 
 
 def get_langsmith_base_url() -> str:
