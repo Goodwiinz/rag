@@ -17,11 +17,13 @@
 
 ## Overview
 
+> **Status:** Only one environment exists today — **`dev`** (DOKS namespace `rag-dev`, ArgoCD auto-sync from `develop`). There is no live staging or production cluster yet. This guide documents the _intended_ production deployment process; where it says "production," read it as the target shape — substitute namespace `rag-dev` and `values-dev.yaml` for the currently live env.
+
 This guide provides step-by-step instructions for deploying the **Multimodal Enterprise RAG System** to a production environment using modern cloud-native technologies. The system is built with Next.js 15 and supports multimodal document processing, knowledge graph management, and AI-powered search capabilities.
 
 ### Architecture Components
 
-- **Frontend**: Next.js 15 application (deployed on **Vercel** at `app.gen-text.app`)
+- **Frontend**: Next.js 15 application (deployed on **Vercel** at `goodwiinz.tech`)
 - **Backend Services**: FastAPI Python application with multi-agent orchestration
 - **Knowledge Graph**: Neo4j for entity and relationship management
 - **Cache**: **DO Managed Redis** (external; in-cluster Redis subchart disabled in production)
@@ -34,11 +36,11 @@ This guide provides step-by-step instructions for deploying the **Multimodal Ent
 - **Auth**: **Supabase** hosted GoTrue — no backend login/register endpoints
 - **Registry**: `registry.digitalocean.com/ragsystemregistry`
 
-> **Note on Qdrant**: Qdrant is **disabled in production** (`qdrant.enabled: false` in `values-production.yaml`). Do not deploy it as a required service.
+> **Note on Qdrant**: The live `dev` env sets `qdrant.enabled: true` in `values-dev.yaml` (a Qdrant pod deploys), but the app sets **no `QDRANT_URL`**, so `VectorService` cannot connect and vector ops are disabled — Qdrant is never queried. Do not treat it as a required service; the subchart can be dropped.
 >
 > **Note on Terraform**: `infrastructure/terraform/` targets AWS (`us-west-2`) and is **not the live infrastructure**. It is not used for production deployments.
 >
-> **Live deploy path**: `gitops-image-update.yml` commits an image SHA which **ArgoCD** then syncs to the cluster (dev/staging auto-sync from `develop`; prod requires manual sync). Running `helm upgrade` manually (e.g. via `deploy.yml`) is **not** the authoritative deploy path.
+> **Live deploy path**: `gitops-image-update.yml` commits an image SHA which **ArgoCD** then syncs to the cluster. Only the `dev` ArgoCD app is committed (`infrastructure/argocd/applications/dev.yaml`), auto-syncing from `develop`; staging/prod apps are planned, not yet in the repo. Running `helm upgrade` manually (e.g. via `deploy.yml`) is **not** the authoritative deploy path.
 
 ---
 
@@ -189,9 +191,9 @@ helm install monitoring-stack . \
 
 ### 3. Deploy Application
 
-> **Live deploy path**: CI pushes a new image SHA to the `gitops-image-update.yml` workflow, which commits the tag to the GitOps repo. **ArgoCD** then syncs the change to the cluster (dev/staging auto-sync; prod requires manual ArgoCD sync). Direct `helm upgrade` runs are for emergency/manual overrides only.
+> **Live deploy path**: CI pushes a new image SHA to the `gitops-image-update.yml` workflow, which commits the tag to the GitOps repo. **ArgoCD** then syncs the change to the cluster. Today only the `dev` app exists and auto-syncs from `develop`; staging/prod ArgoCD apps are planned. Direct `helm upgrade` runs are for emergency/manual overrides only.
 >
-> The Helm chart is `infrastructure/helm/knowledge-graph-analytics`. The frontend is deployed on **Vercel** (`app.gen-text.app`) — it is not an in-cluster workload.
+> The Helm chart is `infrastructure/helm/knowledge-graph-analytics`. The frontend is deployed on **Vercel** (`goodwiinz.tech`) — it is not an in-cluster workload.
 
 ```bash
 # Build and push backend image to DO registry
@@ -225,8 +227,8 @@ helm install neo4j neo4j/neo4j-enterprise \
     --set neo4j.password=$(openssl rand -base64 32) \
     --set acceptLicenseAgreement=yes
 
-# NOTE: Qdrant is DISABLED in production (qdrant.enabled: false in values-production.yaml).
-# Do NOT deploy Qdrant as a required service.
+# NOTE: Qdrant is unused — the live dev env sets qdrant.enabled:true but no QDRANT_URL,
+# so VectorService can't connect and vector ops are disabled. Do NOT treat it as required.
 
 # NOTE: Redis uses DO Managed Redis (external). Do NOT deploy an in-cluster Redis subchart.
 # Set REDIS_URL to point at the DO Managed Redis endpoint instead.
@@ -275,7 +277,7 @@ kubectl get ingress -n knowledge-graph-analytics
 # Test backend health
 curl -I https://api.rag.yourdomain.com/health
 
-# Frontend is on Vercel — verify at https://app.gen-text.app
+# Frontend is on Vercel — verify at https://goodwiinz.tech
 
 # Check Neo4j connectivity
 kubectl exec -n knowledge-graph-analytics deployment/neo4j -- cypher-shell -u neo4j -p $NEO4J_PASSWORD "RETURN 1"
