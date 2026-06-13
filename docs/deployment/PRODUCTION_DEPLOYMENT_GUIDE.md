@@ -227,8 +227,8 @@ helm install neo4j neo4j/neo4j-enterprise \
     --set neo4j.password=$(openssl rand -base64 32) \
     --set acceptLicenseAgreement=yes
 
-# NOTE: Qdrant is DISABLED in production (qdrant.enabled: false in values-production.yaml).
-# Do NOT deploy Qdrant as a required service.
+# NOTE: Qdrant is unused — the live dev env sets qdrant.enabled:true but no QDRANT_URL,
+# so VectorService can't connect and vector ops are disabled. Do NOT treat it as required.
 
 # NOTE: Redis uses DO Managed Redis (external). Do NOT deploy an in-cluster Redis subchart.
 # Set REDIS_URL to point at the DO Managed Redis endpoint instead.
