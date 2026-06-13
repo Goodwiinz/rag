@@ -119,3 +119,99 @@ async def test_search_knowledge_graph_scopes_to_caller_org():
     assert captured.get("organization_id") == str(
         org_id
     ), "KG search did not scope to the caller's organization_id"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool_name, args",
+    [
+        ("search_knowledge_graph", {"query": "x"}),
+        ("explore_entity_neighborhood", {"entity_id": "e1"}),
+        ("find_entity_paths", {"source_entity_id": "a", "target_entity_id": "b"}),
+        ("get_graph_stats", {}),
+    ],
+)
+async def test_execute_tool_forwards_current_user_to_kg_tools(tool_name, args):
+    """Regression: the execute_tool dispatcher (the live graph execution path,
+    distinct from the @tool wrappers) must forward current_user to every KG
+    tool. Dropping it makes the org guard trip and returns "Authentication
+    required" on every call."""
+    from src.api.agent import tools_impl
+
+    current_user = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+
+    # Stub the KG service so the tools reach the service call without real Neo4j.
+    fake_service = SimpleNamespace(
+        search_entities=lambda *a, **k: [],
+        get_neighborhood=lambda *a, **k: {"entities": [], "relationships": []},
+        find_paths=lambda *a, **k: [],
+        get_graph_analytics=lambda *a, **k: SimpleNamespace(
+            total_entities=0,
+            total_relationships=0,
+            entity_type_distribution={},
+            relationship_type_distribution={},
+            isolated_entities=0,
+        ),
+    )
+
+    with patch(
+        "src.services.knowledge_graph.knowledge_graph_service.knowledge_graph_service",
+        fake_service,
+    ):
+        result = await tools_impl.execute_tool(
+            tool_name, args, current_user=current_user
+        )
+
+    assert (
+        result.get("error") != "Authentication required"
+    ), f"{tool_name} via execute_tool dropped current_user → org guard tripped"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_execute_tool_kg_rejects_user_without_org():
+    """A user with no organization_id must be refused (fail loud, not run
+    unscoped across all tenants)."""
+    from src.api.agent import tools_impl
+
+    no_org_user = SimpleNamespace(id=uuid4(), organization_id=None)
+    result = await tools_impl.execute_tool(
+        "search_knowledge_graph", {"query": "x"}, current_user=no_org_user
+    )
+    assert result.get("error") == "Authentication required"
+
+
+# ---------------------------------------------------------------------------
+# PII redaction — SSN
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_redact_pii_redacts_ssn():
+    from src.services.agent._pii_redact import redact_pii
+
+    out = redact_pii("my ssn is 123-45-6789 ok")
+    assert "123-45-6789" not in out
+    assert "[REDACTED_SSN]" in out
+
+
+# ---------------------------------------------------------------------------
+# Memory key — distinct turns must not collide
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_memory_key_includes_thread_and_turn():
+    """Two messages sharing the first 100 chars but on different turns must
+    produce different memory keys (the pre-fix md5(content[:100]) collided)."""
+    import hashlib
+
+    content = "A" * 200  # identical 100-char prefix
+    key_turn1 = hashlib.md5(
+        f"thread-1:1:{content[:100]}".encode(), usedforsecurity=False
+    ).hexdigest()[:12]
+    key_turn2 = hashlib.md5(
+        f"thread-1:2:{content[:100]}".encode(), usedforsecurity=False
+    ).hexdigest()[:12]
+    assert key_turn1 != key_turn2

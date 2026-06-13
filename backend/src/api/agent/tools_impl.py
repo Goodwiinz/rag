@@ -620,13 +620,13 @@ async def execute_tool(
     if tool_name == "extract_entities":
         return await _tool_extract_entities(args, db, current_user)
     if tool_name == "search_knowledge_graph":
-        return await _tool_search_knowledge_graph(args)
+        return await _tool_search_knowledge_graph(args, current_user)
     if tool_name == "explore_entity_neighborhood":
-        return await _tool_explore_entity_neighborhood(args)
+        return await _tool_explore_entity_neighborhood(args, current_user)
     if tool_name == "find_entity_paths":
-        return await _tool_find_entity_paths(args)
+        return await _tool_find_entity_paths(args, current_user)
     if tool_name == "get_graph_stats":
-        return await _tool_get_graph_stats(args)
+        return await _tool_get_graph_stats(args, current_user)
     if tool_name == "create_draft":
         return await _tool_create_draft(args, db, current_user)
     if tool_name == "export_bibliography":
@@ -1817,7 +1817,7 @@ async def _tool_search_knowledge_graph(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Search the knowledge graph for entities."""
-    if current_user is None:
+    if current_user is None or current_user.organization_id is None:
         return {"error": "Authentication required"}
 
     query = args.get("query", "")
@@ -1880,7 +1880,7 @@ async def _tool_explore_entity_neighborhood(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Explore an entity's neighborhood — connected entities and relationships."""
-    if current_user is None:
+    if current_user is None or current_user.organization_id is None:
         return {"error": "Authentication required"}
 
     entity_id = args.get("entity_id", "")
@@ -1950,7 +1950,7 @@ async def _tool_find_entity_paths(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Find relationship paths between two entities."""
-    if current_user is None:
+    if current_user is None or current_user.organization_id is None:
         return {"error": "Authentication required"}
 
     source_id = args.get("source_entity_id", "")
@@ -2023,7 +2023,7 @@ async def _tool_get_graph_stats(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Get knowledge graph statistics."""
-    if current_user is None:
+    if current_user is None or current_user.organization_id is None:
         return {"error": "Authentication required"}
 
     try:
