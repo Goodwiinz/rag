@@ -8,6 +8,7 @@ and returns a dict result.
 import asyncio
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -51,6 +52,7 @@ INGEST_STATUS_COMPLETE_LINK_FAILED = "ingestion_complete_link_failed"
 # we don't pay the ~50ms client-build cost on every invocation. Mirrors the
 # `_REFLECTION_LLM` pattern in src/services/agent/reflection.py.
 _TOOL_LLM = None
+_TOOL_LLM_LOCK = threading.Lock()
 
 
 def _get_tool_llm():
@@ -58,9 +60,12 @@ def _get_tool_llm():
     global _TOOL_LLM
     if _TOOL_LLM is not None:
         return _TOOL_LLM
-    from src.services.agent.graph import _build_llm
+    with _TOOL_LLM_LOCK:
+        if _TOOL_LLM is not None:  # re-check inside lock
+            return _TOOL_LLM
+        from src.services.agent.graph import _build_llm
 
-    _TOOL_LLM = _build_llm()
+        _TOOL_LLM = _build_llm()
     return _TOOL_LLM
 
 

@@ -47,14 +47,21 @@ def _ledger_root() -> Path | None:
 
 
 def _next_turn_number(thread_dir: Path) -> int:
-    """Scan iterations/ for the highest existing turn N and return N+1.
+    """Atomically claim the next turn number via exclusive file creation.
 
-    Robust against missing dir (returns 1) and non-numeric filenames
-    (skipped silently).
+    Scans iterations/ for the highest existing turn N, then attempts to
+    create turn_N+1.json with O_CREAT|O_EXCL|O_WRONLY. If another process
+    wins the race and creates that file first (FileExistsError), increment
+    and retry — up to 100 attempts. Using O_EXCL closes the TOCTOU window
+    between scanning and writing that exists in a plain scan-then-write
+    approach under concurrent uvicorn workers.
+
+    Returns the claimed turn number (the caller's _atomic_write_json will
+    replace the placeholder file with the real record via os.replace).
     """
     iter_dir = thread_dir / "iterations"
-    if not iter_dir.exists():
-        return 1
+    iter_dir.mkdir(parents=True, exist_ok=True)
+
     existing = []
     for p in iter_dir.iterdir():
         if p.suffix != ".json":
@@ -63,7 +70,22 @@ def _next_turn_number(thread_dir: Path) -> int:
             existing.append(int(p.stem))
         except ValueError:
             continue
-    return (max(existing) + 1) if existing else 1
+    candidate = (max(existing) + 1) if existing else 1
+
+    for _ in range(100):
+        path = iter_dir / f"{candidate:04d}.json"
+        try:
+            # O_EXCL guarantees atomic creation; raises FileExistsError if
+            # another worker already claimed this turn number.
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return candidate
+        except FileExistsError:
+            candidate += 1
+
+    # Fallback: return the candidate even without a claim (better than
+    # blocking the agent flow on an observability-only feature).
+    return candidate
 
 
 def _serialize_message(msg: Any) -> dict:
@@ -90,7 +112,9 @@ def _serialize_message(msg: Any) -> dict:
                 "input": usage.get("input_tokens"),
                 "output": usage.get("output_tokens"),
                 "reasoning": (usage.get("output_token_details") or {}).get("reasoning"),
-                "cache_read": (usage.get("input_token_details") or {}).get("cache_read"),
+                "cache_read": (usage.get("input_token_details") or {}).get(
+                    "cache_read"
+                ),
             }
         return out
     if isinstance(msg, ToolMessage):
