@@ -87,18 +87,18 @@ Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
 
 ### DOKS `dev` cluster (namespace `rag-dev`, ArgoCD auto-sync from `develop`)
 
-| Layer          | Provider                     | Notes                                                              |
-| -------------- | ---------------------------- | ------------------------------------------------------------------ |
-| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler  |
-| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                          |
-| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)     |
-| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                  |
-| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`             |
-| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                  |
-| LLM            | **Azure OpenAI**             | Chat/agent deployment                                              |
-| Frontend       | **Vercel**                   | `dev-app.gen-text.app` (API `dev-api.gen-text.app`)                |
-| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                             |
-| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off) |
+| Layer          | Provider                     | Notes                                                                  |
+| -------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler      |
+| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                              |
+| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)         |
+| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                      |
+| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`                 |
+| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                      |
+| LLM            | **Azure OpenAI**             | Chat/agent deployment                                                  |
+| Frontend       | **Vercel**                   | `goodwiinz.tech` (+ `www`); backend API ingress `dev-api.gen-text.app` |
+| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                 |
+| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)     |
 
 > **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `QdrantClient` is `None` and Qdrant is never queried — effectively unused. Safe to drop the subchart.
 
