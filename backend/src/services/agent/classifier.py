@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
@@ -41,6 +42,7 @@ _CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
 # Cache the classifier LLM at module scope (rebuilding the client per call
 # costs ~50ms and creates pointless connection churn).
 _CLASSIFIER_LLM = None
+_CLASSIFIER_LLM_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -86,13 +88,16 @@ def _build_classifier_llm():
     global _CLASSIFIER_LLM
     if _CLASSIFIER_LLM is not None:
         return _CLASSIFIER_LLM
-    # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
-    # against max_completion_tokens budget. Observed traces show 2752+ reasoning
-    # tokens consumed before output — 256 cap caused LengthFinishReasonError.
-    _CLASSIFIER_LLM = build_lightweight_llm(
-        max_tokens=4096,
-        request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
-    )
+    with _CLASSIFIER_LLM_LOCK:
+        if _CLASSIFIER_LLM is not None:  # re-check inside lock
+            return _CLASSIFIER_LLM
+        # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
+        # against max_completion_tokens budget. Observed traces show 2752+ reasoning
+        # tokens consumed before output — 256 cap caused LengthFinishReasonError.
+        _CLASSIFIER_LLM = build_lightweight_llm(
+            max_tokens=4096,
+            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
+        )
     return _CLASSIFIER_LLM
 
 
