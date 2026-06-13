@@ -1,7 +1,7 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + Supabase (Postgres + Auth) / Neo4j / DO Managed Redis / DigitalOcean Spaces.
-Deployed on DigitalOcean Kubernetes (DOKS) via ArgoCD. Frontend on Vercel.
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **Currently dev-only** (`docker-compose.development.yml`).
+Planned prod: DOKS + Supabase + DO Managed Redis + DO Spaces + Vercel (infra exists in repo, not yet active).
 
 ## Development Workflow
 
@@ -55,7 +55,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Gotchas
 
-- **Prod Postgres = Supabase managed** (`SUPABASE_DB_URL` overrides `DATABASE_URL`). Local dev uses container `rag-postgres-1` (`multimodal_rag_dev` DB). Do not assume localhost for prod.
+- DB container is `rag-postgres-1`, DB name `multimodal_rag_dev` (not `rag-db-dev`). Currently dev-only.
 - WebSocket auth uses `Sec-WebSocket-Protocol` header, NOT URL query params
 - SQL injection prevention via validated enums (`src/shared/enums.py`), never raw strings in sort/filter
 - CORS uses explicit allowlists, no wildcards
@@ -72,7 +72,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-### Local dev (docker-compose.development.yml)
+**Currently dev-only.** All services run locally via `docker-compose.development.yml`.
 
 | Service    | Port | URL                         |
 | ---------- | ---- | --------------------------- |
@@ -82,18 +82,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 | Backend    | 8000 | http://localhost:8000       |
 | Frontend   | 3000 | http://localhost:3000       |
 
-### Production (DigitalOcean Kubernetes — `rag-cluster`, nyc3)
-
-| Layer          | Provider                           | Notes                                                                     |
-| -------------- | ---------------------------------- | ------------------------------------------------------------------------- |
-| PostgreSQL     | **Supabase** (managed)             | `SUPABASE_DB_URL` overrides `DATABASE_URL`; session-mode pooler           |
-| Auth           | **Supabase** (hosted GoTrue)       | No backend login/register — fully delegated                               |
-| Redis          | **DO Managed Redis**               | In-cluster subchart disabled                                              |
-| Object storage | **DO Spaces** `nyc3`               | Bucket `rag-system-storage`; `STORAGE_BACKEND=s3`                         |
-| Neo4j          | Self-hosted in-cluster             | `neo4j:5.26-community`; prod enablement unconfirmed in repo               |
-| Retrieval/RAG  | **DO Knowledge Base** (GradientAI) | Behind `DO_KB_ENABLED` flag — **off by default in prod**. Qdrant removed. |
-| Secrets        | **Infisical** operator             | Project `nous-platform-pl-3-o`                                            |
-| Frontend       | **Vercel**                         | `app.gen-text.app`                                                        |
+> **Planned prod stack** (infra in repo, not yet active): DOKS (`rag-cluster`, nyc3) + Supabase (PG + auth) + DO Managed Redis + DO Spaces (`rag-system-storage`) + Vercel frontend + Infisical secrets + DO Knowledge Base (RAG, behind `DO_KB_ENABLED`). See `infrastructure/helm/`, `infrastructure/argocd/`.
 
 ## Branch Strategy
 

@@ -58,11 +58,11 @@ When you complete work, make decisions, or discover new context:
 
 ## Projects
 
-| Name              | What                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------ |
-| **NOUS Platform** | Multimodal RAG — Next.js 15 + FastAPI + Supabase PG / Neo4j / DO Redis / DO KB (RAG) |
-| **Gap Analysis**  | K-Dense competitive analysis — 11 Linear issues (GOO-187→GOO-197)                    |
-| **Daily Sync**    | Scheduled task: GitHub + Linear + Obsidian (weekdays 9:10am)                         |
+| Name              | What                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **NOUS Platform** | Multimodal RAG — Next.js 15 + FastAPI + PG/Neo4j/Redis. **Dev-only** now; planned prod on DOKS + Supabase + DO services |
+| **Gap Analysis**  | K-Dense competitive analysis — 11 Linear issues (GOO-187→GOO-197)                                                       |
+| **Daily Sync**    | Scheduled task: GitHub + Linear + Obsidian (weekdays 9:10am)                                                            |
 
 → Details: memory/projects/
 
