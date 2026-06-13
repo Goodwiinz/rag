@@ -859,6 +859,15 @@ async def _run_agent_graph(
                     "current_user": current_user,
                     "page_context": page_context,
                 },
+                # LangSmith run metadata — makes traces filterable per
+                # tenant/turn (saved views by user_id / org_id / thread_id).
+                # Inherited by child runs; never carries secrets.
+                "metadata": {
+                    "user_id": str(current_user.id),
+                    "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                    "thread_id": request.thread_id or job_id,
+                    "job_id": job_id,
+                },
             }
 
             try:
