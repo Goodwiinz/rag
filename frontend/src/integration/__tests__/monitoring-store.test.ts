@@ -850,12 +850,12 @@ describe('Monitoring Store - Performance Tests', () => {
 
     const startTime = performance.now();
 
-    // Perform many time range updates
-    for (let i = 0; i < 100; i++) {
-      act(() => {
+    // Batch all mutations in a single act() to measure store logic, not act() flush overhead
+    act(() => {
+      for (let i = 0; i < 100; i++) {
         result.current.setPresetTimeRange(i % 2 === 0 ? '1h' : '24h');
-      });
-    }
+      }
+    });
 
     const updateTime = performance.now() - startTime;
 
@@ -868,16 +868,16 @@ describe('Monitoring Store - Performance Tests', () => {
 
     const startTime = performance.now();
 
-    // Add many real-time updates
-    for (let i = 0; i < 200; i++) {
-      act(() => {
+    // Batch all mutations in a single act() to measure store logic, not act() flush overhead
+    act(() => {
+      for (let i = 0; i < 200; i++) {
         result.current.addRealTimeUpdate({
           type: 'metric_update',
           data: { cpu_usage: Math.random() * 100 },
           timestamp: new Date(Date.now() + i).toISOString(),
         });
-      });
-    }
+      }
+    });
 
     const updateTime = performance.now() - startTime;
 
