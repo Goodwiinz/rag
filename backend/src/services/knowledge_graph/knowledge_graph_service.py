@@ -175,6 +175,15 @@ def _two_endpoint_scope(
             f"\n  AND {alias_b}.source_document_id IN $source_document_ids"
         )
         return frag, {"source_document_ids": source_document_ids}
+    # Neither scope supplied → the traversal spans EVERY organization's
+    # entities. Warn loudly (mirrors _entity_scope_predicate) so a dropped
+    # tenant scope on a path/neighborhood query is auditable, not silent.
+    logger.warning(
+        "_two_endpoint_scope (%s/%s) called with no organization_id or "
+        "source_document_ids — traversal will span ALL organizations (#50)",
+        alias_a,
+        alias_b,
+    )
     return "", {}
 
 
