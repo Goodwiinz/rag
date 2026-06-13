@@ -1180,10 +1180,21 @@ async def _resume_agent_graph(
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
             )
+            # Token cost on the HITL resume path (parity with the initial run).
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+            if in_tok or out_tok:
+                try:
+                    from src.services.agent.observability import record_token_usage
+
+                    record_token_usage(
+                        response_model_name or "unknown", in_tok, out_tok
+                    )
+                except Exception:
+                    logger.debug("record_token_usage failed", exc_info=True)
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
-                usage={},
+                usage={"input_tokens": in_tok, "output_tokens": out_tok},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 tool_executions=[
