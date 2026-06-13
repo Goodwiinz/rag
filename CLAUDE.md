@@ -1,7 +1,8 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **Currently dev-only** (`docker-compose.development.yml`).
-Planned prod: DOKS + Supabase + DO Managed Redis + DO Spaces + Vercel (infra exists in repo, not yet active).
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **One environment so far — `dev`** (no staging/prod yet).
+Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS `dev` cluster** (namespace `rag-dev`):
+Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
 ## Development Workflow
 
@@ -55,7 +56,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Gotchas
 
-- DB container is `rag-postgres-1`, DB name `multimodal_rag_dev` (not `rag-db-dev`). Currently dev-only.
+- DB: local compose = container `rag-postgres-1` / `multimodal_rag_dev` (not `rag-db-dev`). DOKS `dev` cluster = **Supabase** managed (`SUPABASE_DB_URL` overrides `DATABASE_URL`).
 - WebSocket auth uses `Sec-WebSocket-Protocol` header, NOT URL query params
 - SQL injection prevention via validated enums (`src/shared/enums.py`), never raw strings in sort/filter
 - CORS uses explicit allowlists, no wildcards
@@ -72,7 +73,9 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-**Currently dev-only.** All services run locally via `docker-compose.development.yml`.
+Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
+
+### Local (`docker-compose.development.yml`)
 
 | Service    | Port | URL                         |
 | ---------- | ---- | --------------------------- |
@@ -82,7 +85,22 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 | Backend    | 8000 | http://localhost:8000       |
 | Frontend   | 3000 | http://localhost:3000       |
 
-> **Planned prod stack** (infra in repo, not yet active): DOKS (`rag-cluster`, nyc3) + Supabase (PG + auth) + DO Managed Redis + DO Spaces (`rag-system-storage`) + Vercel frontend + Infisical secrets + DO Knowledge Base (RAG, behind `DO_KB_ENABLED`). See `infrastructure/helm/`, `infrastructure/argocd/`.
+### DOKS `dev` cluster (namespace `rag-dev`, ArgoCD auto-sync from `develop`)
+
+| Layer          | Provider                     | Notes                                                              |
+| -------------- | ---------------------------- | ------------------------------------------------------------------ |
+| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler  |
+| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                          |
+| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)     |
+| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                  |
+| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`             |
+| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                  |
+| LLM            | **Azure OpenAI**             | Chat/agent deployment                                              |
+| Frontend       | **Vercel**                   | `dev-app.gen-text.app` (API `dev-api.gen-text.app`)                |
+| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                             |
+| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off) |
+
+> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `QdrantClient` is `None` and Qdrant is never queried — effectively unused. Safe to drop the subchart.
 
 ## Branch Strategy
 
