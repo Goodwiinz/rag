@@ -282,8 +282,10 @@ async def _try_primary_do_kb_read(
         return [
             _shape_do_kb_context(c, title_by_key) for c in chunks_to_emit
         ]
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("do_kb primary read failed, falling back: %s", exc)
+    except Exception:  # noqa: BLE001
+        # exc_info keeps the traceback for operators; the raw exception string
+        # stays out of the indexed message (can carry the user query / chunks).
+        logger.warning("do_kb primary read failed, falling back", exc_info=True)
         return None
 
 
@@ -334,8 +336,8 @@ async def _legacy_hybrid_search_fallback(
                 "score": float(score),
             })
         return contexts
-    except Exception as exc:
-        logger.warning("hybrid search fallback failed: %s", exc)
+    except Exception:
+        logger.warning("hybrid search fallback failed", exc_info=True)
         return []
 
 
