@@ -48,15 +48,27 @@ MAX_JOBS = 500
 
 
 def _sum_message_usage(messages: list) -> tuple[int, int]:
-    """Sum (input, output) token usage across the AI messages of a final state.
+    """Sum (input, output) token usage for THIS turn's assistant messages.
 
-    ``graph.ainvoke`` (the job path) does not stream ``on_chat_model_end``
-    events, so — unlike the SSE path — we read usage off the messages
-    directly: ``usage_metadata`` (provider-normalized) first, then raw
+    ``graph.ainvoke`` (the job path) runs on a checkpointed thread, so
+    ``final_state["messages"]`` includes every prior turn's ``AIMessage`` —
+    each still carrying ``usage_metadata``. Summing all of them would compound
+    the monotonic token counter and over-report ``usage`` on any multi-turn
+    conversation. Scope to messages after the last ``HumanMessage`` (the
+    current turn's model output, including the tool-loop AIMessages). The SSE
+    path counts via per-turn ``on_chat_model_end`` events and needs no slicing.
+
+    Reads ``usage_metadata`` (provider-normalized) first, then raw
     ``response_metadata.token_usage``. Returns ``(0, 0)`` when unreported.
     """
+    msgs = messages or []
+    last_human = -1
+    for i, msg in enumerate(msgs):
+        if getattr(msg, "type", None) == "human":
+            last_human = i
+    turn_msgs = msgs[last_human + 1:] if last_human >= 0 else msgs
     in_tok = out_tok = 0
-    for msg in messages or []:
+    for msg in turn_msgs:
         usage = getattr(msg, "usage_metadata", None)
         if isinstance(usage, dict):
             in_tok += int(usage.get("input_tokens", 0) or 0)

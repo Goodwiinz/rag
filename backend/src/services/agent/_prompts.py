@@ -278,28 +278,22 @@ def _merge_run_config(
     *,
     run_name: str,
     tags: list[str],
-    metadata: "dict | None" = None,
 ) -> dict:
-    """Layer LangSmith run_name + tags (+ metadata) onto an existing RunnableConfig.
+    """Layer LangSmith run_name + tags onto an existing RunnableConfig.
 
     Without this the LLM spans land in LangSmith as anonymous
     "AzureChatOpenAI" entries — impossible to filter by intent/subgraph.
     Tags + run_name flow into the trace metadata so the LangSmith UI can
     facet by intent:research, subgraph:writing, etc.
 
-    ``metadata`` (e.g. ``{user_id, org_id, thread_id, job_id}``) is merged onto
-    any existing run metadata so traces stay filterable per tenant/turn;
-    existing keys win (we only fill gaps).
+    Per-tenant run metadata (user_id/org_id/thread_id/job_id) is NOT set here:
+    it's attached once at the top-level graph config in jobs.py/streaming.py and
+    LangChain inherits it onto every child run, so node spans get it for free.
     """
     merged: dict = dict(base or {})
     existing_tags = list(merged.get("tags") or [])
     merged["tags"] = existing_tags + [t for t in tags if t not in existing_tags]
     merged["run_name"] = run_name
-    if metadata:
-        existing_meta = dict(merged.get("metadata") or {})
-        for k, v in metadata.items():
-            existing_meta.setdefault(k, v)
-        merged["metadata"] = existing_meta
     return merged
 
 

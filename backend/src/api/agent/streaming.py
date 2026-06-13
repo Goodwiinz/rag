@@ -404,9 +404,10 @@ async def stream_event_generator(
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
                             # Redact PII before the args preview leaves the
-                            # server (browser-visible SSE payload).
+                            # server (browser-visible SSE payload). Redact first,
+                            # then cap — so a token straddling the cut still matches.
                             args_preview = (
-                                redact_pii(str(tool_input)[:500]) if tool_input else ""
+                                redact_pii(str(tool_input))[:500] if tool_input else ""
                             )
                             yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
