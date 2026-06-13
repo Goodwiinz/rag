@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api-client';
 import { useAuthStore } from '@/stores/authStore';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   AlertCircle,
   ArrowRight,
@@ -12,7 +12,6 @@ import {
   LogIn,
   Search,
   TrendingUp,
-  Upload,
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -37,6 +36,13 @@ import { TrackingTab } from './tabs/TrackingTab';
 
 type TabId = 'tracking' | 'ingest' | 'extract' | 'stats';
 
+const tabs = [
+  { id: 'ingest' as const, label: 'Search & import', icon: Search },
+  { id: 'extract' as const, label: 'Extract', icon: Brain },
+  { id: 'tracking' as const, label: 'New papers', icon: TrendingUp },
+  { id: 'stats' as const, label: 'Statistics', icon: BarChart3 },
+] as const;
+
 export default function ArxivManagement() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isAuthLoading = useAuthStore((state) => state.isLoading);
@@ -53,8 +59,7 @@ export default function ArxivManagement() {
     useState<ExtractionResult | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<TabId>('tracking');
-  const hasAppliedGuestDefault = useRef(false);
+  const [activeTab, setActiveTab] = useState<TabId>('ingest');
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
     'cs.AI',
@@ -85,12 +90,7 @@ export default function ArxivManagement() {
   const [updateKG, setUpdateKG] = useState(true);
   const [extractEntities, setExtractEntities] = useState(true);
 
-  const tabs = [
-    { id: 'tracking' as const, label: 'Track Changes', icon: TrendingUp },
-    { id: 'ingest' as const, label: 'Ingest Papers', icon: Upload },
-    { id: 'extract' as const, label: 'Extract Features', icon: Brain },
-    { id: 'stats' as const, label: 'Statistics', icon: BarChart3 },
-  ];
+  const reduce = useReducedMotion();
 
   const parsedPaperIdState = useMemo(
     () => splitValidAndInvalidPaperIds(extractPaperIds),
@@ -146,13 +146,6 @@ export default function ArxivManagement() {
   useEffect(() => {
     fetchStats();
   }, []);
-
-  useEffect(() => {
-    if (isGuest && !hasAppliedGuestDefault.current) {
-      setActiveTab('ingest');
-      hasAppliedGuestDefault.current = true;
-    }
-  }, [isGuest]);
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
@@ -379,6 +372,29 @@ export default function ArxivManagement() {
     ? message.replace(/^ERROR:\s*/, '')
     : message;
 
+  const tabRefs = useRef<HTMLButtonElement[]>([]);
+
+  const handleTabKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowRight') {
+      nextIndex = (index + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      nextIndex = (index - 1 + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = tabs.length - 1;
+    }
+    if (nextIndex !== null) {
+      e.preventDefault();
+      setActiveTab(tabs[nextIndex].id);
+      tabRefs.current[nextIndex]?.focus();
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
@@ -390,12 +406,12 @@ export default function ArxivManagement() {
               </div>
               <div className="min-w-0 space-y-2">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                  arXiv management
+                  Search arXiv
                 </h1>
                 <p className="max-w-2xl font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
-                  Search the public arXiv corpus, track category changes, and
-                  push selected papers into your workspace ingestion and
-                  extraction pipeline.
+                  Search the public arXiv corpus and import papers directly into
+                  your workspace for reading, extraction, and knowledge graph
+                  enrichment.
                 </p>
               </div>
             </div>
@@ -415,8 +431,8 @@ export default function ArxivManagement() {
             </p>
             <p className="mt-2 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
               {isGuest
-                ? 'Public search and statistics are available now. Sign in to queue ingestion, run extraction, and scan categories.'
-                : 'All tracking, ingestion, and extraction actions are available in this workspace session.'}
+                ? 'Public search and statistics are available now. Sign in to import papers, run extraction, and check for new papers.'
+                : 'Search, import, extraction, and new-paper checks are all available in this session.'}
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -435,80 +451,20 @@ export default function ArxivManagement() {
                     onClick={() => setActiveTab('tracking')}
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Run tracking workflow
+                    Browse new papers
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('ingest')}
+                    onClick={() => setActiveTab('stats')}
                     className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
-                    Review search results
+                    View statistics
                   </button>
                 </>
               )}
             </div>
           </div>
-
-          {isStatsLoading && !stats && (
-            <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
-              <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="h-12 animate-pulse rounded-lg bg-muted" />
-                <div className="h-12 animate-pulse rounded-lg bg-muted" />
-              </div>
-              <span className="sr-only">Loading tracking metrics</span>
-            </div>
-          )}
-
-          {!isStatsLoading && !stats && statsError && (
-            <div
-              role="alert"
-              className="flex items-start gap-2 rounded-2xl border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 px-4 py-3 text-sm text-[var(--nous-mars)]"
-            >
-              <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span>Could not load metrics. {statsError}</span>
-            </div>
-          )}
-
-          {stats && (
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Tracked corpus
-              </p>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-3xl font-semibold tabular-nums text-foreground">
-                  {stats.statistics.total_papers_tracked}
-                </span>
-                <span className="font-[family-name:var(--nous-font-body)] text-sm text-muted-foreground">
-                  papers tracked
-                </span>
-              </div>
-              <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
-                <div>
-                  <dt className="text-xs text-muted-foreground">Active</dt>
-                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
-                    {stats.statistics.active_papers}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Categories</dt>
-                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
-                    {stats.statistics.categories_tracked}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Deleted</dt>
-                  <dd className="mt-0.5 text-base font-medium tabular-nums text-foreground">
-                    {stats.statistics.deleted_papers}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          )}
         </aside>
       </div>
 
@@ -520,7 +476,7 @@ export default function ArxivManagement() {
               role="tablist"
               aria-label="arXiv management sections"
             >
-              {tabs.map((tab) => {
+              {tabs.map((tab, i) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
 
@@ -532,7 +488,12 @@ export default function ArxivManagement() {
                     role="tab"
                     aria-selected={isActive}
                     aria-controls={`panel-${tab.id}`}
+                    ref={(el) => {
+                      if (el) tabRefs.current[i] = el;
+                    }}
+                    tabIndex={isActive ? 0 : -1}
                     onClick={() => setActiveTab(tab.id)}
+                    onKeyDown={(e) => handleTabKeyDown(e, i)}
                     className={cn(
                       'relative flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors touch-manipulation sm:min-h-0',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
@@ -590,23 +551,19 @@ export default function ArxivManagement() {
               )}
             </div>
           )}
-
-          <div className="sr-only" aria-live="polite">
-            {displayMessage}
-          </div>
         </div>
 
         <div className="p-4 sm:p-6 lg:p-7">
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             <motion.section
               key={activeTab}
               id={`panel-${activeTab}`}
               role="tabpanel"
               aria-labelledby={`tab-${activeTab}`}
-              initial={{ opacity: 0, y: 8, filter: 'blur(8px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -8, filter: 'blur(8px)' }}
-              transition={{ duration: 0.25 }}
+              initial={reduce ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="min-h-[420px]"
             >
               {activeTab === 'tracking' && (
@@ -636,6 +593,7 @@ export default function ArxivManagement() {
                   maxResults={maxResults}
                   useCategoryFilterForSearch={useCategoryFilterForSearch}
                   selectedCategoriesCount={selectedCategories.length}
+                  selectedCategories={selectedCategories}
                   extractContentOnIngest={extractContentOnIngest}
                   downloadPdfs={downloadPdfs}
                   isAnyOperationRunning={isAnyOperationRunning}

@@ -153,9 +153,9 @@ def _resolve_tool_concurrency(default: int = 3) -> int:
 # worker uvicorn under spawn mode hits the same issue. Lazy-init per loop
 # via WeakKeyDictionary so the right semaphore is reused for the lifetime
 # of each loop without leaking references after the loop is closed.
-_TOOL_SEMAPHORES: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]" = (
-    weakref.WeakKeyDictionary()
-)
+_TOOL_SEMAPHORES: (
+    "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore]"
+) = weakref.WeakKeyDictionary()
 
 
 def _get_tool_semaphore() -> asyncio.Semaphore:
@@ -356,12 +356,8 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     deduped_calls = [
         _with_injected_project_id(tc, page_context) for tc in last_message.tool_calls
     ]
-    cached = find_cached_tool_results(
-        deduped_calls, state["messages"], tool_executions
-    )
-    fresh_calls = [
-        tc for tc in last_message.tool_calls if tc["id"] not in cached
-    ]
+    cached = find_cached_tool_results(deduped_calls, state["messages"], tool_executions)
+    fresh_calls = [tc for tc in last_message.tool_calls if tc["id"] not in cached]
 
     # Execute all NEW tool calls concurrently with semaphore limiting
     tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
@@ -377,9 +373,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         if tc["id"] in cached:
             prior = cached[tc["id"]]
             tool_messages.append(build_deduped_tool_message(tc["id"], prior))
-            tool_executions.append(
-                build_deduped_execution_entry(tc["id"], tc, prior)
-            )
+            tool_executions.append(build_deduped_execution_entry(tc["id"], tc, prior))
             continue
         r = fresh_by_id.get(tc["id"])
         if r is None:
@@ -402,6 +396,8 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
                 )
             )
             continue
+        if isinstance(r, asyncio.CancelledError):
+            raise r
         if isinstance(r, BaseException):
             logger.error("Parallel tool execution error: %s", r)
             error_count += 1
@@ -550,6 +546,8 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                     )
                 )
                 continue
+            if isinstance(r, asyncio.CancelledError):
+                raise r
             if isinstance(r, BaseException):
                 logger.error("Parallel tool execution error: %s", r)
                 error_count += 1

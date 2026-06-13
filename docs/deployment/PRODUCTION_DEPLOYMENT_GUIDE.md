@@ -1,7 +1,9 @@
 # Production Deployment Guide
+
 ## Multimodal Enterprise RAG System
 
 ### Table of Contents
+
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
 3. [Infrastructure Setup](#infrastructure-setup)
@@ -15,20 +17,30 @@
 
 ## Overview
 
+> **Status:** Only one environment exists today — **`dev`** (DOKS namespace `rag-dev`, ArgoCD auto-sync from `develop`). There is no live staging or production cluster yet. This guide documents the _intended_ production deployment process; where it says "production," read it as the target shape — substitute namespace `rag-dev` and `values-dev.yaml` for the currently live env.
+
 This guide provides step-by-step instructions for deploying the **Multimodal Enterprise RAG System** to a production environment using modern cloud-native technologies. The system is built with Next.js 15 and supports multimodal document processing, knowledge graph management, and AI-powered search capabilities.
 
 ### Architecture Components
 
-- **Frontend**: Next.js 15 application with TypeScript and Tailwind CSS
+- **Frontend**: Next.js 15 application (deployed on **Vercel** at `goodwiinz.tech`)
 - **Backend Services**: FastAPI Python application with multi-agent orchestration
 - **Knowledge Graph**: Neo4j for entity and relationship management
-- **Vector Store**: Qdrant for semantic similarity search
-- **Cache**: Redis for caching and session management
-- **Database**: PostgreSQL for structured metadata
+- **Cache**: **DO Managed Redis** (external; in-cluster Redis subchart disabled in production)
+- **Database**: **Supabase managed PostgreSQL** (`SUPABASE_DB_URL`) — not self-hosted
 - **Processing**: Celery workers for background document processing
 - **Monitoring**: Prometheus, Grafana, Loki, and application-specific metrics
-- **Infrastructure**: AWS EKS, RDS, ElastiCache, S3, CloudFront
-- **Security**: JWT authentication, RBAC, SSL/TLS encryption
+- **Infrastructure**: **DOKS** (`rag-cluster`, `do-nyc3-rag-system-cluster`, nyc3); Helm chart at `infrastructure/helm/knowledge-graph-analytics`; GitOps via **ArgoCD**
+- **Object Storage**: **DO Spaces** `rag-system-storage` nyc3 (`STORAGE_BACKEND=s3`) — not AWS S3/MinIO
+- **Secrets**: **Infisical** operator (`nous-platform-pl-3-o`)
+- **Auth**: **Supabase** hosted GoTrue — no backend login/register endpoints
+- **Registry**: `registry.digitalocean.com/ragsystemregistry`
+
+> **Note on Qdrant**: The live `dev` env sets `qdrant.enabled: true` in `values-dev.yaml` (a Qdrant pod deploys), but the app sets **no `QDRANT_URL`**, so `VectorService` cannot connect and vector ops are disabled — Qdrant is never queried. Do not treat it as a required service; the subchart can be dropped.
+>
+> **Note on Terraform**: `infrastructure/terraform/` targets AWS (`us-west-2`) and is **not the live infrastructure**. It is not used for production deployments.
+>
+> **Live deploy path**: `gitops-image-update.yml` commits an image SHA which **ArgoCD** then syncs to the cluster. Only the `dev` ArgoCD app is committed (`infrastructure/argocd/applications/dev.yaml`), auto-syncing from `develop`; staging/prod apps are planned, not yet in the repo. Running `helm upgrade` manually (e.g. via `deploy.yml`) is **not** the authoritative deploy path.
 
 ---
 
@@ -36,29 +48,27 @@ This guide provides step-by-step instructions for deploying the **Multimodal Ent
 
 ### Required Tools
 
-| Tool | Version | Installation |
-|------|---------|---------------|
-| AWS CLI | >= 2.0 | `pip install awscli` |
-| Terraform | >= 1.5.0 | [Download](https://www.terraform.io/downloads.html) |
-| kubectl | >= 1.28 | [Download](https://kubernetes.io/docs/tasks/tools/) |
-| helm | >= 3.10 | [Download](https://helm.sh/docs/intro/install/) |
-| Docker | >= 24.0 | [Download](https://docs.docker.com/get-docker/) |
-| Python | >= 3.11 | [Download](https://www.python.org/downloads/) |
-| Node.js | >= 18.17 | [Download](https://nodejs.org/) |
-| npm | >= 9.6.7 | Included with Node.js |
+| Tool    | Version  | Installation                                                              |
+| ------- | -------- | ------------------------------------------------------------------------- |
+| doctl   | >= 1.100 | [Download](https://docs.digitalocean.com/reference/doctl/how-to/install/) |
+| kubectl | >= 1.28  | [Download](https://kubernetes.io/docs/tasks/tools/)                       |
+| helm    | >= 3.10  | [Download](https://helm.sh/docs/intro/install/)                           |
+| Docker  | >= 24.0  | [Download](https://docs.docker.com/get-docker/)                           |
+| Python  | >= 3.11  | [Download](https://www.python.org/downloads/)                             |
+| Node.js | >= 18.17 | [Download](https://nodejs.org/)                                           |
+| npm     | >= 9.6.7 | Included with Node.js                                                     |
 
-### AWS Permissions
+> **Note**: AWS CLI and Terraform are **not required** for production operations. The live infrastructure runs on DOKS (DigitalOcean Kubernetes), managed via Helm + ArgoCD. `infrastructure/terraform/` targets AWS and is not used.
 
-Ensure your AWS account has the following permissions:
-- EKS cluster management
-- RDS instance management (PostgreSQL)
-- ElastiCache management (Redis)
-- S3 bucket operations (for file storage)
-- IAM role and policy management
-- CloudWatch and CloudWatch Logs
-- Route 53 (for DNS management)
-- Certificate Manager (SSL/TLS)
-- CloudFront (CDN distribution)
+### DigitalOcean Permissions
+
+Ensure your DigitalOcean account / API token has access to:
+
+- DOKS cluster `rag-cluster` (`do-nyc3-rag-system-cluster`, nyc3)
+- Container Registry `registry.digitalocean.com/ragsystemregistry`
+- Managed Redis (external cluster)
+- DO Spaces bucket `rag-system-storage` (nyc3)
+- ArgoCD (GitOps controller managing prod sync)
 
 ### Environment Setup
 
@@ -75,14 +85,14 @@ cd frontend
 npm install
 cd ..
 
-# Configure AWS CLI
-aws configure
+# Authenticate with DigitalOcean
+doctl auth init
+
+# Configure kubectl for DOKS
+doctl kubernetes cluster kubeconfig save rag-cluster
 
 # Set environment variables
-export AWS_REGION=us-west-2
-export TF_VAR_aws_region=us-west-2
-export TF_VAR_environment=production
-export NAMESPACE=multimodal-rag-system
+export NAMESPACE=knowledge-graph-analytics
 
 # Build and test locally
 docker-compose build
@@ -94,78 +104,56 @@ npm run test
 
 ## Infrastructure Setup
 
-### 1. Create Terraform State Backend
+> **IMPORTANT**: The live production infrastructure runs on **DigitalOcean Kubernetes Service (DOKS)**, not AWS. The `infrastructure/terraform/` directory targets AWS (`us-west-2`) and is **not used** for production. Do not run Terraform against production.
+
+### 1. Configure kubectl for DOKS
 
 ```bash
-# Create S3 bucket for Terraform state
-aws s3api create-bucket \
-    --bucket multimodal-rag-terraform-state \
-    --region us-west-2
+# Authenticate with DigitalOcean
+doctl auth init
 
-# Enable versioning
-aws s3api put-bucket-versioning \
-    --bucket multimodal-rag-terraform-state \
-    --versioning-configuration Status=Enabled
-
-# Create DynamoDB table for state locking
-aws dynamodb create-table \
-    --table-name multimodal-rag-terraform-locks \
-    --attribute-definitions AttributeName=LockID,AttributeType=S \
-    --key-schema AttributeName=LockID,KeyType=HASH \
-    --provisioned-throughput ReadCapacityUnits=1,WriteCapacityUnits=1 \
-    --region us-west-2
-```
-
-### 2. Deploy Infrastructure with Terraform
-
-```bash
-cd infrastructure/terraform
-
-# Initialize Terraform
-terraform init \
-    -backend-config="bucket=multimodal-rag-terraform-state" \
-    -backend-config="key=terraform.tfstate" \
-    -backend-config="dynamodb_table=multimodal-rag-terraform-locks" \
-    -backend-config="region=us-west-2"
-
-# Review the execution plan
-terraform plan -var-file="production.tfvars"
-
-# Apply the configuration
-terraform apply -var-file="production.tfvars" -auto-approve
-
-# Save the outputs for later use
-terraform output -json > ../terraform-outputs.json
-```
-
-### 3. Configure kubectl
-
-```bash
-# Update kubeconfig with EKS cluster details
-aws eks update-kubeconfig --name multimodal-rag-cluster --region us-west-2
+# Fetch kubeconfig for the production DOKS cluster
+doctl kubernetes cluster kubeconfig save rag-cluster
+# Cluster: do-nyc3-rag-system-cluster (nyc3)
 
 # Verify cluster access
 kubectl get nodes
 kubectl get pods --all-namespaces
 ```
 
-### 4. Setup S3 Buckets for File Storage
+### 2. Confirm Managed Services
+
+Production uses the following **externally managed** services — do not deploy in-cluster replacements:
+
+| Service        | Provider                                    | Config key           |
+| -------------- | ------------------------------------------- | -------------------- |
+| PostgreSQL     | Supabase managed                            | `SUPABASE_DB_URL`    |
+| Redis          | DO Managed Redis (external)                 | `REDIS_URL`          |
+| Object storage | DO Spaces `rag-system-storage` nyc3         | `STORAGE_BACKEND=s3` |
+| Auth           | Supabase hosted GoTrue                      | `SUPABASE_*`         |
+| Secrets        | Infisical operator (`nous-platform-pl-3-o`) | —                    |
+
+### 3. Container Registry
 
 ```bash
-# Create S3 bucket for document storage
-aws s3api create-bucket \
-    --bucket multimodal-rag-documents \
-    --region us-west-2
+# Authenticate Docker with DO Container Registry
+doctl registry login
 
-# Create S3 bucket for model storage
-aws s3api create-bucket \
-    --bucket multimodal-rag-models \
-    --region us-west-2
+# Registry: registry.digitalocean.com/ragsystemregistry
+# Images are pushed by CI (gitops-image-update.yml) and synced by ArgoCD
+```
 
-# Configure bucket policies (optional, based on security requirements)
-aws s3api put-bucket-policy \
-    --bucket multimodal-rag-documents \
-    --policy file://infrastructure/s3-bucket-policy.json
+### 4. DO Spaces (Object Storage)
+
+Object storage uses **DO Spaces**, not AWS S3. The bucket `rag-system-storage` (nyc3) is pre-provisioned.
+Configure the backend with S3-compatible credentials pointing to the DO Spaces endpoint:
+
+```bash
+export STORAGE_BACKEND=s3
+export AWS_ACCESS_KEY_ID=<do-spaces-key>
+export AWS_SECRET_ACCESS_KEY=<do-spaces-secret>
+export AWS_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com
+export AWS_S3_BUCKET=rag-system-storage
 ```
 
 ---
@@ -174,19 +162,14 @@ aws s3api put-bucket-policy \
 
 ### 1. Setup Secrets
 
+Secrets are managed by the **Infisical** operator (`nous-platform-pl-3-o`). Ensure the Infisical operator is installed and the `InfisicalSecret` CRDs are applied to the cluster. Do not use AWS Secrets Manager.
+
 ```bash
-# Generate secrets
-cd ../../scripts
-./setup-secrets.sh generate
+# Verify Infisical operator is running
+kubectl get pods -n infisical-operator-system
 
-# Edit the generated seed file
-nano seed-secrets.env
-
-# Apply secrets to Kubernetes
-./setup-secrets.sh setup
-
-# Optionally setup AWS Secrets Manager
-./setup-secrets.sh aws-secrets
+# Check InfisicalSecret resources are syncing
+kubectl get infisicalsecrets -n knowledge-graph-analytics
 ```
 
 ### 2. Deploy Monitoring Stack
@@ -208,61 +191,47 @@ helm install monitoring-stack . \
 
 ### 3. Deploy Application
 
+> **Live deploy path**: CI pushes a new image SHA to the `gitops-image-update.yml` workflow, which commits the tag to the GitOps repo. **ArgoCD** then syncs the change to the cluster. Today only the `dev` app exists and auto-syncs from `develop`; staging/prod ArgoCD apps are planned. Direct `helm upgrade` runs are for emergency/manual overrides only.
+>
+> The Helm chart is `infrastructure/helm/knowledge-graph-analytics`. The frontend is deployed on **Vercel** (`goodwiinz.tech`) — it is not an in-cluster workload.
+
 ```bash
-cd ../helm/multimodal-rag-system
+# Build and push backend image to DO registry
+doctl registry login
+docker build -t registry.digitalocean.com/ragsystemregistry/backend:<sha> ./backend
+docker push registry.digitalocean.com/ragsystemregistry/backend:<sha>
 
-# Build and push Docker images
-cd ../../frontend
-docker build -t your-registry/multimodal-rag-frontend:latest .
-docker push your-registry/multimodal-rag-frontend:latest
-
-cd ../backend
-docker build -t your-registry/multimodal-rag-backend:latest .
-docker push your-registry/multimodal-rag-backend:latest
-
-cd ../helm/multimodal-rag-system
-
-# Deploy the application
-helm upgrade --install multimodal-rag-system . \
-    --namespace multimodal-rag-system \
-    --create-namespace \
-    --values values-prod.yaml \
-    --set frontend.image.repository=your-registry/multimodal-rag-frontend \
-    --set frontend.image.tag=latest \
-    --set backend.image.repository=your-registry/multimodal-rag-backend \
-    --set backend.image.tag=latest \
-    --wait
+# Emergency/manual Helm upgrade (prod — use only when ArgoCD sync is not viable)
+helm upgrade --install knowledge-graph-analytics \
+    ./infrastructure/helm/knowledge-graph-analytics \
+    --namespace knowledge-graph-analytics \
+    --set backend.image.repository=registry.digitalocean.com/ragsystemregistry/backend \
+    --set backend.image.tag=<sha>
 
 # Verify deployment
-kubectl get pods -n multimodal-rag-system
-kubectl get services -n multimodal-rag-system
-kubectl get deployments -n multimodal-rag-system
+kubectl get pods -n knowledge-graph-analytics
+kubectl get services -n knowledge-graph-analytics
+kubectl get deployments -n knowledge-graph-analytics
 
 # Check pod logs
-kubectl logs -n multimodal-rag-system -l app=multimodal-rag-frontend
-kubectl logs -n multimodal-rag-system -l app=multimodal-rag-backend
+kubectl logs -n knowledge-graph-analytics -l app=knowledge-graph-analytics-backend
 ```
 
-### 3.1 Deploy Additional Services
+### 3.1 Deploy Additional In-Cluster Services
 
 ```bash
-# Deploy Neo4j
+# Deploy Neo4j (in-cluster)
 helm repo add neo4j https://helm.neo4j.com/neo4j
 helm install neo4j neo4j/neo4j-enterprise \
-    --namespace multimodal-rag-system \
+    --namespace knowledge-graph-analytics \
     --set neo4j.password=$(openssl rand -base64 32) \
     --set acceptLicenseAgreement=yes
 
-# Deploy Qdrant
-helm repo add qdrant https://qdrant.github.io/qdrant-helm
-helm install qdrant qdrant/qdrant \
-    --namespace multimodal-rag-system
+# NOTE: Qdrant is unused — the live dev env sets qdrant.enabled:true but no QDRANT_URL,
+# so VectorService can't connect and vector ops are disabled. Do NOT treat it as required.
 
-# Deploy Redis
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install redis bitnami/redis \
-    --namespace multimodal-rag-system \
-    --set auth.password=$(openssl rand -base64 32)
+# NOTE: Redis uses DO Managed Redis (external). Do NOT deploy an in-cluster Redis subchart.
+# Set REDIS_URL to point at the DO Managed Redis endpoint instead.
 ```
 
 ### 4. Configure Ingress and SSL
@@ -297,25 +266,27 @@ EOF
 
 ```bash
 # Check pod status
-kubectl get pods -n multimodal-rag-system
+kubectl get pods -n knowledge-graph-analytics
 
 # Check services
-kubectl get services -n multimodal-rag-system
+kubectl get services -n knowledge-graph-analytics
 
 # Check ingress
-kubectl get ingress -n multimodal-rag-system
+kubectl get ingress -n knowledge-graph-analytics
 
-# Test application endpoints
-curl -I https://rag.yourdomain.com
+# Test backend health
 curl -I https://api.rag.yourdomain.com/health
 
-# Check database connectivity
-kubectl exec -n multimodal-rag-system deployment/neo4j -- cypher-shell -u neo4j -p $NEO4J_PASSWORD "RETURN 1"
-kubectl exec -n multimodal-rag-system deployment/qdrant -- curl http://localhost:6333/health
-kubectl exec -n multimodal-rag-system deployment/redis -- redis-cli ping
+# Frontend is on Vercel — verify at https://goodwiinz.tech
+
+# Check Neo4j connectivity
+kubectl exec -n knowledge-graph-analytics deployment/neo4j -- cypher-shell -u neo4j -p $NEO4J_PASSWORD "RETURN 1"
+
+# NOTE: Qdrant is disabled in production — skip Qdrant health check
+# NOTE: Redis is DO Managed (external) — verify via Redis URL, not in-cluster pod
 
 # Test file upload functionality
-curl -X POST https://rag.yourdomain.com/api/upload \
+curl -X POST https://api.rag.yourdomain.com/api/upload \
     -H "Authorization: Bearer <token>" \
     -F "file=@test-document.pdf"
 
@@ -348,11 +319,12 @@ kubectl port-forward -n monitoring svc/monitoring-grafana 3000:3000
 - **System Overview**: General cluster health and resource usage
 - **Application Performance**: Application-specific metrics and performance
 - **Business Metrics**: Business KPIs and user engagement metrics
-- **Database Performance**: PostgreSQL, Redis, Neo4j, and Qdrant metrics
+- **Database Performance**: PostgreSQL (Supabase), DO Managed Redis, Neo4j metrics
 
 ### 3. Alert Configuration
 
 Critical alerts are configured for:
+
 - Pod failures and restarts
 - High CPU/memory usage
 - Database connection issues
@@ -360,6 +332,7 @@ Critical alerts are configured for:
 - Disk space shortages
 
 Monitor alerts via:
+
 - Email: devops@yourcompany.com
 - Slack: #alerts-critical channel
 
@@ -370,6 +343,7 @@ Monitor alerts via:
 - **Grafana**: Log visualization and querying
 
 Access logs through Grafana Explore or query directly:
+
 ```bash
 # Port forward Loki
 kubectl port-forward -n monitoring svc/monitoring-loki 3100:3100
@@ -389,12 +363,15 @@ curl -G -s "http://localhost:3100/loki/api/v1/query_range" \
 
 The system implements multiple backup strategies:
 
-#### AWS Backup Service
-- **RDS**: Daily snapshots with 30-day retention
-- **EKS**: Daily Velero backups with 30-day retention
-- **Cross-region replication**: Backups replicated to us-east-1
+#### Managed Service Backups
+
+- **PostgreSQL**: Handled by Supabase (managed backups — consult Supabase dashboard for retention policy)
+- **Redis**: Handled by DO Managed Redis (consult DigitalOcean dashboard for backup settings)
+- **Object storage**: DO Spaces `rag-system-storage` (nyc3) — enable versioning via DO console if required
+- **DOKS workloads**: Daily Velero backups with 30-day retention
 
 #### Application-Level Backups
+
 ```bash
 # Run manual backup
 cd scripts
@@ -410,6 +387,7 @@ cd scripts
 ### 2. Disaster Recovery Procedures
 
 #### Scenario 1: Single Pod Failure
+
 ```bash
 # Check pod status
 kubectl get pods -n knowledge-graph-analytics
@@ -422,6 +400,7 @@ kubectl get pods -w -n knowledge-graph-analytics
 ```
 
 #### Scenario 2: Database Issues
+
 ```bash
 # Check database status
 kubectl exec -n knowledge-graph-analytics deployment/postgres -- pg_isready
@@ -434,6 +413,7 @@ kubectl rollout restart deployment/postgres -n knowledge-graph-analytics
 ```
 
 #### Scenario 3: Full Cluster Recovery
+
 ```bash
 # Restore from Velero backup
 velero restore create --from-backup <backup-name> --namespace knowledge-graph-analytics
@@ -448,6 +428,7 @@ kubectl get pods -n knowledge-graph-analytics
 ### 3. Backup Testing
 
 Regularly test backup integrity:
+
 ```bash
 # Create test restore environment
 kubectl create namespace backup-test
@@ -469,6 +450,7 @@ kubectl delete namespace backup-test
 ### Common Issues
 
 #### 1. Pod Not Starting
+
 ```bash
 # Check pod status and events
 kubectl describe pod <pod-name> -n knowledge-graph-analytics
@@ -484,6 +466,7 @@ kubectl logs <pod-name> -n knowledge-graph-analytics
 ```
 
 #### 2. Service Not Accessible
+
 ```bash
 # Check service endpoints
 kubectl get endpoints -n knowledge-graph-analytics
@@ -496,6 +479,7 @@ kubectl get networkpolicies -n knowledge-graph-analytics
 ```
 
 #### 3. Database Connection Issues
+
 ```bash
 # Test database connectivity
 kubectl exec -n knowledge-graph-analytics deployment/backend -- python -c "
@@ -513,6 +497,7 @@ kubectl logs -n knowledge-graph-analytics deployment/postgres
 ```
 
 #### 4. High Resource Usage
+
 ```bash
 # Check resource usage
 kubectl top pods -n knowledge-graph-analytics
@@ -528,6 +513,7 @@ kubectl patch deployment <deployment-name> -n knowledge-graph-analytics -p '{"sp
 ### Performance Issues
 
 #### 1. Slow Database Queries
+
 ```bash
 # Check active queries
 kubectl exec -n knowledge-graph-analytics deployment/postgres -- psql -U raguser -d ragdb -c "
@@ -552,6 +538,7 @@ WHERE NOT blocked_locks.granted;"
 ```
 
 #### 2. High Memory Usage
+
 ```bash
 # Check memory usage by pod
 kubectl exec -n knowledge-graph-analytics <pod-name> -- cat /sys/fs/cgroup/memory/memory.usage_in_bytes
@@ -570,18 +557,21 @@ kubectl delete pod <pod-name> -n knowledge-graph-analytics
 ### 1. Regular Maintenance Tasks
 
 #### Daily
+
 - Check backup completion
 - Review system alerts
 - Monitor resource usage
 - Check application logs
 
 #### Weekly
+
 - Update dependencies
 - Review security patches
 - Clean up old logs
 - Test backup restoration
 
 #### Monthly
+
 - Perform full system health check
 - Review and update documentation
 - Conduct security audit
@@ -590,33 +580,31 @@ kubectl delete pod <pod-name> -n knowledge-graph-analytics
 ### 2. Update Procedures
 
 #### Application Updates
+
+The standard update path is via GitOps: push an image SHA via `gitops-image-update.yml` and let ArgoCD sync.
+For emergency manual upgrades use `--set` flags only (do not pass `--values values-production.yaml` — it is applied by ArgoCD from the chart defaults):
+
 ```bash
-# Update application version
+# Emergency manual upgrade (prefer ArgoCD sync in normal operations)
 helm upgrade knowledge-graph-analytics ./infrastructure/helm/knowledge-graph-analytics \
     --namespace knowledge-graph-analytics \
-    --values values-prod.yaml \
-    --set frontend.image.tag=v1.1.0 \
     --set backend.image.tag=v1.1.0
 
 # Monitor rollout status
-kubectl rollout status deployment/knowledge-graph-analytics-frontend -n knowledge-graph-analytics
 kubectl rollout status deployment/knowledge-graph-analytics-backend -n knowledge-graph-analytics
 ```
 
 #### Infrastructure Updates
-```bash
-cd infrastructure/terraform
 
-# Review changes
-terraform plan
+Infrastructure is managed via DOKS/Helm/ArgoCD — not Terraform. To make cluster-level changes:
 
-# Apply changes during maintenance window
-terraform apply
-```
+- Update Helm chart values in `infrastructure/helm/knowledge-graph-analytics/`
+- Commit to the GitOps repo; ArgoCD will apply on next sync (or trigger manually via the ArgoCD UI)
 
 ### 3. Scaling Procedures
 
 #### Horizontal Scaling
+
 ```bash
 # Scale application
 kubectl scale deployment knowledge-graph-analytics-backend --replicas=5 -n knowledge-graph-analytics
@@ -630,6 +618,7 @@ kubectl autoscale deployment knowledge-graph-analytics-backend \
 ```
 
 #### Vertical Scaling
+
 ```bash
 # Update resource limits
 kubectl patch deployment knowledge-graph-analytics-backend -n knowledge-graph-analytics -p '{
@@ -654,6 +643,7 @@ kubectl patch deployment knowledge-graph-analytics-backend -n knowledge-graph-an
 ### 4. Security Maintenance
 
 #### Certificate Rotation
+
 ```bash
 # Check certificate expiration
 kubectl get certificates -n knowledge-graph-analytics
@@ -663,6 +653,7 @@ kubectl delete certificate <cert-name> -n knowledge-graph-analytics
 ```
 
 #### Secret Rotation
+
 ```bash
 # Rotate secrets
 ./scripts/setup-secrets.sh rotate
@@ -676,16 +667,19 @@ kubectl rollout restart deployment/knowledge-graph-analytics-backend -n knowledg
 ## Support and Emergency Contacts
 
 ### Emergency Contacts
+
 - **DevOps Team**: devops@yourcompany.com
 - **On-call Engineer**: +1-XXX-XXX-XXXX
 - **Infrastructure Team**: infrastructure@yourcompany.com
 
 ### Documentation
+
 - **Architecture Guide**: [docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)
 - **API Documentation**: [docs/api/README.md](../api/README.md)
 - **Security Guide**: [docs/security/SECURITY_GUIDE.md](../security/SECURITY_GUIDE.md)
 
 ### Monitoring Links
+
 - **Grafana Dashboard**: https://grafana.yourdomain.com
 - **Prometheus**: https://prometheus.yourdomain.com
 - **Application**: https://analytics.yourdomain.com

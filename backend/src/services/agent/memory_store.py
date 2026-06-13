@@ -8,12 +8,15 @@ removed. See [[project_rag_dropped_qdrant]].
 """
 
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.services.agent._pii_redact import redact_pii
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +27,20 @@ logger = logging.getLogger(__name__)
 agent_memories = sa.Table(
     "agent_memories",
     sa.MetaData(),
-    sa.Column("id", postgresql.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column(
+        "id",
+        postgresql.UUID(),
+        primary_key=True,
+        server_default=sa.text("gen_random_uuid()"),
+    ),
     sa.Column("user_id", postgresql.UUID(), nullable=False),
     sa.Column("organization_id", postgresql.UUID(), nullable=False),
     sa.Column("content", sa.Text(), nullable=False),
     sa.Column("memory_type", sa.String(50), server_default="insight"),
     sa.Column("embedding_id", sa.String(255)),
-    sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")
+    ),
     sa.Column("last_accessed_at", sa.DateTime(timezone=True)),
     sa.Column("access_count", sa.Integer(), server_default="0"),
     sa.Column("metadata_", postgresql.JSONB(), server_default="{}"),
@@ -41,12 +51,22 @@ agent_memories = sa.Table(
 # Service helpers (patchable for testing)
 # ---------------------------------------------------------------------------
 
+_INSIGHTS_LLM = None
+_INSIGHTS_LLM_LOCK = threading.Lock()
+
 
 def _build_insights_llm():
-    """Build a lightweight LLM for insight extraction."""
+    """Return a cached lightweight LLM for insight extraction."""
     from src.services.agent.llm_factory import build_lightweight_llm
 
-    return build_lightweight_llm(max_tokens=512)
+    global _INSIGHTS_LLM
+    if _INSIGHTS_LLM is not None:
+        return _INSIGHTS_LLM
+    with _INSIGHTS_LLM_LOCK:
+        if _INSIGHTS_LLM is not None:  # re-check inside lock
+            return _INSIGHTS_LLM
+        _INSIGHTS_LLM = build_lightweight_llm(max_tokens=512)
+    return _INSIGHTS_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -109,22 +129,26 @@ async def extract_insights(
         from langchain_core.messages import SystemMessage, HumanMessage
 
         conversation = "\n".join(
-            f"{m.get('role', 'unknown')}: {m.get('content', '')}"
+            f"{m.get('role', 'unknown')}: {redact_pii(m.get('content', ''))}"
             for m in messages
         )
 
-        result = await llm.ainvoke([
-            SystemMessage(content=(
-                "Extract key insights from this conversation that would be useful to remember "
-                "for future interactions. Focus on:\n"
-                "- User preferences and working style\n"
-                "- Research interests and topics\n"
-                "- Important context about their work\n\n"
-                "Return each insight as a numbered line (e.g., '1. User prefers concise summaries').\n"
-                "Return only the insights, nothing else."
-            )),
-            HumanMessage(content=conversation),
-        ])
+        result = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=(
+                        "Extract key insights from this conversation that would be useful to remember "
+                        "for future interactions. Focus on:\n"
+                        "- User preferences and working style\n"
+                        "- Research interests and topics\n"
+                        "- Important context about their work\n\n"
+                        "Return each insight as a numbered line (e.g., '1. User prefers concise summaries').\n"
+                        "Return only the insights, nothing else."
+                    )
+                ),
+                HumanMessage(content=conversation),
+            ]
+        )
 
         # Parse numbered lines into a list
         raw = result.content if isinstance(result.content, str) else str(result.content)

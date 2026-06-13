@@ -22,6 +22,11 @@ from src.models.workspace import Workspace
 logger = logging.getLogger(__name__)
 
 
+def _escape_like(value: str) -> str:
+    """Escape special LIKE pattern characters for safe ilike() queries."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _sanitize_metadata(metadata: Any) -> dict:
     """Convert datetime objects in metadata dict to ISO strings for JSON serialization."""
     if not isinstance(metadata, dict):
@@ -34,8 +39,7 @@ def _sanitize_metadata(metadata: Any) -> dict:
             sanitized[k] = _sanitize_metadata(v)
         elif isinstance(v, list):
             sanitized[k] = [
-                item.isoformat() if isinstance(item, datetime) else item
-                for item in v
+                item.isoformat() if isinstance(item, datetime) else item for item in v
             ]
         else:
             sanitized[k] = v
@@ -89,10 +93,8 @@ async def _resolve_document_id(
                     Document.organization_id == current_user.organization_id,
                     Document.is_deleted == False,
                     (
-                        Document.filename.ilike(f"%{bare_id}%")
-                        | (
-                            Document.document_metadata["arxiv_id"].astext == bare_id
-                        )
+                        Document.filename.ilike(f"%{_escape_like(bare_id)}%")
+                        | (Document.document_metadata["arxiv_id"].astext == bare_id)
                     ),
                 )
                 .order_by(desc(Document.created_at))
@@ -103,9 +105,7 @@ async def _resolve_document_id(
             if doc:
                 return doc
         except Exception:
-            logger.debug(
-                "arxiv_id resolution failed for %r", bare_id, exc_info=True
-            )
+            logger.debug("arxiv_id resolution failed for %r", bare_id, exc_info=True)
 
     # Try by title (case-insensitive)
     if document_id:
@@ -113,7 +113,7 @@ async def _resolve_document_id(
             stmt = (
                 select(Document)
                 .where(
-                    Document.title.ilike(document_id),
+                    Document.title.ilike(_escape_like(document_id)),
                     Document.organization_id == current_user.organization_id,
                     Document.is_deleted == False,
                 )
@@ -214,9 +214,7 @@ async def _link_documents_to_project(
         CollectionDocument.collection_id == project.id,
         CollectionDocument.document_id.in_(ids),
     )
-    existing = {
-        str(row[0]) for row in (await db.execute(existing_stmt)).all()
-    }
+    existing = {str(row[0]) for row in (await db.execute(existing_stmt)).all()}
 
     new_rows = [
         {"collection_id": project.id, "document_id": doc_id}
@@ -228,9 +226,7 @@ async def _link_documents_to_project(
         await db.execute(
             pg_insert(CollectionDocument)
             .values(new_rows)
-            .on_conflict_do_nothing(
-                index_elements=["collection_id", "document_id"]
-            )
+            .on_conflict_do_nothing(index_elements=["collection_id", "document_id"])
         )
 
     return {

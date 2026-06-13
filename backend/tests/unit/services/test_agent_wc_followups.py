@@ -13,7 +13,7 @@ Covers:
   prevents a double-resume race; this is the in-depth guard for the
   resume-side.
 * The existing double-confirm invariant: a second ``POST /confirm/{id}``
-  while the job is in ``running`` returns HTTP 400.
+  while the job is in ``running`` returns HTTP 409.
 """
 
 from contextlib import asynccontextmanager
@@ -278,8 +278,8 @@ def confirm_client():
         yield client, user
 
 
-def test_double_confirm_second_request_returns_400(confirm_client):
-    """Second POST /confirm/{id} after the first flips status to running returns 400.
+def test_double_confirm_second_request_returns_409(confirm_client):
+    """Second POST /confirm/{id} after the first flips status to running returns 409.
 
     This is the existing _jobs_lock invariant — included so a future
     refactor that loosens the lock fails this test loudly.
@@ -304,7 +304,7 @@ def test_double_confirm_second_request_returns_400(confirm_client):
 
     assert first.status_code == 200
     assert first.json()["status"] == "running"
-    assert second.status_code == 400
+    assert second.status_code == 409
 
 
 def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):

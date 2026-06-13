@@ -1,13 +1,12 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { authCookieOptions } from './cookieOptions';
 
 let _client: SupabaseClient | null = null;
 
 function getMissingBrowserConfigKeys(): string[] {
   return [
-    process.env.NEXT_PUBLIC_SUPABASE_URL
-      ? null
-      : 'NEXT_PUBLIC_SUPABASE_URL',
+    process.env.NEXT_PUBLIC_SUPABASE_URL ? null : 'NEXT_PUBLIC_SUPABASE_URL',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       ? null
       : 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -43,6 +42,8 @@ export function createClient(): SupabaseClient {
 
   const { supabaseUrl, supabaseAnonKey } = getBrowserConfig();
 
-  _client = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  _client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: authCookieOptions(),
+  });
   return _client;
 }

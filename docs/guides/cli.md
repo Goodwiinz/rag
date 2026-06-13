@@ -1,8 +1,8 @@
-# NOUS CLI — Using with `dev-app.gen-text.app`
+# NOUS CLI — Using with `dev-api.gen-text.app`
 
 A terminal REPL for the NOUS agent. It talks to a NOUS backend over HTTPS — auth via browser-based device flow, then streams agent responses (tokens + tool events + HITL confirmations) straight into your terminal.
 
-This guide targets the hosted dev API at **`https://dev-app.gen-text.app/`**.
+This guide targets the hosted dev API at **`https://dev-api.gen-text.app/`**.
 
 ---
 
@@ -10,7 +10,7 @@ This guide targets the hosted dev API at **`https://dev-app.gen-text.app/`**.
 
 - Node 18.17+
 - `pnpm` (or `npm` — the wrapper uses `pnpm --prefix frontend cli`)
-- A NOUS account authorized on `dev-app.gen-text.app`
+- A NOUS account authorized on `dev-api.gen-text.app`
 
 ---
 
@@ -23,10 +23,10 @@ cd nous
 pnpm --prefix frontend install
 
 # 2. Point the CLI at the dev API
-export NOUS_API_URL="https://dev-app.gen-text.app/api/v1"
+export NOUS_API_URL="https://dev-api.gen-text.app/api/v1"
 
 # Make it permanent (pick your shell)
-echo 'export NOUS_API_URL="https://dev-app.gen-text.app/api/v1"' >> ~/.zshrc   # or ~/.bashrc
+echo 'export NOUS_API_URL="https://dev-api.gen-text.app/api/v1"' >> ~/.zshrc   # or ~/.bashrc
 ```
 
 The CLI reads `NOUS_API_URL` at startup. It **must** include the `/api/v1` suffix — it hits `POST {NOUS_API_URL}/cli-auth/start` and the streaming endpoint under the same base.
@@ -48,7 +48,7 @@ export NOUS_CONFIG_DIR="$HOME/.config/nous"
 What happens:
 
 1. CLI calls `POST /cli-auth/start` and gets a session + browser URL.
-2. Your default browser opens a consent page on `dev-app.gen-text.app`.
+2. Your default browser opens a consent page on `dev-api.gen-text.app`.
 3. You sign in and click **Approve**.
 4. CLI polls `/cli-auth/status/{session_id}` until it flips to `approved`.
 5. Token, email, org ID, and expiry are written to `~/.nous/config.json`.
@@ -159,14 +159,14 @@ Destructive tools (document ingest, draft creation, note writes) pause via LangG
 | `Session expired. Run: ./nous login` | Token past `expires_at` — re-login                                          |
 | Browser didn't open                  | Copy the printed URL manually; login flow works the same way                |
 | `Poll failed: 403`                   | Your account may not be authorized for this environment — contact the admin |
-| Connection refused                   | `dev-app.gen-text.app` may be down; retry or check status                   |
+| Connection refused                   | `dev-api.gen-text.app` may be down; retry or check status                   |
 
 ### Quick connectivity check
 
 ```bash
 curl -sS "$NOUS_API_URL/../health"
 # or, explicitly:
-curl -sS https://dev-app.gen-text.app/health
+curl -sS https://dev-api.gen-text.app/health
 ```
 
 Should return `{"status":"ok"}` (or similar).

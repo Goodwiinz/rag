@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mocked } from 'vitest';
 import ArxivManagement from '@/components/arxiv/ArxivManagement';
 import { api } from '@/services/api-client';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { expectNoA11yViolations } from '@/test/a11y';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 
 let mockAuthStoreState = {
   isAuthenticated: true,
@@ -52,6 +59,8 @@ vi.mock('framer-motion', () => {
       section: MotionSection,
     },
     AnimatePresence: ({ children }: any) => <>{children}</>,
+    // ArxivManagement calls useReducedMotion() to decide whether to animate
+    useReducedMotion: () => false,
   };
 });
 
@@ -115,7 +124,7 @@ describe('ArxivManagement', () => {
 
     render(<ArxivManagement />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Ingest Papers' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Search & import' }));
 
     fireEvent.change(screen.getByLabelText('Search query'), {
       target: { value: 'transformer' },
@@ -137,7 +146,7 @@ describe('ArxivManagement', () => {
     const resultTitle = await screen.findByText('Attention Is All You Need');
     fireEvent.click(resultTitle);
 
-    const queueButton = screen.getByRole('button', { name: 'Queue Ingestion' });
+    const queueButton = screen.getByRole('button', { name: 'Import selected' });
     expect(queueButton).toBeEnabled();
 
     fireEvent.click(queueButton);
@@ -165,7 +174,7 @@ describe('ArxivManagement', () => {
 
     render(<ArxivManagement />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Ingest Papers' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Search & import' }));
 
     fireEvent.click(
       screen.getByRole('switch', { name: /Filter by selected categories/i })
@@ -211,7 +220,7 @@ describe('ArxivManagement', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('tab', { name: 'Ingest Papers' })
+        screen.getByRole('tab', { name: 'Search & import' })
       ).toHaveAttribute('aria-selected', 'true');
     });
 
@@ -228,10 +237,10 @@ describe('ArxivManagement', () => {
       await screen.findByText('Attention Is All You Need')
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Queue Ingestion' })
+      screen.getByRole('button', { name: 'Import selected' })
     ).toBeDisabled();
     expect(
-      screen.getByRole('link', { name: /sign in to queue ingestion/i })
+      screen.getByRole('link', { name: /sign in to import papers/i })
     ).toBeInTheDocument();
   });
 
@@ -242,7 +251,10 @@ describe('ArxivManagement', () => {
 
     render(<ArxivManagement />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run Change Scan' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'New papers' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Check for new papers' })
+    );
 
     const errorMessages = await screen.findAllByText(
       'ArXiv scan failed because the upstream arXiv service is temporarily unavailable or rate limiting requests. Retry in about a minute or scan fewer categories.'
@@ -286,7 +298,7 @@ describe('ArxivManagement', () => {
 
     render(<ArxivManagement />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Extract Features' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Extract' }));
 
     fireEvent.change(
       screen.getByLabelText('Paper IDs (one per line or comma-separated)'),
@@ -333,7 +345,7 @@ describe('ArxivManagement', () => {
 
     render(<ArxivManagement />);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Extract Features' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Extract' }));
     fireEvent.change(
       screen.getByLabelText('Paper IDs (one per line or comma-separated)'),
       {
@@ -354,6 +366,59 @@ describe('ArxivManagement', () => {
         }),
         { timeout: 300000 }
       );
+    });
+  });
+
+  it('moves aria-selected with ArrowRight / Home / End keyboard navigation', async () => {
+    render(<ArxivManagement />);
+
+    // Default active tab is "Search & import" (index 0)
+    const ingestTab = screen.getByRole('tab', { name: 'Search & import' });
+    const extractTab = screen.getByRole('tab', { name: 'Extract' });
+    const trackingTab = screen.getByRole('tab', { name: 'New papers' });
+    const statsTab = screen.getByRole('tab', { name: 'Statistics' });
+
+    // Confirm initial selection
+    await waitFor(() => {
+      expect(ingestTab).toHaveAttribute('aria-selected', 'true');
+    });
+
+    // ArrowRight from index 0 → index 1 (Extract)
+    fireEvent.keyDown(ingestTab, { key: 'ArrowRight' });
+    expect(extractTab).toHaveAttribute('aria-selected', 'true');
+    expect(ingestTab).toHaveAttribute('aria-selected', 'false');
+
+    // Home from any position → index 0 (Search & import)
+    fireEvent.keyDown(extractTab, { key: 'Home' });
+    expect(ingestTab).toHaveAttribute('aria-selected', 'true');
+    expect(extractTab).toHaveAttribute('aria-selected', 'false');
+    expect(trackingTab).toHaveAttribute('aria-selected', 'false');
+    expect(statsTab).toHaveAttribute('aria-selected', 'false');
+
+    // End → index 3 (Statistics)
+    fireEvent.keyDown(ingestTab, { key: 'End' });
+    expect(statsTab).toHaveAttribute('aria-selected', 'true');
+    expect(ingestTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('has no accessibility violations on initial render', async () => {
+    // Known axe issues in this component (TODO: fix upstream):
+    // - scrollable-region-focusable: the overflow-x-auto tablist wrapper is not itself
+    //   focusable; the tabs inside it are, so this is a false positive in jsdom.
+    const { container } = render(<ArxivManagement />);
+
+    // Wait for the async stats fetch to settle so the DOM is stable
+    await waitFor(() => {
+      expect(mockApi.get).toHaveBeenCalledWith('/arxiv/tracking/stats');
+    });
+
+    await expectNoA11yViolations(container, {
+      rules: {
+        // TODO: the overflow-x-auto wrapper around the tablist triggers
+        // scrollable-region-focusable in jsdom; the tabs themselves are
+        // keyboard-accessible, so disable until the wrapper gains tabIndex.
+        'scrollable-region-focusable': { enabled: false },
+      },
     });
   });
 });

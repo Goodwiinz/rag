@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { authCookieOptions } from './cookieOptions';
 
 /**
  * Refresh the Supabase session (SSR cookie auth) from the proxy.
@@ -19,11 +20,22 @@ export async function updateSession(
   };
   let supabaseResponse = NextResponse.next(nextInit);
 
+  // Server-side (proxy runtime). Prefer the server-only in-network URL when set
+  // (containerized e2e) — the public URL is a browser host-port unreachable
+  // from inside the container. Falls back to the public URL in production.
   const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    process.env.SUPABASE_SERVER_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    'http://localhost:54321';
+  // Fail fast instead of an empty key that 401s every request and masquerades
+  // as a working auth guard (mirrors the throw in client.ts).
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.');
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: authCookieOptions(),
     cookies: {
       getAll() {
         return request.cookies.getAll().map(({ name, value }) => ({
@@ -43,8 +55,17 @@ export async function updateSession(
     },
   });
 
-  // Refresh the session — this is required for SSR cookie auth
-  await supabase.auth.getUser();
+  // Refresh the session — this is required for SSR cookie auth. Log a
+  // verification/network error so a failing getUser() (unreachable auth
+  // endpoint, bad key, GoTrue 5xx) is distinguishable from a real anon visitor.
+  const { error } = await supabase.auth.getUser();
+  if (error) {
+    console.error(
+      '[updateSession] getUser failed:',
+      error.status,
+      error.message
+    );
+  }
 
   return supabaseResponse;
 }

@@ -1,9 +1,9 @@
 """Regex PII redactor for memory values.
 
 Run on every string we are about to persist to the long-term memory
-store. Replaces emails, phone numbers, UUIDs, postgres connection
-strings, and bearer tokens / API keys with bracketed sentinels so the
-literal value never ends up in the recall index.
+store. Replaces emails, phone numbers, US SSNs, UUIDs, postgres
+connection strings, and bearer tokens / API keys with bracketed
+sentinels so the literal value never ends up in the recall index.
 
 Intentionally conservative — false positives (a UUID-shaped string in
 prose) are cheap; false negatives (a real email stored verbatim) cost
@@ -25,6 +25,7 @@ _EMAIL_RE: Final = re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _PHONE_RE: Final = re.compile(
     r"(?<!\w)(?<!\d\.)(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
 )
+_SSN_RE: Final = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _UUID_RE: Final = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
@@ -35,8 +36,8 @@ _PG_URL_RE: Final = re.compile(r"\bpostgres(?:ql)?://\S+\b")
 # GitHub PAT (ghp_, gho_, github_pat_).
 _TOKEN_RE: Final = re.compile(
     r"\b(?:eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_.-]{20,}"  # JWT
-    r"|sk-(?:proj|ant)-[A-Za-z0-9_-]{20,}"                                  # OpenAI / Anthropic
-    r"|gh[ps]_[A-Za-z0-9]{30,}"                                             # GitHub PAT / OAuth
+    r"|sk-(?:proj|ant)-[A-Za-z0-9_-]{20,}"  # OpenAI / Anthropic
+    r"|gh[ps]_[A-Za-z0-9]{30,}"  # GitHub PAT / OAuth
     r"|github_pat_[A-Za-z0-9_]{30,})\b"
 )
 
@@ -47,7 +48,7 @@ _TOKEN_RE: Final = re.compile(
 # would mark the isinstance guard below as unreachable + invite a future
 # maintainer to remove it, reintroducing the TypeError this guard catches.
 def redact_pii(text: Any) -> str:
-    """Return *text* with emails, phones, UUIDs, PG URLs, and tokens replaced."""
+    """Return *text* with emails, phones, SSNs, UUIDs, PG URLs, and tokens replaced."""
     if not text:
         return ""
     if not isinstance(text, str):
@@ -60,6 +61,7 @@ def redact_pii(text: Any) -> str:
     out = _TOKEN_RE.sub("<token>", out)
     out = _EMAIL_RE.sub("<email>", out)
     out = _PHONE_RE.sub("<phone>", out)
+    out = _SSN_RE.sub("[REDACTED_SSN]", out)
     out = _UUID_RE.sub("<uuid>", out)
     return out
 

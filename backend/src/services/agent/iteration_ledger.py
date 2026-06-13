@@ -47,23 +47,57 @@ def _ledger_root() -> Path | None:
 
 
 def _next_turn_number(thread_dir: Path) -> int:
-    """Scan iterations/ for the highest existing turn N and return N+1.
+    """Atomically claim the next turn number via exclusive file creation.
 
-    Robust against missing dir (returns 1) and non-numeric filenames
-    (skipped silently).
+    Scans iterations/ for the highest existing turn N, then attempts to
+    create turn_N+1.json with O_CREAT|O_EXCL|O_WRONLY. If another process
+    wins the race and creates that file first (FileExistsError), increment
+    and retry — up to 100 attempts. Using O_EXCL closes the TOCTOU window
+    between scanning and writing that exists in a plain scan-then-write
+    approach under concurrent uvicorn workers.
+
+    Returns the claimed turn number (the caller's _atomic_write_json will
+    replace the placeholder file with the real record via os.replace).
     """
     iter_dir = thread_dir / "iterations"
-    if not iter_dir.exists():
-        return 1
+    iter_dir.mkdir(parents=True, exist_ok=True)
+
     existing = []
     for p in iter_dir.iterdir():
         if p.suffix != ".json":
             continue
         try:
+            # Skip 0-byte placeholders left behind by a crashed claim so they
+            # don't permanently inflate the turn counter. A live in-flight
+            # claim is still protected by the O_EXCL check below.
+            if p.stat().st_size == 0:
+                continue
             existing.append(int(p.stem))
-        except ValueError:
+        except (ValueError, OSError):
             continue
-    return (max(existing) + 1) if existing else 1
+    candidate = (max(existing) + 1) if existing else 1
+
+    for _ in range(100):
+        path = iter_dir / f"{candidate:04d}.json"
+        try:
+            # O_EXCL guarantees atomic creation; raises FileExistsError if
+            # another worker already claimed this turn number.
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)
+            return candidate
+        except FileExistsError:
+            candidate += 1
+
+    # Fallback: return the candidate even without a claim. Surface it — a
+    # collision here means the record may overwrite a concurrent turn, which
+    # is otherwise invisible on this write-only ledger.
+    logger.warning(
+        "ledger: turn-number claim exhausted after 100 attempts in %s "
+        "(candidate=%d may overwrite a concurrent turn)",
+        iter_dir,
+        candidate,
+    )
+    return candidate
 
 
 def _serialize_message(msg: Any) -> dict:
@@ -90,7 +124,9 @@ def _serialize_message(msg: Any) -> dict:
                 "input": usage.get("input_tokens"),
                 "output": usage.get("output_tokens"),
                 "reasoning": (usage.get("output_token_details") or {}).get("reasoning"),
-                "cache_read": (usage.get("input_token_details") or {}).get("cache_read"),
+                "cache_read": (usage.get("input_token_details") or {}).get(
+                    "cache_read"
+                ),
             }
         return out
     if isinstance(msg, ToolMessage):
@@ -226,6 +262,7 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
     root = _ledger_root()
     if not root or not thread_id:
         return None
+    claimed_path: Path | None = None
     try:
         thread_dir = root / thread_id
         iter_dir = thread_dir / "iterations"
@@ -235,9 +272,11 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
         _maybe_write_config(thread_dir, state)
 
         turn = _next_turn_number(thread_dir)
+        # _next_turn_number reserved this path with an empty placeholder.
+        claimed_path = iter_dir / f"{turn:04d}.json"
         record = _build_record(state, turn)
 
-        path = iter_dir / f"{turn:04d}.json"
+        path = claimed_path
         _atomic_write_json(path, record)
 
         # Rewrite final.json with the latest summary on every turn so
@@ -271,4 +310,13 @@ def write_iteration(thread_id: str, state: dict) -> Path | None:
         return path
     except Exception as exc:  # noqa: BLE001 - never crash the agent
         logger.warning("ledger write failed for thread %s: %s", thread_id, exc)
+        # Best-effort: remove the empty placeholder left by the turn claim so
+        # it doesn't inflate future turn numbers or get silently skipped on
+        # replay. Only unlink if it's still 0 bytes (never clobber a record).
+        if claimed_path is not None:
+            try:
+                if claimed_path.exists() and claimed_path.stat().st_size == 0:
+                    claimed_path.unlink()
+            except OSError:
+                pass
         return None

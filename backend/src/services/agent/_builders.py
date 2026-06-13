@@ -59,6 +59,15 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_LOOPS = 4
 MAX_ERRORS = 3
 
+# Derivation: 4 tool loops × 3 nodes (llm+tool+compactor) = 12, plus 6 fixed
+# nodes (preprocessing, planner, interrupt, force_synthesis, reflection,
+# memory_save), plus 2 revise cycles × 3 nodes = 6 → ~24 in the worst case.
+# 50 leaves headroom for that while still cutting off a true runaway. We set it
+# explicitly because LangGraph's default varies by version across our pin
+# (langgraph>=0.4,<2.0): 25 on 0.4.x, 10007 on 1.0+ — neither is a safe default
+# to rely on for this graph.
+RECURSION_LIMIT = 50
+
 
 # ---------------------------------------------------------------------------
 # Conditional edges
@@ -293,6 +302,7 @@ def create_graph():
 __all__ = [
     "MAX_ERRORS",
     "MAX_TOOL_LOOPS",
+    "RECURSION_LIMIT",
     "should_continue",
     "after_interrupt",
     "build_agent_graph",

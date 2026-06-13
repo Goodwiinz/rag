@@ -65,10 +65,10 @@ export function ExtractTab({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
           <Brain className="h-4 w-4 text-primary" aria-hidden="true" />
           Extract research signals
-        </h3>
+        </h2>
         <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
           Extract entities, topics, keyphrases, citations, and summaries for
           specific papers, then optionally sync to the knowledge graph.
@@ -122,37 +122,68 @@ export function ExtractTab({
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
-              <ToggleSwitch
-                checked={extractEntities}
-                onCheckedChange={onExtractEntitiesChange}
-                label="Extract entities"
-              />
-              <ToggleSwitch
-                checked={extractTopics}
-                onCheckedChange={onExtractTopicsChange}
-                label="Extract topics"
-              />
-              <ToggleSwitch
-                checked={extractKeyphrases}
-                onCheckedChange={onExtractKeyphrasesChange}
-                label="Extract keyphrases"
-              />
-              <ToggleSwitch
-                checked={extractCitations}
-                onCheckedChange={onExtractCitationsChange}
-                label="Extract citations"
-              />
-              <ToggleSwitch
-                checked={extractSummaries}
-                onCheckedChange={onExtractSummariesChange}
-                label="Generate summaries"
-              />
-              <ToggleSwitch
-                checked={updateKG}
-                onCheckedChange={onUpdateKGChange}
-                label="Update knowledge graph"
-              />
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <ToggleSwitch
+                  checked={extractEntities}
+                  onCheckedChange={onExtractEntitiesChange}
+                  label="Extract entities"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  People, methods, datasets, and organizations named in the
+                  paper.
+                </p>
+              </div>
+              <div>
+                <ToggleSwitch
+                  checked={extractTopics}
+                  onCheckedChange={onExtractTopicsChange}
+                  label="Extract topics"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  The paper&apos;s main research themes.
+                </p>
+              </div>
+              <div>
+                <ToggleSwitch
+                  checked={extractKeyphrases}
+                  onCheckedChange={onExtractKeyphrasesChange}
+                  label="Extract keyphrases"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  Salient terms for search and tagging.
+                </p>
+              </div>
+              <div>
+                <ToggleSwitch
+                  checked={extractCitations}
+                  onCheckedChange={onExtractCitationsChange}
+                  label="Extract citations"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  References the paper cites.
+                </p>
+              </div>
+              <div>
+                <ToggleSwitch
+                  checked={extractSummaries}
+                  onCheckedChange={onExtractSummariesChange}
+                  label="Generate summaries"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  A generated abstract-level summary of each paper.
+                </p>
+              </div>
+              <div>
+                <ToggleSwitch
+                  checked={updateKG}
+                  onCheckedChange={onUpdateKGChange}
+                  label="Update knowledge graph"
+                />
+                <p className="mt-1 px-1 text-xs text-muted-foreground">
+                  Add the extracted entities and links to your knowledge graph.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
