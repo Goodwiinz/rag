@@ -104,14 +104,15 @@ commands:
             - ~/.cache/pip
 
   setup_pnpm:
-    # cimg/node ships corepack; pin pnpm to the repo's packageManager version
-    # and route the content-addressed store to a cacheable path.
+    # cimg/node ships corepack. Don't pin a pnpm version here — corepack resolves
+    # it from the `packageManager` field in package.json (single source of truth,
+    # can't drift). Route the content-addressed store to a cacheable path.
     steps:
       - run:
-          name: Enable pnpm (corepack)
+          name: Enable pnpm (corepack; version from packageManager)
           command: |
             corepack enable
-            corepack prepare pnpm@10.18.2 --activate
+            corepack install            # installs the packageManager pinned in package.json
             pnpm config set store-dir ~/.pnpm-store
       - restore_cache:
           keys:
