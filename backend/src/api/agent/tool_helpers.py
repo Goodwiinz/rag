@@ -27,6 +27,32 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _log_resource_access_denied(
+    resource_type: str, resource_id: Any, current_user: Any
+) -> None:
+    """Structured audit log when an agent tool can't resolve/own a resource.
+
+    Emitted at the org/ownership-scoped query miss, so it fires for both
+    not-found and cross-tenant access-denied (the query can't always tell them
+    apart). Either way it's an agent access attempt worth an auditable record —
+    in particular a spike of these for one user/org is the cross-tenant signal.
+    Logged at info: the tool handles the miss gracefully, this is a trail not an
+    alert.
+    """
+    try:
+        logger.info(
+            "agent_resource_access_denied",
+            extra={
+                "user_id": str(getattr(current_user, "id", "") or ""),
+                "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                "resource_type": resource_type,
+                "resource_id": str(resource_id)[:100] if resource_id else "",
+            },
+        )
+    except Exception:
+        pass
+
+
 def _sanitize_metadata(metadata: Any) -> dict:
     """Coerce datetimes in a metadata dict to ISO strings for JSON serialization.
 
@@ -132,6 +158,7 @@ async def _resolve_document_id(
         except Exception:
             pass
 
+    _log_resource_access_denied("document", document_id, current_user)
     return None
 
 
@@ -193,7 +220,10 @@ async def _verify_project_ownership(
         )
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    project = result.scalar_one_or_none()
+    if project is None:
+        _log_resource_access_denied("project", project_id, current_user)
+    return project
 
 
 async def _link_documents_to_project(
