@@ -40,11 +40,7 @@ def _canonicalize(args: Any) -> Any:
     (order is semantically meaningful for most tool args).
     """
     if isinstance(args, dict):
-        return {
-            k: _canonicalize(v)
-            for k, v in sorted(args.items())
-            if v is not None
-        }
+        return {k: _canonicalize(v) for k, v in sorted(args.items()) if v is not None}
     if isinstance(args, list):
         return [_canonicalize(v) for v in args]
     if isinstance(args, str):
@@ -53,13 +49,13 @@ def _canonicalize(args: Any) -> Any:
 
 
 def dedupe_key(tool_name: str, args: dict) -> str:
-    """Return a stable sha1 hex key for ``(tool_name, canonical(args))``."""
+    """Return a stable sha256 hex key for ``(tool_name, canonical(args))``."""
     payload = json.dumps(
         {"tool": tool_name, "args": _canonicalize(args or {})},
         sort_keys=True,
         separators=(",", ":"),
     )
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _current_turn_message_boundary(messages: list) -> int:
