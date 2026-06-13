@@ -1,0 +1,74 @@
+# CircleCI — fast lane (replaces .github/workflows/fast-ci.yml).
+#
+# Mirrors the former GitHub Actions fast lane: backend ruff lint, the
+# directory-docs lint, frontend eslint, and the frontend Vitest suite.
+# Deploy / GitOps / heavy backend test-pipeline stay on GitHub Actions.
+#
+# CircleCI sets CI=true automatically, so frontend/vitest.config.mts emits
+# coverage/junit-vitest.xml for store_test_results.
+version: 2.1
+
+jobs:
+  lint:
+    docker:
+      - image: cimg/python:3.12-node
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - pnpm-v1-{{ checksum "pnpm-lock.yaml" }}
+            - pnpm-v1-
+      - run:
+          name: Backend lint (ruff)
+          command: |
+            pip install --quiet ruff==0.15.15
+            cd backend && ruff check src/ --output-format=concise
+      - run:
+          name: Directory docs lint
+          command: python3 scripts/docs/check_dir_docs.py
+      - run:
+          name: Enable pnpm + set store dir
+          command: |
+            corepack enable
+            pnpm config set store-dir ~/.pnpm-store
+      - run:
+          name: Frontend install
+          command: cd frontend && pnpm install --frozen-lockfile
+      - save_cache:
+          key: pnpm-v1-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - ~/.pnpm-store
+      - run:
+          name: Frontend lint (eslint)
+          command: cd frontend && pnpm run lint
+
+  test-frontend-vitest:
+    docker:
+      - image: cimg/node:20.19
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - pnpm-v1-{{ checksum "pnpm-lock.yaml" }}
+            - pnpm-v1-
+      - run:
+          name: Enable pnpm + set store dir
+          command: |
+            corepack enable
+            pnpm config set store-dir ~/.pnpm-store
+      - run:
+          name: Install
+          command: cd frontend && pnpm install --frozen-lockfile
+      - run:
+          name: Vitest
+          command: cd frontend && pnpm test
+      - store_test_results:
+          path: frontend/coverage
+      - store_artifacts:
+          path: frontend/coverage/junit-vitest.xml
+
+workflows:
+  fast-ci:
+    jobs:
+      - lint
+      - test-frontend-vitest
