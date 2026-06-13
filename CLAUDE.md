@@ -100,7 +100,7 @@ Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
 | Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                 |
 | Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)     |
 
-> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `QdrantClient` is `None` and Qdrant is never queried — effectively unused. Safe to drop the subchart.
+> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
 
 ## Branch Strategy
 
