@@ -1,7 +1,8 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + Supabase (Postgres + Auth) / Neo4j / DO Managed Redis / DigitalOcean Spaces.
-Deployed on DigitalOcean Kubernetes (DOKS) via ArgoCD. Frontend on Vercel.
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **One environment so far — `dev`** (no staging/prod yet).
+Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS `dev` cluster** (namespace `rag-dev`):
+Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
 ## Development Workflow
 
@@ -55,7 +56,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Gotchas
 
-- **Prod Postgres = Supabase managed** (`SUPABASE_DB_URL` overrides `DATABASE_URL`). Local dev uses container `rag-postgres-1` (`multimodal_rag_dev` DB). Do not assume localhost for prod.
+- DB: local compose = container `rag-postgres-1` / `multimodal_rag_dev` (not `rag-db-dev`). DOKS `dev` cluster = **Supabase** managed (`SUPABASE_DB_URL` overrides `DATABASE_URL`).
 - WebSocket auth uses `Sec-WebSocket-Protocol` header, NOT URL query params
 - SQL injection prevention via validated enums (`src/shared/enums.py`), never raw strings in sort/filter
 - CORS uses explicit allowlists, no wildcards
@@ -72,7 +73,9 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-### Local dev (docker-compose.development.yml)
+Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
+
+### Local (`docker-compose.development.yml`)
 
 | Service    | Port | URL                         |
 | ---------- | ---- | --------------------------- |
@@ -82,18 +85,22 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 | Backend    | 8000 | http://localhost:8000       |
 | Frontend   | 3000 | http://localhost:3000       |
 
-### Production (DigitalOcean Kubernetes — `rag-cluster`, nyc3)
+### DOKS `dev` cluster (namespace `rag-dev`, ArgoCD auto-sync from `develop`)
 
-| Layer          | Provider                           | Notes                                                                     |
-| -------------- | ---------------------------------- | ------------------------------------------------------------------------- |
-| PostgreSQL     | **Supabase** (managed)             | `SUPABASE_DB_URL` overrides `DATABASE_URL`; session-mode pooler           |
-| Auth           | **Supabase** (hosted GoTrue)       | No backend login/register — fully delegated                               |
-| Redis          | **DO Managed Redis**               | In-cluster subchart disabled                                              |
-| Object storage | **DO Spaces** `nyc3`               | Bucket `rag-system-storage`; `STORAGE_BACKEND=s3`                         |
-| Neo4j          | Self-hosted in-cluster             | `neo4j:5.26-community`; prod enablement unconfirmed in repo               |
-| Retrieval/RAG  | **DO Knowledge Base** (GradientAI) | Behind `DO_KB_ENABLED` flag — **off by default in prod**. Qdrant removed. |
-| Secrets        | **Infisical** operator             | Project `nous-platform-pl-3-o`                                            |
-| Frontend       | **Vercel**                         | `app.gen-text.app`                                                        |
+| Layer          | Provider                     | Notes                                                                  |
+| -------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler      |
+| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                              |
+| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)         |
+| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                      |
+| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`                 |
+| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                      |
+| LLM            | **Azure OpenAI**             | Chat/agent deployment                                                  |
+| Frontend       | **Vercel**                   | `goodwiinz.tech` (+ `www`); backend API ingress `dev-api.gen-text.app` |
+| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                 |
+| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)     |
+
+> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
 
 ## Branch Strategy
 
