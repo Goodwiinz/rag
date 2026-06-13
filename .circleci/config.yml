@@ -241,7 +241,7 @@ jobs:
               --cov-report=term-missing \
               --cov-fail-under=35 \
               --junitxml=test-results/unit.xml \
-              -n auto -v
+              -n 2 -v
       - run:
           name: Per-file coverage ratchet
           command: python backend/scripts/check_coverage_ratchet.py coverage.json
