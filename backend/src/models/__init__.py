@@ -12,6 +12,7 @@ from .ab_testing import (
     ExperimentType,
     Variant,
 )
+from .agent_hitl_audit import AgentHitlAudit
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
 # Audit models
@@ -120,6 +121,7 @@ from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 __all__ = [
     # Base classes
     "Base",
+    "AgentHitlAudit",
     "BaseModel",
     # User models
     "User",
