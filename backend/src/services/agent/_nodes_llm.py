@@ -41,7 +41,10 @@ from src.services.agent._prompts import (
     _merge_run_config,
     _runtime_model_line,
 )
-from src.services.agent.observability import track_node_execution
+from src.services.agent.observability import (
+    record_loop_exhaustion,
+    track_node_execution,
+)
 from src.services.agent.state import AgentState
 from src.services.agent.tools import ALL_TOOLS
 
@@ -392,6 +395,10 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
     from src.services.agent._builders import MAX_TOOL_LOOPS
     from src.services.agent.graph import _sanitize_messages
     from src.services.agent.llm_factory import build_synthesis_llm
+
+    # Degraded-answer signal: reaching this node means the tool-loop ceiling
+    # was hit and we're synthesizing from partial results.
+    record_loop_exhaustion(state.get("intent", "general"), "main")
 
     messages = list(state["messages"])
     # Drop trailing AIMessage with unanswered tool_calls so the synthesis
