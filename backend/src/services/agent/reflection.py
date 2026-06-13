@@ -573,16 +573,8 @@ def make_reflection_gate(
         """
         result: ReflectionResult | None = state.get("_reflection_result")
 
-        if result is None:
-            return "proceed"
-
-        if result.passed:
-            return "proceed"
-
-        if result.severity == "minor":
-            return "proceed"
-
-        # Major severity: route to revise if we still have budget.
+        # Major severity routes to revise if we still have budget; everything
+        # else proceeds.
         # NOTE: the reflection_node increments reflection_count BEFORE the
         # router runs, so the value here is already post-increment. The node's
         # own >= 2 guard caps revisions at 2 (skipping the increment and
@@ -591,9 +583,23 @@ def make_reflection_gate(
         # consistent with the node's cap: once current_count reaches 2 the
         # router proceeds instead of revising again.
         current_count = state.get("reflection_count", 0)
-        if result.severity == "major" and current_count < 2:
-            return "revise"
+        if (
+            result is not None
+            and not result.passed
+            and result.severity == "major"
+            and current_count < 2
+        ):
+            decision = "revise"
+        else:
+            decision = "proceed"
 
-        return "proceed"
+        try:
+            from src.services.agent.observability import record_reflection_decision
+
+            record_reflection_decision(decision, state.get("intent", "unknown"))
+        except Exception:
+            pass
+
+        return decision
 
     return reflection_node, reflection_route
