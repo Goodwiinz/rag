@@ -105,6 +105,53 @@ def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:
     )
 
 
+def _maybe_uuid(value: str):
+    """Coerce a possibly-empty id string to a UUID, or None (nullable column)."""
+    import uuid as _uuid
+
+    try:
+        return _uuid.UUID(value) if value else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+async def _write_hitl_audit_row(
+    *,
+    user_id: str,
+    org_id: str,
+    thread_id: str,
+    tool_names: list,
+    tool_args: list,
+    confirmed: bool,
+) -> None:
+    """Best-effort durable row for a HITL decision (agent_hitl_audit).
+
+    Complements the hitl_decision structlog event with a row that outlives log
+    retention for compliance queries. Uses a fresh AsyncSessionLocal (the
+    request/graph session may be mid-transaction) and never raises — a failed
+    audit write must not break the agent turn. Fires once per decision (this
+    node re-executes on resume, but only the post-interrupt path runs then).
+    """
+    try:
+        from src.core.database import AsyncSessionLocal
+        from src.models.agent_hitl_audit import AgentHitlAudit
+
+        async with AsyncSessionLocal() as session:
+            session.add(
+                AgentHitlAudit(
+                    user_id=_maybe_uuid(user_id),
+                    organization_id=_maybe_uuid(org_id),
+                    thread_id=thread_id or None,
+                    tool_names=list(tool_names),
+                    tool_args=tool_args,
+                    decision="approve" if confirmed else "reject",
+                )
+            )
+            await session.commit()
+    except Exception:
+        logger.debug("hitl audit row write failed", exc_info=True)
+
+
 @track_node_execution("interrupt_node")
 async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Check if pending tool calls are destructive and interrupt for confirmation."""
@@ -153,6 +200,15 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
             "tools": tool_names,
             "decision": "approve" if confirmed else "reject",
         },
+    )
+    # Durable audit row (best-effort; never breaks the turn).
+    await _write_hitl_audit_row(
+        user_id=user_id,
+        org_id=org_id,
+        thread_id=thread_id,
+        tool_names=tool_names,
+        tool_args=[_scrub_tool_args(tc["args"]) for tc in destructive_calls],
+        confirmed=confirmed,
     )
 
     if confirmed:
