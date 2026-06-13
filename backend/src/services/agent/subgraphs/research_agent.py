@@ -225,6 +225,10 @@ async def research_force_synthesis_node(
     contains tool_calls (defensive — the directive forbids it).
     """
     from src.services.agent.llm_factory import build_synthesis_llm
+    from src.services.agent.observability import record_loop_exhaustion
+
+    # Degraded-answer signal: reached the research tool-loop ceiling.
+    record_loop_exhaustion("research", "research")
 
     messages = list(state["messages"])
 
