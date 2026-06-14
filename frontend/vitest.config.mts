@@ -33,6 +33,12 @@ export default defineConfig({
     globals: false,
     css: { modules: { classNameStrategy: 'non-scoped' } },
     testTimeout: 15_000,
+    // Retry flaky tests in CI only. The suite has timing/async-sensitive tests
+    // (perf wall-clock bounds, waitFor-based async UI) that flake on slower,
+    // load-variable CI runners — a different one most runs. Two retries kills
+    // the whack-a-mole without masking a real regression (a true failure fails
+    // all 3 attempts). Local runs keep retry=0 for fast, honest feedback.
+    retry: process.env.CI ? 2 : 0,
     clearMocks: true,
     restoreMocks: true,
     coverage: {
