@@ -77,21 +77,35 @@ _SENSITIVE_ARG_KEYS = {
 }
 
 
+def _scrub_tool_value(value):
+    """Recursively PII-scrub a tool-arg value (dict / list / str / scalar).
+
+    Sensitive keys are dropped at ANY depth; every string is PII-redacted and
+    length-capped. Without recursion, nested note bodies / email lists / metadata
+    would land raw in the HITL logs and the agent_hitl_audit row.
+    """
+    if isinstance(value, dict):
+        return {
+            k: "[REDACTED]" if k in _SENSITIVE_ARG_KEYS else _scrub_tool_value(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_scrub_tool_value(v) for v in value]
+    if isinstance(value, str):
+        return redact_pii(value)[:200]
+    return value
+
+
 def _scrub_tool_args(args: dict) -> dict:
     """PII/secret-safe view of tool args for the HITL audit trail.
 
-    Free-text bodies are dropped entirely; remaining string values are
-    PII-redacted and length-capped. Never log raw user content.
+    Sensitive keys are dropped and all string values PII-redacted, recursively
+    (nested dicts/lists included). Never log raw user content.
     """
-    out: dict = {}
-    for k, v in (args or {}).items():
-        if k in _SENSITIVE_ARG_KEYS:
-            out[k] = "[REDACTED]"
-        elif isinstance(v, str):
-            out[k] = redact_pii(v)[:200]
-        else:
-            out[k] = v
-    return out
+    return {
+        k: "[REDACTED]" if k in _SENSITIVE_ARG_KEYS else _scrub_tool_value(v)
+        for k, v in (args or {}).items()
+    }
 
 
 def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:

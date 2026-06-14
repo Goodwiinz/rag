@@ -48,6 +48,10 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "decision IN ('approve', 'reject')",
+            name="ck_agent_hitl_audit_decision",
+        ),
     )
     op.create_index(
         "ix_agent_hitl_audit_thread_id", _TABLE, ["thread_id"]

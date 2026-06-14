@@ -15,7 +15,7 @@ write raw tool args here.
 
 import uuid
 
-from sqlalchemy import JSON, Column, DateTime, Index, String
+from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Index, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -51,6 +51,12 @@ class AgentHitlAudit(Base):
     __table_args__ = (
         Index("idx_agent_hitl_audit_org_created", "organization_id", "created_at"),
         Index("idx_agent_hitl_audit_user_created", "user_id", "created_at"),
+        # Constrain decision to its two-value domain so a typo/ad-hoc insert
+        # can't poison the audit trail or break exact-match audit queries.
+        CheckConstraint(
+            "decision IN ('approve', 'reject')",
+            name="ck_agent_hitl_audit_decision",
+        ),
     )
 
     def __repr__(self) -> str:
