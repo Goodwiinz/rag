@@ -254,7 +254,7 @@ async def readiness_probe():
         return {"status": "ready", "timestamp": time.time()}
 
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")
+        raise HTTPException(status_code=503, detail="Readiness check failed")
 
 
 @router.get("/liveness")
@@ -292,7 +292,7 @@ async def startup_probe():
             )
 
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Startup check failed: {str(e)}")
+        raise HTTPException(status_code=503, detail="Startup check failed")
 
 
 def get_uptime() -> Dict[str, Any]:
