@@ -202,6 +202,10 @@ async def writing_force_synthesis_node(
     and loop-guard rationale.
     """
     from src.services.agent.llm_factory import build_synthesis_llm
+    from src.services.agent.observability import record_loop_exhaustion
+
+    # Degraded-answer signal: reached the writing tool-loop ceiling.
+    record_loop_exhaustion("writing", "writing")
 
     messages = list(state["messages"])
     while messages and isinstance(messages[-1], AIMessage) and messages[-1].tool_calls:
@@ -281,9 +285,14 @@ async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> d
         "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
+    from src.services.agent._nodes_tools import hitl_log_raised, record_hitl_decision
+
+    hitl_log_raised(config, destructive_calls)
     user_response = interrupt(confirmation_details)
 
-    if user_response and user_response.get("confirmed"):
+    confirmed = bool(user_response and user_response.get("confirmed"))
+    await record_hitl_decision(config, destructive_calls, confirmed)
+    if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     return {
