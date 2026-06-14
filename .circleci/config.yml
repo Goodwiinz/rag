@@ -319,15 +319,14 @@ jobs:
           file: frontend/coverage/lcov.info
           flags: frontend
 
-  # ---- Integration tests (NON-BLOCKING until verified green; testcontainers) ----
-  # ROOT CAUSE of the prior failures: these tests spin up their OWN Postgres via
-  # testcontainers (backend/tests/integration/conftest.py:227 -> PostgresContainer
-  # "postgres:15-alpine"), so they need a real Docker daemon — the docker executor
-  # has none (/var/run/docker.sock missing) and every test ERRORed at setup. The
-  # service container + DATABASE_URL a docker executor adds are ignored by these
-  # tests. Fix: run on the machine VM, which has local Docker (testcontainers'
-  # happy path — localhost reaches the spawned container). Still advisory until a
-  # green run lets us re-block (remove the `exit 0`).
+  # ---- Integration tests (BLOCKING; testcontainers on a machine VM) ----
+  # These tests spin up their OWN Postgres via testcontainers
+  # (backend/tests/integration/conftest.py:227 -> PostgresContainer
+  # "postgres:15-alpine"), so they need a real Docker daemon. The docker executor
+  # has none (/var/run/docker.sock missing) and every test ERRORed at setup — the
+  # service container + DATABASE_URL it adds are ignored by these tests. Running
+  # on the machine VM (local Docker, testcontainers' happy path) fixed it:
+  # verified 258 passed / 12 skipped on pipeline #12, so this is a real gate again.
   integration-tests:
     executor: machine_vm
     environment:
@@ -349,7 +348,7 @@ jobs:
             pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
       - save_pip_cache
       - run:
-          name: Run integration tests (testcontainers; non-blocking until verified)
+          name: Run integration tests (testcontainers)
           command: |
             mkdir -p test-results
             set +e
@@ -363,10 +362,9 @@ jobs:
               -v
             exit_code=$?
             set -e
-            # Advisory: log the real result (incl. exit 5 = no tests collected)
-            # but never gate the PR. Remove this `exit 0` to re-block once green.
-            echo "integration-tests pytest exit=$exit_code (non-blocking — not gating the PR)"
-            exit 0
+            # exit 5 = pytest "no tests collected" -> treat as pass (matches GH)
+            [ "$exit_code" = "5" ] && { echo "No integration tests found"; exit 0; }
+            exit "$exit_code"
       - store_test_results:
           path: test-results
       - codecov_upload:
