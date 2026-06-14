@@ -1,5 +1,16 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChatStore } from '@/store/agentChatStore';
+
+// loadThreads/loadThreadMessages dynamically import agentChatService and call
+// the backend. In jsdom that request never resolves, so loadThreads otherwise
+// hangs to the 15s test timeout. Mock the service to keep these unit tests
+// hermetic and fast. (Mirrors the fix in PR #734.)
+vi.mock('@/services/agentChatService', () => ({
+  agentChatService: {
+    listThreads: vi.fn(async () => ({ threads: [] })),
+    getThreadMessages: vi.fn(async () => ({ messages: [] })),
+  },
+}));
 
 describe('agentChatStore', () => {
   beforeEach(() => {
