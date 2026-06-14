@@ -319,42 +319,37 @@ jobs:
           file: frontend/coverage/lcov.info
           flags: frontend
 
-  # ---- Integration tests (NON-BLOCKING until stabilized; postgres + redis) ----
-  # Advisory while we de-flake: real service readiness (pg_isready / redis ping,
-  # not a bare TCP open) and the pytest result is logged but does not gate the
-  # PR. Re-block once green-stable by removing the `exit 0` below.
+  # ---- Integration tests (NON-BLOCKING until verified green; testcontainers) ----
+  # ROOT CAUSE of the prior failures: these tests spin up their OWN Postgres via
+  # testcontainers (backend/tests/integration/conftest.py:227 -> PostgresContainer
+  # "postgres:15-alpine"), so they need a real Docker daemon — the docker executor
+  # has none (/var/run/docker.sock missing) and every test ERRORed at setup. The
+  # service container + DATABASE_URL a docker executor adds are ignored by these
+  # tests. Fix: run on the machine VM, which has local Docker (testcontainers'
+  # happy path — localhost reaches the spawned container). Still advisory until a
+  # green run lets us re-block (remove the `exit 0`).
   integration-tests:
-    executor: python_postgres_redis
+    executor: machine_vm
     environment:
       ENVIRONMENT: testing
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
-      REDIS_URL: "redis://localhost:6379/0"
     steps:
       - checkout
+      - run:
+          name: Select Python 3.11 (pyenv on the machine image)
+          command: |
+            PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1 || true)
+            if [ -z "$PYV" ]; then pyenv install -s 3.11 && PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1); fi
+            pyenv global "$PYV"
+            python --version
       - restore_pip_cache
       - run:
           name: Install dependencies
-          command: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+          command: |
+            python -m pip install --upgrade pip
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
       - save_pip_cache
       - run:
-          name: Wait for services (real readiness, not just TCP open)
-          command: |
-            # A bare /dev/tcp open returns before Postgres accepts queries (the
-            # init bootstrap opens the port, restarts, then serves). Poll the
-            # actual protocols — pg_isready + redis PING — like the GH service
-            # health-checks do. Best-effort: never hard-fail here (the job is
-            # advisory), just give the services real time to come up.
-            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client redis-tools || true
-            for i in $(seq 1 30); do
-              pg_isready -h localhost -p 5432 -U test -d test_db >/dev/null 2>&1 && { echo "postgres ready"; break; }
-              echo "waiting for postgres ($i/30)"; sleep 2
-            done
-            for i in $(seq 1 30); do
-              [ "$(redis-cli -h localhost -p 6379 ping 2>/dev/null)" = "PONG" ] && { echo "redis ready"; break; }
-              echo "waiting for redis ($i/30)"; sleep 2
-            done
-      - run:
-          name: Run integration tests (non-blocking until stabilized)
+          name: Run integration tests (testcontainers; non-blocking until verified)
           command: |
             mkdir -p test-results
             set +e
@@ -369,7 +364,7 @@ jobs:
             exit_code=$?
             set -e
             # Advisory: log the real result (incl. exit 5 = no tests collected)
-            # but never gate the PR. Remove this `exit 0` to re-block once stable.
+            # but never gate the PR. Remove this `exit 0` to re-block once green.
             echo "integration-tests pytest exit=$exit_code (non-blocking — not gating the PR)"
             exit 0
       - store_test_results:
