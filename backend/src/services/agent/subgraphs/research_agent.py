@@ -225,6 +225,10 @@ async def research_force_synthesis_node(
     contains tool_calls (defensive — the directive forbids it).
     """
     from src.services.agent.llm_factory import build_synthesis_llm
+    from src.services.agent.observability import record_loop_exhaustion
+
+    # Degraded-answer signal: reached the research tool-loop ceiling.
+    record_loop_exhaustion("research", "research")
 
     messages = list(state["messages"])
 
@@ -310,9 +314,14 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
         "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
+    from src.services.agent._nodes_tools import hitl_log_raised, record_hitl_decision
+
+    hitl_log_raised(config, destructive_calls)
     user_response = interrupt(confirmation_details)
 
-    if user_response and user_response.get("confirmed"):
+    confirmed = bool(user_response and user_response.get("confirmed"))
+    await record_hitl_decision(config, destructive_calls, confirmed)
+    if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     return {

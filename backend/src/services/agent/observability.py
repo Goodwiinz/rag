@@ -39,10 +39,15 @@ def configure_langsmith():
     os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
+    # Separate traces per deploy environment so dev/staging/prod don't
+    # co-mingle (an explicit LANGSMITH_PROJECT/LANGCHAIN_PROJECT still wins).
+    deploy_env = (
+        os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "dev"
+    ).lower()
     project = (
         os.environ.get("LANGSMITH_PROJECT")
         or os.environ.get("LANGCHAIN_PROJECT")
-        or "rag-agent"
+        or f"rag-agent-{deploy_env}"
     )
     os.environ.setdefault("LANGSMITH_PROJECT", project)
     os.environ.setdefault("LANGCHAIN_PROJECT", project)
@@ -51,6 +56,16 @@ def configure_langsmith():
     os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
     os.environ.setdefault("LANGSMITH_TRACING", "true")
 
+    # PII guard: outside dev, do NOT upload run inputs/outputs (user prompts,
+    # RAG chunks, tool args) to LangSmith — tags, metadata, latency, and token
+    # usage still flow, so dashboards keep working. Override with
+    # LANGSMITH_HIDE_IO=false to opt back in. Dev keeps full I/O for debugging.
+    hide_io_default = "false" if deploy_env == "dev" else "true"
+    hide_io = os.environ.get("LANGSMITH_HIDE_IO", hide_io_default).lower() == "true"
+    if hide_io:
+        os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
+        os.environ.setdefault("LANGCHAIN_HIDE_OUTPUTS", "true")
+
     endpoint = os.environ.get("LANGSMITH_ENDPOINT") or os.environ.get(
         "LANGCHAIN_ENDPOINT"
     )
@@ -58,7 +73,9 @@ def configure_langsmith():
         os.environ.setdefault("LANGSMITH_ENDPOINT", endpoint)
         os.environ.setdefault("LANGCHAIN_ENDPOINT", endpoint)
 
-    logger.info("LangSmith tracing enabled (project: %s)", project)
+    logger.info(
+        "LangSmith tracing enabled (project: %s, hide_io: %s)", project, hide_io
+    )
 
 
 def get_langsmith_base_url() -> str:
@@ -180,6 +197,32 @@ try:
         [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0],
     )
 
+    # Degraded-answer signal: the agent hit the tool-loop ceiling and was
+    # forced to synthesize from partial tool results. A rising rate means
+    # MAX_TOOL_LOOPS is too low or a tool is looping — both hurt answer quality.
+    AGENT_LOOP_EXHAUSTION = _get_or_create_counter(
+        "agent_loop_exhaustion_total",
+        "Turns that hit the tool-loop ceiling and were force-synthesized",
+        ["intent", "subgraph"],
+    )
+
+    # Reflection gate outcome per turn (proceed vs revise). Rising "revise"
+    # share means the agent's first answers are increasingly low-quality.
+    AGENT_REFLECTION_DECISION = _get_or_create_counter(
+        "agent_reflection_decision_total",
+        "Reflection-node decision per turn",
+        ["decision", "intent"],  # decision: proceed | revise
+    )
+
+    # Intent classifier confidence distribution per source. Low-confidence
+    # spikes flag misrouting (wrong subgraph) before users complain.
+    AGENT_INTENT_CONFIDENCE = _get_or_create_histogram(
+        "agent_intent_confidence",
+        "Intent classification confidence by classifier source",
+        ["source"],
+        [0.0, 0.25, 0.5, 0.7, 0.85, 0.95, 1.0],
+    )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
@@ -214,11 +257,11 @@ def track_node_execution(node_name: str):
                 return result
             except Exception as e:
                 duration = time.monotonic() - t0
+                # Keep the traceback for operators (exc_info) but keep the raw
+                # exception string out of the indexed primary message — it can
+                # carry the user query or DB fragments (PII leak into logs).
                 logger.error(
-                    "Node %s failed after %.2fs: %s",
-                    node_name,
-                    duration,
-                    e,
+                    "Node %s failed after %.2fs", node_name, duration, exc_info=True
                 )
                 if _METRICS_AVAILABLE:
                     AGENT_NODE_DURATION.labels(
@@ -253,6 +296,27 @@ def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
         AGENT_TOKEN_USAGE.labels(model=model, type="completion").inc(
             completion_tokens
         )
+
+
+def record_loop_exhaustion(intent: str, subgraph: str = "main"):
+    """Record a turn that hit the tool-loop ceiling and was force-synthesized."""
+    if _METRICS_AVAILABLE:
+        AGENT_LOOP_EXHAUSTION.labels(intent=intent, subgraph=subgraph).inc()
+
+
+def record_reflection_decision(decision: str, intent: str = "unknown"):
+    """Record a reflection-node decision (``proceed`` | ``revise``)."""
+    if _METRICS_AVAILABLE:
+        AGENT_REFLECTION_DECISION.labels(decision=decision, intent=intent).inc()
+
+
+def record_intent_confidence(source: str, confidence: float):
+    """Record the classifier confidence for a routed intent."""
+    if _METRICS_AVAILABLE:
+        try:
+            AGENT_INTENT_CONFIDENCE.labels(source=source).observe(float(confidence))
+        except (TypeError, ValueError):
+            pass
 
 
 def record_error(error_type: str, node: str = "unknown"):

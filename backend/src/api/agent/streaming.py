@@ -30,6 +30,8 @@ from .jobs import (
     _resolve_thread,
 )
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent._pii_redact import redact_pii
+from src.services.agent.observability import record_token_usage
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
@@ -319,6 +321,13 @@ async def stream_event_generator(
                 "current_user": current_user,
                 "page_context": page_context,
             },
+            # LangSmith run metadata — per-tenant/turn filterable traces.
+            # Inherited by child runs; never carries secrets.
+            "metadata": {
+                "user_id": str(current_user.id),
+                "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                "thread_id": stream_thread_id,
+            },
         }
 
         yield _format_sse_event(
@@ -394,7 +403,12 @@ async def stream_event_generator(
 
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
-                            args_preview = str(tool_input)[:500] if tool_input else ""
+                            # Redact PII before the args preview leaves the
+                            # server (browser-visible SSE payload). Redact first,
+                            # then cap — so a token straddling the cut still matches.
+                            args_preview = (
+                                redact_pii(str(tool_input))[:500] if tool_input else ""
+                            )
                             yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                         elif kind == "on_tool_end":
@@ -520,6 +534,16 @@ async def stream_event_generator(
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
+            # Server-side token cost metric (was previously SSE-only, so cost
+            # never reached Prometheus). Model label drives per-model spend.
+            try:
+                record_token_usage(
+                    getattr(request_body, "model", None) or "unknown",
+                    turn_input_tokens,
+                    turn_output_tokens,
+                )
+            except Exception:  # never let metrics break the stream
+                logger.debug("record_token_usage failed", exc_info=True)
             yield (
                 "event: usage\n"
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
@@ -799,6 +823,16 @@ async def stream_confirm_event_generator(
             )
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
+            # Server-side token cost metric (was previously SSE-only, so cost
+            # never reached Prometheus). Model label drives per-model spend.
+            try:
+                record_token_usage(
+                    getattr(request_body, "model", None) or "unknown",
+                    turn_input_tokens,
+                    turn_output_tokens,
+                )
+            except Exception:  # never let metrics break the stream
+                logger.debug("record_token_usage failed", exc_info=True)
             yield (
                 "event: usage\n"
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
