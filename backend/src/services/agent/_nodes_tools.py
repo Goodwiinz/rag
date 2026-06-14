@@ -77,20 +77,24 @@ _SENSITIVE_ARG_KEYS = {
 }
 
 
-def _scrub_tool_value(value):
+def _scrub_tool_value(value, _depth: int = 0):
     """Recursively PII-scrub a tool-arg value (dict / list / str / scalar).
 
     Sensitive keys are dropped at ANY depth; every string is PII-redacted and
     length-capped. Without recursion, nested note bodies / email lists / metadata
-    would land raw in the HITL logs and the agent_hitl_audit row.
+    would land raw in the HITL logs and the agent_hitl_audit row. Depth-capped so
+    a pathologically deep/cyclic payload can't RecursionError (tool args are
+    JSON-decoded LLM output — realistically shallow).
     """
+    if _depth > 6:
+        return "[REDACTED:deep]"
     if isinstance(value, dict):
         return {
-            k: "[REDACTED]" if k in _SENSITIVE_ARG_KEYS else _scrub_tool_value(v)
+            k: "[REDACTED]" if k in _SENSITIVE_ARG_KEYS else _scrub_tool_value(v, _depth + 1)
             for k, v in value.items()
         }
     if isinstance(value, (list, tuple)):
-        return [_scrub_tool_value(v) for v in value]
+        return [_scrub_tool_value(v, _depth + 1) for v in value]
     if isinstance(value, str):
         return redact_pii(value)[:200]
     return value
@@ -166,6 +170,64 @@ async def _write_hitl_audit_row(
         logger.debug("hitl audit row write failed", exc_info=True)
 
 
+def hitl_log_raised(config: RunnableConfig, destructive_calls: list) -> None:
+    """Structured 'destructive action awaiting approval' log.
+
+    Shared by the main + subgraph interrupt nodes. Best-effort (wrapped so a
+    pathological arg can't break the turn). Re-fires on resume since interrupt
+    nodes re-execute — the decision event below is the authoritative one.
+    """
+    try:
+        user_id, org_id, thread_id = _hitl_actor(config)
+        logger.info(
+            "hitl_interrupt_raised",
+            extra={
+                "user_id": user_id,
+                "org_id": org_id,
+                "thread_id": thread_id,
+                "tools": [tc["name"] for tc in destructive_calls],
+                "tool_args": [
+                    _scrub_tool_args(tc.get("args", {})) for tc in destructive_calls
+                ],
+            },
+        )
+    except Exception:
+        logger.debug("hitl_interrupt_raised log failed", exc_info=True)
+
+
+async def record_hitl_decision(
+    config: RunnableConfig, destructive_calls: list, confirmed: bool
+) -> None:
+    """Authoritative who-decided audit: structlog event + durable audit row.
+
+    Shared by the main, research, and writing interrupt nodes so the trail
+    covers destructive tools on every path (subgraphs included). Best-effort.
+    """
+    user_id, org_id, thread_id = _hitl_actor(config)
+    tool_names = [tc["name"] for tc in destructive_calls]
+    try:
+        logger.info(
+            "hitl_decision",
+            extra={
+                "user_id": user_id,
+                "org_id": org_id,
+                "thread_id": thread_id,
+                "tools": tool_names,
+                "decision": "approve" if confirmed else "reject",
+            },
+        )
+    except Exception:
+        logger.debug("hitl_decision log failed", exc_info=True)
+    await _write_hitl_audit_row(
+        user_id=user_id,
+        org_id=org_id,
+        thread_id=thread_id,
+        tool_names=tool_names,
+        tool_args=[_scrub_tool_args(tc.get("args", {})) for tc in destructive_calls],
+        confirmed=confirmed,
+    )
+
+
 @track_node_execution("interrupt_node")
 async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Check if pending tool calls are destructive and interrupt for confirmation."""
@@ -185,45 +247,16 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
         "message": f"The agent wants to execute {len(destructive_calls)} action(s) that modify your data. Please confirm.",
     }
 
-    user_id, org_id, thread_id = _hitl_actor(config)
-    tool_names = [tc["name"] for tc in destructive_calls]
-    # Audit: destructive action awaiting approval. Note this node re-executes
-    # on resume, so this line fires on both raise and resume; the decision log
-    # below fires only on resume and is the authoritative who-decided event.
-    logger.info(
-        "hitl_interrupt_raised",
-        extra={
-            "user_id": user_id,
-            "org_id": org_id,
-            "thread_id": thread_id,
-            "tools": tool_names,
-            "tool_args": [_scrub_tool_args(tc["args"]) for tc in destructive_calls],
-        },
-    )
+    # Audit: destructive action awaiting approval (re-fires on resume).
+    hitl_log_raised(config, destructive_calls)
 
     # LangGraph interrupt — pauses graph, saves state, returns to caller
     user_response = interrupt(confirmation_details)
 
     confirmed = bool(user_response and user_response.get("confirmed"))
-    logger.info(
-        "hitl_decision",
-        extra={
-            "user_id": user_id,
-            "org_id": org_id,
-            "thread_id": thread_id,
-            "tools": tool_names,
-            "decision": "approve" if confirmed else "reject",
-        },
-    )
-    # Durable audit row (best-effort; never breaks the turn).
-    await _write_hitl_audit_row(
-        user_id=user_id,
-        org_id=org_id,
-        thread_id=thread_id,
-        tool_names=tool_names,
-        tool_args=[_scrub_tool_args(tc["args"]) for tc in destructive_calls],
-        confirmed=confirmed,
-    )
+    # Authoritative who-decided audit (structlog + durable row); fires once on
+    # resume. Shared with the research/writing interrupt nodes.
+    await record_hitl_decision(config, destructive_calls, confirmed)
 
     if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}

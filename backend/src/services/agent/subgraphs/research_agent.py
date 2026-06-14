@@ -314,9 +314,14 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
         "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
+    from src.services.agent._nodes_tools import hitl_log_raised, record_hitl_decision
+
+    hitl_log_raised(config, destructive_calls)
     user_response = interrupt(confirmation_details)
 
-    if user_response and user_response.get("confirmed"):
+    confirmed = bool(user_response and user_response.get("confirmed"))
+    await record_hitl_decision(config, destructive_calls, confirmed)
+    if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     return {
