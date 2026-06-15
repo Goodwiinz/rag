@@ -573,7 +573,7 @@ class RedisBackedConnectionManager:
                                 last_activity = datetime.fromisoformat(last_activity_str)
                                 if last_activity < stale_threshold:
                                     await self.disconnect(conn_id, "Stale connection")
-                            except ValueError:
+                            except (ValueError, TypeError):
                                 logger.warning(
                                     f"Invalid activity timestamp for {conn_id}, disconnecting as stale"
                                 )
