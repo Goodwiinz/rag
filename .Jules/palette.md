@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-05-20 - Source Card Keyboard Accessibility
+**Learning:** Using `role="button"` and `tabIndex={0}` on custom interactive elements (like the source cards in `ResultsPanel.tsx`) is insufficient for full keyboard accessibility. Without an explicit `onKeyDown` handler, screen reader and keyboard-only users cannot trigger the click action using "Enter" or "Space".
+**Action:** When creating custom elements with `role="button"`, always implement an `onKeyDown` handler to simulate click behavior for the "Enter" and "Space" keys, ensuring to call `e.preventDefault()` for the "Space" key to avoid unintended page scrolling.
