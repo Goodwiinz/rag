@@ -15,6 +15,7 @@ from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 from redis.asyncio import Redis
+from sqlalchemy import select
 
 from src.models.organization import Organization
 from src.models.user import User
@@ -350,14 +351,11 @@ class WebSocketAuthenticator:
 
             async with get_db_session() as session:
                 result = await session.execute(
-                    "SELECT * FROM users WHERE id = :user_id AND is_deleted = false",
-                    {"user_id": user_id},
+                    select(User).where(
+                        User.id == user_id, User.is_deleted == False
+                    )
                 )
-                user_data = result.fetchone()
-
-                if user_data:
-                    return User(**dict(user_data))
-                return None
+                return result.scalars().first()
 
         except Exception as e:
             logger.error(f"Error getting user {user_id}: {e}")
