@@ -17,3 +17,8 @@
 **Vulnerability:** Several backend API endpoints in modules like search, research, and documents were directly interpolating the raw exception string into 500 Internal Server Error details (e.g., `raise HTTPException(status_code=500, detail=f"Failed to...: {str(e)}")`). This exposed internal system details, potential stack traces, or database errors to the end-user.
 **Learning:** Over-informative HTTP exception messages provide debugging convenience at the cost of security, allowing attackers to infer backend structure, queries, or third-party service issues from the client side.
 **Prevention:** Always rely on secure server-side logging for detailed exceptions (`logger.error(e)`) and return generic, uninformative messages like "Internal server error" in the `detail` parameter of 500 error responses sent to the client.
+## 2024-05-01 - Prevent Exception Details Exposure in Auth
+
+**Vulnerability:** Found 5 instances in `backend/src/api/auth/auth.py` where exceptions exposed their internal details via `raise HTTPException(status_code=400, detail=str(e))`. This allows potential attackers to view sensitive internal application errors.
+**Learning:** This existed because of lazy error handling. It's common to pass the full error text to an HTTP response to help debug, but it inadvertently exposes information.
+**Prevention:** Always log exceptions securely on the server using `logger.error("Operation failed", exc_info=True)` and return safe, generic error messages like `"An internal error occurred"` to the client.

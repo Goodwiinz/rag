@@ -26,6 +26,9 @@ from src.models.user import User, UserRole
 from src.services.security.auth_service import (
     AuthService,
     get_auth_service,
+    AuthenticationError,
+    AuthorizationError,
+    RegistrationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,8 +96,13 @@ async def update_profile(
             "user": updated_user.to_dict(exclude_sensitive=True),
         }
 
-    except Exception as e:
+    except (AuthenticationError, AuthorizationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Profile update failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid profile data"
+        )
 
 
 @router.post("/change-password")
@@ -141,12 +149,18 @@ async def change_password(
         # Success: no recording
         return {"message": "Password changed successfully"}
 
+    except (AuthenticationError, AuthorizationError, RegistrationError) as e:
+        await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
+        await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         # Failure: record attempts for both layers
         await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
         await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
-
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error("Password change failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
+        )
 
 
 @router.get("/users")
@@ -207,8 +221,13 @@ async def update_user_role(
             "user": updated_user.to_dict(exclude_sensitive=True),
         }
 
-    except Exception as e:
+    except (AuthenticationError, AuthorizationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("User role update failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
+        )
 
 
 @router.post("/users/{user_id}/deactivate")
@@ -239,8 +258,13 @@ async def deactivate_user(
 
         return {"message": "User deactivated successfully"}
 
-    except Exception as e:
+    except (AuthenticationError, AuthorizationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("User deactivation failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
+        )
 
 
 @router.get("/statistics")
@@ -274,5 +298,10 @@ async def cleanup_inactive_users(
             "deleted_count": deleted_count,
         }
 
-    except Exception as e:
+    except (AuthenticationError, AuthorizationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Inactive users cleanup failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid request"
+        )
