@@ -152,6 +152,40 @@ commands:
             chmod +x codecov
             ./codecov -f "<< parameters.file >>" -F "<< parameters.flags >>" -t "$CODECOV_TOKEN" || true
 
+  codecov_test_results:
+    # Best-effort: uploads JUnit XML to Codecov Test Analytics (failed/flaky
+    # test detection). Test results need the Codecov CLI (cli.codecov.io) +
+    # `do-upload --report-type test_results` — the legacy uploader used by
+    # codecov_upload only handles COVERAGE, not test results. No-op without
+    # CODECOV_TOKEN or a missing file; never fails the job.
+    parameters:
+      file:
+        type: string
+      flags:
+        type: string
+    steps:
+      - run:
+          name: Upload test results to Codecov (<< parameters.flags >>)
+          when: always
+          command: |
+            if [ -z "${CODECOV_TOKEN:-}" ]; then
+              echo "CODECOV_TOKEN not set — skipping test-results upload"
+              exit 0
+            fi
+            if [ ! -f "<< parameters.file >>" ]; then
+              echo "<< parameters.file >> not found — skipping"
+              exit 0
+            fi
+            # Saved as `codecovcli` (NOT `codecov`) so it can't clobber the
+            # legacy uploader binary when both run in the same job.
+            curl -s -o codecovcli https://cli.codecov.io/latest/linux/codecov || { echo "CLI download failed"; exit 0; }
+            chmod +x codecovcli
+            ./codecovcli do-upload \
+              --report-type test_results \
+              --file "<< parameters.file >>" \
+              --flag "<< parameters.flags >>" \
+              -t "$CODECOV_TOKEN" || true
+
 # Note on secrets: the anon + service-role JWTs inlined in the e2e job are the
 # demo GoTrue fixtures already committed in test-pipeline.yml (signed with the
 # compose stack's demo secret) — NOT prod secrets. Real secrets (CODECOV_TOKEN,
@@ -250,6 +284,9 @@ jobs:
       - codecov_upload:
           file: coverage.xml
           flags: unit
+      - codecov_test_results:
+          file: test-results/unit.xml
+          flags: unit
 
   # ---- Golden replay: deterministic, creds-free agent regression (blocking) ----
   golden-replay:
@@ -318,6 +355,9 @@ jobs:
       - codecov_upload:
           file: frontend/coverage/lcov.info
           flags: frontend
+      - codecov_test_results:
+          file: frontend/coverage/junit-vitest.xml
+          flags: frontend
 
   # ---- Integration tests (blocking; machine VM) ----
   # Runs on the machine executor (full dockerd) — some integration tests use
@@ -378,6 +418,9 @@ jobs:
       - codecov_upload:
           file: coverage.xml
           flags: integration
+      - codecov_test_results:
+          file: test-results/integration.xml
+          flags: integration
 
   # ---- Resilience tests (blocking) ----
   resilience-tests:
@@ -397,18 +440,25 @@ jobs:
       - run:
           name: Run resilience tests
           command: |
+            mkdir -p test-results
             set +e
             pytest backend/tests/ \
               -c backend/pytest.ini \
               -m "resilience" \
               --cov=backend/src/core \
-              --cov-report=xml -v
+              --cov-report=xml \
+              --junitxml=test-results/resilience.xml -v
             exit_code=$?
             set -e
             [ "$exit_code" = "5" ] && { echo "No resilience tests found"; exit 0; }
             exit "$exit_code"
+      - store_test_results:
+          path: test-results
       - codecov_upload:
           file: coverage.xml
+          flags: resilience
+      - codecov_test_results:
+          file: test-results/resilience.xml
           flags: resilience
 
   # ---- API contract tests (NON-BLOCKING; postgres) ----
