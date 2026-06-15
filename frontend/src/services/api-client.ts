@@ -47,6 +47,7 @@ export interface UploadOptions {
 export class APIClient {
   private baseURL: string;
   private token: string | null = null;
+  private explicitToken: string | null = null;
   private organizationId: string | null = null;
   private defaultTimeout: number;
 
@@ -60,18 +61,40 @@ export class APIClient {
   // --------------------------------------------------------------------------
 
   setAuth(token: string, organizationId: string): void {
+    this.explicitToken = token;
     this.token = token;
     this.organizationId = organizationId;
   }
 
   clearAuth(): void {
+    this.explicitToken = null;
     this.token = null;
     this.organizationId = null;
   }
 
-  /** Load auth from Supabase session (used before each request if no token set) */
+  /** Load auth from the CURRENT Supabase session before each request.
+   *
+   * Reads the session every call rather than caching the first token forever:
+   * the old short-circuit (`if (this.token) return`) kept the very first
+   * access token for the singleton's whole lifetime, so after a token refresh
+   * the client sent a stale token and — worse — after sign-out (or a second
+   * user logging in on the same tab) it kept sending the previous user's
+   * still-valid JWT until a hard reload. An explicit token set via setAuth()
+   * still wins; otherwise the live session (which getSession() auto-refreshes)
+   * is the source of truth, and a null session clears the token rather than
+   * stranding the old one.
+   *
+   * Deliberately getSession() (audit #7): this only reads a token to attach to
+   * an API call the backend re-validates — it makes no authz decision here, so
+   * getUser()'s extra network round-trip per request would add latency for no
+   * security gain. The two authz-decision sites (authStore initialize/
+   * fetchProfile) use getUser().
+   */
   private async ensureAuth(): Promise<void> {
-    if (this.token) return;
+    if (this.explicitToken) {
+      this.token = this.explicitToken;
+      return;
+    }
     if (typeof window === 'undefined') return;
 
     try {
@@ -80,11 +103,9 @@ export class APIClient {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        this.token = session.access_token;
-        this.organizationId =
-          session.user?.user_metadata?.organization_id ?? null;
-      }
+      this.token = session?.access_token ?? null;
+      this.organizationId =
+        session?.user?.user_metadata?.organization_id ?? null;
     } catch (error) {
       console.warn('Failed to load auth from Supabase session:', error);
     }
@@ -132,10 +153,7 @@ export class APIClient {
     try {
       const response = await fetch(url, {
         ...fetchOptions,
-        headers: {
-          ...this.getHeaders(),
-          ...fetchOptions.headers,
-        },
+        headers: this.mergeHeaders(fetchOptions.headers, fetchOptions.body),
         signal: controller.signal,
       });
 
@@ -192,10 +210,7 @@ export class APIClient {
       endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`,
       {
         ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options.headers,
-        },
+        headers: this.mergeHeaders(options.headers, options.body),
       }
     );
 
@@ -246,11 +261,8 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
   }
 
@@ -262,11 +274,8 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
   }
 
@@ -278,12 +287,74 @@ export class APIClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      headers: this.bodyHeaders(data, options.headers),
+      body: this.serializeBody(data),
     });
+  }
+
+  /**
+   * Build headers for a body-carrying request. FormData bodies must NOT get a
+   * JSON Content-Type — the browser sets multipart/form-data with the boundary.
+   */
+  private bodyHeaders(data: unknown, extra?: HeadersInit): HeadersInit {
+    const isFormData =
+      typeof FormData !== 'undefined' && data instanceof FormData;
+    return {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...extra,
+    };
+  }
+
+  /**
+   * Pass FormData through untouched; JSON-encode everything else. Returns
+   * undefined for empty (null/undefined) bodies. A non-serializable body
+   * (circular ref, BigInt) is surfaced as an APIErrorClass so callers can
+   * handle it uniformly instead of a raw TypeError leaking out.
+   */
+  private serializeBody(data: unknown): BodyInit | undefined {
+    if (data === undefined || data === null) return undefined;
+    if (typeof FormData !== 'undefined' && data instanceof FormData) {
+      return data;
+    }
+    try {
+      return JSON.stringify(data);
+    } catch (error) {
+      throw new APIErrorClass({
+        message: `Failed to serialize request body: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+        status_code: 0,
+        type: 'validation_error',
+        details: {},
+      });
+    }
+  }
+
+  /**
+   * Merge default + auth headers with caller overrides. For FormData bodies the
+   * inherited JSON Content-Type (from DEFAULT_HEADERS) is stripped — the browser
+   * must set multipart/form-data with the boundary itself, or the server rejects
+   * the body with 422. The strip is case-insensitive so a caller-supplied
+   * `content-type` can't leak through.
+   */
+  private mergeHeaders(
+    extra: HeadersInit | undefined,
+    body: BodyInit | null | undefined
+  ): Record<string, string> {
+    const merged: Record<string, string> = {
+      ...(this.getHeaders() as Record<string, string>),
+      ...(extra as Record<string, string>),
+    };
+
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      for (const key of Object.keys(merged)) {
+        if (key.toLowerCase() === 'content-type') {
+          delete merged[key];
+        }
+      }
+    }
+
+    return merged;
   }
 
   async delete<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
@@ -316,12 +387,15 @@ export class APIClient {
       return this.uploadWithProgress<T>(endpoint, formData, options.onProgress);
     }
 
+    // Content-Type is intentionally not set here. request() strips the
+    // application/json default (from DEFAULT_HEADERS) for FormData bodies so the
+    // browser can set multipart/form-data with the boundary. Removing that strip
+    // would silently break this upload path — an empty headers object alone does
+    // NOT prevent the inherited JSON Content-Type.
     return this.request<T>(endpoint, {
       method: 'POST',
       body: formData,
-      headers: {
-        // Don't set Content-Type - browser will set it with boundary
-      },
+      headers: {},
     });
   }
 
@@ -408,6 +482,36 @@ export class APIClient {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  /**
+   * Fetch a file as an authenticated blob and return an object URL for inline
+   * rendering (e.g. a PDF/image preview). Unlike download(), this does not
+   * trigger a save dialog. Follows the backend's 302 redirect to a signed
+   * storage URL transparently. The caller owns the returned objectUrl and MUST
+   * call URL.revokeObjectURL(objectUrl) when done to avoid leaking memory.
+   */
+  async fetchObjectUrl(
+    url: string
+  ): Promise<{ objectUrl: string; contentType: string }> {
+    await this.ensureAuth();
+
+    const response = await fetch(
+      url.startsWith('http') ? url : `${this.baseURL}${url}`,
+      {
+        headers: this.getHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw await this.handleErrorResponse(response);
+    }
+
+    const blob = await response.blob();
+    return {
+      objectUrl: window.URL.createObjectURL(blob),
+      contentType: response.headers.get('content-type') || blob.type || '',
+    };
   }
 
   // --------------------------------------------------------------------------

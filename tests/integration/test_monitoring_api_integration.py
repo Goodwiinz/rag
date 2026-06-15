@@ -17,7 +17,7 @@ import asyncio
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Union
 from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
@@ -200,8 +200,8 @@ class TestMonitoringAPIEndpoints:
         # Query metrics
         request_data = {
             "service": "test-api-monitoring",
-            "start_time": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.utcnow().isoformat()
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat()
         }
 
         response = client.post("/monitoring/metrics", json=request_data)
@@ -228,8 +228,8 @@ class TestMonitoringAPIEndpoints:
         """Test traces endpoint"""
         request_data = {
             "service": "test-api-monitoring",
-            "start_time": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
             "limit": 50
         }
 
@@ -244,8 +244,8 @@ class TestMonitoringAPIEndpoints:
         request_data = {
             "service": "test-api-monitoring",
             "level": "INFO",
-            "start_time": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
             "limit": 100
         }
 
@@ -259,8 +259,8 @@ class TestMonitoringAPIEndpoints:
         """Test alerts endpoint"""
         request_data = {
             "status": "active",
-            "start_time": (datetime.utcnow() - timedelta(hours=24)).isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
             "limit": 100
         }
 
@@ -418,8 +418,8 @@ class TestAPIRequestValidation:
         # Valid request
         valid_request = {
             "service": "test-service",
-            "start_time": datetime.utcnow().isoformat(),
-            "end_time": datetime.utcnow().isoformat()
+            "start_time": datetime.now(timezone.utc).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat()
         }
 
         response = client.post("/monitoring/metrics", json=valid_request)
@@ -781,8 +781,8 @@ class TestAPIPerformance:
         # Create a large metrics request
         large_request = {
             "service": "test-api-performance",
-            "start_time": (datetime.utcnow() - timedelta(hours=24)).isoformat(),
-            "end_time": datetime.utcnow().isoformat(),
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat(),
             "labels": {f"label_{i}": f"value_{i}" for i in range(100)}
         }
 
@@ -1039,8 +1039,8 @@ class TestMonitoringAPIIntegration:
         # 3. Query metrics
         metrics_request = {
             "service": "integration-test-service",
-            "start_time": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
-            "end_time": datetime.utcnow().isoformat()
+            "start_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+            "end_time": datetime.now(timezone.utc).isoformat()
         }
         metrics_response = client.post("/monitoring/metrics", json=metrics_request)
         assert metrics_response.status_code == 200

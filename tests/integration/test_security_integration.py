@@ -5,7 +5,7 @@ Integration tests for the security fix of public search endpoints
 import pytest
 from fastapi.testclient import TestClient
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from src.main import app
@@ -275,7 +275,7 @@ class TestSecurityIntegration:
             key_prefix=raw_key[:8],
             is_active=True,
             rate_limit_per_hour=100,
-            expires_at=datetime.utcnow() - timedelta(hours=1),  # Expired 1 hour ago
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=1),  # Expired 1 hour ago
             created_by=f"{admin_user.email} ({admin_user.id})"
         )
         

@@ -5,6 +5,7 @@ Metrics Aggregation Service for analytics metrics
 import asyncio
 import logging
 import time
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -20,10 +21,8 @@ from src.core.config import settings
 from src.core.database import get_async_session
 from src.models.analytics.analytics_models import (
     AggregationType,
-    AnalyticsEvent,
     AnalyticsKPI,
     AnalyticsMetric,
-    EventType,
     KPICreate,
     KPIResponse,
     MetricAggregation,
@@ -35,6 +34,7 @@ from src.models.analytics.analytics_models import (
     MetricUpdate,
     TimeSeriesData,
 )
+from src.models.analytics_event import AnalyticsEvent
 from src.models.base import GUID
 
 logger = logging.getLogger(__name__)
@@ -286,8 +286,19 @@ class MetricsService:
             logger.error(f"Error deleting metric {metric_id}: {e}")
             return False
 
-    async def create_kpi(self, request: KPICreate, owner_id: uuid.UUID) -> KPIResponse:
+    async def create_kpi(
+        self,
+        request: KPICreate,
+        owner_id: uuid.UUID,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> KPIResponse:
         """Create a new KPI"""
+        # Enforce the tenant invariant at the write boundary, not only at the
+        # endpoint: a NULL-org KPI is invisible to every read path (fail
+        # closed), so persisting one is always a silent orphan. Reject it here
+        # so any future caller (job, seeder, other endpoint) can't write one.
+        if organization_id is None:
+            raise ValueError("organization_id is required to create a KPI")
         try:
             async with get_async_session() as db:
                 # Check if metric exists
@@ -306,6 +317,7 @@ class MetricsService:
                     display_name=request.display_name,
                     description=request.description,
                     metric_id=request.metric_id,
+                    organization_id=organization_id,
                     target_value=request.target_value,
                     warning_threshold=request.warning_threshold,
                     critical_threshold=request.critical_threshold,
@@ -476,19 +488,25 @@ class MetricsService:
         """Ingest analytics event"""
         try:
             async with get_async_session() as db:
+                # Map the API event onto the canonical AnalyticsEvent schema
+                # (src/models/analytics_event.py). Fields without a dedicated
+                # column are preserved in the flexible event_data JSON.
                 event = AnalyticsEvent(
                     event_type=event_data["event_type"],
                     event_name=event_data["event_name"],
                     event_category=event_data.get("event_category"),
                     user_id=event_data.get("user_id"),
                     session_id=event_data.get("session_id"),
-                    request_id=event_data.get("request_id"),
-                    properties=event_data.get("properties"),
+                    organization_id=event_data.get("organization_id"),
                     value=event_data.get("value"),
                     tags=event_data.get("tags"),
-                    country=event_data.get("country"),
-                    city=event_data.get("city"),
-                    timezone=event_data.get("timezone"),
+                    event_data={
+                        "request_id": event_data.get("request_id"),
+                        "properties": event_data.get("properties"),
+                        "country": event_data.get("country"),
+                        "city": event_data.get("city"),
+                        "timezone": event_data.get("timezone"),
+                    },
                 )
                 db.add(event)
                 await db.commit()

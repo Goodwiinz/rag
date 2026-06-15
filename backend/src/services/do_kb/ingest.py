@@ -14,6 +14,7 @@ upload + re-index — no per-doc data source spam on the KB.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -37,6 +38,30 @@ def _canonical_key(document: Document, ext: str) -> str:
     return f"{_CANONICAL_KEY_PREFIX}/{document.organization_id}/{document.id}.{ext}"
 
 
+def _source_item_path(src: dict) -> Optional[str]:
+    """Best-effort extract of a data source's Spaces item_path (defensive against
+    the exact list-response shape)."""
+    spaces = src.get("spaces_data_source") or src.get("spaces") or {}
+    if isinstance(spaces, dict):
+        return spaces.get("item_path") or spaces.get("key")
+    return None
+
+
+async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[str]:
+    """Return the uuid of an existing data source whose item_path == ``key``, else
+    None. Best-effort: any error / unknown shape returns None so the caller adds
+    normally (never blocks ingest on a failed/uncertain dedup lookup)."""
+    try:
+        for src in await api.list_data_sources(kb_uuid=kb_uuid):
+            if _source_item_path(src) == key:
+                uuid = src.get("uuid")
+                if uuid:
+                    return str(uuid)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("do_kb list_data_sources failed (will add): %s", exc)
+    return None
+
+
 def _record_metric(status: str) -> None:
     """Best-effort Prometheus counter; tolerate missing prometheus_client."""
     try:
@@ -58,10 +83,16 @@ def _resolve_spaces_source(document: Document) -> Optional[tuple[str, str]]:
     return None
 
 
-def _upload_text_fallback(document: Document) -> Optional[tuple[str, str]]:
-    """Upload content_text to Spaces under the canonical key and return
-    (bucket, key). Persists ``storage_backend="s3"`` + ``storage_path``
-    on the document so subsequent calls skip re-upload.
+async def _upload_canonical_text(document: Document) -> Optional[tuple[str, str]]:
+    """Mirror the document's text into the KB bucket under the canonical key
+    ``documents/{org}/{doc}.txt`` and return ``(bucket, key)``.
+
+    This is the PRIMARY ingest source: it guarantees an object exists under the
+    ``documents/{org}/`` prefix the KB data source reads, regardless of where the
+    original file lives (local / MinIO / a different bucket). The key is
+    deterministic from the document id, so re-runs simply overwrite (idempotent);
+    we do NOT mutate the document's real ``storage_path``/``storage_backend``,
+    which must keep pointing at the original upload.
     """
     text = getattr(document, "content_text", None)
     if not text:
@@ -71,17 +102,18 @@ def _upload_text_fallback(document: Document) -> Optional[tuple[str, str]]:
 
         helper = S3StorageHelper()
         key = _canonical_key(document, "txt")
-        helper.upload_file(
+        # upload_file is sync/blocking (boto3); offload so we don't stall the
+        # event loop for every document during bulk ingest (audit A8).
+        await asyncio.to_thread(
+            helper.upload_file,
             key,
             text.encode("utf-8"),
             content_type="text/plain; charset=utf-8",
         )
-        document.storage_backend = "s3"
-        document.storage_path = key
         return helper.bucket, key
     except Exception as exc:
         logger.warning(
-            "do_kb fallback text upload failed",
+            "do_kb canonical text upload failed",
             extra={"document_id": str(document.id), "error": str(exc)},
         )
         return None
@@ -126,7 +158,10 @@ async def sync_document_to_kb(
         _record_metric("provision_error")
         return None
 
-    source = _resolve_spaces_source(document) or _upload_text_fallback(document)
+    # Prefer the canonical text object in the KB bucket (guarantees presence
+    # under the documents/{org}/ prefix the data source reads). Only fall back to
+    # the original Spaces object when the document has no extracted text.
+    source = await _upload_canonical_text(document) or _resolve_spaces_source(document)
     if source is None:
         logger.info(
             "do_kb skip — no source",
@@ -137,23 +172,31 @@ async def sync_document_to_kb(
 
     bucket, key = source
 
-    try:
-        data_source = await api.add_spaces_data_source(
-            kb_uuid=kb_uuid, bucket=bucket, key=key
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb add_data_source failed",
-            extra={
-                "document_id": str(document.id),
-                "kb_uuid": kb_uuid,
-                "error": str(exc),
-            },
-        )
-        _record_metric("add_data_source_failed")
-        return None
+    # Idempotency (A7): if a data source for this exact item_path already exists
+    # (e.g. a prior run added it but the commit persisting the uuid failed), reuse
+    # it instead of adding a duplicate. Best-effort — any list error / unknown
+    # response shape falls through to a normal add, so the worst case is the
+    # pre-existing behavior (a possible duplicate), never a missing document.
+    ds_uuid = await _existing_data_source_uuid(api, kb_uuid, key)
+    if ds_uuid is None:
+        try:
+            data_source = await api.add_spaces_data_source(
+                kb_uuid=kb_uuid, bucket=bucket, key=key
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "do_kb add_data_source failed",
+                extra={
+                    "document_id": str(document.id),
+                    "kb_uuid": kb_uuid,
+                    "error": str(exc),
+                },
+            )
+            _record_metric("add_data_source_failed")
+            return None
+        ds_uuid = data_source.uuid
 
-    document.do_kb_data_source_uuid = data_source.uuid
+    document.do_kb_data_source_uuid = ds_uuid
     document.do_kb_indexed_at = datetime.now(timezone.utc)
 
     try:
@@ -177,7 +220,7 @@ async def sync_document_to_kb(
             _record_metric("indexing_kick_failed")
 
     _record_metric("ok")
-    return data_source.uuid
+    return ds_uuid
 
 
 async def sync_documents_to_kb(
@@ -192,7 +235,11 @@ async def sync_documents_to_kb(
 
     api = client or get_do_kb_client()
     results: list[Optional[str]] = []
-    seen_kbs: set[str] = set()
+    # Track org ids of successfully-synced docs. organization_id is a plain
+    # column (no async lazy-load), unlike `doc.organization.do_kb_uuid` which is
+    # an unawaited relationship that resolves to None in async context → the old
+    # code left seen_kbs empty and NEVER kicked indexing (audit A1).
+    synced_org_ids: set[str] = set()
 
     for doc in documents:
         ds_uuid = await sync_document_to_kb(
@@ -200,19 +247,16 @@ async def sync_documents_to_kb(
         )
         results.append(ds_uuid)
         if ds_uuid:
-            org_kb = getattr(doc.organization, "do_kb_uuid", None) if hasattr(
-                doc, "organization"
-            ) else None
-            if isinstance(org_kb, str):
-                seen_kbs.add(org_kb)
+            synced_org_ids.add(str(doc.organization_id))
 
-    for kb_uuid in seen_kbs:
+    for org_id in synced_org_ids:
         try:
+            kb_uuid = await ensure_kb_for_org(session, org_id, client=api)
             await api.start_indexing(kb_uuid=kb_uuid)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "do_kb bulk start_indexing failed",
-                extra={"kb_uuid": kb_uuid, "error": str(exc)},
+                extra={"org_id": org_id, "error": str(exc)},
             )
             _record_metric("indexing_kick_failed")
 

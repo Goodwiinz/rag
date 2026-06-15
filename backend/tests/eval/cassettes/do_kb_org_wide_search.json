@@ -1,0 +1,57 @@
+{
+  "case": "do_kb_org_wide_search",
+  "expected_intent": "research",
+  "expected_tools": [
+    "do_kb_retrieve"
+  ],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "do_kb_retrieve",
+            "args": {
+              "query": "retrieval-augmented generation RAG papers retrieval augmented generation",
+              "top_k": 8
+            },
+            "id": "call_P9NqjORZzPWvWONc6UQLujux"
+          }
+        ]
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "I tried searching the org knowledge base for \"retrieval-augmented generation\" papers but the retrieval call failed with an authentication error. I can proceed in a few ways \u2014 which do you prefer?\n\n- I can retry the org KB search (might succeed if the auth issue was transient).\n- I can search arXiv for recent RAG papers and summarize results instead.\n- I can search your indexed documents (search_documents) if you think relevant papers were already ingested here.\n- If you'd like me to, I can try to diagnose the auth error (I can retry once, per the system rules).\n\nWhich option should I take?",
+        "tool_calls": []
+      }
+    },
+    {
+      "slot": 2,
+      "kind": "structured",
+      "schema": "ReflectionResult",
+      "payload": {
+        "passed": false,
+        "issues": [
+          "The assistant reported an authentication error but did not execute any tool or provide evidence of attempting actions (criterion 1).",
+          "No document IDs were referenced, so criterion 2 not violated, but the response lacked specific follow-up steps or timeframe (criterion 3 partial).",
+          "The reply is somewhat generic and offers options instead of performing the requested search; it does not fulfill the user's request to search the org KB (criterion 3).",
+          "The options are reasonable, but the message could be more specific about the nature of the auth error and next steps; overall content is generic (criterion 4)."
+        ],
+        "severity": "major"
+      }
+    },
+    {
+      "slot": 3,
+      "kind": "tool",
+      "message": {
+        "content": "I recommend retrying the org KB search once (could be a transient auth issue). If it still fails, I'll switch to an arXiv search for RAG papers. Shall I retry the org KB search now?",
+        "tool_calls": []
+      }
+    }
+  ]
+}

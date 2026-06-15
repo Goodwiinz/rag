@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from ._errors import client_safe_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,7 @@ logger = logging.getLogger(__name__)
 # All writes go through ``job_store.set_job()`` (async) or the
 # ``_set_job`` sync wrapper which sprays to both L1 and Redis.
 
+from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import set_job as _set_job_async
@@ -42,6 +45,44 @@ from src.services.agent.job_store import delete_job as _delete_job_async
 from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
+
+
+def _sum_message_usage(messages: list) -> tuple[int, int]:
+    """Sum (input, output) token usage for THIS turn's assistant messages.
+
+    ``graph.ainvoke`` (the job path) runs on a checkpointed thread, so
+    ``final_state["messages"]`` includes every prior turn's ``AIMessage`` —
+    each still carrying ``usage_metadata``. Summing all of them would compound
+    the monotonic token counter and over-report ``usage`` on any multi-turn
+    conversation. Scope to messages after the last ``HumanMessage`` (the
+    current turn's model output, including the tool-loop AIMessages). The SSE
+    path counts via per-turn ``on_chat_model_end`` events and needs no slicing.
+
+    Reads ``usage_metadata`` (provider-normalized) first, then raw
+    ``response_metadata.token_usage``. Returns ``(0, 0)`` when unreported.
+    """
+    msgs = messages or []
+    last_human = -1
+    for i, msg in enumerate(msgs):
+        if getattr(msg, "type", None) == "human":
+            last_human = i
+    turn_msgs = msgs[last_human + 1:] if last_human >= 0 else msgs
+    in_tok = out_tok = 0
+    for msg in turn_msgs:
+        usage = getattr(msg, "usage_metadata", None)
+        if isinstance(usage, dict):
+            in_tok += int(usage.get("input_tokens", 0) or 0)
+            out_tok += int(usage.get("output_tokens", 0) or 0)
+            continue
+        meta = getattr(msg, "response_metadata", None)
+        if isinstance(meta, dict):
+            tu = meta.get("token_usage") or {}
+            if isinstance(tu, dict):
+                in_tok += int(tu.get("prompt_tokens") or tu.get("input_tokens") or 0)
+                out_tok += int(
+                    tu.get("completion_tokens") or tu.get("output_tokens") or 0
+                )
+    return in_tok, out_tok
 
 # Strong references to in-flight fire-and-forget Redis write tasks. Without
 # this the event loop keeps only a weak reference and the task can be garbage
@@ -73,6 +114,12 @@ def _set_job(job_id: str, data: dict):
 
     data["created_at"] = time.time()
     with _jobs_lock:
+        # Same owner carry-forward as job_store.set_job: replacement writes
+        # that omit user_id must not orphan the record (the GET ownership
+        # check fails closed on a missing user_id).
+        existing = _jobs.get(job_id)
+        if "user_id" not in data and existing is not None and existing.get("user_id"):
+            data["user_id"] = existing["user_id"]
         _jobs[job_id] = data
 
     try:
@@ -222,10 +269,195 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
+async def _resolve_project_for_thread(
+    db: AsyncSession,
+    thread_obj: Any,
+) -> tuple[Optional[str], Optional[str]]:
+    """Return (project_id, project_name) for a thread, using scalar or join fallback.
+
+    If ``source_project_id`` is set, the scalar path is used (fast).  If it is
+    NULL, the newest ``project_threads`` row is queried as a fallback so a
+    half-linked thread (row exists but column is NULL) still gets correct RAG
+    scoping.
+    """
+    if thread_obj is None:
+        return None, None
+
+    from sqlalchemy import select
+    from src.models import Collection, ProjectThread
+
+    scalar = getattr(thread_obj, "source_project_id", None)
+    if scalar:
+        # Resolve the name via an explicit query rather than the
+        # ``source_project`` relationship: not every caller eager-loads it,
+        # and an implicit lazy-load raises MissingGreenlet in async context.
+        name = (
+            await db.execute(select(Collection.name).where(Collection.id == scalar))
+        ).scalar_one_or_none()
+        return str(scalar), name
+
+    # Fallback: newest live project_threads row
+    stmt = (
+        select(ProjectThread, Collection)
+        .join(Collection, ProjectThread.project_id == Collection.id)
+        .where(
+            ProjectThread.thread_id == thread_obj.id,
+            ProjectThread.is_deleted == False,  # noqa: E712
+        )
+        .order_by(ProjectThread.linked_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+    if row:
+        pt, coll = row
+        return str(pt.project_id), coll.name
+    return None, None
+
+
+async def _resolve_and_bind_project(
+    db: AsyncSession,
+    current_user: User,
+    thread_obj: Any,
+    page_context: Dict[str, Any],
+) -> None:
+    """Fill ``page_context`` project fields and durably bind the agent thread.
+
+    The chat UI binds a project to its *workspace* thread, but agent runs
+    execute on a separate auto-created agent thread, and the only other
+    bridge (``?projectId=`` → ``page_context.project_id``) is dropped by
+    thread navigation. Without this resolver the agent forgets the attached
+    project on the very next turn / reload.
+
+    Resolution order:
+      1. Client-sent ``page_context.project_id`` — ownership-verified; junk
+         or foreign IDs are dropped rather than trusted.
+      2. The agent thread's own link (scalar column or join row).
+      3. The workspace thread named in
+         ``page_context.metadata.workspace_thread_id`` (ownership-verified).
+
+    Whenever a project is resolved and the agent thread is not yet linked to
+    it, attach it via the idempotent single writer so every future turn
+    resolves through path 2 with no client state required. The attach is
+    best-effort: a failure there never blocks the turn.
+    """
+    if thread_obj is None and not page_context.get("project_id"):
+        return
+
+    from uuid import UUID as _UUID
+
+    from sqlalchemy import and_, select
+
+    from src.models import Collection, Conversation, Thread, Workspace
+
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+
+    # Path 1: client-sent project — verify the caller owns it.
+    raw_pid = page_context.get("project_id")
+    if raw_pid:
+        try:
+            pid = _UUID(str(raw_pid))
+        except (ValueError, TypeError):
+            pid = None
+        if pid is not None:
+            row = (
+                await db.execute(
+                    select(Collection.id, Collection.name)
+                    .join(Workspace, Collection.workspace_id == Workspace.id)
+                    .where(
+                        and_(
+                            Collection.id == pid,
+                            Workspace.owner_id == current_user.id,
+                        )
+                    )
+                )
+            ).first()
+            if row:
+                project_id, project_name = str(row[0]), row[1]
+        if project_id is None:
+            # Unowned/invalid client value: drop it so it can't scope
+            # memory recall or RAG, then fall through to the thread paths.
+            page_context["project_id"] = None
+            page_context["project_name"] = None
+
+    # Path 2: the agent thread's own link.
+    if project_id is None and thread_obj is not None:
+        project_id, project_name = await _resolve_project_for_thread(db, thread_obj)
+
+    # Path 3: the workspace thread the chat UI actually binds projects to.
+    if project_id is None and thread_obj is not None:
+        ws_tid = (page_context.get("metadata") or {}).get("workspace_thread_id")
+        if ws_tid and str(ws_tid) != str(thread_obj.id):
+            try:
+                ws_uuid = _UUID(str(ws_tid))
+            except (ValueError, TypeError):
+                ws_uuid = None
+            if ws_uuid is not None:
+                ws_thread = (
+                    await db.execute(
+                        select(Thread)
+                        .join(Conversation, Thread.conversation_id == Conversation.id)
+                        .join(Workspace, Conversation.workspace_id == Workspace.id)
+                        .where(
+                            and_(
+                                Thread.id == ws_uuid,
+                                Workspace.owner_id == current_user.id,
+                                Thread.is_deleted == False,  # noqa: E712
+                            )
+                        )
+                    )
+                ).scalar_one_or_none()
+                if ws_thread is not None:
+                    project_id, project_name = await _resolve_project_for_thread(
+                        db, ws_thread
+                    )
+
+    if project_id is None:
+        return
+
+    page_context["project_id"] = project_id
+    if project_name and not page_context.get("project_name"):
+        page_context["project_name"] = project_name
+    if not page_context.get("type") or page_context.get("type") == "chat":
+        page_context["type"] = "project"
+
+    # Durably bind the agent thread so paths 1/3 are only ever needed once.
+    if (
+        thread_obj is not None
+        and str(getattr(thread_obj, "source_project_id", None) or "") != project_id
+    ):
+        try:
+            from src.models import ProjectThreadLinkType
+            from src.services.research.project_thread_service import (
+                attach_thread_to_project,
+            )
+
+            await attach_thread_to_project(
+                db,
+                thread_obj,
+                _UUID(project_id),
+                link_type=ProjectThreadLinkType.FROM_CHAT.value,
+                linked_by_id=current_user.id,
+                context_note="Auto-bound from chat project context",
+            )
+            await db.commit()
+        except Exception:
+            logger.warning(
+                "agent_thread_project_bind_failed",
+                exc_info=True,
+            )
+            try:
+                await db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
+
 async def _resolve_thread(
     db: AsyncSession,
     current_user: User,
     request: Any,  # AgentExecuteRequest
+    create_if_missing: bool = True,
 ) -> tuple[Optional[Any], str]:
     """Resolve or create the Thread + Conversation for this request.
 
@@ -233,6 +465,13 @@ async def _resolve_thread(
     workspace exists for the user (caller should treat this as "skip
     persistence"). When a fresh thread/conversation is created it is
     committed so the row has an ``id`` callers can reference.
+
+    ``create_if_missing=False`` skips the create-on-miss branch and returns
+    ``(None, "")`` when the thread cannot be found. Confirm/resume paths
+    must use this: their thread already exists (ownership was verified
+    against the checkpoint snapshot), so a lookup miss there is a transient
+    failure and creating a fresh "Agent Chat" thread would silently split
+    the conversation in two.
     """
     from uuid import UUID
 
@@ -241,6 +480,7 @@ async def _resolve_thread(
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
+    from sqlalchemy.orm import selectinload
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
@@ -250,11 +490,15 @@ async def _resolve_thread(
             select(Thread)
             .join(Conversation, Thread.conversation_id == Conversation.id)
             .join(Workspace, Conversation.workspace_id == Workspace.id)
+            .options(selectinload(Thread.source_project))
             .where(Thread.id == UUID(request.thread_id))
             .where(Workspace.owner_id == current_user.id)
         )
         result = await db.execute(stmt)
         thread = result.scalar_one_or_none()
+
+    if thread is None and not create_if_missing:
+        return None, ""
 
     if thread is None:
         ws_stmt = (
@@ -327,9 +571,7 @@ async def _persist_user_message(
     if request.thread_id is None:
         return False
 
-    last = next(
-        (m for m in reversed(request.messages) if m.role == "user"), None
-    )
+    last = next((m for m in reversed(request.messages) if m.role == "user"), None)
     if last is None:
         return False
 
@@ -493,6 +735,7 @@ async def _persist_thread_messages(
     assistant_content: str,
     tool_executions_out: Optional[list] = None,
     retrieved_contexts: Optional[list] = None,
+    create_if_missing: bool = True,
 ) -> tuple[str, str]:
     """Persist thread & messages to the database (deprecated shim).
 
@@ -500,9 +743,24 @@ async def _persist_thread_messages(
     notice above: this function is preserved for compatibility while Task 5
     migrates the streaming path to background tasks; new code should call
     ``_persist_user_message`` / ``_persist_assistant_message`` directly.
+
+    Confirm/resume callers pass ``create_if_missing=False`` — see
+    ``_resolve_thread`` for why a lookup miss there must skip persistence
+    rather than create a fresh thread.
     """
-    thread, conversation_id = await _resolve_thread(db, current_user, request)
+    thread, conversation_id = await _resolve_thread(
+        db, current_user, request, create_if_missing=create_if_missing
+    )
     if thread is None:
+        if not create_if_missing:
+            # Always log the skip — the job still reports completed, so this
+            # line is the only record that the turn was not durably stored.
+            logger.warning(
+                "Confirm/resume persist skipped: thread %s not found on "
+                "re-lookup (user_id=%s)",
+                request.thread_id or "<none>",
+                current_user.id,
+            )
         return request.thread_id or "", ""
 
     thread_id = str(thread.id)
@@ -589,16 +847,24 @@ async def _run_agent_graph(
             ]
 
             page_context = _page_context_to_dict(request.page_context)
-            if (
-                thread_obj is not None
-                and getattr(thread_obj, "source_project_id", None)
-                and not page_context.get("project_id")
-            ):
-                page_context["project_id"] = str(thread_obj.source_project_id)
-                if hasattr(thread_obj, "source_project") and thread_obj.source_project:
-                    page_context["project_name"] = thread_obj.source_project.name
-                if not page_context.get("type") or page_context["type"] == "chat":
-                    page_context["type"] = "project"
+            await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+
+            # Project-scoped memory: durable facts the user saved for this
+            # project, recalled across every thread. Best-effort; never blocks
+            # a turn.
+            project_memories: list = []
+            _pm_project_id = page_context.get("project_id")
+            if _pm_project_id:
+                try:
+                    from src.services.research.project_memory_service import (
+                        load_project_memories,
+                    )
+
+                    project_memories = await load_project_memories(
+                        db, str(_pm_project_id)
+                    )
+                except Exception:
+                    logger.warning("project memory load failed", exc_info=True)
 
             initial_state = {
                 "messages": messages,
@@ -613,6 +879,7 @@ async def _run_agent_graph(
                 "user_confirmed": False,
                 "intent": "",
                 "user_memories": [],
+                "project_memories": project_memories,
                 "plan": [],
                 "reflection_count": 0,
                 "compaction_count": 0,
@@ -623,12 +890,22 @@ async def _run_agent_graph(
             }
 
             config = {
+                "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": request.thread_id or job_id,
                     "db": db,
                     "current_user": current_user,
                     "page_context": page_context,
-                }
+                },
+                # LangSmith run metadata — makes traces filterable per
+                # tenant/turn (saved views by user_id / org_id / thread_id).
+                # Inherited by child runs; never carries secrets.
+                "metadata": {
+                    "user_id": str(current_user.id),
+                    "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                    "thread_id": request.thread_id or job_id,
+                    "job_id": job_id,
+                },
             }
 
             try:
@@ -702,10 +979,22 @@ async def _run_agent_graph(
                 logger.warning("Failed to persist thread", exc_info=e)
 
             response_model_name: str = getattr(request, "model", "") or ""
+            # Token cost on the job path (the SSE path records its own). Reads
+            # usage off the final messages since ainvoke doesn't stream events.
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+            if in_tok or out_tok:
+                try:
+                    from src.services.agent.observability import record_token_usage
+
+                    record_token_usage(
+                        response_model_name or "unknown", in_tok, out_tok
+                    )
+                except Exception:
+                    logger.debug("record_token_usage failed", exc_info=True)
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
-                usage={},
+                usage={"input_tokens": in_tok, "output_tokens": out_tok},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 rag_enabled=request.use_rag,
@@ -729,6 +1018,7 @@ async def _run_agent_graph(
                     "status": "completed",
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
+                    "user_id": str(current_user.id),
                 },
             )
         except asyncio.CancelledError:
@@ -739,7 +1029,12 @@ async def _run_agent_graph(
             logger.warning("Agent graph execution cancelled", extra={"job_id": job_id})
             try:
                 await _set_job_async(
-                    job_id, {"status": "cancelled", "error": "execution cancelled"}
+                    job_id,
+                    {
+                        "status": "cancelled",
+                        "error": "execution cancelled",
+                        "user_id": str(current_user.id),
+                    },
                 )
             except Exception:
                 logger.exception("Failed to mark cancelled job %s", job_id)
@@ -748,11 +1043,22 @@ async def _run_agent_graph(
             logger.error("Agent graph execution timed out", extra={"job_id": job_id})
             await _set_job_async(
                 job_id,
-                {"status": "failed", "error": "Agent execution timed out after 360s"},
+                {
+                    "status": "failed",
+                    "error": "Agent execution timed out after 360s",
+                    "user_id": str(current_user.id),
+                },
             )
         except Exception as e:
             logger.error("Agent graph execution failed", exc_info=e)
-            await _set_job_async(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(
+                job_id,
+                {
+                    "status": "failed",
+                    "error": client_safe_error(e),
+                    "user_id": str(current_user.id),
+                },
+            )
 
 
 async def _resume_agent_graph(
@@ -790,6 +1096,7 @@ async def _resume_agent_graph(
             )
 
             config = {
+                "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": resume_thread_id,
                     "db": db,
@@ -799,7 +1106,7 @@ async def _resume_agent_graph(
                         if original_request
                         else {}
                     ),
-                }
+                },
             }
 
             # Verify thread ownership before resuming. Checkpoints without an
@@ -814,11 +1121,14 @@ async def _resume_agent_graph(
                         snapshot_user_id,
                         current_user.id,
                     )
+                    # Stamp the *requesting* user so their polling sees the
+                    # error; never the snapshot owner.
                     await _set_job_async(
                         job_id,
                         {
                             "status": "error",
                             "error": "Thread not found",
+                            "user_id": str(current_user.id),
                         },
                     )
                     return
@@ -872,6 +1182,7 @@ async def _resume_agent_graph(
                         original_request,
                         assistant_content,
                         tool_executions_out,
+                        create_if_missing=False,
                     )
             except Exception as e:
                 logger.warning(
@@ -881,10 +1192,21 @@ async def _resume_agent_graph(
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
             )
+            # Token cost on the HITL resume path (parity with the initial run).
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+            if in_tok or out_tok:
+                try:
+                    from src.services.agent.observability import record_token_usage
+
+                    record_token_usage(
+                        response_model_name or "unknown", in_tok, out_tok
+                    )
+                except Exception:
+                    logger.debug("record_token_usage failed", exc_info=True)
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
-                usage={},
+                usage={"input_tokens": in_tok, "output_tokens": out_tok},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 tool_executions=[
@@ -902,6 +1224,7 @@ async def _resume_agent_graph(
                     "status": "completed",
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
+                    "user_id": str(current_user.id),
                 },
             )
         except asyncio.CancelledError:
@@ -910,7 +1233,12 @@ async def _resume_agent_graph(
             logger.warning("Agent graph resume cancelled", extra={"job_id": job_id})
             try:
                 await _set_job_async(
-                    job_id, {"status": "cancelled", "error": "resume cancelled"}
+                    job_id,
+                    {
+                        "status": "cancelled",
+                        "error": "resume cancelled",
+                        "user_id": str(current_user.id),
+                    },
                 )
             except Exception:
                 logger.exception("Failed to mark cancelled resume job %s", job_id)
@@ -919,8 +1247,19 @@ async def _resume_agent_graph(
             logger.error("Agent graph resume timed out", extra={"job_id": job_id})
             await _set_job_async(
                 job_id,
-                {"status": "failed", "error": "Agent execution timed out after 360s"},
+                {
+                    "status": "failed",
+                    "error": "Agent execution timed out after 360s",
+                    "user_id": str(current_user.id),
+                },
             )
         except Exception as e:
             logger.error("Agent graph resume failed", exc_info=e)
-            await _set_job_async(job_id, {"status": "failed", "error": str(e)})
+            await _set_job_async(
+                job_id,
+                {
+                    "status": "failed",
+                    "error": client_safe_error(e),
+                    "user_id": str(current_user.id),
+                },
+            )

@@ -245,6 +245,29 @@ async def list_files(
         )
 
 
+@router.get("/stats", response_model=FileStatsResponse)
+async def get_file_statistics(
+    current_user: User = Depends(get_current_user),
+    organization: Organization = Depends(get_current_organization),
+    file_service: FileService = Depends(get_file_service),
+):
+    """Get file statistics for the organization.
+
+    Declared BEFORE ``/{file_id}`` — FastAPI matches routes in declaration
+    order, so with ``/{file_id}`` first the literal path ``/stats`` was captured
+    as a file_id and failed downstream as ``invalid UUID 'stats'`` (the
+    multi-tenancy middleware's document lookup raised an asyncpg DataError).
+    """
+    try:
+        stats = await file_service.get_file_stats(str(organization.id))
+        return FileStatsResponse(**stats)
+    except Exception as e:
+        logger.error(f"Error getting file statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+        )
+
+
 @router.get("/{file_id}")
 async def get_file_info(
     file_id: str,
@@ -575,23 +598,6 @@ async def cancel_upload(
             detail="Internal server error",
         )
 
-
-
-@router.get("/stats", response_model=FileStatsResponse)
-async def get_file_statistics(
-    current_user: User = Depends(get_current_user),
-    organization: Organization = Depends(get_current_organization),
-    file_service: FileService = Depends(get_file_service),
-):
-    """Get file statistics for the organization"""
-    try:
-        stats = await file_service.get_file_stats(str(organization.id))
-        return FileStatsResponse(**stats)
-    except Exception as e:
-        logger.error(f"Error getting file statistics: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
-        )
 
 
 @router.post("/{file_id}/reprocess")

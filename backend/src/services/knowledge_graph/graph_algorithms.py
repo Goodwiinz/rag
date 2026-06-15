@@ -6,17 +6,20 @@ import asyncio
 import logging
 import re
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from neo4j import AsyncSession
 
 from src.services.config.analytics_config import config
 from src.services.models.analytics_models import (
+    AnomalyInsight,
     BridgeEntityInsight,
     CentralityResult,
     ClusterInsight,
     Community,
     GraphPath,
+    GrowthTrendInsight,
     KeyEntityInsight,
     PathStep,
 )
@@ -24,7 +27,7 @@ from src.services.models.knowledge_graph_models import EntityType
 
 logger = logging.getLogger(__name__)
 
-_TENANT_ID_RE = re.compile(
+_ORG_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.IGNORECASE,
 )
@@ -44,13 +47,43 @@ def _validate_entity_types(entity_types: Optional[List[str]]) -> List[str]:
     return entity_types
 
 
-def _validate_tenant_id(tenant_id: Optional[str]) -> Optional[str]:
-    """Validate tenant_id is a UUID to prevent injection in GDS nodeFilter."""
-    if tenant_id is None:
-        return None
-    if not _TENANT_ID_RE.match(tenant_id):
-        raise ValueError(f"tenant_id must be a valid UUID, got: {tenant_id!r}")
-    return tenant_id
+def _validate_organization_id(organization_id: Optional[str]) -> str:
+    """Validate organization_id is a UUID. REQUIRED: analytics must be org-scoped —
+    running unscoped would compute over the entire cross-org graph and leak results
+    between tenants (audit D2/D3). The UUID check also prevents injection into the
+    GDS nodeFilter string (which cannot use bound parameters)."""
+    if not organization_id:
+        raise ValueError("organization_id is required for graph analytics")
+    if not _ORG_ID_RE.match(organization_id):
+        raise ValueError(
+            f"organization_id must be a valid UUID, got: {organization_id!r}"
+        )
+    return organization_id
+
+
+def _org_projection_queries(
+    validated_org: str, validated_types: List[str]
+) -> tuple[str, str]:
+    """Build the (nodeQuery, relationshipQuery) for a GDS 2.x Cypher projection
+    scoped to one organization. The org is a validated UUID and entity types come
+    from the enum allowlist, so interpolation here is injection-safe (GDS Cypher
+    projection queries cannot take bound parameters)."""
+    type_pred = ""
+    if validated_types:
+        tf = " OR ".join([f"e.type = '{t}'" for t in validated_types])
+        type_pred = f" AND ({tf})"
+    node_q = (
+        f"MATCH (e:Entity) WHERE e.organization_id = '{validated_org}'{type_pred} "
+        "RETURN id(e) AS id"
+    )
+    rel_q = (
+        "MATCH (s:Entity)-[r:RELATED_TO]-(t:Entity) "
+        f"WHERE s.organization_id = '{validated_org}' "
+        f"AND t.organization_id = '{validated_org}' "
+        "RETURN id(s) AS source, id(t) AS target, "
+        "coalesce(r.strength, 1.0) AS weight"
+    )
+    return node_q, rel_q
 
 
 class GraphAlgorithms:
@@ -59,11 +92,89 @@ class GraphAlgorithms:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
+    async def _gds_centrality_2x(
+        self,
+        session: AsyncSession,
+        algo: str,
+        validated_org: str,
+        validated_types: List[str],
+        limit: int,
+        cfg: Optional[Dict[str, Any]] = None,
+    ) -> List[tuple]:
+        """Run a GDS 2.x centrality algo over an org-scoped, named Cypher projection.
+
+        GDS 2.x removed the inline anonymous projection the legacy queries used, so
+        we project a uniquely-named graph (concurrency-safe), stream the algo by
+        name, and ALWAYS drop the graph. Raises on any GDS error so the caller can
+        fall back to the legacy path / degree centrality — i.e. this is a pure
+        upgrade: best case GDS acceleration on 2.x, worst case identical fallback.
+
+        Returns rows of (entity_id, entity_name, entity_type, score).
+        """
+        graph_name = "kg_" + uuid.uuid4().hex
+        node_q, rel_q = _org_projection_queries(validated_org, validated_types)
+        try:
+            await session.run(
+                "CALL gds.graph.project.cypher($g, $nq, $rq)",
+                {"g": graph_name, "nq": node_q, "rq": rel_q},
+            )
+            result = await session.run(
+                f"CALL {algo}.stream($g, $cfg) YIELD nodeId, score "
+                "RETURN gds.util.asNode(nodeId).id AS entity_id, "
+                "gds.util.asNode(nodeId).name AS entity_name, "
+                "gds.util.asNode(nodeId).type AS entity_type, score AS score "
+                "ORDER BY score DESC LIMIT $limit",
+                {"g": graph_name, "cfg": cfg or {}, "limit": limit},
+            )
+            rows = []
+            async for r in result:
+                rows.append(
+                    (r["entity_id"], r["entity_name"], r["entity_type"], r["score"])
+                )
+            return rows
+        finally:
+            try:
+                await session.run(
+                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
+                )
+            except Exception:  # noqa: BLE001 - cleanup best-effort
+                pass
+
+    async def _gds_run_on_projection(
+        self,
+        session: AsyncSession,
+        validated_org: str,
+        validated_types: List[str],
+        body: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Project an org-scoped named graph (GDS 2.x Cypher projection), run an
+        arbitrary `body` query that references ``$g`` (the graph name), materialize
+        the records, and ALWAYS drop the graph. Raises on any GDS error so callers
+        fall back. For algos whose result shape isn't the centrality (id,score) row.
+        """
+        graph_name = "kg_" + uuid.uuid4().hex
+        node_q, rel_q = _org_projection_queries(validated_org, validated_types)
+        try:
+            await session.run(
+                "CALL gds.graph.project.cypher($g, $nq, $rq)",
+                {"g": graph_name, "nq": node_q, "rq": rel_q},
+            )
+            result = await session.run(body, {"g": graph_name, **(params or {})})
+            return [r.data() async for r in result]
+        finally:
+            try:
+                await session.run(
+                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
+                )
+            except Exception:  # noqa: BLE001 - cleanup best-effort
+                pass
+
     async def compute_pagerank(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute PageRank centrality"""
@@ -71,97 +182,54 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
-            )
-
-            query = f"""
-            CALL gds.pageRank.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED',
-                        properties: ['strength']
-                    }}
-                }},
-                maxIterations: $max_iterations,
-                dampingFactor: $damping_factor,
-                tolerance: $tolerance
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS pagerank_score
-            ORDER BY pagerank_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(
-                query,
-                {
-                    "max_iterations": config.PAGERANK_MAX_ITERATIONS,
-                    "damping_factor": config.PAGERANK_DAMPING_FACTOR,
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.pageRank",
+                validated_org,
+                validated_types,
+                limit,
+                cfg={
+                    "maxIterations": config.PAGERANK_MAX_ITERATIONS,
+                    "dampingFactor": config.PAGERANK_DAMPING_FACTOR,
                     "tolerance": config.PAGERANK_TOLERANCE,
-                    "limit": limit,
+                    "relationshipWeightProperty": "weight",
                 },
             )
 
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["pagerank_score"],
-                        rank=rank,
-                        metadata={"algorithm": "pagerank"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "pagerank"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
 
         except Exception as e:
             logger.error(f"Error computing PageRank: {e}")
-            # Fallback to simpler implementation if GDS not available
+            # GDS 2.x projection failed (or GDS unavailable) → degree fallback.
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "pagerank"
+                session, entity_types, organization_id, limit, "pagerank"
             )
 
     async def compute_betweenness_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute betweenness centrality"""
@@ -169,69 +237,32 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.betweenness",
+                validated_org,
+                validated_types,
+                limit,
             )
 
-            query = f"""
-            CALL gds.betweenness.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }}
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS betweenness_score
-            ORDER BY betweenness_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(query, {"limit": limit})
-
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["betweenness_score"],
-                        rank=rank,
-                        metadata={"algorithm": "betweenness"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "betweenness"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
@@ -239,14 +270,14 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error computing betweenness centrality: {e}")
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "betweenness"
+                session, entity_types, organization_id, limit, "betweenness"
             )
 
     async def compute_closeness_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute closeness centrality"""
@@ -254,69 +285,32 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            rows = await self._gds_centrality_2x(
+                session,
+                "gds.closeness",
+                validated_org,
+                validated_types,
+                limit,
             )
 
-            query = f"""
-            CALL gds.closeness.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }}
-            }})
-            YIELD nodeId, score
-            RETURN gds.util.asNode(nodeId).id AS entity_id,
-                   gds.util.asNode(nodeId).name AS entity_name,
-                   gds.util.asNode(nodeId).type AS entity_type,
-                   score AS closeness_score
-            ORDER BY closeness_score DESC
-            LIMIT $limit
-            """
-
-            result = await session.run(query, {"limit": limit})
-
-            centrality_results = []
-            rank = 1
-
-            async for record in result:
-                centrality_results.append(
-                    CentralityResult(
-                        entity_id=record["entity_id"],
-                        entity_name=record["entity_name"],
-                        entity_type=record["entity_type"],
-                        centrality_score=record["closeness_score"],
-                        rank=rank,
-                        metadata={"algorithm": "closeness"},
-                    )
+            centrality_results = [
+                CentralityResult(
+                    entity_id=eid,
+                    entity_name=name,
+                    entity_type=etype,
+                    centrality_score=score,
+                    rank=i + 1,
+                    metadata={"algorithm": "closeness"},
                 )
-                rank += 1
+                for i, (eid, name, etype, score) in enumerate(rows)
+            ]
 
             computation_time = time.time() - start_time
 
             return {
-                "results": [result.dict() for result in centrality_results],
+                "results": [r.dict() for r in centrality_results],
                 "computation_time": computation_time,
                 "node_count": len(centrality_results),
             }
@@ -324,14 +318,14 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error computing closeness centrality: {e}")
             return await self._compute_degree_centrality_fallback(
-                session, entity_types, tenant_id, limit, "closeness"
+                session, entity_types, organization_id, limit, "closeness"
             )
 
     async def compute_degree_centrality(
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
         """Compute degree centrality"""
@@ -339,7 +333,7 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
             where_clauses = []
             params: Dict[str, Any] = {"limit": limit}
@@ -348,9 +342,9 @@ class GraphAlgorithms:
                     [f"e.type = '{etype}'" for etype in validated_types]
                 )
                 where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append("e.tenant_id = $tenant_id")
-                params["tenant_id"] = validated_tenant
+            if validated_org:
+                where_clauses.append("e.organization_id = $organization_id")
+                params["organization_id"] = validated_org
 
             where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
             node_filter = (
@@ -361,7 +355,9 @@ class GraphAlgorithms:
             MATCH (e:Entity)
             WHERE {where_clause}
             OPTIONAL MATCH (e)-[r:RELATED_TO]-()
-            WITH e, count(r) AS degree
+            // count(DISTINCT r): an undirected match binds a self-loop twice
+            // (once per direction), so plain count(r) double-counted self-loops.
+            WITH e, count(DISTINCT r) AS degree
             ORDER BY degree DESC
             LIMIT $limit
             RETURN e.id AS entity_id,
@@ -419,13 +415,13 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]],
-        tenant_id: Optional[str],
+        organization_id: Optional[str],
         limit: int,
         algorithm: str,
     ) -> Dict[str, Any]:
         """Fallback centrality computation using simple degree"""
         return await self.compute_degree_centrality(
-            session, entity_types, tenant_id, limit
+            session, entity_types, organization_id, limit
         )
 
     async def find_shortest_path_dijkstra(
@@ -433,7 +429,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         weight_property: str = "strength",
         max_paths: int = 10,
     ) -> Dict[str, Any]:
@@ -441,66 +437,62 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            query = """
-            MATCH (start:Entity {id: $source_entity_id, tenant_id: $tenant_id})
-            MATCH (end:Entity {id: $target_entity_id, tenant_id: $tenant_id})
-            CALL gds.shortestPath.dijkstra.stream({
-                nodeProjection: 'Entity',
-                relationshipProjection: {
-                    RELATED_TO: {
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED',
-                        properties: [$weight_property]
-                    }
-                },
-                sourceNode: start,
-                targetNode: end,
-                relationshipWeightProperty: $weight_property
-            })
-            YIELD index, sourceNode, targetNode, totalCost, nodeIds, relationshipIds, costs
-            RETURN index,
-                   gds.util.asNode(sourceNode).id AS source_id,
-                   gds.util.asNode(targetNode).id AS target_id,
-                   totalCost,
-                   nodeIds,
-                   relationshipIds,
-                   costs
-            ORDER BY totalCost
-            LIMIT $max_paths
-            """
+            validated_org = _validate_organization_id(organization_id)
 
-            result = await session.run(
-                query,
+            # GDS 2.x: project an org-scoped named graph, then run dijkstra by name
+            # with the endpoints resolved to their Neo4j ids. The projection holds
+            # only this org's nodes (endpoints are also org-id matched), so the path
+            # cannot cross orgs. Any GDS error → Cypher-BFS/path fallback below.
+            body = (
+                "MATCH (src:Entity {id: $source_entity_id, "
+                f"organization_id: '{validated_org}'}}) "
+                "MATCH (dst:Entity {id: $target_entity_id, "
+                f"organization_id: '{validated_org}'}}) "
+                "CALL gds.shortestPath.dijkstra.stream($g, {sourceNode: id(src), "
+                "targetNode: id(dst), relationshipWeightProperty: 'weight'}) "
+                "YIELD index, sourceNode, targetNode, totalCost, nodeIds, costs "
+                "RETURN index, "
+                "gds.util.asNode(sourceNode).id AS source_id, "
+                "gds.util.asNode(targetNode).id AS target_id, "
+                "totalCost, costs, "
+                "[nid IN nodeIds | gds.util.asNode(nid).id] AS node_entity_ids, "
+                "[nid IN nodeIds | gds.util.asNode(nid).name] AS node_entity_names, "
+                "[nid IN nodeIds | gds.util.asNode(nid).type] AS node_entity_types "
+                "ORDER BY totalCost LIMIT $max_paths"
+            )
+            records = await self._gds_run_on_projection(
+                session,
+                validated_org,
+                [],
+                body,
                 {
                     "source_entity_id": source_entity_id,
                     "target_entity_id": target_entity_id,
-                    "tenant_id": tenant_id,
-                    "weight_property": weight_property,
                     "max_paths": max_paths,
                 },
             )
 
             paths = []
-            async for record in result:
+            for record in records:
                 # Convert path to steps
                 steps = []
-                node_ids = record["nodeIds"]
                 costs = record["costs"]
+                # Node props are projected by the GDS query (gds.util.asNode in a
+                # list comprehension) — no per-node MATCH (was N+1: one query per
+                # node in every path).
+                ids = record["node_entity_ids"]
+                names = record["node_entity_names"]
+                types = record["node_entity_types"]
 
-                for i, node_id in enumerate(node_ids):
-                    # Get node information
-                    node_query = "MATCH (n:Entity) WHERE id(n) = $node_id RETURN n.id AS id, n.name AS name, n.type AS type"
-                    node_result = await session.run(node_query, {"node_id": node_id})
-                    node_record = await node_result.single()
-
-                    if node_record:
-                        step = PathStep(
-                            entity_id=node_record["id"],
-                            entity_name=node_record["name"],
-                            entity_type=node_record["type"],
+                for i in range(len(ids)):
+                    steps.append(
+                        PathStep(
+                            entity_id=ids[i],
+                            entity_name=names[i],
+                            entity_type=types[i],
                             weight=costs[i] if i < len(costs) else 0.0,
                         )
-                        steps.append(step)
+                    )
 
                 path = GraphPath(
                     path_id=f"path_{record['index']}",
@@ -522,7 +514,7 @@ class GraphAlgorithms:
         except Exception as e:
             logger.error(f"Error finding shortest paths with Dijkstra: {e}")
             return await self._find_shortest_path_fallback(
-                session, source_entity_id, target_entity_id, tenant_id, max_paths
+                session, source_entity_id, target_entity_id, organization_id, max_paths
             )
 
     async def find_shortest_path_bfs(
@@ -530,7 +522,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         max_depth: int = 5,
         max_paths: int = 10,
     ) -> Dict[str, Any]:
@@ -538,10 +530,14 @@ class GraphAlgorithms:
         start_time = time.time()
 
         try:
-            query = """
-            MATCH (start:Entity {id: $source_entity_id, tenant_id: $tenant_id})
-            MATCH (end:Entity {id: $target_entity_id, tenant_id: $tenant_id})
-            MATCH path = shortestPath((start)-[:RELATED_TO*1..$max_depth]-(end))
+            # Cypher does NOT allow a parameter inside a variable-length bound
+            # (`*1..$max_depth` is a syntax error → BFS always threw → empty
+            # paths). Clamp to a validated int and interpolate it as a literal.
+            safe_depth = max(1, min(int(max_depth), 10))
+            query = f"""
+            MATCH (start:Entity {{id: $source_entity_id, organization_id: $organization_id}})
+            MATCH (end:Entity {{id: $target_entity_id, organization_id: $organization_id}})
+            MATCH path = shortestPath((start)-[:RELATED_TO*1..{safe_depth}]-(end))
             RETURN path, length(path) as path_length
             ORDER BY path_length
             LIMIT $max_paths
@@ -552,8 +548,7 @@ class GraphAlgorithms:
                 {
                     "source_entity_id": source_entity_id,
                     "target_entity_id": target_entity_id,
-                    "tenant_id": tenant_id,
-                    "max_depth": max_depth,
+                    "organization_id": organization_id,
                     "max_paths": max_paths,
                 },
             )
@@ -602,7 +597,7 @@ class GraphAlgorithms:
         session: AsyncSession,
         source_entity_id: str,
         target_entity_id: str,
-        tenant_id: str,
+        organization_id: str,
         max_paths: int,
     ) -> Dict[str, Any]:
         """Fallback path finding using simple Cypher queries"""
@@ -610,7 +605,7 @@ class GraphAlgorithms:
             session,
             source_entity_id,
             target_entity_id,
-            tenant_id,
+            organization_id,
             max_depth=5,
             max_paths=max_paths,
         )
@@ -619,7 +614,7 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         resolution: float = 1.0,
     ) -> Dict[str, Any]:
         """Detect communities using Louvain algorithm"""
@@ -627,58 +622,36 @@ class GraphAlgorithms:
 
         try:
             validated_types = _validate_entity_types(entity_types)
-            validated_tenant = _validate_tenant_id(tenant_id)
+            validated_org = _validate_organization_id(organization_id)
 
-            where_clauses = []
-            if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
-            if validated_tenant:
-                where_clauses.append(f"e.tenant_id = '{validated_tenant}'")
-
-            where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-            node_filter = (
-                f"nodeFilter: '{where_clause}'" if where_clause != "1=1" else ""
+            # GDS 2.x named-graph projection (anonymous projection removed in 2.x);
+            # any GDS error falls through to the empty-result except below.
+            records = await self._gds_run_on_projection(
+                session,
+                validated_org,
+                validated_types,
+                "CALL gds.louvain.stream($g, {includeIntermediateCommunities: false, "
+                "tolerance: 0.00001}) "
+                "YIELD nodeId, communityId "
+                "RETURN communityId, "
+                "collect(gds.util.asNode(nodeId).id) AS entities, "
+                "collect(gds.util.asNode(nodeId).type) AS entity_types, "
+                "count(gds.util.asNode(nodeId)) AS entity_count "
+                "ORDER BY entity_count DESC",
             )
 
-            query = f"""
-            CALL gds.louvain.stream({{
-                nodeProjection: {{
-                    Entity: {{
-                        label: 'Entity',
-                        properties: ['name', 'type'],
-                        {node_filter}
-                    }}
-                }},
-                relationshipProjection: {{
-                    RELATED_TO: {{
-                        type: 'RELATED_TO',
-                        orientation: 'UNDIRECTED'
-                    }}
-                }},
-                includeIntermediateCommunities: false,
-                seedProperty: 'seed',
-                tolerance: 0.00001
-            }})
-            YIELD nodeId, communityId, intermediateCommunityIds
-            RETURN communityId,
-                   collect(gds.util.asNode(nodeId).id) AS entities,
-                   count(gds.util.asNode(nodeId)) AS entity_count
-            ORDER BY entity_count DESC
-            """
-
-            result = await session.run(query, {"resolution": resolution})
+            from collections import Counter
 
             communities = []
             community_count = 0
             total_modularity = 0.0
 
-            async for record in result:
-                # Get dominant entity type for this community
-                dominant_type = await self._get_dominant_entity_type(
-                    session, record["entities"]
+            for record in records:
+                # Dominant type computed from the types collected in the SAME
+                # Louvain stream (was a separate UNWIND query per community — N+1).
+                type_list = [t for t in (record["entity_types"] or []) if t]
+                dominant_type = (
+                    Counter(type_list).most_common(1)[0][0] if type_list else None
                 )
 
                 community = Community(
@@ -714,7 +687,7 @@ class GraphAlgorithms:
         self,
         session: AsyncSession,
         entity_types: Optional[List[str]] = None,
-        tenant_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
         max_iterations: int = 100,
     ) -> Dict[str, Any]:
         """Detect communities using label propagation"""
@@ -765,16 +738,16 @@ class GraphAlgorithms:
 
     # Insights methods
     async def find_key_entities(
-        self, session: AsyncSession, tenant_id: str, limit: int = 10
+        self, session: AsyncSession, organization_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find key entities in the graph"""
         try:
             # Combine multiple centrality measures
             pagerank_result = await self.compute_pagerank(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
             betweenness_result = await self.compute_betweenness_centrality(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
 
             # Combine results to find consensus key entities
@@ -819,13 +792,13 @@ class GraphAlgorithms:
             return []
 
     async def find_bridge_entities(
-        self, session: AsyncSession, tenant_id: str, limit: int = 10
+        self, session: AsyncSession, organization_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Find bridge entities (entities that connect different communities)"""
         try:
             # Use betweenness centrality as proxy for bridge entities
             betweenness_result = await self.compute_betweenness_centrality(
-                session, tenant_id=tenant_id, limit=limit
+                session, organization_id=organization_id, limit=limit
             )
 
             bridge_entities = []
@@ -849,13 +822,13 @@ class GraphAlgorithms:
             return []
 
     async def identify_graph_clusters(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Identify graph clusters"""
         try:
             # Use community detection to identify clusters
             community_result = await self.detect_communities_louvain(
-                session, tenant_id=tenant_id
+                session, organization_id=organization_id
             )
 
             clusters = []
@@ -880,7 +853,7 @@ class GraphAlgorithms:
             return []
 
     async def detect_graph_anomalies(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Detect graph anomalies"""
         try:
@@ -888,13 +861,13 @@ class GraphAlgorithms:
 
             # Look for isolated entities (no connections)
             query = """
-            MATCH (e:Entity {tenant_id: $tenant_id})
+            MATCH (e:Entity {organization_id: $organization_id})
             WHERE NOT (e)-[:RELATED_TO]-()
             RETURN e.id AS entity_id, e.name AS entity_name, e.type AS entity_type
             LIMIT 10
             """
 
-            result = await session.run(query, {"tenant_id": tenant_id})
+            result = await session.run(query, {"organization_id": organization_id})
             async for record in result:
                 anomalies.append(
                     AnomalyInsight(
@@ -914,7 +887,7 @@ class GraphAlgorithms:
             return []
 
     async def analyze_growth_trends(
-        self, session: AsyncSession, tenant_id: str
+        self, session: AsyncSession, organization_id: str
     ) -> List[Dict[str, Any]]:
         """Analyze growth trends in the graph"""
         try:
@@ -922,7 +895,7 @@ class GraphAlgorithms:
 
             # Simple trend analysis based on creation dates
             query = """
-            MATCH (e:Entity {tenant_id: $tenant_id})
+            MATCH (e:Entity {organization_id: $organization_id})
             WITH date(e.created_at) AS creation_date, count(e) AS daily_count
             RETURN creation_date, daily_count
             ORDER BY creation_date DESC
@@ -930,7 +903,7 @@ class GraphAlgorithms:
             """
 
             daily_counts = []
-            result = await session.run(query, {"tenant_id": tenant_id})
+            result = await session.run(query, {"organization_id": organization_id})
             async for record in result:
                 daily_counts.append(
                     {"date": record["creation_date"], "count": record["daily_count"]}

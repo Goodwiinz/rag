@@ -53,8 +53,8 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
   }, [draftA, draftB]);
 
   const getTrendIcon = (diff: number) => {
-    if (diff > 0) return <TrendingUp className="h-4 w-4 text-sol" />;
-    if (diff < 0) return <TrendingDown className="h-4 w-4 text-red-400" />;
+    if (diff > 0) return <TrendingUp className="h-4 w-4 text-primary" />;
+    if (diff < 0) return <TrendingDown className="h-4 w-4 text-destructive" />;
     return <Minus className="h-4 w-4 text-muted-foreground" />;
   };
 
@@ -65,111 +65,103 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
 
   const similarityColor =
     comparison.similarity_score > 0.8
-      ? 'text-sol'
+      ? 'text-primary'
       : comparison.similarity_score > 0.5
-        ? 'text-helios'
-        : 'text-red-400';
+        ? 'text-[var(--nous-helios)]'
+        : 'text-destructive';
 
   const lineClass = (type: 'added' | 'removed' | 'unchanged') => {
-    if (type === 'added') return 'bg-sol/10 text-[#8ef9d0]';
-    if (type === 'removed') return 'bg-red-500/10 text-red-300';
+    if (type === 'added') return 'bg-primary/10 text-foreground';
+    if (type === 'removed') return 'bg-destructive/10 text-destructive';
     return 'text-muted-foreground';
   };
 
   return (
-    <div className="bg-[#0a0a0a] border border-border rounded-lg overflow-hidden">
-      {/* Header */}
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="p-4 border-b border-border">
-        <h3 className="font-mono font-bold text-muted-foreground">
-          Version Comparison
-        </h3>
+        <h3 className="font-semibold text-foreground">Version comparison</h3>
       </div>
 
-      {/* Stats Comparison */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border-b border-border">
-        {/* Version A */}
         <div className="text-center">
-          <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
+          <span className="text-xs text-muted-foreground mb-2 block">
             Version {comparison.version_a.version}
-          </div>
+          </span>
           <div className="space-y-2">
-            <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-muted-foreground">
+            <div className="p-2 bg-muted rounded">
+              <span className="text-lg block tabular-nums text-foreground">
                 {comparison.version_a.word_count}
-              </div>
-              <div className="text-xs text-muted-foreground">words</div>
+              </span>
+              <span className="text-xs text-muted-foreground">words</span>
             </div>
-            <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-muted-foreground">
+            <div className="p-2 bg-muted rounded">
+              <span className="text-lg block tabular-nums text-foreground">
                 {comparison.version_a.citation_count}
-              </div>
-              <div className="text-xs text-muted-foreground">citations</div>
+              </span>
+              <span className="text-xs text-muted-foreground">citations</span>
             </div>
           </div>
-          <div className="text-xs text-muted-foreground font-mono mt-2">
+          <span className="text-xs text-muted-foreground mt-2 block">
             {new Date(comparison.version_a.created_at).toLocaleDateString()}
-          </div>
+          </span>
         </div>
 
-        {/* Comparison Arrow & Stats */}
         <div className="flex flex-col items-center justify-center">
           <ArrowRight className="h-6 w-6 text-muted-foreground mb-4" />
 
           <div className="space-y-3 w-full">
             <div className="flex items-center justify-center gap-2">
               {getTrendIcon(comparison.word_count_diff)}
-              <span className="text-sm font-mono text-muted-foreground">
+              <span className="text-sm tabular-nums">
                 {formatDiff(comparison.word_count_diff)} words
               </span>
             </div>
             <div className="flex items-center justify-center gap-2">
               {getTrendIcon(comparison.citation_count_diff)}
-              <span className="text-sm font-mono text-muted-foreground">
+              <span className="text-sm tabular-nums">
                 {formatDiff(comparison.citation_count_diff)} citations
               </span>
             </div>
-            <div className="p-2 bg-[#1a1a1a] rounded text-center">
-              <div className={`text-lg font-mono ${similarityColor}`}>
+            <div className="p-2 bg-muted rounded text-center">
+              <span className={`text-lg tabular-nums block ${similarityColor}`}>
                 {(comparison.similarity_score * 100).toFixed(1)}%
-              </div>
-              <div className="text-xs text-muted-foreground">similarity</div>
+              </span>
+              <span className="text-xs text-muted-foreground">similarity</span>
             </div>
           </div>
         </div>
 
-        {/* Version B */}
         <div className="text-center">
-          <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
+          <span className="text-xs text-muted-foreground mb-2 block">
             Version {comparison.version_b.version}
-          </div>
+          </span>
           <div className="space-y-2">
-            <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-muted-foreground">
+            <div className="p-2 bg-muted rounded">
+              <span className="text-lg block tabular-nums text-foreground">
                 {comparison.version_b.word_count}
-              </div>
-              <div className="text-xs text-muted-foreground">words</div>
+              </span>
+              <span className="text-xs text-muted-foreground">words</span>
             </div>
-            <div className="p-2 bg-[#1a1a1a] rounded">
-              <div className="text-lg font-mono text-muted-foreground">
+            <div className="p-2 bg-muted rounded">
+              <span className="text-lg block tabular-nums text-foreground">
                 {comparison.version_b.citation_count}
-              </div>
-              <div className="text-xs text-muted-foreground">citations</div>
+              </span>
+              <span className="text-xs text-muted-foreground">citations</span>
             </div>
           </div>
-          <div className="text-xs text-muted-foreground font-mono mt-2">
+          <span className="text-xs text-muted-foreground mt-2 block">
             {new Date(comparison.version_b.created_at).toLocaleDateString()}
-          </div>
+          </span>
         </div>
       </div>
 
-      {/* Side-by-side Content (if provided) */}
       {diffView && (
-        <div className="grid grid-cols-2 divide-x divide-[#1a1a1a]">
+        <div className="grid grid-cols-2 divide-x divide-border">
           <div className="p-4 max-h-[400px] overflow-y-auto">
-            <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
+            <span className="text-xs text-muted-foreground mb-2 block">
               Version {comparison.version_a.version}
-            </div>
-            <div className="text-sm font-mono whitespace-pre-wrap space-y-1">
+            </span>
+            <div className="text-sm font-[var(--nous-font-mono)] whitespace-pre-wrap space-y-1">
               {diffView.versionA.map((line, idx) => (
                 <div
                   key={`a-${idx}`}
@@ -181,10 +173,10 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
             </div>
           </div>
           <div className="p-4 max-h-[400px] overflow-y-auto">
-            <div className="text-xs text-muted-foreground font-mono uppercase mb-2">
+            <span className="text-xs text-muted-foreground mb-2 block">
               Version {comparison.version_b.version}
-            </div>
-            <div className="text-sm font-mono whitespace-pre-wrap space-y-1">
+            </span>
+            <div className="text-sm font-[var(--nous-font-mono)] whitespace-pre-wrap space-y-1">
               {diffView.versionB.map((line, idx) => (
                 <div
                   key={`b-${idx}`}

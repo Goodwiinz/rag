@@ -6,10 +6,10 @@ and Chat systems (Thread/Conversation) by tracking which threads are
 associated with which projects.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
@@ -35,6 +35,9 @@ class ProjectThread(BaseModel):
     """
 
     __tablename__ = "project_threads"
+    __table_args__ = (
+        UniqueConstraint('project_id', 'thread_id', name='uq_project_thread'),
+    )
 
     # Foreign keys
     project_id = Column(
@@ -58,7 +61,7 @@ class ProjectThread(BaseModel):
     )
     linked_at = Column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     linked_by_id = Column(
@@ -83,7 +86,7 @@ class ProjectThread(BaseModel):
         if "link_type" not in kwargs:
             kwargs["link_type"] = ProjectThreadLinkType.MANUAL.value
         if "linked_at" not in kwargs:
-            kwargs["linked_at"] = datetime.utcnow()
+            kwargs["linked_at"] = datetime.now(timezone.utc)
         super().__init__(**kwargs)
 
     def __repr__(self):

@@ -1,0 +1,25 @@
+{
+  "case": "writing_draft",
+  "expected_intent": "writing",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "writing",
+        "confidence": 0.98,
+        "reasoning": "The user requests drafting a related-work section, which is a writing task (literature synthesis/summary) rather than searching or graph operations."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "## Related Work\n\nAttention mechanisms were introduced to address the limitations of fixed-length representations in early encoder-decoder architectures. In neural machine translation, additive attention allowed the decoder to dynamically focus on relevant source tokens during generation, improving performance on long sequences and making alignment behavior more interpretable (Bahdanau et al., 2015). Shortly afterward, multiplicative and local-global variants of attention further improved computational efficiency and modeling flexibility in sequence transduction tasks (Luong et al., 2015). These early approaches established attention as a general mechanism for selective information retrieval within neural architectures.\n\nThe development of self-attention marked a major shift from cross-attentive sequence models toward architectures that model dependencies within a sequence directly. Self-attention enables each token to aggregate contextual information from all other tokens, making it well suited for capturing long-range interactions. This idea was generalized and popularized by the Transformer, which replaced recurrence entirely with stacked self-attention and feed-forward layers (Vaswani et al., 2017). Subsequent work extended the basic Transformer formulation through improvements such as relative positional representations, which better encode token order and distance information than absolute embeddings alone (Shaw et al., 2018). These models demonstrated that attention can serve not only as an auxiliary alignment mechanism, but also as the primary computational primitive of modern sequence modeling.\n\nA major line of related work has focused on the computational cost of attention. Standard self-attention scales quadratically with sequence length, which limits its applicability to long documents, videos, and other large inputs. To address this, researchers have proposed sparse and approximate variants, including sparse attention patterns, locality-constrained mechanisms, kernel-based linearizations, and memory-efficient reformulations (Child et al., 2019; Beltagy et al., 2020; Choromanski et al., 2021). Although these methods differ in how they trade off expressiveness, complexity, and inductive bias, they share the goal of preserving the benefits of global contextualization while reducing the cost of pairwise token interactions.\n\nAttention mechanisms have also been adapted beyond text to vision, graphs, and multimodal learning. In computer vision, non-local operations and Vision Transformers showed that attention can effectively model long-range spatial dependencies and, in some settings, replace convolutional priors altogether (Wang et al., 2018; Dosovitskiy et al., 2021). In graph learning, graph attention networks introduced attention-based neighborhood aggregation, enabling adaptive weighting of graph edges during message passing (Veli\u010dkovi\u0107 et al., 2018). Across these domains, the common theme is that attention provides a flexible, data-dependent way to prioritize relevant context, which helps explain its broad adoption across modern deep learning systems.\n\nOverall, prior work suggests that attention mechanisms are valuable because they improve contextual modeling, reduce reliance on rigid architectural assumptions, and provide a unified framework for selective information aggregation. At the same time, the literature highlights ongoing challenges related to efficiency, positional reasoning, and interpretability. These issues continue to motivate new attention designs tailored to specific tasks, modalities, and computational constraints.\n\n**References mentioned:** Bahdanau et al. (2015); Luong et al. (2015); Vaswani et al. (2017); Shaw et al. (2018); Child et al. (2019); Beltagy et al. (2020); Choromanski et al. (2021); Wang et al. (2018); Veli\u010dkovi\u0107 et al. (2018); Dosovitskiy et al. (2021).\n\nIf you want, I can also make this:\n1. **shorter and more generic**,  \n2. **more technical**, or  \n3. **tailored to transformers / efficient attention / vision attention specifically**.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

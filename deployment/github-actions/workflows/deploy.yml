@@ -234,8 +234,9 @@ jobs:
           --from-literal=neo4j-uri=bolt://neo4j:7687 \
           --from-literal=neo4j-username=neo4j \
           --from-literal=neo4j-password=${{ secrets.NEO4J_PASSWORD }} \
-          --from-literal=qdrant-url=http://qdrant:6333 \
-          --from-literal=qdrant-api-key=${{ secrets.QDRANT_API_KEY }} \
+          --from-literal=do-api-token=${{ secrets.DO_API_TOKEN }} \
+          --from-literal=do-kb-project-id=${{ secrets.DO_KB_PROJECT_ID }} \
+          --from-literal=do-kb-embedding-model-uuid=${{ secrets.DO_KB_EMBEDDING_MODEL_UUID }} \
           --from-literal=redis-url=redis://redis:6379 \
           --from-literal=redis-password=${{ secrets.REDIS_PASSWORD }} \
           --from-literal=openai-api-key=${{ secrets.OPENAI_API_KEY }} \

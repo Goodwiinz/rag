@@ -8,7 +8,7 @@ import asyncio
 import json
 import uuid
 import websockets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from unittest.mock import Mock, AsyncMock
 
@@ -16,6 +16,7 @@ from conftest import (
     APIAssertions, create_auth_headers, wait_for_condition,
     sample_organization, sample_user, sample_metrics_data
 )
+from tests.constants import TEST_JWT_SECRET
 
 
 class TestWebSocketIntegration:
@@ -34,9 +35,9 @@ class TestWebSocketIntegration:
                     "email": sample_user["email"],
                     "organization_id": str(sample_user["organization_id"]),
                     "roles": sample_user["roles"],
-                    "exp": datetime.utcnow() + timedelta(hours=1)
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1)
                 },
-                "test_secret_key",
+                TEST_JWT_SECRET,
                 algorithm="HS256"
             )
 
@@ -68,7 +69,7 @@ class TestWebSocketIntegration:
                 return subscription_id
 
             async def broadcast_message(self, channel: str, message: Dict[str, Any]):
-                self.messages.append({"channel": channel, "message": message, "timestamp": datetime.utcnow()})
+                self.messages.append({"channel": channel, "message": message, "timestamp": datetime.now(timezone.utc)})
                 return True
 
             async def cleanup_connection(self, connection_id: str):
@@ -169,7 +170,7 @@ class TestWebSocketIntegration:
                     "type": "metric_update",
                     "metrics": [metric.dict() for metric in sample_metrics_data]
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             # In a real test, this would be sent by the backend
@@ -216,7 +217,7 @@ class TestWebSocketIntegration:
                         "message": "Entity growth rate exceeded threshold",
                         "current_value": 125.5,
                         "threshold": 100.0,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 }
             }
@@ -264,7 +265,7 @@ class TestWebSocketIntegration:
                         "config": {"metric_id": "new_metric"}
                     },
                     "updated_by": "test_user@example.com",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -345,7 +346,7 @@ class TestWebSocketIntegration:
             # 2. Send ping to server
             ping_message = {
                 "type": "ping",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
             await websocket.send(json.dumps(ping_message))
 
@@ -361,13 +362,13 @@ class TestWebSocketIntegration:
             # For testing, we simulate receiving a ping
             server_ping = {
                 "type": "ping",
-                "data": {"timestamp": datetime.utcnow().isoformat()}
+                "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
             }
 
             # Respond with pong
             pong_message = {
                 "type": "pong",
-                "data": {"timestamp": datetime.utcnow().isoformat()}
+                "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
             }
             await websocket.send(json.dumps(pong_message))
 
@@ -590,7 +591,7 @@ class TestWebSocketIntegration:
                     "data": {
                         "type": "metric_update",
                         "sequence": i,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 }
                 messages.append(message)
@@ -616,9 +617,9 @@ class TestWebSocketIntegration:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(seconds=2)  # Expires in 2 seconds
+                "exp": datetime.now(timezone.utc) + timedelta(seconds=2)  # Expires in 2 seconds
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 

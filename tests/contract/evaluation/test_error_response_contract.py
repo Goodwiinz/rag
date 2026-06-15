@@ -7,11 +7,12 @@ rate limiting responses (429), and server error responses (500)
 import pytest
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
 from typing import Dict, Any
 
+from tests.constants import TEST_JWT_SECRET
 from tests.contract.evaluation.fixtures.data_generators import EvaluationDataGenerator, JobDataGenerator
 
 
@@ -163,12 +164,12 @@ class TestEvaluationErrorResponseContract:
             "email": test_user.email,
             "role": "user",  # Limited role
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
         import jwt
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {

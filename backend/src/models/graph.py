@@ -113,6 +113,11 @@ class CreateEntityRequest(BaseModel):
         default_factory=dict, description="Additional entity metadata"
     )
     source_document_id: Optional[str] = Field(None, description="Source document ID")
+    organization_id: Optional[str] = Field(
+        None,
+        description="Owning organization; stamped on the node for direct tenant "
+        "scoping (avoids the org-doc-id IN-list).",
+    )
 
 
 class EntityResponse(BaseModel):

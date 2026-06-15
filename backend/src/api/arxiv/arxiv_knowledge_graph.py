@@ -18,22 +18,23 @@ router = APIRouter()
 
 class KnowledgeGraphRequest(BaseModel):
     paper_id: str = Field(..., description="ArXiv paper ID")
-    depth: int = Field(default=2, description="Depth of subgraph exploration")
+    depth: int = Field(default=2, ge=1, le=5, description="Depth of subgraph exploration")
 
 
 class AuthorNetworkRequest(BaseModel):
     author_name: str = Field(..., description="Author name")
-    max_depth: int = Field(default=2, description="Depth of collaboration network")
+    max_depth: int = Field(default=2, ge=1, le=5, description="Depth of collaboration network")
 
 
 class TrendAnalysisRequest(BaseModel):
     category: str = Field(..., description="ArXiv category (e.g., cs.LG)")
-    days: int = Field(default=30, description="Number of recent days to analyze")
+    days: int = Field(default=30, ge=1, le=365, description="Number of recent days to analyze")
 
 
 class BulkIngestionRequest(BaseModel):
     query: str = Field(..., description="Search query for papers")
-    max_results: int = Field(default=100, description="Maximum papers to process")
+    # Bounded: an unbounded max_results fed straight into arXiv ingestion.
+    max_results: int = Field(default=100, ge=1, le=500, description="Maximum papers to process")
     categories: Optional[List[str]] = Field(
         default=None, description="Filter by categories"
     )

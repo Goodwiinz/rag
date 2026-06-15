@@ -187,74 +187,50 @@ async def create_thread(
 
     # Auto-link to project if project_id provided (Phase 2: Project-Chat Integration)
     if data.project_id:
-        try:
-            from sqlalchemy import and_
+        from sqlalchemy import and_
 
-            from src.models import (
-                Collection,
-                ProjectThread,
-                ProjectThreadLinkType,
-                Workspace,
-            )
+        from src.models import Collection, ProjectThreadLinkType, Workspace
+        from src.services.research.project_thread_service import (
+            attach_thread_to_project,
+        )
 
-            # Verify project exists and user has access
-            project_query = (
-                select(Collection)
-                .join(Workspace, Collection.workspace_id == Workspace.id)
-                .where(
-                    and_(
-                        Collection.id == data.project_id,
-                        Workspace.owner_id == current_user.id,
-                    )
+        # Verify project exists and user has access
+        project_query = (
+            select(Collection)
+            .join(Workspace, Collection.workspace_id == Workspace.id)
+            .where(
+                and_(
+                    Collection.id == data.project_id,
+                    Workspace.owner_id == current_user.id,
                 )
             )
-            project_result = await db.execute(project_query)
-            project = project_result.scalar_one_or_none()
+        )
+        project_result = await db.execute(project_query)
+        project = project_result.scalar_one_or_none()
 
-            if project:
-                # Create project-thread link
-                project_thread = ProjectThread(
-                    project_id=data.project_id,
-                    thread_id=thread.id,
-                    link_type=ProjectThreadLinkType.FROM_CHAT.value,
-                    linked_by_id=current_user.id,
-                    context_note="Auto-linked when creating thread with project_id",
-                )
-                db.add(project_thread)
+        if project:
+            await attach_thread_to_project(
+                db,
+                thread,
+                data.project_id,
+                link_type=ProjectThreadLinkType.FROM_CHAT.value,
+                linked_by_id=current_user.id,
+                context_note="Auto-linked when creating thread with project_id",
+            )
+            logger.info(
+                "thread_auto_linked_to_project",
+                thread_id=str(thread.id),
+                project_id=str(data.project_id),
+            )
+        else:
+            logger.warning(
+                "project_not_found_for_auto_link",
+                project_id=str(data.project_id),
+                thread_id=str(thread.id),
+            )
 
-                # Set source_project_id on thread
-                thread.source_project_id = data.project_id
-
-                # Get project documents for RAG scope
-                from src.models import CollectionDocument
-
-                doc_query = select(CollectionDocument.document_id).where(
-                    CollectionDocument.collection_id == data.project_id
-                )
-                doc_result = await db.execute(doc_query)
-                document_ids = [str(row[0]) for row in doc_result.all()]
-
-                if document_ids:
-                    thread.rag_document_scope = {"document_ids": document_ids}
-
-                await db.commit()
-                await db.refresh(thread)
-
-                logger.info(
-                    "thread_auto_linked_to_project",
-                    thread_id=str(thread.id),
-                    project_id=str(data.project_id),
-                    document_count=len(document_ids),
-                )
-            else:
-                logger.warning(
-                    "project_not_found_for_auto_link",
-                    project_id=str(data.project_id),
-                    thread_id=str(thread.id),
-                )
-        except Exception as e:
-            logger.error(f"Failed to auto-link thread to project: {e}")
-            # Don't fail the request, just log the error
+    await db.commit()
+    await db.refresh(thread)
 
     # Broadcast thread creation event via WebSocket
     try:
@@ -279,6 +255,7 @@ async def create_thread(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
     )
 
 
@@ -324,6 +301,7 @@ async def list_threads(
                 created_by_id=t.created_by_id,
                 created_at=t.created_at,
                 updated_at=t.updated_at,
+                source_project_id=t.source_project_id,
             )
             for t in threads
         ],
@@ -475,6 +453,7 @@ async def get_thread(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
         messages=messages,
     )
 

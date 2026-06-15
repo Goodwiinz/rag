@@ -6,7 +6,7 @@
  * Connects PipelineStepper + step components + pipelineStore.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { usePipelineStore } from '@/store/pipelineStore';
 import { useProjectStore } from '@/store/projectStore';
@@ -16,6 +16,16 @@ import { ExtractStep } from './steps/ExtractStep';
 import { CiteStep } from './steps/CiteStep';
 import { DraftStep } from './steps/DraftStep';
 import { ExportStep } from './steps/ExportStep';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ResearchPipelineProps {
   projectId: string;
@@ -41,6 +51,8 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
   const removeDocument = useProjectStore((s) => s.removeDocument);
 
   const fetchedRef = useRef(false);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [documentToRemove, setDocumentToRemove] = useState<string | null>(null);
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -50,17 +62,25 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
   if (loading || !pipeline) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-sol" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
 
-  const handleRemoveDocument = async (documentId: string) => {
-    if (!confirm('Remove this document from the project?')) return;
-    try {
-      await removeDocument(projectId, documentId);
-    } catch (err) {
-      console.error('Failed to remove document:', err);
+  const handleRemoveDocument = (documentId: string) => {
+    setDocumentToRemove(documentId);
+    setRemoveDialogOpen(true);
+  };
+
+  const confirmRemoveDocument = async () => {
+    if (documentToRemove) {
+      try {
+        await removeDocument(projectId, documentToRemove);
+      } catch (err) {
+        console.error('Failed to remove document:', err);
+      }
+      setDocumentToRemove(null);
+      setRemoveDialogOpen(false);
     }
   };
 
@@ -77,11 +97,11 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
     <div className="space-y-2">
       {/* Error banner */}
       {error && (
-        <div className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4">
-          <p className="text-red-400 font-mono text-sm">{error}</p>
+        <div role="alert" className="flex items-center justify-between p-3 bg-destructive/10 border border-destructive/30 rounded-lg mb-4">
+          <p className="text-destructive text-sm">{error}</p>
           <button
             onClick={clearError}
-            className="text-xs text-red-400 underline"
+            className="text-xs text-destructive underline"
           >
             Dismiss
           </button>
@@ -103,7 +123,7 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
         <div className="flex justify-end mb-2">
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1 text-muted-foreground hover:text-foreground font-mono text-xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1 text-muted-foreground hover:text-foreground text-xs transition-colors"
           >
             <RotateCcw className="h-3 w-3" />
             Reset Pipeline
@@ -112,7 +132,7 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
       )}
 
       {/* Active step content */}
-      <div className="bg-[#111] border border-[#1a1a1a] rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         {pipeline.current_step === 0 && (
           <CollectStep
             projectId={projectId}
@@ -160,6 +180,27 @@ export const ResearchPipeline: React.FC<ResearchPipelineProps> = ({
           />
         )}
       </div>
+
+      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the document from the project. The document will
+              not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemoveDocument}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

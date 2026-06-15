@@ -23,8 +23,8 @@ const sectionLabels: Record<
 > = {
   introduction: {
     label: 'Introduction',
-    color: 'text-brand-cyan',
-    bg: 'bg-brand-cyan/10 border-brand-cyan/30',
+    color: 'text-primary',
+    bg: 'bg-primary/10 border-primary/30',
   },
   methodology: {
     label: 'Methodology',
@@ -43,8 +43,8 @@ const sectionLabels: Record<
   },
   conclusion: {
     label: 'Conclusion',
-    color: 'text-brand-cyan',
-    bg: 'bg-brand-cyan/10 border-brand-cyan/30',
+    color: 'text-primary',
+    bg: 'bg-primary/10 border-primary/30',
   },
   abstract: {
     label: 'Abstract',
@@ -54,7 +54,7 @@ const sectionLabels: Record<
   custom: {
     label: 'Custom',
     color: 'text-muted-foreground',
-    bg: 'bg-gray-400/10 border-border/30',
+    bg: 'bg-muted border-border/30',
   },
 };
 
@@ -76,11 +76,11 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
   const section = sectionType ? sectionLabels[sectionType] : null;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#1a1a1a] bg-[#0a0a0a]">
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#1a1a1a] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <h3 className="font-mono text-sm font-bold text-muted-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             Generated Content
           </h3>
           {section && (
@@ -113,17 +113,17 @@ export const InsertPreview: React.FC<InsertPreviewProps> = ({
 
       {/* Content */}
       <div className="max-h-[400px] overflow-y-auto p-4">
-        <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-muted-foreground">
+        <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
           {generated}
         </div>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-end gap-2 border-t border-[#1a1a1a] px-4 py-3">
+      <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
+          className="gap-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={onDiscard}
           aria-label="Discard generated content"
         >

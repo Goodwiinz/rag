@@ -77,11 +77,13 @@ def _build_research_system_prompt() -> str:
     )
 
 
+# Only tools actually in RESEARCH_TOOLS belong here — the filtered tool
+# node can never execute anything else, so extra entries are dead weight
+# that misleads readers about what this subgraph can run.
 RESEARCH_DESTRUCTIVE_TOOLS = {
     "ingest_arxiv_papers",
     "add_document_to_project",
     "create_project",
-    "execute_code",
 }
 
 
@@ -104,6 +106,17 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         and sanitized
         and isinstance(sanitized[-1], ToolMessage)
     )
+
+    # Close the plan→execute handoff (see planner.render_plan_directive).
+    # Inject on the pre-tool pass only; skip on synthesis turns where tools
+    # have already run.
+    if not use_lightweight_synthesis:
+        from src.services.agent.planner import render_plan_directive
+
+        plan_directive = render_plan_directive(state.get("plan"))
+        if plan_directive:
+            messages.insert(1, SystemMessage(content=plan_directive))
+
     if use_lightweight_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
@@ -212,6 +225,10 @@ async def research_force_synthesis_node(
     contains tool_calls (defensive — the directive forbids it).
     """
     from src.services.agent.llm_factory import build_synthesis_llm
+    from src.services.agent.observability import record_loop_exhaustion
+
+    # Degraded-answer signal: reached the research tool-loop ceiling.
+    record_loop_exhaustion("research", "research")
 
     messages = list(state["messages"])
 
@@ -251,9 +268,15 @@ async def research_force_synthesis_node(
             timeout=AGENT_LLM_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        logger.warning(
-            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback",
+        # Error, not warning: the turn still completes "successfully" with
+        # the canned fallback below, so this log line is the only
+        # machine-visible signal that synthesis was degraded.
+        logger.error(
+            "research_force_synthesis_node: LLM exceeded %ds; emitting fallback "
+            "(thread_id=%s, tool_loop_count=%s)",
             AGENT_LLM_TIMEOUT_SECONDS,
+            state.get("thread_id", ""),
+            state.get("tool_loop_count", 0),
         )
         response = AIMessage(
             content=(
@@ -291,9 +314,14 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
         "tools": [{"name": tc["name"], "args": tc["args"]} for tc in destructive_calls],
         "message": f"Confirm: {', '.join(tool_names)}?",
     }
+    from src.services.agent._nodes_tools import hitl_log_raised, record_hitl_decision
+
+    hitl_log_raised(config, destructive_calls)
     user_response = interrupt(confirmation_details)
 
-    if user_response and user_response.get("confirmed"):
+    confirmed = bool(user_response and user_response.get("confirmed"))
+    await record_hitl_decision(config, destructive_calls, confirmed)
+    if confirmed:
         return {"pending_confirmation": {}, "user_confirmed": True}
 
     return {

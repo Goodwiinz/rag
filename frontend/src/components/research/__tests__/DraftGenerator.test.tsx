@@ -7,7 +7,7 @@ describe('DraftGenerator', () => {
     render(<DraftGenerator onGenerate={vi.fn()} documentCount={3} />);
 
     expect(
-      screen.getByRole('heading', { name: 'Generate Literature Review' })
+      screen.getByRole('heading', { name: 'Generate literature review' })
     ).toBeInTheDocument();
     expect(
       screen.getByText('The review will analyze 3 documents from this project.')
@@ -22,7 +22,7 @@ describe('DraftGenerator', () => {
     render(<DraftGenerator onGenerate={onGenerate} />);
 
     const themeInput = screen.getByPlaceholderText(
-      'Enter a theme and press Enter...'
+      'Enter a theme and press Enter\u2026'
     );
     fireEvent.change(themeInput, { target: { value: 'methodology' } });
     fireEvent.keyDown(themeInput, { key: 'Enter' });
@@ -38,12 +38,16 @@ describe('DraftGenerator', () => {
     render(<DraftGenerator onGenerate={onGenerate} />);
 
     const themeInput = screen.getByPlaceholderText(
-      'Enter a theme and press Enter...'
+      'Enter a theme and press Enter\u2026'
     );
     fireEvent.change(themeInput, { target: { value: 'findings' } });
     fireEvent.keyDown(themeInput, { key: 'Enter' });
 
     fireEvent.click(screen.getByRole('radio', { name: /technical/i }));
+
+    // Max sections + Include abstract are inside the collapsed "Advanced
+    // options" disclosure — expand it before interacting with them.
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
 
     const slider = screen.getByRole('slider');
     fireEvent.change(slider, { target: { value: '7' } });
@@ -64,6 +68,6 @@ describe('DraftGenerator', () => {
 
   it('shows loading state label', () => {
     render(<DraftGenerator onGenerate={vi.fn()} loading />);
-    expect(screen.getByText('Generating...')).toBeInTheDocument();
+    expect(screen.getByText('Generating\u2026')).toBeInTheDocument();
   });
 });

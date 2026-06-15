@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
+from src.services.agent._sanitize import _sanitize_prompt_field
 from src.services.agent.llm_factory import build_lightweight_llm
 
 logger = logging.getLogger(__name__)
@@ -21,16 +22,47 @@ logger = logging.getLogger(__name__)
 
 ACTIONABLE_VERBS: frozenset[str] = frozenset(
     {
-        "add", "ingest", "import", "save", "find", "search",
-        "summarize", "summarise", "grab", "get", "show",
-        "fetch", "download", "extract", "list", "create",
+        "add",
+        "ingest",
+        "import",
+        "save",
+        "find",
+        "search",
+        "summarize",
+        "summarise",
+        "grab",
+        "get",
+        "show",
+        "fetch",
+        "download",
+        "extract",
+        "list",
+        "create",
     }
 )
 _CONVERSATIONAL_STARTS: frozenset[str] = frozenset(
     {
-        "hi", "hello", "hey", "thanks", "thank", "ok", "okay",
-        "yes", "no", "sure", "what", "who", "when", "where",
-        "why", "is", "are", "can", "could", "would", "will",
+        "hi",
+        "hello",
+        "hey",
+        "thanks",
+        "thank",
+        "ok",
+        "okay",
+        "yes",
+        "no",
+        "sure",
+        "what",
+        "who",
+        "when",
+        "where",
+        "why",
+        "is",
+        "are",
+        "can",
+        "could",
+        "would",
+        "will",
     }
 )
 _LEADING_PUNCTUATION = "?!,:"
@@ -38,9 +70,7 @@ _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 # Trace 019e69f4: complexity LLM returned >=3 for "Add arXiv X to project Y",
 # triggering a 25s generate_plan call on the full model-router deployment.
 # The research LLM handles this in 1-2 tool rounds without a formal plan.
-_SIMPLE_ADD_TARGET_RE = re.compile(
-    r"\b(project|library|collection)\b", re.IGNORECASE
-)
+_SIMPLE_ADD_TARGET_RE = re.compile(r"\b(project|library|collection)\b", re.IGNORECASE)
 
 # Wall-clock cap for planner LLM calls. Keeps the node inside the ~30s HTTP
 # budget when complexity + plan generation run back-to-back (trace 019e69f4).
@@ -129,12 +159,17 @@ async def check_complexity(
     llm = _build_planner_llm()
     structured_llm = llm.with_structured_output(ComplexityCheck)
 
+    safe_query = _sanitize_prompt_field(query)
+    safe_page_context = {
+        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
+        for k, v in page_context.items()
+    }
     prompt = (
         "Estimate the number of tool calls needed to answer the following "
         "user query.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
-        f"Page context: {page_context}\n\n"
-        f"User query: {query}\n\n"
+        f"Page context: {safe_page_context}\n\n"
+        f"User query: {safe_query}\n\n"
         "Return only the estimated step_count (integer)."
     )
 
@@ -155,12 +190,17 @@ async def generate_plan(
     llm = _build_planner_llm(max_tokens=4096)
     structured_llm = llm.with_structured_output(AgentPlan, method="function_calling")
 
+    safe_query = _sanitize_prompt_field(query)
+    safe_page_context = {
+        k: _sanitize_prompt_field(str(v)) if isinstance(v, str) else v
+        for k, v in page_context.items()
+    }
     prompt = (
         "Given the user query and available tools, generate a step-by-step "
         "execution plan.\n\n"
         f"Available tools: {', '.join(tool_names)}\n"
-        f"Page context: {page_context}\n\n"
-        f"User query: {query}\n\n"
+        f"Page context: {safe_page_context}\n\n"
+        f"User query: {safe_query}\n\n"
         "For each step, specify:\n"
         "- step: sequential step number starting at 1\n"
         "- description: what this step does\n"
@@ -170,12 +210,62 @@ async def generate_plan(
         "from the plan entirely.\n"
         "- args_hint: suggested arguments (can reference prior steps)\n"
         "- depends_on: list of step numbers this step depends on\n\n"
+        "Ordering rule: data must exist before it is used. If the user refers "
+        "to papers by title or arXiv id, the FIRST steps must resolve/ingest "
+        "them (e.g. search_arxiv → ingest_arxiv_papers) BEFORE any step that "
+        "summarizes, drafts, or saves notes about them — a write step must "
+        "depend_on the resolve/ingest steps.\n"
         "Also provide a top-level ``reasoning`` string explaining the "
         "overall approach (required)."
     )
 
     result = await structured_llm.ainvoke([HumanMessage(content=prompt)])
     return result
+
+
+def render_plan_directive(plan: list[dict] | None) -> str | None:
+    """Render the planner's plan into an execution directive for an executor LLM.
+
+    The planner writes its plan to ``state["plan"]``, but the executor LLM
+    nodes historically only ever read ``state["messages"]`` — so the plan was
+    consumed only by the reflection gate and ledger and never reached the
+    model that acts. Trace 019ea8f0 showed the planner correctly choosing
+    ``create_draft`` → ``create_project_note`` while the executor ignored it
+    and refused, demanding document_id / arXiv IDs the user can't supply.
+    Injecting this directive into the executor prompt closes the
+    plan→execute handoff. Shared by writing/research/data subgraphs and the
+    main ``llm_node`` so the four executors behave consistently.
+    """
+    if not plan:
+        return None
+    lines: list[str] = []
+    for step in plan:
+        tool = (step.get("tool") or "").strip()
+        desc = (step.get("description") or "").strip()
+        if not desc:
+            continue
+        if tool and tool.upper() != "N/A":
+            args = step.get("args_hint")
+            arg_str = f"  args: {args}" if args else ""
+            lines.append(f"{step.get('step', '?')}. [{tool}] {desc}{arg_str}")
+        else:
+            lines.append(f"{step.get('step', '?')}. {desc}")
+    if not lines:
+        return None
+    plan_block = "\n".join(lines)
+    return (
+        "ACTIVE PLAN (produced by the planner for this turn — advisory, follow "
+        "its intent). Execute the next incomplete step now by emitting the "
+        "appropriate tool call. Do NOT ask the user for document_ids or arXiv "
+        "IDs that you can resolve yourself via the available ingest/search "
+        "tools. IMPORTANT: a write/create step (e.g. create_draft, "
+        "create_project_note, summarize_document) requires its source "
+        "documents to already be resolved + ingested — if the plan lists a "
+        "write step before the sources exist, run the search/ingest steps "
+        "FIRST, then the write. Never write a note/draft/summary for a paper "
+        "you only have a title for.\n"
+        f"{plan_block}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -231,10 +321,7 @@ def make_planner_node(
         # "Add arxiv 1706.03762 to my library" still reach the planner.
         words = query.split()
         first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION) if words else ""
-        needs_tool = (
-            first_word in ACTIONABLE_VERBS
-            or bool(_ARXIV_ID_RE.search(query))
-        )
+        needs_tool = first_word in ACTIONABLE_VERBS or bool(_ARXIV_ID_RE.search(query))
 
         if not needs_tool:
             if len(words) < 12:
@@ -249,32 +336,6 @@ def make_planner_node(
         # Simple ingest-and-add imperatives need neither complexity nor plan.
         if _is_simple_add_flow(query):
             logger.info("Skipping planner entirely for simple add flow")
-            # region agent log
-            try:
-                import json as _json
-                import time as _time
-
-                with open(
-                    "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log",
-                    "a",
-                    encoding="utf-8",
-                ) as _fh:
-                    _fh.write(
-                        _json.dumps(
-                            {
-                                "sessionId": "682ae9",
-                                "hypothesisId": "H6",
-                                "location": "planner.py:planner_node",
-                                "message": "skipping planner entirely for simple add flow",
-                                "data": {"query_preview": query[:120]},
-                                "timestamp": int(_time.time() * 1000),
-                            }
-                        )
-                        + "\n"
-                    )
-            except Exception:
-                pass
-            # endregion
             return {}
 
         # 2. Check complexity

@@ -8,7 +8,10 @@ import pytest
 from src.models.entity import EntityType
 from src.services.processing.llm_entity_extraction import (
     ExtractedEntity,
+    ExtractedRelationship,
     LLMEntityExtractionService,
+    _count_tokens,
+    _resolve_relationships,
     chunk_text,
     map_to_entity_type,
     merge_entities,
@@ -53,6 +56,15 @@ class TestChunkText:
     def test_whitespace_only_returns_empty(self):
         chunks = chunk_text("   \n\n  ", max_tokens=4000, overlap_tokens=200)
         assert chunks == []
+
+    def test_oversize_single_paragraph_is_split_within_limit(self):
+        """A single paragraph larger than max_tokens must be split so NO chunk
+        exceeds max_tokens (previously it was emitted whole -> LLM overflow)."""
+        big_para = "word " * 6000  # one paragraph, no blank-line breaks
+        chunks = chunk_text(big_para, max_tokens=500, overlap_tokens=50)
+        assert len(chunks) >= 2
+        for chunk in chunks:
+            assert _count_tokens(chunk) <= 500
 
 
 class TestMergeEntities:
@@ -110,6 +122,26 @@ class TestMergeEntities:
         result = merge_entities([e1, e2])
         assert len(result) == 2
 
+    def test_same_name_different_type_not_merged(self):
+        """Same canonical name but different type must stay distinct — merging
+        on name alone wrongly collapsed e.g. 'Apple' ORG and PRODUCT into one."""
+        org = ExtractedEntity(
+            name="Apple", type="ORGANIZATION", canonical_name="apple", confidence=0.9
+        )
+        product = ExtractedEntity(
+            name="Apple", type="PRODUCT", canonical_name="apple", confidence=0.8
+        )
+        result = merge_entities([org, product])
+        assert len(result) == 2
+        assert {r.type for r in result} == {"ORGANIZATION", "PRODUCT"}
+
+    def test_same_name_and_type_still_merges(self):
+        a = ExtractedEntity(name="Apple", type="ORGANIZATION", canonical_name="apple", confidence=0.7)
+        b = ExtractedEntity(name="apple", type="ORGANIZATION", canonical_name="apple", confidence=0.95)
+        result = merge_entities([a, b])
+        assert len(result) == 1
+        assert result[0].confidence == 0.95
+
     def test_empty_input(self):
         assert merge_entities([]) == []
 
@@ -128,25 +160,25 @@ class TestParseLLMResponse:
                 }
             ]
         })
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].name == "LoopMDM"
         assert entities[0].type == "MODEL"
         assert entities[0].confidence == 0.95
 
     def test_malformed_json_returns_empty(self):
-        entities = parse_llm_response("not json {{{")
+        entities, _ = parse_llm_response("not json {{{")
         assert entities == []
 
     def test_json_wrapped_in_markdown_code_block(self):
         raw = '```json\n{"entities": [{"name": "BERT", "type": "MODEL"}]}\n```'
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].name == "BERT"
 
     def test_missing_fields_use_defaults(self):
         raw = json.dumps({"entities": [{"name": "GPT-4", "type": "MODEL"}]})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert len(entities) == 1
         assert entities[0].confidence == 0.8
         assert entities[0].aliases == []
@@ -154,8 +186,32 @@ class TestParseLLMResponse:
 
     def test_empty_entities_array(self):
         raw = json.dumps({"entities": []})
-        entities = parse_llm_response(raw)
+        entities, _ = parse_llm_response(raw)
         assert entities == []
+
+    def test_bad_confidence_does_not_abort_other_entities(self):
+        """A non-numeric confidence on one entity must not drop the whole
+        chunk — coerce to the default and keep the rest."""
+        raw = json.dumps({
+            "entities": [
+                {"name": "A", "type": "MODEL", "confidence": "not-a-number"},
+                {"name": "B", "type": "MODEL", "confidence": 0.9},
+            ]
+        })
+        entities, _ = parse_llm_response(raw)
+        assert {e.name for e in entities} == {"A", "B"}
+        by_name = {e.name: e for e in entities}
+        assert by_name["A"].confidence == 0.8  # fallback
+
+    def test_confidence_is_clamped(self):
+        raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "confidence": 5.0}]})
+        entities, _ = parse_llm_response(raw)
+        assert entities[0].confidence == 1.0
+
+    def test_non_list_aliases_coerced(self):
+        raw = json.dumps({"entities": [{"name": "A", "type": "MODEL", "aliases": "solo"}]})
+        entities, _ = parse_llm_response(raw)
+        assert entities[0].aliases == ["solo"]
 
 
 class TestEntityTypeMapping:
@@ -255,6 +311,20 @@ class TestLLMEntityExtractionService:
         assert result.entities == []
         assert result.error is not None
 
+    @pytest.mark.asyncio
+    async def test_timeout_reports_skipped_not_processed(self, service):
+        """On timeout, un-attempted chunks must be reported as skipped (error
+        set, chunks_processed accurate) — not silently counted as processed."""
+        svc, mock_llm = service
+        # Multi-chunk text + immediate timeout -> first batch check breaks
+        # before any chunk is attempted.
+        text = "word " * 6000
+        result = await svc.extract_entities(
+            text, timeout_seconds=0.0, max_tokens_per_chunk=500
+        )
+        assert result.chunks_processed == 0
+        assert result.error is not None and "not processed" in result.error
+
 
 class TestIntegrationSmoke:
     """End-to-end smoke test simulating agent tool call."""
@@ -303,3 +373,73 @@ class TestIntegrationSmoke:
             assert "PERSON" in types_found
             assert "METHOD" in types_found
             assert "CONCEPT" in types_found
+
+
+class TestRelationshipExtraction:
+    def test_parses_entities_and_relationships(self):
+        raw = json.dumps({
+            "entities": [
+                {"name": "Ada Lovelace", "type": "PERSON"},
+                {"name": "Analytical Engine", "type": "TECHNOLOGY"},
+            ],
+            "relationships": [
+                {
+                    "source": "Ada Lovelace",
+                    "target": "Analytical Engine",
+                    "type": "REFERENCES",
+                    "confidence": 0.9,
+                    "evidence": "she wrote the first algorithm for it",
+                }
+            ],
+        })
+        entities, relationships = parse_llm_response(raw)
+        assert {e.name for e in entities} == {"Ada Lovelace", "Analytical Engine"}
+        assert len(relationships) == 1
+        rel = relationships[0]
+        assert rel.source == "Ada Lovelace"
+        assert rel.target == "Analytical Engine"
+        assert rel.relationship_type == "REFERENCES"
+        assert rel.confidence == 0.9
+
+    def test_missing_relationships_key_returns_empty(self):
+        _, relationships = parse_llm_response(json.dumps({"entities": []}))
+        assert relationships == []
+
+    def test_self_loop_and_bad_confidence_handled(self):
+        raw = json.dumps({
+            "entities": [{"name": "A", "type": "CONCEPT"}],
+            "relationships": [
+                {"source": "A", "target": "A", "type": "RELATED_TO"},  # self-loop dropped
+                {"source": "A", "target": "B", "confidence": "nope"},  # bad conf -> default
+            ],
+        })
+        _, relationships = parse_llm_response(raw)
+        assert len(relationships) == 1
+        assert relationships[0].confidence == 0.7
+
+    def test_resolve_drops_dangling_and_remaps_aliases(self):
+        entities = [
+            ExtractedEntity(name="GPT-4", type="MODEL", aliases=["GPT4"]),
+            ExtractedEntity(name="OpenAI", type="ORGANIZATION"),
+        ]
+        rels = [
+            # alias on source should remap to the kept entity name "GPT-4"
+            ExtractedRelationship(source="GPT4", target="OpenAI", relationship_type="CREATED_BY"),
+            # dangling target -> dropped
+            ExtractedRelationship(source="GPT-4", target="Nonexistent"),
+        ]
+        resolved = _resolve_relationships(rels, entities)
+        assert len(resolved) == 1
+        assert resolved[0].source == "GPT-4"
+        assert resolved[0].target == "OpenAI"
+
+    def test_resolve_dedupes(self):
+        entities = [
+            ExtractedEntity(name="A", type="CONCEPT"),
+            ExtractedEntity(name="B", type="CONCEPT"),
+        ]
+        rels = [
+            ExtractedRelationship(source="A", target="B", relationship_type="RELATED_TO"),
+            ExtractedRelationship(source="A", target="B", relationship_type="RELATED_TO"),
+        ]
+        assert len(_resolve_relationships(rels, entities)) == 1

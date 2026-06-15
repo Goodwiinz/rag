@@ -8,6 +8,7 @@ and returns a dict result.
 import asyncio
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -28,6 +29,7 @@ from src.models.project_note import ProjectNote
 from src.models.user import User
 
 from .tool_helpers import (
+    _escape_like,
     _resolve_document_id,
     _sanitize_metadata,
     _verify_project_ownership,
@@ -46,15 +48,11 @@ INGEST_STATUS_FAILED = "ingestion_failed"
 INGEST_STATUS_COMPLETE_LINK_FAILED = "ingestion_complete_link_failed"
 
 
-def _escape_like(value: str) -> str:
-    """Escape special LIKE pattern characters for safe ilike() queries."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 # Cache the LLM client used by summarize/compare tools at module scope so
 # we don't pay the ~50ms client-build cost on every invocation. Mirrors the
 # `_REFLECTION_LLM` pattern in src/services/agent/reflection.py.
 _TOOL_LLM = None
+_TOOL_LLM_LOCK = threading.Lock()
 
 
 def _get_tool_llm():
@@ -62,9 +60,12 @@ def _get_tool_llm():
     global _TOOL_LLM
     if _TOOL_LLM is not None:
         return _TOOL_LLM
-    from src.services.agent.graph import _build_llm
+    with _TOOL_LLM_LOCK:
+        if _TOOL_LLM is not None:  # re-check inside lock
+            return _TOOL_LLM
+        from src.services.agent.graph import _build_llm
 
-    _TOOL_LLM = _build_llm()
+        _TOOL_LLM = _build_llm()
     return _TOOL_LLM
 
 
@@ -624,19 +625,21 @@ async def execute_tool(
     if tool_name == "extract_entities":
         return await _tool_extract_entities(args, db, current_user)
     if tool_name == "search_knowledge_graph":
-        return await _tool_search_knowledge_graph(args)
+        return await _tool_search_knowledge_graph(args, current_user)
     if tool_name == "explore_entity_neighborhood":
-        return await _tool_explore_entity_neighborhood(args)
+        return await _tool_explore_entity_neighborhood(args, current_user)
     if tool_name == "find_entity_paths":
-        return await _tool_find_entity_paths(args)
+        return await _tool_find_entity_paths(args, current_user)
     if tool_name == "get_graph_stats":
-        return await _tool_get_graph_stats(args)
+        return await _tool_get_graph_stats(args, current_user)
     if tool_name == "create_draft":
         return await _tool_create_draft(args, db, current_user)
     if tool_name == "export_bibliography":
         return await _tool_export_bibliography(args, db, current_user)
     if tool_name == "execute_code":
-        return await _tool_execute_code(args, thread_id=thread_id, current_user=current_user)
+        return await _tool_execute_code(
+            args, thread_id=thread_id, current_user=current_user
+        )
     if tool_name == "search_external_database":
         return await _tool_search_external_database(args)
     if tool_name == "list_external_databases":
@@ -903,9 +906,7 @@ async def _tool_ingest_arxiv(
                     _strip_version(pid) not in ingested_arxiv_ids
                     and pid not in failed_papers
                 ):
-                    failed_papers[pid] = (
-                        "PDF download or content extraction failed"
-                    )
+                    failed_papers[pid] = "PDF download or content extraction failed"
 
             document_ids = []
             if ingested and current_user:
@@ -957,7 +958,10 @@ async def _tool_ingest_arxiv(
                     # Phase 2 dual-write: mirror into DO KB. Failure-isolated.
                     from src.core.config import settings as _kb_settings
 
-                    if getattr(_kb_settings, "DO_KB_ENABLED", False) and persisted_documents:
+                    if (
+                        getattr(_kb_settings, "DO_KB_ENABLED", False)
+                        and persisted_documents
+                    ):
                         try:
                             from src.services.do_kb import sync_documents_to_kb
 
@@ -966,9 +970,7 @@ async def _tool_ingest_arxiv(
                                 # 2.0 — awaiting it raises TypeError (swallowed by
                                 # the except below), so the KB dual-write silently
                                 # never ran. Do not await it.
-                                merged = [
-                                    kb_db.merge(d) for d in persisted_documents
-                                ]
+                                merged = [kb_db.merge(d) for d in persisted_documents]
                                 await sync_documents_to_kb(kb_db, merged)
                         except Exception as kb_err:  # noqa: BLE001
                             logger.warning(
@@ -1024,7 +1026,8 @@ async def _tool_ingest_arxiv(
                             )
                 except Exception as link_err:
                     logger.error(
-                        "Failed to link ingested docs to project %s", project_id,
+                        "Failed to link ingested docs to project %s",
+                        project_id,
                         exc_info=link_err,
                     )
                     link_error = f"Project link failed: {link_err}"
@@ -1069,8 +1072,7 @@ async def _tool_ingest_arxiv(
                 # Append per-paper failure detail so the LLM/user can see
                 # exactly which IDs failed and why.
                 reasons = ", ".join(
-                    f"{fp['paper_id']} ({fp['reason']})"
-                    for fp in failed_papers_list
+                    f"{fp['paper_id']} ({fp['reason']})" for fp in failed_papers_list
                 )
                 message += f" Details: {reasons}."
 
@@ -1175,7 +1177,12 @@ async def _tool_do_kb_retrieve(
         kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
 
     if not kb_uuid:
-        return {"chunks": [], "total": 0, "source": "do_kb", "reason": "not_provisioned"}
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "reason": "not_provisioned",
+        }
 
     try:
         from src.services.do_kb import get_do_kb_client
@@ -1581,8 +1588,8 @@ async def _tool_summarize_document(
                 return {
                     "error": (
                         f"Document with arXiv ID '{document_id}' is not in your "
-                        "library. Use ingest_arxiv_papers([\""
-                        f"{document_id}\"]) first, then retry summarize_document "
+                        'library. Use ingest_arxiv_papers(["'
+                        f'{document_id}"]) first, then retry summarize_document '
                         "with the returned internal document_id."
                     ),
                     "error_type": "recoverable",
@@ -1646,7 +1653,10 @@ async def _tool_compare_documents(
         return {"error": "Authentication required"}
 
     document_ids = args.get("document_ids", [])
+    _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
     comparison_type = args.get("type", "general")
+    if comparison_type not in _COMPARISON_TYPES:
+        comparison_type = "general"
     if not document_ids or len(document_ids) < 2:
         return {"error": "At least 2 document_ids are required"}
     if len(document_ids) > 5:
@@ -1807,8 +1817,14 @@ async def _tool_extract_entities(
         return {"error": f"Entity extraction failed: {str(e)}"}
 
 
-async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
+async def _tool_search_knowledge_graph(
+    args: Dict[str, Any],
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Search the knowledge graph for entities."""
+    if current_user is None or current_user.organization_id is None:
+        return {"error": "Authentication required"}
+
     query = args.get("query", "")
     entity_types = args.get("entity_types")
     limit = min(args.get("limit", 20), 50)
@@ -1831,6 +1847,7 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
                 except ValueError:
                     pass
 
+        org_id = str(current_user.organization_id)
         loop = asyncio.get_running_loop()
         entities = await asyncio.wait_for(
             loop.run_in_executor(
@@ -1839,6 +1856,7 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
                     query=query,
                     entity_types=type_filters,
                     limit=limit,
+                    organization_id=org_id,
                 ),
             ),
             timeout=15.0,
@@ -1862,8 +1880,14 @@ async def _tool_search_knowledge_graph(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Knowledge graph search failed: {str(e)}"}
 
 
-async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, Any]:
+async def _tool_explore_entity_neighborhood(
+    args: Dict[str, Any],
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Explore an entity's neighborhood — connected entities and relationships."""
+    if current_user is None or current_user.organization_id is None:
+        return {"error": "Authentication required"}
+
     entity_id = args.get("entity_id", "")
     max_depth = min(args.get("max_depth", 2), 3)
     limit = min(args.get("limit", 30), 50)
@@ -1876,6 +1900,7 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
             knowledge_graph_service,
         )
 
+        org_id = str(current_user.organization_id)
         loop = asyncio.get_running_loop()
         neighborhood = await asyncio.wait_for(
             loop.run_in_executor(
@@ -1884,6 +1909,7 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
                     entity_id=entity_id,
                     max_depth=max_depth,
                     limit=limit,
+                    organization_id=org_id,
                 ),
             ),
             timeout=15.0,
@@ -1924,8 +1950,14 @@ async def _tool_explore_entity_neighborhood(args: Dict[str, Any]) -> Dict[str, A
         return {"error": f"Neighborhood exploration failed: {str(e)}"}
 
 
-async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
+async def _tool_find_entity_paths(
+    args: Dict[str, Any],
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Find relationship paths between two entities."""
+    if current_user is None or current_user.organization_id is None:
+        return {"error": "Authentication required"}
+
     source_id = args.get("source_entity_id", "")
     target_id = args.get("target_entity_id", "")
     max_depth = min(args.get("max_depth", 3), 5)
@@ -1938,6 +1970,7 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
             knowledge_graph_service,
         )
 
+        org_id = str(current_user.organization_id)
         loop = asyncio.get_running_loop()
         paths = await asyncio.wait_for(
             loop.run_in_executor(
@@ -1946,6 +1979,7 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
                     source_id=source_id,
                     target_id=target_id,
                     max_depth=max_depth,
+                    organization_id=org_id,
                 ),
             ),
             timeout=15.0,
@@ -1989,16 +2023,28 @@ async def _tool_find_entity_paths(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"Path finding failed: {str(e)}"}
 
 
-async def _tool_get_graph_stats(args: Dict[str, Any]) -> Dict[str, Any]:
+async def _tool_get_graph_stats(
+    args: Dict[str, Any],
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
     """Get knowledge graph statistics."""
+    if current_user is None or current_user.organization_id is None:
+        return {"error": "Authentication required"}
+
     try:
         from src.services.knowledge_graph.knowledge_graph_service import (
             knowledge_graph_service,
         )
 
+        org_id = str(current_user.organization_id)
         loop = asyncio.get_running_loop()
         analytics = await asyncio.wait_for(
-            loop.run_in_executor(None, knowledge_graph_service.get_graph_analytics),
+            loop.run_in_executor(
+                None,
+                lambda: knowledge_graph_service.get_graph_analytics(
+                    organization_id=org_id,
+                ),
+            ),
             timeout=15.0,
         )
 
@@ -2026,7 +2072,10 @@ async def _tool_create_draft(
 
     project_id = args.get("project_id", "")
     themes = args.get("themes", [])
+    _DRAFT_STYLES = {"academic", "technical", "summary"}
     style = args.get("style", "academic")
+    if style not in _DRAFT_STYLES:
+        style = "academic"
 
     if not project_id:
         return {"error": "project_id is required"}
@@ -2252,6 +2301,14 @@ async def _tool_execute_code(
 
     if result.error:
         response["error"] = result.error
+    elif result.exit_code != 0:
+        # A non-zero exit with no structured error must still carry an
+        # "error" key — the tool node's classify_error_from_payload keys
+        # off it, and without one a failed run is reported to the LLM as
+        # success.
+        response["error"] = (
+            result.stderr.strip() or f"Code exited with status {result.exit_code}"
+        )
 
     if result.results:
         response["outputs"] = result.results
@@ -2408,9 +2465,7 @@ async def _tool_forget_memory(
     if store is None:
         return {"error": "forget_memory: memory store unavailable"}
 
-    result = await delete_memory_by_query(
-        store, user_id=user_id, query=query, limit=5
-    )
+    result = await delete_memory_by_query(store, user_id=user_id, query=query, limit=5)
     return {
         "status": "completed",
         "deleted": result["deleted"],

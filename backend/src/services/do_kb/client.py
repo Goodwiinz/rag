@@ -25,6 +25,24 @@ logger = logging.getLogger(__name__)
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 _MAX_ATTEMPTS = 3
+_MAX_RETRY_AFTER_SECONDS = 60  # cap a server-supplied wait so we don't hang
+
+
+def _parse_retry_after(value: Optional[str]) -> Optional[float]:
+    """Parse a Retry-After header (delta-seconds form) into a bounded float.
+
+    Returns None when absent or not a plain integer (HTTP-date form is ignored —
+    we fall back to exponential backoff). Capped at _MAX_RETRY_AFTER_SECONDS.
+    """
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if seconds < 0:
+        return None
+    return min(seconds, _MAX_RETRY_AFTER_SECONDS)
 
 
 class DOKnowledgeBaseError(RuntimeError):
@@ -43,6 +61,25 @@ class DOKnowledgeBaseClient:
 
     def __init__(self, cfg: Optional[Settings] = None) -> None:
         self._settings = cfg or global_settings
+        self._http: Optional[httpx.AsyncClient] = None
+
+    def _client(self) -> httpx.AsyncClient:
+        """Lazily create one pooled AsyncClient and reuse it across requests.
+
+        A fresh client per request (the old `async with httpx.AsyncClient()`) paid
+        full TLS setup every call — magnified per-document + per-retry during bulk
+        ingest. Timeout is passed per-request so a single pooled client still
+        honors the longer indexing timeout.
+        """
+        if self._http is None:
+            self._http = httpx.AsyncClient()
+        return self._http
+
+    async def aclose(self) -> None:
+        """Close the pooled client (call on app shutdown)."""
+        if self._http is not None:
+            await self._http.aclose()
+            self._http = None
 
     @property
     def _api_base(self) -> str:
@@ -72,24 +109,33 @@ class DOKnowledgeBaseClient:
     ) -> dict[str, Any]:
         timeout_s = timeout or self._settings.DO_KB_REQUEST_TIMEOUT_SECONDS
         last_exc: Optional[Exception] = None
+        last_status: Optional[int] = None
 
+        client = self._client()
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                async with httpx.AsyncClient(timeout=timeout_s) as client:
-                    response = await client.request(
-                        method,
-                        url,
-                        headers=self._auth_headers,
-                        json=json_body,
-                    )
+                response = await client.request(
+                    method,
+                    url,
+                    headers=self._auth_headers,
+                    json=json_body,
+                    timeout=timeout_s,
+                )
                 if response.status_code in _RETRYABLE_STATUS:
-                    wait = 2 ** attempt
+                    # Remember the status so an all-retryable run reports the real
+                    # code instead of "exhausted retries: None".
+                    last_status = response.status_code
+                    retry_after = _parse_retry_after(
+                        response.headers.get("Retry-After")
+                    )
+                    wait = retry_after if retry_after is not None else 2 ** attempt
                     logger.warning(
                         "do_kb retryable status",
                         extra={
                             "status": response.status_code,
                             "url": url,
                             "attempt": attempt + 1,
+                            "retry_after": retry_after,
                         },
                     )
                     await asyncio.sleep(wait)
@@ -117,6 +163,11 @@ class DOKnowledgeBaseClient:
                 )
                 await asyncio.sleep(2 ** attempt)
 
+        if last_status is not None:
+            raise DOKnowledgeBaseError(
+                f"DO KB request exhausted retries: HTTP {last_status}",
+                status_code=last_status,
+            )
         raise DOKnowledgeBaseError(
             f"DO KB request exhausted retries: {last_exc}"
         )
@@ -170,6 +221,24 @@ class DOKnowledgeBaseClient:
         )
         ds_data = payload.get("knowledge_base_data_source", payload)
         return DataSource.model_validate(ds_data)
+
+    async def list_data_sources(self, *, kb_uuid: str) -> list[dict[str, Any]]:
+        """Return the KB's existing data sources as raw dicts.
+
+        Best-effort + defensive: the exact list-response shape is treated as
+        unverified, so callers should match fields with .get() and fall back to
+        adding when nothing matches. Returns [] on an unexpected shape.
+        """
+        payload = await self._request(
+            "GET",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources",
+        )
+        raw = (
+            payload.get("knowledge_base_data_sources")
+            or payload.get("data_sources")
+            or []
+        )
+        return [s for s in raw if isinstance(s, dict)]
 
     async def start_indexing(self, *, kb_uuid: str) -> IndexingJob:
         payload = await self._request(

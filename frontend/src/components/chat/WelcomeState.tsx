@@ -40,7 +40,7 @@ export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: NOUS_EASE }}
-        className="w-full max-w-xl"
+        className="w-full max-w-[var(--nous-chat-col)]"
       >
         <h2
           className="text-[1.625rem] font-semibold leading-tight tracking-[-0.02em] text-[var(--nous-fg-1)]"

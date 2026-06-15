@@ -56,10 +56,28 @@ async def test_retrieve_context_prefers_full_text_metadata(
         RetrievalTrace(query="q"),
     )
 
-    contexts, _trace_id = await retrieve_context("q", max_docs=1)
+    contexts, _trace_id = await retrieve_context(
+        "q", max_docs=1, organization_id="org-1", user_id="user-1"
+    )
 
     assert len(contexts) == 1
     assert contexts[0].content == full_chunk_text
+    # Retrieval must be tenant-scoped — never the old hardcoded None.
+    _args, kwargs = mock_search_with_diagnostics.call_args
+    assert kwargs["organization_id"] == "org-1"
+    assert kwargs["user_id"] == "user-1"
+
+
+@patch("src.services.diagnostics.diagnostics_store.diagnostics_store.store_trace", new_callable=AsyncMock)
+@patch("src.api.research.chat.hybrid_search_service.search_with_diagnostics")
+async def test_retrieve_context_requires_organization_id(
+    mock_search_with_diagnostics: MagicMock,
+    _mock_store_trace: AsyncMock,
+) -> None:
+    """Missing org must raise, never fall through to an unscoped search."""
+    with pytest.raises(ValueError):
+        await retrieve_context("q", max_docs=1, organization_id="")
+    mock_search_with_diagnostics.assert_not_called()
 
 
 @patch(

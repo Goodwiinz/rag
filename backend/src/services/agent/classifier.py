@@ -12,12 +12,17 @@ import asyncio
 import json
 import logging
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Literal, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from src.services.agent._sanitize import (  # noqa: F401
+    _PROMPT_FIELD_MAX_CHARS,
+    _sanitize_prompt_field,
+)
 from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY
 
 logger = logging.getLogger(__name__)
@@ -34,15 +39,10 @@ _LLM_CONFIDENCE_THRESHOLD = 0.7
 _CLASSIFIER_LLM_TIMEOUT_SECONDS = 25.0  # bumped from 10s for headroom after
 # max_tokens 256→4096 lets gpt-5-mini reason longer before emitting output.
 
-# Maximum length (chars) for any user-supplied string interpolated into the
-# classifier system prompt. Truncating + neutralising braces/newlines is the
-# minimum defence against prompt-injection via previous_turn / prior_tool /
-# page_context. Longer values are clipped with an ellipsis.
-_PROMPT_FIELD_MAX_CHARS = 400
-
 # Cache the classifier LLM at module scope (rebuilding the client per call
 # costs ~50ms and creates pointless connection churn).
 _CLASSIFIER_LLM = None
+_CLASSIFIER_LLM_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -88,13 +88,16 @@ def _build_classifier_llm():
     global _CLASSIFIER_LLM
     if _CLASSIFIER_LLM is not None:
         return _CLASSIFIER_LLM
-    # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
-    # against max_completion_tokens budget. Observed traces show 2752+ reasoning
-    # tokens consumed before output — 256 cap caused LengthFinishReasonError.
-    _CLASSIFIER_LLM = build_lightweight_llm(
-        max_tokens=4096,
-        request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
-    )
+    with _CLASSIFIER_LLM_LOCK:
+        if _CLASSIFIER_LLM is not None:  # re-check inside lock
+            return _CLASSIFIER_LLM
+        # 4096 tokens: gpt-5-mini reasoning model uses internal reasoning_tokens
+        # against max_completion_tokens budget. Observed traces show 2752+ reasoning
+        # tokens consumed before output — 256 cap caused LengthFinishReasonError.
+        _CLASSIFIER_LLM = build_lightweight_llm(
+            max_tokens=4096,
+            request_timeout=_CLASSIFIER_LLM_TIMEOUT_SECONDS,
+        )
     return _CLASSIFIER_LLM
 
 
@@ -216,30 +219,6 @@ def classify_intent_keywords(query: str) -> ClassificationResult:
 # ---------------------------------------------------------------------------
 
 
-def _sanitize_prompt_field(value: str) -> str:
-    """Neutralise user-controlled text before interpolating into a prompt.
-
-    Strips characters that could either break the ``str.format()`` call
-    (``{`` / ``}``) or attempt to escape the surrounding section header in
-    the system prompt (newlines, markdown headings). Truncates to
-    ``_PROMPT_FIELD_MAX_CHARS`` so an attacker cannot drown the actual
-    classification prompt by stuffing thousands of tokens through one of
-    the dynamic context fields.
-    """
-    if not value:
-        return ""
-    text = str(value)
-    if len(text) > _PROMPT_FIELD_MAX_CHARS:
-        text = text[: _PROMPT_FIELD_MAX_CHARS] + "..."
-    # ``str.format`` interprets ``{`` / ``}`` as field delimiters — escape
-    # them to literal braces.
-    text = text.replace("{", "{{").replace("}", "}}")
-    # Collapse newlines so dynamic content cannot start a new markdown
-    # heading and visually impersonate prompt sections.
-    text = text.replace("\r", " ").replace("\n", " ")
-    return text
-
-
 def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
     """Render the prior tool call as a compact text block for the prompt.
 
@@ -256,13 +235,11 @@ def _format_prior_tool(prior_tool: Optional[Dict[str, Any]]) -> str:
     except (TypeError, ValueError):
         args_text = str(raw_args)[:200]
     result_text = (
-        raw_result if isinstance(raw_result, str) else json.dumps(raw_result, default=str)
+        raw_result
+        if isinstance(raw_result, str)
+        else json.dumps(raw_result, default=str)
     )[:200]
-    return (
-        f"Tool: {name}\n"
-        f"Args: {args_text}\n"
-        f"Result (truncated): {result_text}"
-    )
+    return f"Tool: {name}\n" f"Args: {args_text}\n" f"Result (truncated): {result_text}"
 
 
 async def classify_intent_llm(
@@ -297,9 +274,7 @@ async def classify_intent_llm(
     paper_id = _sanitize_prompt_field(str(page_context.get("paper_id", "")))
     paper_title = _sanitize_prompt_field(str(page_context.get("paper_title", "")))
     if page_type == "project" and project_id:
-        page_context_text = (
-            f"User is on a project page (project_id={project_id})."
-        )
+        page_context_text = f"User is on a project page (project_id={project_id})."
     elif page_type != "unknown":
         page_context_text = f"User is on the {page_type} page."
     else:
@@ -399,9 +374,15 @@ async def classify_intent_with_fallback(
             "Short zero-confidence query (%d words, no prior tool) — skipping LLM classifier",
             len(query.split()),
         )
+        # Confidence 0.5, not 0.9 — this is a no-signal guess, not a
+        # classification. Nothing downstream routes off this value
+        # (route_by_intent keys off the intent string; the >= threshold
+        # branches below apply to keyword/LLM results, not this return),
+        # so it's telemetry only: dashboards can separate "shortcut
+        # guessed general" from "classifier was sure".
         return ClassificationResult(
             intent="general",
-            confidence=0.9,
+            confidence=0.5,
             reasoning="Short query with no keyword signal.",
             source="shortcut",
         )

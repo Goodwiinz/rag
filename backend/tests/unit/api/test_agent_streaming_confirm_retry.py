@@ -161,3 +161,78 @@ async def test_confirm_returns_thread_not_found_after_both_attempts_fail():
     # Should contain "Thread not found" error
     error_events = [e for e in events if "Thread not found" in e]
     assert len(error_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_rejects_legacy_checkpoint_without_owned_thread():
+    """A checkpoint without user_id must not be resumable by a different user."""
+    from src.api.agent.streaming import stream_confirm_event_generator
+
+    class _FakeGraphLegacyCheckpoint:
+        def __init__(self):
+            self.stream_started = False
+
+        async def astream_events(self, *args, **kwargs):
+            self.stream_started = True
+            if False:
+                yield {}
+
+        async def aget_state(self, config):
+            return SimpleNamespace(
+                values={
+                    "page_context": {"type": "general"},
+                    "pending_confirmation": {
+                        "tools": [{"name": "ingest_arxiv_papers", "args": {}}]
+                    },
+                    "messages": [],
+                    "tool_executions": [],
+                },
+                tasks=(),
+            )
+
+    fake_db = AsyncMock()
+    fake_db.execute = AsyncMock(
+        return_value=Mock(scalar_one_or_none=Mock(return_value=None))
+    )
+    fake_db.close = AsyncMock()
+
+    fake_graph = _FakeGraphLegacyCheckpoint()
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    body = SimpleNamespace(
+        thread_id="11111111-1111-1111-1111-111111111111",
+        confirmed=True,
+        model="",
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            side_effect=lambda: None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.checkpointer.reset_checkpointer",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=fake_graph,
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=fake_db,
+        ),
+    ):
+        events = []
+        async for event in stream_confirm_event_generator(
+            body, request, current_user
+        ):
+            events.append(event)
+
+    error_events = [e for e in events if "Thread not found" in e]
+    assert len(error_events) == 1
+    assert fake_graph.stream_started is False

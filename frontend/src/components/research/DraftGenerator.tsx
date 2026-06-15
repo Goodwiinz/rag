@@ -6,7 +6,9 @@
  */
 
 import React, { useState, useId, useRef } from 'react';
-import { Sparkles, Plus, X, Loader2 } from 'lucide-react';
+import { Sparkles, Plus, X, Loader2, ChevronDown } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 export interface DraftGeneratorProps {
   onGenerate: (config: GenerationConfig) => void;
@@ -21,6 +23,8 @@ export interface GenerationConfig {
   includeAbstract: boolean;
 }
 
+const styleOptions = ['academic', 'technical', 'summary'] as const;
+
 export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   onGenerate,
   loading = false,
@@ -31,26 +35,25 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
   const [style, setStyle] = useState<GenerationConfig['style']>('academic');
   const [maxSections, setMaxSections] = useState(5);
   const [includeAbstract, setIncludeAbstract] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // Generate unique IDs for accessibility
   const themesInputId = useId();
   const maxSectionsId = useId();
   const includeAbstractId = useId();
   const styleButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const handleStyleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    const styles = ['academic', 'technical', 'summary'] as const;
     let nextIndex = -1;
 
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-      nextIndex = (index + 1) % styles.length;
+      nextIndex = (index + 1) % styleOptions.length;
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-      nextIndex = (index - 1 + styles.length) % styles.length;
+      nextIndex = (index - 1 + styleOptions.length) % styleOptions.length;
     }
 
     if (nextIndex !== -1) {
       e.preventDefault();
-      const newStyle = styles[nextIndex];
+      const newStyle = styleOptions[nextIndex];
       setStyle(newStyle);
       styleButtonRefs.current[nextIndex]?.focus();
     }
@@ -89,8 +92,8 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
     <div className="bg-card border border-border rounded-lg p-6">
       <div className="flex items-center gap-2 mb-6">
         <Sparkles className="h-5 w-5 text-primary" />
-        <h3 className="font-mono font-bold text-foreground">
-          Generate Literature Review
+        <h3 className="text-base font-semibold text-foreground">
+          Generate literature review
         </h3>
       </div>
 
@@ -99,9 +102,9 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <div>
           <label
             htmlFor={themesInputId}
-            className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2"
+            className="block text-sm font-medium text-foreground mb-2"
           >
-            Themes / Topics *
+            Themes
           </label>
           <div className="flex gap-2 mb-2">
             <input
@@ -110,15 +113,15 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               value={themeInput}
               onChange={(e) => setThemeInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Enter a theme and press Enter..."
-              className="flex-1 px-3 py-2 bg-muted border border-border rounded text-sm font-mono text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+              placeholder="Enter a theme and press Enter…"
+              className="flex-1 px-3 py-2 bg-muted border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
             <button
               type="button"
               onClick={handleAddTheme}
               disabled={!themeInput.trim()}
               aria-label="Add theme"
-              className="px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors disabled:opacity-50"
+              className="px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -128,13 +131,13 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               {themes.map((theme, idx) => (
                 <span
                   key={idx}
-                  className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded"
+                  className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded"
                 >
                   {theme}
                   <button
                     onClick={() => handleRemoveTheme(theme)}
                     aria-label={`Remove theme ${theme}`}
-                    className="hover:text-red-400 transition-colors"
+                    className="p-0.5 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -143,19 +146,19 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
             </div>
           )}
           {themes.length === 0 && (
-            <p className="text-xs text-muted-foreground font-mono">
+            <p className="text-xs text-muted-foreground">
               Add at least one theme for the review
             </p>
           )}
         </div>
 
         {/* Style Selector */}
-        <div role="radiogroup" aria-label="Writing Style">
-          <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-            Writing Style
-          </label>
-          <div className="flex gap-2">
-            {(['academic', 'technical', 'summary'] as const).map((s, idx) => (
+        <fieldset className="border-0 p-0 m-0">
+          <legend className="block text-sm font-medium text-foreground mb-2">
+            Writing style
+          </legend>
+          <div className="flex gap-2" role="radiogroup" aria-label="Writing style">
+            {styleOptions.map((s, idx) => (
               <button
                 key={s}
                 ref={(el) => {
@@ -166,7 +169,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
                 tabIndex={style === s ? 0 : -1}
                 onClick={() => setStyle(s)}
                 onKeyDown={(e) => handleStyleKeyDown(e, idx)}
-                className={`flex-1 px-3 py-2 rounded text-sm font-mono transition-colors ${
+                className={`flex-1 px-3 py-2 rounded text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   style === s
                     ? 'bg-primary/20 text-primary border border-primary/50'
                     : 'bg-muted text-muted-foreground border border-border hover:border-muted-foreground/50'
@@ -176,64 +179,61 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
-        {/* Max Sections Slider */}
-        <div>
-          <label
-            htmlFor={maxSectionsId}
-            className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2"
-          >
-            Max Sections: <span className="text-primary">{maxSections}</span>
-          </label>
-          <input
-            id={maxSectionsId}
-            type="range"
-            min={2}
-            max={10}
-            value={maxSections}
-            onChange={(e) => setMaxSections(parseInt(e.target.value, 10))}
-            className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground font-mono mt-1">
-            <span>2</span>
-            <span>6</span>
-            <span>10</span>
-          </div>
-        </div>
+        {/* Advanced Options */}
+        <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+            Advanced options
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-5 mt-5">
+            {/* Max Sections Slider */}
+            <div>
+              <label
+                htmlFor={maxSectionsId}
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Max sections: <span className="text-primary">{maxSections}</span>
+              </label>
+              <input
+                id={maxSectionsId}
+                type="range"
+                min={2}
+                max={10}
+                value={maxSections}
+                onChange={(e) => setMaxSections(parseInt(e.target.value, 10))}
+                className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>2</span>
+                <span>6</span>
+                <span>10</span>
+              </div>
+            </div>
 
-        {/* Include Abstract Toggle */}
-        <div className="flex items-center justify-between">
-          <label
-            id={includeAbstractId}
-            className="text-xs text-muted-foreground font-mono uppercase tracking-wide"
-          >
-            Include Abstract
-          </label>
-          <button
-            role="switch"
-            aria-checked={includeAbstract}
-            aria-labelledby={includeAbstractId}
-            onClick={() => setIncludeAbstract(!includeAbstract)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              includeAbstract
-                ? 'bg-primary/30 border-primary'
-                : 'bg-muted border-muted-foreground/50'
-            } border`}
-          >
-            <span
-              className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
-                includeAbstract
-                  ? 'translate-x-6 bg-primary'
-                  : 'translate-x-0.5 bg-muted-foreground'
-              }`}
-            />
-          </button>
-        </div>
+            {/* Include Abstract Toggle */}
+            <div className="flex items-center justify-between">
+              <label
+                id={includeAbstractId}
+                htmlFor={`${includeAbstractId}-switch`}
+                className="text-sm font-medium text-foreground"
+              >
+                Include abstract
+              </label>
+              <Switch
+                id={`${includeAbstractId}-switch`}
+                checked={includeAbstract}
+                onCheckedChange={setIncludeAbstract}
+                aria-labelledby={includeAbstractId}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Document Count Info */}
         {documentCount > 0 && (
-          <div className="p-3 bg-muted rounded text-xs font-mono text-muted-foreground">
+          <div className="p-3 bg-muted rounded text-xs text-muted-foreground">
             The review will analyze {documentCount} document
             {documentCount !== 1 ? 's' : ''} from this project.
           </div>
@@ -243,17 +243,17 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <button
           onClick={handleGenerate}
           disabled={themes.length === 0 || loading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 text-primary border border-primary/30 rounded font-mono text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 text-primary border border-primary/30 rounded text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Generating...
+              Generating…
             </>
           ) : (
             <>
               <Sparkles className="h-4 w-4" />
-              Generate Literature Review
+              Generate literature review
             </>
           )}
         </button>

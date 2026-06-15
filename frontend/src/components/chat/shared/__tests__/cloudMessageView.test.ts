@@ -22,6 +22,31 @@ describe('cloudMessageView', () => {
     expect(result[0].citations?.[0].title).toBe('Doc 1');
   });
 
+  it('carries the stopped flag and latency from a persisted message into metadata', () => {
+    const [withStop, plain] = mapStoreMessagesToChatMessages([
+      {
+        id: 'm-1',
+        role: 'assistant',
+        content: 'Partial',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        latency_ms: 1500,
+        stopped: true,
+      } as any,
+      {
+        id: 'm-2',
+        role: 'assistant',
+        content: 'Complete',
+        created_at: '2026-03-09T12:00:01Z',
+        citations: [],
+      } as any,
+    ]);
+
+    expect(withStop.metadata?.stopped).toBe(true);
+    expect(withStop.metadata?.responseTimeMs).toBe(1500);
+    expect(plain.metadata).toBeUndefined();
+  });
+
   it('uses store-backed messages for cloud chat once persisted messages are available', () => {
     const localMessages = [
       {

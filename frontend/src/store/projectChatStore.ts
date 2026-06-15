@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { projectChatService } from '@/services/projectChatService';
+import { useChatStore } from '@/store/chat-store';
 import type {
   ProjectThread,
   StartChatFromProjectRequest,
@@ -79,6 +80,10 @@ const initialState = {
 // Store Implementation
 // ============================================================================
 
+// Monotonic token per project so a slow list response can't clobber the
+// result of a newer fetch (or a just-completed link/unlink refresh).
+const fetchThreadsSeq: Record<string, number> = {};
+
 export const useProjectChatStore = create<ProjectChatState>()(
   immer((set, get) => ({
     ...initialState,
@@ -96,6 +101,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         return;
       }
 
+      const seq = (fetchThreadsSeq[projectId] =
+        (fetchThreadsSeq[projectId] ?? 0) + 1);
+
       set((state) => {
         state.loadingThreads[projectId] = true;
         state.errors[projectId] = null;
@@ -103,12 +111,14 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
       try {
         const response = await projectChatService.listProjectThreads(projectId);
+        if (fetchThreadsSeq[projectId] !== seq) return; // superseded by a newer fetch
 
         set((state) => {
           state.linkedThreads[projectId] = response.threads;
           state.loadingThreads[projectId] = false;
         });
       } catch (error: any) {
+        if (fetchThreadsSeq[projectId] !== seq) return;
         console.error('[ProjectChatStore] fetchProjectThreads failed:', error);
         set((state) => {
           state.errors[projectId] = error?.message || 'Failed to fetch threads';
@@ -189,14 +199,24 @@ export const useProjectChatStore = create<ProjectChatState>()(
           request
         );
 
-        // Optimistic update - add to local state immediately
+        // Optimistic update - add to local state immediately. Re-linking is
+        // idempotent on the backend (returns the existing link), so replace
+        // any prior entry for this thread instead of duplicating it.
         set((state) => {
-          if (!state.linkedThreads[projectId]) {
-            state.linkedThreads[projectId] = [];
-          }
-          state.linkedThreads[projectId].unshift(response);
+          const existing = state.linkedThreads[projectId] ?? [];
+          state.linkedThreads[projectId] = [
+            response,
+            ...existing.filter((t) => t.thread_id !== response.thread_id),
+          ];
           state.linkingThread[projectId] = false;
         });
+
+        // Mirror into the chat store's thread row — the chat rail and the
+        // agent page_context derive the binding from source_project_id, so a
+        // link made from the project page must be visible there too.
+        useChatStore
+          .getState()
+          .setThreadProjectBinding(response.thread_id, projectId);
 
         return response;
       } catch (error: any) {
@@ -247,6 +267,11 @@ export const useProjectChatStore = create<ProjectChatState>()(
           }
           state.unlinkingThread[projectId] = false;
         });
+
+        // Clear the chat store's copy too. Without this the chat rail keeps
+        // showing the removed project and the agent keeps receiving its
+        // project_id until a full reload.
+        useChatStore.getState().setThreadProjectBinding(threadId, null);
       } catch (error: any) {
         console.error(
           '[ProjectChatStore] unlinkThreadFromProject failed:',

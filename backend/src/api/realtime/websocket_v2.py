@@ -211,6 +211,10 @@ async def websocket_connect_v2_secure(
             "update_frequency": update_frequency.value,
             "connected_at": datetime.now(dt_timezone.utc).isoformat(),
             "auth_method": user_payload.get("_auth_method", "unknown"),
+            # Stored so the connection manager can authorize mid-session
+            # channel subscriptions (admin-only channels) the same way the
+            # connect-time gate below does.
+            "role": user_payload.get("role", "USER"),
         }
     )
 
@@ -227,6 +231,24 @@ async def websocket_connect_v2_secure(
         return  # Connection failed and was closed
 
     try:
+        # Authorize each requested channel before subscribing. Admin-only
+        # channels (system_status, admin_alerts) are rejected for non-admins;
+        # unknown channels are dropped. Only the granted set is subscribed and
+        # echoed back, so a client cannot receive events it isn't entitled to.
+        user_role = user_payload.get("role", "USER")
+        granted_channels = [
+            ch for ch in channel_list if _can_subscribe_to_channel(ch, user_role)
+        ]
+        denied_channels = [ch for ch in channel_list if ch not in granted_channels]
+        if denied_channels:
+            logger.warning(
+                "WebSocket subscription denied for user %s role=%s channels=%s",
+                user_id,
+                user_role,
+                denied_channels,
+            )
+        channel_list = granted_channels
+
         # Subscribe to requested channels
         for channel in channel_list:
             await connection_manager.subscribe_to_channel(connection_id, channel)
@@ -653,3 +675,22 @@ def _get_channel_permissions(channel: Channel) -> str:
         Channel.ADMIN_ALERTS: "admin",
     }
     return permissions.get(channel, "user")
+
+
+def _can_subscribe_to_channel(channel_name: str, role: str) -> bool:
+    """Whether a user with *role* may subscribe to *channel_name*.
+
+    Admin-only channels (``system_status``, ``admin_alerts``) were previously
+    subscribable by anyone — combined with channel broadcasts that meant a
+    regular user could receive admin/system events. Unknown channel names are
+    rejected (fail closed). Role match is case-insensitive (token claims use
+    ``USER``/``ADMIN``; the permission map uses lowercase).
+    """
+    try:
+        channel = Channel(channel_name)
+    except ValueError:
+        return False
+    required = _get_channel_permissions(channel)
+    if required == "admin":
+        return str(role or "").lower() == "admin"
+    return True

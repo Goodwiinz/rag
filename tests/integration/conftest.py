@@ -8,7 +8,7 @@ import pytest
 import asyncio
 import uuid
 from typing import AsyncGenerator, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 import asyncpg
@@ -25,6 +25,7 @@ import docker
 from fastapi.testclient import TestClient
 import json
 import logging
+from tests.constants import TEST_JWT_SECRET
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -278,7 +279,7 @@ def sample_user(sample_organization):
         "organization_id": sample_organization["id"],
         "roles": ["admin", "analyst"],
         "is_active": True,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     }
 
 @pytest.fixture
@@ -314,8 +315,8 @@ def sample_dashboard(sample_organization, sample_user):
         },
         "auto_refresh_enabled": True,
         "auto_refresh_interval_seconds": 300,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
 
 @pytest.fixture
@@ -363,8 +364,8 @@ def sample_report(sample_organization, sample_user):
         "share_with_users": [],
         "version": 1,
         "is_template": False,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
 
 @pytest.fixture
@@ -393,14 +394,14 @@ def sample_alert(sample_organization):
             "description": "Alert when entity creation rate exceeds threshold",
             "recommended_actions": ["Check data sources", "Verify ingestion pipeline"]
         },
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     }
 
 @pytest.fixture
 def sample_metrics_data():
     """Create sample metrics data for testing"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return [
         {
             "metric_id": "total_entities",
@@ -495,9 +496,9 @@ async def create_test_user_session(organization_id: uuid.UUID, roles: list = Non
             "email": test_user["email"],
             "organization_id": str(test_user["organization_id"]),
             "roles": test_user["roles"],
-            "exp": datetime.utcnow() + timedelta(hours=1)
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
         },
-        "test_secret_key",
+        TEST_JWT_SECRET,
         algorithm="HS256"
     )
 

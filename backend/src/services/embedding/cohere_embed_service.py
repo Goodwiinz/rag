@@ -131,10 +131,20 @@ class CohereEmbedService:
                     try:
                         single = await self._embed_texts_batch([text], input_type)
                         all_embeddings.extend(single)
-                    except Exception:
-                        logger.error(f"Single text embed failed, using zero vector: {text[:80]}")
-                        all_embeddings.append([0.0] * self.dimensions)
+                    except Exception as single_err:
+                        # NEVER substitute a zero vector — it silently corrupts the
+                        # index (a 0-vector is ~equidistant to everything, polluting
+                        # every similarity search). Fail loud so the caller retries
+                        # or skips the document instead of storing garbage.
                         failed_count += 1
+                        if breaker:
+                            breaker.record_failure()
+                        logger.error(
+                            f"Single text embed failed, aborting: {text[:80]}"
+                        )
+                        raise RuntimeError(
+                            "Cohere embedding failed; refusing to emit zero vectors"
+                        ) from single_err
 
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(
@@ -170,7 +180,16 @@ class CohereEmbedService:
                 response.raise_for_status()
                 result = response.json()
 
-            return self._parse_embeddings(result)
+            embeddings = self._parse_embeddings(result)
+            # Guarantee a positional 1:1 mapping with the input texts. Callers
+            # zip embeddings back to their source by index; a short/misaligned
+            # response would silently attach the wrong vector to a document.
+            if len(embeddings) != len(texts):
+                raise RuntimeError(
+                    f"Cohere returned {len(embeddings)} embeddings for "
+                    f"{len(texts)} texts (misaligned response)"
+                )
+            return embeddings
 
         except httpx.HTTPStatusError as e:
             logger.error(

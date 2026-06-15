@@ -49,3 +49,13 @@ repos:
           - eslint@8.55.0
           - "@typescript-eslint/eslint-plugin@5.62.0"
           - "@typescript-eslint/parser@5.62.0"
+
+  # Rejects placeholder / empty directory docs. Stdlib Python, no deps.
+  - repo: local
+    hooks:
+      - id: dir-docs
+        name: directory docs lint
+        entry: python3 scripts/docs/check_dir_docs.py
+        language: system
+        files: (^|/)(README|doc)\.md$
+        pass_filenames: true

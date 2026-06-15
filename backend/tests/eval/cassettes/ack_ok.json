@@ -1,0 +1,15 @@
+{
+  "case": "ack_ok",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "Great \u2014 how would you like to proceed? I can search for papers, create or switch projects, add documents to a project, make notes, or help draft text.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

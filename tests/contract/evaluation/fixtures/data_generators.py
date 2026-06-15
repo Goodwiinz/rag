@@ -4,7 +4,7 @@ Data generators for evaluation contract tests
 
 import uuid
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from faker import Faker
 
@@ -188,7 +188,7 @@ class JobDataGenerator:
         if dataset_size is None:
             dataset_size = random.randint(1, 100)
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         started_at = now if status in [EvaluationStatus.RUNNING.value, EvaluationStatus.COMPLETED.value, EvaluationStatus.FAILED.value] else None
         completed_at = now + timedelta(minutes=random.randint(5, 30)) if status in [EvaluationStatus.COMPLETED.value, EvaluationStatus.FAILED.value] else None
         duration = (completed_at - started_at).total_seconds() if completed_at and started_at else None
@@ -317,7 +317,7 @@ class MetricDataGenerator:
                 "processing_time_ms": random.randint(100, 5000),
                 "token_count": random.randint(100, 2000)
             },
-            "created_at": datetime.utcnow() - timedelta(minutes=random.randint(1, 60))
+            "created_at": datetime.now(timezone.utc) - timedelta(minutes=random.randint(1, 60))
         }
 
     def generate_metrics_response(

@@ -6,7 +6,7 @@ Tests security controls, role-based access, and permission validation
 import pytest
 import jwt
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from unittest.mock import Mock, AsyncMock
 
@@ -17,6 +17,7 @@ from conftest import (
     APIAssertions, create_auth_headers, create_test_user_session,
     sample_organization, sample_user, sample_dashboard, sample_report
 )
+from tests.constants import TEST_JWT_SECRET
 
 
 class TestAuthenticationIntegration:
@@ -33,10 +34,10 @@ class TestAuthenticationIntegration:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1),
-                "iat": datetime.utcnow()
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                "iat": datetime.now(timezone.utc)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -74,10 +75,10 @@ class TestAuthenticationIntegration:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() - timedelta(hours=1),  # Expired
-                "iat": datetime.utcnow() - timedelta(hours=2)
+                "exp": datetime.now(timezone.utc) - timedelta(hours=1),  # Expired
+                "iat": datetime.now(timezone.utc) - timedelta(hours=2)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -137,9 +138,9 @@ class TestAuthenticationIntegration:
                 "email": "other@example.com",
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -243,9 +244,9 @@ class TestAuthorizationIntegration:
                     "email": user["email"],
                     "organization_id": str(user["organization_id"]),
                     "roles": user["roles"],
-                    "exp": datetime.utcnow() + timedelta(hours=1)
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1)
                 },
-                "test_secret_key",
+                TEST_JWT_SECRET,
                 algorithm="HS256"
             )
             headers = create_auth_headers(token)
@@ -291,9 +292,9 @@ class TestAuthorizationIntegration:
                 "email": "user1@org1.com",
                 "organization_id": str(org1_id),
                 "roles": ["analyst"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         headers1 = create_auth_headers(user1_token)
@@ -305,9 +306,9 @@ class TestAuthorizationIntegration:
                 "email": "user2@org2.com",
                 "organization_id": str(org2_id),
                 "roles": ["analyst"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         headers2 = create_auth_headers(user2_token)
@@ -351,9 +352,9 @@ class TestAuthorizationIntegration:
                 "email": "admin@example.com",
                 "organization_id": str(org_id),
                 "roles": ["admin"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         admin_headers = create_auth_headers(admin_token)
@@ -391,9 +392,9 @@ class TestAuthorizationIntegration:
                 "email": "viewer@example.com",
                 "organization_id": str(org_id),
                 "roles": ["viewer"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         viewer_headers = create_auth_headers(viewer_token)
@@ -422,9 +423,9 @@ class TestAuthorizationIntegration:
                 "email": "owner@example.com",
                 "organization_id": str(org_id),
                 "roles": ["analyst"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         owner_headers = create_auth_headers(owner_token)
@@ -435,9 +436,9 @@ class TestAuthorizationIntegration:
                 "email": "other@example.com",
                 "organization_id": str(org_id),
                 "roles": ["analyst"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
         other_headers = create_auth_headers(other_user_token)
@@ -485,9 +486,9 @@ class TestAuthorizationIntegration:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -577,10 +578,10 @@ class TestAuthorizationIntegration:
                 "email": sample_user["email"],
                 "organization_id": str(sample_user["organization_id"]),
                 "roles": sample_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1),
-                "iat": datetime.utcnow()
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                "iat": datetime.now(timezone.utc)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -649,9 +650,9 @@ class TestAuthorizationIntegration:
                     "email": admin_user["email"],
                     "organization_id": str(admin_user["organization_id"]),
                     "roles": admin_user["roles"],
-                    "exp": datetime.utcnow() + timedelta(hours=1)
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1)
                 },
-                "test_secret_key",
+                TEST_JWT_SECRET,
                 algorithm="HS256"
             )
 
@@ -669,9 +670,9 @@ class TestAuthorizationIntegration:
                     "email": viewer_user["email"],
                     "organization_id": str(viewer_user["organization_id"]),
                     "roles": viewer_user["roles"],
-                    "exp": datetime.utcnow() + timedelta(hours=1)
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1)
                 },
-                "test_secret_key",
+                TEST_JWT_SECRET,
                 algorithm="HS256"
             )
 

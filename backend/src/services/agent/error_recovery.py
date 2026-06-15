@@ -131,8 +131,26 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             suggestion="You may need different permissions.",
         )
 
-    # 4. Transient infrastructure errors.
-    if any(kw in msg_lower for kw in ("timeout", "timed out", "connection")):
+    # 4. Transient infrastructure errors. Connection keywords are scoped —
+    # a bare "connection" also matches benign payload text like "no
+    # connection found between entities" and would retry a fatal error.
+    if any(
+        kw in msg_lower
+        for kw in (
+            "timeout",
+            "timed out",
+            "connection refused",
+            "connection reset",
+            "connection error",
+            "connection closed",
+            "connection failed",
+            # Canonical requests/urllib3 failure string:
+            # ('Connection aborted.', RemoteDisconnected(...))
+            "connection aborted",
+            "econnrefused",
+            "econnreset",
+        )
+    ):
         return ToolError(category="transient", message=error_msg)
 
     # 5. Recoverable input-shape errors (LLM can usually retry differently).

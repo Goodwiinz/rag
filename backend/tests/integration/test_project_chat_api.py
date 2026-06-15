@@ -155,7 +155,7 @@ class TestProjectChatIntegration:
     async def test_duplicate_thread_link(
         self, async_client, test_user, test_project, test_thread, test_project_thread
     ):
-        """Test attempting to link the same thread twice."""
+        """Test that re-linking an already-linked thread is idempotent."""
         # Arrange
         request_data = {
             "thread_id": str(test_thread.id),
@@ -168,13 +168,12 @@ class TestProjectChatIntegration:
             json=request_data
         )
 
-        # Assert - Should fail with 409 Conflict
-        assert response.status_code == status.HTTP_409_CONFLICT
+        # Assert - Re-link returns the existing link (idempotent, no 409)
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        detail_text = str(
-            data.get("detail") or data.get("message") or data
-        ).lower()
-        assert "already linked" in detail_text
+        assert data["project_id"] == str(test_project.id)
+        assert data["thread_id"] == str(test_thread.id)
+        assert data["link_type"] == "manual"
 
     async def test_workspace_isolation(
         self, async_client, test_user, other_user, test_project, other_workspace, test_db

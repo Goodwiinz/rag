@@ -12,7 +12,7 @@ import time
 import psutil
 import os
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
@@ -145,7 +145,7 @@ class PerformanceBenchmarkRunner:
                 memory_usage_mb=(final_memory - initial_memory) / (1024 * 1024),
                 error_rate=failed_requests / total_requests if total_requests > 0 else 0,
                 test_duration=test_duration,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
         else:
             metrics = PerformanceMetrics(
@@ -166,7 +166,7 @@ class PerformanceBenchmarkRunner:
                 memory_usage_mb=(final_memory - initial_memory) / (1024 * 1024),
                 error_rate=1.0,
                 test_duration=test_duration,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
 
         self.metrics_history.append(metrics)

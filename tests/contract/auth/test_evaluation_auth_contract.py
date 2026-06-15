@@ -6,11 +6,12 @@ Tests JWT token validation, role-based access control, organization scoping, and
 import pytest
 import jwt
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
 from typing import Dict, Any
 
+from tests.constants import TEST_JWT_SECRET
 from tests.contract.evaluation.fixtures.data_generators import EvaluationDataGenerator, JobDataGenerator
 
 
@@ -59,11 +60,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"  # Should match app secret
+        secret = TEST_JWT_SECRET  # Should match app secret
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {
@@ -144,11 +145,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": (datetime.utcnow() - timedelta(minutes=5)).timestamp(),  # Expired 5 minutes ago
-            "iat": (datetime.utcnow() - timedelta(hours=2)).timestamp()
+            "exp": (datetime.now(timezone.utc) - timedelta(minutes=5)).timestamp(),  # Expired 5 minutes ago
+            "iat": (datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {
@@ -177,8 +178,8 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
         # Encode with wrong secret
@@ -213,12 +214,12 @@ class TestEvaluationAuthContract:
                 "email": "test@example.com",
                 "role": "user",
                 "organization_id": str(test_organization.id),
-                "exp": datetime.utcnow().timestamp() + 3600,
-                "iat": datetime.utcnow().timestamp()
+                "exp": datetime.now(timezone.utc).timestamp() + 3600,
+                "iat": datetime.now(timezone.utc).timestamp()
             }
             del payload[claim]
 
-            secret = "test-secret-key"
+            secret = TEST_JWT_SECRET
             token = jwt.encode(payload, secret, algorithm="HS256")
 
             headers = {
@@ -249,11 +250,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": org_a_id,
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {
@@ -295,8 +296,8 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": "user",
             "organization_id": str(test_user.organization_id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
         # Test admin role - should access organization resources
@@ -305,11 +306,11 @@ class TestEvaluationAuthContract:
             "email": test_admin_user.email,
             "role": "admin",
             "organization_id": str(test_admin_user.organization_id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         user_token = jwt.encode(user_payload, secret, algorithm="HS256")
         admin_token = jwt.encode(admin_payload, secret, algorithm="HS256")
 
@@ -387,11 +388,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         # Tamper with token by changing one character
@@ -425,11 +426,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {
@@ -471,11 +472,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": datetime.utcnow().timestamp() + 3600,
-            "iat": datetime.utcnow().timestamp()
+            "exp": datetime.now(timezone.utc).timestamp() + 3600,
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {
@@ -541,11 +542,11 @@ class TestEvaluationAuthContract:
             "email": test_user.email,
             "role": test_user.role.value,
             "organization_id": str(test_organization.id),
-            "exp": (datetime.utcnow() + timedelta(minutes=5)).timestamp(),  # Expires in 5 minutes
-            "iat": datetime.utcnow().timestamp()
+            "exp": (datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp(),  # Expires in 5 minutes
+            "iat": datetime.now(timezone.utc).timestamp()
         }
 
-        secret = "test-secret-key"
+        secret = TEST_JWT_SECRET
         token = jwt.encode(payload, secret, algorithm="HS256")
 
         headers = {

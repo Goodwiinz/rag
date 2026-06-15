@@ -30,6 +30,7 @@ METRICS = [
     ("tool_call_validity", "Tool Call Validity"),
     ("no_tool_loop", "No Tool Loop"),
     ("terminates_with_answer", "Terminates With Answer"),
+    ("plan_adherence", "Plan Adherence"),
 ]
 
 
@@ -71,6 +72,17 @@ def _extract_function(source: str, fn_name: str) -> str:
     Each rule needs a standalone single-function blob: include the two private
     helpers (`_extract_messages`, `_iter_tool_calls`) plus the target function.
     """
+    # Module-level constants the evaluators reference must be bundled too, or
+    # the sandboxed blob NameErrors at call time (e.g. plan_adherence uses
+    # KNOWN_TOOLS). Include any that are present.
+    prefix = []
+    const = re.search(
+        r"^KNOWN_TOOLS = frozenset\(\{.*?\}\)\n",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    if const:
+        prefix.append(const.group().rstrip() + "\n")
     # Grab the helpers (always needed).
     helpers = []
     for helper in ("_extract_messages", "_iter_tool_calls"):
@@ -97,7 +109,27 @@ def _extract_function(source: str, fn_name: str) -> str:
         count=1,
         flags=re.MULTILINE,
     )
-    return "\n".join(helpers + [body]) + "\n"
+    blob = "\n".join(prefix + helpers + [body]) + "\n"
+
+    # Round-trip guard: exec the assembled blob and smoke-call perform_eval so
+    # an undefined-name / missing-helper defect fails LOUDLY at upload time
+    # rather than silently inside the LangSmith sandbox (where the rule would
+    # upload "successfully" then score every run as an error — the exact
+    # "evaluator that never fires" failure mode). compile() alone is NOT enough:
+    # free names resolve at call time, so the smoke-call is the load-bearing step.
+    ns: dict = {}
+    try:
+        exec(compile(blob, f"<{fn_name}>", "exec"), ns)
+        fn = ns.get("perform_eval")
+        if not callable(fn):
+            raise RuntimeError(f"{fn_name}: extracted blob has no callable perform_eval.")
+        fn({"inputs": {"messages": []}, "outputs": {"messages": [], "plan": []}})
+    except NameError as e:
+        raise RuntimeError(
+            f"{fn_name}: extracted evaluator references a name not bundled by "
+            f"_extract_function (add the missing helper/constant): {e}"
+        ) from e
+    return blob
 
 
 def _resolve_session_id(api_key: str, endpoint: str) -> str:

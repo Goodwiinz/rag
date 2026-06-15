@@ -19,6 +19,7 @@ from fastapi import (
     Query,
     status,
 )
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db_sync
@@ -375,6 +376,11 @@ def get_search_suggestions(
             """Escape SQL LIKE special characters."""
             return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+        # Scope to workspaces the caller can access (owner / public / member).
+        # The previous ``organization_id = :org OR organization_id IS NULL``
+        # clause leaked every NULL-org (personal) workspace's thread titles to
+        # all users, and within an org showed all members' titles regardless of
+        # membership.
         suggestion_sql = """
             SELECT DISTINCT t.title
             FROM threads t
@@ -385,12 +391,21 @@ def get_search_suggestions(
                 AND w.is_deleted = false
                 AND t.title IS NOT NULL
                 AND LOWER(t.title) LIKE LOWER(:query_pattern)
-                AND (w.organization_id = :organization_id OR w.organization_id IS NULL)
+                AND (
+                    w.owner_id = :access_user_id
+                    OR w.is_public = true
+                    OR EXISTS (
+                        SELECT 1 FROM workspace_members wm
+                        WHERE wm.workspace_id = w.id
+                          AND wm.user_id = :access_user_id
+                          AND wm.is_deleted = false
+                    )
+                )
         """
 
         params = {
             "query_pattern": f"%{_escape_like(query)}%",
-            "organization_id": str(current_user.organization_id),
+            "access_user_id": str(current_user.id),
         }
 
         if workspace_id:
@@ -404,7 +419,18 @@ def get_search_suggestions(
         suggestions = [row.title for row in result if row.title]
 
         return {"query": query, "suggestions": suggestions}
+    except (ProgrammingError, OperationalError) as e:
+        # Don't mask a structurally broken query (bad column/join, param
+        # mismatch on the access predicate) as "no suggestions" — that would
+        # hide a broken authz query behind an empty 200 forever. Surface it
+        # like the sibling search endpoints do.
+        logger.error(f"Search suggestions query failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Suggestions failed",
+        )
     except Exception as e:
+        # Genuinely unexpected (non-SQL) errors: fail soft to empty suggestions.
         logger.error(f"Error getting search suggestions: {e}")
         return {"query": query, "suggestions": []}
 

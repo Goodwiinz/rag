@@ -6,7 +6,7 @@ Tests database schema, migrations, data integrity, and relationships
 import pytest
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Generator
 from sqlalchemy import create_engine, text, inspect, MetaData, Table, Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, JSON
 from sqlalchemy.orm import sessionmaker, Session, relationship
@@ -688,7 +688,7 @@ class TestDataIntegrityAndConsistency:
 
         # Update job status to completed
         job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.utcnow()
+        job.completed_at = datetime.now(timezone.utc)
         test_db.commit()
 
         # Update document status to match

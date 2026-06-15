@@ -9,6 +9,9 @@ FROM node:25-alpine AS base
 # Install pnpm if needed
 RUN npm install -g pnpm
 
+# Install curl for healthchecks
+RUN apk add --no-cache curl
+
 # Set working directory
 WORKDIR /app
 
@@ -39,8 +42,13 @@ ARG SENTRY_ORG
 ARG SENTRY_PROJECT
 ARG BACKEND_URL
 ARG NEXT_PUBLIC_GIT_SHA
+# Optional shared auth cookie name (pins @supabase/ssr's storageKey). Unset in
+# production (URL-derived default kept); the e2e build sets it so the host-side
+# browser and the in-container server share one cookie despite different URLs.
+ARG NEXT_PUBLIC_AUTH_COOKIE_NAME
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_AUTH_COOKIE_NAME=$NEXT_PUBLIC_AUTH_COOKIE_NAME
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_STATSIG_CLIENT_KEY=$NEXT_PUBLIC_STATSIG_CLIENT_KEY

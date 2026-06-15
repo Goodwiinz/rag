@@ -25,7 +25,7 @@ def test_writing_loader_returns_non_empty():
     body = load_agents_md("writing")
     assert body
     assert "summarize_document" in body
-    assert "RECOVERY ONLY" in body
+    assert "search_arxiv" in body
 
 
 @pytest.mark.unit

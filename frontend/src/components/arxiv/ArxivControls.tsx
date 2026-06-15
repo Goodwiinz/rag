@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import React, { useId } from 'react';
 
 export const ToggleSwitch: React.FC<{
@@ -20,7 +20,7 @@ export const ToggleSwitch: React.FC<{
         'flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors',
         checked
           ? 'border-primary/40 bg-primary/5 text-foreground'
-          : 'border-border bg-card text-muted-foreground hover:border-border hover:text-foreground'
+          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
       )}
     >
       <span className="truncate text-left">{label}</span>
@@ -38,33 +38,37 @@ export const ToggleSwitch: React.FC<{
 export const ProgressBar: React.FC<{ value: number; label?: string }> = ({
   value,
   label,
-}) => (
-  <div className="w-full space-y-1.5">
-    {label && (
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{label}</span>
-        <span className="font-medium tabular-nums text-foreground">
-          {Math.round(value)}%
-        </span>
+}) => {
+  const reduce = useReducedMotion();
+  return (
+    <div className="w-full space-y-1.5">
+      {label && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{label}</span>
+          <span className="font-medium tabular-nums text-foreground">
+            {Math.round(value)}%
+          </span>
+        </div>
+      )}
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-valuenow={Math.round(value)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
+        <motion.div
+          initial={reduce ? false : { scaleX: 0 }}
+          animate={{ scaleX: value / 100 }}
+          transition={{ duration: reduce ? 0 : 0.35, ease: 'easeOut' }}
+          style={{ transformOrigin: 'left' }}
+          className="h-full w-full rounded-full bg-primary"
+        />
       </div>
-    )}
-    <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-      role="progressbar"
-      aria-valuenow={Math.round(value)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label={label}
-    >
-      <motion.div
-        initial={{ width: 0 }}
-        animate={{ width: `${value}%` }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="h-full rounded-full bg-primary"
-      />
     </div>
-  </div>
-);
+  );
+};
 
 export const CustomSlider: React.FC<{
   value: number;

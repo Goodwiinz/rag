@@ -228,6 +228,7 @@ class ThreadResponse(ThreadBase, TimestampMixin):
     message_count: int = 0
     token_count: int = 0
     created_by_id: Optional[UUID] = None
+    source_project_id: Optional[UUID] = None
 
 
 class ThreadDetailResponse(ThreadResponse):
@@ -311,6 +312,8 @@ class ChatMessageCreate(ChatMessageBase):
     thread_id: UUID
     attachment_ids: Optional[List[UUID]] = None  # Document IDs to attach
     citations: Optional[List[CitationCreate]] = None  # Citations from RAG retrieval
+    latency_ms: Optional[int] = None  # Client-measured response time (ms)
+    stopped: Optional[bool] = None  # User stopped this response mid-stream
 
 
 class ChatMessageUpdate(BaseModel):
@@ -369,6 +372,7 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     user_id: Optional[UUID] = None
     token_count: int = 0
     latency_ms: Optional[int] = None
+    stopped: Optional[bool] = None
     model_name: Optional[str] = None
     model_version: Optional[str] = None
     tool_name: Optional[str] = None

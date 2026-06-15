@@ -1,19 +1,19 @@
 'use client';
 
-/**
- * SaveToNoteModal Component
- * Modal for saving a chat thread to a markdown note
- *
- * Features:
- * - Note title input (required)
- * - Include citations checkbox
- * - Terminal Observatory theme styling
- * - Loading state during submission
- * - Form validation
- */
-
 import React, { useState } from 'react';
-import { FileText, X, Loader2, Save } from 'lucide-react';
+import { FileText, Loader2, Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export interface SaveToNoteModalProps {
   isOpen: boolean;
@@ -31,8 +31,6 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -45,7 +43,6 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
     setIsSubmitting(true);
     try {
       await onSave(noteTitle.trim(), includeCitations);
-      // Reset form
       setNoteTitle('');
       setIncludeCitations(true);
       onClose();
@@ -56,8 +53,8 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
     }
   };
 
-  const handleClose = () => {
-    if (!isSubmitting) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
       setNoteTitle('');
       setIncludeCitations(true);
       setError(null);
@@ -66,126 +63,94 @@ export const SaveToNoteModal: React.FC<SaveToNoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg w-full max-w-md">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#1a1a1a]">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-sol" />
-            <h2 className="font-mono font-bold text-muted-foreground">
-              Save Thread to Note
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            Save thread to note
+          </DialogTitle>
+          <DialogDescription>
+            This will be the filename of your markdown note
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Note Title */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs text-muted-foreground font-mono uppercase tracking-wide mb-2">
-              Note Title <span className="text-red-400">*</span>
-            </label>
-            <input
+            <Label htmlFor="note-title" className="mb-1.5 block">
+              Note title <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="note-title"
               type="text"
               value={noteTitle}
               onChange={(e) => setNoteTitle(e.target.value)}
               placeholder="e.g., Research Discussion Summary"
               disabled={isSubmitting}
-              className="w-full px-3 py-2 bg-[#1a1a1a] border border-[#333] rounded text-muted-foreground font-mono text-sm placeholder:text-foreground focus:outline-none focus:border-sol/50 focus:ring-1 focus:ring-sol/30 disabled:opacity-50"
               required
             />
-            <p className="text-xs text-foreground font-mono mt-1">
-              This will be the filename of your markdown note
-            </p>
           </div>
 
-          {/* Include Citations Toggle */}
-          <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground font-mono">
-                  Include Citations
-                </span>
-              </div>
+              <span className="text-sm text-foreground">
+                Include citations
+              </span>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Add reference links to source documents in the note
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIncludeCitations(!includeCitations)}
+            <Switch
+              checked={includeCitations}
+              onCheckedChange={setIncludeCitations}
               disabled={isSubmitting}
-              className={`relative w-12 h-6 rounded-full transition-colors disabled:opacity-50 ${
-                includeCitations
-                  ? 'bg-sol/30 border-sol'
-                  : 'bg-[#333] border-[#555]'
-              } border`}
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform ${
-                  includeCitations
-                    ? 'translate-x-6 bg-sol'
-                    : 'translate-x-0.5 bg-gray-500'
-                }`}
-              />
-            </button>
+              aria-label="Include citations"
+            />
           </div>
 
-          {/* Error Display */}
           {error && (
             <div
               role="alert"
-              className="p-3 bg-red-500/10 border border-red-500/30 rounded text-sm font-mono text-red-400"
+              className="p-3 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive"
             >
               {error}
             </div>
           )}
 
-          {/* Info Box */}
-          <div className="p-3 bg-brand-cyan/10 border border-brand-cyan/30 rounded text-xs font-mono text-brand-cyan">
+          <div className="p-3 bg-muted rounded text-xs text-muted-foreground">
             The thread messages will be converted to a markdown note and saved
             to your project. You can access it from the project notes tab.
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#1a1a1a]">
-            <button
+          <DialogFooter>
+            <Button
               type="button"
-              onClick={handleClose}
+              variant="outline"
+              onClick={handleOpenChange.bind(null, false)}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={isSubmitting || !noteTitle.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4" />
-                  Save Note
+                  <Save className="h-4 w-4 mr-2" />
+                  Save note
                 </>
               )}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

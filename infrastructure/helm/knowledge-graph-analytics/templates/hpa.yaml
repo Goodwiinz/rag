@@ -73,6 +73,14 @@ spec:
           type: Utilization
           averageUtilization: {{ .Values.celeryWorker.autoscaling.targetCPUUtilizationPercentage }}
     {{- end }}
+    {{- if .Values.celeryWorker.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.celeryWorker.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 600

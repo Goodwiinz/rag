@@ -1,0 +1,21 @@
+# Codecov configuration.
+#
+# Coverage is NOT gated yet — the vitest config ships smoke-coverage only
+# (thresholds: { lines: 0, branches: 0, functions: 0, statements: 0 }), and
+# coverage now uploads from two CI systems (GitHub Actions test-pipeline +
+# CircleCI), so the merged total-coverage delta is noisy and was failing
+# `codecov/project` on PRs that changed no source (e.g. #736: CI config + test
+# de-flakes). Keep status checks advisory so a coverage wobble never blocks a
+# PR; flip `informational: false` + set targets once coverage is enforced.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# Don't fail the upload step if some flags are missing on a given run.
+codecov:
+  require_ci_to_pass: false

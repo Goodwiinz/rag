@@ -1,0 +1,25 @@
+{
+  "case": "writing_summarize",
+  "expected_intent": "writing",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "writing",
+        "confidence": 0.92,
+        "reasoning": "User requests a summary of a paper \u2014 this is a writing task (summarization) rather than searching or graph querying."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "I can do that, but I don\u2019t currently have a way to see your library contents or identify which paper is the latest without a document reference.\n\nIf you paste the paper\u2019s title or document ID, I can summarize it right away. If you just added it in a previous step, send \u201csummarize this paper\u201d along with that paper reference.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

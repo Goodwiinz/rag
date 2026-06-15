@@ -22,8 +22,44 @@ from src.models.workspace import Workspace
 logger = logging.getLogger(__name__)
 
 
+def _escape_like(value: str) -> str:
+    """Escape special LIKE pattern characters for safe ilike() queries."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _log_resource_access_denied(
+    resource_type: str, resource_id: Any, current_user: Any
+) -> None:
+    """Structured audit log when an agent tool can't resolve/own a resource.
+
+    Emitted at the org/ownership-scoped query miss, so it fires for both
+    not-found and cross-tenant access-denied (the query can't always tell them
+    apart). Either way it's an agent access attempt worth an auditable record —
+    in particular a spike of these for one user/org is the cross-tenant signal.
+    Logged at info: the tool handles the miss gracefully, this is a trail not an
+    alert.
+    """
+    try:
+        logger.info(
+            "agent_resource_access_denied",
+            extra={
+                "user_id": str(getattr(current_user, "id", "") or ""),
+                "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                "resource_type": resource_type,
+                "resource_id": str(resource_id)[:100] if resource_id else "",
+            },
+        )
+    except Exception:
+        pass
+
+
 def _sanitize_metadata(metadata: Any) -> dict:
-    """Convert datetime objects in metadata dict to ISO strings for JSON serialization."""
+    """Coerce datetimes in a metadata dict to ISO strings for JSON serialization.
+
+    NOT a PII/secret scrubber despite the name — it only makes the dict
+    JSON-safe. Do not rely on it to redact sensitive values; use
+    ``redact_pii`` / ``_scrub_tool_args`` for that.
+    """
     if not isinstance(metadata, dict):
         return {}
     sanitized = {}
@@ -34,8 +70,7 @@ def _sanitize_metadata(metadata: Any) -> dict:
             sanitized[k] = _sanitize_metadata(v)
         elif isinstance(v, list):
             sanitized[k] = [
-                item.isoformat() if isinstance(item, datetime) else item
-                for item in v
+                item.isoformat() if isinstance(item, datetime) else item for item in v
             ]
         else:
             sanitized[k] = v
@@ -89,10 +124,8 @@ async def _resolve_document_id(
                     Document.organization_id == current_user.organization_id,
                     Document.is_deleted == False,
                     (
-                        Document.filename.ilike(f"%{bare_id}%")
-                        | (
-                            Document.document_metadata["arxiv_id"].astext == bare_id
-                        )
+                        Document.filename.ilike(f"%{_escape_like(bare_id)}%")
+                        | (Document.document_metadata["arxiv_id"].astext == bare_id)
                     ),
                 )
                 .order_by(desc(Document.created_at))
@@ -103,9 +136,7 @@ async def _resolve_document_id(
             if doc:
                 return doc
         except Exception:
-            logger.debug(
-                "arxiv_id resolution failed for %r", bare_id, exc_info=True
-            )
+            logger.debug("arxiv_id resolution failed for %r", bare_id, exc_info=True)
 
     # Try by title (case-insensitive)
     if document_id:
@@ -113,7 +144,7 @@ async def _resolve_document_id(
             stmt = (
                 select(Document)
                 .where(
-                    Document.title.ilike(document_id),
+                    Document.title.ilike(_escape_like(document_id)),
                     Document.organization_id == current_user.organization_id,
                     Document.is_deleted == False,
                 )
@@ -127,6 +158,7 @@ async def _resolve_document_id(
         except Exception:
             pass
 
+    _log_resource_access_denied("document", document_id, current_user)
     return None
 
 
@@ -188,7 +220,10 @@ async def _verify_project_ownership(
         )
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    project = result.scalar_one_or_none()
+    if project is None:
+        _log_resource_access_denied("project", project_id, current_user)
+    return project
 
 
 async def _link_documents_to_project(
@@ -214,9 +249,7 @@ async def _link_documents_to_project(
         CollectionDocument.collection_id == project.id,
         CollectionDocument.document_id.in_(ids),
     )
-    existing = {
-        str(row[0]) for row in (await db.execute(existing_stmt)).all()
-    }
+    existing = {str(row[0]) for row in (await db.execute(existing_stmt)).all()}
 
     new_rows = [
         {"collection_id": project.id, "document_id": doc_id}
@@ -228,9 +261,7 @@ async def _link_documents_to_project(
         await db.execute(
             pg_insert(CollectionDocument)
             .values(new_rows)
-            .on_conflict_do_nothing(
-                index_elements=["collection_id", "document_id"]
-            )
+            .on_conflict_do_nothing(index_elements=["collection_id", "document_id"])
         )
 
     return {

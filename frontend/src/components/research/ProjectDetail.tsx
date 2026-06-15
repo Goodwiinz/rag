@@ -40,7 +40,7 @@ export function ProjectDetail({
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-mono font-bold text-sol">
+          <h1 className="text-2xl font-semibold text-foreground">
             {project.name}
           </h1>
           {project.description && (
@@ -50,17 +50,23 @@ export function ProjectDetail({
         {actions}
       </div>
 
-      <div className="flex items-center gap-1 mb-6 border-b border-[#1a1a1a]">
+      <div
+        role="tablist"
+        className="flex items-center gap-1 mb-6 border-b border-border"
+      >
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const selected = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 font-mono text-sm border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 selected
-                  ? 'text-sol border-sol'
+                  ? 'text-[var(--nous-sol-safe)] border-[var(--nous-sol-safe)]'
                   : 'text-muted-foreground border-transparent hover:text-foreground'
               }`}
             >

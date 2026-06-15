@@ -170,7 +170,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     <div className={cn("w-full max-w-4xl mx-auto", className)}>
       {/* Validation Errors */}
       {validationErrors.length > 0 && (
-        <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+        <div role="alert" className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
           <div className="flex items-start space-x-3">
             <ExclamationTriangleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -203,7 +203,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         className={cn(
           "relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
           "hover:border-primary hover:bg-primary/5",
-          "focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent",
+          "focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent",
           isDragActive && "border-primary bg-primary/10",
           dragActive && "border-primary bg-primary/20"
         )}
@@ -234,7 +234,7 @@ export const DocumentUploader: React.FC<DocumentUploaderProps> = ({
 
           <button
             type="button"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
             onClick={(e) => {
               e.stopPropagation();
               fileInputRef.current?.click();

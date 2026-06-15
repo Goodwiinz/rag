@@ -9,7 +9,7 @@ import uuid
 import random
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from tests.contract.evaluation.fixtures.data_generators import JobDataGenerator, MetricDataGenerator

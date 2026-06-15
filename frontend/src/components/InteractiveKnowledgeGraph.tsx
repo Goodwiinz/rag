@@ -227,8 +227,14 @@ export function InteractiveKnowledgeGraph({
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('mouseleave', handleMouseLeave);
+      // Must remove from the SAME target + event type they were added to
+      // (window/mousemove + window/mouseout). The old cleanup targeted the
+      // canvas with mouseleave, so the window listeners + their closures
+      // leaked on every theme toggle / nodeCount change.
+      if (interactive) {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseout', handleMouseLeave);
+      }
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
   }, [resolvedTheme, nodeCount, interactive]);

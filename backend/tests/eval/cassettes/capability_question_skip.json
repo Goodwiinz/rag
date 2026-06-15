@@ -1,0 +1,15 @@
+{
+  "case": "capability_question_skip",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "I can help with nearly all parts of academic research organization and discovery inside this workspace. Short summary of key capabilities:\n\n- Search and import papers\n  - Search arXiv for relevant papers by topic or query.\n  - Ingest/import arXiv papers (by arXiv ID) into your workspace so they can be searched, indexed, and attached to projects.\n\n- Manage projects and documents\n  - Create, list, and reuse research projects (folders).\n  - Add imported documents to projects and list project documents.\n  - Create markdown notes inside projects.\n\n- Summarize and explore content\n  - Summarize specific documents.\n  - Search your indexed documents (by title or content).\n  - Search a built knowledge graph of entities and relationships in your corpus.\n\n- Workflow-aware actions\n  - I follow a safe workflow for adding papers to projects (search \u2192 ingest \u2192 add).\n  - I reuse recent project/document context so you don\u2019t need to supply IDs repeatedly.\n  - If you ask to \u201ctry again,\u201d I re-run the last tool call with the same arguments.\n\n- Project and result honesty\n  - I report tool outcomes exactly (IDs, errors, or empty results).\n  - I won\u2019t claim creation/imports unless the tool returned success and I\u2019ll show the IDs when available.\n\n- Research assistance\n  - Help find related work, create reading lists, write short summaries or syntheses, prepare literature-review outlines, extract key methods/results, and suggest next experiments or citations.\n\n- Integration details & limits\n  - I use arXiv searches and arXiv IDs for ingestion.\n  - I can\u2019t invent project/document IDs; I use the system\u2019s IDs returned by tools.\n  - If you ask which model I\u2019m running on: this session is routed via Azure deployment model-router, so the underlying model is selected per request and isn\u2019t directly visible here.\n\nTell me what you want to do next \u2014 e.g., create a project, search arXiv for papers on a topic, import specific arXiv IDs, or summarize a document you\u2019ve already added.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

@@ -83,7 +83,6 @@ from src.api.search import (
     multi_agent_search_v2_router,
     search_quality_router,
     search_router,
-    vectors_router,
 )
 from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.security import compliance_router, encryption_router, rbac_router
@@ -98,6 +97,7 @@ from src.core.config import settings
 from src.core.database import Base, engine
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
+from src.middleware.security_headers import SecurityHeadersMiddleware
 from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
 
@@ -437,6 +437,13 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+# Security response headers (audit #10). Registered LAST so it is the OUTERMOST
+# middleware: its headers are applied to every response, including those
+# short-circuited by inner middleware (CORS preflight, rate-limit 429,
+# trusted-host 400). Headers only — no request-handling side effects.
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(cli_auth_router, prefix="/api/v1")
@@ -444,7 +451,6 @@ app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(files_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(processing_router, prefix="/api/v1")
-app.include_router(vectors_router, prefix="/api/v1")
 app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")

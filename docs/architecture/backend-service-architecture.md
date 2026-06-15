@@ -60,9 +60,10 @@ The Multimodal Enterprise RAG System employs a microservices architecture with c
 ┌─────────────────────────┴───────────────────────────────────────────────────────┐
 │                            Data Storage Layer                                   │
 │  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌─────────────────────┐ │
-│  │   PostgreSQL  │ │     Neo4j     │ │    Qdrant     │ │       Redis         │ │
-│  │ (Metadata &  │ │  (Knowledge   │ │  (Vector      │ │    (Cache &         │ │
-│  │  User Data)   │ │    Graph)     │ │   Store)      │ │  Message Queue)    │ │
+│  │   Supabase    │ │     Neo4j     │ │  DO Knowledge │ │    DO Managed       │ │
+│  │  PostgreSQL   │ │  (Knowledge   │ │     Base      │ │       Redis         │ │
+│  │ (Metadata &  │ │    Graph)     │ │ (RAG, flagged)│ │  (Cache & Queue)   │ │
+│  │  User Data)   │ │               │ │               │ │                     │ │
 │  └───────────────┘ └───────────────┘ └───────────────┘ └─────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2282,28 +2283,9 @@ CREATE INDEX doc_entity_index FOR ()-[r:CONTAINS_ENTITY]-() ON (r.strength);
 CREATE FULLTEXT INDEX entity_fulltext FOR (e:Entity) ON EACH [e.name, e.description];
 ```
 
-**Qdrant Optimization**:
+**DO Knowledge Base (RAG) — feature-flagged**:
 
-```python
-# Collection configuration
-collection_config = {
-    "vectors": {
-        "size": 768,  # Embedding dimension
-        "distance": "Cosine"
-    },
-    "payload_schema": {
-        "document_id": "keyword",
-        "organization_id": "keyword",
-        "content_type": "keyword",
-        "created_at": "integer"
-    },
-    "hnsw_config": {
-        "m": 16,
-        "ef_construct": 200,
-        "full_scan_threshold": 10000
-    }
-}
-```
+Vector search is provided by DigitalOcean Knowledge Base (behind a feature flag). Qdrant has been removed from the stack.
 
 ### Load Balancing Strategy
 
@@ -2533,47 +2515,15 @@ kubernetes_deployment:
 
 ### Infrastructure as Code
 
-```yaml
-# Terraform configuration
-resource "aws_eks_cluster" "rag_cluster" {
-name     = "multimodal-rag-cluster"
-role_arn = aws_iam_role.cluster_role.arn
-version  = "1.28"
+Production infrastructure runs on DigitalOcean + Vercel:
 
-vpc_config {
-subnet_ids = aws_subnet.private[*].id
-}
-}
-
-resource "aws_rds_cluster" "postgres" {
-engine         = "aurora-postgresql"
-engine_version = "15.4"
-instance_class = "db.r6g.large"
-
-database_name = "multimodal_rag"
-username     = "postgres"
-
-skip_final_snapshot = false
-final_snapshot_identifier = "final-snapshot"
-}
-
-resource "aws_elasticache_cluster" "redis" {
-cluster_id           = "rag-redis"
-engine               = "redis"
-node_type            = "cache.r6g.large"
-num_cache_nodes      = 3
-parameter_group_name = "default.redis7"
-}
-
-resource "aws_neptune_cluster" "graph_db" {
-cluster_identifier = "rag-neptune"
-engine_version     = "1.3.0.0"
-
-backup_retention_period = 7
-preferred_backup_window = "03:00-04:00"
-skip_final_snapshot     = false
-}
-```
+- **Compute**: DOKS (DigitalOcean Kubernetes) + ArgoCD for GitOps deployments
+- **Frontend**: Vercel
+- **Database**: Supabase managed PostgreSQL (auth via Supabase hosted GoTrue)
+- **Graph DB**: Neo4j (self-hosted on DOKS)
+- **Cache / Queue**: DO Managed Redis
+- **Object Storage**: DO Spaces
+- **RAG / Vector Search**: DO Knowledge Base (feature-flagged; replaces Qdrant)
 
 ## Implementation Timeline
 

@@ -326,7 +326,10 @@ class TestEntityIdentity:
         )
 
         mock_node = MagicMock()
-        mock_node.__getitem__ = MagicMock(return_value={})
+        # create_entity now MERGEs and reads the resolved id from the RETURN.
+        mock_node.__getitem__ = MagicMock(
+            return_value="11111111-1111-1111-1111-111111111111"
+        )
         mock_result = MagicMock()
         mock_result.single.return_value = mock_node
         mock_ctx = MagicMock()
@@ -346,3 +349,112 @@ class TestEntityIdentity:
         call_args = mock_ctx.run.call_args
         params = call_args[0][1]
         assert params["name"] == "John Doe"
+
+
+@pytest.mark.unit
+class TestRelationshipDatetimeCoercion:
+    def test_to_native_dt_converts_neo4j_datetime(self):
+        from datetime import datetime, timezone
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
+
+        class _FakeNeo4jDT:
+            def to_native(self):
+                return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+        out = KnowledgeGraphService._to_native_dt(_FakeNeo4jDT())
+        assert isinstance(out, datetime)
+        # passthrough for native / None
+        assert KnowledgeGraphService._to_native_dt(None) is None
+        native = datetime(2025, 5, 5)
+        assert KnowledgeGraphService._to_native_dt(native) is native
+
+
+# ---------------------------------------------------------------------------
+# #50 read-flip: org-scoping predicate (OR-transition)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestEntityScopePredicate:
+    """`_entity_scope_predicate` prefers the indexed organization_id but OR's the
+    legacy source_document_id IN-list, so the same query stays correct on
+    environments whose backfill has not run yet."""
+
+    def _fn(self):
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            _entity_scope_predicate,
+        )
+
+        return _entity_scope_predicate
+
+    def test_unscoped_returns_none(self):
+        params = {}
+        assert self._fn()("e", None, None, params) is None
+        assert params == {}
+
+    def test_org_only_uses_indexed_equality(self):
+        params = {}
+        pred = self._fn()("e", None, "org-1", params)
+        assert pred == "(e.organization_id = $organization_id)"
+        assert params == {"organization_id": "org-1"}
+
+    def test_doc_only_preserves_legacy_in_list(self):
+        params = {}
+        pred = self._fn()("e", ["d1", "d2"], None, params)
+        assert pred == "(e.source_document_id IN $source_document_ids)"
+        assert params == {"source_document_ids": ["d1", "d2"]}
+
+    def test_both_ors_org_and_docs_for_cross_env_safety(self):
+        params = {}
+        pred = self._fn()("e", ["d1"], "org-1", params)
+        assert pred == (
+            "(e.organization_id = $organization_id "
+            "OR e.source_document_id IN $source_document_ids)"
+        )
+        assert params == {"organization_id": "org-1", "source_document_ids": ["d1"]}
+
+    def test_alias_is_respected(self):
+        params = {}
+        pred = self._fn()("source", None, "org-1", params)
+        assert pred == "(source.organization_id = $organization_id)"
+
+
+@pytest.mark.unit
+class TestTwoEndpointScope:
+    """`_two_endpoint_scope` scopes relationship/traversal queries by BOTH endpoint
+    aliases — org-wide prefers indexed organization_id, project falls back to docs."""
+
+    def _fn(self):
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            _two_endpoint_scope,
+        )
+
+        return _two_endpoint_scope
+
+    def test_unscoped(self):
+        frag, params = self._fn()("start", "related", None, None)
+        assert frag == ""
+        assert params == {}
+
+    def test_org_wide_uses_indexed_equality_on_both_endpoints(self):
+        frag, params = self._fn()("start", "related", None, "org-1")
+        assert frag == (
+            "\n  AND start.organization_id = $organization_id"
+            "\n  AND related.organization_id = $organization_id"
+        )
+        assert params == {"organization_id": "org-1"}
+
+    def test_project_falls_back_to_doc_list_on_both_endpoints(self):
+        frag, params = self._fn()("source", "target", ["d1", "d2"], None)
+        assert frag == (
+            "\n  AND source.source_document_id IN $source_document_ids"
+            "\n  AND target.source_document_id IN $source_document_ids"
+        )
+        assert params == {"source_document_ids": ["d1", "d2"]}
+
+    def test_org_takes_precedence_over_docs(self):
+        frag, params = self._fn()("start", "end", ["d1"], "org-1")
+        assert "organization_id" in frag
+        assert "source_document_id" not in frag
+        assert params == {"organization_id": "org-1"}

@@ -17,10 +17,13 @@ export async function GET(
   }
 
   const supabase = await createClient();
+  // getUser() verifies the JWT with Supabase, not just the presence of a
+  // (forgeable) session cookie.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -41,6 +44,17 @@ export async function GET(
   }
 
   const run = await res.json();
+
+  // Ownership check (audit #5 IDOR): the executeAgent task stamps
+  // metadata.userId with the triggering user (execute-agent.ts:100). Any
+  // authenticated user could previously read ANY run's status/output —
+  // including the full RAG response and document context — by guessing a
+  // runId. Reject runs the caller doesn't own; 404 (not 403) so we don't
+  // confirm the run exists. Fail closed when metadata.userId is absent
+  // (legacy/foreign runs).
+  if (run?.metadata?.userId !== user.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   return NextResponse.json({
     runId: run.id,

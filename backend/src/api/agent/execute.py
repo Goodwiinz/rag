@@ -15,7 +15,15 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+)
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
 from pydantic import BaseModel, Field, field_validator
@@ -25,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
-from src.core.dependencies import get_current_user
+from src.core.dependencies import get_current_user, require_admin
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.conversation import Conversation
 from src.models.document import Document
@@ -88,6 +96,23 @@ from .streaming import (  # noqa: F401
     stream_confirm_event_generator,
 )
 
+from src.services.agent._sanitize import _sanitize_prompt_field
+from src.core.rate_limit import create_rate_limiter
+
+# Per-user rate limiter for agent execute/stream endpoints.
+# 30 requests per minute — adjust MAX_AGENT_RPM / AGENT_RATE_WINDOW_MINUTES via
+# env/config if operational needs change.  Uses Redis when available, falls back
+# to InMemoryRateLimiter (not suitable for multi-worker prod without Redis).
+# NOTE: this is a minimal in-process guard; a proper solution should wire into
+# the AnalyticsRateLimitMiddleware or a dedicated Redis-backed dependency that
+# survives worker restarts and load-balanced deployments.
+_AGENT_RATE_LIMIT_RPM = 30
+_AGENT_RATE_WINDOW_MINUTES = 1
+_agent_rate_limiter = create_rate_limiter(
+    max_attempts=_AGENT_RATE_LIMIT_RPM,
+    window_minutes=_AGENT_RATE_WINDOW_MINUTES,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
@@ -99,15 +124,18 @@ def _validate_confirmable_job(job: dict, current_user: User) -> None:
     if not job_user_id or job_user_id != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
     if job.get("status") != "awaiting_confirmation":
-        raise HTTPException(status_code=400, detail="Job is not awaiting confirmation")
+        raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
 
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
+
 class AgentMessage(BaseModel):
-    role: Literal["user", "assistant"] = Field(..., description="Message role: user or assistant")
+    role: Literal["user", "assistant"] = Field(
+        ..., description="Message role: user or assistant"
+    )
     content: str = Field(..., max_length=32000, description="Message content")
     client_message_id: Optional[UUID] = Field(
         default=None,
@@ -127,9 +155,15 @@ class AgentMessage(BaseModel):
 
 class PageContextRequest(BaseModel):
     type: str = Field(default="unknown", description="Page context type")
-    project_id: Optional[str] = Field(default=None, description="Project ID if on project page")
-    project_name: Optional[str] = Field(default=None, description="Project name for display")
-    label: Optional[str] = Field(default=None, description="Current page label (e.g., 'Documents', 'Notes')")
+    project_id: Optional[str] = Field(
+        default=None, description="Project ID if on project page"
+    )
+    project_name: Optional[str] = Field(
+        default=None, description="Project name for display"
+    )
+    label: Optional[str] = Field(
+        default=None, description="Current page label (e.g., 'Documents', 'Notes')"
+    )
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -137,7 +171,9 @@ SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
 
 
 class AgentExecuteRequest(BaseModel):
-    messages: List[AgentMessage] = Field(..., max_length=50, description="Conversation messages")
+    messages: List[AgentMessage] = Field(
+        ..., max_length=50, description="Conversation messages"
+    )
     page_context: PageContextRequest = Field(default_factory=PageContextRequest)
     model: str = Field(
         default="",
@@ -215,7 +251,15 @@ def build_agent_system_prompt(page_context: PageContextRequest) -> str:
     ctx_type = page_context.type if page_context.type in VALID_PAGE_TYPES else "unknown"
     context_line = ""
     if ctx_type == "project" and page_context.project_id:
-        context_line = f"The user is viewing a project (ID: {page_context.project_id})."
+        safe_project_name = (
+            _sanitize_prompt_field(page_context.project_name)
+            if page_context.project_name
+            else ""
+        )
+        name_part = f' "{safe_project_name}"' if safe_project_name else ""
+        context_line = (
+            f"The user is viewing a project{name_part} (ID: {page_context.project_id})."
+        )
     elif ctx_type != "unknown":
         context_line = f"The user is on the {ctx_type} page."
 
@@ -272,6 +316,17 @@ async def execute_agent(
 
     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
     """
+    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
+        str(current_user.id), prefix="agent_execute"
+    )
+    if not _allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
+        )
+    await _agent_rate_limiter.record_attempt(
+        str(current_user.id), prefix="agent_execute"
+    )
     logger.info(
         "Agent execute request",
         extra={
@@ -283,26 +338,44 @@ async def execute_agent(
     )
 
     job_id = str(_uuid.uuid4())
-    _set_job(job_id, {"status": "running", "tool_executions": [], "user_id": str(current_user.id), "request": request.model_dump()})
+    _set_job(
+        job_id,
+        {
+            "status": "running",
+            "tool_executions": [],
+            "user_id": str(current_user.id),
+            "request": request.model_dump(),
+        },
+    )
 
     background_tasks.add_task(
-        _run_agent_graph, job_id, request, current_user,
+        _run_agent_graph,
+        job_id,
+        request,
+        current_user,
     )
     return JobStartResponse(job_id=job_id)
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str, current_user: User = Depends(get_current_user)):
+async def get_job_status(
+    job_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
+    current_user: User = Depends(get_current_user),
+):
     """Poll for agent job status — checks L1 cache then Redis."""
     # Try L1 first (fast path)
     job = _get_job(job_id)
     # Fall back to Redis L2 (survives restarts)
     if not job:
         from src.services.agent.job_store import get_job as _get_job_async_local
+
         job = await _get_job_async_local(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("user_id") and job["user_id"] != str(current_user.id):
+    # Fail closed: a job record without an owner must not be readable. Every
+    # write path stamps user_id; its absence means a corrupted/legacy record,
+    # not a public one.
+    if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
     return JobStatusResponse(**job)
 
@@ -353,7 +426,10 @@ async def confirm_agent_action(
 
     # Resume the graph with the user's decision
     background_tasks.add_task(
-        _resume_agent_graph, job_id, request.confirmed, current_user,
+        _resume_agent_graph,
+        job_id,
+        request.confirmed,
+        current_user,
     )
     return {"status": "running", "job_id": job_id}
 
@@ -369,6 +445,17 @@ async def stream_agent(
 
     SSE event types: token, tool_start, tool_end, rag_context, done, error
     """
+    _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
+        str(current_user.id), prefix="agent_stream"
+    )
+    if not _allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {_retry_after}s.",
+        )
+    await _agent_rate_limiter.record_attempt(
+        str(current_user.id), prefix="agent_stream"
+    )
     return StreamingResponse(
         stream_event_generator(
             request_body, request, current_user, background_tasks=background_tasks
@@ -395,7 +482,7 @@ async def stream_confirm_agent(
 
 @router.get("/graph/mermaid")
 async def get_graph_mermaid(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     """Get the agent graph structure as a Mermaid diagram. Admin-only."""
     from src.services.agent.visualization import get_graph_mermaid
@@ -406,10 +493,32 @@ async def get_graph_mermaid(
 
 @router.get("/graph/trace/{thread_id}")
 async def get_graph_trace(
-    thread_id: str,
+    thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Get an execution trace for a thread as a Mermaid sequence diagram."""
+    try:
+        thread_uuid = _uuid.UUID(thread_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid thread_id")
+
+    # Verify the thread exists and belongs to the current user before
+    # exposing any execution trace data (IDOR guard).
+    ownership_stmt = (
+        select(Thread)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Thread.id == thread_uuid,
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+    )
+    thread_row = (await db.execute(ownership_stmt)).scalar_one_or_none()
+    if thread_row is None:
+        raise HTTPException(status_code=404, detail="Trace not found")
+
     from src.services.agent.visualization import get_execution_trace_mermaid
 
     diagram = await get_execution_trace_mermaid(thread_id)
@@ -427,6 +536,7 @@ async def agent_health():
 # ---------------------------------------------------------------------------
 # Thread listing & message retrieval schemas
 # ---------------------------------------------------------------------------
+
 
 class ThreadSummary(BaseModel):
     id: str
@@ -459,11 +569,13 @@ class MessageResponse(BaseModel):
 class ThreadMessagesResponse(BaseModel):
     messages: List[MessageResponse]
     total: int
+    has_more: bool = False
 
 
 # ---------------------------------------------------------------------------
 # Thread listing & message retrieval endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.get("/threads", response_model=ThreadListResponse)
 async def list_agent_threads(
@@ -472,34 +584,24 @@ async def list_agent_threads(
 ):
     """List threads for the current user, ordered by most recently updated."""
     # Build query: Thread -> Conversation -> Workspace, filter by owner
+    # Single query: a window count returns the (pre-limit) total alongside the
+    # page, so we avoid firing a second full count query on every thread-list
+    # load.
     stmt = (
-        select(Thread)
+        select(Thread, func.count().over().label("total"))
         .join(Conversation, Thread.conversation_id == Conversation.id)
         .join(Workspace, Conversation.workspace_id == Workspace.id)
         .where(
             Workspace.owner_id == current_user.id,
             Thread.is_deleted == False,
-            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
+            Thread.rag_document_scope.contains(AGENT_THREAD_MARKER),
         )
         .order_by(desc(Thread.updated_at))
         .limit(50)
     )
-    result = await db.execute(stmt)
-    threads = result.scalars().all()
-
-    # Count total (without limit)
-    count_stmt = (
-        select(func.count(Thread.id))
-        .join(Conversation, Thread.conversation_id == Conversation.id)
-        .join(Workspace, Conversation.workspace_id == Workspace.id)
-        .where(
-            Workspace.owner_id == current_user.id,
-            Thread.is_deleted == False,
-            Thread.rag_document_scope == cast(AGENT_THREAD_MARKER, JSONB),
-        )
-    )
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar() or 0
+    rows = (await db.execute(stmt)).all()
+    threads = [row[0] for row in rows]
+    total = rows[0][1] if rows else 0
 
     thread_summaries = []
     for t in threads:
@@ -510,8 +612,12 @@ async def list_agent_threads(
                 created_at=t.created_at.isoformat() if t.created_at else "",
                 updated_at=t.updated_at.isoformat() if t.updated_at else "",
                 message_count=t.message_count or 0,
-                last_message_at=t.last_message_at.isoformat() if t.last_message_at else None,
-                source_project_id=str(t.source_project_id) if t.source_project_id else None,
+                last_message_at=(
+                    t.last_message_at.isoformat() if t.last_message_at else None
+                ),
+                source_project_id=(
+                    str(t.source_project_id) if t.source_project_id else None
+                ),
                 status=t.status.value if t.status else "active",
                 conversation_id=str(t.conversation_id) if t.conversation_id else "",
             )
@@ -523,10 +629,28 @@ async def list_agent_threads(
 @router.get("/threads/{thread_id}/messages", response_model=ThreadMessagesResponse)
 async def get_thread_messages(
     thread_id: UUID,
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=500,
+        description="Max messages to return (most recent first). Omit for full history.",
+    ),
+    before: Optional[datetime] = Query(
+        None,
+        description=(
+            "Return only messages created strictly before this time (ISO 8601), "
+            "for loading older messages."
+        ),
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get messages for a specific agent thread, verifying user ownership."""
+    """Get messages for a specific agent thread, verifying user ownership.
+
+    With no query params this returns the full history (ascending) — unchanged.
+    Pass ``limit`` to fetch the most recent N (and ``before`` to page older),
+    with ``has_more`` signalling whether older messages remain.
+    """
     # Verify thread exists and belongs to the current user via ownership chain
     ownership_stmt = (
         select(Thread)
@@ -544,15 +668,41 @@ async def get_thread_messages(
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
 
-    # Fetch messages with citations eagerly loaded
-    messages_stmt = (
-        select(ChatMessage)
-        .where(ChatMessage.thread_id == thread_id)
-        .options(selectinload(ChatMessage.citations))
-        .order_by(ChatMessage.created_at.asc())
-    )
-    messages_result = await db.execute(messages_stmt)
-    messages = messages_result.scalars().all()
+    # Fetch messages with citations eagerly loaded.
+    if limit is None and before is None:
+        # Default (no params): full history ascending — unchanged behavior.
+        messages_stmt = (
+            select(ChatMessage)
+            .where(ChatMessage.thread_id == thread_id)
+            .options(selectinload(ChatMessage.citations))
+            .order_by(ChatMessage.created_at.asc())
+        )
+        messages = (await db.execute(messages_stmt)).scalars().all()
+        total = len(messages)
+        has_more = False
+    else:
+        # Opt-in window: the most recent N (optionally older than ``before``),
+        # then reversed to chronological order for the client. Backed by the
+        # existing ix_chat_messages_thread_created (thread_id, created_at) index.
+        eff_limit = limit or 50
+        page_stmt = select(ChatMessage).where(ChatMessage.thread_id == thread_id)
+        if before is not None:
+            page_stmt = page_stmt.where(ChatMessage.created_at < before)
+        page_stmt = (
+            page_stmt.options(selectinload(ChatMessage.citations))
+            .order_by(ChatMessage.created_at.desc())
+            .limit(eff_limit + 1)  # +1 sentinel to detect older messages
+        )
+        rows = (await db.execute(page_stmt)).scalars().all()
+        has_more = len(rows) > eff_limit
+        messages = list(reversed(rows[:eff_limit]))
+        total = (
+            await db.execute(
+                select(func.count(ChatMessage.id)).where(
+                    ChatMessage.thread_id == thread_id
+                )
+            )
+        ).scalar() or 0
 
     message_responses = []
     for msg in messages:
@@ -574,4 +724,6 @@ async def get_thread_messages(
             )
         )
 
-    return ThreadMessagesResponse(messages=message_responses, total=len(message_responses))
+    return ThreadMessagesResponse(
+        messages=message_responses, total=total, has_more=has_more
+    )

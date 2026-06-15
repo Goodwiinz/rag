@@ -54,6 +54,12 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # Bound worker memory to stop unbounded RSS growth from OOM-evicting the pod.
+    # A child process is recycled after 100 tasks, or once its resident memory
+    # crosses ~900MB (value is in KB). With --concurrency=2 this keeps total
+    # worker RSS (2 x ~900MB) under the pod's 2Gi memory limit.
+    worker_max_tasks_per_child=100,
+    worker_max_memory_per_child=900000,
     task_default_queue="celery",
     task_queues={
         "celery": {"exchange": "celery", "routing_key": "celery"},

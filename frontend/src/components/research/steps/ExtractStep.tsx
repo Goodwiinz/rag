@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { ArrowRight, ArrowLeft, SkipForward, Grid3X3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ExtractionMatrix } from '@/components/research/ExtractionMatrix';
 import type { ProjectDocument } from '@/services/projectService';
 
@@ -30,8 +31,8 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-mono font-semibold text-white">
-            Extract Data
+          <h3 className="text-lg font-semibold text-foreground">
+            Extract data
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Create an extraction matrix to systematically extract data from your
@@ -39,14 +40,14 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Grid3X3 className="h-4 w-4 text-brand-cyan" />
-          <span className="text-xs font-mono text-muted-foreground bg-brand-cyan/10 px-2 py-0.5 rounded border border-brand-cyan/20">
+          <Grid3X3 className="h-4 w-4 text-primary" />
+          <span className="text-xs text-muted-foreground bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
             Optional
           </span>
         </div>
       </div>
 
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+      <div className="bg-card border border-border rounded-lg p-4">
         <ExtractionMatrix
           projectId={projectId}
           documents={documents.map((doc) => ({
@@ -56,29 +57,20 @@ export const ExtractStep: React.FC<ExtractStepProps> = ({
         />
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-[#1a1a1a]">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-white font-mono text-sm transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-center justify-between pt-4 border-t border-border">
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
-        </button>
+        </Button>
         <div className="flex items-center gap-3">
-          <button
-            onClick={onSkip}
-            className="flex items-center gap-2 px-4 py-2 text-muted-foreground border border-border rounded font-mono text-sm hover:text-white hover:border-border transition-colors"
-          >
-            <SkipForward className="h-4 w-4" />
+          <Button variant="outline" onClick={onSkip}>
+            <SkipForward className="h-4 w-4 mr-2" />
             Skip
-          </button>
-          <button
-            onClick={onContinue}
-            className="flex items-center gap-2 px-5 py-2.5 bg-sol/10 text-sol border border-sol/30 rounded font-mono text-sm hover:bg-sol/20 transition-colors"
-          >
+          </Button>
+          <Button onClick={onContinue}>
             Continue
-            <ArrowRight className="h-4 w-4" />
-          </button>
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
         </div>
       </div>
     </div>

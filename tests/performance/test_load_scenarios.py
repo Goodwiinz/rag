@@ -10,7 +10,7 @@ import random
 import time
 import io
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any
 
 # Import test utilities

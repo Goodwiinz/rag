@@ -680,7 +680,11 @@ class MultiAgentSearchServiceV2:
             # Update learning from this query
             if enable_learning:
                 await self._update_learning(
-                    query, query_analysis, execution_results, execution_time
+                    query,
+                    query_analysis,
+                    execution_results,
+                    execution_time,
+                    user_id=user_id,
                 )
 
             # Update agent performance metrics
@@ -1484,9 +1488,13 @@ class MultiAgentSearchServiceV2:
         analysis: Dict[str, Any],
         executions: List[AgentExecution],
         execution_time: float,
+        user_id: Optional[str] = None,
     ):
         """Update learning from query execution"""
         learning_data = {
+            # Owner of the query — /query-history filters by this so a user
+            # only ever sees their own history (and never other tenants').
+            "user_id": str(user_id) if user_id else None,
             "query": query,
             "analysis": analysis,
             "execution_time": execution_time,

@@ -16,7 +16,7 @@ import pytest
 import asyncio
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from unittest.mock import Mock, AsyncMock, patch
 import redis
@@ -114,7 +114,7 @@ class TestMetricsServiceIntegration:
         assert len(metrics_data["metrics"]) > 0
 
         # Test time-based filtering
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(minutes=5)
 
         filtered_metrics = await observability_manager.get_metrics(
@@ -398,7 +398,7 @@ class TestLogAggregationIntegration:
                 message=log_data["message"],
                 service=log_data["service"],
                 component=log_data["component"],
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
 
         # Run aggregation
@@ -845,7 +845,7 @@ class TestWebSocketIntegration:
         await websocket_manager.send_personal_message(mock_websocket, {
             "type": "subscription_confirmed",
             "metric": "cpu_usage",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         # Verify personal message was sent

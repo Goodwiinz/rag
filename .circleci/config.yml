@@ -1,0 +1,678 @@
+# CircleCI pipeline — port of the GitHub Actions Test Pipeline.
+#
+# SCOPE: test/CI lanes only (mirrors .github/workflows/test-pipeline.yml and
+# subsumes fast-ci.yml). CD lanes (docker-build / deploy / gitops / agent-eval)
+# intentionally stay on GitHub Actions for now.
+#
+# This file is meant to COEXIST with the GitHub Actions workflows: run both in
+# parallel until CircleCI is trusted, then delete the GH test workflows.
+#
+# GH Actions -> CircleCI mapping notes:
+#   * `services:` (postgres/redis) -> extra `docker:` images sharing localhost
+#     on FIXED ports (no dynamic `job.services.*.ports` indirection).
+#   * job-level `continue-on-error` -> no native equivalent. "Non-blocking" jobs
+#     swallow their own exit code (`|| true`); blocking jobs fail the workflow
+#     via `requires`. Non-blocking here = api-contract, e2e, performance
+#     (matches the test-summary gate in test-pipeline.yml).
+#   * e2e needs localhost reachability to the compose stack -> `machine`
+#     executor (a real VM), NOT docker + setup_remote_docker.
+#   * "Free runner disk space" steps are GH-hosted-only and are dropped.
+#   * lint-backend builds Dockerfile.lint on GH (stale ruff 0.1.8). Here we
+#     pip-install the CURRENT pins from backend/requirements.dev.txt
+#     (ruff 0.15.15 / black 26.5.1 / mypy 1.7.1) directly — faster, no remote
+#     docker, and matches fast-ci.yml (the actively maintained lane).
+#
+# KNOWN GAPS vs GH Actions (follow-ups, not blockers):
+#   * paths-ignore (skip docs-only pushes): needs the `path-filtering` orb +
+#     a setup workflow. Not ported — every push runs the full pipeline.
+#   * Docker Layer Caching for the e2e image builds requires a paid plan
+#     (`docker_layer_caching: true`, left commented below).
+#   * resource_class is `medium` everywhere so the config is valid on ANY plan.
+#     The heavy Python jobs (torch/whisper install) want more RAM than GH's 7GB
+#     ceiling — bump the marked jobs to `large`/`xlarge` once the plan allows.
+
+version: 2.1
+
+# No orbs on purpose: an unresolvable orb fails the WHOLE config at processing
+# time (before any job runs). Codecov upload is done inline + best-effort
+# instead (see the codecov_upload command), so a missing token or a network
+# blip can never block the pipeline.
+
+# ───────────────────────── executors ─────────────────────────
+executors:
+  python:
+    docker:
+      - image: cimg/python:3.11
+    # resource_class: large   # <- recommend for torch/whisper installs
+    resource_class: medium
+    working_directory: ~/repo
+
+  node:
+    docker:
+      - image: cimg/node:20.19
+    resource_class: medium
+    working_directory: ~/repo
+
+  python_postgres_redis:
+    docker:
+      - image: cimg/python:3.11
+      # Official images (match GH services exactly; guaranteed tags). Service
+      # containers share localhost with the primary on fixed ports.
+      - image: postgres:15
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+      - image: redis:7
+    # resource_class: large
+    resource_class: medium
+    working_directory: ~/repo
+
+  python_postgres:
+    docker:
+      - image: cimg/python:3.11
+      - image: postgres:15
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+    resource_class: medium
+    working_directory: ~/repo
+
+  machine_vm:
+    machine:
+      image: ubuntu-2204:current
+      # docker_layer_caching: true   # <- paid plans only; big e2e build speedup
+    # resource_class: large          # <- faster cold image builds (~17m -> less)
+    resource_class: medium
+    working_directory: ~/repo
+
+# ───────────────────────── reusable commands ─────────────────────────
+commands:
+  restore_pip_cache:
+    steps:
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "backend/requirements.txt" }}-{{ checksum "backend/constraints-ci.txt" }}
+            - pip-v1-
+
+  save_pip_cache:
+    steps:
+      - save_cache:
+          key: pip-v1-{{ checksum "backend/requirements.txt" }}-{{ checksum "backend/constraints-ci.txt" }}
+          paths:
+            - ~/.cache/pip
+
+  setup_pnpm:
+    # cimg/node ships corepack. Don't pin a pnpm version here — corepack resolves
+    # it from the `packageManager` field in package.json (single source of truth,
+    # can't drift). Route the content-addressed store to a cacheable path.
+    steps:
+      - run:
+          name: Enable pnpm (corepack; version from packageManager)
+          command: |
+            corepack enable
+            corepack install            # installs the packageManager pinned in package.json
+            pnpm config set store-dir ~/.pnpm-store
+      - restore_cache:
+          keys:
+            # Root lockfile: it's the workspace-authoritative one (pnpm walks up
+            # to the workspace root even when installing from frontend/).
+            - pnpm-v1-{{ checksum "pnpm-lock.yaml" }}
+            - pnpm-v1-
+
+  save_pnpm_cache:
+    steps:
+      - save_cache:
+          key: pnpm-v1-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - ~/.pnpm-store
+
+  codecov_upload:
+    # Best-effort: no-op without CODECOV_TOKEN, never fails the job.
+    parameters:
+      file:
+        type: string
+      flags:
+        type: string
+    steps:
+      - run:
+          name: Upload coverage to Codecov (<< parameters.flags >>)
+          when: always
+          command: |
+            if [ -z "${CODECOV_TOKEN:-}" ]; then
+              echo "CODECOV_TOKEN not set — skipping coverage upload"
+              exit 0
+            fi
+            if [ ! -f "<< parameters.file >>" ]; then
+              echo "<< parameters.file >> not found — skipping"
+              exit 0
+            fi
+            curl -Os https://uploader.codecov.io/latest/linux/codecov || { echo "uploader download failed"; exit 0; }
+            chmod +x codecov
+            ./codecov -f "<< parameters.file >>" -F "<< parameters.flags >>" -t "$CODECOV_TOKEN" || true
+
+# Note on secrets: the anon + service-role JWTs inlined in the e2e job are the
+# demo GoTrue fixtures already committed in test-pipeline.yml (signed with the
+# compose stack's demo secret) — NOT prod secrets. Real secrets (CODECOV_TOKEN,
+# etc.) live in CircleCI project env / contexts, never here.
+
+# ───────────────────────── jobs ─────────────────────────
+jobs:
+  # ---- Code quality (fast, no deps — start immediately) ----
+  lint-backend:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Install lint tools (current pins)
+          # No --user: cimg/python installs into the active pyenv bin (on PATH).
+          command: pip install ruff==0.15.15 black==26.5.1 isort==5.13.2 mypy==1.7.1
+      - run:
+          name: Ruff (blocking)
+          command: ruff check backend/src --output-format=full
+      - run:
+          name: Directory docs lint (blocking — carried over from #727 fast lane)
+          command: python3 scripts/docs/check_dir_docs.py
+      - run:
+          name: Black (non-blocking)
+          command: black --check backend/src || true
+      - run:
+          name: isort (non-blocking)
+          command: isort --check-only backend/src || true
+      - run:
+          name: MyPy (non-blocking)
+          command: mypy backend/src --ignore-missing-imports || true
+
+  lint-frontend:
+    executor: node
+    steps:
+      - checkout
+      - setup_pnpm
+      - run:
+          name: Install deps
+          working_directory: frontend
+          command: pnpm install --frozen-lockfile
+      - save_pnpm_cache
+      - run:
+          name: Type check (blocking)
+          working_directory: frontend
+          command: pnpm run type-check
+      - run:
+          name: ESLint (non-blocking — matches GH continue-on-error)
+          working_directory: frontend
+          command: pnpm run lint || true
+
+  # ---- Unit tests (blocking) ----
+  unit-tests:
+    executor: python
+    environment:
+      ENVIRONMENT: testing
+      DATABASE_URL: "sqlite:///:memory:"
+      # Dummy Azure creds — agent graph constructor refuses to import without
+      # them. Unit tests mock real Azure calls.
+      AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+      AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+      AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+      AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+      AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+      AZURE_OPENAI_API_KEY: "test-key-not-real"
+    steps:
+      - checkout
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - save_pip_cache
+      - run:
+          name: Run unit tests
+          # Coverage floor 35% (gradual ramp); per-file floors enforced by the
+          # ratchet step below.
+          command: |
+            mkdir -p test-results
+            pytest backend/tests/ \
+              -c backend/pytest.ini \
+              -m "unit or not (integration or e2e or slow)" \
+              --cov=backend/src \
+              --cov-report=xml \
+              --cov-report=json \
+              --cov-report=term-missing \
+              --cov-fail-under=35 \
+              --junitxml=test-results/unit.xml \
+              -n 2 -v
+      - run:
+          name: Per-file coverage ratchet
+          command: python backend/scripts/check_coverage_ratchet.py coverage.json
+      - store_test_results:
+          path: test-results
+      - codecov_upload:
+          file: coverage.xml
+          flags: unit
+
+  # ---- Golden replay: deterministic, creds-free agent regression (blocking) ----
+  golden-replay:
+    executor: python
+    environment:
+      ENVIRONMENT: testing
+      AGENT_GOLDEN_REPLAY: "1"
+      DATABASE_URL: "sqlite:///:memory:"
+      AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+      AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+      AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+      AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+      AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+      AZURE_OPENAI_API_KEY: "test-key-not-real"
+    steps:
+      - checkout
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - save_pip_cache
+      - run:
+          name: Run golden replay (offline, no creds)
+          command: |
+            pytest backend/tests/eval/test_agent_regression.py \
+              -c backend/pytest.ini \
+              -m golden \
+              -p no:cacheprovider -v
+
+  # ---- Security scan (bandit blocking, safety advisory) ----
+  security-scan:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Install security tools
+          command: pip install bandit==1.9.4 safety
+      - run:
+          name: Bandit (blocking — new findings only, baseline pins debt)
+          command: bandit -r backend/src -ll -ii -x tests -b backend/.bandit-baseline.json
+      - run:
+          name: Safety (advisory)
+          command: safety check -r backend/requirements.txt || true
+
+  # ---- Frontend tests (blocking) ----
+  frontend-tests:
+    executor: node
+    environment:
+      CI: "true"
+    steps:
+      - checkout
+      - setup_pnpm
+      - run:
+          name: Install deps
+          working_directory: frontend
+          command: pnpm install --frozen-lockfile
+      - save_pnpm_cache
+      - run:
+          name: Vitest with coverage
+          working_directory: frontend
+          command: pnpm test:coverage
+      - store_test_results:
+          path: frontend/coverage
+      - codecov_upload:
+          file: frontend/coverage/lcov.info
+          flags: frontend
+
+  # ---- Integration tests (BLOCKING; testcontainers on a machine VM) ----
+  # These tests spin up their OWN Postgres via testcontainers
+  # (backend/tests/integration/conftest.py:227 -> PostgresContainer
+  # "postgres:15-alpine"), so they need a real Docker daemon. The docker executor
+  # has none (/var/run/docker.sock missing) and every test ERRORed at setup — the
+  # service container + DATABASE_URL it adds are ignored by these tests. Running
+  # on the machine VM (local Docker, testcontainers' happy path) fixed it:
+  # verified 258 passed / 12 skipped on pipeline #12, so this is a real gate again.
+  integration-tests:
+    executor: machine_vm
+    environment:
+      ENVIRONMENT: testing
+    steps:
+      - checkout
+      - run:
+          name: Select Python 3.11 (pyenv on the machine image)
+          command: |
+            PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1 || true)
+            if [ -z "$PYV" ]; then pyenv install -s 3.11 && PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1); fi
+            pyenv global "$PYV"
+            python --version
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            python -m pip install --upgrade pip
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - save_pip_cache
+      - run:
+          name: Run integration tests (testcontainers)
+          command: |
+            mkdir -p test-results
+            set +e
+            pytest backend/tests/integration/ \
+              -c backend/pytest.ini \
+              -m "integration" \
+              --cov=backend/src \
+              --cov-report=xml \
+              --cov-report=term-missing \
+              --junitxml=test-results/integration.xml \
+              -v
+            exit_code=$?
+            set -e
+            # exit 5 = pytest "no tests collected" -> treat as pass (matches GH)
+            [ "$exit_code" = "5" ] && { echo "No integration tests found"; exit 0; }
+            exit "$exit_code"
+      - store_test_results:
+          path: test-results
+      - codecov_upload:
+          file: coverage.xml
+          flags: integration
+
+  # ---- Resilience tests (blocking) ----
+  resilience-tests:
+    executor: python
+    environment:
+      ENVIRONMENT: testing
+      DATABASE_URL: "sqlite:///:memory:"
+    steps:
+      - checkout
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            pip install pytest pytest-asyncio pytest-cov
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - save_pip_cache
+      - run:
+          name: Run resilience tests
+          command: |
+            set +e
+            pytest backend/tests/ \
+              -c backend/pytest.ini \
+              -m "resilience" \
+              --cov=backend/src/core \
+              --cov-report=xml -v
+            exit_code=$?
+            set -e
+            [ "$exit_code" = "5" ] && { echo "No resilience tests found"; exit 0; }
+            exit "$exit_code"
+      - codecov_upload:
+          file: coverage.xml
+          flags: resilience
+
+  # ---- API contract tests (NON-BLOCKING; postgres) ----
+  api-contract-tests:
+    executor: python_postgres
+    environment:
+      ENVIRONMENT: testing
+      DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
+    steps:
+      - checkout
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+            pip install schemathesis
+      - save_pip_cache
+      - run:
+          name: Wait for postgres
+          command: |
+            for i in $(seq 1 30); do (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1 && { echo "postgres up"; break; }; sleep 2; done
+      - run:
+          name: Run contract tests (non-blocking)
+          command: |
+            pytest backend/tests/api_contract/ -c backend/pytest.ini -v || true
+
+  # ---- E2E (NON-BLOCKING; full stack on a real VM) ----
+  e2e-tests:
+    executor: machine_vm
+    # Cold image builds alone are ~17m; keep generous headroom.
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: "http://localhost:8999"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
+    steps:
+      - checkout
+      - run:
+          name: Build backend + frontend images
+          # type=gha/type=s3 caches from GH don't apply here; cold build unless
+          # docker_layer_caching is enabled on the executor (paid plan).
+          command: |
+            export DOCKER_BUILDKIT=1
+            docker build -f backend/docker/Dockerfile.prod \
+              --build-arg PYTHON_VERSION=3.11 \
+              --build-arg TORCH_CPU_ONLY=true \
+              -t rag-backend:test .
+            docker build -f frontend/Dockerfile.prod \
+              --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+              --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              --build-arg NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx \
+              -t rag-frontend:test .
+      - run:
+          name: Start infrastructure services
+          command: |
+            docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant gotrue auth-proxy
+            echo "Waiting for core services with healthchecks..."
+            SECONDS=0
+            healthy_count() {
+              docker compose -p rag_system -f docker-compose.ci.yml ps --format json 2>/dev/null | grep -c '"healthy"' || true
+            }
+            while (( $(healthy_count) < 3 )); do
+              if (( SECONDS > 300 )); then
+                echo "Timed out waiting for core services"
+                docker compose -p rag_system -f docker-compose.ci.yml ps
+                exit 124
+              fi
+              sleep 5
+            done
+            echo "Core services healthy (${SECONDS}s)"
+            for probe in "qdrant=http://localhost:6333/healthz" "gotrue=http://localhost:9999/health" "auth-proxy=http://localhost:8999/health"; do
+              name="${probe%%=*}"; url="${probe#*=}"
+              t=0
+              until curl -sf "$url" >/dev/null 2>&1; do
+                if (( t > 120 )); then
+                  echo "Timed out waiting for ${name}"
+                  docker compose -p rag_system -f docker-compose.ci.yml logs "$name" --tail=50 || true
+                  exit 124
+                fi
+                t=$((t+3)); sleep 3
+              done
+              echo "${name} ready (${t}s)"
+            done
+      - run:
+          name: Start application services
+          command: |
+            docker run -d --name backend-e2e \
+              --network rag_system_ci-network --network-alias backend -p 8000:8000 \
+              -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
+              -e REDIS_URL=redis://redis:6379/0 \
+              -e NEO4J_URI=bolt://neo4j:7687 -e NEO4J_USERNAME=neo4j -e NEO4J_PASSWORD= \
+              -e NEO4J_AUTH_DISABLED=true -e QDRANT_URL=http://qdrant:6333 \
+              -e ENVIRONMENT=testing \
+              -e SECRET_KEY=ci-test-secret-key-32-characters! \
+              -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
+              -e SUPABASE_URL=http://gotrue:9999 \
+              -e SUPABASE_JWT_SECRET=ci-test-supabase-jwt-secret-not-for-prod-use \
+              -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+              -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
+              -e ENABLE_AI_PROCESSING=false \
+              -e SEED_ADMIN_PASSWORD=admin123 -e SEED_DEMO_PASSWORD=demo123 -e SEED_LAB_ADMIN_PASSWORD=admin123 \
+              rag-backend:test
+            docker run -d --name frontend-e2e \
+              --network rag_system_ci-network --network-alias frontend -p 3000:3000 \
+              -e BACKEND_URL=http://backend:8000 -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
+              rag-frontend:test
+            for attempt in {1..30}; do curl -sf http://localhost:8000/health >/dev/null 2>&1 && break; sleep 3; done
+            for attempt in {1..30}; do curl -sf http://localhost:3000 >/dev/null 2>&1 && break; sleep 3; done
+      - run:
+          name: Verify services
+          command: |
+            curl -f http://localhost:8000/health || exit 1
+            curl -f http://localhost:3000 || exit 1
+            curl -f http://localhost:9999/health || exit 1
+            curl -f http://localhost:8999/health || exit 1
+      - run:
+          name: Initialize and seed test database
+          command: |
+            docker exec -e PYTHONPATH=/app backend-e2e python -c "
+            from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+            initialize_encryption()
+            km = get_key_manager()
+            if km.get_active_key(EncryptionKeyType.DATA) is None:
+                km.generate_key(EncryptionKeyType.DATA)
+            from src.core.database import create_tables, init_database
+            create_tables()
+            init_database()
+            "
+      - run:
+          name: Mirror seeded users into gotrue
+          command: |
+            docker exec -e PYTHONPATH=/app \
+              -e SERVICE_ROLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.h2fkqBtuKwhDivmz5vXwEGxQgcpFlMXhYlVNAH2TL6c \
+              backend-e2e python -c "
+            import os, httpx, uuid as _uuid
+            from src.core.database import SessionLocal
+            from src.models.user import User
+            PASSWORDS = {
+                'admin@multimodal-rag.com': 'admin123',
+                'demo@multimodal-rag.com': 'demo123',
+                'lab-admin@multimodal-rag.com': 'admin123',
+            }
+            headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
+            with SessionLocal() as db:
+                users = db.query(User).filter(User.email.in_(list(PASSWORDS))).all()
+                assert len(users) == len(PASSWORDS), f'expected {len(PASSWORDS)} seeded users, got {len(users)}'
+                for u in users:
+                    payload = {'email': u.email, 'password': PASSWORDS[u.email], 'email_confirm': True}
+                    r = httpx.post('http://gotrue:9999/admin/users', headers=headers, json=payload, timeout=10.0)
+                    print(f'gotrue seed {u.email} -> {r.status_code}')
+                    if r.status_code >= 400:
+                        print(r.text); r.raise_for_status()
+                    gid = _uuid.UUID(r.json()['id'])
+                    if gid != u.id:
+                        db.query(User).filter(User.id == u.id).update({User.id: gid})
+                db.commit()
+            "
+      - restore_cache:
+          keys:
+            - playwright-v1-{{ checksum "tests/e2e/package.json" }}
+            - playwright-v1-
+      - run:
+          name: Install Playwright
+          working_directory: tests/e2e
+          command: |
+            npm install
+            npx playwright install --with-deps chromium
+      - save_cache:
+          key: playwright-v1-{{ checksum "tests/e2e/package.json" }}
+          paths:
+            - ~/.cache/ms-playwright
+      - run:
+          name: Run E2E (non-blocking; smoke on feature branches, full on develop/main)
+          working_directory: tests/e2e
+          environment:
+            CI: "true"
+            BASE_URL: http://localhost:3000
+            API_BASE_URL: http://localhost:8000
+            TEST_ADMIN_EMAIL: admin@multimodal-rag.com
+            TEST_ADMIN_PASSWORD: admin123
+            TEST_USER_EMAIL: demo@multimodal-rag.com
+            TEST_USER_PASSWORD: demo123
+            TEST_ORG_ADMIN_EMAIL: lab-admin@multimodal-rag.com
+            TEST_ORG_ADMIN_PASSWORD: admin123
+          command: |
+            if [ "$CIRCLE_BRANCH" = "main" ] || [ "$CIRCLE_BRANCH" = "develop" ]; then
+              echo "Running full E2E (push to $CIRCLE_BRANCH)..."
+              npx playwright test --project=chromium --reporter=html,line --max-failures=15 || true
+            else
+              echo "Running smoke E2E (feature branch)..."
+              npx playwright test --grep "@smoke" --project=chromium --reporter=html,line || true
+            fi
+      - store_artifacts:
+          path: tests/e2e/playwright-report
+          destination: playwright-report
+      - store_artifacts:
+          path: tests/e2e/test-results
+          destination: e2e-test-results
+      - run:
+          name: Collect logs on failure
+          when: on_fail
+          command: |
+            echo "=== Backend ==="; docker logs backend-e2e --tail=100 2>&1 || true
+            echo "=== Frontend ==="; docker logs frontend-e2e --tail=100 2>&1 || true
+            echo "=== GoTrue ==="; docker logs rag_system-gotrue-1 --tail=100 2>&1 || true
+            echo "=== Postgres ==="; docker logs rag_system-postgres-1 --tail=60 2>&1 || true
+            docker compose -p rag_system -f docker-compose.ci.yml ps || true
+      - run:
+          name: Cleanup
+          when: always
+          command: |
+            docker stop backend-e2e frontend-e2e 2>/dev/null || true
+            docker rm backend-e2e frontend-e2e 2>/dev/null || true
+            docker compose -p rag_system -f docker-compose.ci.yml down -v --remove-orphans || true
+
+  # ---- Performance (NON-BLOCKING; main only; postgres) ----
+  performance-tests:
+    executor: python_postgres
+    environment:
+      ENVIRONMENT: testing
+      DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
+    steps:
+      - checkout
+      - restore_pip_cache
+      - run:
+          name: Install dependencies
+          command: |
+            pip install pytest pytest-asyncio pytest-benchmark locust
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - save_pip_cache
+      - run:
+          name: Wait for postgres
+          command: |
+            for i in $(seq 1 30); do (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1 && { echo "postgres up"; break; }; sleep 2; done
+      - run:
+          name: Run performance tests (non-blocking)
+          command: |
+            pytest backend/tests/ -c backend/pytest.ini \
+              -m "slow or scalability" \
+              --benchmark-only --benchmark-json=benchmark.json -v || true
+      - store_artifacts:
+          path: benchmark.json
+          destination: benchmark.json
+
+# ───────────────────────── workflows ─────────────────────────
+workflows:
+  test_pipeline:
+    jobs:
+      # Fast lanes — no requires, start immediately (subsumes fast-ci.yml)
+      - lint-backend
+      - lint-frontend
+
+      - unit-tests:
+          requires: [lint-backend]
+      - golden-replay:
+          requires: [lint-backend]
+      - security-scan:
+          requires: [lint-backend]
+
+      - frontend-tests:
+          requires: [lint-frontend]
+
+      - integration-tests:
+          requires: [unit-tests, frontend-tests]
+      - resilience-tests:
+          requires: [unit-tests]
+      - api-contract-tests:
+          requires: [unit-tests, frontend-tests]
+
+      - e2e-tests:
+          requires: [integration-tests]
+
+      - performance-tests:
+          requires: [integration-tests]
+          filters:
+            branches:
+              only: main

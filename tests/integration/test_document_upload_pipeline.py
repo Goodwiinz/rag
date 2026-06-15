@@ -8,7 +8,7 @@ import asyncio
 import io
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List
 from unittest.mock import Mock, patch, AsyncMock
@@ -186,7 +186,7 @@ class TestDocumentUploadAPI:
                     "virus_detected": False,
                     "suspicious_content": False,
                     "file_integrity": "verified",
-                    "scan_timestamp": datetime.utcnow().isoformat(),
+                    "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                     "threats": [],
                     "warnings": []
                 }
@@ -201,7 +201,7 @@ class TestDocumentUploadAPI:
                 file_size_mb=len(sample_pdf_content) / (1024 * 1024),
                 mime_type="application/pdf",
                 processing_status="uploaded",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             ))
 
             mock_processing_service.return_value.estimate_processing_time.return_value = 60
@@ -659,7 +659,7 @@ class TestSecurityScanning:
                         "virus_detected": False,
                         "suspicious_content": False,
                         "file_integrity": "verified",
-                        "scan_timestamp": datetime.utcnow().isoformat(),
+                        "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                         "threats": [],
                         "warnings": ["File contains macros"]
                     }
@@ -817,7 +817,7 @@ class TestDocumentUploadIntegration:
                     "virus_detected": False,
                     "suspicious_content": False,
                     "file_integrity": "verified",
-                    "scan_timestamp": datetime.utcnow().isoformat(),
+                    "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                     "threats": [],
                     "warnings": []
                 }
@@ -832,7 +832,7 @@ class TestDocumentUploadIntegration:
                 file_size_mb=len(sample_pdf_content) / (1024 * 1024),
                 mime_type="application/pdf",
                 processing_status="uploaded",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc)
             ))
 
             mock_processing_service.return_value.estimate_processing_time.return_value = 60
@@ -893,7 +893,7 @@ class TestDocumentUploadIntegration:
                         "virus_detected": False,
                         "suspicious_content": False,
                         "file_integrity": "verified",
-                        "scan_timestamp": datetime.utcnow().isoformat(),
+                        "scan_timestamp": datetime.now(timezone.utc).isoformat(),
                         "threats": [],
                         "warnings": []
                     }

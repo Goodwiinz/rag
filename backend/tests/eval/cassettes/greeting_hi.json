@@ -1,0 +1,6 @@
+{
+  "case": "greeting_hi",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": []
+}

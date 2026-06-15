@@ -17,7 +17,7 @@ import asyncio
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Callable
 from unittest.mock import Mock, AsyncMock, patch
 import websockets
@@ -315,7 +315,7 @@ class TestWebSocketRealTimeDataStreaming:
             await streaming_manager.send_personal_message(mock_ws, {
                 "type": "performance_test",
                 "sequence": i,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
         end_time = time.time()
@@ -350,7 +350,7 @@ class TestWebSocketSubscriptionAndFiltering:
         await subscription_manager.send_personal_message(mock_ws, {
             "type": "subscription_confirmed",
             "metric": "cpu_usage",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         # Verify confirmation message
@@ -373,7 +373,7 @@ class TestWebSocketSubscriptionAndFiltering:
         await subscription_manager.send_personal_message(mock_ws, {
             "type": "trace_subscription_confirmed",
             "trace_id": "test-trace-123",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         messages = mock_ws.get_messages()
@@ -396,7 +396,7 @@ class TestWebSocketSubscriptionAndFiltering:
         await subscription_manager.send_personal_message(mock_ws, {
             "type": "logs_subscription_confirmed",
             "filters": filters,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         messages = mock_ws.get_messages()
@@ -419,7 +419,7 @@ class TestWebSocketSubscriptionAndFiltering:
         await subscription_manager.send_personal_message(mock_ws, {
             "type": "alerts_subscription_confirmed",
             "filters": filters,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
         messages = mock_ws.get_messages()
@@ -632,7 +632,7 @@ class TestWebSocketConcurrencyAndPerformance:
         for conn_type, _ in connection_configs:
             message = {
                 "type": f"{conn_type}_broadcast",
-                "data": {"timestamp": datetime.utcnow().isoformat()}
+                "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
             }
             task = concurrency_manager.broadcast_to_type(conn_type, message)
             broadcast_tasks.append(task)
@@ -667,7 +667,7 @@ class TestWebSocketConcurrencyAndPerformance:
             message = {
                 "type": "throughput_test",
                 "sequence": i,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             # Send to all connections concurrently
@@ -955,7 +955,7 @@ class TestWebSocketPerformanceBenchmarks:
                 message = {
                     "type": "benchmark_broadcast",
                     "sequence": i,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 await manager.broadcast_to_type("metrics", message)
 

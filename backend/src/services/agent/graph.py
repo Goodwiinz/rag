@@ -334,6 +334,7 @@ from src.services.agent._nodes_memory import (  # noqa: E402
 # (`from src.services.agent.graph import rag_node`) keep working.
 from src.services.agent._nodes_rag import (  # noqa: E402
     _is_retrieval_query,
+    is_conversational,
     _legacy_hybrid_search_fallback,
     _shape_do_kb_context,
     _try_primary_do_kb_read,

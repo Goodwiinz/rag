@@ -17,6 +17,7 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
+from ._errors import client_safe_error
 from . import jobs as _jobs_mod
 from .jobs import (
     _clear_stale_pending_confirmation,
@@ -25,38 +26,15 @@ from .jobs import (
     _persist_assistant_message,
     _persist_thread_messages,
     _persist_user_message,
+    _resolve_and_bind_project,
     _resolve_thread,
 )
+from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent._pii_redact import redact_pii
+from src.services.agent.observability import record_token_usage
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
-
-_DEBUG_LOG_PATH = "/Users/goodwiinz/development/RAG_system/.cursor/debug-682ae9.log"
-
-
-def _debug_log(
-    *,
-    hypothesis_id: str,
-    location: str,
-    message: str,
-    data: dict | None = None,
-) -> None:
-    # region agent log
-    try:
-        payload = {
-            "sessionId": "682ae9",
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data or {},
-            "timestamp": int(time.time() * 1000),
-        }
-        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as fh:
-            fh.write(_json.dumps(payload) + "\n")
-    except Exception:
-        pass
-    # endregion
-
 
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -185,34 +163,48 @@ _PLANNER_CHAIN_NODES = frozenset(
 
 
 async def _graph_events_with_keepalive(event_stream_iter, request: Any):
-    """Yield LangGraph events, interleaving keepalive markers during long gaps."""
+    """Yield LangGraph events, interleaving keepalive markers during long gaps.
+
+    On client disconnect, emits a ``{"type": "disconnect"}`` sentinel and stops.
+    The caller closes the underlying graph iterator so the agent run is actually
+    cancelled rather than left generating into a dead connection.
+    """
     pending: asyncio.Task | None = None
-    while True:
-        if await request.is_disconnected():
-            break
-        if pending is None:
-            pending = asyncio.create_task(event_stream_iter.__anext__())
-        sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
-        done, _ = await asyncio.wait(
-            {pending, sleep_task},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if sleep_task in done and pending not in done:
-            yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
-            continue
-        sleep_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await sleep_task
-        try:
-            event = pending.result()
-        except StopAsyncIteration:
+    try:
+        while True:
+            if await request.is_disconnected():
+                yield {"type": "disconnect"}
+                return
+            if pending is None:
+                pending = asyncio.create_task(event_stream_iter.__anext__())
+            sleep_task = asyncio.create_task(asyncio.sleep(_SSE_KEEPALIVE_SECONDS))
+            done, _ = await asyncio.wait(
+                {pending, sleep_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if sleep_task in done and pending not in done:
+                yield {"type": "keepalive", "elapsed_ms": int(time.time() * 1000)}
+                continue
+            sleep_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await sleep_task
+            try:
+                event = pending.result()
+            except StopAsyncIteration:
+                pending = None
+                break
+            except Exception:
+                pending = None
+                raise
             pending = None
-            break
-        except Exception:
-            pending = None
-            raise
-        pending = None
-        yield {"type": "event", "event": event}
+            yield {"type": "event", "event": event}
+    finally:
+        # Never leak the in-flight __anext__ task — on disconnect or error it
+        # would otherwise drive one more graph step after we stop reading.
+        if pending is not None and not pending.done():
+            pending.cancel()
+            with contextlib.suppress(BaseException):
+                await pending
 
 
 async def stream_event_generator(
@@ -242,25 +234,14 @@ async def stream_event_generator(
     )
 
     stream_thread_id = request_body.thread_id or "unknown"
-    config: Dict[str, Any] = {}  # Initialize before try block for safe access in except handlers
+    config: Dict[str, Any] = (
+        {}
+    )  # Initialize before try block for safe access in except handlers
     db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
-    keepalive_count = 0
-    first_graph_event_logged = False
     try:
-        _debug_log(
-            hypothesis_id="H7",
-            location="streaming.py:stream_event_generator",
-            message="stream_start",
-            data={
-                "thread_id": stream_thread_id,
-                "query_preview": (_get_latest_user_content(request_body.messages) or "")[
-                    :120
-                ],
-            },
-        )
         # Persist the user turn BEFORE the LLM call so a mid-stream client
         # disconnect (or any failure inside ``astream_events``) still leaves
         # the user row durable. The assistant row is written after the
@@ -293,16 +274,20 @@ async def stream_event_generator(
         ]
 
         page_context = _page_context_to_dict(request_body.page_context)
-        if (
-            thread_obj is not None
-            and getattr(thread_obj, "source_project_id", None)
-            and not page_context.get("project_id")
-        ):
-            page_context["project_id"] = str(thread_obj.source_project_id)
-            if hasattr(thread_obj, "source_project") and thread_obj.source_project:
-                page_context["project_name"] = thread_obj.source_project.name
-            if not page_context.get("type") or page_context["type"] == "chat":
-                page_context["type"] = "project"
+        await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+
+        # Project-scoped memory recall (best-effort; never blocks a turn).
+        project_memories: list = []
+        _pm_project_id = page_context.get("project_id")
+        if _pm_project_id:
+            try:
+                from src.services.research.project_memory_service import (
+                    load_project_memories,
+                )
+
+                project_memories = await load_project_memories(db, str(_pm_project_id))
+            except Exception:
+                logger.warning("project memory load failed", exc_info=True)
 
         initial_state = {
             "messages": messages,
@@ -317,6 +302,7 @@ async def stream_event_generator(
             "user_confirmed": False,
             "intent": "",
             "user_memories": [],
+            "project_memories": project_memories,
             "plan": [],
             "reflection_count": 0,
             "compaction_count": 0,
@@ -328,12 +314,20 @@ async def stream_event_generator(
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
+            "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": stream_thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
-            }
+            },
+            # LangSmith run metadata — per-tenant/turn filterable traces.
+            # Inherited by child runs; never carries secrets.
+            "metadata": {
+                "user_id": str(current_user.id),
+                "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                "thread_id": stream_thread_id,
+            },
         }
 
         yield _format_sse_event(
@@ -370,23 +364,19 @@ async def stream_event_generator(
 
         event_stream_iter = await _open_event_stream()
         first_event_yielded = False
+        client_disconnected = False
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
                     async for item in _graph_events_with_keepalive(
                         event_stream_iter, request
                     ):
+                        if item["type"] == "disconnect":
+                            client_disconnected = True
+                            break
                         if item["type"] == "keepalive":
-                            keepalive_count += 1
-                            elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
-                            _debug_log(
-                                hypothesis_id="H8",
-                                location="streaming.py:keepalive",
-                                message="sse_keepalive",
-                                data={
-                                    "count": keepalive_count,
-                                    "elapsed_ms": elapsed_ms,
-                                },
+                            elapsed_ms = int(
+                                (time.monotonic() - stream_started_at) * 1000
                             )
                             yield (
                                 "event: heartbeat\n"
@@ -396,21 +386,6 @@ async def stream_event_generator(
 
                         event = item["event"]
                         first_event_yielded = True
-                        if not first_graph_event_logged:
-                            first_graph_event_logged = True
-                            _debug_log(
-                                hypothesis_id="H9",
-                                location="streaming.py:first_graph_event",
-                                message="first_graph_event",
-                                data={
-                                    "kind": event.get("event", ""),
-                                    "name": event.get("name", ""),
-                                    "elapsed_ms": int(
-                                        (time.monotonic() - stream_started_at) * 1000
-                                    ),
-                                },
-                            )
-
                         kind = event.get("event", "")
                         name = event.get("name", "")
 
@@ -428,17 +403,11 @@ async def stream_event_generator(
 
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
-                            args_preview = str(tool_input)[:500] if tool_input else ""
-                            _debug_log(
-                                hypothesis_id="H11",
-                                location="streaming.py:tool_start",
-                                message="tool_start",
-                                data={
-                                    "tool": name,
-                                    "elapsed_ms": int(
-                                        (time.monotonic() - stream_started_at) * 1000
-                                    ),
-                                },
+                            # Redact PII before the args preview leaves the
+                            # server (browser-visible SSE payload). Redact first,
+                            # then cap — so a token straddling the cut still matches.
+                            args_preview = (
+                                redact_pii(str(tool_input))[:500] if tool_input else ""
                             )
                             yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
@@ -446,9 +415,7 @@ async def stream_event_generator(
                             output = event.get("data", {}).get("output", "")
                             is_error = (
                                 isinstance(output, dict) and bool(output.get("isError"))
-                            ) or (
-                                getattr(output, "status", None) == "error"
-                            )
+                            ) or (getattr(output, "status", None) == "error")
                             yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                         elif kind == "on_chain_end" and name == "rag_node":
@@ -485,12 +452,23 @@ async def stream_event_generator(
                     )
                     await reset_checkpointer()
                     checkpointer = await get_checkpointer()
-                    graph = compile_agent_graph(
-                        checkpointer=checkpointer, store=store
-                    )
+                    graph = compile_agent_graph(checkpointer=checkpointer, store=store)
                     await _clear_stale_pending_confirmation(graph, config)
                     event_stream_iter = await _open_event_stream()
                     continue
+
+        # Client hung up mid-stream (hit Stop / closed the tab). Cancel the
+        # agent run by closing the graph iterator instead of letting it finish
+        # generating into a dead socket, and skip the persist + `done` path —
+        # the client preserves and saves its own partial answer.
+        if client_disconnected:
+            with contextlib.suppress(Exception):
+                await event_stream_iter.aclose()
+            logger.info(
+                "SSE client disconnected; cancelled agent run for thread %s",
+                stream_thread_id,
+            )
+            return
 
         # Check graph state after streaming completes
         try:
@@ -499,9 +477,7 @@ async def stream_event_generator(
 
             # Check for pending interrupts (HITL confirmation needed)
             pending_tasks = final_snapshot.tasks if final_snapshot else ()
-            has_interrupt = any(
-                getattr(t, "interrupts", None) for t in pending_tasks
-            )
+            has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
             if has_interrupt:
                 # Extract confirmation details from the interrupt
@@ -553,39 +529,29 @@ async def stream_event_generator(
                     # tests that directly invoke the generator without
                     # passing one). Run inline through the safe wrapper
                     # so the failure-metric path is still exercised.
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs
-                    )
+                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
+            # Server-side token cost metric (was previously SSE-only, so cost
+            # never reached Prometheus). Model label drives per-model spend.
+            try:
+                record_token_usage(
+                    getattr(request_body, "model", None) or "unknown",
+                    turn_input_tokens,
+                    turn_output_tokens,
+                )
+            except Exception:  # never let metrics break the stream
+                logger.debug("record_token_usage failed", exc_info=True)
             yield (
                 "event: usage\n"
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
             )
 
         yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
-        _debug_log(
-            hypothesis_id="H7",
-            location="streaming.py:stream_event_generator",
-            message="stream_done",
-            data={
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
 
     except asyncio.CancelledError:
-        _debug_log(
-            hypothesis_id="H10",
-            location="streaming.py:stream_event_generator",
-            message="stream_cancelled",
-            data={
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
         raise
 
     except GraphInterrupt as exc:
@@ -595,18 +561,27 @@ async def stream_event_generator(
         confirmation_details = {}
         if interrupts:
             confirmation_details = getattr(interrupts[0], "value", {})
-        thread_id = (config.get("configurable") or {}).get("thread_id") or stream_thread_id
+        thread_id = (config.get("configurable") or {}).get(
+            "thread_id"
+        ) or stream_thread_id
 
         checkpoint_ok = False
         try:
             if graph is not None:
                 verify_snapshot = await graph.aget_state(config)
                 checkpoint_ok = bool(
-                    verify_snapshot and verify_snapshot.values
-                    and any(getattr(t, "interrupts", None) for t in (verify_snapshot.tasks or ()))
+                    verify_snapshot
+                    and verify_snapshot.values
+                    and any(
+                        getattr(t, "interrupts", None)
+                        for t in (verify_snapshot.tasks or ())
+                    )
                 )
         except Exception:
-            logger.warning("Failed to verify checkpoint after GraphInterrupt for thread %s", thread_id)
+            logger.warning(
+                "Failed to verify checkpoint after GraphInterrupt for thread %s",
+                thread_id,
+            )
 
         if not checkpoint_ok:
             logger.error(
@@ -620,17 +595,7 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
-        _debug_log(
-            hypothesis_id="H10",
-            location="streaming.py:stream_event_generator",
-            message="stream_error",
-            data={
-                "error": str(e)[:300],
-                "elapsed_ms": int((time.monotonic() - stream_started_at) * 1000),
-                "keepalive_count": keepalive_count,
-            },
-        )
-        yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+        yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
         await db.close()
@@ -719,12 +684,13 @@ async def stream_confirm_event_generator(
         )
 
         config = {
+            "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": request_body.thread_id,
                 "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
-            }
+            },
         }
 
         resume_input = Command(resume={"confirmed": request_body.confirmed})
@@ -775,9 +741,7 @@ async def stream_confirm_event_generator(
                     output = event.get("data", {}).get("output", "")
                     is_error = (
                         isinstance(output, dict) and bool(output.get("isError"))
-                    ) or (
-                        getattr(output, "status", None) == "error"
-                    )
+                    ) or (getattr(output, "status", None) == "error")
                     yield f"event: tool_end\ndata: {_json.dumps({'tool': name, 'result': _encode_tool_result(output), 'is_error': is_error})}\n\n"
 
                 elif kind == "on_chain_end" and name in _PLANNER_CHAIN_NODES:
@@ -800,9 +764,7 @@ async def stream_confirm_event_generator(
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
         final_snapshot = await graph.aget_state(config)
         pending_tasks = final_snapshot.tasks if final_snapshot else ()
-        has_interrupt = any(
-            getattr(t, "interrupts", None) for t in pending_tasks
-        )
+        has_interrupt = any(getattr(t, "interrupts", None) for t in pending_tasks)
 
         if has_interrupt:
             confirmation_details = {}
@@ -832,9 +794,11 @@ async def stream_confirm_event_generator(
                 final_values.get("messages", [])
             )
             resumed_request = AgentExecuteRequest(
-                messages=[
-                    AgentMessage(role="user", content=latest_user_content)
-                ] if latest_user_content else [],
+                messages=(
+                    [AgentMessage(role="user", content=latest_user_content)]
+                    if latest_user_content
+                    else []
+                ),
                 page_context=PageContextRequest(
                     **_page_context_to_dict(
                         final_values.get("page_context", page_context)
@@ -850,6 +814,7 @@ async def stream_confirm_event_generator(
                 assistant_content,
                 tool_executions_out,
                 retrieved_contexts=final_values.get("retrieved_contexts"),
+                create_if_missing=False,
             )
         except Exception as e:
             logger.warning(
@@ -858,6 +823,16 @@ async def stream_confirm_event_generator(
             )
 
         if turn_input_tokens > 0 or turn_output_tokens > 0:
+            # Server-side token cost metric (was previously SSE-only, so cost
+            # never reached Prometheus). Model label drives per-model spend.
+            try:
+                record_token_usage(
+                    getattr(request_body, "model", None) or "unknown",
+                    turn_input_tokens,
+                    turn_output_tokens,
+                )
+            except Exception:  # never let metrics break the stream
+                logger.debug("record_token_usage failed", exc_info=True)
             yield (
                 "event: usage\n"
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
@@ -873,7 +848,7 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
-        yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+        yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
         await db.close()

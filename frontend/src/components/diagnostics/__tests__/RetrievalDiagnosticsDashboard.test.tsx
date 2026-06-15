@@ -84,7 +84,11 @@ describe('RetrievalDiagnosticsDashboard', () => {
       expect(mockGetRecentTraces).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    // findByRole (not getByRole): the button's accessible name is
+    // `loading ? 'Loading' : 'Refresh'` and it's disabled while loading, so a
+    // synchronous query races the initial fetch settling — flaky under slow CI.
+    // Wait until it reads "Refresh" (loading=false, enabled) before clicking.
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }));
 
     await waitFor(() => {
       expect(mockGetRecentTraces).toHaveBeenCalledTimes(2);

@@ -81,6 +81,15 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      // NOUS type families — without these the `font-nous-*` utilities used
+      // across the chat composer / command output / slash menu silently fall
+      // back to sans-serif.
+      fontFamily: {
+        'nous-mono': ['var(--nous-font-mono)'],
+        'nous-body': ['var(--nous-font-body)'],
+        'nous-ui': ['var(--nous-font-ui)'],
+        'nous-heading': ['var(--nous-font-heading)'],
+      },
     },
   },
   plugins: [tailwindcssAnimate],

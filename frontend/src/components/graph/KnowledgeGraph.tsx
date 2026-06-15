@@ -284,7 +284,6 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     'force'
   );
   const [isAnimating, setIsAnimating] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -476,13 +475,20 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     if (!graphData) return null;
 
     try {
+      // Bound the synchronous force solve: 300 iterations × O(n²) freezes the
+      // main thread on large graphs. Scale iterations down as node count grows
+      // so worst-case work stays bounded. (Full rAF/Web-Worker offload is a
+      // larger follow-up.)
+      const nodeCount = graphData.nodes.length;
+      const forceIterations =
+        nodeCount > 400 ? 40 : nodeCount > 150 ? 100 : 300;
       const layoutAlgorithm = createLayout(
         layout,
         graphData.nodes,
         graphData.edges,
         {
           bounds,
-          iterations: layout === 'force' ? 300 : 0,
+          iterations: layout === 'force' ? forceIterations : 0,
         }
       );
 
@@ -800,7 +806,12 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
       {/* Selected entity details */}
       {selectedNode && (
-        <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <Dialog
+          open={!!selectedNode}
+          onOpenChange={(open) => {
+            if (!open) setSelectedNode(null);
+          }}
+        >
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Entity Details</DialogTitle>

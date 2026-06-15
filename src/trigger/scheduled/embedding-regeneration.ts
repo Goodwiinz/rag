@@ -1,4 +1,4 @@
-import { logger, schedules, metadata } from "@trigger.dev/sdk/v3";
+import { logger, schedules, metadata } from "@trigger.dev/sdk";
 import { backendClient } from "../_lib/backend-client";
 
 const LAST_MODEL_VERSION_KEY = "lastEmbeddingModelVersion";

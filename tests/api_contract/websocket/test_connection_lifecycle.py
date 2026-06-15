@@ -10,7 +10,7 @@ import asyncio
 import json
 import uuid
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -135,7 +135,7 @@ class TestWebSocketConnectionLifecycle:
         ping_message = {
             "type": MessageType.PING.value,
             "data": {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "sequence": 1
             }
         }
@@ -164,7 +164,7 @@ class TestWebSocketConnectionLifecycle:
                 # Respond with pong
                 pong_message = {
                     "type": MessageType.PONG.value,
-                    "data": {"timestamp": datetime.utcnow().isoformat()}
+                    "data": {"timestamp": datetime.now(timezone.utc).isoformat()}
                 }
                 await websocket_test_client.send_message(pong_message)
 

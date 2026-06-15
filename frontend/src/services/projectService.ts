@@ -93,6 +93,21 @@ export interface ProjectNoteUpdate {
   is_pinned?: boolean;
 }
 
+export interface ProjectMemory {
+  id: string;
+  project_id: string;
+  user_id?: string;
+  content: string;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMemoryListResponse {
+  memories: ProjectMemory[];
+  total: number;
+}
+
 export interface ProjectListResponse {
   projects: Project[];
   total: number;
@@ -149,9 +164,13 @@ export const projectService = {
     },
     options?: { signal?: AbortSignal }
   ): Promise<ProjectListResponse> {
-    const qs = params ? new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-    ).toString() : '';
+    const qs = params
+      ? new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : '';
     return api.get<ProjectListResponse>(`/projects${qs ? `?${qs}` : ''}`, {
       signal: options?.signal,
     });
@@ -174,7 +193,10 @@ export const projectService = {
   /**
    * Update a project
    */
-  async updateProject(projectId: string, data: ProjectUpdate): Promise<Project> {
+  async updateProject(
+    projectId: string,
+    data: ProjectUpdate
+  ): Promise<Project> {
     return api.patch<Project>(`/projects/${projectId}`, data);
   },
 
@@ -199,9 +221,13 @@ export const projectService = {
       limit?: number;
     }
   ): Promise<ProjectDocumentListResponse> {
-    const qs = params ? new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-    ).toString() : '';
+    const qs = params
+      ? new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : '';
     return api.get<ProjectDocumentListResponse>(
       `/projects/${projectId}/documents${qs ? `?${qs}` : ''}`
     );
@@ -244,9 +270,13 @@ export const projectService = {
       pinned_only?: boolean;
     }
   ): Promise<ProjectNoteListResponse> {
-    const qs = params ? new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-    ).toString() : '';
+    const qs = params
+      ? new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : '';
     return api.get<ProjectNoteListResponse>(
       `/projects/${projectId}/notes${qs ? `?${qs}` : ''}`
     );
@@ -255,20 +285,18 @@ export const projectService = {
   /**
    * Create a note in a project
    */
-  async createNote(projectId: string, data: ProjectNoteCreate): Promise<ProjectNote> {
-    return api.post<ProjectNote>(
-      `/projects/${projectId}/notes`,
-      data
-    );
+  async createNote(
+    projectId: string,
+    data: ProjectNoteCreate
+  ): Promise<ProjectNote> {
+    return api.post<ProjectNote>(`/projects/${projectId}/notes`, data);
   },
 
   /**
    * Get a single note
    */
   async getNote(projectId: string, noteId: string): Promise<ProjectNote> {
-    return api.get<ProjectNote>(
-      `/projects/${projectId}/notes/${noteId}`
-    );
+    return api.get<ProjectNote>(`/projects/${projectId}/notes/${noteId}`);
   },
 
   /**
@@ -293,12 +321,40 @@ export const projectService = {
   },
 
   /**
+   * List a project's saved memories (durable facts the agent recalls).
+   */
+  async listMemories(projectId: string): Promise<ProjectMemoryListResponse> {
+    return api.get<ProjectMemoryListResponse>(
+      `/projects/${projectId}/memories`
+    );
+  },
+
+  /**
+   * Save a durable fact for a project.
+   */
+  async createMemory(
+    projectId: string,
+    content: string,
+    source: string = 'manual'
+  ): Promise<ProjectMemory> {
+    return api.post<ProjectMemory>(`/projects/${projectId}/memories`, {
+      content,
+      source,
+    });
+  },
+
+  /**
+   * Delete a project memory.
+   */
+  async deleteMemory(projectId: string, memoryId: string): Promise<void> {
+    await api.delete(`/projects/${projectId}/memories/${memoryId}`);
+  },
+
+  /**
    * Toggle note pinned status
    */
   async toggleNotePin(projectId: string, noteId: string): Promise<ProjectNote> {
-    return api.post<ProjectNote>(
-      `/projects/${projectId}/notes/${noteId}/pin`
-    );
+    return api.post<ProjectNote>(`/projects/${projectId}/notes/${noteId}/pin`);
   },
 
   // =========================================================================
@@ -367,7 +423,8 @@ export const projectService = {
       options.documentIds.forEach((id) => params.append('document_ids', id));
     }
     if (options?.style) params.append('style', options.style);
-    if (options?.maxSections) params.append('max_sections', options.maxSections.toString());
+    if (options?.maxSections)
+      params.append('max_sections', options.maxSections.toString());
     if (options?.includeAbstract !== undefined) {
       params.append('include_abstract', options.includeAbstract.toString());
     }
@@ -395,7 +452,9 @@ export const projectService = {
     };
 
     const qs = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, String(v)])
     ).toString();
     return api.get<DraftListResponse>(
       `/projects/${projectId}/drafts${qs ? `?${qs}` : ''}`
@@ -406,18 +465,14 @@ export const projectService = {
    * Get the current draft
    */
   async getCurrentDraft(projectId: string): Promise<Draft> {
-    return api.get<Draft>(
-      `/projects/${projectId}/drafts/current`
-    );
+    return api.get<Draft>(`/projects/${projectId}/drafts/current`);
   },
 
   /**
    * Get a specific draft
    */
   async getDraft(projectId: string, draftId: string): Promise<Draft> {
-    return api.get<Draft>(
-      `/projects/${projectId}/drafts/${draftId}`
-    );
+    return api.get<Draft>(`/projects/${projectId}/drafts/${draftId}`);
   },
 
   /**
@@ -430,7 +485,10 @@ export const projectService = {
   /**
    * Get draft citations
    */
-  async getDraftCitations(projectId: string, draftId: string): Promise<DraftCitationsResponse> {
+  async getDraftCitations(
+    projectId: string,
+    draftId: string
+  ): Promise<DraftCitationsResponse> {
     return api.get<DraftCitationsResponse>(
       `/projects/${projectId}/drafts/${draftId}/citations`
     );
@@ -492,11 +550,18 @@ export const projectService = {
   /**
    * Get generation status
    */
-  async getGenerationStatus(projectId: string, taskId?: string): Promise<GenerationStatus> {
+  async getGenerationStatus(
+    projectId: string,
+    taskId?: string
+  ): Promise<GenerationStatus> {
     const params = taskId ? { task_id: taskId } : undefined;
-    const qs = params ? new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-    ).toString() : '';
+    const qs = params
+      ? new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : '';
     return api.get<GenerationStatus>(
       `/projects/${projectId}/drafts/status${qs ? `?${qs}` : ''}`
     );
@@ -507,10 +572,16 @@ export const projectService = {
    */
   async cancelGeneration(projectId: string, taskId?: string): Promise<void> {
     const params = taskId ? { task_id: taskId } : undefined;
-    const cancelQs = params ? new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-    ).toString() : '';
-    await api.post(`/projects/${projectId}/drafts/cancel${cancelQs ? `?${cancelQs}` : ''}`);
+    const cancelQs = params
+      ? new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : '';
+    await api.post(
+      `/projects/${projectId}/drafts/cancel${cancelQs ? `?${cancelQs}` : ''}`
+    );
   },
 };
 

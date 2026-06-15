@@ -5,7 +5,7 @@ Test API key authentication security for public endpoints
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from src.main import app
@@ -45,7 +45,7 @@ class TestAPIKeyAuthentication:
             "key_prefix": self.expired_api_key[:8],
             "is_active": True,
             "rate_limit_per_hour": 100,
-            "expires_at": datetime.utcnow() - timedelta(days=1),  # Expired yesterday
+            "expires_at": datetime.now(timezone.utc) - timedelta(days=1),  # Expired yesterday
             "usage_count": 0,
             "last_used_at": None
         }

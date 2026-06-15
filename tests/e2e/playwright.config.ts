@@ -52,12 +52,6 @@ export default defineConfig({
     actionTimeout: 10 * 1000,
     navigationTimeout: 30 * 1000,
 
-    /* Browser storage */
-    storageState: {
-      cookies: [],
-      origins: [],
-    },
-
     /* Network configuration */
     bypassCSP: true,
     userAgent: "RAG-E2E-Tests/1.0",
@@ -77,6 +71,31 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // Functional lane. Suites below are owned by other projects:
+      // accessibility/visual/performance have dedicated projects further down;
+      // mobile-responsive needs device emulation (Mobile Chrome/Safari/Tablet
+      // projects) and crashes on Desktop Chrome (touch APIs). Without this
+      // ignore, --project=chromium re-runs all of them and CI's push lane
+      // (102 tests x 1 worker x 60s timeout x 2 retries) can never finish
+      // inside the job budget.
+      testIgnore: [
+        "**/accessibility/**",
+        "**/visual/**",
+        "**/performance/**",
+        "**/mobile-responsive/**",
+        // The 3 light user-journeys suites are un-quarantined: the cookie-name
+        // mismatch that bounced login /dashboard→/login (server logged
+        // `getUser failed: 400 Auth session missing!` because @supabase/ssr keys
+        // the cookie on the URL hostname, and browser localhost:8999 vs server
+        // auth-proxy derived different names) is fixed by pinning a shared
+        // storageKey via NEXT_PUBLIC_AUTH_COOKIE_NAME (set in the e2e frontend
+        // build; unset → unchanged in prod). See frontend/src/lib/supabase/
+        // cookieOptions.ts.
+        // Still quarantined: custom-dashboard-creation (needs an unbuilt
+        // dashboard builder) and data-flow/** (test-fantasy ACID/clustering).
+        "**/user-journeys/custom-dashboard-creation.spec.ts",
+        "**/data-flow/**",
+      ],
     },
     {
       name: "firefox",
@@ -110,7 +129,6 @@ export default defineConfig({
       testMatch: "**/accessibility/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Accessibility-specific configuration
       },
     },
 
@@ -119,7 +137,6 @@ export default defineConfig({
       testMatch: "**/visual/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Visual regression configuration
         screenshot: {
           mode: "only-on-failure",
           fullPage: true,
@@ -133,7 +150,6 @@ export default defineConfig({
       testMatch: "**/performance/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Performance testing configuration
         launchOptions: {
           args: [
             "--disable-web-security",
@@ -151,17 +167,11 @@ export default defineConfig({
       testMatch: "**/multi-tenant/**/*.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
-        // Multi-tenant specific configuration
       },
     },
   ],
 
-  /* Web servers - frontend starts via npm locally; in CI the frontend
-   * container is brought up by docker-compose, so skip Playwright's webServer
-   * (the e2e-tests container does not mount ../../frontend, and BASE_URL
-   * points at http://frontend:3000 — not localhost — so reuseExistingServer
-   * cannot connect and Playwright tries to spawn an npm run dev with a
-   * missing cwd, surfacing as "spawn /bin/sh ENOENT"). */
+  /* Web server - only used locally, not in CI */
   webServer: process.env.CI
     ? undefined
     : {

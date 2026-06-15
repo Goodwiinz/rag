@@ -90,9 +90,7 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
         patch(
             "src.services.agent.checkpointer.get_checkpointer", new_callable=AsyncMock
         ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph", return_value=mock_graph
-        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
             "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
@@ -139,9 +137,7 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
         patch(
             "src.services.agent.checkpointer.get_checkpointer", new_callable=AsyncMock
         ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph", return_value=mock_graph
-        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
             "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
@@ -198,9 +194,7 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
         patch(
             "src.services.agent.checkpointer.get_checkpointer", new_callable=AsyncMock
         ),
-        patch(
-            "src.services.agent.graph.compile_agent_graph", return_value=mock_graph
-        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
             "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
@@ -212,4 +206,6 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
     job = _get_job(job_id)
     assert job is not None
     assert job["status"] == "failed"
-    assert "kaboom" in job["error"]
+    # Error detail is no longer leaked to the client-facing job record.
+    assert job["error"] == "The request could not be completed. Please retry."
+    assert "kaboom" not in job["error"]

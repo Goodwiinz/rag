@@ -227,25 +227,6 @@ class Neo4jQueryError(Neo4jException):
     error_code = "NEO4J_QUERY_ERROR"
 
 
-class QdrantException(RAGException):
-    """Raised when Qdrant operations fail."""
-
-    error_code = "QDRANT_ERROR"
-    status_code = 503
-
-
-class QdrantConnectionError(QdrantException):
-    """Raised when Qdrant connection fails."""
-
-    error_code = "QDRANT_CONNECTION_ERROR"
-
-
-class QdrantSearchError(QdrantException):
-    """Raised when a Qdrant search fails."""
-
-    error_code = "QDRANT_SEARCH_ERROR"
-
-
 class RedisException(RAGException):
     """Raised when Redis operations fail."""
 
@@ -388,9 +369,6 @@ __all__ = [
     "Neo4jException",
     "Neo4jConnectionError",
     "Neo4jQueryError",
-    "QdrantException",
-    "QdrantConnectionError",
-    "QdrantSearchError",
     "RedisException",
     "ExternalAPIException",
     "CohereException",

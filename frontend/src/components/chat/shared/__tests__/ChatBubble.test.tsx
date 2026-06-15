@@ -69,7 +69,11 @@ describe('ChatBubble', () => {
     );
 
     expect(onCitationClick).toHaveBeenCalledTimes(1);
-    expect(onCitationClick).toHaveBeenCalledWith(citations, citations[0]);
+    expect(onCitationClick).toHaveBeenCalledWith(
+      citations,
+      citations[0],
+      undefined
+    );
   });
 
   it('renders citation chips even when the assistant text has no inline citations', () => {
@@ -94,5 +98,40 @@ describe('ChatBubble', () => {
     expect(
       screen.getByRole('button', { name: /a foundational paper/i })
     ).toBeInTheDocument();
+  });
+
+  it('shows a Stopped marker when the response was stopped mid-stream', () => {
+    render(
+      <ChatBubble
+        message={{
+          role: 'assistant',
+          content: 'Partial answer that was cut off',
+          timestamp: Date.now(),
+          metadata: { stopped: true },
+        }}
+        index={0}
+      />
+    );
+
+    expect(screen.getByText('Stopped')).toBeInTheDocument();
+    expect(
+      screen.getByText('Partial answer that was cut off')
+    ).toBeInTheDocument();
+  });
+
+  it('does not show a Stopped marker for a normal response', () => {
+    render(
+      <ChatBubble
+        message={{
+          role: 'assistant',
+          content: 'A complete answer',
+          timestamp: Date.now(),
+          metadata: { responseTimeMs: 1200 },
+        }}
+        index={0}
+      />
+    );
+
+    expect(screen.queryByText('Stopped')).not.toBeInTheDocument();
   });
 });

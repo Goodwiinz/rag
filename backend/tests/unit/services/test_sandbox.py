@@ -20,11 +20,17 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.unit]
 
 # ---------------------------------------------------------------------------
 # Stub heavy imports so tools_impl can be imported in a minimal test env.
-# These stubs are only applied when the real packages are absent.
+#
+# Stubs are installed by the module-scoped `_isolated_import_stubs` fixture
+# below and sys.modules is fully restored afterwards. They used to be
+# installed at import time and never removed; "not in sys.modules" means
+# "not imported yet", not "not installed", so on a fresh interpreter this
+# replaced real packages (boto3, PIL, tiktoken, ...) with mocks for every
+# test collected after this file — silent cross-test poisoning.
 # ---------------------------------------------------------------------------
 
 def _stub_if_missing(name: str) -> None:
-    """Insert a MagicMock stub for *name* (and each prefix) if not installed."""
+    """Insert an empty module stub for *name* (and each prefix) if not loaded."""
     if name not in sys.modules:
         parts = name.split(".")
         for i in range(1, len(parts) + 1):
@@ -33,7 +39,7 @@ def _stub_if_missing(name: str) -> None:
                 sys.modules[key] = ModuleType(key)
 
 
-for _mod in [
+_LIGHT_STUBS = [
     "langchain_core",
     "langchain_core.runnables",
     "langchain_core.tools",
@@ -47,8 +53,29 @@ for _mod in [
     "qdrant_client",
     "neo4j",
     "structlog",
-]:
-    _stub_if_missing(_mod)
+]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_import_stubs():
+    """Install the import stubs this module needs, then restore sys.modules.
+
+    Everything added while this module's tests run (stubs, the fake
+    src.api.agent package hierarchy from _import_tools_impl, transitively
+    imported modules) is removed at teardown, and any entry that was
+    overwritten is restored — later test modules import the real thing.
+    """
+    saved = dict(sys.modules)
+    for _mod in _LIGHT_STUBS:
+        _stub_if_missing(_mod)
+    for _stub_name in _HEAVY_STUBS:
+        _make_stub(_stub_name)
+    yield
+    for key in [k for k in sys.modules if k not in saved]:
+        del sys.modules[key]
+    for key, mod in saved.items():
+        if sys.modules.get(key) is not mod:
+            sys.modules[key] = mod
 
 
 # ---------------------------------------------------------------------------
@@ -509,8 +536,8 @@ _HEAVY_STUBS = [
     "pymupdf",
     "fitz",
 ]
-for _stub_name in _HEAVY_STUBS:
-    _make_stub(_stub_name)
+# Installed (and later removed) by the module-scoped _isolated_import_stubs
+# fixture at the top of this file — never at import time.
 
 
 def _import_tools_impl():
@@ -744,3 +771,79 @@ class TestToolExecuteCode:
             call_kwargs[1].get("thread_id") == "my-thread-id"
             or call_kwargs[0][0] == "my-thread-id"
         )
+
+    async def test_nonzero_exit_without_structured_error_sets_stderr_as_error(self):
+        """Regression: non-zero exit with error=None used to return NO "error"
+        key, so classify_error_from_payload marked the run completed and the
+        LLM was told the code succeeded."""
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="",
+                stderr="Traceback: ZeroDivisionError\n",
+                exit_code=1,
+                execution_time_ms=12,
+                error=None,
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "1/0"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "error"
+        assert result["error"] == "Traceback: ZeroDivisionError"
+
+    async def test_nonzero_exit_with_empty_stderr_gets_generic_error(self):
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="", stderr="", exit_code=137, execution_time_ms=12, error=None
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "while True: pass"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "error"
+        assert result["error"] == "Code exited with status 137"
+
+    async def test_zero_exit_has_no_spurious_error_key(self):
+        from src.services.sandbox.e2b_sandbox_manager import ExecutionResult
+
+        tools_impl = _import_tools_impl()
+        mock_mgr = AsyncMock()
+        mock_mgr.is_available = True
+        mock_mgr.execute = AsyncMock(
+            return_value=ExecutionResult(
+                stdout="ok\n", stderr="", exit_code=0, execution_time_ms=5
+            )
+        )
+
+        with patch(
+            "src.services.sandbox.e2b_sandbox_manager.get_sandbox_manager",
+            return_value=mock_mgr,
+        ):
+            result = await tools_impl._tool_execute_code(
+                {"code": "print('ok')"}, current_user=_mock_user()
+            )
+
+        assert result["status"] == "success"
+        assert "error" not in result

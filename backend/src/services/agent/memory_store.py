@@ -1,11 +1,14 @@
-"""Persistent agent memory store with PostgreSQL + Qdrant semantic retrieval.
+"""Persistent agent memory store (PostgreSQL).
 
 Stores user insights, preferences, and context extracted from conversations.
-PostgreSQL provides durability; Qdrant provides semantic search.
-Gracefully degrades if Qdrant or embeddings are unavailable.
+Durable rows live in the ``agent_memories`` table. Semantic recall is served
+by the LangGraph ``AsyncPostgresStore`` (pgvector) in ``memory.py`` — the
+former Qdrant client here was orphaned after Qdrant was dropped and has been
+removed. See [[project_rag_dropped_qdrant]].
 """
 
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -13,7 +16,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import get_settings
+from src.services.agent._pii_redact import redact_pii
 
 logger = logging.getLogger(__name__)
 
@@ -24,68 +27,46 @@ logger = logging.getLogger(__name__)
 agent_memories = sa.Table(
     "agent_memories",
     sa.MetaData(),
-    sa.Column("id", postgresql.UUID(), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+    sa.Column(
+        "id",
+        postgresql.UUID(),
+        primary_key=True,
+        server_default=sa.text("gen_random_uuid()"),
+    ),
     sa.Column("user_id", postgresql.UUID(), nullable=False),
     sa.Column("organization_id", postgresql.UUID(), nullable=False),
     sa.Column("content", sa.Text(), nullable=False),
     sa.Column("memory_type", sa.String(50), server_default="insight"),
     sa.Column("embedding_id", sa.String(255)),
-    sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+    sa.Column(
+        "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")
+    ),
     sa.Column("last_accessed_at", sa.DateTime(timezone=True)),
     sa.Column("access_count", sa.Integer(), server_default="0"),
     sa.Column("metadata_", postgresql.JSONB(), server_default="{}"),
     sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false")),
 )
 
-# Qdrant collection name for agent memories
-QDRANT_COLLECTION = "agent_memories"
-EMBEDDING_DIMENSION = 384  # sentence-transformers default
-
-
 # ---------------------------------------------------------------------------
 # Service helpers (patchable for testing)
 # ---------------------------------------------------------------------------
 
-
-def _get_embedding_service():
-    """Get or create the embedding service. Returns None if unavailable."""
-    try:
-        from src.services.embedding.embedding_service import EmbeddingService
-        return EmbeddingService(lazy=True)
-    except Exception as e:
-        logger.warning("Embedding service unavailable: %s", e)
-        return None
-
-
-_QDRANT_CLIENT = None
-
-
-def _get_qdrant_client():
-    """Get a Qdrant client. Returns None if unavailable.
-
-    Cached at module level to avoid HTTP-client setup on every call.
-    """
-    global _QDRANT_CLIENT
-    if _QDRANT_CLIENT is not None:
-        return _QDRANT_CLIENT
-    try:
-        from qdrant_client import QdrantClient
-        settings = get_settings()
-        url = getattr(settings, "QDRANT_URL", None) or "http://localhost:6333"
-        api_key = getattr(settings, "QDRANT_API_KEY", None)
-        client = QdrantClient(url=url, api_key=api_key, timeout=10)
-        _QDRANT_CLIENT = client
-        return client
-    except Exception as e:
-        logger.warning("Qdrant client unavailable: %s", e)
-        return None
+_INSIGHTS_LLM = None
+_INSIGHTS_LLM_LOCK = threading.Lock()
 
 
 def _build_insights_llm():
-    """Build a lightweight LLM for insight extraction."""
+    """Return a cached lightweight LLM for insight extraction."""
     from src.services.agent.llm_factory import build_lightweight_llm
 
-    return build_lightweight_llm(max_tokens=512)
+    global _INSIGHTS_LLM
+    if _INSIGHTS_LLM is not None:
+        return _INSIGHTS_LLM
+    with _INSIGHTS_LLM_LOCK:
+        if _INSIGHTS_LLM is not None:  # re-check inside lock
+            return _INSIGHTS_LLM
+        _INSIGHTS_LLM = build_lightweight_llm(max_tokens=512)
+    return _INSIGHTS_LLM
 
 
 # ---------------------------------------------------------------------------
@@ -148,22 +129,26 @@ async def extract_insights(
         from langchain_core.messages import SystemMessage, HumanMessage
 
         conversation = "\n".join(
-            f"{m.get('role', 'unknown')}: {m.get('content', '')}"
+            f"{m.get('role', 'unknown')}: {redact_pii(m.get('content', ''))}"
             for m in messages
         )
 
-        result = await llm.ainvoke([
-            SystemMessage(content=(
-                "Extract key insights from this conversation that would be useful to remember "
-                "for future interactions. Focus on:\n"
-                "- User preferences and working style\n"
-                "- Research interests and topics\n"
-                "- Important context about their work\n\n"
-                "Return each insight as a numbered line (e.g., '1. User prefers concise summaries').\n"
-                "Return only the insights, nothing else."
-            )),
-            HumanMessage(content=conversation),
-        ])
+        result = await llm.ainvoke(
+            [
+                SystemMessage(
+                    content=(
+                        "Extract key insights from this conversation that would be useful to remember "
+                        "for future interactions. Focus on:\n"
+                        "- User preferences and working style\n"
+                        "- Research interests and topics\n"
+                        "- Important context about their work\n\n"
+                        "Return each insight as a numbered line (e.g., '1. User prefers concise summaries').\n"
+                        "Return only the insights, nothing else."
+                    )
+                ),
+                HumanMessage(content=conversation),
+            ]
+        )
 
         # Parse numbered lines into a list
         raw = result.content if isinstance(result.content, str) else str(result.content)

@@ -26,6 +26,7 @@ export function ProjectPickerPopover({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [binding, setBinding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const abortRef = useRef<AbortController>();
 
@@ -68,14 +69,19 @@ export function ProjectPickerPopover({
 
   const handleSelect = async (projectId: string, projectName: string) => {
     setBinding(true);
+    setError(null);
     try {
-      await linkThreadToProject(projectId, {
+      const response = await linkThreadToProject(projectId, {
         thread_id: threadId,
       });
-      onProjectBound(projectId, projectName);
-      setOpen(false);
+      if (response) {
+        onProjectBound(projectId, projectName);
+        setOpen(false);
+      } else {
+        setError('Failed to link thread to project');
+      }
     } catch {
-      // Network error — still close to avoid stuck state
+      setError('Network error — please try again');
     } finally {
       setBinding(false);
     }
@@ -106,6 +112,11 @@ export function ProjectPickerPopover({
           />
         </div>
 
+        {error && (
+          <div className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]">
+            {error}
+          </div>
+        )}
         <div className="max-h-[200px] overflow-y-auto p-1">
           {loading && projects.length === 0 ? (
             <div className="flex items-center justify-center py-6">

@@ -32,13 +32,22 @@ def test_ingest_arxiv_papers_marked_destructive() -> None:
 
 
 @pytest.mark.unit
-def test_writing_prompt_documents_recovery_path() -> None:
-    """System prompt must constrain ingest to the recovery path only."""
+def test_search_arxiv_present_and_read_only() -> None:
+    """Title resolution requires search_arxiv, and it must not be HITL-gated."""
+    assert "search_arxiv" in WRITING_TOOL_NAMES_LIST
+    assert any(t.name == "search_arxiv" for t in WRITING_TOOLS)
+    # Read-only discovery — must NOT trigger the destructive-tool confirmation.
+    assert "search_arxiv" not in WRITING_DESTRUCTIVE_TOOLS
+
+
+@pytest.mark.unit
+def test_writing_prompt_documents_title_resolution() -> None:
+    """System prompt must tell the agent to resolve titles itself, not ask for ids."""
     prompt = _build_writing_system_prompt()
     assert "ingest_arxiv_papers" in prompt
-    assert "RECOVERY ONLY" in prompt
-    assert "error_type='recoverable'" in prompt
-    assert "Never call this tool unprompted" in prompt
+    assert "search_arxiv" in prompt
+    # The protocol must cover the title → search → ingest path.
+    assert "title" in prompt.lower()
 
 
 @pytest.mark.unit

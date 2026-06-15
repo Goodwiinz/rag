@@ -1,4 +1,4 @@
-import { logger, task } from "@trigger.dev/sdk/v3";
+import { logger, task } from "@trigger.dev/sdk";
 import { backendClient } from "../_lib/backend-client";
 import type { CacheWarmPayload } from "../_lib/schemas";
 

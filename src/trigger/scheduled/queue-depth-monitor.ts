@@ -1,4 +1,4 @@
-import { logger, schedules } from "@trigger.dev/sdk/v3";
+import { logger, schedules } from "@trigger.dev/sdk";
 import { backendClient } from "../_lib/backend-client";
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_DIGEST_WEBHOOK_URL;

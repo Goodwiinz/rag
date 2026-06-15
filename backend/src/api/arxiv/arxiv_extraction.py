@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.core.dependencies import get_current_user
+from src.models.user import User
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
 from src.services.processing.entity_extraction_service import EntityExtractionService
@@ -45,12 +46,14 @@ class ExtractionResponse(BaseModel):
     results: List[Dict[str, Any]]
 
 
-def _get_organization_id(current_user: Dict[str, Any]) -> str:
-    """Resolve organization ID from token payload with a deterministic fallback."""
-    organization_id = (
-        current_user.get("organization_id")
-        or (current_user.get("organization") or {}).get("id")
-        or current_user.get("org_id")
+def _get_organization_id(current_user: User) -> str:
+    """Resolve organization ID from the authenticated User with a deterministic fallback.
+
+    ``get_current_user`` returns a ``User`` ORM object (organization eagerly
+    loaded), NOT a dict — so this reads attributes, never ``.get()``.
+    """
+    organization_id = current_user.organization_id or (
+        current_user.organization.id if current_user.organization else None
     )
     return str(organization_id) if organization_id else str(uuid.uuid4())
 
@@ -84,7 +87,7 @@ def _serialize_entities(entities: List[Any]) -> Dict[str, Any]:
 async def extract_paper_features(
     request: ExtractionRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Extract features from ArXiv papers
@@ -270,7 +273,7 @@ async def get_extracted_features(
         None, description="Get features for specific paper"
     ),
     limit: int = Query(default=50, description="Maximum number of papers to return"),
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get previously extracted features for papers
@@ -285,14 +288,20 @@ async def get_extracted_features(
         extracted_features = []
 
         async for db in get_db_session():
-            # Build query
+            # Build query — scoped to the caller's org and non-deleted docs.
+            # Previously unscoped, returning every org's extracted features.
+            # The arXiv id is stored in the document_metadata JSON under
+            # "arxiv_id" (Document has no external_id column), so filter on that.
             stmt = select(Document).where(
-                Document.external_id.isnot(None),
                 Document.document_metadata.isnot(None),
+                Document.organization_id == current_user.organization_id,
+                Document.is_deleted == False,
             )
 
             if paper_id:
-                stmt = stmt.where(Document.external_id == paper_id)
+                stmt = stmt.where(
+                    Document.document_metadata["arxiv_id"].astext == paper_id
+                )
 
             stmt = stmt.limit(limit)
 
@@ -306,7 +315,7 @@ async def get_extracted_features(
 
                 extracted_features.append(
                     {
-                        "paper_id": doc.external_id,
+                        "paper_id": metadata.get("arxiv_id"),
                         "title": doc.title,
                         "features": metadata.get("extracted_features", {}),
                         "extracted_at": metadata.get("features_extracted_at"),
@@ -326,7 +335,7 @@ async def get_extracted_features(
 
 @router.post("/bulk-extract")
 async def bulk_extract_features(
-    request: dict, current_user: dict = Depends(get_current_user)
+    request: dict, current_user: User = Depends(get_current_user)
 ):
     """
     Bulk extract features from recent papers in specified categories

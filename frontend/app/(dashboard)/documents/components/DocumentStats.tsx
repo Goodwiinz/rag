@@ -1,18 +1,4 @@
-import { Card, CardContent } from '@/components/ui/card';
-import {
-  FolderOpen,
-  CheckCircle2,
-  Loader,
-  AlertTriangle,
-  LucideIcon,
-} from 'lucide-react';
-
-interface StatItem {
-  label: string;
-  value: number;
-  icon: LucideIcon;
-  iconClass: string;
-}
+import { FolderOpen, CheckCircle2, Loader, AlertTriangle } from 'lucide-react';
 
 interface DocumentStatsProps {
   stats: {
@@ -24,55 +10,58 @@ interface DocumentStatsProps {
 }
 
 export function DocumentStats({ stats }: DocumentStatsProps) {
-  const statItems: StatItem[] = [
-    {
-      label: 'Total documents',
-      value: stats.total,
-      icon: FolderOpen,
-      iconClass: 'text-primary',
-    },
-    {
-      label: 'Indexed',
-      value: stats.visible_indexed,
-      icon: CheckCircle2,
-      iconClass: 'text-[var(--nous-terra)]',
-    },
-    {
-      label: 'Processing',
-      value: stats.visible_processing,
-      icon: Loader,
-      iconClass: 'text-[var(--nous-helios)]',
-    },
-    {
-      label: 'Failed',
-      value: stats.visible_failed,
-      icon: AlertTriangle,
-      iconClass: 'text-[var(--nous-mars)]',
-    },
-  ];
-
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {statItems.map((stat) => (
-        <Card key={stat.label} className="border-border bg-card shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-2 rounded-lg bg-muted">
-                <stat.icon
-                  aria-hidden="true"
-                  className={`w-4 h-4 ${stat.iconClass}`}
-                />
-              </div>
-            </div>
-            <div className="text-2xl font-semibold text-foreground tabular-nums">
-              {stat.value}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {stat.label}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="inline-flex items-center gap-4 flex-wrap">
+      <StatPill
+        icon={FolderOpen}
+        value={stats.total}
+        label="Total"
+        color="text-muted-foreground"
+        bg="bg-muted"
+      />
+      <StatPill
+        icon={CheckCircle2}
+        value={stats.visible_indexed}
+        label="Indexed"
+        color="text-[var(--nous-terra)]"
+        bg="bg-[var(--nous-terra)]/10"
+      />
+      <StatPill
+        icon={Loader}
+        value={stats.visible_processing}
+        label="Processing"
+        color="text-[var(--nous-helios)]"
+        bg="bg-[var(--nous-helios)]/10"
+      />
+      <StatPill
+        icon={AlertTriangle}
+        value={stats.visible_failed}
+        label="Failed"
+        color="text-[var(--nous-mars)]"
+        bg="bg-[var(--nous-mars)]/10"
+      />
+    </div>
+  );
+}
+
+function StatPill({
+  icon: Icon,
+  value,
+  label,
+  color,
+  bg,
+}: {
+  icon: typeof FolderOpen;
+  value: number;
+  label: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${bg} ${color}`}>
+      <Icon aria-hidden="true" className="w-3.5 h-3.5" />
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
+      <span className="text-xs opacity-70">{label}</span>
     </div>
   );
 }

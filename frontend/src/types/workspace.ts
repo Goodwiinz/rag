@@ -146,6 +146,8 @@ export interface Thread {
   created_by_id?: string;
   created_at: string;
   updated_at: string;
+  /** Project this thread is bound to (drives chat project context). */
+  source_project_id?: string | null;
 }
 
 export interface ThreadDetail extends Thread {
@@ -232,6 +234,8 @@ export interface ChatMessageCreate {
   role?: MessageRole;
   attachment_ids?: string[];
   citations?: CitationCreate[]; // Citations from RAG retrieval
+  latency_ms?: number; // Client-measured response time (ms)
+  stopped?: boolean; // User stopped this response mid-stream
 }
 
 export interface ChatMessageUpdate {
@@ -247,6 +251,7 @@ export interface ChatMessage {
   role: MessageRole;
   token_count: number;
   latency_ms?: number;
+  stopped?: boolean;
   model_name?: string;
   model_version?: string;
   tool_name?: string;

@@ -1,0 +1,37 @@
+{
+  "case": "ingest_arxiv_id_only",
+  "expected_intent": "research",
+  "expected_tools": [
+    "ingest_arxiv_papers"
+  ],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "research",
+        "confidence": 0.96,
+        "reasoning": "User requests ingestion/adding a specific arXiv paper to their library \u2014 this is a document ingestion / retrieval (research) action targeting the indexed document corpus."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "ingest_arxiv_papers",
+            "args": {
+              "paper_ids": [
+                "1706.03762"
+              ]
+            },
+            "id": "call_9neC814bMOx8rYPUjw6Pj0hD"
+          }
+        ]
+      }
+    }
+  ]
+}

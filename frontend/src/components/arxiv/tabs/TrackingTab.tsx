@@ -43,9 +43,13 @@ export function TrackingTab({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="text-base font-semibold text-foreground">
-          Track new and updated papers
-        </h3>
+        <h2 className="text-base font-semibold text-foreground">
+          Find new and updated papers
+        </h2>
+        <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+          Checks your selected arXiv categories for papers added or updated
+          within the lookback window.
+        </p>
         <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
           {selectedCategories.length} categories selected, {daysBack} day
           lookback.
@@ -60,18 +64,19 @@ export function TrackingTab({
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
-                Workspace scan required
+                Sign in to check for new papers
               </p>
               <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
-                Change scans update the tracked corpus for your workspace. Sign
-                in to run scans, or keep using public search and statistics.
+                Checking for new papers updates the tracked corpus for your
+                workspace. Sign in to enable it, or keep using public search and
+                statistics.
               </p>
               <a
                 href="/login"
                 className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
-                Sign in to run scans
+                Sign in
               </a>
             </div>
           </div>
@@ -82,9 +87,9 @@ export function TrackingTab({
         <div className="space-y-5 xl:col-span-5">
           <div className="space-y-4 rounded-xl border border-border bg-background p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-medium text-foreground">
+              <h3 className="text-sm font-medium text-foreground">
                 Category filter
-              </h4>
+              </h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -178,7 +183,7 @@ export function TrackingTab({
               ) : (
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
               )}
-              Run Change Scan
+              Check for new papers
             </button>
 
             <button

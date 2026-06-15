@@ -24,7 +24,9 @@ interface ChatDialogsProps {
   setDeleteDialog: React.Dispatch<React.SetStateAction<DeleteDialogState>>;
   commitDeleteThread: () => void;
   bulkDeleteDialog: BulkDeleteDialogState;
-  setBulkDeleteDialog: React.Dispatch<React.SetStateAction<BulkDeleteDialogState>>;
+  setBulkDeleteDialog: React.Dispatch<
+    React.SetStateAction<BulkDeleteDialogState>
+  >;
   commitBulkDelete: () => void;
 }
 
@@ -67,14 +69,14 @@ export function ChatDialogs({
           />
           <AlertDialogFooter>
             <AlertDialogCancel
-              className="text-xs uppercase tracking-wider"
+              className="text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitRename}
-              className="text-xs uppercase tracking-wider"
+              className="text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Rename
@@ -105,14 +107,14 @@ export function ChatDialogs({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
-              className="text-xs uppercase tracking-wider"
+              className="text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitDeleteThread}
-              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs uppercase tracking-wider"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete
@@ -143,14 +145,14 @@ export function ChatDialogs({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
-              className="text-xs uppercase tracking-wider"
+              className="text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitBulkDelete}
-              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs uppercase tracking-wider"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete all

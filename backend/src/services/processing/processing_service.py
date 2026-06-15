@@ -69,11 +69,22 @@ class ProcessingPipeline:
         self.audio_processor = AudioProcessingService()
         self.video_processor = VideoProcessingService()
 
-    async def process_document(self, document_id: str, user_id: str) -> ProcessingJob:
-        """Start processing for a document"""
-        stmt = select(Document).where(
-            Document.id == document_id, Document.is_deleted == False
-        ).with_for_update()
+    async def process_document(
+        self,
+        document_id: str,
+        user_id: str,
+        organization_id: Optional[str] = None,
+    ) -> ProcessingJob:
+        """Start processing for a document.
+
+        ``organization_id`` scopes the lookup to the caller's tenant — without
+        it any authenticated user could start (and create a job against)
+        another org's document by id.
+        """
+        conditions = [Document.id == document_id, Document.is_deleted == False]
+        if organization_id is not None:
+            conditions.append(Document.organization_id == organization_id)
+        stmt = select(Document).where(*conditions).with_for_update()
         document = self.db.execute(stmt).scalar_one_or_none()
 
         if not document:
@@ -585,19 +596,9 @@ class ProcessingPipeline:
     async def process_embedding_generation(self, document: Document, text: str) -> str:
         """Generate embeddings for document text using Azure OpenAI"""
         try:
-            from datetime import datetime
-
-            import numpy as np
-
-            from src.models.vector import (
-                VectorCollectionType,
-                VectorEntry,
-                VectorMetadata,
-            )
             from src.services.infrastructure.azure_openai_service import (
                 azure_openai_service,
             )
-            from src.services.search.vector_service import vector_service
 
             # Check if Azure OpenAI embedding service is available
             if not azure_openai_service.is_embedding_available():
@@ -636,44 +637,21 @@ class ProcessingPipeline:
                         logger.error(f"Failed to get embedding for chunk: {str(e)}")
                         continue
 
+            # DEPRECATED: Qdrant was the vector store here, but it has been
+            # dropped in favor of DO KB (DigitalOcean Knowledge Base). Documents
+            # now reach retrieval via sync_document_to_kb, called from the
+            # ingestion tasks (see tasks/processing_tasks.py). This method no
+            # longer persists embeddings anywhere; the Qdrant write was removed
+            # so it cannot fail against the absent backend. Kept as a no-op to
+            # avoid breaking remaining callers.
             if embeddings:
-                # Average embeddings to create document-level embedding
-                final_embedding = np.mean(embeddings, axis=0)
-                embedding_id = str(uuid.uuid4())
-
-                # Create metadata for the vector
-                metadata = VectorMetadata(
-                    document_id=str(document.id),
-                    organization_id=str(document.organization_id),
-                    content_type=document.document_type.value,
-                    source_type="document",
-                    timestamp=datetime.utcnow(),
+                logger.debug(
+                    "process_embedding_generation is a no-op for document %s; "
+                    "DO KB sync owns indexing now",
+                    document.id,
                 )
-
-                # Create vector entry
-                vector_entry = VectorEntry(
-                    id=embedding_id,
-                    vector=final_embedding.tolist(),
-                    text=text[:1000],  # Store first 1000 chars as preview
-                    metadata=metadata,
-                )
-
-                # Store in Qdrant
-                result = vector_service.insert_vectors(
-                    collection_type=VectorCollectionType.DOCUMENTS,
-                    vectors=[vector_entry],
-                )
-
-                if result.success:
-                    logger.info(
-                        f"Successfully stored embedding for document {document.id} in Qdrant using Azure OpenAI"
-                    )
-                    return embedding_id
-                else:
-                    logger.error(f"Failed to store embedding in Qdrant: {result.error}")
-                    return None
-
-            logger.warning(f"No embeddings generated for document {document.id}")
+            else:
+                logger.warning(f"No embeddings generated for document {document.id}")
             return None
 
         except Exception as e:

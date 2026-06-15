@@ -7,7 +7,7 @@ import pytest
 import asyncio
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -379,7 +379,7 @@ class TestErrorHandlingIntegration:
 
             # Check if circuit is open
             if circuit_open:
-                if datetime.utcnow() - last_failure_time > timedelta(seconds=timeout_duration):
+                if datetime.now(timezone.utc) - last_failure_time > timedelta(seconds=timeout_duration):
                     # Try to close circuit
                     circuit_open = False
                     failure_count = 0
@@ -408,7 +408,7 @@ class TestErrorHandlingIntegration:
             # Check if we should open the circuit
             if failure_count >= 3:  # Failure threshold
                 circuit_open = True
-                last_failure_time = datetime.utcnow()
+                last_failure_time = datetime.now(timezone.utc)
                 return Mock(status_code=503, json=lambda: {"error": "Circuit breaker opened"})
 
             return response
@@ -442,8 +442,8 @@ class TestErrorHandlingIntegration:
                 "organization_id": str(org_id),
                 "metric_type": "entity",
                 "time_bucket": "day",
-                "start_time": (datetime.utcnow() - timedelta(days=7)).isoformat(),
-                "end_time": datetime.utcnow().isoformat()
+                "start_time": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat()
             },
             headers=auth_headers
         )

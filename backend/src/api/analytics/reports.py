@@ -9,8 +9,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 
-from src.auth.dependencies import get_current_user
-from src.models.analytics.analytics_models import AnalyticsReport
+from src.core.dependencies import get_current_user
 from src.models.user import User
 from src.services.analytics.report_service import report_service
 
@@ -19,7 +18,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["analytics-reports"])
 
 
-@router.post("/", response_model=AnalyticsReport, status_code=status.HTTP_201_CREATED)
+# response_model omitted: endpoints return the AnalyticsReport ORM object, which
+# is not a valid Pydantic response field (no report response schema exists).
+@router.post("/", response_model=None, status_code=status.HTTP_201_CREATED)
 async def create_report(
     name: str,
     title: str,
@@ -53,7 +54,7 @@ async def create_report(
         )
 
 
-@router.get("/", response_model=List[AnalyticsReport])
+@router.get("/", response_model=None)
 async def list_reports(
     limit: int = Query(50, ge=1, le=100, description="Number of reports to return"),
     offset: int = Query(0, ge=0, description="Number of reports to skip"),
@@ -77,7 +78,7 @@ async def list_reports(
         )
 
 
-@router.get("/{report_id}", response_model=AnalyticsReport)
+@router.get("/{report_id}", response_model=None)
 async def get_report(
     report_id: uuid.UUID, current_user: User = Depends(get_current_user)
 ):

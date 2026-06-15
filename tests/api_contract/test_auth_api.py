@@ -7,7 +7,7 @@ import pytest
 import json
 import uuid
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -359,7 +359,7 @@ class TestTokenRefreshAPI:
             {
                 "sub": "test@example.com",
                 "user_id": str(uuid.uuid4()),
-                "exp": datetime.utcnow() - timedelta(hours=1)  # Expired
+                "exp": datetime.now(timezone.utc) - timedelta(hours=1)  # Expired
             },
             "secret",  # This should match the actual secret
             algorithm="HS256"
@@ -725,7 +725,7 @@ class TestAuthenticationMiddleware:
             {
                 "sub": "expired@example.com",
                 "user_id": str(uuid.uuid4()),
-                "exp": datetime.utcnow() - timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) - timedelta(hours=1)
             },
             "secret",
             algorithm="HS256"

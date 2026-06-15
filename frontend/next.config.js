@@ -188,6 +188,12 @@ const nextConfig = {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin',
           },
+          // NOTE: the Content-Security-Policy is set per-request in
+          // frontend/proxy.ts with a script NONCE (no unsafe-inline) — see
+          // buildCsp() there. It must NOT also be set statically here: two CSP
+          // headers enforce their INTERSECTION, so a static unsafe-inline copy
+          // and the nonce policy would break each other. The proxy matcher
+          // covers every scripted route; the excluded paths are static assets.
         ],
       },
     ];

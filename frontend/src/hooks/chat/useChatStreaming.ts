@@ -9,7 +9,11 @@ import {
 } from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
-import { useChatStore } from '@/store/chat-store';
+import {
+  resolveBoundProjectId,
+  selectCurrentThreadProjectId,
+  useChatStore,
+} from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
@@ -17,6 +21,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
 import type { ChatMessage as DBChatMessage } from '@/types/workspace';
+
+// localStorage key for the workspace→agent thread map (see agentThreadMapRef).
+const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
+// Warn once per session when the map can't be persisted (quota/private mode).
+let warnedAgentMapWriteFailed = false;
 
 // ============================================
 // TYPES
@@ -55,6 +64,7 @@ export interface UseChatStreamingReturn {
   chatInputRef: React.RefObject<HTMLTextAreaElement>;
   storeIsStreaming: boolean;
   storeStreamingContent: string;
+  storeIsRetrievingRag: boolean;
   streamingTimestampRef: React.MutableRefObject<number>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -84,7 +94,14 @@ export function useChatStreaming(
 
   // ---- Project context (for agent page_context) ----
   const searchParams = useSearchParams();
-  const boundProjectId = searchParams.get('projectId') ?? undefined;
+  // Thread row first (source_project_id is the durable binding), URL param
+  // only as the initial intent — thread navigation (getSelectedThreadUrl)
+  // drops it. Sentinel semantics documented on selectCurrentThreadProjectId.
+  const threadProjectId = useChatStore(selectCurrentThreadProjectId);
+  const boundProjectId = resolveBoundProjectId(
+    threadProjectId,
+    searchParams.get('projectId')
+  );
   const projectStoreProjects = useProjectStore((s) => s.projects);
   const currentProject = useProjectStore((s) => s.currentProject);
   const resolvedProjectName = boundProjectId
@@ -102,9 +119,68 @@ export function useChatStreaming(
   const [isConfirming, setIsConfirming] = useState(false);
 
   // ---- Refs ----
+  // workspace thread id -> agent thread id. Persisted so a reload reuses the
+  // same agent thread (and therefore its project binding) instead of letting
+  // the backend mint a fresh unlinked one every session.
   const agentThreadMapRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(AGENT_THREAD_MAP_KEY);
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          agentThreadMapRef.current = {
+            ...(parsed as Record<string, string>),
+            ...agentThreadMapRef.current,
+          };
+        } else {
+          window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+        }
+      }
+    } catch (err) {
+      // Without the map every reload mints a fresh agent thread, so the
+      // agent "forgets" project context — make that diagnosable, and clear
+      // a corrupt value so it doesn't re-fail on every mount.
+      console.warn(
+        '[Chat] agent thread map unreadable; reloads will mint new agent threads',
+        err
+      );
+      try {
+        window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+      } catch {
+        // Storage unavailable entirely (private mode/policy) — nothing to clear.
+      }
+    }
+  }, []);
+  const rememberAgentThread = useCallback(
+    (workspaceThreadId: string, agentThreadId: string) => {
+      agentThreadMapRef.current[workspaceThreadId] = agentThreadId;
+      try {
+        window.localStorage.setItem(
+          AGENT_THREAD_MAP_KEY,
+          JSON.stringify(agentThreadMapRef.current)
+        );
+      } catch (err) {
+        if (!warnedAgentMapWriteFailed) {
+          warnedAgentMapWriteFailed = true;
+          console.warn(
+            '[Chat] failed to persist agent thread map; agent context will not survive reload',
+            err
+          );
+        }
+      }
+    },
+    []
+  );
   const lastStreamedContentRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Set the instant the user hits Stop, read by the stream-completion path so a
+  // user abort finalizes the partial answer (tagged `stopped`) instead of
+  // surfacing an error or an empty bubble. Reset once the turn is wrapped up.
+  const stoppedByUserRef = useRef(false);
+  // Workspace thread id of the in-flight run, so Stop can close out the agent
+  // activity indicator (the normal onDone never fires on abort).
+  const activeRunThreadRef = useRef<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const submitLockRef = useRef(false);
   const streamingTimestampRef = useRef(Date.now());
@@ -115,6 +191,7 @@ export function useChatStreaming(
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
+  const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
@@ -184,6 +261,12 @@ export function useChatStreaming(
             })
           );
 
+          // Register in the chat store: the binding selectors and
+          // setThreadProjectBinding read store.threads, and without this the
+          // thread is invisible there until the next full loadThreads — a
+          // project attached to it would be silently dropped from the UI.
+          useChatStore.getState().registerThread(newThread);
+
           currentConversationId = newThread.id;
           currentThreadId = newThread.id;
 
@@ -230,12 +313,20 @@ export function useChatStreaming(
         lastStreamedContentRef.current = '';
         let streamHadError = false;
         let streamHadConfirmation = false;
+        const responseStart = Date.now();
 
         // Set streaming state in store for UI
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
+          // Only "retrieving" when RAG is on; cleared on first token / context.
+          isRetrievingRag: enableRAG,
         });
+
+        // Fresh turn — clear any stop flag from a previous run and record the
+        // thread so Stop can finalize this run's activity indicator.
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = currentThreadId || null;
 
         if (currentThreadId) {
           useAgentActivityStore
@@ -258,6 +349,13 @@ export function useChatStreaming(
                 project_id: boundProjectId,
                 project_name: resolvedProjectName || '',
               }),
+              // The project is bound to the WORKSPACE thread, but this stream
+              // runs on a separate agent thread. The backend uses this id to
+              // resolve (and durably adopt) the bound project when the URL
+              // param has been dropped by thread navigation.
+              ...(currentThreadId && {
+                metadata: { workspace_thread_id: currentThreadId },
+              }),
             },
             use_rag: enableRAG,
             thread_id: existingAgentThreadId,
@@ -274,6 +372,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -300,6 +399,7 @@ export function useChatStreaming(
               console.log('[Agent] RAG contexts:', contexts.length);
               useChatStore.setState({
                 streamingCitations: contexts,
+                isRetrievingRag: false,
               });
             },
             onPlan: (steps) => {
@@ -328,7 +428,7 @@ export function useChatStreaming(
             onTrace: (threadId) => {
               // Capture agent thread_id from trace event for subsequent sends
               if (currentThreadId) {
-                agentThreadMapRef.current[currentThreadId] = threadId;
+                rememberAgentThread(currentThreadId, threadId);
               }
             },
             onConfirmation: (threadId, confirmation) => {
@@ -336,7 +436,7 @@ export function useChatStreaming(
               streamHadConfirmation = true;
               // Store agent thread ID for confirmation flow
               if (currentThreadId) {
-                agentThreadMapRef.current[currentThreadId] = threadId;
+                rememberAgentThread(currentThreadId, threadId);
               }
               setPendingConfirmation({
                 threadId,
@@ -396,19 +496,25 @@ export function useChatStreaming(
         // the UI side.
         const finalContent = assistantContent || lastStreamedContentRef.current;
         if (!finalContent.trim()) {
-          const emptyResponseMessage: ChatPageMessage = {
-            role: 'assistant',
-            content:
-              '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
-            timestamp: Date.now(),
-          };
-          setMessages([...newMessages, emptyResponseMessage]);
+          // A user-stop before the first token: just unwind quietly — no error
+          // bubble for an answer the user chose not to wait for.
+          if (!stoppedByUserRef.current) {
+            const emptyResponseMessage: ChatPageMessage = {
+              role: 'assistant',
+              content:
+                '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
+              timestamp: Date.now(),
+            };
+            setMessages([...newMessages, emptyResponseMessage]);
+          }
           useChatStore.setState({
             isStreaming: false,
             streamingContent: '',
             streamingCitations: [],
           });
           setIsLoading(false);
+          stoppedByUserRef.current = false;
+          activeRunThreadRef.current = null;
           return;
         }
 
@@ -417,11 +523,19 @@ export function useChatStreaming(
         // so the virtual streaming bubble unmounts atomically with the real one
         // mounting. Otherwise the final message and the streaming bubble render
         // together during the (awaited) DB save window below.
+        const responseTimeMs = Date.now() - responseStart;
+        const wasStopped = stoppedByUserRef.current;
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
+          metadata: {
+            responseTimeMs,
+            ...(wasStopped ? { stopped: true } : {}),
+          },
         };
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = null;
 
         useChatStore.setState({
           isStreaming: false,
@@ -449,8 +563,14 @@ export function useChatStreaming(
               thread_id: currentThreadId,
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
+              latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
             });
-            addMessageToStore(currentThreadId, savedAssistantMessage);
+            addMessageToStore(currentThreadId, {
+              ...savedAssistantMessage,
+              latency_ms: responseTimeMs,
+              ...(wasStopped ? { stopped: true } : {}),
+            });
             console.log('[Chat] Saved messages to database');
           } catch (error) {
             console.error('[Chat] Failed to save messages:', error);
@@ -466,19 +586,23 @@ export function useChatStreaming(
           )
         );
       } catch (err) {
-        console.error('Failed to send message:', err);
-        const errorMessage =
-          'Error: ' +
-          (err instanceof Error ? err.message : 'Failed to get response');
+        // A user stop should never read as a failure. (streamMessage already
+        // swallows AbortError, but guard here too in case the abort surfaces.)
+        if (!stoppedByUserRef.current) {
+          console.error('Failed to send message:', err);
+          const errorMessage =
+            'Error: ' +
+            (err instanceof Error ? err.message : 'Failed to get response');
 
-        setMessages([
-          ...newMessages,
-          {
-            role: 'assistant',
-            content: errorMessage,
-            timestamp: Date.now(),
-          },
-        ]);
+          setMessages([
+            ...newMessages,
+            {
+              role: 'assistant',
+              content: errorMessage,
+              timestamp: Date.now(),
+            },
+          ]);
+        }
       } finally {
         submitLockRef.current = false;
         setIsLoading(false);
@@ -488,6 +612,8 @@ export function useChatStreaming(
           streamingCitations: [],
         });
         lastStreamedContentRef.current = '';
+        stoppedByUserRef.current = false;
+        activeRunThreadRef.current = null;
       }
     },
     [
@@ -507,21 +633,31 @@ export function useChatStreaming(
       selectedModel,
       isAuthenticated,
       addMessageToStore,
+      boundProjectId,
+      resolvedProjectName,
+      rememberAgentThread,
     ]
   );
 
   const handleStop = useCallback(() => {
+    // Mark the stop first so the stream-completion path (which runs right after
+    // the abort makes streamMessage resolve) keeps the partial answer and tags
+    // it `stopped`, rather than wiping it here and racing the commit.
+    stoppedByUserRef.current = true;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    setIsLoading(false);
+
+    // Close out the agent activity indicator — onDone won't fire on abort.
+    const runThread = activeRunThreadRef.current;
+    if (runThread) {
+      useAgentActivityStore.getState().finishRun(runThread, 'done');
+    }
+
+    // The store-driven streaming path (used by the non-cloud chat) finalizes
+    // through its own action; keep that contract intact.
     if (storeIsStreaming) {
       storeStopStreaming();
     }
-    useChatStore.setState({
-      isStreaming: false,
-      streamingContent: '',
-      streamingCitations: [],
-    });
   }, [storeIsStreaming, storeStopStreaming]);
 
   const handleConfirmation = useCallback(
@@ -549,6 +685,7 @@ export function useChatStreaming(
                   if (pendingStreamContentRef.current !== null) {
                     useChatStore.setState({
                       streamingContent: pendingStreamContentRef.current,
+                      isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
                   }
@@ -625,6 +762,7 @@ export function useChatStreaming(
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
+    storeIsRetrievingRag,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,

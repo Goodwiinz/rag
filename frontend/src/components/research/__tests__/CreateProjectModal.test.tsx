@@ -27,17 +27,20 @@ describe('CreateProjectModal', () => {
       />
     );
 
-    fireEvent.change(screen.getByPlaceholderText('e.g., ML Healthcare'), {
+    fireEvent.change(screen.getByPlaceholderText('e.g. ML Healthcare review'), {
       target: { value: 'ML Healthcare' },
     });
     fireEvent.change(screen.getByPlaceholderText('Short project summary'), {
       target: { value: 'Project description' },
     });
-    fireEvent.change(screen.getByDisplayValue('Research'), {
-      target: { value: 'thesis' },
+
+    // shadcn Select — click the trigger to open, then select an option
+    fireEvent.click(screen.getByRole('combobox', { name: /type/i }));
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('option', { name: /thesis/i }));
     });
 
-    fireEvent.change(screen.getByPlaceholderText('Add tag and press Enter'), {
+    fireEvent.change(screen.getByPlaceholderText('Add a tag'), {
       target: { value: 'ml' },
     });
     fireEvent.click(screen.getByRole('button', { name: /add tag/i }));

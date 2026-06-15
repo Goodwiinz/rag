@@ -35,6 +35,42 @@ from src.services.search.fulltext_search_service import fulltext_search_service
 logger = logging.getLogger(__name__)
 
 
+def _sync_document_to_kb_blocking(document) -> str | None:
+    """Push a document to DO KB from a synchronous Celery task.
+
+    DO KB (DigitalOcean Knowledge Base) is the retrieval backend after Qdrant
+    was dropped. ``sync_document_to_kb`` is async and needs an async session,
+    while these tasks hold a sync ``SessionLocal`` — bridge the sync-loaded ORM
+    object into a fresh ``AsyncSessionLocal`` via ``merge()`` (synchronous in
+    SQLAlchemy 2.0 — do NOT await), mirroring ``api/agent/tools_impl.py``.
+
+    Returns the data-source uuid, or ``None`` when DO KB is disabled or the
+    sync fails. Never raises — ingestion must not fail on a KB outage.
+    """
+    async def _run() -> str | None:
+        from src.core.database import AsyncSessionLocal
+        from src.services.do_kb import sync_document_to_kb
+
+        async with AsyncSessionLocal() as kb_db:
+            # merge() is synchronous in SQLAlchemy 2.0; awaiting it raises.
+            merged = kb_db.merge(document)
+            return await sync_document_to_kb(kb_db, merged)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_run())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "DO KB sync failed for document %s: %s",
+            getattr(document, "id", "?"),
+            exc,
+        )
+        return None
+    finally:
+        loop.close()
+
+
 class ProcessingTask(Task):
     """Base class for processing tasks"""
 
@@ -199,25 +235,16 @@ def process_document_ingestion(self, job_id: str):
                     "Entities are still available in PostgreSQL."
                 )
 
-        # Step 3: Embedding Generation
+        # Step 3: Embedding Generation — push the document to DO KB, the
+        # retrieval backend (replaces the dead Qdrant write). Idempotent and
+        # gated by DO_KB_ENABLED; a None result (KB disabled/outage) is a clean
+        # no-op so ingestion still completes.
         job.update_progress("Generating embeddings", 75)
         db.commit()
 
         if document.content_text:
-            # Run embedding generation in event loop
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                embedding_id = loop.run_until_complete(
-                    processing_service.process_embedding_generation(
-                        document, document.content_text
-                    )
-                )
-            finally:
-                loop.close()
-
-            if embedding_id:
-                document.embedding_id = embedding_id
+            ds_uuid = _sync_document_to_kb_blocking(document)
+            if ds_uuid:
                 document.is_embedded = True
         db.commit()
 
@@ -368,10 +395,11 @@ def extract_entities(self, job_id: str):
         job.start_job(worker_id=self.request.id)
         db.commit()
 
-        # Extract entities
-        import asyncio as _asyncio
+        # Extract entities. asyncio.run creates + manages a fresh loop;
+        # get_event_loop().run_until_complete raises "no current event loop"
+        # / deprecation on Python 3.10+ in a worker thread.
         service = LLMEntityExtractionService()
-        extraction_result = _asyncio.get_event_loop().run_until_complete(
+        extraction_result = asyncio.run(
             service.extract_entities(document.content_text)
         )
 
@@ -450,25 +478,26 @@ def generate_embeddings(self, job_id: str):
         job.start_job(worker_id=self.request.id)
         db.commit()
 
-        # Generate embeddings
-        processing_service = ProcessingPipeline(db)
-        embedding_id = processing_service.process_embedding_generation(
-            document, document.content_text
-        )
+        # Push the document to DO KB (retrieval backend; replaces dead Qdrant).
+        ds_uuid = _sync_document_to_kb_blocking(document)
 
         # Update document
-        if embedding_id:
-            document.embedding_id = embedding_id
+        if ds_uuid:
             document.is_embedded = True
             db.commit()
 
             # Complete job
-            job.complete_job(result={"embedding_id": embedding_id})
+            job.complete_job(result={"do_kb_data_source_uuid": ds_uuid})
             db.commit()
 
-            return {"embedding_id": embedding_id, "status": "success"}
+            return {"do_kb_data_source_uuid": ds_uuid, "status": "success"}
         else:
-            raise ValueError("Failed to generate embeddings")
+            # DO KB disabled or returned nothing — not a failure. Complete the
+            # job cleanly rather than raising (there is no other embedding
+            # backend now that Qdrant is gone).
+            job.complete_job(result={"status": "skipped", "reason": "do_kb_unavailable"})
+            db.commit()
+            return {"status": "skipped", "reason": "do_kb_unavailable"}
 
     except Exception as e:
         logger.error(f"Embedding generation failed for job {job_id}: {str(e)}")
@@ -557,7 +586,6 @@ def kg_extract_entities_job(self, job_id: str):
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
 
-        import asyncio as _asyncio
         document_ids = []
         if job.parameters:
             if job.parameters.get("document_ids"):
@@ -592,11 +620,11 @@ def kg_extract_entities_job(self, job_id: str):
             db.commit()
 
             service = LLMEntityExtractionService()
-            extraction_result = _asyncio.get_event_loop().run_until_complete(
+            extraction_result = asyncio.run(
                 service.extract_entities(content, timeout_seconds=300.0)
             )
             extracted_entities = extraction_result.entities
-            extracted_relationships = []
+            extracted_relationships = extraction_result.relationships
             entities_found_total += len(extracted_entities)
             relationships_found_total += len(extracted_relationships)
 
@@ -631,41 +659,33 @@ def kg_extract_entities_job(self, job_id: str):
             entities_created_total += len(entity_result.created_entities)
             errors_total += len(entity_result.errors)
 
-            # Build a lookup from extracted entity signature to created graph node ID.
-            created_entity_id_by_key = {}
+            # Map created graph node IDs by entity name. Relationships from the
+            # LLM extractor reference entity names (already remapped to the kept
+            # merged entity's name in _resolve_relationships), so a name lookup
+            # is sufficient to resolve endpoints to the nodes just created.
+            created_id_by_name = {}
             for created in entity_result.created_entities:
-                created_key = (
-                    created.entity_type.value,
-                    created.name.strip().lower(),
-                )
-                created_entity_id_by_key[created_key] = created.id
+                created_id_by_name[created.name.strip().lower()] = created.id
 
             relationship_requests = []
             for relationship in extracted_relationships:
-                source_entity = relationship.get("source_entity")
-                target_entity = relationship.get("target_entity")
-                if not source_entity or not target_entity:
-                    continue
-
-                source_graph_type = _map_llm_entity_type_to_graph(source_entity.entity_type)
-                target_graph_type = _map_llm_entity_type_to_graph(target_entity.entity_type)
-
-                source_key = (source_graph_type.value, (source_entity.name or "").strip().lower())
-                target_key = (target_graph_type.value, (target_entity.name or "").strip().lower())
-                source_entity_id = created_entity_id_by_key.get(source_key)
-                target_entity_id = created_entity_id_by_key.get(target_key)
+                source_entity_id = created_id_by_name.get(
+                    relationship.source.strip().lower()
+                )
+                target_entity_id = created_id_by_name.get(
+                    relationship.target.strip().lower()
+                )
                 if not source_entity_id or not target_entity_id:
                     continue
 
-                confidence = float(relationship.get("confidence", 0.7))
-                confidence = min(1.0, max(0.0, confidence))
-                evidence = relationship.get("evidence")
+                confidence = min(1.0, max(0.0, float(relationship.confidence)))
+                evidence = relationship.evidence
                 relationship_requests.append(
                     CreateRelationshipRequest(
                         source_entity_id=source_entity_id,
                         target_entity_id=target_entity_id,
                         relationship_type=_safe_relationship_type(
-                            relationship.get("relationship_type", "")
+                            relationship.relationship_type
                         ),
                         strength=confidence,
                         confidence_score=confidence,
@@ -674,7 +694,6 @@ def kg_extract_entities_job(self, job_id: str):
                         metadata={
                             "source": "background_extraction_job",
                             "document_id": str(document.id),
-                            "pattern_matched": relationship.get("pattern_matched"),
                         },
                         source_document_id=str(document.id),
                     )

@@ -9,7 +9,7 @@ import sys
 import subprocess
 import argparse
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any
 
@@ -23,7 +23,7 @@ class ContractTestRunner:
 
     def __init__(self):
         self.test_results = {}
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         self.end_time = None
 
     def run_tests(self, test_type: str = "all", verbose: bool = False, html_report: bool = True):
@@ -171,7 +171,7 @@ class ContractTestRunner:
                 text=True
             )
 
-            self.end_time = datetime.utcnow()
+            self.end_time = datetime.now(timezone.utc)
             duration = (self.end_time - self.start_time).total_seconds()
 
             # Store results

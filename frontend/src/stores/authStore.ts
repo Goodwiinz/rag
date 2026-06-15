@@ -32,7 +32,7 @@ interface AuthState {
     last_name: string;
     organization_name?: string;
   }) => Promise<RegisterResult>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
@@ -58,6 +58,9 @@ function getSupabaseClient(): SupabaseClient {
 
       if (event === 'SIGNED_OUT') {
         clearWorkspaceServiceCache();
+        // Drop the cached bearer token so the shared APIClient singleton can't
+        // keep sending the signed-out user's JWT.
+        api.clearAuth();
         useAuthStore.setState({
           user: null,
           organization: null,
@@ -176,17 +179,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  signOut: () => {
+  signOut: async () => {
     clearWorkspaceServiceCache();
+    // Clear the shared APIClient token immediately so no in-flight or
+    // subsequent request can carry the old JWT, even if the network call
+    // below fails.
+    api.clearAuth();
 
-    try {
-      getSupabaseClient()
-        .auth.signOut()
-        .catch(() => {});
-    } catch {
-      // If browser auth was never configured correctly, still clear local state.
-    }
-
+    // Always clear local state first so the UI reflects signed-out
+    // immediately regardless of the network outcome.
     set({
       user: null,
       organization: null,
@@ -194,6 +195,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       error: null,
       pendingEmailConfirmation: false,
     });
+
+    try {
+      const { error } = (await getSupabaseClient().auth.signOut()) ?? {};
+      if (error) throw error;
+    } catch (error) {
+      // Surface the failure: the server-side token may NOT be revoked, so the
+      // caller can decide whether to retry / warn rather than assume a clean
+      // logout. Local state is already cleared above.
+      const message =
+        error instanceof Error ? error.message : 'Sign out failed';
+      set({ error: message });
+      throw error instanceof Error ? error : new Error(message);
+    }
   },
 
   resetPassword: async (email: string) => {
@@ -224,10 +238,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   fetchProfile: async () => {
     try {
       const supabase = getSupabaseClient();
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      // SECURITY (audit #7): gate on getUser(), which verifies the JWT with
+      // Supabase, rather than getSession(), which only reads the (forgeable)
+      // cookie — a forged session cookie must not make the app look
+      // authenticated. getSession() is then used solely to read the token to
+      // forward to /auth/me (the backend re-validates it).
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError || !sessionData.session) {
+      if (userError || !user) {
         set({
           user: null,
           organization: null,
@@ -237,7 +258,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return;
       }
 
-      const accessToken = sessionData.session.access_token;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        set({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        return;
+      }
 
       const profileData = await api.get<ProfileResponse>('/auth/me', {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -299,10 +333,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   initialize: async () => {
     try {
       const supabase = getSupabaseClient();
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
+      // SECURITY (audit #7): verify the JWT with getUser() before treating the
+      // app as authenticated; getSession() alone trusts the cookie.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-      if (sessionError || !sessionData.session) {
+      if (userError || !user) {
         set({ isAuthenticated: false, isLoading: false });
         return;
       }

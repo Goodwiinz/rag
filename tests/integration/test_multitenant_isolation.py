@@ -7,7 +7,7 @@ import pytest
 import asyncio
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
@@ -18,6 +18,7 @@ from conftest import (
     APIAssertions, create_auth_headers, create_test_user_session,
     wait_for_condition
 )
+from tests.constants import TEST_JWT_SECRET
 
 
 class TestMultiTenantIsolation:
@@ -82,9 +83,9 @@ class TestMultiTenantIsolation:
                     "email": user["email"],
                     "organization_id": str(user["organization_id"]),
                     "roles": user["roles"],
-                    "exp": datetime.utcnow() + timedelta(hours=1)
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1)
                 },
-                "test_secret_key",
+                TEST_JWT_SECRET,
                 algorithm="HS256"
             )
             auth_headers[user["id"]] = create_auth_headers(token)
@@ -199,8 +200,8 @@ class TestMultiTenantIsolation:
                 "organization_id": str(org_alpha_user["organization_id"]),
                 "metric_type": "entity",
                 "time_bucket": "day",
-                "start_time": (datetime.utcnow() - timedelta(days=7)).isoformat(),
-                "end_time": datetime.utcnow().isoformat()
+                "start_time": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat()
             },
             headers=alpha_headers
         )
@@ -214,8 +215,8 @@ class TestMultiTenantIsolation:
                 "organization_id": str(org_alpha_user["organization_id"]),  # Alpha's org ID
                 "metric_type": "entity",
                 "time_bucket": "day",
-                "start_time": (datetime.utcnow() - timedelta(days=7)).isoformat(),
-                "end_time": datetime.utcnow().isoformat()
+                "start_time": (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),
+                "end_time": datetime.now(timezone.utc).isoformat()
             },
             headers=beta_headers  # Beta user's auth
         )
@@ -418,9 +419,9 @@ class TestMultiTenantIsolation:
                 "email": org_alpha_user["email"],
                 "organization_id": str(org_alpha_user["organization_id"]),
                 "roles": org_alpha_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -662,9 +663,9 @@ class TestMultiTenantIsolation:
                 "email": org_alpha_user["email"],
                 "organization_id": str(org_alpha_user["organization_id"]),
                 "roles": org_alpha_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 
@@ -674,9 +675,9 @@ class TestMultiTenantIsolation:
                 "email": org_beta_user["email"],
                 "organization_id": str(org_beta_user["organization_id"]),
                 "roles": org_beta_user["roles"],
-                "exp": datetime.utcnow() + timedelta(hours=1)
+                "exp": datetime.now(timezone.utc) + timedelta(hours=1)
             },
-            "test_secret_key",
+            TEST_JWT_SECRET,
             algorithm="HS256"
         )
 

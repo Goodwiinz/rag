@@ -1,0 +1,15 @@
+{
+  "case": "ack_yes",
+  "expected_intent": "general",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "tool",
+      "message": {
+        "content": "Got it \u2014 what would you like me to do next? (Examples: search ArXiv for papers, create a project, add a paper to your project, make notes, or summarize a document.)",
+        "tool_calls": []
+      }
+    }
+  ]
+}

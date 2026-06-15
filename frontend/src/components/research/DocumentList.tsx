@@ -29,6 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { ProjectDocument } from '@/services/projectService';
 
 interface DocumentListProps {
@@ -55,7 +65,7 @@ const statusConfig: Record<
 function getFileIcon(filename?: string) {
   if (!filename) return <FileText className="h-5 w-5" />;
   const ext = filename.split('.').pop()?.toLowerCase();
-  if (ext === 'pdf') return <File className="h-5 w-5 text-red-400" />;
+  if (ext === 'pdf') return <File className="h-5 w-5 text-destructive" />;
   return <FileText className="h-5 w-5" />;
 }
 
@@ -82,6 +92,9 @@ export function DocumentList({
   const [sortKey, setSortKey] = useState<SortKey>('added_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRemoveOpen, setBulkRemoveOpen] = useState(false);
+  const [singleRemoveOpen, setSingleRemoveOpen] = useState(false);
+  const [documentToRemove, setDocumentToRemove] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = documents;
@@ -129,16 +142,47 @@ export function DocumentList({
   }, []);
 
   const handleBulkRemove = useCallback(() => {
-    if (!confirm(`Remove ${selectedIds.size} document(s) from the project?`))
-      return;
+    setBulkRemoveOpen(true);
+  }, [selectedIds]);
+
+  const confirmBulkRemove = useCallback(() => {
     selectedIds.forEach((id) => onRemove(id));
     setSelectedIds(new Set());
+    setBulkRemoveOpen(false);
   }, [selectedIds, onRemove]);
+
+  const handleSingleRemove = useCallback((documentId: string) => {
+    setDocumentToRemove(documentId);
+    setSingleRemoveOpen(true);
+  }, []);
+
+  const confirmSingleRemove = useCallback(() => {
+    if (documentToRemove) {
+      onRemove(documentToRemove);
+      setDocumentToRemove(null);
+      setSingleRemoveOpen(false);
+    }
+  }, [documentToRemove, onRemove]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+          >
+            <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+            <div className="h-5 w-5 rounded bg-muted animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="h-5 w-16 rounded bg-muted animate-pulse hidden sm:block" />
+            <div className="h-4 w-16 rounded bg-muted animate-pulse hidden sm:block" />
+            <div className="h-8 w-8 rounded bg-muted animate-pulse" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -162,7 +206,10 @@ export function DocumentList({
       {/* Toolbar */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
             placeholder="Search documents..."
             value={search}
@@ -170,10 +217,11 @@ export function DocumentList({
             className="pl-9 h-9 text-sm"
           />
           {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+              >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -236,8 +284,8 @@ export function DocumentList({
           aria-label="Select all documents"
         />
         <span className="flex-1">Document</span>
-        <span className="w-24 text-right hidden sm:block">Status</span>
-        <span className="w-24 text-right hidden sm:block">Added</span>
+        <span className="w-24 text-right hidden sm:inline">Status</span>
+        <span className="w-24 text-right hidden sm:inline">Added</span>
         <span className="w-10" />
       </div>
 
@@ -264,14 +312,30 @@ export function DocumentList({
                 {getFileIcon(doc.document?.filename)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground truncate">
-                  {doc.document?.title || doc.document?.filename || 'Untitled'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {doc.document?.title || doc.document?.filename || 'Untitled'}
+                  </p>
+                  {/* Mobile-only status badge */}
+                  {status && (
+                    <Badge variant={status.variant} className="text-[10px] sm:hidden shrink-0">
+                      {status.label}
+                    </Badge>
+                  )}
+                </div>
                 {doc.document?.filename && doc.document?.title && (
-                  <p className="text-xs text-muted-foreground truncate font-mono">
+                  <p className="text-xs text-muted-foreground truncate">
                     {doc.document.filename}
                   </p>
                 )}
+                {/* Mobile-only relative time */}
+                <span className="text-[11px] text-muted-foreground sm:hidden mt-0.5 block">
+                  {formatRelativeTime(
+                    doc.added_at ||
+                      doc.document?.created_at ||
+                      new Date().toISOString()
+                  )}
+                </span>
               </div>
               <div className="w-24 text-right shrink-0 hidden sm:block">
                 {status ? (
@@ -313,11 +377,7 @@ export function DocumentList({
                       View document
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
-                        if (confirm('Remove this document from the project?')) {
-                          onRemove(doc.document_id);
-                        }
-                      }}
+                      onClick={() => handleSingleRemove(doc.document_id)}
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
@@ -339,6 +399,49 @@ export function DocumentList({
           </p>
         </div>
       )}
+
+      <AlertDialog open={bulkRemoveOpen} onOpenChange={setBulkRemoveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove selected documents?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove {selectedIds.size} document
+              {selectedIds.size !== 1 ? 's' : ''} from the project. The
+              documents will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={singleRemoveOpen} onOpenChange={setSingleRemoveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the document from the project. The document will
+              not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmSingleRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

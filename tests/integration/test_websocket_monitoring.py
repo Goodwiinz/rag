@@ -16,7 +16,7 @@ import asyncio
 import json
 import websockets
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, AsyncGenerator
 from unittest.mock import Mock, AsyncMock, patch
 import httpx
@@ -66,7 +66,7 @@ async def mock_observability_manager():
             "total_metrics": 150,
             "active_alerts": 3,
             "system_health": "healthy",
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
     async def mock_get_active_alerts():
@@ -75,7 +75,7 @@ async def mock_observability_manager():
                 "id": "alert-1",
                 "title": "High Memory Usage",
                 "severity": "warning",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         ]
 
@@ -225,7 +225,7 @@ class TestWebSocketMetricsStreaming:
                         "name": "request_duration",
                         "value": 150.5,
                         "labels": {"endpoint": "/api/search", "method": "POST"},
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 }
 
@@ -356,7 +356,7 @@ class TestWebSocketAlertsStreaming:
                     "title": "High CPU Usage",
                     "severity": "warning",
                     "status": "active",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -368,7 +368,7 @@ class TestWebSocketAlertsStreaming:
                     "previous_severity": "warning",
                     "new_severity": "error",
                     "reason": "Threshold exceeded for 5 minutes",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -378,7 +378,7 @@ class TestWebSocketAlertsStreaming:
                 "data": {
                     "id": "alert-123",
                     "resolution_note": "Service restarted successfully",
-                    "resolved_at": datetime.utcnow().isoformat()
+                    "resolved_at": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -437,7 +437,7 @@ class TestWebSocketAlertsStreaming:
                 "data": {
                     "id": "alert-456",
                     "acknowledged_by": "user123",
-                    "acknowledged_at": datetime.utcnow().isoformat(),
+                    "acknowledged_at": datetime.now(timezone.utc).isoformat(),
                     "note": "Investigating the issue"
                 }
             }
@@ -482,7 +482,7 @@ class TestWebSocketHealthStatusStreaming:
                         "active_connections": 85,
                         "max_connections": 100
                     },
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -510,7 +510,7 @@ class TestWebSocketHealthStatusStreaming:
                         "monitoring": {"status": "healthy", "uptime": "100%"}
                     },
                     "active_alerts": 2,
-                    "last_check": datetime.utcnow().isoformat()
+                    "last_check": datetime.now(timezone.utc).isoformat()
                 }
             }
 
@@ -531,7 +531,7 @@ class TestWebSocketHealthStatusStreaming:
                 "type": "health_check_scheduled",
                 "data": {
                     "check_type": "comprehensive",
-                    "scheduled_at": datetime.utcnow().isoformat(),
+                    "scheduled_at": datetime.now(timezone.utc).isoformat(),
                     "components": ["database", "vector_store", "graph_db"],
                     "estimated_duration": 30
                 }

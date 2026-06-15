@@ -36,6 +36,9 @@ spec:
             - worker
             - --loglevel=info
             - --concurrency=2
+            - --prefetch-multiplier=1
+            - --max-tasks-per-child=100
+            - --max-memory-per-child=900000
             - -Q
             - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing
           envFrom:

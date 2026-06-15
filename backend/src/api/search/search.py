@@ -193,14 +193,16 @@ async def search_documents(
                 db=db,
             )
         elif search_request.search_type == SearchType.VECTOR:
-            # Use vector search service
-            from src.services.search.vector_search_service import vector_search_service
-
-            result = vector_search_service.search(
-                search_request=search_request,
-                user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id),
-                db=db,
+            # Vector-only search was Qdrant-backed and has been removed with the
+            # Qdrant→DO KB migration (no working backend). Semantic retrieval now
+            # lives in the agent's DO KB path; use HYBRID for documents here.
+            # See docs/database/ADR-qdrant-dense-leg.md.
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Vector-only search is no longer supported. Use "
+                    "search_type='hybrid' (full-text + knowledge graph)."
+                ),
             )
         elif search_request.search_type in (
             SearchType.KNOWLEDGE_GRAPH,
@@ -719,32 +721,11 @@ async def search_health_check(
         except Exception as e:
             health_status["indexes"] = {"status": "unhealthy", "error": str(e)}
 
-        # Check external service availability (vector DB, knowledge graph)
+        # Check external service availability (knowledge graph)
+        # Qdrant probe removed — Qdrant is gone (Qdrant→DO KB migration). It
+        # used to call the dead dense leg and always report "healthy", masking
+        # the failure. See docs/database/ADR-qdrant-dense-leg.md.
         health_status["external_services"] = {}
-
-        # Test Qdrant (vector search)
-        try:
-            from src.services.search.vector_search_service import vector_search_service
-
-            vector_query = SearchQuery(
-                query="test", search_type=SearchType.VECTOR, limit=1
-            )
-            start_time = time.time()
-            vector_result = vector_search_service.search(
-                search_request=vector_query,
-                user_id=str(current_user.id),
-                organization_id=str(current_user.organization_id),
-            )
-            vector_time_ms = (time.time() - start_time) * 1000
-            health_status["external_services"]["qdrant"] = {
-                "status": "healthy",
-                "search_time_ms": vector_time_ms,
-            }
-        except Exception as e:
-            health_status["external_services"]["qdrant"] = {
-                "status": "unhealthy",
-                "error": str(e),
-            }
 
         # Test Neo4j (knowledge graph)
         try:

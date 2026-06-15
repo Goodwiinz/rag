@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.auth.dependencies import get_current_user
+from src.core.dependencies import get_current_user
 from src.models.analytics.graph_analytics import (
     CentralityAnalysis,
     GraphAnalysisRequest,
@@ -32,7 +32,9 @@ async def run_graph_analysis(
     """Run graph analysis with specified algorithm"""
     try:
         result = await graph_analytics_service.run_graph_analysis(
-            request=request, user_id=current_user.id
+            request=request,
+            user_id=current_user.id,
+            organization_id=str(current_user.organization_id),
         )
         return result
 
@@ -58,7 +60,9 @@ async def run_path_analysis(
     """Run path analysis between nodes"""
     try:
         result = await graph_analytics_service.run_path_analysis(
-            request=request, user_id=current_user.id
+            request=request,
+            user_id=current_user.id,
+            organization_id=str(current_user.organization_id),
         )
         return result
 
@@ -81,9 +85,15 @@ async def run_path_analysis(
 async def get_graph_statistics(current_user: User = Depends(get_current_user)):
     """Get overall graph statistics"""
     try:
-        stats = await graph_analytics_service.get_graph_statistics()
+        stats = await graph_analytics_service.get_graph_statistics(
+            organization_id=str(current_user.organization_id)
+        )
         return stats
 
+    except ValueError as e:
+        # Missing/invalid org (e.g. a user with no organization) — a clean 400,
+        # not an opaque 500.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -113,7 +123,9 @@ async def get_centrality_analysis(
             )
 
         analysis = await graph_analytics_service.get_centrality_analysis(
-            algorithm=algorithm, top_k=top_k
+            algorithm=algorithm,
+            top_k=top_k,
+            organization_id=str(current_user.organization_id),
         )
         return analysis
 
@@ -264,8 +276,11 @@ async def check_graph_health(current_user: User = Depends(get_current_user)):
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-        # Test basic connectivity
-        stats = await graph_analytics_service.get_graph_statistics()
+        # Test basic connectivity (org-scoped — get_graph_statistics now
+        # requires an org; the counts double as this caller's tenant view).
+        stats = await graph_analytics_service.get_graph_statistics(
+            organization_id=str(current_user.organization_id)
+        )
 
         return {
             "status": "healthy",

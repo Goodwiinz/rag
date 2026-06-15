@@ -1,6 +1,6 @@
 # Docker Setup for Multimodal Enterprise RAG System
 
-This guide covers the Docker configuration for running the RAG system with different setups including local development, Azure OpenAI integration, and cloud deployment.
+This guide covers the Docker configuration for running the RAG system in local development. **Production runs on DOKS (DigitalOcean Kubernetes) + ArgoCD with Supabase-managed Postgres, DO Managed Redis, DO Spaces for storage, and the frontend on Vercel — not Docker Compose.**
 
 ## 🚀 Quick Start
 
@@ -25,10 +25,6 @@ Edit your `.env` file with your actual values:
 AZURE_OPENAI_API_KEY=your_api_key_here
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-ada-002
-
-# For Qdrant Cloud (optional)
-QDRANT_API_KEY=your_qdrant_key
-QDRANT_URL=https://your-cluster.qdrant.io:6333
 ```
 
 ### 3. Start the System
@@ -42,7 +38,7 @@ Use the startup script for easy configuration:
 # Azure OpenAI mode
 ./start.sh azure
 
-# Cloud mode (Azure OpenAI + Qdrant Cloud)
+# Azure OpenAI mode (local simulation only)
 ./start.sh cloud
 ```
 
@@ -51,79 +47,92 @@ Use the startup script for easy configuration:
 ### Development Environment (`docker-compose.development.yml`)
 
 **Features:**
-- Local PostgreSQL, Redis, Neo4j, Qdrant
+
+- Local PostgreSQL (`rag-postgres-1`), Redis, Neo4j
 - Hot-reload for backend development
 - Debug logging enabled
 - Development tools (Adminer, Redis Commander)
+- Note: Qdrant is **not used** — vector retrieval uses PG fulltext; Qdrant is removed from production
 
 **Use Case:** Local development and testing
 
 ### Azure OpenAI Environment (`docker-compose.azure.yml`)
 
 **Features:**
-- Azure OpenAI integration
-- Production-ready configuration
-- Optimized performance settings
-- No local Qdrant (uses cloud)
 
-**Use Case:** Production with Azure OpenAI
+- Azure OpenAI integration
+- Local simulation only — not the live production path
+- Optimized performance settings
+
+**Use Case:** Local simulation with Azure OpenAI; production runs on DOKS/ArgoCD
 
 ## 🔧 Environment Variables
 
 ### Core Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENVIRONMENT` | `development` | Environment mode |
-| `SECRET_KEY` | - | Application secret key |
-| `DEBUG` | `true` | Enable debug mode |
-| `LOG_LEVEL` | `DEBUG` | Logging level |
+| Variable      | Default       | Description            |
+| ------------- | ------------- | ---------------------- |
+| `ENVIRONMENT` | `development` | Environment mode       |
+| `SECRET_KEY`  | -             | Application secret key |
+| `DEBUG`       | `true`        | Enable debug mode      |
+| `LOG_LEVEL`   | `DEBUG`       | Logging level          |
 
 ### Database Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | - | PostgreSQL connection string |
-| `REDIS_URL` | `redis://redis:6379/0` | Redis connection string |
-| `NEO4J_URI` | `bolt://neo4j:7687` | Neo4j connection URI |
+| Variable       | Default                | Description                  |
+| -------------- | ---------------------- | ---------------------------- |
+| `DATABASE_URL` | -                      | PostgreSQL connection string |
+| `REDIS_URL`    | `redis://redis:6379/0` | Redis connection string      |
+| `NEO4J_URI`    | `bolt://neo4j:7687`    | Neo4j connection URI         |
 
-### Vector Database
+### Vector / RAG Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `QDRANT_URL` | `http://qdrant:6333` | Qdrant endpoint |
-| `QDRANT_API_KEY` | - | Qdrant API key (for cloud) |
+> Qdrant is removed from production. Effective retrieval uses PostgreSQL fulltext. `DO_KB_ENABLED` enables the DO Knowledge Base (GradientAI) — off by default.
+
+| Variable        | Default | Description                                   |
+| --------------- | ------- | --------------------------------------------- |
+| `DO_KB_ENABLED` | `false` | Enable DO Knowledge Base (GradientAI) for RAG |
+
+### Object Storage
+
+> Production uses DO Spaces (`STORAGE_BACKEND=s3`, bucket `rag-system-storage`, region `nyc3`). MinIO is a dev-only compose service — it is **not** wired to `STORAGE_BACKEND` in production.
+
+| Variable          | Default | Description                       |
+| ----------------- | ------- | --------------------------------- |
+| `STORAGE_BACKEND` | `local` | Set to `s3` for DO Spaces in prod |
+| `AWS_S3_BUCKET`   | -       | DO Spaces bucket name             |
+| `AWS_S3_REGION`   | -       | DO Spaces region (e.g. `nyc3`)    |
 
 ### Azure OpenAI Configuration
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
-| `AZURE_OPENAI_ENDPOINT` | Yes | Azure OpenAI endpoint URL |
-| `AZURE_OPENAI_API_VERSION` | `2024-02-15-preview` | API version |
-| `AZURE_OPENAI_DEPLOYMENT_NAME` | - | Chat deployment name |
-| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME` | Yes | Embedding deployment name |
-| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` | - | Chat deployment name |
+| Variable                                 | Required             | Description               |
+| ---------------------------------------- | -------------------- | ------------------------- |
+| `AZURE_OPENAI_API_KEY`                   | Yes                  | Azure OpenAI API key      |
+| `AZURE_OPENAI_ENDPOINT`                  | Yes                  | Azure OpenAI endpoint URL |
+| `AZURE_OPENAI_API_VERSION`               | `2024-02-15-preview` | API version               |
+| `AZURE_OPENAI_DEPLOYMENT_NAME`           | -                    | Chat deployment name      |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME` | Yes                  | Embedding deployment name |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME`      | -                    | Chat deployment name      |
 
 ### Embedding Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EMBEDDING_PROVIDER` | `sentence_transformers` | Provider to use |
-| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Model name |
+| Variable             | Default                                  | Description     |
+| -------------------- | ---------------------------------------- | --------------- |
+| `EMBEDDING_PROVIDER` | `sentence_transformers`                  | Provider to use |
+| `EMBEDDING_MODEL`    | `sentence-transformers/all-MiniLM-L6-v2` | Model name      |
 
 ## 🗂️ Service URLs
 
 After starting the system, access services at:
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Frontend | http://localhost:3000 | React application |
-| Backend API | http://localhost:8000 | FastAPI server |
-| API Docs | http://localhost:8000/docs | Swagger documentation |
-| Neo4j Browser | http://localhost:7474 | Graph database interface |
-| Redis Commander | http://localhost:8081 | Redis management UI |
-| Flower | http://localhost:5555 | Celery task monitoring |
+| Service         | URL                        | Description              |
+| --------------- | -------------------------- | ------------------------ |
+| Frontend        | http://localhost:3000      | React application        |
+| Backend API     | http://localhost:8000      | FastAPI server           |
+| API Docs        | http://localhost:8000/docs | Swagger documentation    |
+| Neo4j Browser   | http://localhost:7474      | Graph database interface |
+| Redis Commander | http://localhost:8081      | Redis management UI      |
+| Flower          | http://localhost:5555      | Celery task monitoring   |
 
 ## 🛠️ Management Commands
 
@@ -170,6 +179,7 @@ docker-compose -f docker-compose.development.yml exec backend bash
 ### Common Issues
 
 1. **Port Conflicts**
+
    ```bash
    # Check what's using ports
    lsof -i :3000
@@ -180,6 +190,7 @@ docker-compose -f docker-compose.development.yml exec backend bash
    ```
 
 2. **Azure OpenAI Connection Issues**
+
    ```bash
    # Test configuration
    ./start.sh test-azure
@@ -189,6 +200,7 @@ docker-compose -f docker-compose.development.yml exec backend bash
    ```
 
 3. **Service Health Issues**
+
    ```bash
    # Check all services
    ./start.sh status
@@ -235,19 +247,21 @@ CACHE_TTL_SECONDS=3600
 ### Service Dependencies
 
 ```
-Frontend (React)
+Frontend (Next.js — Vercel in prod, localhost:3000 in dev)
     ↓
-Backend (FastAPI)
+Backend (FastAPI — DOKS/ArgoCD in prod, localhost:8000 in dev)
     ↓
 ┌─────────────────┬─────────────────┬─────────────────┐
 │   PostgreSQL    │      Redis      │      Neo4j      │
-│                 │                 │                 │
-│   Vector Store  │    Cache/Queue  │  Knowledge Graph│
-│   (Qdrant)      │                 │                 │
+│  (Supabase in   │ (DO Managed in  │                 │
+│  prod; local    │ prod; local     │  Knowledge Graph│
+│  container dev) │ container dev)  │                 │
 └─────────────────┴─────────────────┴─────────────────┘
     ↓
 Azure OpenAI (Optional)
 ```
+
+> **Production storage**: DO Spaces (S3-compatible). MinIO container is dev-only.
 
 ### Network Configuration
 
@@ -258,7 +272,7 @@ All services communicate via the `multimodal-rag-network` Docker network:
 - **PostgreSQL**: Port 5432
 - **Redis**: Port 6379
 - **Neo4j**: Ports 7474 (HTTP), 7687 (Bolt)
-- **Qdrant**: Ports 6333 (HTTP), 6334 (gRPC)
+- Note: Qdrant is removed; no Qdrant ports in use
 
 ## 🔐 Security Considerations
 
@@ -270,21 +284,27 @@ All services communicate via the `multimodal-rag-network` Docker network:
 ## 📦 Deployment Options
 
 ### Development
+
 - Use `docker-compose.development.yml`
 - Hot-reload enabled
 - Debug logging
 - Local volumes mounted
 
-### Production with Azure OpenAI
-- Use `docker-compose.azure.yml`
-- Optimized performance settings
-- Production logging
-- External vector database (Qdrant Cloud)
+### Production (live)
 
-### Hybrid Setup
-- Local databases with Azure OpenAI
-- Cost-effective for development
-- Easy testing of cloud features
+> **Not Docker Compose.** Production runs on DOKS (DigitalOcean Kubernetes) managed by ArgoCD.
+>
+> - **Frontend**: Vercel
+> - **Database**: Supabase managed Postgres
+> - **Cache/Queue**: DO Managed Redis
+> - **Object storage**: DO Spaces (`rag-system-storage`, nyc3, `STORAGE_BACKEND=s3`)
+> - **Auth**: Supabase hosted GoTrue
+
+### Local Simulation with Azure OpenAI
+
+- Use `docker-compose.azure.yml`
+- Useful for testing Azure OpenAI integration locally
+- Uses local Postgres/Redis containers (not the production managed services)
 
 ## 🧪 Testing
 
@@ -312,5 +332,6 @@ curl http://localhost:8000/api/health/services
 ## 📚 Additional Resources
 
 - [Azure OpenAI Documentation](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/)
-- [Qdrant Documentation](https://qdrant.tech/documentation/)
 - [Docker Compose Reference](https://docs.docker.com/compose/reference/)
+- [DigitalOcean Spaces (S3-compatible)](https://docs.digitalocean.com/products/spaces/)
+- [Supabase Auth](https://supabase.com/docs/guides/auth)

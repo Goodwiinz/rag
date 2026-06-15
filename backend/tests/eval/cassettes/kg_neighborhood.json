@@ -1,0 +1,41 @@
+{
+  "case": "kg_neighborhood",
+  "expected_intent": "knowledge_graph",
+  "expected_tools": [],
+  "calls": [
+    {
+      "slot": 0,
+      "kind": "structured",
+      "schema": "IntentClassification",
+      "payload": {
+        "intent": "knowledge_graph",
+        "confidence": 0.94,
+        "reasoning": "User asks to 'Explore the entity neighborhood around transformers' which is a request to examine entities and their relationships in the entity/knowledge graph (neighborhood exploration)."
+      }
+    },
+    {
+      "slot": 1,
+      "kind": "tool",
+      "message": {
+        "content": "",
+        "tool_calls": [
+          {
+            "name": "search_knowledge_graph",
+            "args": {
+              "query": "transformers"
+            },
+            "id": "call_ASJequQ93BLGLYthDYzxgJO1"
+          }
+        ]
+      }
+    },
+    {
+      "slot": 2,
+      "kind": "tool",
+      "message": {
+        "content": "I couldn't find an entity named \"transformers\" in the knowledge graph as written. Could you clarify which \"transformers\" you mean?\n\n- The NLP model family (e.g., \"Transformer architecture\", \"Attention is All You Need\")?\n- The Hugging Face Transformers library (organization or software package)?\n- The electrical device \"transformer\"?\n- A specific paper, author, or model (e.g., \"BERT\", \"GPT-3\", \"Vaswani et al. 2017\")?\n\nTell me which one to search for (or provide an exact name from your project), and I'll look up its canonical entity ID and then explore its neighborhood.",
+        "tool_calls": []
+      }
+    }
+  ]
+}

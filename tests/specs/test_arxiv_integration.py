@@ -7,7 +7,7 @@ Comprehensive tests for arXiv paper ingestion, search, and evaluation functional
 import pytest
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 

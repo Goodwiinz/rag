@@ -1,4 +1,4 @@
-import { logger, task, metadata } from "@trigger.dev/sdk/v3";
+import { logger, task, metadata } from "@trigger.dev/sdk";
 import { ingestPaper } from "./ingest-paper";
 import { backendClient } from "../_lib/backend-client";
 import type { ArxivBulkIngestPayload } from "../_lib/schemas";

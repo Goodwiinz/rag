@@ -12,6 +12,7 @@ from .ab_testing import (
     ExperimentType,
     Variant,
 )
+from .agent_hitl_audit import AgentHitlAudit
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
 # Audit models
@@ -70,6 +71,7 @@ from .permission import (
     UserRoleAssignment,
 )
 from .processing import JobPriority, JobStatus, JobType, ProcessingJob
+from .project_memory import ProjectMemory
 from .project_note import ProjectNote
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
@@ -119,6 +121,7 @@ from .workspace import Workspace, WorkspaceMember, WorkspaceRole
 __all__ = [
     # Base classes
     "Base",
+    "AgentHitlAudit",
     "BaseModel",
     # User models
     "User",
@@ -165,6 +168,7 @@ __all__ = [
     "MessageAttachment",
     # Research Assistant models
     "CitationRelationship",
+    "ProjectMemory",
     "ProjectNote",
     "GeneratedDraft",
     "DraftCitation",

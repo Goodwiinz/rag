@@ -47,9 +47,7 @@ def _build_memory_index_config() -> dict | None:
         return None
 
     if not cohere_embed_service.is_enabled:
-        logger.info(
-            "Cohere embedding disabled (no API key); memory index disabled"
-        )
+        logger.info("Cohere embedding disabled (no API key); memory index disabled")
         return None
 
     async def _embed(texts):

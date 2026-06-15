@@ -1,9 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ListTree, Loader2, X, Copy, Check } from 'lucide-react';
+import { ListTree, Loader2, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { generateOutline } from '@/services/scispaceService';
 import type {
   OutlineResponse,
@@ -49,8 +57,6 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<OutlineResponse | null>(null);
 
-  if (!isOpen) return null;
-
   const toggleDocId = (id: string) => {
     setSelectedDocIds((prev) =>
       prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
@@ -94,52 +100,47 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
     toast.success('Outline copied as markdown');
   };
 
-  const handleClose = () => {
-    setResult(null);
-    setQuestion('');
-    setSelectedDocIds([]);
-    setSelectedSections([]);
-    onClose();
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setResult(null);
+      setQuestion('');
+      setSelectedDocIds([]);
+      setSelectedSections([]);
+      onClose();
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-lg border border-[#1a1a1a] bg-[#0a0a0a]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1a1a1a] p-4">
-          <div className="flex items-center gap-2">
-            <ListTree className="h-5 w-5 text-brand-cyan" />
-            <h2 className="font-mono text-lg font-bold text-sol">
-              Generate Outline
-            </h2>
-          </div>
-          <button
-            aria-label="Close"
-            onClick={handleClose}
-            className="p-1 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <ListTree className="h-5 w-5 text-primary" />
+            Generate outline
+          </DialogTitle>
+          <DialogDescription>
+            Create a structured outline for your research document
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto p-4">
+        <div className="space-y-4 overflow-y-auto flex-1">
           {/* Research Question */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
-              Research Question *
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              Research question <span className="text-destructive">*</span>
             </label>
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="What is your research question? (min 10 characters)"
               rows={3}
-              className="w-full resize-none rounded border border-[#333] bg-[#1a1a1a] px-3 py-2 font-mono text-sm text-muted-foreground placeholder-gray-600 focus:border-sol focus:outline-none"
+              className="w-full resize-none rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
           {/* Style Selector */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
+            <label className="mb-1 block text-sm font-medium text-foreground">
               Style
             </label>
             <div className="flex gap-2">
@@ -148,10 +149,10 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                   key={opt.value}
                   onClick={() => setStyle(opt.value)}
                   className={cn(
-                    'rounded border px-3 py-1.5 font-mono text-xs transition-colors',
+                    'rounded border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     style === opt.value
-                      ? 'border-sol/50 bg-sol/10 text-sol'
-                      : 'border-[#333] text-muted-foreground hover:border-sol/30'
+                      ? 'border-primary/50 bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-primary/30'
                   )}
                 >
                   {opt.label}
@@ -162,8 +163,8 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
 
           {/* Section Types */}
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
-              Sections (optional — leave empty for all)
+            <label className="mb-1 block text-sm font-medium text-foreground">
+              Sections <span className="text-muted-foreground">(optional)</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {sectionTypeOptions.map((opt) => (
@@ -175,9 +176,9 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                     type="checkbox"
                     checked={selectedSections.includes(opt.value)}
                     onChange={() => toggleSectionType(opt.value)}
-                    className="accent-sol"
+                    className="accent-primary"
                   />
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {opt.label}
                   </span>
                 </label>
@@ -188,22 +189,22 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
           {/* Document Scope */}
           {documents.length > 0 && (
             <div>
-              <label className="mb-2 block font-mono text-xs uppercase tracking-wide text-muted-foreground">
-                Document Scope (optional)
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Document scope <span className="text-muted-foreground">(optional)</span>
               </label>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {documents.map((doc) => (
                   <label
                     key={doc.id}
-                    className="flex items-center gap-2 rounded border border-[#333] px-3 py-2 text-sm text-muted-foreground"
+                    className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm text-foreground"
                   >
                     <input
                       type="checkbox"
                       checked={selectedDocIds.includes(doc.id)}
                       onChange={() => toggleDocId(doc.id)}
-                      className="accent-sol"
+                      className="accent-primary"
                     />
-                    <span className="truncate font-mono text-xs">
+                    <span className="truncate text-xs">
                       {doc.title}
                     </span>
                   </label>
@@ -217,23 +218,22 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
             <Button
               onClick={handleGenerate}
               disabled={loading || question.trim().length < 10}
-              className="w-full gap-2 bg-sol/10 text-sol hover:bg-sol/20 disabled:opacity-50"
-              aria-label="Generate outline"
+              className="w-full gap-2"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <ListTree className="h-4 w-4" />
               )}
-              {loading ? 'Generating...' : 'Generate Outline'}
+              {loading ? 'Generating...' : 'Generate outline'}
             </Button>
           )}
 
           {/* Result */}
           {result && (
-            <div className="space-y-3 rounded-lg border border-[#1a1a1a] bg-[#111] p-4">
+            <div className="space-y-3 rounded-lg border border-border bg-muted p-4">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {result.sections.length} sections ~
                   {result.total_suggested_words.toLocaleString()} words
                 </span>
@@ -241,13 +241,13 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               {result.sections.map((section, idx) => (
                 <div
                   key={idx}
-                  className="rounded border border-[#1a1a1a] bg-[#0a0a0a] p-3"
+                  className="rounded border border-border bg-card p-3"
                 >
                   <div className="flex items-center justify-between">
-                    <h4 className="font-mono text-sm font-bold text-muted-foreground">
+                    <h4 className="text-sm font-semibold text-foreground">
                       {section.title}
                     </h4>
-                    <span className="font-mono text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground">
                       ~{section.suggested_word_count} words
                     </span>
                   </div>
@@ -260,13 +260,12 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-[#1a1a1a] p-4">
+        <DialogFooter className="shrink-0">
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground hover:bg-[#1a1a1a] hover:text-foreground"
-            onClick={handleClose}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={handleOpenChange.bind(null, false)}
           >
             Cancel
           </Button>
@@ -275,30 +274,28 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-1.5 text-brand-cyan hover:bg-brand-cyan/10 hover:text-brand-cyan"
+                className="gap-1.5 text-primary hover:bg-primary/10 hover:text-primary"
                 onClick={handleCopyMarkdown}
-                aria-label="Copy as markdown"
               >
                 <Copy className="h-3.5 w-3.5" />
                 Copy as Markdown
               </Button>
               <Button
                 size="sm"
-                className="gap-1.5 bg-sol/10 text-sol hover:bg-sol/20"
+                className="gap-1.5 bg-primary/10 text-primary hover:bg-primary/20"
                 onClick={() => {
                   onInsertOutline(result.sections);
-                  handleClose();
+                  handleOpenChange(false);
                 }}
-                aria-label="Insert outline"
               >
                 <Check className="h-3.5 w-3.5" />
-                Insert Outline
+                Insert outline
               </Button>
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

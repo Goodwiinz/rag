@@ -8,13 +8,23 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from src.core.dependencies import get_current_user
 from src.services.connectors import connector_registry
 from src.services.connectors.base import ConnectorDomain
 
-router = APIRouter(prefix="/api/v1/connectors", tags=["connectors"])
+# Authentication enforced at the router level: every connector endpoint drives
+# server-side external-database credentials, so all require an authenticated
+# caller. They were previously unauthenticated and the tenancy middleware fails
+# open on a missing token, so anonymous callers could list connectors and fetch
+# arbitrary records.
+router = APIRouter(
+    prefix="/api/v1/connectors",
+    tags=["connectors"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 # ---- Request / Response models ----

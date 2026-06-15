@@ -12,6 +12,8 @@ import logging
 from typing import Optional, Set
 from uuid import UUID
 
+from functools import partial
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -93,6 +95,19 @@ async def stream_thread_chat(
             detail="A stream is already active on this thread.",
         )
 
+    # ---- Tenant guard (must be in the endpoint body, NOT the generator) ----
+    # Raising inside _event_generator would fire after StreamingResponse has
+    # already sent 200 OK + SSE headers — the client would see a 200 with a
+    # broken/empty stream, and the thread_id would leak into _active_streams
+    # (wedging all future streams on it with 409). Guard here so it yields a
+    # real 403. str(None) == "None" is truthy and would otherwise pass the
+    # literal "None" as the tenant filter.
+    if body.use_rag and not current_user.organization_id:
+        raise HTTPException(
+            status_code=403,
+            detail="User has no organization; RAG retrieval is unavailable.",
+        )
+
     # ---- Inner async generator ----
     # The DB session is created here (not via Depends) so its lifecycle is
     # fully controlled within the generator, preventing MissingGreenlet errors.
@@ -100,10 +115,18 @@ async def stream_thread_chat(
         _active_streams.add(thread_id)
         async with AsyncSessionLocal() as db:
             chat_service = ChatService(db)
+            # Bind the caller's org/user so RAG retrieval is tenant-scoped.
+            # StreamService calls retrieve_context_fn(content, max_docs)
+            # positionally; partial injects the keyword-only scope.
+            scoped_retrieve_context = partial(
+                retrieve_context,
+                organization_id=str(current_user.organization_id),
+                user_id=str(current_user.id),
+            )
             stream_service = StreamService(
                 chat_service=chat_service,
                 openai_service=azure_openai_service,
-                retrieve_context_fn=retrieve_context,
+                retrieve_context_fn=scoped_retrieve_context,
                 build_context_prompt_fn=build_context_prompt,
                 rag_system_prompt=RAG_SYSTEM_PROMPT,
             )

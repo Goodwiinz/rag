@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.auth.dependencies import get_current_user
+from src.core.dependencies import get_current_user
 from src.models.analytics.dashboard_models import (
     DashboardCreate,
     DashboardResponse,

@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "be6dd27"
+    tag: "07cdac5"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -106,7 +106,7 @@ backend:
     - name: MALLOC_ARENA_MAX
       value: "2"
     - name: CORS_ORIGINS
-      value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000"
+      value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000,https://goodwiinz.tech,https://www.goodwiinz.tech"
     # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=dev) → synced into
     # the `app-secrets` K8s Secret, exposed via envFrom above. Set the regex
     # there to the project-specific Vercel slug (e.g.
@@ -215,15 +215,20 @@ neo4j:
   persistence:
     size: 5Gi
   resources:
-    heapSize: "128m"
-    pagecacheSize: "64m"
+    # 128m heap + 64m pagecache under a 512Mi container limit was guaranteed
+    # OOMKill: the JVM base + Neo4j overhead alone exceeds that. Neo4j was
+    # crash-looping (OOMKilled, not Ready), taking the whole KG offline.
+    # heap 1g + pagecache 512m fit under a 2Gi limit with room for JVM
+    # metaspace/threads/direct buffers. request == limit so it is not evicted.
+    heapSize: "1g"
+    pagecacheSize: "512m"
     container:
       limits:
-        cpu: 300m
-        memory: 512Mi
+        cpu: "1"
+        memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 250m
+        memory: 2Gi
 qdrant:
   enabled: true
   persistence:
@@ -251,6 +256,9 @@ celeryWorker:
     minReplicas: 1
     maxReplicas: 5
     targetCPUUtilizationPercentage: 75
+    # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
+    # on memory too. Requires the memory metric block in templates/hpa.yaml.
+    targetMemoryUtilizationPercentage: 75
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60
@@ -258,21 +266,28 @@ celeryWorker:
     timeoutSeconds: 90
     failureThreshold: 10
   resources:
+    # request == limit for memory -> Guaranteed QoS, so this pod is evicted LAST
+    # under node memory pressure, not first. This is what was OOM-evicting it:
+    # used ~1.3Gi while requesting only 1Gi.
     limits:
       cpu: "2"
       memory: 2Gi
     requests:
       cpu: 500m
-      memory: 1Gi
+      memory: 2Gi
 celeryBeat:
   enabled: true
   resources:
+    # memory request == limit so beat is never "over request" and is not a
+    # first-choice eviction target. It was OOM-evicted using ~686Mi against a
+    # 384Mi request. If it leaks past 768Mi it is OOMKilled and restarts
+    # cleanly (beat is a singleton scheduler), keeping memory bounded.
     limits:
       cpu: 200m
       memory: 768Mi
     requests:
       cpu: 50m
-      memory: 384Mi
+      memory: 768Mi
 prometheus:
   enabled: false
 grafana:

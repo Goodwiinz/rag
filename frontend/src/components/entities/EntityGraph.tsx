@@ -59,6 +59,14 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   height = 600,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  // The zoom behavior bound to the svg, so the toolbar buttons drive the SAME
+  // instance the wheel uses (a fresh d3.zoom() per click is detached and
+  // desyncs the zoom transform).
+  const zoomRef = useRef<any>(null);
+  // The live d3 force simulation, kept so it can be stopped before a re-render
+  // and on unmount — otherwise every data/theme change stacked another ticking
+  // simulation that ran forever (CPU + memory leak).
+  const simulationRef = useRef<any>(null);
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [d3Loaded, setD3Loaded] = useState(false);
 
@@ -100,6 +108,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     const width = svgRef.current.clientWidth;
     const { nodes, links } = prepareGraphData();
 
+    // Stop any prior simulation before starting a new one (renderGraph re-runs
+    // on every data/theme change) so they don't accumulate.
+    if (simulationRef.current) simulationRef.current.stop();
+
     // Create simulation
     const simulation = d3
       .forceSimulation(nodes as any)
@@ -129,6 +141,8 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
       });
 
     svg.call(zoom as any);
+    zoomRef.current = zoom;
+    simulationRef.current = simulation;
 
     // Create arrow markers
     svg
@@ -259,36 +273,33 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
   };
 
   const handleZoomIn = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.scaleBy as any, 1.3);
+      .call(zoomRef.current.scaleBy as any, 1.3);
   };
 
   const handleZoomOut = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.scaleBy as any, 0.7);
+      .call(zoomRef.current.scaleBy as any, 0.7);
   };
 
   const handleReset = () => {
-    if (!window.d3 || !svgRef.current) return;
+    if (!window.d3 || !svgRef.current || !zoomRef.current) return;
     const d3 = window.d3;
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom();
     svg
       .transition()
       .duration(300)
-      .call(zoom.transform as any, d3.zoomIdentity);
+      .call(zoomRef.current.transform as any, d3.zoomIdentity);
   };
 
   const exportGraph = () => {
@@ -348,6 +359,10 @@ export const EntityGraph: React.FC<EntityGraphProps> = ({
     if (window.d3 && d3Loaded) {
       renderGraph();
     }
+    // Stop the running simulation on dep change / unmount.
+    return () => {
+      if (simulationRef.current) simulationRef.current.stop();
+    };
   }, [entities, relationships, d3Loaded]);
 
   return (

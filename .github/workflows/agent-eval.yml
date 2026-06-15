@@ -14,6 +14,9 @@ on:
         required: false
         default: "agent-regression"
 
+permissions:
+  contents: read
+
 jobs:
   eval:
     runs-on: [self-hosted, linux]
@@ -41,9 +44,15 @@ jobs:
       NEO4J_USER: ${{ secrets.EVAL_NEO4J_USER }}
       NEO4J_PASSWORD: ${{ secrets.EVAL_NEO4J_PASSWORD }}
       REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
+      # DigitalOcean Knowledge Base (replaces Qdrant)
+      DO_KB_ENABLED: "true"
+      DO_API_TOKEN: ${{ secrets.EVAL_DO_API_TOKEN }}
+      DO_KB_REGION: ${{ secrets.EVAL_DO_KB_REGION }}
+      DO_KB_PROJECT_ID: ${{ secrets.EVAL_DO_KB_PROJECT_ID }}
+      DO_KB_EMBEDDING_MODEL_UUID: ${{ secrets.EVAL_DO_KB_EMBEDDING_MODEL_UUID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Resolve experiment prefix
         run: |
@@ -53,6 +62,21 @@ jobs:
           if [ -z "$PREFIX" ]; then PREFIX="agent-regression"; fi
           echo "AGENT_EVAL_EXPERIMENT_PREFIX=$PREFIX" >> "$GITHUB_ENV"
 
+      # actions/cache `path` is workspace-relative (it ignores the job's
+      # working-directory: backend), hence backend/.venv. Cache restore runs
+      # AFTER checkout's clean, so the restored venv survives. On a hit the
+      # `if [ ! -d .venv ]` guard skips the rebuild and pip finds everything
+      # already satisfied — the ~49-package ML tree is no longer re-downloaded.
+      - name: Cache pip + venv
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.cache/pip
+            backend/.venv
+          key: ${{ runner.os }}-pip-eval-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-eval-
+            ${{ runner.os }}-pip-
       - name: Ensure venv
         run: |
           if [ ! -d .venv ]; then
@@ -60,9 +84,28 @@ jobs:
           fi
           .venv/bin/pip install -q -r requirements.txt
 
-      - name: Run regression sweep
+      # Regenerate the remote dataset from golden_examples.py EVERY run so it
+      # can never drift (upsert + delete orphans). This is what prevents the
+      # silent-contract-mismatch class of failure: the dataset always mirrors
+      # the committed golden cases. Blocking — a sync failure fails the job.
+      - name: Sync golden dataset
         run: |
-          .venv/bin/pytest -m langsmith tests/eval/test_agent_regression.py -v --tb=short
+          .venv/bin/python -m tests.eval.upload_golden --clean
+
+      # Blocking gate: pytest's non-zero exit fails the job (no
+      # continue-on-error). Runs BOTH the remote-dataset sweep
+      # (test_agent_regression_against_dataset) and the deterministic local
+      # golden cases (test_local_golden_case). Online trajectory evaluators
+      # (incl. plan_adherence) are registered separately via
+      # `python tests/eval/upload_trajectory_rules.py` after evaluator changes.
+      - name: Run regression sweep
+        # `langsmith or golden`: the remote-dataset sweep AND the local golden
+        # cases run LIVE here. The golden cases are the weekly drift backstop
+        # for the committed replay cassettes — if a cassette no longer matches
+        # live model behavior, this job goes red. (Per-PR the golden cases run
+        # creds-free via AGENT_GOLDEN_REPLAY in test-pipeline.yml.)
+        run: |
+          .venv/bin/pytest -m "langsmith or golden" tests/eval/test_agent_regression.py -v --tb=short
 
       - name: Summary on failure
         if: failure()

@@ -7,7 +7,7 @@ import pytest
 import json
 from httpx import AsyncClient
 from unittest.mock import patch, Mock
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from tests.contract.evaluation.fixtures.data_generators import (

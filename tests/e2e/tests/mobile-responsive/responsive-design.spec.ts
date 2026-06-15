@@ -1,37 +1,43 @@
-import { test, expect, devices } from '@playwright/test';
-import { createTestHelpers, TEST_DATA } from '../utils/test-helpers';
+import { test, expect, devices } from "@playwright/test";
+import { createTestHelpers, TEST_DATA } from "../utils/test-helpers";
 
-test.describe('Responsive Design Tests', () => {
+test.describe("Responsive Design Tests", () => {
   let helpers: ReturnType<typeof createTestHelpers>;
 
   // Define viewports for testing
   const VIEWPORTS = {
-    desktop: { width: 1920, height: 1080, name: 'Desktop' },
-    laptop: { width: 1366, height: 768, name: 'Laptop' },
-    tablet: { width: 768, height: 1024, name: 'Tablet' },
-    mobileLarge: { width: 414, height: 896, name: 'Mobile Large' },
-    mobile: { width: 375, height: 667, name: 'Mobile' },
-    mobileSmall: { width: 320, height: 568, name: 'Mobile Small' },
+    desktop: { width: 1920, height: 1080, name: "Desktop" },
+    laptop: { width: 1366, height: 768, name: "Laptop" },
+    tablet: { width: 768, height: 1024, name: "Tablet" },
+    mobileLarge: { width: 414, height: 896, name: "Mobile Large" },
+    mobile: { width: 375, height: 667, name: "Mobile" },
+    mobileSmall: { width: 320, height: 568, name: "Mobile Small" },
   };
 
-  test.describe('Dashboard Responsive Behavior', () => {
+  test.describe("Dashboard Responsive Behavior", () => {
     test.beforeEach(async ({ page, context }, testInfo) => {
       helpers = createTestHelpers(page, context, testInfo);
       await helpers.login(TEST_DATA.USERS.ADMIN);
     });
 
     Object.entries(VIEWPORTS).forEach(([key, viewport]) => {
-      test(`should display correctly on ${viewport.name} (${viewport.width}x${viewport.height})`, async ({ page }) => {
+      test(`should display correctly on ${viewport.name} (${viewport.width}x${viewport.height})`, async ({
+        page,
+      }) => {
         helpers.logStep(`Testing responsive design on ${viewport.name}`);
 
         // Set viewport
-        await page.setViewportSize({ width: viewport.width, height: viewport.height });
-        await page.waitForTimeout(1000);
+        await page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
 
         // Navigate to dashboard
         await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
-        await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
-        await page.waitForLoadState('networkidle');
+        await helpers.expectElementVisible(
+          '[data-testid="analytics-dashboard"]',
+        );
+        await page.waitForLoadState("networkidle");
 
         // Test header responsiveness
         await testHeaderResponsiveness(page, viewport);
@@ -61,16 +67,24 @@ test.describe('Responsive Design Tests', () => {
 
       if (viewport.width < 768) {
         // Mobile: hamburger menu should be visible
-        await expect(page.locator('[data-testid="mobile-menu-button"]')).toBeVisible();
+        await expect(
+          page.locator('[data-testid="mobile-menu-button"]'),
+        ).toBeVisible();
         await expect(page.locator('[data-testid="desktop-nav"]')).toBeHidden();
       } else {
         // Desktop/Tablet: full navigation should be visible
         if (viewport.width >= 1024) {
-          await expect(page.locator('[data-testid="desktop-nav"]')).toBeVisible();
-          await expect(page.locator('[data-testid="mobile-menu-button"]')).toBeHidden();
+          await expect(
+            page.locator('[data-testid="desktop-nav"]'),
+          ).toBeVisible();
+          await expect(
+            page.locator('[data-testid="mobile-menu-button"]'),
+          ).toBeHidden();
         } else {
           // Tablet: might have hybrid navigation
-          await expect(page.locator('[data-testid="mobile-menu-button"]')).toBeVisible();
+          await expect(
+            page.locator('[data-testid="mobile-menu-button"]'),
+          ).toBeVisible();
         }
       }
 
@@ -80,7 +94,7 @@ test.describe('Responsive Design Tests', () => {
 
       // Test logo sizing
       const logo = page.locator('[data-testid="app-logo"]');
-      if (await logo.count() > 0) {
+      if ((await logo.count()) > 0) {
         const logoBox = await logo.boundingBox();
         if (logoBox) {
           expect(logoBox.width).toBeLessThanOrEqual(viewport.width * 0.3);
@@ -92,9 +106,9 @@ test.describe('Responsive Design Tests', () => {
       if (viewport.width < 768) {
         // Mobile navigation
         await page.locator('[data-testid="mobile-menu-button"]').click();
-        await page.waitForTimeout(500);
 
         // Mobile menu should be full-screen or large overlay
+        // (toBeVisible below auto-waits for the menu to open)
         const mobileMenu = page.locator('[data-testid="mobile-nav-menu"]');
         await expect(mobileMenu).toBeVisible();
 
@@ -114,21 +128,20 @@ test.describe('Responsive Design Tests', () => {
         }
 
         // Close mobile menu
-        await page.keyboard.press('Escape');
+        await page.keyboard.press("Escape");
       } else {
         // Desktop/Tablet navigation
         const navItems = page.locator('[data-testid="desktop-nav-item"]');
-        if (await navItems.count() > 0) {
+        if ((await navItems.count()) > 0) {
           await expect(navItems.first()).toBeVisible();
 
           // Test hover states
           await navItems.first().hover();
-          await page.waitForTimeout(300);
 
           // Dropdown should appear on desktop
           if (viewport.width >= 1024) {
             const dropdown = page.locator('[data-testid="nav-dropdown"]');
-            if (await dropdown.count() > 0) {
+            if ((await dropdown.count()) > 0) {
               await expect(dropdown.first()).toBeVisible();
             }
           }
@@ -137,7 +150,9 @@ test.describe('Responsive Design Tests', () => {
     }
 
     async function testContentLayoutResponsiveness(page: any, viewport: any) {
-      const mainContent = page.locator('[data-testid="dashboard-main-content"]');
+      const mainContent = page.locator(
+        '[data-testid="dashboard-main-content"]',
+      );
       await expect(mainContent).toBeVisible();
 
       const contentBox = await mainContent.boundingBox();
@@ -148,7 +163,7 @@ test.describe('Responsive Design Tests', () => {
 
       // Test sidebar responsiveness
       const sidebar = page.locator('[data-testid="dashboard-sidebar"]');
-      if (await sidebar.count() > 0) {
+      if ((await sidebar.count()) > 0) {
         if (viewport.width < 1024) {
           // Sidebar might be hidden or overlay on smaller screens
           await expect(sidebar).toBeHidden();
@@ -162,7 +177,7 @@ test.describe('Responsive Design Tests', () => {
     async function testWidgetResponsiveness(page: any, viewport: any) {
       // Test metric cards
       const metricCards = page.locator('[data-testid="metric-card"]');
-      if (await metricCards.count() > 0) {
+      if ((await metricCards.count()) > 0) {
         await expect(metricCards.first()).toBeVisible();
 
         // Cards should stack appropriately
@@ -184,7 +199,7 @@ test.describe('Responsive Design Tests', () => {
 
       // Test charts
       const charts = page.locator('[data-testid="chart"]');
-      if (await charts.count() > 0) {
+      if ((await charts.count()) > 0) {
         await expect(charts.first()).toBeVisible();
 
         // Charts should be responsive
@@ -198,12 +213,12 @@ test.describe('Responsive Design Tests', () => {
 
       // Test data tables
       const tables = page.locator('[data-testid="data-table"]');
-      if (await tables.count() > 0) {
+      if ((await tables.count()) > 0) {
         const table = tables.first();
 
         if (viewport.width < 768) {
           // Mobile: tables should scroll horizontally
-          const tableContainer = table.locator('..');
+          const tableContainer = table.locator("..");
           const containerBox = await tableContainer.boundingBox();
           const tableBox = await table.boundingBox();
 
@@ -221,9 +236,9 @@ test.describe('Responsive Design Tests', () => {
     }
   });
 
-  test.describe('Mobile-Specific Features', () => {
-    test('should support touch gestures on mobile', async ({ page }) => {
-      helpers.logStep('Testing touch gestures on mobile');
+  test.describe("Mobile-Specific Features", () => {
+    test("should support touch gestures on mobile", async ({ page }) => {
+      helpers.logStep("Testing touch gestures on mobile");
 
       // Set mobile viewport
       await page.setViewportSize(VIEWPORTS.mobile);
@@ -232,63 +247,81 @@ test.describe('Responsive Design Tests', () => {
 
       // Test swipe gestures for carousel/slider
       const carousel = page.locator('[data-testid="widget-carousel"]');
-      if (await carousel.count() > 0) {
+      if ((await carousel.count()) > 0) {
         const carouselBox = await carousel.boundingBox();
         if (carouselBox) {
           // Swipe left
-          await page.touch.start(carouselBox.x + carouselBox.width / 2, carouselBox.y + carouselBox.height / 2);
-          await page.touch.move(carouselBox.x + 100, carouselBox.y + carouselBox.height / 2);
+          await page.touch.start(
+            carouselBox.x + carouselBox.width / 2,
+            carouselBox.y + carouselBox.height / 2,
+          );
+          await page.touch.move(
+            carouselBox.x + 100,
+            carouselBox.y + carouselBox.height / 2,
+          );
           await page.touch.end();
 
-          await page.waitForTimeout(500);
-
           // Swipe right
-          await page.touch.start(carouselBox.x + 100, carouselBox.y + carouselBox.height / 2);
-          await page.touch.move(carouselBox.x + carouselBox.width / 2, carouselBox.y + carouselBox.height / 2);
+          await page.touch.start(
+            carouselBox.x + 100,
+            carouselBox.y + carouselBox.height / 2,
+          );
+          await page.touch.move(
+            carouselBox.x + carouselBox.width / 2,
+            carouselBox.y + carouselBox.height / 2,
+          );
           await page.touch.end();
         }
       }
 
       // Test pull-to-refresh
       const pullToRefreshArea = page.locator('[data-testid="pull-to-refresh"]');
-      if (await pullToRefreshArea.count() > 0) {
+      if ((await pullToRefreshArea.count()) > 0) {
         const refreshBox = await pullToRefreshArea.boundingBox();
         if (refreshBox) {
-          await page.touch.start(refreshBox.x + refreshBox.width / 2, refreshBox.y + 50);
-          await page.touch.move(refreshBox.x + refreshBox.width / 2, refreshBox.y + 200);
+          await page.touch.start(
+            refreshBox.x + refreshBox.width / 2,
+            refreshBox.y + 50,
+          );
+          await page.touch.move(
+            refreshBox.x + refreshBox.width / 2,
+            refreshBox.y + 200,
+          );
           await page.touch.end();
 
-          await page.waitForTimeout(1000);
-          await expect(page.locator('[data-testid="refresh-indicator"]')).toBeVisible();
+          await expect(
+            page.locator('[data-testid="refresh-indicator"]'),
+          ).toBeVisible();
         }
       }
 
-      helpers.logStep('Touch gestures test completed');
+      helpers.logStep("Touch gestures test completed");
     });
 
-    test('should handle virtual keyboard properly', async ({ page }) => {
-      helpers.logStep('Testing virtual keyboard handling');
+    test("should handle virtual keyboard properly", async ({ page }) => {
+      helpers.logStep("Testing virtual keyboard handling");
 
       await page.setViewportSize(VIEWPORTS.mobile);
       await helpers.login(TEST_DATA.USERS.ADMIN);
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
 
       // Find an input field
-      const searchInput = page.locator('[data-testid="search-input"], input[type="text"]').first();
-      if (await searchInput.count() > 0) {
+      const searchInput = page
+        .locator('[data-testid="search-input"], input[type="text"]')
+        .first();
+      if ((await searchInput.count()) > 0) {
         // Focus input to trigger virtual keyboard
         await searchInput.focus();
 
         // Mock virtual keyboard appearance
         await page.evaluate(() => {
           window.visualViewport.height = window.innerHeight * 0.6; // Simulate keyboard
-          window.dispatchEvent(new Event('resize'));
+          window.dispatchEvent(new Event("resize"));
         });
 
-        await page.waitForTimeout(500);
-
         // View should adjust for virtual keyboard
-        const focusedElement = page.locator(':focus');
+        // (toBeVisible below auto-waits for the resize to apply)
+        const focusedElement = page.locator(":focus");
         await expect(focusedElement).toBeVisible();
 
         // The focused element should be visible above the keyboard
@@ -300,69 +333,70 @@ test.describe('Responsive Design Tests', () => {
         // Test dismissal of virtual keyboard
         await page.evaluate(() => {
           window.visualViewport.height = window.innerHeight;
-          window.dispatchEvent(new Event('resize'));
+          window.dispatchEvent(new Event("resize"));
         });
 
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(500);
+        await page.keyboard.press("Escape");
       }
 
-      helpers.logStep('Virtual keyboard handling test completed');
+      helpers.logStep("Virtual keyboard handling test completed");
     });
 
-    test('should support device-specific features', async ({ page }) => {
-      helpers.logStep('Testing device-specific features');
+    test("should support device-specific features", async ({ page }) => {
+      helpers.logStep("Testing device-specific features");
 
       await page.setViewportSize(VIEWPORTS.mobile);
       await helpers.login(TEST_DATA.USERS.ADMIN);
       await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
 
       // Test geolocation if available
-      await page.context().grantPermissions(['geolocation']);
+      await page.context().grantPermissions(["geolocation"]);
 
-      const geolocationButton = page.locator('[data-testid="geolocation-button"]');
-      if (await geolocationButton.count() > 0) {
+      const geolocationButton = page.locator(
+        '[data-testid="geolocation-button"]',
+      );
+      if ((await geolocationButton.count()) > 0) {
         // Mock geolocation
-        await page.setGeolocation({ latitude: 40.7128, longitude: -74.0060 });
+        await page.setGeolocation({ latitude: 40.7128, longitude: -74.006 });
         await geolocationButton.click();
-        await page.waitForTimeout(1000);
 
         // Check if location-based content updates
         const locationInfo = page.locator('[data-testid="location-info"]');
-        if (await locationInfo.count() > 0) {
+        if ((await locationInfo.count()) > 0) {
           await expect(locationInfo).toBeVisible();
         }
       }
 
       // Test camera/image capture if available
-      await page.context().grantPermissions(['camera']);
+      await page.context().grantPermissions(["camera"]);
       const cameraButton = page.locator('[data-testid="camera-button"]');
-      if (await cameraButton.count() > 0) {
+      if ((await cameraButton.count()) > 0) {
         await cameraButton.click();
-        await page.waitForTimeout(500);
 
         // Should show camera interface or file picker
-        const cameraInterface = page.locator('[data-testid="camera-interface"]');
-        if (await cameraInterface.count() > 0) {
+        const cameraInterface = page.locator(
+          '[data-testid="camera-interface"]',
+        );
+        if ((await cameraInterface.count()) > 0) {
           await expect(cameraInterface).toBeVisible();
         }
       }
 
       // Test vibration if available
-      await page.context().grantPermissions(['vibration']);
+      await page.context().grantPermissions(["vibration"]);
       await page.evaluate(() => {
-        if ('vibrate' in navigator) {
+        if ("vibrate" in navigator) {
           navigator.vibrate(100);
         }
       });
 
-      helpers.logStep('Device-specific features test completed');
+      helpers.logStep("Device-specific features test completed");
     });
   });
 
-  test.describe('Performance on Different Devices', () => {
-    test('should perform well on low-end mobile devices', async ({ page }) => {
-      helpers.logStep('Testing performance on low-end mobile');
+  test.describe("Performance on Different Devices", () => {
+    test("should perform well on low-end mobile devices", async ({ page }) => {
+      helpers.logStep("Testing performance on low-end mobile");
 
       // Simulate low-end device
       await page.emulateCPUThrottling(4); // 4x slowdown
@@ -381,7 +415,6 @@ test.describe('Responsive Design Tests', () => {
       // Test interactions are still responsive
       const interactionStart = Date.now();
       await helpers.waitAndClick('[data-testid="metric-card"]');
-      await page.waitForTimeout(500);
       const interactionTime = Date.now() - interactionStart;
 
       expect(interactionTime).toBeLessThan(2000); // 2 seconds max
@@ -389,17 +422,17 @@ test.describe('Responsive Design Tests', () => {
       // Reset throttling
       await page.emulateCPUThrottling(1);
 
-      helpers.logStep('Low-end mobile performance test completed');
+      helpers.logStep("Low-end mobile performance test completed");
     });
 
-    test('should handle slow network conditions', async ({ page }) => {
-      helpers.logStep('Testing slow network conditions');
+    test("should handle slow network conditions", async ({ page }) => {
+      helpers.logStep("Testing slow network conditions");
 
       await page.setViewportSize(VIEWPORTS.mobile);
 
       // Simulate slow 3G network
-      await page.route('**/*', async route => {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+      await page.route("**/*", async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
         await route.continue();
       });
 
@@ -416,33 +449,46 @@ test.describe('Responsive Design Tests', () => {
       expect(loadTime).toBeLessThan(15000); // 15 seconds max on slow network
 
       // Remove network throttling
-      await page.unroute('**/*');
+      await page.unroute("**/*");
 
-      helpers.logStep('Slow network performance test completed');
+      helpers.logStep("Slow network performance test completed");
     });
   });
 
-  test.describe('Accessibility Across Devices', () => {
+  test.describe("Accessibility Across Devices", () => {
     Object.entries(VIEWPORTS).forEach(([key, viewport]) => {
-      test(`should maintain accessibility on ${viewport.name}`, async ({ page }) => {
+      test(`should maintain accessibility on ${viewport.name}`, async ({
+        page,
+      }) => {
         helpers.logStep(`Testing accessibility on ${viewport.name}`);
 
-        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
 
         if (viewport.width < 768) {
           // Enable mobile accessibility features
-          await page.emulateMedia({ reducedMotion: 'reduce' });
+          await page.emulateMedia({ reducedMotion: "reduce" });
         }
 
         await helpers.login(TEST_DATA.USERS.ADMIN);
         await helpers.waitAndClick('[data-testid="analytics-nav-link"]');
-        await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
+        await helpers.expectElementVisible(
+          '[data-testid="analytics-dashboard"]',
+        );
 
         // Test touch target sizes on mobile
         if (viewport.width < 768) {
-          const interactiveElements = page.locator('button, a, input, [role="button"]');
+          const interactiveElements = page.locator(
+            'button, a, input, [role="button"]',
+          );
 
-          for (let i = 0; i < Math.min(await interactiveElements.count(), 10); i++) {
+          for (
+            let i = 0;
+            i < Math.min(await interactiveElements.count(), 10);
+            i++
+          ) {
             const element = interactiveElements.nth(i);
             const box = await element.boundingBox();
 
@@ -455,8 +501,8 @@ test.describe('Responsive Design Tests', () => {
         }
 
         // Test keyboard navigation works on all devices
-        await page.keyboard.press('Tab');
-        const focusedElement = page.locator(':focus');
+        await page.keyboard.press("Tab");
+        const focusedElement = page.locator(":focus");
         await expect(focusedElement).toHaveCount(1);
 
         helpers.logStep(`${viewport.name} accessibility test completed`);
@@ -465,33 +511,35 @@ test.describe('Responsive Design Tests', () => {
   });
 });
 
-test.describe('Device-Specific Tests', () => {
-  test.describe('iPhone Tests', () => {
-    test('should work correctly on iPhone', async ({ page }) => {
-      await useDevice(devices['iPhone 12'], page);
+test.describe("Device-Specific Tests", () => {
+  test.describe("iPhone Tests", () => {
+    test("should work correctly on iPhone", async ({ page }) => {
+      await useDevice(devices["iPhone 12"], page);
     });
   });
 
-  test.describe('Android Tests', () => {
-    test('should work correctly on Android', async ({ page }) => {
-      await useDevice(devices['Pixel 5'], page);
+  test.describe("Android Tests", () => {
+    test("should work correctly on Android", async ({ page }) => {
+      await useDevice(devices["Pixel 5"], page);
     });
   });
 
-  test.describe('Tablet Tests', () => {
-    test('should work correctly on iPad', async ({ page }) => {
-      await useDevice(devices['iPad Pro'], page);
+  test.describe("Tablet Tests", () => {
+    test("should work correctly on iPad", async ({ page }) => {
+      await useDevice(devices["iPad Pro"], page);
     });
   });
 
   async function useDevice(device: any, page: any) {
     const helpers = createTestHelpers(page, page.context(), {} as any);
-    helpers.logStep(`Testing on ${device.defaultBrowserType} - ${device.userAgent}`);
+    helpers.logStep(
+      `Testing on ${device.defaultBrowserType} - ${device.userAgent}`,
+    );
 
     // Apply device settings
     await page.setViewportSize(device.viewport);
     await page.setUserAgent(device.userAgent);
-    await page.emulateMedia({ colorScheme: 'light' });
+    await page.emulateMedia({ colorScheme: "light" });
 
     // Test basic functionality
     await helpers.login(TEST_DATA.USERS.ADMIN);
@@ -499,7 +547,7 @@ test.describe('Device-Specific Tests', () => {
     await helpers.expectElementVisible('[data-testid="analytics-dashboard"]');
 
     // Test device-specific interactions
-    if (device.defaultBrowserType === 'webkit') {
+    if (device.defaultBrowserType === "webkit") {
       // Test Safari-specific features
       await testSafariFeatures(page);
     } else {
@@ -519,18 +567,16 @@ test.describe('Device-Specific Tests', () => {
   async function testSafariFeatures(page: any) {
     // Test Safari-specific features like 3D touch, Apple Pay, etc.
     const safariButton = page.locator('[data-testid="safari-feature"]');
-    if (await safariButton.count() > 0) {
+    if ((await safariButton.count()) > 0) {
       await safariButton.click();
-      await page.waitForTimeout(500);
     }
   }
 
   async function testChromeFeatures(page: any) {
     // Test Chrome-specific features like PWA, install prompts, etc.
     const chromeButton = page.locator('[data-testid="chrome-feature"]');
-    if (await chromeButton.count() > 0) {
+    if ((await chromeButton.count()) > 0) {
       await chromeButton.click();
-      await page.waitForTimeout(500);
     }
   }
 });

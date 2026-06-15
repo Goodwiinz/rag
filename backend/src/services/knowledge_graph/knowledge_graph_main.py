@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 from sqlalchemy import select
@@ -367,7 +367,6 @@ async def update_entity(
         params = {
             "entity_id": entity_id,
             "tenant_id": current_user.tenant_id,
-            "updated_at": "datetime()",
         }
 
         if request.name is not None:
@@ -389,7 +388,10 @@ async def update_entity(
                 entity_id, current_user, redis_client, neo4j_session
             )
 
-        update_fields.append("e.updated_at = $updated_at")
+        # Inline datetime() — it's a Cypher function call, not a bind value.
+        # Passing the string "datetime()" as $updated_at stored the literal
+        # text and corrupted the timestamp on every update.
+        update_fields.append("e.updated_at = datetime()")
         set_clause = ", ".join(update_fields)
 
         query = f"""
@@ -579,7 +581,19 @@ async def batch_create_entities(
                         }
                     )
 
-        await db.commit()
+            # Explicit commit: begin_transaction() rolls back on context exit
+            # unless committed, so without this the Neo4j writes were silently
+            # discarded while the Postgres records below were committed —
+            # leaving the two stores divergent. Commit Neo4j first; if Postgres
+            # then fails, roll Postgres back (Neo4j is already durable).
+            await tx.commit()
+
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.error("Postgres commit failed after Neo4j commit in batch_create_entities")
+            raise
 
         # Notify WebSocket clients
         await websocket_manager.broadcast_to_tenant(
@@ -729,10 +743,9 @@ async def extract_entities_from_document(
 ):
     """Extract entities from a document and add them to the knowledge graph"""
     try:
-        # Get document content (this would integrate with document service)
-        # For now, assume we have document content
+        # Fetch the real document text from Postgres (was a placeholder stub).
         document_content = await get_document_content(
-            document_id, current_user.tenant_id
+            db, document_id, current_user.tenant_id
         )
 
         # Extract entities using AI service
@@ -778,11 +791,26 @@ async def extract_entities_from_document(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-async def get_document_content(document_id: str, tenant_id: str) -> str:
-    """Get document content from document service"""
-    # This would integrate with document service via API call
-    # For now, return placeholder
-    return f"Sample document content for {document_id}"
+async def get_document_content(db: SQLAsyncSession, document_id: str, tenant_id: str) -> str:
+    """Fetch a document's extracted text from Postgres (Document.content_text),
+    scoped to the caller's organization. Replaces the placeholder stub that
+    returned 'Sample document content for ...' (entities were extracted from
+    fake text)."""
+    from src.models.document import Document
+
+    row = (
+        await db.execute(
+            select(Document.content_text).where(
+                Document.id == document_id,
+                Document.organization_id == tenant_id,
+            )
+        )
+    ).first()
+    if not row or not row[0]:
+        raise HTTPException(
+            status_code=404, detail="Document content not found or empty"
+        )
+    return row[0]
 
 
 # WebSocket endpoint for real-time updates
@@ -813,15 +841,18 @@ async def websocket_endpoint(websocket: WebSocket, tenant_id: str, token: str = 
 
 # Health check endpoint
 @app.get("/health")
-async def health_check(app):
+async def health_check(request: Request):
     """Health check endpoint"""
+    # Was `health_check(app)` — FastAPI treated `app` as a required query param,
+    # so the probe 422'd. Take the app off the Request instead.
+    app_state = request.app.state
     try:
         # Test Neo4j
-        async with app.state.neo4j_driver.session() as session:
+        async with app_state.neo4j_driver.session() as session:
             await session.run("RETURN 1")
 
         # Test Redis
-        await app.state.redis_client.ping()
+        await app_state.redis_client.ping()
 
         return {
             "status": "healthy",

@@ -107,7 +107,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
     <div className="rounded-lg border border-border bg-black/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Table2 className="h-4 w-4 text-brand-cyan" />
+          <Table2 className="h-4 w-4 text-primary" />
           <span className="text-sm font-medium text-muted-foreground">
             Table from page {pageNumber ?? '?'}
           </span>
@@ -150,7 +150,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                   {rows[0].map((cell, i) => (
                     <TableHead
                       key={i}
-                      className="bg-black/50 text-xs font-semibold text-brand-cyan"
+                      className="bg-primary/10 text-xs font-semibold text-primary"
                     >
                       {cell}
                     </TableHead>
@@ -184,7 +184,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleCopyCsv}
-                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-brand-cyan/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground"
               >
                 <Copy className="h-3 w-3" />
                 Copy CSV
@@ -193,7 +193,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleCopyMarkdown}
-                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-brand-cyan/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground"
               >
                 <Copy className="h-3 w-3" />
                 Copy Markdown
@@ -202,7 +202,7 @@ export const ExtractedTablePreview: React.FC<ExtractedTablePreviewProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={handleDownloadCsv}
-                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-brand-cyan/30 hover:text-white"
+                className="h-7 gap-1.5 border-border bg-transparent px-2.5 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground"
               >
                 <Download className="h-3 w-3" />
                 Download CSV

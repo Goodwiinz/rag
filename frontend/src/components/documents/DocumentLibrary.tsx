@@ -414,7 +414,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                         handleExportSelected();
                         setShowBulkActionsMenu(false);
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-gray-100"
+                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-muted"
                     >
                       <FolderArrowDownIcon
                         className="h-4 w-4 mr-2"
@@ -429,7 +429,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                         handleTagSelected('important');
                         setShowBulkActionsMenu(false);
                       }}
-                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-gray-100"
+                      className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-muted"
                     >
                       <TagIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                       Add Tags
@@ -479,7 +479,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
         )}
 
         {error && (
-          <div className="text-center py-12">
+          <div role="alert" className="text-center py-12">
             <p className="text-destructive mb-4">{error}</p>
             <Button onClick={handleRefresh} variant="outline">
               Try Again
@@ -692,7 +692,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({
                   <span>Deleting documents...</span>
                   <span>{deleteProgress}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-muted rounded-full h-2">
                   <div
                     className="bg-red-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${deleteProgress}%` }}

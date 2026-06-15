@@ -171,6 +171,14 @@ async def set_job(job_id: str, data: dict) -> None:
         _seq += 1
         data["_seq"] = _seq
         existing = _l1.get(job_id)
+        # set_job REPLACES the record. Carry the owner forward when a status
+        # update omits it — the GET ownership check fails closed on a missing
+        # user_id, so dropping it would lock the owner out of their own job.
+        # Scope: L1 only. If the entry was evicted from L1 but still lives in
+        # Redis, an ownerless write is NOT enriched — acceptable because every
+        # writer stamps user_id explicitly; this is a same-process backstop.
+        if "user_id" not in data and existing is not None and existing.get("user_id"):
+            data["user_id"] = existing["user_id"]
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
@@ -182,12 +190,24 @@ async def set_job(job_id: str, data: dict) -> None:
 async def set_job_redis_only(job_id: str, data: dict) -> None:
     """Persist a job to Redis only — does not touch L1.
 
-    Used by the sync ``_set_job`` wrapper after it has already written L1
-    so the fire-and-forget Redis write cannot overwrite L1 with stale data.
+    This is the *inline authoritative* write (called from ``set_job`` on the
+    async run path). It writes directly with ``setex`` and intentionally skips
+    the GET-before-SET monotonic guard: a job's status transitions are written
+    in order on a single task, so there is no newer state to stomp here, and
+    the per-turn hot path shouldn't pay an extra Redis round-trip per write.
+    The guard lives on ``_write_to_redis_only`` — the *delayed* fire-and-forget
+    path, where an out-of-order stomp can actually happen.
     """
     redis_client = await _get_redis()
     if redis_client is not None:
-        await _redis_write_if_newer(redis_client, job_id, data)
+        try:
+            await redis_client.setex(
+                f"{_JOB_KEY_PREFIX}{job_id}",
+                _JOB_TTL_SECONDS,
+                _json.dumps(data, default=str),
+            )
+        except Exception:
+            logger.exception("Failed to write job %s to Redis", job_id)
 
 
 async def get_job(job_id: str) -> Optional[dict]:

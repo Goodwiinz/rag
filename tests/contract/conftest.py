@@ -8,10 +8,11 @@ import sys
 import os
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Generator, AsyncGenerator, List, Optional
 from unittest.mock import Mock, AsyncMock, patch
 from pathlib import Path
+from tests.constants import TEST_JWT_SECRET
 
 # Add the backend directory to the Python path
 backend_dir = Path(__file__).parent.parent.parent / "backend"
@@ -185,12 +186,12 @@ def user_token(test_user):
         "email": test_user.email,
         "role": test_user.role.value,
         "organization_id": str(test_user.organization_id),
-        "exp": datetime.utcnow().timestamp() + 3600,  # 1 hour
-        "iat": datetime.utcnow().timestamp()
+        "exp": datetime.now(timezone.utc).timestamp() + 3600,  # 1 hour
+        "iat": datetime.now(timezone.utc).timestamp()
     }
 
     # Use same secret as in config
-    secret = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "test-secret-key"
+    secret = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else TEST_JWT_SECRET
     token = jwt.encode(payload, secret, algorithm="HS256")
     return token
 
@@ -203,11 +204,11 @@ def admin_token(test_admin_user):
         "email": test_admin_user.email,
         "role": test_admin_user.role.value,
         "organization_id": str(test_admin_user.organization_id),
-        "exp": datetime.utcnow().timestamp() + 3600,
-        "iat": datetime.utcnow().timestamp()
+        "exp": datetime.now(timezone.utc).timestamp() + 3600,
+        "iat": datetime.now(timezone.utc).timestamp()
     }
 
-    secret = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "test-secret-key"
+    secret = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else TEST_JWT_SECRET
     token = jwt.encode(payload, secret, algorithm="HS256")
     return token
 
@@ -263,7 +264,7 @@ def mock_rag_evaluation_service():
         mock_job.id = uuid.uuid4()
         mock_job.name = "Test Evaluation Job"
         mock_job.status = EvaluationStatus.PENDING.value
-        mock_job.created_at = datetime.utcnow()
+        mock_job.created_at = datetime.now(timezone.utc)
         mock_service.create_evaluation_job.return_value = mock_job
 
         yield mock_service

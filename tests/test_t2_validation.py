@@ -18,7 +18,7 @@ import time
 import json
 import numpy as np
 from typing import List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, AsyncMock
 
 # Import test framework and fixtures

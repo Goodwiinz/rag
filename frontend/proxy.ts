@@ -1,8 +1,52 @@
 import { type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 
+/**
+ * Per-request CSP with a script nonce (audit #4 completion).
+ *
+ * The static CSP added in #695 had to allow 'unsafe-inline'/'unsafe-eval' in
+ * script-src because there was no per-request nonce. Generating the nonce here
+ * and propagating it on the REQUEST headers (via updateSession →
+ * NextResponse.next({ request: { headers } })) lets Next 16 apply it to its
+ * own framework/hydration scripts, so script-src can drop unsafe-inline
+ * entirely. 'strict-dynamic' lets nonce-trusted scripts load their chunks.
+ * style-src keeps 'unsafe-inline' (styled-jsx/Tailwind inline styles — a style
+ * nonce is a separate follow-up). The static CSP was removed from
+ * next.config.js: two CSP headers enforce their intersection.
+ */
+function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https: wss:",
+    "worker-src 'self' blob:",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
 export async function proxy(request: NextRequest) {
-  return await updateSession(request);
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const csp = buildCsp(nonce);
+
+  // Mutated request headers must flow to the renderer for Next to pick up the
+  // nonce — updateSession passes them via NextResponse.next({request:{headers}}).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
+
+  const response = await updateSession(request, requestHeaders);
+
+  // And the browser needs the policy on the response.
+  response.headers.set('Content-Security-Policy', csp);
+
+  return response;
 }
 
 export const config = {

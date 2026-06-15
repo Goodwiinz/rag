@@ -1358,6 +1358,7 @@ def _thread_to_response(thread: Thread) -> ThreadResponse:
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
     )
 
 
@@ -1383,6 +1384,7 @@ def _thread_to_detail_response(
         created_by_id=thread.created_by_id,
         created_at=thread.created_at,
         updated_at=thread.updated_at,
+        source_project_id=thread.source_project_id,
         messages=messages,
     )
 

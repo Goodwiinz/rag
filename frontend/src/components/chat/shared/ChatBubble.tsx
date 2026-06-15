@@ -4,16 +4,15 @@ import { cn } from '@/lib/utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 import {
   Activity,
-  Bookmark,
   Check,
   Clock,
   Copy,
   RefreshCw,
   Search,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
+  Square,
 } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 
@@ -28,6 +27,7 @@ export interface ChatBubbleMessage {
     toolsUsed?: string[];
     responseTimeMs?: number;
     sourcesCount?: number;
+    stopped?: boolean;
   };
 }
 
@@ -39,48 +39,75 @@ export interface ChatBubbleProps {
   isStreaming?: boolean;
   streamingContent?: string;
   onRetry?: () => void;
-  onCitationClick?: (citations: Citation[], clickedCitation: Citation) => void;
+  onCitationClick?: (
+    citations: Citation[],
+    clickedCitation: Citation,
+    traceId?: string
+  ) => void;
+  /** Label for the pre-token "thinking" pill (phase-aware). */
+  thinkingLabel?: string;
 }
 
 function ToolStrip({
   toolsUsed,
   sourcesCount,
   responseTimeMs,
+  stopped,
 }: {
   toolsUsed?: string[];
   sourcesCount?: number;
   responseTimeMs?: number;
+  stopped?: boolean;
 }) {
   const hasAny =
     (toolsUsed && toolsUsed.length > 0) ||
     (sourcesCount && sourcesCount > 0) ||
-    (responseTimeMs && responseTimeMs > 0);
+    (responseTimeMs && responseTimeMs > 0) ||
+    stopped;
   if (!hasAny) return null;
+
+  // Only claim "Searched" when the agent actually retrieved/used tools; a
+  // response can carry just a timing with no sources (e.g. RAG off).
+  const didSearch =
+    (toolsUsed && toolsUsed.length > 0) || (sourcesCount && sourcesCount > 0);
 
   return (
     <div className="nous-tool-strip">
-      <div className="nous-tool-strip-icon">
-        <Search className="w-2.5 h-2.5" strokeWidth={2} />
-      </div>
-      <span className="nous-tool-strip-label">Searched</span>
-      {toolsUsed?.slice(0, 3).map((tool) => (
-        <React.Fragment key={tool}>
-          <span className="nous-tool-strip-sep" />
-          <span className="nous-tool-strip-chip">{tool}</span>
-        </React.Fragment>
-      ))}
-      {sourcesCount && sourcesCount > 0 && (
+      {didSearch && (
         <>
-          <span className="nous-tool-strip-sep" />
-          <span className="nous-tool-strip-chip">
-            {sourcesCount} {sourcesCount === 1 ? 'source' : 'sources'}
-          </span>
+          <div className="nous-tool-strip-icon">
+            <Search className="w-2.5 h-2.5" strokeWidth={2} />
+          </div>
+          <span className="nous-tool-strip-label">Searched</span>
+          {toolsUsed?.slice(0, 3).map((tool) => (
+            <React.Fragment key={tool}>
+              <span className="nous-tool-strip-sep" />
+              <span className="nous-tool-strip-chip">{tool}</span>
+            </React.Fragment>
+          ))}
+          {sourcesCount && sourcesCount > 0 && (
+            <>
+              <span className="nous-tool-strip-sep" />
+              <span className="nous-tool-strip-chip">
+                {sourcesCount} {sourcesCount === 1 ? 'source' : 'sources'}
+              </span>
+            </>
+          )}
         </>
       )}
       {responseTimeMs && responseTimeMs > 0 && (
         <span className="nous-tool-strip-time inline-flex items-center gap-1">
           <Clock className="w-2.5 h-2.5" strokeWidth={2} />
           {(responseTimeMs / 1000).toFixed(1)}s
+        </span>
+      )}
+      {stopped && (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--nous-fg-3)]"
+          title="You stopped this response; the text above is partial."
+        >
+          <Square className="w-2 h-2" strokeWidth={2.4} />
+          Stopped
         </span>
       )}
     </div>
@@ -96,6 +123,7 @@ export const ChatBubble = React.memo(function ChatBubble({
   streamingContent,
   onRetry,
   onCitationClick,
+  thinkingLabel = 'Thinking',
 }: ChatBubbleProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
@@ -139,21 +167,14 @@ export const ChatBubble = React.memo(function ChatBubble({
   const stripResponseMs = message.metadata?.responseTimeMs;
 
   return (
-    <div
-      className={cn(
-        'group relative mb-7 sm:mb-8 flex gap-3 sm:gap-[18px]',
-        isUser ? 'flex-row-reverse' : 'flex-row'
-      )}
-    >
+    <div className="group relative mb-7 sm:mb-8">
       {/* Content column */}
-      <div
-        className={cn('min-w-0 flex-1', isUser ? 'text-right' : 'text-left')}
-      >
+      <div className={cn('min-w-0', isUser ? 'text-right' : 'text-left')}>
         {/* Meta row — role + model pill + time */}
         <div
           className={cn(
             'mb-2 flex items-center gap-2.5',
-            isUser ? 'justify-end pr-1' : 'pl-1'
+            isUser ? 'justify-end' : ''
           )}
         >
           {!isUser && (
@@ -198,6 +219,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             toolsUsed={stripToolsUsed}
             sourcesCount={stripSourcesCount}
             responseTimeMs={stripResponseMs}
+            stopped={message.metadata?.stopped}
           />
         )}
 
@@ -222,7 +244,7 @@ export const ChatBubble = React.memo(function ChatBubble({
         ) : (
           <div className="relative">
             {isStreaming && !streamingContent ? (
-              <ThinkingPill label="Thinking" />
+              <ThinkingPill label={thinkingLabel} />
             ) : isStreaming && streamingContent ? (
               <div className="nous-chat-body">
                 <span className="whitespace-pre-wrap">{streamingContent}</span>
@@ -232,7 +254,7 @@ export const ChatBubble = React.memo(function ChatBubble({
                 />
               </div>
             ) : isTyping && !message.content ? (
-              <ThinkingPill label="Thinking" />
+              <ThinkingPill label={thinkingLabel} />
             ) : (
               <div className="nous-chat-body">
                 <CitationRenderer
@@ -240,7 +262,11 @@ export const ChatBubble = React.memo(function ChatBubble({
                   citations={message.citations as Citation[]}
                   onCitationClick={(citation) => {
                     if (onCitationClick) {
-                      onCitationClick(visibleCitations, citation);
+                      onCitationClick(
+                        visibleCitations,
+                        citation,
+                        message.diagnosticsTraceId
+                      );
                     }
                   }}
                 />
@@ -261,7 +287,11 @@ export const ChatBubble = React.memo(function ChatBubble({
                   type="button"
                   onClick={() => {
                     if (onCitationClick) {
-                      onCitationClick(visibleCitations, citation);
+                      onCitationClick(
+                        visibleCitations,
+                        citation,
+                        message.diagnosticsTraceId
+                      );
                     }
                   }}
                   className="group/citation flex items-center gap-2 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/40 hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
@@ -315,27 +345,6 @@ export const ChatBubble = React.memo(function ChatBubble({
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              className="nous-msg-action"
-              aria-label="Helpful"
-              title="Helpful"
-            >
-              <ThumbsUp className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="nous-msg-action"
-              aria-label="Not helpful"
-              title="Not helpful"
-            >
-              <ThumbsDown className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="nous-msg-action"
-              aria-label="Bookmark"
-              title="Bookmark"
-            >
-              <Bookmark className="h-3.5 w-3.5" />
-            </button>
           </div>
         )}
 
@@ -362,8 +371,16 @@ export const ChatBubble = React.memo(function ChatBubble({
 });
 
 function ThinkingPill({ label }: { label: string }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="nous-streaming-pill" role="status" aria-live="polite">
+    <motion.div
+      className="nous-streaming-pill"
+      role="status"
+      aria-live="polite"
+      initial={reduce ? false : { opacity: 0, y: 2 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
       <span
         className="w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
         style={{
@@ -372,7 +389,7 @@ function ThinkingPill({ label }: { label: string }) {
         }}
       />
       <span>{label}</span>
-    </div>
+    </motion.div>
   );
 }
 

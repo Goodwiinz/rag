@@ -22,6 +22,7 @@ vi.mock('framer-motion', () => ({
   useMotionValue: () => ({ set: vi.fn(), get: () => 0 }),
   useSpring: (v: any) => v,
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
+  useReducedMotion: () => false,
 }));
 
 import { ChatInput } from '../ChatInput';
@@ -88,11 +89,107 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('shows agent label', () => {
-    it('displays the agent label in the input bar', () => {
+  describe('phase-aware status pill', () => {
+    it('shows no status pill when idle (and no legacy agent badge)', () => {
       render(<ChatInput {...defaultProps} />);
+      expect(screen.queryByText(/Nous is/)).not.toBeInTheDocument();
+      expect(screen.queryByText('nous-agent')).not.toBeInTheDocument();
+    });
 
-      expect(screen.getByText('nous-agent')).toBeInTheDocument();
+    it('shows "reflecting" while loading before tokens arrive', () => {
+      render(
+        <ChatInput
+          {...defaultProps}
+          isLoading
+          isStreaming
+          streamingContent=""
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Nous is reflecting'
+      );
+    });
+
+    it('shows "writing" once tokens stream', () => {
+      render(
+        <ChatInput
+          {...defaultProps}
+          isLoading
+          isStreaming
+          streamingContent="partial answer"
+        />
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('Nous is writing');
+    });
+
+    it('shows "reading sources" while RAG retrieval is in flight', () => {
+      render(<ChatInput {...defaultProps} isLoading isRAGLoading />);
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Nous is reading sources'
+      );
+    });
+  });
+
+  describe('Ultra Thinking toggle', () => {
+    it('renders the Ultra Thinking label and toggles RAG', () => {
+      const onRAGToggle = vi.fn();
+      render(
+        <ChatInput
+          {...defaultProps}
+          enableRAG={false}
+          onRAGToggle={onRAGToggle}
+        />
+      );
+      const toggle = screen.getByText('Ultra Thinking');
+      expect(toggle).toBeInTheDocument();
+      fireEvent.click(toggle);
+      expect(onRAGToggle).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe('slash command menu', () => {
+    it('opens a listbox of commands when the value is "/"', () => {
+      render(<ChatInput {...defaultProps} value="/" />);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getByText('/new')).toBeInTheDocument();
+      expect(screen.getByText('/projects')).toBeInTheDocument();
+    });
+
+    it('does not show the menu for normal text', () => {
+      render(<ChatInput {...defaultProps} value="hello" />);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('runs the highlighted command on Enter (and does not submit)', () => {
+      const onCommand = vi.fn();
+      const onSubmit = vi.fn();
+      render(
+        <ChatInput
+          {...defaultProps}
+          value="/new"
+          onCommand={onCommand}
+          onSubmit={onSubmit}
+        />
+      );
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+      expect(onCommand).toHaveBeenCalledWith('new');
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('runs a command when its row is clicked', () => {
+      const onCommand = vi.fn();
+      render(<ChatInput {...defaultProps} value="/" onCommand={onCommand} />);
+      fireEvent.click(screen.getByText('/clear'));
+      expect(onCommand).toHaveBeenCalledWith('clear');
+    });
+
+    it('Escape dismisses the menu without clearing the input', () => {
+      const onChange = vi.fn();
+      render(<ChatInput {...defaultProps} value="/new" onChange={onChange} />);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
   });
 });
