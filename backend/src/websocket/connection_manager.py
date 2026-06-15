@@ -215,10 +215,14 @@ class RedisBackedConnectionManager:
             # Store in Redis
             await self._store_connection_in_redis(connection_info)
 
-            # Store in memory
+            # Store in memory; override datetime fields with ISO strings so the
+            # ping loop can call datetime.fromisoformat() on them consistently.
             self._local_connections[connection_id] = {
                 **asdict(connection_info),
                 "websocket": websocket,
+                "connected_at": now.isoformat(),
+                "last_ping": now.isoformat(),
+                "last_activity": now.isoformat(),
             }
 
             # Update user/org mappings
