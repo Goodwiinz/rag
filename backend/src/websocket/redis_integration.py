@@ -581,9 +581,9 @@ class WebSocketRedisManager:
                 decoded = bytes.fromhex(value)
                 decompressed = zlib.decompress(decoded).decode("utf-8")
                 return json.loads(decompressed)
-            except (ValueError, zlib.error, json.JSONDecodeError):
-                # Return as string if all else fails
-                return value
+            except (ValueError, zlib.error, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to deserialize Redis value: {e!r}")
+                raise ValueError(f"Cannot deserialize value: {e}") from e
 
     async def _channel_listener(self, channel: str):
         """Listen for messages on a channel"""
