@@ -8,7 +8,6 @@ import json
 import logging
 import time
 import uuid
-import weakref
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -101,7 +100,7 @@ class RedisBackedConnectionManager:
         self.max_connections_total = max_connections_total
 
         # In-memory connection tracking (weak references for cleanup)
-        self._local_connections: Dict[str, weakref.ref] = {}
+        self._local_connections: Dict[str, Dict] = {}
         self._user_connections: Dict[str, Set[str]] = {}
         self._org_connections: Dict[str, Set[str]] = {}
 
@@ -169,8 +168,7 @@ class RedisBackedConnectionManager:
             await self._redis_client.close()
 
         # Close all WebSocket connections
-        for conn_ref in list(self._local_connections.values()):
-            conn = conn_ref()
+        for conn in list(self._local_connections.values()):
             if conn and conn["websocket"]:
                 try:
                     await conn["websocket"].close()
@@ -217,10 +215,13 @@ class RedisBackedConnectionManager:
             # Store in Redis
             await self._store_connection_in_redis(connection_info)
 
-            # Store in memory with weak reference
-            self._local_connections[connection_id] = weakref.ref(
-                {**asdict(connection_info), "websocket": websocket}
-            )
+            # Store in memory; keep a plain dict so the data isn't GC'd immediately
+            # (weakref.ref to an anonymous dict literal has no strong holder and is
+            # collected before the ref can ever be dereferenced).
+            self._local_connections[connection_id] = {
+                **asdict(connection_info),
+                "websocket": websocket,
+            }
 
             # Update user/org mappings
             if user_id not in self._user_connections:
@@ -275,11 +276,7 @@ class RedisBackedConnectionManager:
     async def disconnect(self, connection_id: str, reason: str = "Normal closure"):
         """Close and clean up a WebSocket connection"""
         try:
-            conn_ref = self._local_connections.get(connection_id)
-            if not conn_ref:
-                return
-
-            conn_data = conn_ref()
+            conn_data = self._local_connections.get(connection_id)
             if not conn_data:
                 return
 
@@ -336,11 +333,7 @@ class RedisBackedConnectionManager:
     async def send_message(self, connection_id: str, message: WebSocketMessage):
         """Send a message to a specific connection"""
         try:
-            conn_ref = self._local_connections.get(connection_id)
-            if not conn_ref:
-                return False
-
-            conn_data = conn_ref()
+            conn_data = self._local_connections.get(connection_id)
             if not conn_data:
                 return False
 
@@ -562,10 +555,8 @@ class RedisBackedConnectionManager:
                 stale_threshold = now - timedelta(seconds=self.ping_interval * 3)
 
                 for conn_id in connection_ids:
-                    conn_ref = self._local_connections.get(conn_id)
-                    if conn_ref:
-                        conn_data = conn_ref()
-                        if conn_data:
+                    conn_data = self._local_connections.get(conn_id)
+                    if conn_data:
                             last_activity_str = conn_data.get("last_activity")
                             if last_activity_str:
                                 last_activity = datetime.fromisoformat(
@@ -585,15 +576,7 @@ class RedisBackedConnectionManager:
             try:
                 await asyncio.sleep(self.cleanup_interval)
 
-                # Clean up dead weak references
-                dead_connections = []
-                for conn_id, conn_ref in self._local_connections.items():
-                    if conn_ref() is None:
-                        dead_connections.append(conn_id)
-
-                for conn_id in dead_connections:
-                    self._local_connections.pop(conn_id, None)
-                    await self._remove_connection_from_redis(conn_id)
+                # No-op: plain dicts never become stale; disconnect() handles removal
 
                 if dead_connections:
                     logger.info(f"Cleaned up {len(dead_connections)} dead connections")
@@ -668,11 +651,9 @@ class RedisBackedConnectionManager:
     async def _handle_ping(self, connection_id: str, message: WebSocketMessage):
         """Handle ping message"""
         # Update last activity
-        conn_ref = self._local_connections.get(connection_id)
-        if conn_ref:
-            conn_data = conn_ref()
-            if conn_data:
-                conn_data["last_activity"] = datetime.utcnow().isoformat()
+        conn_data = self._local_connections.get(connection_id)
+        if conn_data:
+            conn_data["last_activity"] = datetime.utcnow().isoformat()
 
         # Send pong response
         await self.send_message(
@@ -691,13 +672,11 @@ class RedisBackedConnectionManager:
             return
 
         # Add to connection subscriptions
-        conn_ref = self._local_connections.get(connection_id)
-        if conn_ref:
-            conn_data = conn_ref()
-            if conn_data:
-                subscriptions = conn_data.get("subscriptions", set())
-                subscriptions.add(channel)
-                conn_data["subscriptions"] = list(subscriptions)
+        conn_data = self._local_connections.get(connection_id)
+        if conn_data:
+            subscriptions = conn_data.get("subscriptions", set())
+            subscriptions.add(channel)
+            conn_data["subscriptions"] = list(subscriptions)
 
         # Send confirmation
         await self.send_message(
@@ -717,13 +696,11 @@ class RedisBackedConnectionManager:
             return
 
         # Remove from connection subscriptions
-        conn_ref = self._local_connections.get(connection_id)
-        if conn_ref:
-            conn_data = conn_ref()
-            if conn_data:
-                subscriptions = conn_data.get("subscriptions", set())
-                subscriptions.discard(channel)
-                conn_data["subscriptions"] = list(subscriptions)
+        conn_data = self._local_connections.get(connection_id)
+        if conn_data:
+            subscriptions = conn_data.get("subscriptions", set())
+            subscriptions.discard(channel)
+            conn_data["subscriptions"] = list(subscriptions)
 
     async def _handle_connection_error(self, websocket: WebSocket, error: str):
         """Handle connection establishment error"""
