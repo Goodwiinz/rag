@@ -144,7 +144,7 @@ async def _resolve_document_id(
             stmt = (
                 select(Document)
                 .where(
-                    Document.title.ilike(_escape_like(document_id)),
+                    Document.title.ilike(f"%{_escape_like(document_id)}%"),
                     Document.organization_id == current_user.organization_id,
                     Document.is_deleted == False,
                 )
@@ -184,7 +184,7 @@ async def _resolve_project_id(
                 select(Collection.id)
                 .join(Workspace, Collection.workspace_id == Workspace.id)
                 .where(
-                    Collection.name.ilike(project_id),
+                    Collection.name.ilike(_escape_like(project_id)),
                     Collection.is_deleted == False,
                     Workspace.owner_id == current_user.id,
                 )
