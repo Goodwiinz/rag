@@ -1,21 +1,138 @@
-# Codecov configuration.
+# Codecov configuration for NOUS.
+# Docs:     https://docs.codecov.com/docs/codecov-yaml
+# Validate: curl -X POST --data-binary @codecov.yml https://api.codecov.io/validate
 #
-# Coverage is NOT gated yet — the vitest config ships smoke-coverage only
-# (thresholds: { lines: 0, branches: 0, functions: 0, statements: 0 }), and
-# coverage now uploads from two CI systems (GitHub Actions test-pipeline +
-# CircleCI), so the merged total-coverage delta is noisy and was failing
-# `codecov/project` on PRs that changed no source (e.g. #736: CI config + test
-# de-flakes). Keep status checks advisory so a coverage wobble never blocks a
-# PR; flip `informational: false` + set targets once coverage is enforced.
+# Coverage is uploaded best-effort from CircleCI (see the `codecov_upload`
+# command in .circleci/config.yml). Four upload flags map 1:1 to CI jobs:
+#
+#   flag         job                 report                       source
+#   ----         ---                 ------                       ------
+#   unit         unit-tests          coverage.xml                 backend/src
+#   integration  integration-tests   coverage.xml                 backend/src
+#   resilience   resilience-tests    coverage.xml                 backend/src/core
+#   frontend     frontend-tests      frontend/coverage/lcov.info  frontend/src
+#
+# Status checks are INFORMATIONAL (non-blocking) while coverage ramps — the
+# CircleCI per-file ratchet (backend/scripts/check_coverage_ratchet.py) and the
+# unit-tests --cov-fail-under floor (35%) are the real gates. (integration and
+# resilience run --cov but have no floor yet.) Flip `informational: false` once
+# the floor is high enough to enforce on PRs.
+
+codecov:
+  require_ci_to_pass: true
+
 coverage:
+  precision: 2
+  round: down
+  range: "60...90"
+
   status:
     project:
       default:
         informational: true
+        threshold: 1%   # ignore sub-1% drops (parallel-upload jitter)
     patch:
       default:
         informational: true
+        target: 70%     # aspirational diff-coverage target on new code
 
-# Don't fail the upload step if some flags are missing on a given run.
-codecov:
-  require_ci_to_pass: false
+# Upload-time grouping. carryforward keeps a flag's last-known coverage when its
+# job is skipped on a given PR, so a gated/flaky job doesn't drop the total.
+flags:
+  unit:
+    paths:
+      - backend/src
+    carryforward: true
+  integration:
+    paths:
+      - backend/src
+    carryforward: true
+  resilience:
+    paths:
+      - backend/src/core   # resilience job runs --cov=backend/src/core only
+    carryforward: true
+  frontend:
+    paths:
+      - frontend/src
+    carryforward: true
+
+# Path-based views (orthogonal to flags) for a clean backend/frontend split in
+# the PR comment and the Codecov dashboard.
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        informational: true
+  individual_components:
+    # --- Backend (FastAPI) ---
+    - component_id: backend
+      name: Backend (FastAPI)
+      paths:
+        - backend/src/**
+    - component_id: backend_agent
+      name: Backend · Agent (LangGraph)
+      paths:
+        - backend/src/services/agent/**
+    - component_id: backend_api
+      name: Backend · API
+      paths:
+        - backend/src/api/**
+    - component_id: backend_core
+      name: Backend · Core & Resilience
+      paths:
+        - backend/src/core/**
+        - backend/src/resilience/**
+    # --- Frontend (Next.js) ---
+    # Sub-components map to the dirs vitest actually collects coverage for
+    # (see frontend/vitest.config.mts `coverage.include`): components, hooks,
+    # services, store, utils. Splitting outside those would render empty.
+    - component_id: frontend
+      name: Frontend (Next.js)
+      paths:
+        - frontend/src/**
+    - component_id: frontend_state
+      name: Frontend · State
+      paths:
+        - frontend/src/store/**
+        - frontend/src/stores/**
+    - component_id: frontend_services
+      name: Frontend · Services & hooks
+      paths:
+        - frontend/src/services/**
+        - frontend/src/hooks/**
+    - component_id: frontend_components
+      name: Frontend · Components
+      paths:
+        - frontend/src/components/**
+
+comment:
+  layout: "header, diff, flags, components, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Vitest (v8) runs from frontend/, so lcov emits paths relative to that dir
+# (e.g. `src/components/Foo.tsx`). Remap them onto the repo tree. Backend paths
+# are already `backend/src/...` (pytest runs --cov=backend/src from repo root),
+# so they don't start with `src/` and are untouched.
+fixes:
+  - "src/::frontend/src/"
+
+ignore:
+  - "**/tests/**"
+  - "**/test_*.py"
+  - "**/conftest.py"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/*.stories.tsx"
+  - "**/__mocks__/**"
+  - "**/mocks/**"
+  - "backend/alembic/**"
+  - "**/migrations/**"
+  - "backend/src/config/**"
+  - "frontend/src/components/ui/**"
+  - "**/node_modules/**"
+  - "frontend/.next/**"
