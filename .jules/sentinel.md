@@ -17,3 +17,8 @@
 **Vulnerability:** Several backend API endpoints in modules like search, research, and documents were directly interpolating the raw exception string into 500 Internal Server Error details (e.g., `raise HTTPException(status_code=500, detail=f"Failed to...: {str(e)}")`). This exposed internal system details, potential stack traces, or database errors to the end-user.
 **Learning:** Over-informative HTTP exception messages provide debugging convenience at the cost of security, allowing attackers to infer backend structure, queries, or third-party service issues from the client side.
 **Prevention:** Always rely on secure server-side logging for detailed exceptions (`logger.error(e)`) and return generic, uninformative messages like "Internal server error" in the `detail` parameter of 500 error responses sent to the client.
+
+## 2025-02-24 - Information Leakage in API Export Exceptions
+**Vulnerability:** Raw generic exceptions (`Exception as e`) were being directly interpolated into user-facing HTTP 500 error messages (e.g. `raise HTTPException(status_code=500, detail=f"Export failed: {e}")`) in `export.py`.
+**Learning:** This exposes internal application states, stack traces, and database/file paths to end-users on error, acting as a potential reconnaissance vector for attackers.
+**Prevention:** Always log the raw exception internally using a secure logger, but return only generic, pre-defined error messages (e.g., "Export failed due to an internal error.") to the client.
