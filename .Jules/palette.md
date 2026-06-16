@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2026-06-16 - Contextual ARIA labels on dynamic lists
+**Learning:** When generating buttons from dynamic lists (like search history or autocomplete suggestions), static `aria-label`s or generic tags aren't sufficient.
+**Action:** Use template literals to inject the specific dynamic content into the `aria-label` (e.g., `aria-label={\`Select suggestion \${suggestion}\`}`) to ensure screen readers provide full context for each unique item.

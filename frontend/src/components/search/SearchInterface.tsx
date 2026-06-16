@@ -485,6 +485,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   <button
                     key={index}
                     type="button"
+                    aria-label={`Select suggestion ${suggestion}`}
                     onClick={() => handleSuggestionClick(suggestion)}
                     className={cn(
                       'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center space-x-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
@@ -520,6 +521,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   <button
                     key={related.query}
                     type="button"
+                    aria-label={`Select related query ${related.query}`}
                     onClick={() => handleSuggestionClick(related.query)}
                     className={cn(
                       'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center justify-between group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
@@ -555,6 +557,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
         <div className="flex flex-wrap items-center justify-center gap-2 animate-in fade-in slide-in-from-top-1 duration-500">
           <button
             type="button"
+            aria-label="Filter by PDFs"
             onClick={() => toggleQuickFilter('file_type', 'pdf')}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
@@ -568,6 +571,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           </button>
           <button
             type="button"
+            aria-label="Filter by last 7 days"
             onClick={() => toggleQuickFilter('date', 'week')}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
@@ -581,6 +585,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
           </button>
           <button
             type="button"
+            aria-label="Filter by high confidence"
             onClick={() => toggleQuickFilter('confidence', 0.8)}
             className={cn(
               'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
@@ -941,6 +946,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 <button
                   key={item.id}
                   type="button"
+                  aria-label={`Search history item ${item.query}`}
                   onClick={() => handleHistoryClick(item)}
                   className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
@@ -993,6 +999,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 <button
                   key={saved.id}
                   type="button"
+                  aria-label={`Saved search ${saved.name}`}
                   onClick={() => handleSavedSearchClick(saved)}
                   className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
