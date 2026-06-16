@@ -389,7 +389,12 @@ jobs:
             set -e
             [ -z "$PYV" ] && { echo "no pyenv 3.11 available"; exit 1; }
             pyenv global "$PYV"
+            # The pip bundled with the pyenv-built Python is too old for
+            # `pip install --build-constraint ...` (added in a newer pip; the
+            # cimg/python images ship it, pyenv's does not -> "no such option").
+            python -m pip install --quiet --upgrade pip
             python --version
+            pip --version
       - restore_pip_cache
       - run:
           name: Install dependencies
