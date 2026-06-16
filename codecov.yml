@@ -64,14 +64,46 @@ component_management:
       - type: project
         informational: true
   individual_components:
+    # --- Backend (FastAPI) ---
     - component_id: backend
       name: Backend (FastAPI)
       paths:
         - backend/src/**
+    - component_id: backend_agent
+      name: Backend · Agent (LangGraph)
+      paths:
+        - backend/src/services/agent/**
+    - component_id: backend_api
+      name: Backend · API
+      paths:
+        - backend/src/api/**
+    - component_id: backend_core
+      name: Backend · Core & Resilience
+      paths:
+        - backend/src/core/**
+        - backend/src/resilience/**
+    # --- Frontend (Next.js) ---
+    # Sub-components map to the dirs vitest actually collects coverage for
+    # (see frontend/vitest.config.mts `coverage.include`): components, hooks,
+    # services, store, utils. Splitting outside those would render empty.
     - component_id: frontend
       name: Frontend (Next.js)
       paths:
         - frontend/src/**
+    - component_id: frontend_state
+      name: Frontend · State
+      paths:
+        - frontend/src/store/**
+        - frontend/src/stores/**
+    - component_id: frontend_services
+      name: Frontend · Services & hooks
+      paths:
+        - frontend/src/services/**
+        - frontend/src/hooks/**
+    - component_id: frontend_components
+      name: Frontend · Components
+      paths:
+        - frontend/src/components/**
 
 comment:
   layout: "header, diff, flags, components, files"
