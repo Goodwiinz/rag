@@ -15,3 +15,11 @@ overrides:
   next: 16.2.6
   react: 18.3.1
   react-dom: 18.3.1
+  # Security: force patched transitive deps (Dependabot/pnpm-audit high-sev).
+  # All are transitive (trigger.dev sdk, jsdom test dom, exceljs in e2e) — not
+  # direct deps, so an override is the only lever. esbuild/vite/vitest are NOT
+  # here: they're coupled to the vitest 2→3 major upgrade (separate PR).
+  systeminformation: '>=5.31.6'
+  ws: '>=8.21.0'
+  form-data: '>=4.0.6'
+  tmp: '>=0.2.7'

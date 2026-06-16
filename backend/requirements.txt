@@ -19,6 +19,9 @@ supabase>=2.28.0
 
 # Authentication & Security
 python-jose[cryptography]==3.5.0
+# Direct floor for the transitive cryptography (pulled by python-jose):
+# < 46.0.5 has a high-severity advisory. Pinning here forces the patched build.
+cryptography>=46.0.5
 passlib[bcrypt]==1.7.4
 python-multipart>=0.0.30
 bcrypt==5.0.0
@@ -51,7 +54,7 @@ neo4j==6.2.0
 pypdf>=6.6.2
 PyMuPDF==1.27.2.3
 pytesseract==0.3.13
-pillow==10.3.0
+pillow==12.2.0
 opencv-python==4.13.0.92
 setuptools>=70.0.0,<72.0.0  # pkg_resources removed in 72+, needed by pybtex
 camelot-py[cv]>=0.11.0
@@ -122,7 +125,7 @@ pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 testcontainers[postgres,redis]>=4.0.0
 aiosqlite>=0.19.0  # For async SQLite in tests
-PyJWT>=2.8.0
+PyJWT>=2.12.0
 
 # External Database Connectors (optional)
 bioservices>=1.11.0  # Bridge to 70+ biological web services
