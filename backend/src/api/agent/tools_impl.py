@@ -966,12 +966,18 @@ async def _tool_ingest_arxiv(
                             from src.services.do_kb import sync_documents_to_kb
 
                             async with AsyncSessionLocal() as kb_db:
-                                # AsyncSession.merge() is synchronous in SQLAlchemy
-                                # 2.0 — awaiting it raises TypeError (swallowed by
-                                # the except below), so the KB dual-write silently
-                                # never ran. Do not await it.
-                                merged = [kb_db.merge(d) for d in persisted_documents]
+                                # AsyncSession.merge() IS a coroutine in SQLAlchemy
+                                # 2.0 (inspect.iscoroutinefunction == True). Without
+                                # await, `merged` held unawaited coroutine objects
+                                # (RuntimeWarning) instead of Documents, the KB sync
+                                # then AttributeError'd and was swallowed below — so
+                                # the dual-write silently never ran. Await + commit so
+                                # the do_kb_data_source_uuid writes actually persist.
+                                merged = [
+                                    await kb_db.merge(d) for d in persisted_documents
+                                ]
                                 await sync_documents_to_kb(kb_db, merged)
+                                await kb_db.commit()
                         except Exception as kb_err:  # noqa: BLE001
                             logger.warning(
                                 "do_kb dual-write skipped for arxiv ingest: %s", kb_err

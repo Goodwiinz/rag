@@ -241,7 +241,11 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
         return False
     if not snapshot or not snapshot.values:
         return False
-    if not snapshot.values.get("pending_confirmation"):
+    # A live interrupt is a pending task carrying `.interrupts` — NOT a truthy
+    # `pending_confirmation` value (that key is only ever written back as `{}`).
+    # The old `if not pending_confirmation` predicate was inverted, so this
+    # cleanup never ran and an abandoned interrupt could re-fire on the next turn.
+    if not any(getattr(t, "interrupts", None) for t in (snapshot.tasks or ())):
         return False
     try:
         await graph.aupdate_state(
@@ -1139,9 +1143,19 @@ async def _resume_agent_graph(
                 # task firing late), short-circuit instead of issuing a
                 # second Command(resume=...) that would have nothing to
                 # resume against.
-                if not snapshot.values.get("pending_confirmation"):
+                #
+                # A live interrupt shows up as a pending task carrying
+                # `.interrupts` (the same signal streaming.py:480 uses), NOT as a
+                # truthy `pending_confirmation` value — that key is only ever
+                # written back as `{}` once the interrupt is consumed, so the old
+                # `if not pending_confirmation` predicate was inverted and
+                # rejected EVERY legitimate first resume.
+                has_pending_interrupt = any(
+                    getattr(t, "interrupts", None) for t in (snapshot.tasks or ())
+                )
+                if not has_pending_interrupt:
                     logger.warning(
-                        "Resume requested for job %s but no pending_confirmation in "
+                        "Resume requested for job %s but no pending interrupt in "
                         "checkpoint; interrupt already consumed",
                         job_id,
                     )

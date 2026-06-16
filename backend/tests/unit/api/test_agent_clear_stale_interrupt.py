@@ -6,6 +6,7 @@ fresh ``HumanMessage`` would otherwise re-fire the old interrupt and block
 the turn. The helper detects that case and wipes the pending state.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,9 +17,17 @@ from src.api.agent.jobs import _clear_stale_pending_confirmation
 def _make_graph(
     pending: dict | None, *, raise_on_get: bool = False, raise_on_update: bool = False
 ) -> MagicMock:
-    """Build a graph mock with a configurable checkpoint snapshot."""
+    """Build a graph mock with a configurable checkpoint snapshot.
+
+    A live interrupt is signalled by a pending task carrying `.interrupts`
+    (`pending_confirmation` is always `{}` while live) — modelled here as present
+    whenever ``pending`` is truthy, matching the original tests' intent.
+    """
     snapshot = MagicMock()
     snapshot.values = {"pending_confirmation": pending or {}}
+    snapshot.tasks = (
+        (SimpleNamespace(interrupts=[SimpleNamespace(value={})]),) if pending else ()
+    )
     graph = MagicMock()
     if raise_on_get:
         graph.aget_state = AsyncMock(side_effect=RuntimeError("checkpointer down"))
