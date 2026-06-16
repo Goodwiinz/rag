@@ -475,7 +475,7 @@ class WebSocketAuthenticator:
 
         except Exception as e:
             logger.error(f"Error creating WebSocket session: {e}")
-            return str(uuid.uuid4())
+            raise RuntimeError(f"Failed to create WebSocket session: {e}") from e
 
     async def _generate_refresh_token(self, user_id: str, organization_id: str) -> str:
         """Generate a new JWT token for session refresh"""
