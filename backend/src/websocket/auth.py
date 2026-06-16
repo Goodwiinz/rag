@@ -190,7 +190,10 @@ class WebSocketAuthenticator:
                 return None
 
             # Check if refresh is needed
-            expiry_time = datetime.fromisoformat(session_data.get("expires_at"))
+            expires_at_str = session_data.get("expires_at")
+            if not expires_at_str:
+                return None
+            expiry_time = datetime.fromisoformat(expires_at_str)
             if datetime.utcnow() > (
                 expiry_time - timedelta(seconds=self.refresh_threshold)
             ):
@@ -442,10 +445,10 @@ class WebSocketAuthenticator:
         client_ip: Optional[str] = None,
     ) -> str:
         """Create a new WebSocket session"""
-        try:
-            if not self._redis_client:
-                return str(uuid.uuid4())
+        if not self._redis_client:
+            raise RuntimeError("Redis unavailable — cannot create tracked session")
 
+        try:
             session_id = str(uuid.uuid4())
             session_key = f"ws:session:{session_id}"
 
@@ -472,7 +475,7 @@ class WebSocketAuthenticator:
 
         except Exception as e:
             logger.error(f"Error creating WebSocket session: {e}")
-            return str(uuid.uuid4())
+            raise RuntimeError(f"Failed to create WebSocket session: {e}") from e
 
     async def _generate_refresh_token(self, user_id: str, organization_id: str) -> str:
         """Generate a new JWT token for session refresh"""

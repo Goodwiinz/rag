@@ -12,6 +12,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from ..core.database import get_db_session
+from ..core.dependencies import require_admin
+from ..models.user import User
 from ..websocket.auth import get_websocket_authenticator
 from ..websocket.connection_manager import RedisBackedConnectionManager
 from ..websocket.error_handling import get_websocket_error_handler
@@ -374,10 +376,10 @@ async def get_organization_connections(
 @router.post("/broadcast")
 async def broadcast_message(
     broadcast: BroadcastRequest = Body(...),
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    _current_user: User = Depends(require_admin),
 ):
     """
-    Broadcast a message to WebSocket connections
+    Broadcast a message to WebSocket connections. Admin only.
     """
     try:
         redis_manager = get_websocket_redis_manager()
