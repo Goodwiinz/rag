@@ -23,7 +23,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from sqlalchemy import select
+
 from ..core.config import settings
+from ..core.database import get_db_session
+from ..models.document import Document
 from .auth import get_websocket_authenticator, websocket_auth_required
 from .connection_manager import (
     MessageType,
@@ -313,6 +317,35 @@ async def websocket_endpoint(
             await connection_manager.disconnect(connection_id, "Connection closed")
 
 
+async def _verify_document_access(
+    websocket: WebSocket, document_id: str, organization_id: str
+) -> None:
+    """Close the WebSocket and raise WebSocketDisconnect if the document is not accessible."""
+    try:
+        async with get_db_session() as session:
+            result = await session.execute(
+                select(Document.id).where(
+                    Document.id == document_id,
+                    Document.organization_id == organization_id,
+                    Document.is_deleted == False,
+                )
+            )
+            if result.scalar_one_or_none() is None:
+                await websocket.close(
+                    code=status.WS_1008_POLICY_VIOLATION,
+                    reason="Document not found or access denied",
+                )
+                raise WebSocketDisconnect(code=status.WS_1008_POLICY_VIOLATION)
+    except WebSocketDisconnect:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying document access for {document_id}: {e}")
+        await websocket.close(
+            code=status.WS_1011_INTERNAL_ERROR, reason="Authorization check failed"
+        )
+        raise WebSocketDisconnect(code=status.WS_1011_INTERNAL_ERROR)
+
+
 # Document processing specific endpoints
 @app.websocket("/ws/documents/{document_id}")
 async def document_websocket(
@@ -336,7 +369,7 @@ async def document_websocket(
         )
 
         # Verify user has access to document
-        # (Implement document access check here)
+        await _verify_document_access(websocket, document_id, org_id)
 
         # Connect with document-specific metadata
         connection_id = await connection_manager.connect(

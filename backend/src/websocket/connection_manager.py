@@ -99,8 +99,8 @@ class RedisBackedConnectionManager:
         self.max_connections_per_user = max_connections_per_user
         self.max_connections_total = max_connections_total
 
-        # In-memory connection tracking (weak references for cleanup)
-        self._local_connections: Dict[str, Dict] = {}
+        # In-memory connection tracking
+        self._local_connections: Dict[str, Dict[str, Any]] = {}
         self._user_connections: Dict[str, Set[str]] = {}
         self._org_connections: Dict[str, Set[str]] = {}
 
@@ -168,10 +168,10 @@ class RedisBackedConnectionManager:
             await self._redis_client.close()
 
         # Close all WebSocket connections
-        for conn in list(self._local_connections.values()):
-            if conn and conn["websocket"]:
+        for conn_data in list(self._local_connections.values()):
+            if conn_data and conn_data.get("websocket"):
                 try:
-                    await conn["websocket"].close()
+                    await conn_data["websocket"].close()
                 except Exception:
                     pass
 
@@ -215,12 +215,14 @@ class RedisBackedConnectionManager:
             # Store in Redis
             await self._store_connection_in_redis(connection_info)
 
-            # Store in memory; keep a plain dict so the data isn't GC'd immediately
-            # (weakref.ref to an anonymous dict literal has no strong holder and is
-            # collected before the ref can ever be dereferenced).
+            # Store in memory; override datetime fields with ISO strings so the
+            # ping loop can call datetime.fromisoformat() on them consistently.
             self._local_connections[connection_id] = {
                 **asdict(connection_info),
                 "websocket": websocket,
+                "connected_at": now.isoformat(),
+                "last_ping": now.isoformat(),
+                "last_activity": now.isoformat(),
             }
 
             # Update user/org mappings
@@ -408,7 +410,15 @@ class RedisBackedConnectionManager:
         try:
             # Parse message
             data = json.loads(raw_message)
-            message_type = MessageType(data.get("type"))
+            message_type_str = data.get("type")
+            if not message_type_str:
+                logger.error(f"Missing message type in data from {connection_id}")
+                return
+            try:
+                message_type = MessageType(message_type_str)
+            except ValueError:
+                logger.error(f"Invalid message type {message_type_str!r} from {connection_id}")
+                return
 
             # Create message object
             message = WebSocketMessage(
@@ -557,13 +567,17 @@ class RedisBackedConnectionManager:
                 for conn_id in connection_ids:
                     conn_data = self._local_connections.get(conn_id)
                     if conn_data:
-                            last_activity_str = conn_data.get("last_activity")
-                            if last_activity_str:
-                                last_activity = datetime.fromisoformat(
-                                    last_activity_str
-                                )
+                        last_activity_str = conn_data.get("last_activity")
+                        if last_activity_str:
+                            try:
+                                last_activity = datetime.fromisoformat(last_activity_str)
                                 if last_activity < stale_threshold:
                                     await self.disconnect(conn_id, "Stale connection")
+                            except (ValueError, TypeError):
+                                logger.warning(
+                                    f"Invalid activity timestamp for {conn_id}, disconnecting as stale"
+                                )
+                                await self.disconnect(conn_id, "Invalid activity timestamp")
 
             except asyncio.CancelledError:
                 break
@@ -576,10 +590,7 @@ class RedisBackedConnectionManager:
             try:
                 await asyncio.sleep(self.cleanup_interval)
 
-                # No-op: plain dicts never become stale; disconnect() handles removal
-
-                if dead_connections:
-                    logger.info(f"Cleaned up {len(dead_connections)} dead connections")
+                pass  # disconnect() handles local cleanup; reserved for future tasks
 
             except asyncio.CancelledError:
                 break
@@ -674,7 +685,7 @@ class RedisBackedConnectionManager:
         # Add to connection subscriptions
         conn_data = self._local_connections.get(connection_id)
         if conn_data:
-            subscriptions = conn_data.get("subscriptions", set())
+            subscriptions = set(conn_data.get("subscriptions") or [])
             subscriptions.add(channel)
             conn_data["subscriptions"] = list(subscriptions)
 
@@ -698,7 +709,7 @@ class RedisBackedConnectionManager:
         # Remove from connection subscriptions
         conn_data = self._local_connections.get(connection_id)
         if conn_data:
-            subscriptions = conn_data.get("subscriptions", set())
+            subscriptions = set(conn_data.get("subscriptions") or [])
             subscriptions.discard(channel)
             conn_data["subscriptions"] = list(subscriptions)
 
