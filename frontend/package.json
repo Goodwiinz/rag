@@ -94,6 +94,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
+    "@codecov/bundle-analyzer": "^2.0.1",
     "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
@@ -135,8 +136,9 @@
   "scripts": {
     "dev": "infisical run --path=/frontend-build -- next dev",
     "dev:offline": "next dev",
-    "build": "next build",
-    "build:cloud": "infisical run --path=/frontend-build -- next build",
+    "build": "next build && node scripts/analyze-bundle.cjs",
+    "build:cloud": "infisical run --path=/frontend-build -- next build && node scripts/analyze-bundle.cjs",
+    "analyze:bundle": "node scripts/analyze-bundle.cjs",
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
