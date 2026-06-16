@@ -217,9 +217,14 @@ def test_migration_unique_revision_off_documented_head():
 
 def test_migration_revision_id_is_unique_across_versions():
     versions = _BACKEND / "alembic/versions"
+    # Anchor to line start (MULTILINE) so a later migration chaining off this
+    # head via `down_revision = "b7d4e9a1c3f2"` doesn't false-match the bare
+    # `revision` regex and trip the uniqueness check.
     count = sum(
         1
         for f in versions.glob("*.py")
-        if re.search(r'revision\s*=\s*["\']b7d4e9a1c3f2["\']', f.read_text())
+        if re.search(
+            r'^revision\s*=\s*["\']b7d4e9a1c3f2["\']', f.read_text(), re.MULTILINE
+        )
     )
     assert count == 1, "new migration revision id must be globally unique"

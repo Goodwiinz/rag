@@ -46,6 +46,44 @@ from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
 
+
+def _sum_message_usage(messages: list) -> tuple[int, int]:
+    """Sum (input, output) token usage for THIS turn's assistant messages.
+
+    ``graph.ainvoke`` (the job path) runs on a checkpointed thread, so
+    ``final_state["messages"]`` includes every prior turn's ``AIMessage`` —
+    each still carrying ``usage_metadata``. Summing all of them would compound
+    the monotonic token counter and over-report ``usage`` on any multi-turn
+    conversation. Scope to messages after the last ``HumanMessage`` (the
+    current turn's model output, including the tool-loop AIMessages). The SSE
+    path counts via per-turn ``on_chat_model_end`` events and needs no slicing.
+
+    Reads ``usage_metadata`` (provider-normalized) first, then raw
+    ``response_metadata.token_usage``. Returns ``(0, 0)`` when unreported.
+    """
+    msgs = messages or []
+    last_human = -1
+    for i, msg in enumerate(msgs):
+        if getattr(msg, "type", None) == "human":
+            last_human = i
+    turn_msgs = msgs[last_human + 1:] if last_human >= 0 else msgs
+    in_tok = out_tok = 0
+    for msg in turn_msgs:
+        usage = getattr(msg, "usage_metadata", None)
+        if isinstance(usage, dict):
+            in_tok += int(usage.get("input_tokens", 0) or 0)
+            out_tok += int(usage.get("output_tokens", 0) or 0)
+            continue
+        meta = getattr(msg, "response_metadata", None)
+        if isinstance(meta, dict):
+            tu = meta.get("token_usage") or {}
+            if isinstance(tu, dict):
+                in_tok += int(tu.get("prompt_tokens") or tu.get("input_tokens") or 0)
+                out_tok += int(
+                    tu.get("completion_tokens") or tu.get("output_tokens") or 0
+                )
+    return in_tok, out_tok
+
 # Strong references to in-flight fire-and-forget Redis write tasks. Without
 # this the event loop keeps only a weak reference and the task can be garbage
 # collected mid-write (per the CPython asyncio docs). Cleared in the
@@ -859,6 +897,15 @@ async def _run_agent_graph(
                     "current_user": current_user,
                     "page_context": page_context,
                 },
+                # LangSmith run metadata — makes traces filterable per
+                # tenant/turn (saved views by user_id / org_id / thread_id).
+                # Inherited by child runs; never carries secrets.
+                "metadata": {
+                    "user_id": str(current_user.id),
+                    "org_id": str(getattr(current_user, "organization_id", "") or ""),
+                    "thread_id": request.thread_id or job_id,
+                    "job_id": job_id,
+                },
             }
 
             try:
@@ -932,10 +979,22 @@ async def _run_agent_graph(
                 logger.warning("Failed to persist thread", exc_info=e)
 
             response_model_name: str = getattr(request, "model", "") or ""
+            # Token cost on the job path (the SSE path records its own). Reads
+            # usage off the final messages since ainvoke doesn't stream events.
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+            if in_tok or out_tok:
+                try:
+                    from src.services.agent.observability import record_token_usage
+
+                    record_token_usage(
+                        response_model_name or "unknown", in_tok, out_tok
+                    )
+                except Exception:
+                    logger.debug("record_token_usage failed", exc_info=True)
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
-                usage={},
+                usage={"input_tokens": in_tok, "output_tokens": out_tok},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 rag_enabled=request.use_rag,
@@ -1133,10 +1192,21 @@ async def _resume_agent_graph(
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
             )
+            # Token cost on the HITL resume path (parity with the initial run).
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+            if in_tok or out_tok:
+                try:
+                    from src.services.agent.observability import record_token_usage
+
+                    record_token_usage(
+                        response_model_name or "unknown", in_tok, out_tok
+                    )
+                except Exception:
+                    logger.debug("record_token_usage failed", exc_info=True)
             result = AgentExecuteResponse(
                 message=AgentMessage(role="assistant", content=assistant_content),
                 model=response_model_name,
-                usage={},
+                usage={"input_tokens": in_tok, "output_tokens": out_tok},
                 finish_reason="stop",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 tool_executions=[

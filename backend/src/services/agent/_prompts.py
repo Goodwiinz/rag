@@ -285,6 +285,10 @@ def _merge_run_config(
     "AzureChatOpenAI" entries — impossible to filter by intent/subgraph.
     Tags + run_name flow into the trace metadata so the LangSmith UI can
     facet by intent:research, subgraph:writing, etc.
+
+    Per-tenant run metadata (user_id/org_id/thread_id/job_id) is NOT set here:
+    it's attached once at the top-level graph config in jobs.py/streaming.py and
+    LangChain inherits it onto every child run, so node spans get it for free.
     """
     merged: dict = dict(base or {})
     existing_tags = list(merged.get("tags") or [])

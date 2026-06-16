@@ -359,44 +359,36 @@ jobs:
           file: frontend/coverage/junit-vitest.xml
           flags: frontend
 
-  # ---- Integration tests (blocking; machine VM) ----
-  # Runs on the machine executor (full dockerd) — some integration tests use
-  # testcontainers (spin their own Redis container) which needs a Docker daemon.
-  # The Docker executor has none, so those errored with
-  # `docker.errors.DockerException: ... fetching server API version`. GH Actions
-  # ran this job on a VM (ubuntu-latest) for the same reason. postgres + redis
-  # are started as local containers here for the service-based tests.
+  # ---- Integration tests (BLOCKING; testcontainers on a machine VM) ----
+  # These tests spin up their OWN Postgres via testcontainers
+  # (backend/tests/integration/conftest.py:227 -> PostgresContainer
+  # "postgres:15-alpine"), so they need a real Docker daemon. The docker executor
+  # has none (/var/run/docker.sock missing) and every test ERRORed at setup — the
+  # service container + DATABASE_URL it adds are ignored by these tests. Running
+  # on the machine VM (local Docker, testcontainers' happy path) fixed it:
+  # verified 258 passed / 12 skipped on pipeline #12, so this is a real gate again.
   integration-tests:
     executor: machine_vm
     environment:
       ENVIRONMENT: testing
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test_db"
-      REDIS_URL: "redis://localhost:6379/0"
     steps:
       - checkout
       - run:
-          name: Start postgres + redis (local containers)
+          name: Select Python 3.11 (pyenv on the machine image)
           command: |
-            docker run -d --name pg -p 5432:5432 \
-              -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test_db postgres:15
-            docker run -d --name redis -p 6379:6379 redis:7
-            wait_tcp() { for i in $(seq 1 30); do (echo > /dev/tcp/localhost/$1) >/dev/null 2>&1 && { echo "$1 up"; return 0; }; sleep 2; done; echo "timeout waiting for $1"; return 1; }
-            wait_tcp 5432
-            wait_tcp 6379
-      - run:
-          name: Select Python 3.11 (pyenv)
-          command: |
-            PYV=$(pyenv versions --bare 2>/dev/null | grep -E '^3\.11\.' | tail -1)
-            if [ -z "$PYV" ]; then pyenv install -s 3.11; PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1); fi
+            PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1 || true)
+            if [ -z "$PYV" ]; then pyenv install -s 3.11 && PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1); fi
             pyenv global "$PYV"
             python --version
       - restore_pip_cache
       - run:
           name: Install dependencies
-          command: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+          command: |
+            python -m pip install --upgrade pip
+            pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
       - save_pip_cache
       - run:
-          name: Run integration tests
+          name: Run integration tests (testcontainers)
           command: |
             mkdir -p test-results
             set +e

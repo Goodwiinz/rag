@@ -15,6 +15,7 @@ from fastapi import HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 from redis.asyncio import Redis
+from sqlalchemy import select
 
 from src.models.organization import Organization
 from src.models.user import User
@@ -189,7 +190,10 @@ class WebSocketAuthenticator:
                 return None
 
             # Check if refresh is needed
-            expiry_time = datetime.fromisoformat(session_data.get("expires_at"))
+            expires_at_str = session_data.get("expires_at")
+            if not expires_at_str:
+                return None
+            expiry_time = datetime.fromisoformat(expires_at_str)
             if datetime.utcnow() > (
                 expiry_time - timedelta(seconds=self.refresh_threshold)
             ):
@@ -350,14 +354,11 @@ class WebSocketAuthenticator:
 
             async with get_db_session() as session:
                 result = await session.execute(
-                    "SELECT * FROM users WHERE id = :user_id AND is_deleted = false",
-                    {"user_id": user_id},
+                    select(User).where(
+                        User.id == user_id, User.is_deleted == False
+                    )
                 )
-                user_data = result.fetchone()
-
-                if user_data:
-                    return User(**dict(user_data))
-                return None
+                return result.scalars().first()
 
         except Exception as e:
             logger.error(f"Error getting user {user_id}: {e}")
@@ -444,10 +445,10 @@ class WebSocketAuthenticator:
         client_ip: Optional[str] = None,
     ) -> str:
         """Create a new WebSocket session"""
-        try:
-            if not self._redis_client:
-                return str(uuid.uuid4())
+        if not self._redis_client:
+            raise RuntimeError("Redis unavailable — cannot create tracked session")
 
+        try:
             session_id = str(uuid.uuid4())
             session_key = f"ws:session:{session_id}"
 
@@ -474,7 +475,7 @@ class WebSocketAuthenticator:
 
         except Exception as e:
             logger.error(f"Error creating WebSocket session: {e}")
-            return str(uuid.uuid4())
+            raise RuntimeError(f"Failed to create WebSocket session: {e}") from e
 
     async def _generate_refresh_token(self, user_id: str, organization_id: str) -> str:
         """Generate a new JWT token for session refresh"""

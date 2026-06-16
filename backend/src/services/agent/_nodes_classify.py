@@ -121,9 +121,13 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
         result.source,
     )
     try:
-        from src.services.agent.observability import record_classifier_source
+        from src.services.agent.observability import (
+            record_classifier_source,
+            record_intent_confidence,
+        )
 
         record_classifier_source(source=result.source, intent=result.intent)
+        record_intent_confidence(source=result.source, confidence=result.confidence)
     except Exception:
         pass
     return {"intent": result.intent, "intent_confidence": result.confidence}
