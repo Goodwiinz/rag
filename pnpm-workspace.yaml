@@ -15,3 +15,11 @@ overrides:
   next: 16.2.6
   react: 18.3.1
   react-dom: 18.3.1
+  # Security (dev test-toolchain): the vitest 3 bump pulls vite, but pnpm kept
+  # vite 5.4.21 (range already satisfied) which still carries the high-sev
+  # `server.fs.deny` advisory (only patched in >=6.4.3). Force vite 6 + the
+  # esbuild patch so the vitest/vite/esbuild cluster is fully clear.
+  # vite 6.x only: >=6.4.3 clears the advisory; capped <7 to stay inside
+  # vitest 3.2.6's supported peer range (^5 || ^6 || ^7) and avoid vite 8.
+  vite: '^6.4.3'
+  esbuild: '>=0.28.1'
