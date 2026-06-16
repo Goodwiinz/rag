@@ -38,15 +38,23 @@ from src.api.agent.jobs import (
 # ---------------------------------------------------------------------------
 
 
-def _snapshot(values: dict) -> SimpleNamespace:
-    """Build a minimal LangGraph snapshot stub with the given values."""
-    return SimpleNamespace(values=values)
+def _interrupt_task() -> SimpleNamespace:
+    """A pending LangGraph task carrying a live interrupt (the real HITL signal —
+    `pending_confirmation` is always `{}` while an interrupt is live)."""
+    return SimpleNamespace(interrupts=[SimpleNamespace(value={"tools": []})])
 
 
-def _make_graph(snapshot_values: dict | None) -> Mock:
+def _snapshot(values: dict, tasks: tuple = ()) -> SimpleNamespace:
+    """Build a minimal LangGraph snapshot stub with the given values + tasks."""
+    return SimpleNamespace(values=values, tasks=tasks)
+
+
+def _make_graph(snapshot_values: dict | None, tasks: tuple = ()) -> Mock:
     graph = Mock()
     graph.aget_state = AsyncMock(
-        return_value=_snapshot(snapshot_values) if snapshot_values is not None else None
+        return_value=(
+            _snapshot(snapshot_values, tasks) if snapshot_values is not None else None
+        )
     )
     graph.aupdate_state = AsyncMock()
     graph.ainvoke = AsyncMock(return_value={"messages": [], "tool_executions": []})
@@ -81,12 +89,13 @@ async def test_clear_stale_pending_confirmation_resets_counters():
     """When wiping a stale interrupt, also reset tool/error/reflection counters."""
     graph = _make_graph(
         {
-            "pending_confirmation": {"tools": [{"name": "ingest_arxiv_papers"}]},
+            "pending_confirmation": {},
             "user_confirmed": False,
             "tool_loop_count": 5,
             "error_count": 2,
             "reflection_count": 1,
-        }
+        },
+        tasks=(_interrupt_task(),),
     )
     config = {"configurable": {"thread_id": "thread-abc"}}
 
@@ -180,10 +189,8 @@ async def test_resume_proceeds_when_interrupt_present():
     )
 
     graph = _make_graph(
-        {
-            "user_id": str(user.id),
-            "pending_confirmation": {"tools": [{"name": "ingest_arxiv_papers"}]},
-        }
+        {"user_id": str(user.id), "pending_confirmation": {}},
+        tasks=(_interrupt_task(),),
     )
 
     with (
