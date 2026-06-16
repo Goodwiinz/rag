@@ -376,8 +376,18 @@ jobs:
       - run:
           name: Select Python 3.11 (pyenv on the machine image)
           command: |
-            PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1 || true)
-            if [ -z "$PYV" ]; then pyenv install -s 3.11 && PYV=$(pyenv versions --bare | grep -E '^3\.11\.' | tail -1); fi
+            # CircleCI runs steps under `bash -eo pipefail`. When no 3.11.x is
+            # pre-installed, the detection pipe's grep exits 1 -> pipefail+errexit
+            # kills this step BEFORE the install fallback can run (the actual
+            # failure: empty output, exit 1). Disable errexit around detection.
+            set +e
+            PYV=$(pyenv versions --bare 2>/dev/null | grep -E '^3\.11\.' | tail -1)
+            if [ -z "$PYV" ]; then
+              pyenv install -s 3.11
+              PYV=$(pyenv versions --bare 2>/dev/null | grep -E '^3\.11\.' | tail -1)
+            fi
+            set -e
+            [ -z "$PYV" ] && { echo "no pyenv 3.11 available"; exit 1; }
             pyenv global "$PYV"
             python --version
       - restore_pip_cache
