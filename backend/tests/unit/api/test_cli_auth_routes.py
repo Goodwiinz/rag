@@ -34,6 +34,33 @@ def test_cli_auth_start_returns_session_and_browser_url(client: TestClient) -> N
     assert body["poll_interval_seconds"] == 2
 
 
+def test_frontend_base_url_prefers_dedicated_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.api.auth.cli_auth import _frontend_base_url
+    from src.core.config import settings
+
+    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", "https://www.goodwiinz.tech/")
+    # CORS ordering must not influence the redirect target.
+    monkeypatch.setattr(settings, "CORS_ORIGINS", "https://dev-app.gen-text.app")
+
+    assert _frontend_base_url() == "https://www.goodwiinz.tech"
+
+
+def test_frontend_base_url_falls_back_to_first_cors_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.api.auth.cli_auth import _frontend_base_url
+    from src.core.config import settings
+
+    monkeypatch.setattr(settings, "FRONTEND_BASE_URL", "")
+    monkeypatch.setattr(
+        settings, "CORS_ORIGINS", "https://www.goodwiinz.tech,http://localhost:3000"
+    )
+
+    assert _frontend_base_url() == "https://www.goodwiinz.tech"
+
+
 def test_cli_auth_status_returns_pending_session(client: TestClient) -> None:
     started = client.post("/api/v1/cli-auth/start").json()
 

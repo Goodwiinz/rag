@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = ""
 
+    # Canonical public URL of the frontend (e.g. https://www.goodwiinz.tech).
+    # Used to build redirect targets like the CLI device-flow auth page.
+    # Decoupled from CORS_ORIGINS so reordering the allowlist can't break login.
+    # Empty falls back to cors_origins_list[0] for backward compatibility.
+    FRONTEND_BASE_URL: str = ""
+
     # CORS Configuration (comma-separated string from env, parsed to list)
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     # Optional regex pattern (e.g. ^https://nous-platform-[a-z0-9-]+\.vercel\.app$).
