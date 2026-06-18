@@ -93,12 +93,18 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
 
         {/* Tabs */}
         <div className="border-b border-border">
-          <nav role="tablist" className="flex space-x-8">
+          <nav
+            role="tablist"
+            aria-label="Performance details tabs"
+            className="flex space-x-8"
+          >
             {['overview', 'latency', 'quality', 'resources', 'bottlenecks'].map(
               (tab) => (
                 <button
                   key={tab}
+                  id={`tab-${tab}`}
                   role="tab"
+                  aria-controls={`tabpanel-${tab}`}
                   aria-selected={activeTab === tab}
                   onClick={() => setActiveTab(tab as any)}
                   className={cn(
@@ -115,7 +121,12 @@ const PerformanceDetail: React.FC<PerformanceDetailProps> = ({
           </nav>
         </div>
 
-        <div className="mt-6">
+        <div
+          className="mt-6"
+          role="tabpanel"
+          id={`tabpanel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+        >
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">

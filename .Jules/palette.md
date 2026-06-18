@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-05-19 - Adding Missing ARIA Labels to Tab Navigation
+**Learning:** Found that some manual `tablist` components were missing `aria-label`s on their `<nav role="tablist">` containers, and the connected content panels (`role="tabpanel"`) were entirely missing their roles and `aria-labelledby` connections.
+**Action:** When working on custom interactive tabs, ensure that both the `tablist` container has an accessible name, and the `tabpanel` instances are properly defined with their respective `id` and `aria-labelledby` linking back to the individual tabs.
