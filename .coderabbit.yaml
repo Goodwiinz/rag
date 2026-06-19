@@ -10,7 +10,7 @@ reviews:
   # Keep the existing, lighter-touch profile (matches the prior Repository-UI
   # setting). Switch to "assertive" for stricter, more numerous comments.
   profile: chill
-  # Don't gate merges on CodeRabbit — it's advisory; CircleCI is the gate.
+  # Don't gate merges on CodeRabbit — it's advisory; GitHub Actions is the gate.
   request_changes_workflow: false
   auto_review:
     enabled: true

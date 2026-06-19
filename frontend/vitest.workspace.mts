@@ -11,12 +11,7 @@ export default defineWorkspace([
         'src/**/__tests__/**/*.test.{ts,tsx}',
         'src/__tests__/sanity.test.ts',
       ],
-      exclude: [
-        'src/integration/**',
-        'src/__tests__/App.routing.test.tsx',
-        'node_modules/**',
-        'e2e/**',
-      ],
+      exclude: ['src/integration/**', 'node_modules/**', 'e2e/**'],
     },
   },
   {

@@ -1,0 +1,52 @@
+name: Codecov Test Results
+description: >-
+  Best-effort upload of a JUnit XML report to Codecov Test Analytics
+  (failed/flaky-test detection). The codecov-action handles COVERAGE only;
+  test results need the Codecov CLI + `do-upload --report-type test_results`.
+  No-op without a token or a missing file; never fails the calling job.
+
+inputs:
+  file:
+    description: Path to the JUnit XML report (repo-root relative)
+    required: true
+  flags:
+    description: Codecov flag for this suite (e.g. unit, integration, frontend)
+    required: true
+  token:
+    description: Codecov upload token (CODECOV_TOKEN). Empty disables the upload.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Upload test results to Codecov
+      shell: bash
+      env:
+        # Pass everything through env — never interpolate inputs into the
+        # script body (avoids expression-injection footguns flagged by
+        # actionlint).
+        CODECOV_TOKEN: ${{ inputs.token }}
+        RESULT_FILE: ${{ inputs.file }}
+        RESULT_FLAG: ${{ inputs.flags }}
+      run: |
+        if [ -z "${CODECOV_TOKEN:-}" ]; then
+          echo "CODECOV_TOKEN not set — skipping test-results upload"
+          exit 0
+        fi
+        if [ ! -f "$RESULT_FILE" ]; then
+          echo "$RESULT_FILE not found — skipping test-results upload"
+          exit 0
+        fi
+        # Saved as codecovcli (not codecov) so it can't clobber the legacy
+        # uploader if both ever run in the same job.
+        if ! curl -s -o codecovcli https://cli.codecov.io/latest/linux/codecov; then
+          echo "Codecov CLI download failed — skipping"
+          exit 0
+        fi
+        chmod +x codecovcli
+        ./codecovcli do-upload \
+          --report-type test_results \
+          --file "$RESULT_FILE" \
+          --flag "$RESULT_FLAG" \
+          -t "$CODECOV_TOKEN" || true

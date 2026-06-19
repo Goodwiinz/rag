@@ -49,7 +49,10 @@ def get_cli_auth_session_store() -> RedisCLIAuthSessionStore | InMemoryCLIAuthSe
 
 
 def _frontend_base_url() -> str:
-    return settings.cors_origins_list[0].rstrip("/")
+    # Prefer the dedicated frontend URL; fall back to the first CORS origin so
+    # existing deployments keep working until FRONTEND_BASE_URL is set.
+    base = settings.FRONTEND_BASE_URL or settings.cors_origins_list[0]
+    return base.rstrip("/")
 
 
 def _serialize_datetime(value: datetime) -> str:
