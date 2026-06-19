@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -329,14 +330,12 @@ export function ThreadMessageSearch({
               className="pl-10 pr-10 bg-[var(--nous-bg-1)]/40 border-border focus:border-[var(--nous-sol)] text-muted-foreground placeholder:text-muted-foreground"
             />
             {query && (
-              <button
+              <IconButton
                 onClick={handleClear}
-                aria-label="Clear search"
-                title="Clear search"
+                label="Clear search"
+                icon={<X className="h-4 w-4" />}
                 className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              />
             )}
           </div>
 
