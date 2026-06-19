@@ -228,15 +228,46 @@ async def delete_memory_by_query(
         for item in results
     ]
 
+    # Detect the degraded "no semantic index" state. When the store was built
+    # without an embedder (the default config — Cohere unset), asearch cannot
+    # rank and returns score=None for every item (coerced to 0.0 above), so the
+    # 0.6 threshold rejects everything and a user-confirmed forget silently
+    # deletes nothing. In that state, fall back to an exact case-insensitive
+    # substring match against each memory's stored text so the confirmed forget
+    # actually takes effect — without the recency-deletion footgun of blindly
+    # bypassing the threshold (un-indexed asearch returns recents, not query
+    # matches), so we only delete recents that genuinely mention the query.
+    unranked = bool(results) and all(
+        getattr(item, "score", None) is None for item in results
+    )
+    needle = query.strip().casefold()
+
     deleted = 0
-    for m in matches:
-        if m["score"] >= _FORGET_SCORE_THRESHOLD:
-            try:
-                await store.adelete(namespace, m["key"])
-                deleted += 1
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "forget_memory: adelete failed for %s: %s", m["key"], exc
-                )
+    for m, item in zip(matches, results):
+        should_delete = m["score"] >= _FORGET_SCORE_THRESHOLD
+        if not should_delete and unranked and needle:
+            value = getattr(item, "value", None) or {}
+            haystack = " ".join(
+                str(v) for v in value.values() if isinstance(v, str)
+            ).casefold()
+            should_delete = needle in haystack
+        if not should_delete:
+            continue
+        try:
+            await store.adelete(namespace, m["key"])
+            deleted += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "forget_memory: adelete failed for %s: %s", m["key"], exc
+            )
+
+    if unranked:
+        logger.warning(
+            "forget_memory: store has no semantic index; used exact-text "
+            "fallback for query=%r (deleted=%d of %d candidates)",
+            query,
+            deleted,
+            len(matches),
+        )
 
     return {"deleted": deleted, "matches": matches}

@@ -46,6 +46,48 @@ async def test_delete_memory_skips_low_score_match():
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
+async def test_delete_memory_unindexed_uses_substring_fallback():
+    """Audit B3 — with no semantic index every item scores None (coerced 0.0),
+    so the 0.6 threshold rejects everything and a confirmed forget would
+    silently delete nothing. The exact-substring fallback must still delete the
+    memory that genuinely mentions the query."""
+    store = MagicMock()
+    hit = MagicMock(key="k-hit", score=None)
+    hit.value = {"query": "remember my email is alice@example.com"}
+    miss = MagicMock(key="k-miss", score=None)
+    miss.value = {"query": "buy milk tomorrow"}
+    store.asearch = AsyncMock(return_value=[hit, miss])
+    store.adelete = AsyncMock(return_value=None)
+
+    out = await delete_memory_by_query(
+        store, user_id="u1", query="ALICE@example.com", limit=5
+    )
+
+    assert out["deleted"] == 1
+    store.adelete.assert_awaited_once_with(("user", "u1"), "k-hit")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_delete_memory_unindexed_no_text_match_deletes_nothing():
+    """Audit B3 — the unindexed fallback must NOT blindly delete the recency
+    hits asearch returns; only memories whose text contains the query go."""
+    store = MagicMock()
+    recent = MagicMock(key="k1", score=None)
+    recent.value = {"query": "an unrelated recent memory"}
+    store.asearch = AsyncMock(return_value=[recent])
+    store.adelete = AsyncMock(return_value=None)
+
+    out = await delete_memory_by_query(
+        store, user_id="u1", query="quantum gravity", limit=5
+    )
+
+    assert out["deleted"] == 0
+    store.adelete.assert_not_awaited()
+
+
+@pytest.mark.unit
 def test_forget_memory_is_destructive_tool():
     from src.services.agent._nodes_tools import DESTRUCTIVE_TOOLS
 
