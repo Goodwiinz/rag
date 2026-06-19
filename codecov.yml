@@ -2,8 +2,8 @@
 # Docs:     https://docs.codecov.com/docs/codecov-yaml
 # Validate: curl -X POST --data-binary @codecov.yml https://api.codecov.io/validate
 #
-# Coverage is uploaded best-effort from CircleCI (see the `codecov_upload`
-# command in .circleci/config.yml). Four upload flags map 1:1 to CI jobs:
+# Coverage is uploaded from the GitHub Actions test-pipeline
+# (.github/workflows/test-pipeline.yml). Four upload flags map 1:1 to CI jobs:
 #
 #   flag         job                 report                       source
 #   ----         ---                 ------                       ------
@@ -13,7 +13,7 @@
 #   frontend     frontend-tests      frontend/coverage/lcov.info  frontend/src
 #
 # Status checks are INFORMATIONAL (non-blocking) while coverage ramps — the
-# CircleCI per-file ratchet (backend/scripts/check_coverage_ratchet.py) and the
+# per-file ratchet (backend/scripts/check_coverage_ratchet.py) and the
 # unit-tests --cov-fail-under floor (35%) are the real gates. (integration and
 # resilience run --cov but have no floor yet.) Flip `informational: false` once
 # the floor is high enough to enforce on PRs.
