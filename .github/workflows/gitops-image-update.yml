@@ -98,7 +98,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore(gitops): update dev images to $TAG"
+          git commit -m "chore(gitops): update dev images to $TAG [skip ci]"
           git push origin develop
 
   # ─────────────────────────────────────────────
@@ -171,7 +171,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore(gitops): update staging images to $TAG"
+          git commit -m "chore(gitops): update staging images to $TAG [skip ci]"
           git push origin develop
 
   # ─────────────────────────────────────────────
@@ -223,7 +223,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore(gitops): promote $TAG to production"
+          git commit -m "chore(gitops): promote $TAG to production [skip ci]"
           git push origin main
 
       - name: Notify — sync required

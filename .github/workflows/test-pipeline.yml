@@ -1,0 +1,1008 @@
+name: Test Pipeline
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - 'LICENSE'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  DOCKER_BUILDKIT: "1"
+  # NOTE: PIP_NO_CACHE_DIR is intentionally NOT set here. Setting it globally
+  # makes pip ignore ~/.cache/pip on the runner, which silently turns every
+  # actions/cache pip step in this file into a no-op. Slim Docker layers are
+  # handled inside the Dockerfiles, not on the runner shell.
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # Browser-facing Supabase URL. supabase-js calls {URL}/auth/v1/<route> —
+  # the prefix Kong strips in the hosted stack. Bare GoTrue serves at root,
+  # so the browser goes through the auth-proxy nginx (compose service) which
+  # strips /auth/v1 and answers CORS preflight. Playwright runs on the runner
+  # host in this workflow, hence localhost + the proxy's published port 8999.
+  # Anon JWT is signed with the same secret gotrue verifies with HS256 —
+  # see docker-compose.ci.yml gotrue service for the matching env.
+  NEXT_PUBLIC_SUPABASE_URL: "http://localhost:8999"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
+defaults:
+  run:
+    shell: bash
+permissions:
+  contents: read
+
+jobs:
+  # ==========================================================================
+  # Code Quality Checks (Fast - Run First)
+  # ==========================================================================
+  lint-backend:
+    name: Lint Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Build lint image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: backend/docker/Dockerfile.lint
+          load: true
+          tags: rag-lint:ci
+          cache-from: type=gha,scope=lint-backend
+          cache-to: type=gha,scope=lint-backend,mode=max
+      - name: Run Ruff (linting)
+        run: docker run --rm rag-lint:ci ruff check backend/src --output-format=github
+      - name: Run Black (formatting check)
+        run: docker run --rm rag-lint:ci black --check backend/src
+        continue-on-error: true # Allow failures during gradual adoption
+      - name: Run isort (import sorting)
+        run: docker run --rm rag-lint:ci isort --check-only backend/src
+        continue-on-error: true # Allow failures during gradual adoption
+      - name: Run MyPy (type checking)
+        run: docker run --rm rag-lint:ci mypy backend/src --ignore-missing-imports
+        continue-on-error: true # Allow failures during gradual adoption
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run type check
+        run: pnpm run type-check
+      - name: Run linting
+        run: pnpm run lint
+        continue-on-error: true # Allow warnings during gradual adoption
+  # ==========================================================================
+  # Unit Tests (Fast - No External Dependencies)
+  # ==========================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run unit tests
+        run: |
+          pytest backend/tests/ \
+            -c backend/pytest.ini \
+            -m "unit or not (integration or e2e or slow)" \
+            --cov=backend/src \
+            --cov-report=xml \
+            --cov-report=json \
+            --cov-report=term-missing \
+            --cov-fail-under=35 \
+            -n auto \
+            -v
+        # Note: Coverage threshold set to 35% (gradual ramp from 20% to 70% target),
+        # but CI selection differs slightly so we leave a buffer here and let
+        # check_coverage_ratchet.py enforce the per-file floors below).
+        # Per-file floors enforced by check_coverage_ratchet.py step below.
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure OpenAI creds — agent graph constructor refuses to
+          # import without them. Unit tests mock real Azure calls, so any
+          # syntactically-valid placeholder is enough.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: coverage.xml
+          flags: unit
+          name: unit-tests
+      - name: Check per-file coverage ratchet
+        run: python backend/scripts/check_coverage_ratchet.py coverage.json
+  # ==========================================================================
+  # Golden Replay — deterministic, creds-free agent regression gate (B2)
+  # ==========================================================================
+  golden-replay:
+    name: Golden Replay
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist 'respx>=0.22.0,<0.23' hypothesis==6.112.2
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run golden replay (deterministic, no creds)
+        # AGENT_GOLDEN_REPLAY swaps the real model for the cassette-seeded fake
+        # at every LLM seam, so this runs offline with no Azure creds and no
+        # nondeterminism. Cassette-vs-reality drift is caught weekly, live, by
+        # agent-eval.yml. The staleness guard (test_eval_harness.py) fails if a
+        # case lacks a cassette.
+        run: |
+          pytest backend/tests/eval/test_agent_regression.py \
+            -c backend/pytest.ini \
+            -m golden \
+            -p no:cacheprovider \
+            -v
+        env:
+          ENVIRONMENT: testing
+          AGENT_GOLDEN_REPLAY: "1"
+          DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure creds: the agent graph constructor requires them to
+          # import, but every LLM seam is replaced by the replay fake, so no
+          # real model call is ever made.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
+
+  # ==========================================================================
+  # Security Scan
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install security tools
+        run: pip install bandit==1.9.4 safety
+      - name: Run Bandit (Python security)
+        # Blocking on NEW findings only: with continue-on-error the
+        # SECURITY_RESULT gate in test-summary could never fire. The baseline
+        # file pins the 16 pre-existing medium+ findings as tracked debt
+        # (regenerate with: bandit -r backend/src -ll -ii -x tests -f json
+        # -o backend/.bandit-baseline.json) — burn it down, never grow it.
+        run: bandit -r backend/src -ll -ii -x tests -b backend/.bandit-baseline.json
+      - name: Run Safety (dependency vulnerabilities)
+        run: safety check -r backend/requirements.txt
+        continue-on-error: true # Advisory only: flags unmaintained upstream packages we can't fix here
+  # ==========================================================================
+  # Frontend Tests
+  # ==========================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: lint-frontend
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        # Vitest is the source of truth — `pnpm test` is `vitest run`.
+        run: pnpm test:coverage
+        env:
+          CI: true
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-tests
+  # ==========================================================================
+  # Integration Tests (Require Services)
+  # ==========================================================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit-tests, frontend-tests]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379/tcp
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run integration tests
+        run: |
+          set +e
+          pytest backend/tests/integration/ \
+            -c backend/pytest.ini \
+            -m "integration" \
+            --cov=backend/src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" = "5" ]; then
+            echo "No integration tests found - skipping"
+            exit 0
+          fi
+
+          exit "$exit_code"
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+          REDIS_URL: "redis://localhost:${{ job.services.redis.ports['6379'] }}/0"
+      - name: Upload coverage
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: coverage.xml
+          flags: integration
+          name: integration-tests
+  # ==========================================================================
+  # Resilience Tests
+  # ==========================================================================
+  resilience-tests:
+    name: Resilience Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-cov
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run resilience tests
+        run: |
+          set +e
+          pytest backend/tests/ \
+            -c backend/pytest.ini \
+            -m "resilience" \
+            --cov=backend/src/core \
+            --cov-report=xml \
+            -v
+          exit_code=$?
+          set -e
+
+          if [ "$exit_code" = "5" ]; then
+            echo "No resilience tests found - skipping"
+            exit 0
+          fi
+
+          exit "$exit_code"
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "sqlite:///:memory:"
+      - name: Upload coverage
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+        with:
+          files: coverage.xml
+          flags: resilience
+          name: resilience-tests
+  # ==========================================================================
+  # API Contract Tests
+  # ==========================================================================
+  api-contract-tests:
+    name: API Contract Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, frontend-tests]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432/tcp
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+          pip install schemathesis
+      - name: Run contract tests
+        run: |
+          pytest backend/tests/api_contract/ \
+            -c backend/pytest.ini \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+        continue-on-error: true # Allow failures during development
+  # ==========================================================================
+  # E2E Tests (Full System)
+  # ==========================================================================
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    # Run on both push and PR, but use different test suites
+    needs: [integration-tests]
+    # Docker image builds alone take ~17 minutes on a cold runner; 25 minutes
+    # left the actual test run ~8 minutes and the push lane was killed mid-run
+    # on every develop push (reported "cancelled", never a pass/fail).
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /opt/hostedtoolcache/PyPy || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /opt/hostedtoolcache/go || true
+          sudo rm -rf /opt/hostedtoolcache/Ruby || true
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /var/lib/snapd || true
+          sudo rm -rf /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          docker system prune -af --volumes || true
+          df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      # build-push-action with load:true puts the image in the local daemon so
+      # the docker-compose run below can use it. type=gha persists BuildKit
+      # layers across runs (content-addressed → lockfile changes invalidate the
+      # right layers). Distinct scopes keep the two images' caches separate.
+      # The `docker system prune` above only clears the local daemon, not the
+      # remote GHA store, so it does not defeat this.
+      - name: Build backend image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: backend/docker/Dockerfile.prod
+          load: true
+          tags: rag-backend:test
+          build-args: |
+            PYTHON_VERSION=3.11
+            TORCH_CPU_ONLY=true
+          cache-from: type=gha,scope=backend-e2e
+          cache-to: type=gha,scope=backend-e2e,mode=max
+      - name: Build frontend image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: frontend/Dockerfile.prod
+          load: true
+          tags: rag-frontend:test
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
+            NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
+          cache-from: type=gha,scope=frontend-e2e
+          cache-to: type=gha,scope=frontend-e2e,mode=max
+      - name: Start infrastructure services
+        run: |
+          # Start infrastructure services (not backend/frontend, they start separately)
+          docker compose -p rag_system -f docker-compose.ci.yml up -d postgres redis neo4j qdrant gotrue auth-proxy
+
+          # Wait for services with working healthchecks to become healthy
+          # Note: qdrant and gotrue use distroless images, so their healthchecks
+          # fail. We gate on postgres, redis, neo4j (3 healthy) then poll the rest.
+          echo "Waiting for core services with healthchecks..."
+          SECONDS=0
+          healthy_count() {
+            docker compose -p rag_system -f docker-compose.ci.yml ps --format json 2>/dev/null \
+              | grep -c '"healthy"' || true
+          }
+          while (( $(healthy_count) < 3 )); do
+            if (( SECONDS > 300 )); then
+              echo "::error::Timed out after 300s waiting for core services"
+              docker compose -p rag_system -f docker-compose.ci.yml ps
+              exit 124
+            fi
+            if (( SECONDS % 30 == 0 )); then
+              echo "  ${SECONDS}s — $(healthy_count)/3 healthy"
+              docker compose -p rag_system -f docker-compose.ci.yml ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || true
+            fi
+            sleep 5
+          done
+          echo "Core services healthy (${SECONDS}s)"
+
+          # Poll distroless services from host (they have no shell inside)
+          for probe in "qdrant=http://localhost:6333/healthz" "gotrue=http://localhost:9999/health" "auth-proxy=http://localhost:8999/health"; do
+            name="${probe%%=*}"; url="${probe#*=}"
+            echo "Waiting for ${name} at ${url} ..."
+            t=0
+            until curl -sf "$url" >/dev/null 2>&1; do
+              if (( t > 120 )); then
+                echo "::error::Timed out after 120s waiting for ${name}"
+                docker compose -p rag_system -f docker-compose.ci.yml logs "$name" --tail=50 || true
+                exit 124
+              fi
+              t=$((t+3)); sleep 3
+            done
+            echo "${name} ready (${t}s)"
+          done
+          echo "All infrastructure services ready"
+      - name: Start application services
+        run: |
+          # Start backend with pre-built image
+          docker run -d --name backend-e2e \
+            --network rag_system_ci-network \
+            --network-alias backend \
+            -p 8000:8000 \
+            -e DATABASE_URL=postgresql://test:test@postgres:5432/test_db \
+            -e REDIS_URL=redis://redis:6379/0 \
+            -e NEO4J_URI=bolt://neo4j:7687 \
+            -e NEO4J_USERNAME=neo4j \
+            -e NEO4J_PASSWORD= \
+            -e NEO4J_AUTH_DISABLED=true \
+            -e QDRANT_URL=http://qdrant:6333 \
+            -e ENVIRONMENT=testing \
+            -e SECRET_KEY=ci-test-secret-key-32-characters! \
+            -e JWT_SECRET_KEY=ci-test-jwt-secret-key-32chars! \
+            -e SUPABASE_URL=http://gotrue:9999 \
+            -e SUPABASE_JWT_SECRET=ci-test-supabase-jwt-secret-not-for-prod-use \
+            -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+            -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
+            -e ENABLE_AI_PROCESSING=false \
+            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_DEMO_PASSWORD=demo123 \
+            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
+            rag-backend:test
+
+          # Start frontend with pre-built image
+          docker run -d --name frontend-e2e \
+            --network rag_system_ci-network \
+            --network-alias frontend \
+            -p 3000:3000 \
+            -e BACKEND_URL=http://backend:8000 \
+            -e NEXT_PUBLIC_API_URL=http://localhost:8000 \
+            -e SUPABASE_SERVER_URL=http://auth-proxy \
+            rag-frontend:test
+
+          # Wait for services to be ready
+          echo "Waiting for application services..."
+          for attempt in {1..30}; do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend is healthy on attempt $attempt"
+              break
+            fi
+            sleep 3
+          done
+
+          for attempt in {1..30}; do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "Frontend is healthy on attempt $attempt"
+              break
+            fi
+            sleep 3
+          done
+      - name: Verify services are accessible
+        run: |
+          echo "Checking backend health..."
+          curl -f http://localhost:8000/health || exit 1
+          echo "Checking frontend..."
+          curl -f http://localhost:3000 || exit 1
+          echo "Checking gotrue..."
+          curl -f http://localhost:9999/health || exit 1
+          curl -f http://localhost:8999/health || exit 1
+      - name: Initialize and seed test database
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            backend-e2e \
+            python -c "
+          from src.core.encryption import EncryptionKeyType, get_key_manager, initialize_encryption
+          initialize_encryption()
+          km = get_key_manager()
+          if km.get_active_key(EncryptionKeyType.DATA) is None:
+              km.generate_key(EncryptionKeyType.DATA)
+          from src.core.database import create_tables, init_database
+          create_tables()
+          init_database()
+          "
+      - name: Mirror seeded users into gotrue
+        run: |
+          docker exec \
+            -e PYTHONPATH=/app \
+            -e SERVICE_ROLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.h2fkqBtuKwhDivmz5vXwEGxQgcpFlMXhYlVNAH2TL6c \
+            backend-e2e \
+            python -c "
+          import os, httpx
+          from src.core.database import SessionLocal
+          from src.models.user import User
+
+          PASSWORDS = {
+              'admin@multimodal-rag.com': 'admin123',
+              'demo@multimodal-rag.com': 'demo123',
+              'lab-admin@multimodal-rag.com': 'admin123',
+          }
+          headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
+          # GoTrue v2.151 IGNORES a client-supplied id on /admin/users and
+          # generates its own UUID, so the original same-id plan never held:
+          # the JWT sub matched no app user, get_current_user fell into the
+          # auto-provisioning INSERT, and that died on EncryptedString columns
+          # (no active DATA key in the server process) -> /auth/me 500s.
+          # Instead, adopt gotrue's generated id as the app user's id — the
+          # users were seeded moments ago on a fresh DB and have no dependent
+          # rows, so the primary-key update is safe.
+          import uuid as _uuid
+          with SessionLocal() as db:
+              users = db.query(User).filter(User.email.in_(list(PASSWORDS))).all()
+              assert len(users) == len(PASSWORDS), f'expected {len(PASSWORDS)} seeded users, got {len(users)}'
+              for u in users:
+                  payload = {
+                      'email': u.email,
+                      'password': PASSWORDS[u.email],
+                      'email_confirm': True,
+                  }
+                  r = httpx.post('http://gotrue:9999/admin/users', headers=headers, json=payload, timeout=10.0)
+                  print(f'gotrue seed {u.email} -> {r.status_code}')
+                  if r.status_code >= 400:
+                      print(r.text)
+                      r.raise_for_status()
+                  gid = _uuid.UUID(r.json()['id'])
+                  if gid != u.id:
+                      db.query(User).filter(User.id == u.id).update({User.id: gid})
+                      print(f'  app user id {u.id} -> {gid} (adopted gotrue id)')
+              db.commit()
+          "
+      - name: Setup Node.js for Playwright
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '20'
+      - name: Cache e2e node_modules
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: tests/e2e/node_modules
+          # No lockfile in tests/e2e (package.json only) — key on it directly.
+          key: ${{ runner.os }}-e2e-node-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-node-
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          # Key on package.json (not the @playwright/test semver RANGE) so a
+          # patch bump invalidates the cached browser binary.
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+      - name: Install Playwright dependencies
+        working-directory: tests/e2e
+        run: |
+          npm install
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            # Browser binary restored from cache; still install OS-level libs
+            # (libnss/libatk/libgbm) — they aren't cached and are absent on a
+            # fresh runner, so chromium won't launch without them.
+            npx playwright install-deps chromium
+          fi
+      - name: Run E2E Tests
+        env:
+          CI: true
+          BASE_URL: http://localhost:3000
+          API_BASE_URL: http://localhost:8000
+          TEST_ADMIN_EMAIL: admin@multimodal-rag.com
+          TEST_ADMIN_PASSWORD: admin123
+          TEST_USER_EMAIL: demo@multimodal-rag.com
+          TEST_USER_PASSWORD: demo123
+          TEST_ORG_ADMIN_EMAIL: lab-admin@multimodal-rag.com
+          TEST_ORG_ADMIN_PASSWORD: admin123
+        run: |
+          cd tests/e2e
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Running smoke tests for PR..."
+            npx playwright test --grep "@smoke" --project=chromium --reporter=html,github
+          else
+            echo "Running full E2E tests..."
+            # --max-failures: a systemic failure (stack misconfig, dead
+            # selector everywhere) exits fast and REPORTS instead of burning
+            # the whole job budget and getting killed as "cancelled".
+            npx playwright test --project=chromium --reporter=html,github --max-failures=15
+          fi
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: e2e-test-results
+          path: |
+            tests/e2e/test-results/
+            tests/e2e/playwright-report/
+          retention-days: 7
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Backend Logs ==="
+          docker logs backend-e2e --tail=100 2>&1 || true
+          echo ""
+          echo "=== Frontend Logs ==="
+          docker logs frontend-e2e --tail=100 2>&1 || true
+          echo ""
+          # GoTrue logs the SQL error behind opaque 500s like "Database error
+          # checking email" (seen from the seed-mirror step) only to its own
+          # stdout — without this dump those failures are undiagnosable.
+          echo "=== GoTrue Logs ==="
+          docker logs rag_system-gotrue-1 --tail=100 2>&1 || true
+          echo ""
+          echo "=== Postgres Logs ==="
+          docker logs rag_system-postgres-1 --tail=60 2>&1 || true
+          echo ""
+          echo "=== auth schema contents ==="
+          docker exec rag_system-postgres-1 psql -U test -d test_db -c '\dt auth.*' 2>&1 || true
+          echo ""
+          echo "=== Docker Compose Status ==="
+          docker compose -p rag_system -f docker-compose.ci.yml ps
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop backend-e2e frontend-e2e 2>/dev/null || true
+          docker rm backend-e2e frontend-e2e 2>/dev/null || true
+          docker compose -p rag_system -f docker-compose.ci.yml down -v --remove-orphans
+  # ==========================================================================
+  # Performance Tests (Main Branch Only)
+  # ==========================================================================
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    continue-on-error: true # Non-critical in PR checks; don't block merges
+    needs: integration-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432/tcp
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-asyncio pytest-benchmark locust
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Run performance tests
+        run: |
+          pytest backend/tests/ \
+            -c backend/pytest.ini \
+            -m "slow or scalability" \
+            --benchmark-only \
+            --benchmark-json=benchmark.json \
+            -v
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
+      - name: Store benchmark results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: benchmark-results
+          path: benchmark.json
+  # ==========================================================================
+  # Test Summary
+  # ==========================================================================
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests, e2e-tests]
+    if: always()
+    env:
+      UNIT_RESULT: ${{ needs.unit-tests.result }}
+      GOLDEN_RESULT: ${{ needs.golden-replay.result }}
+      INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+      RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
+      FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
+      SECURITY_RESULT: ${{ needs.security-scan.result }}
+      CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
+      E2E_RESULT: ${{ needs.e2e-tests.result }}
+      GH_WORKFLOW: ${{ github.workflow }}
+      GH_REF: ${{ github.ref_name }}
+      GH_SHA: ${{ github.sha }}
+    steps:
+      - name: Generate test results summary
+        run: |
+          {
+            echo "## Test Results Summary"
+            echo ""
+            echo "| Test Suite | Status |"
+            echo "|------------|--------|"
+
+            # Unit Tests
+            if [ "$UNIT_RESULT" = "success" ]; then
+              echo "| Unit Tests | :white_check_mark: Passed |"
+            elif [ "$UNIT_RESULT" = "skipped" ]; then
+              echo "| Unit Tests | :fast_forward: Skipped |"
+            else
+              echo "| Unit Tests | :x: $UNIT_RESULT |"
+            fi
+
+            # Golden Replay
+            if [ "$GOLDEN_RESULT" = "success" ]; then
+              echo "| Golden Replay | :white_check_mark: Passed |"
+            elif [ "$GOLDEN_RESULT" = "skipped" ]; then
+              echo "| Golden Replay | :fast_forward: Skipped |"
+            else
+              echo "| Golden Replay | :x: $GOLDEN_RESULT |"
+            fi
+
+            # Integration Tests
+            if [ "$INTEGRATION_RESULT" = "success" ]; then
+              echo "| Integration Tests | :white_check_mark: Passed |"
+            elif [ "$INTEGRATION_RESULT" = "skipped" ]; then
+              echo "| Integration Tests | :fast_forward: Skipped |"
+            else
+              echo "| Integration Tests | :x: $INTEGRATION_RESULT |"
+            fi
+
+            # Resilience Tests
+            if [ "$RESILIENCE_RESULT" = "success" ]; then
+              echo "| Resilience Tests | :white_check_mark: Passed |"
+            elif [ "$RESILIENCE_RESULT" = "skipped" ]; then
+              echo "| Resilience Tests | :fast_forward: Skipped |"
+            else
+              echo "| Resilience Tests | :x: $RESILIENCE_RESULT |"
+            fi
+
+            # Frontend Tests
+            if [ "$FRONTEND_RESULT" = "success" ]; then
+              echo "| Frontend Tests | :white_check_mark: Passed |"
+            elif [ "$FRONTEND_RESULT" = "skipped" ]; then
+              echo "| Frontend Tests | :fast_forward: Skipped |"
+            else
+              echo "| Frontend Tests | :x: $FRONTEND_RESULT |"
+            fi
+
+            # Security Scan
+            if [ "$SECURITY_RESULT" = "success" ]; then
+              echo "| Security Scan | :white_check_mark: Passed |"
+            elif [ "$SECURITY_RESULT" = "skipped" ]; then
+              echo "| Security Scan | :fast_forward: Skipped |"
+            else
+              echo "| Security Scan | :x: $SECURITY_RESULT |"
+            fi
+
+            # API Contract Tests
+            if [ "$CONTRACT_RESULT" = "success" ]; then
+              echo "| API Contract Tests | :white_check_mark: Passed |"
+            elif [ "$CONTRACT_RESULT" = "skipped" ]; then
+              echo "| API Contract Tests | :fast_forward: Skipped |"
+            else
+              echo "| API Contract Tests | :x: $CONTRACT_RESULT |"
+            fi
+
+            # E2E Tests
+            if [ "$E2E_RESULT" = "success" ]; then
+              echo "| E2E Tests | :white_check_mark: Passed |"
+            elif [ "$E2E_RESULT" = "skipped" ]; then
+              echo "| E2E Tests | :fast_forward: Skipped |"
+            else
+              echo "| E2E Tests | :x: $E2E_RESULT |"
+            fi
+
+            echo ""
+            echo "**Workflow:** \`$GH_WORKFLOW\`"
+            echo "**Branch:** \`$GH_REF\`"
+            echo "**Commit:** \`$GH_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if critical tests failed
+        env:
+          UNIT_RESULT: ${{ needs.unit-tests.result }}
+          GOLDEN_RESULT: ${{ needs.golden-replay.result }}
+          FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
+          SECURITY_RESULT: ${{ needs.security-scan.result }}
+          INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+          CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
+          RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
+        run: |
+          # Blocking lanes: unit, golden replay, frontend, security, integration,
+          # contract, resilience. E2E and performance remain non-blocking
+          # (continue-on-error) until the E2E infra is stabilized.
+          failed=0
+          for pair in "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" "frontend:$FRONTEND_RESULT" \
+                      "security:$SECURITY_RESULT" "integration:$INTEGRATION_RESULT" \
+                      "contract:$CONTRACT_RESULT" "resilience:$RESILIENCE_RESULT"; do
+            name="${pair%%:*}"; result="${pair#*:}"
+            if [ "$result" == "failure" ]; then
+              echo "Blocking suite failed: $name"
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "One or more critical test suites failed!"; exit 1; }
