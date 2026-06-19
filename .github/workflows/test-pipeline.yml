@@ -782,14 +782,17 @@ jobs:
         working-directory: tests/e2e
         run: |
           npm install
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
-            npx playwright install --with-deps chromium
-          else
-            # Browser binary restored from cache; still install OS-level libs
-            # (libnss/libatk/libgbm) — they aren't cached and are absent on a
-            # fresh runner, so chromium won't launch without them.
-            npx playwright install-deps chromium
-          fi
+          # Always run `playwright install` — do NOT gate it on the cache-hit.
+          # The cache key hashes tests/e2e/package.json, which holds a semver
+          # RANGE, and there's no lockfile here, so `npm install` can resolve a
+          # newer @playwright/test patch (e.g. a bumped chrome-headless-shell
+          # build) WITHOUT changing package.json → exact cache-hit → the old
+          # gated logic skipped the install and left a stale browser binary,
+          # failing launch with "Executable doesn't exist". `playwright install`
+          # is a no-op when the cached browser already matches and re-downloads
+          # only on drift; --with-deps also installs the OS libs (libnss/libatk/
+          # libgbm) absent on a fresh runner.
+          npx playwright install --with-deps chromium
       - name: Run E2E Tests
         env:
           CI: true
