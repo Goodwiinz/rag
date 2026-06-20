@@ -133,6 +133,11 @@ backend:
     # Sentry: SENTRY_DSN comes from the `app-secrets` external secret via envFrom.
     - name: SENTRY_ENVIRONMENT
       value: "production"
+    # stable LangSmith project; do NOT suffix per-session
+    - name: LANGSMITH_PROJECT
+      value: "rag-agent-prod"
+    - name: LANGCHAIN_PROJECT
+      value: "rag-agent-prod"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "0.1"
     - name: SENTRY_PROFILES_SAMPLE_RATE

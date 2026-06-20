@@ -125,6 +125,11 @@ backend:
     # No-op if the key is absent.
     - name: SENTRY_ENVIRONMENT
       value: "dev"
+    # stable LangSmith project; do NOT suffix per-session
+    - name: LANGSMITH_PROJECT
+      value: "rag-agent-dev"
+    - name: LANGCHAIN_PROJECT
+      value: "rag-agent-dev"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"
     - name: SENTRY_PROFILES_SAMPLE_RATE

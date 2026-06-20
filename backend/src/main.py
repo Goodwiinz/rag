@@ -37,7 +37,13 @@ from src.api.arxiv import (
 )
 from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
-from src.api.documents import documents_router, files_router, integrity_router, processing_router, table_extraction_router
+from src.api.documents import (
+    documents_router,
+    files_router,
+    integrity_router,
+    processing_router,
+    table_extraction_router,
+)
 from src.api.evidence.router import router as evidence_router
 from src.api.infrastructure import evaluation_router, workers_router
 from src.api.quality import (
@@ -248,6 +254,38 @@ async def lifespan(app: FastAPI):
         configure_langsmith()
     except Exception as e:
         logger.debug(f"LangSmith configuration skipped: {e}")
+
+    # Validate LLM (Azure/OpenAI) configuration at startup.
+    # In non-dev environments, a missing endpoint/key sets the readiness flag
+    # to not-ready so the pod is kept out of the load balancer rather than
+    # crashing on every agent turn. In dev/local it's a warning only.
+    try:
+        from src.services.agent.llm_factory import validate_llm_config
+        from src.health.endpoints import set_llm_config_ready
+
+        llm_config_ok = validate_llm_config()
+        set_llm_config_ready(llm_config_ok)
+        if not llm_config_ok:
+            if environment in ("development", "local", "test"):
+                logger.warning(
+                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
+                    "AZURE_OPENAI_CHAT_API_KEY (or non-CHAT variants) are unset. "
+                    "Agent turns will fail at call time. "
+                    "Continuing in %s without blocking readiness.",
+                    environment,
+                )
+            else:
+                logger.critical(
+                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and "
+                    "AZURE_OPENAI_CHAT_API_KEY (or AZURE_OPENAI_ENDPOINT / "
+                    "AZURE_OPENAI_API_KEY) must be set. Readiness probe will "
+                    "return 503 until resolved (environment=%s).",
+                    environment,
+                )
+        else:
+            logger.info("LLM config validated OK")
+    except Exception as e:
+        logger.debug("LLM config validation skipped: %s", e)
 
     # Initialise LangGraph checkpointer + memory store at startup so the
     # first request doesn't pay the setup() cost (and so a misconfigured
@@ -468,7 +506,9 @@ app.include_router(encryption_router, prefix="/api/v1/security")
 app.include_router(compliance_router, prefix="/api/v1/security")
 app.include_router(rbac_router, prefix="/api/v1/rbac")
 app.include_router(evaluation_router, prefix="/api/v1")
-app.include_router(diagnostics_router, prefix="/api/v1")  # Retrieval diagnostics endpoints
+app.include_router(
+    diagnostics_router, prefix="/api/v1"
+)  # Retrieval diagnostics endpoints
 app.include_router(sentry_debug_router, prefix="/api/v1")  # Sentry verify endpoint
 app.include_router(websocket_router)  # Legacy WebSocket routes
 app.include_router(websocket_v2_router)  # Enhanced WebSocket v2 routes
@@ -507,9 +547,7 @@ app.include_router(
 app.include_router(
     threads_router, prefix="/api/v2"
 )  # Thread management endpoints (includes bulk operations)
-app.include_router(
-    stream_router, prefix="/api/v2"
-)  # SSE streaming chat endpoint
+app.include_router(stream_router, prefix="/api/v2")  # SSE streaming chat endpoint
 app.include_router(
     workspaces_standalone_router
 )  # Flat API routes for workspaces (used by frontend)
@@ -525,16 +563,25 @@ app.include_router(writer_router)  # AI Writer endpoints
 app.include_router(pipeline_router)  # Research Pipeline wizard endpoints
 app.include_router(integrity_router)  # AI Integrity Detector endpoints
 app.include_router(table_extraction_router)  # Table & math extraction endpoints
-app.include_router(research_engine_projects_router, prefix="/api/v1")  # Research Engine projects
-app.include_router(research_engine_blueprints_router, prefix="/api/v1")  # Research Engine blueprints
-app.include_router(research_engine_runs_router, prefix="/api/v1")  # Research Engine runs
-app.include_router(research_engine_steps_router, prefix="/api/v1")  # Research Engine steps
+app.include_router(
+    research_engine_projects_router, prefix="/api/v1"
+)  # Research Engine projects
+app.include_router(
+    research_engine_blueprints_router, prefix="/api/v1"
+)  # Research Engine blueprints
+app.include_router(
+    research_engine_runs_router, prefix="/api/v1"
+)  # Research Engine runs
+app.include_router(
+    research_engine_steps_router, prefix="/api/v1"
+)  # Research Engine steps
 app.include_router(
     thread_search_router, prefix="/api/v2"
 )  # Thread and message full-text search
 
 # Include health endpoints
 app.include_router(health_router)  # Comprehensive health check endpoints
+
 
 # Health check endpoint
 @app.get("/health")
@@ -561,9 +608,9 @@ async def root():
     return {
         "message": f"Welcome to {settings.APP_NAME}",
         "version": settings.VERSION,
-        "docs_url": "/docs"
-        if settings.DEBUG
-        else "Documentation not available in production",
+        "docs_url": (
+            "/docs" if settings.DEBUG else "Documentation not available in production"
+        ),
         "health_check": "/health",
     }
 
@@ -579,7 +626,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         if "ctx" in err and isinstance(err["ctx"], dict):
             safe["ctx"] = {k: str(v) for k, v in err["ctx"].items()}
         safe_errors.append(safe)
-    first_msg = safe_errors[0].get("msg", "Validation error") if safe_errors else "Validation error"
+    first_msg = (
+        safe_errors[0].get("msg", "Validation error")
+        if safe_errors
+        else "Validation error"
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -647,6 +698,7 @@ if settings.DEBUG:
                 "free_tier_storage_gb": settings.FREE_TIER_STORAGE_GB,
             },
         }
+
 
 if __name__ == "__main__":
     import uvicorn
