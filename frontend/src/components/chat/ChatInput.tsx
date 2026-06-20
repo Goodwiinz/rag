@@ -16,6 +16,7 @@ import {
   Mic,
   Paperclip,
   Square,
+  X,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -88,8 +89,54 @@ export function ChatInput({
   const [voiceSupported, setVoiceSupported] = useState(false);
   const reduceMotion = useReducedMotion();
   const menu = useSlashCommandMenu(value);
+
+  // Local attachment receipts — chips shown in the composer for files the user
+  // attached this turn. The page still owns the actual upload via onAttach;
+  // these are the visual record (with image thumbnails) the composer lacked.
+  type Attachment = {
+    id: string;
+    name: string;
+    isImage: boolean;
+    url?: string;
+  };
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Keep a live ref so the unmount cleanup revokes the current object URLs
+  // without re-running on every attachment change.
+  const attachmentsRef = useRef<Attachment[]>(attachments);
+  attachmentsRef.current = attachments;
+
+  const addFiles = (files: FileList): void => {
+    const next: Attachment[] = Array.from(files).map((file) => {
+      const isImage = file.type.startsWith('image/');
+      return {
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        name: file.name,
+        isImage,
+        url: isImage ? URL.createObjectURL(file) : undefined,
+      };
+    });
+    setAttachments((prev) => [...prev, ...next]);
+    onAttach?.(files);
+  };
+
+  const removeAttachment = (id: string): void => {
+    setAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.url) URL.revokeObjectURL(target.url);
+      return prev.filter((a) => a.id !== id);
+    });
+  };
+
   useEffect(() => {
     setVoiceSupported(getSpeechRecognition() !== null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach(
+        (a) => a.url && URL.revokeObjectURL(a.url)
+      );
+    };
   }, []);
 
   const toggleVoice = (): void => {
@@ -176,7 +223,7 @@ export function ChatInput({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && value.trim()) {
+      if (!isLoading && value.trim() && !isOverLimit) {
         onSubmit();
       }
     }
@@ -187,6 +234,7 @@ export function ChatInput({
   const maxChars = 4000;
   const fillPct = Math.min(100, Math.round((charCount / maxChars) * 100));
   const isNearLimit = charCount > maxChars * 0.8;
+  const isOverLimit = charCount > maxChars;
 
   const activeCommand =
     menu.isOpen && menu.filtered.length > 0
@@ -351,11 +399,19 @@ export function ChatInput({
             <div
               className="inline-flex items-center gap-2 font-nous-mono text-[10px] tabular-nums whitespace-nowrap shrink-0"
               style={{
-                color: isNearLimit ? 'var(--nous-corona)' : 'var(--nous-fg-3)',
+                color: isOverLimit
+                  ? 'var(--nous-mars)'
+                  : isNearLimit
+                    ? 'var(--nous-corona)'
+                    : 'var(--nous-fg-3)',
                 letterSpacing: '0.04em',
               }}
             >
-              <span className="hidden sm:inline">
+              <span
+                className="hidden sm:inline"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 {charCount}/{maxChars}
               </span>
               <span
@@ -385,6 +441,57 @@ export function ChatInput({
             className="px-4 pt-3.5 pb-3"
             style={{ background: 'var(--nous-bg-2)' }}
           >
+            {attachments.length > 0 && (
+              <ul
+                className="flex flex-wrap items-center gap-2 mb-3 list-none p-0 m-0"
+                aria-label="Attached files"
+              >
+                {attachments.map((att) => (
+                  <li
+                    key={att.id}
+                    className="group inline-flex items-center gap-2 h-9 rounded-md pl-1.5 pr-1 font-nous-mono text-[11px]"
+                    style={{
+                      background: 'var(--nous-bg-1)',
+                      border: '1px solid var(--nous-border-1)',
+                      color: 'var(--nous-fg-2)',
+                    }}
+                  >
+                    {att.isImage && att.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={att.url}
+                        alt={att.name}
+                        className="w-6 h-6 rounded object-cover shrink-0"
+                      />
+                    ) : (
+                      <span
+                        className="grid place-items-center w-6 h-6 rounded shrink-0"
+                        style={{
+                          background: 'var(--nous-bg-2)',
+                          color: 'var(--nous-fg-3)',
+                        }}
+                      >
+                        <Paperclip className="w-3 h-3" strokeWidth={1.7} />
+                      </span>
+                    )}
+                    <span className="max-w-[140px] truncate" title={att.name}>
+                      {att.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(att.id)}
+                      aria-label={`Remove ${att.name}`}
+                      title="Remove"
+                      className="grid place-items-center w-6 h-6 rounded transition-colors hover:bg-[var(--nous-aurum)]"
+                      style={{ color: 'var(--nous-fg-3)' }}
+                    >
+                      <X className="w-3 h-3" strokeWidth={2} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <textarea
               ref={textareaRef}
               value={value}
@@ -401,6 +508,8 @@ export function ChatInput({
                 activeCommand ? slashOptionId(activeCommand.id) : undefined
               }
               aria-autocomplete="list"
+              aria-invalid={isOverLimit || undefined}
+              aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
               className="w-full bg-transparent resize-none outline-none font-nous-body text-[16px]"
               style={{
                 color: 'var(--nous-fg-1)',
@@ -409,6 +518,18 @@ export function ChatInput({
                 maxHeight: '200px',
               }}
             />
+
+            {isOverLimit && (
+              <p
+                id="nous-input-limit"
+                role="alert"
+                className="mt-2 font-nous-mono text-[10px]"
+                style={{ color: 'var(--nous-mars)', letterSpacing: '0.02em' }}
+              >
+                Message is {charCount - maxChars} characters over the {maxChars}{' '}
+                limit. Trim it to send.
+              </p>
+            )}
 
             <div
               className="flex items-center justify-between mt-2.5 pt-2.5 border-t"
@@ -436,8 +557,8 @@ export function ChatInput({
                     className="hidden"
                     onChange={(e) => {
                       const files = e.target.files;
-                      if (files && files.length > 0 && onAttach) {
-                        onAttach(files);
+                      if (files && files.length > 0) {
+                        addFiles(files);
                       }
                       e.target.value = '';
                     }}
@@ -465,8 +586,8 @@ export function ChatInput({
                     className="hidden"
                     onChange={(e) => {
                       const files = e.target.files;
-                      if (files && files.length > 0 && onAttach) {
-                        onAttach(files);
+                      if (files && files.length > 0) {
+                        addFiles(files);
                       }
                       e.target.value = '';
                     }}
@@ -564,8 +685,12 @@ export function ChatInput({
               ) : (
                 <button
                   onClick={onSubmit}
-                  disabled={!value.trim() || isDisabled}
-                  title="Send (Enter)"
+                  disabled={!value.trim() || isDisabled || isOverLimit}
+                  title={
+                    isOverLimit
+                      ? `Message is over the ${maxChars}-character limit`
+                      : 'Send (Enter)'
+                  }
                   className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     padding: '8px 16px',
