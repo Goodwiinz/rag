@@ -431,6 +431,13 @@ export function useChatStreaming(
                 rememberAgentThread(currentThreadId, threadId);
               }
             },
+            onReflection: (_passed, _issues, _round, revising) => {
+              if (!revising) return;
+              assistantContent = '';
+              lastStreamedContentRef.current = '';
+              pendingStreamContentRef.current = '';
+              useChatStore.setState({ streamingContent: '' });
+            },
             onConfirmation: (threadId, confirmation) => {
               console.log('[Agent] HITL confirmation needed:', confirmation);
               streamHadConfirmation = true;

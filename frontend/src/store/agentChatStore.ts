@@ -217,9 +217,17 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }));
                 });
               },
-              onReflection: () => {
-                // Reflection events are informational; no store mutation needed
-                // beyond what onDone handles.
+              onReflection: (_passed, _issues, _round, revising) => {
+                if (!revising) return;
+                streamedContent = '';
+                set((state) => {
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === placeholderId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].content = '';
+                  }
+                });
               },
               onConfirmation: (
                 threadId: string,
@@ -306,7 +314,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
         }
 
         // Durable Trigger.dev fallback
-        const { runId } = await agentChatService.startDurableRun(requestPayload);
+        const { runId } =
+          await agentChatService.startDurableRun(requestPayload);
         set((state) => {
           state.messages.push({
             id: placeholderId,
@@ -337,14 +346,18 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     | Array<{ name: string; args: Record<string, unknown> }>
                     | undefined) ?? [],
                 message:
-                  ((meta.confirmation as Record<string, unknown>)?.message as string) ||
+                  ((meta.confirmation as Record<string, unknown>)
+                    ?.message as string) ||
                   'The agent wants to perform an action. Please confirm.',
                 waitTokenId: meta.waitTokenId as string,
               };
-              const idx = state.messages.findIndex((m) => m.id === placeholderId);
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
               if (idx !== -1) {
                 state.messages[idx].isStreaming = false;
-                state.messages[idx].content = 'Waiting for your confirmation...';
+                state.messages[idx].content =
+                  'Waiting for your confirmation...';
               }
               state.isStreaming = false;
             });
@@ -358,7 +371,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
               result.status ??
               'Done';
             set((state) => {
-              const idx = state.messages.findIndex((m) => m.id === placeholderId);
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
               if (idx !== -1) {
                 state.messages[idx].content = String(content);
                 state.messages[idx].isStreaming = false;
@@ -367,19 +382,25 @@ export const useAgentChatStore = create<AgentChatStore>()(
               (state as unknown as AgentChatStore)._abortController = null;
             });
             if (uiMode === 'closed') {
-              set((state) => { state.hasUnread = true; });
+              set((state) => {
+                state.hasUnread = true;
+              });
             }
             return;
           }
 
           if (run.status === 'FAILED' || run.status === 'CRASHED') {
             set((state) => {
-              const idx = state.messages.findIndex((m) => m.id === placeholderId);
+              const idx = state.messages.findIndex(
+                (m) => m.id === placeholderId
+              );
               if (idx !== -1) {
                 state.messages[idx] = {
                   id: placeholderId,
                   role: 'assistant',
-                  content: run.error || 'Sorry, something went wrong. Please try again.',
+                  content:
+                    run.error ||
+                    'Sorry, something went wrong. Please try again.',
                   timestamp: new Date(),
                   isStreaming: false,
                   isError: true,
@@ -399,7 +420,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
             state.messages[idx] = {
               id: placeholderId,
               role: 'assistant',
-              content: 'The request timed out. The agent may still be processing — please try again shortly.',
+              content:
+                'The request timed out. The agent may still be processing — please try again shortly.',
               timestamp: new Date(),
               isStreaming: false,
               isError: true,
@@ -534,6 +556,23 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
+              onReflection: (_passed, _issues, _round, revising) => {
+                if (!revising) return;
+                streamedContent = '';
+                set((state) => {
+                  const lastAsst = [...state.messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant');
+                  if (lastAsst) {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === lastAsst.id
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content = '';
+                    }
+                  }
+                });
+              },
               onConfirmation: (
                 threadId: string,
                 confirmation: Record<string, unknown>
@@ -620,7 +659,11 @@ export const useAgentChatStore = create<AgentChatStore>()(
         const waitTokenId = savedConfirmation?.waitTokenId;
 
         if (waitTokenId) {
-          await agentChatService.completeDurableConfirmation(jobId, waitTokenId, confirmed);
+          await agentChatService.completeDurableConfirmation(
+            jobId,
+            waitTokenId,
+            confirmed
+          );
 
           const MAX_POLLS = 200;
           const POLL_INTERVAL_MS = 3000;
@@ -631,11 +674,17 @@ export const useAgentChatStore = create<AgentChatStore>()(
             if (run.status === 'COMPLETED' && run.output) {
               const result = run.output as Record<string, unknown>;
               const content =
-                (result.result as Record<string, unknown>)?.message ?? result.status ?? 'Done';
+                (result.result as Record<string, unknown>)?.message ??
+                result.status ??
+                'Done';
               set((state) => {
-                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                const lastAsst = [...state.messages]
+                  .reverse()
+                  .find((m) => m.role === 'assistant');
                 if (lastAsst) {
-                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === lastAsst.id
+                  );
                   if (idx !== -1) {
                     state.messages[idx].content = String(content);
                     state.messages[idx].isStreaming = false;
@@ -649,9 +698,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
             }
             if (run.status === 'FAILED' || run.status === 'CRASHED') {
               set((state) => {
-                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                const lastAsst = [...state.messages]
+                  .reverse()
+                  .find((m) => m.role === 'assistant');
                 if (lastAsst) {
-                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === lastAsst.id
+                  );
                   if (idx !== -1) {
                     state.messages[idx].content = run.error || 'Action failed.';
                     state.messages[idx].isStreaming = false;
@@ -676,9 +729,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
             if (job.status === 'completed' && job.result) {
               set((state) => {
-                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                const lastAsst = [...state.messages]
+                  .reverse()
+                  .find((m) => m.role === 'assistant');
                 if (lastAsst) {
-                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === lastAsst.id
+                  );
                   if (idx !== -1) {
                     state.messages[idx].content = job.result!.message.content;
                     state.messages[idx].isStreaming = false;
@@ -710,9 +767,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
             }
             if (job.status === 'failed') {
               set((state) => {
-                const lastAsst = [...state.messages].reverse().find((m) => m.role === 'assistant');
+                const lastAsst = [...state.messages]
+                  .reverse()
+                  .find((m) => m.role === 'assistant');
                 if (lastAsst) {
-                  const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === lastAsst.id
+                  );
                   if (idx !== -1) {
                     state.messages[idx].content = job.error || 'Action failed.';
                     state.messages[idx].isStreaming = false;
