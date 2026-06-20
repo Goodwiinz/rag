@@ -72,9 +72,11 @@ _ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}\b")
 # The research LLM handles this in 1-2 tool rounds without a formal plan.
 _SIMPLE_ADD_TARGET_RE = re.compile(r"\b(project|library|collection)\b", re.IGNORECASE)
 
-# Wall-clock cap for planner LLM calls. Keeps the node inside the ~30s HTTP
-# budget when complexity + plan generation run back-to-back (trace 019e69f4).
-PLANNER_LLM_TIMEOUT_SECONDS = 20
+# Wall-clock cap for planner LLM calls. The planner is purely advisory —
+# on timeout it returns {} and the turn proceeds without a plan. The
+# lightweight model's normal latency is ~2-3s (p95≈8s); 8s is ample
+# headroom while capping worst-case at ~16s (2×8) instead of ~40s (2×20).
+PLANNER_LLM_TIMEOUT_SECONDS = 8
 
 
 def _is_simple_add_flow(query: str) -> bool:
@@ -93,6 +95,68 @@ def _is_simple_add_flow(query: str) -> bool:
     if not _SIMPLE_ADD_TARGET_RE.search(query):
         return False
     return len(words) <= 15
+
+
+# Patterns that signal multi-step intent in writing queries — presence of any
+# of these means the planner should run rather than skipping.
+_WRITING_CONJUNCTION_RE = re.compile(
+    r"\b(and|then|also|additionally|plus|as well as|followed by|after that)\b",
+    re.IGNORECASE,
+)
+# Leading verbs that indicate a single-tool writing action.
+_SIMPLE_WRITING_VERBS: frozenset[str] = frozenset(
+    {"summarize", "summarise", "create", "draft", "write"}
+)
+
+
+def _is_simple_writing_flow(query: str) -> bool:
+    """Return True for obviously single-tool writing imperatives.
+
+    Deliberately narrow — only skip when the request is clearly a one-step
+    action with a single target. When in doubt, return False so the planner
+    still runs.
+
+    True examples:
+      "summarize this document"
+      "create a note about the results"
+      "draft an intro"
+      "write a note on section 3"
+
+    False examples (multi-step or ambiguous):
+      "summarize X and compare it with Y"   — conjunction implies two steps
+      "draft a section then add citations"  — sequential conjunction
+      "what should I write?"                — question, not imperative
+      ""                                    — empty
+    """
+    words = query.split()
+    if not words:
+        return False
+
+    first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION)
+    if first_word not in _SIMPLE_WRITING_VERBS:
+        return False
+
+    # Questions starting with a writing verb ("what should I write?") are not
+    # imperatives — reject if the query contains a "?" or starts ambiguously.
+    if "?" in query:
+        return False
+
+    # Any coordinating/sequential conjunction signals multiple steps — don't skip.
+    if _WRITING_CONJUNCTION_RE.search(query):
+        return False
+
+    # Comma-separated clauses can also imply multiple actions
+    # ("summarize doc1, add a note, then export"). A single comma is fine
+    # (e.g. "write a note on section 3, page 5"), but two or more suggest
+    # a list of steps — be conservative and let the planner handle them.
+    if query.count(",") >= 2:
+        return False
+
+    # Long queries almost certainly contain multiple intents.
+    if len(words) > 20:
+        return False
+
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -333,9 +397,9 @@ def make_planner_node(
 
         # Trace 019e6a08: complexity check alone took ~17s on dev; adding
         # generate_plan pushed the turn past the ~30s HTTP cancel budget.
-        # Simple ingest-and-add imperatives need neither complexity nor plan.
-        if _is_simple_add_flow(query):
-            logger.info("Skipping planner entirely for simple add flow")
+        # Simple single-tool imperatives need neither complexity nor plan.
+        if _is_simple_add_flow(query) or _is_simple_writing_flow(query):
+            logger.info("Skipping planner entirely for simple single-tool flow")
             return {}
 
         # 2. Check complexity
