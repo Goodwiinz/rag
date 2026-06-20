@@ -94,28 +94,44 @@ export const useDocumentUpload = (options: UseDocumentUploadOptions = {}): UseDo
     };
   }, []);
 
-  // Handle WebSocket processing updates
+  // Handle WebSocket processing updates.
+  // Build a new state tree via the setter — find() returns a reference to the
+  // stored object, so assigning to its properties would mutate React state in
+  // place and skip the re-render (the progress UI would silently stall).
   useEffect(() => {
-    processingUpdates.forEach((update) => {
-      const jobId = update.payload.job_id;
-      const item = queueItems.find(item => item.jobId === jobId);
+    if (processingUpdates.length === 0) return;
 
-      if (item) {
-        // Update item with WebSocket data
-        item.progress = update.payload.progress || item.progress;
+    setQueueItems((prev) =>
+      prev.map((item) => {
+        const update = processingUpdates.find(
+          (u) => u.payload.job_id === item.jobId
+        );
+        if (!update) return item;
 
-        // Map document processing status to upload queue status
+        const next = {
+          ...item,
+          progress: update.payload.progress ?? item.progress,
+        };
+
         if (update.payload.status === 'indexed') {
-          item.status = 'completed';
-          item.completedAt = Date.now();
-          item.progress = 100;
-        } else if (update.payload.status === 'failed') {
-          item.status = 'error';
-          item.error = update.payload.error_message || 'Processing failed';
+          return {
+            ...next,
+            status: 'completed',
+            completedAt: Date.now(),
+            progress: 100,
+          };
         }
-      }
-    });
-  }, [processingUpdates, queueItems]);
+        if (update.payload.status === 'failed') {
+          return {
+            ...next,
+            status: 'error',
+            error: update.payload.error_message ?? 'Processing failed',
+          };
+        }
+        return next;
+      })
+    );
+  }, [processingUpdates]);
 
   // Auto-cleanup completed items
   useEffect(() => {
