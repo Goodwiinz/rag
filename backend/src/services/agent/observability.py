@@ -17,6 +17,32 @@ logger = logging.getLogger(__name__)
 # LangSmith configuration
 # ---------------------------------------------------------------------------
 
+# Map the many ways a deploy env can be spelled onto the canonical suffix used
+# in the LangSmith project name. Anything unrecognised (local shells, CI, eval,
+# unset) returns None so the caller can fall back instead of inventing a name.
+_DEPLOY_ENV_ALIASES = {
+    "dev": "dev",
+    "development": "dev",
+    "staging": "staging",
+    "stage": "staging",
+    "prod": "prod",
+    "production": "prod",
+}
+
+
+def _normalize_deploy_env() -> Optional[str]:
+    """Resolve DEPLOY_ENV/ENVIRONMENT to a canonical ``dev|staging|prod`` suffix.
+
+    Returns ``None`` for unknown/unset envs (local, test, CI) so trace project
+    naming stays deliberate rather than guessing.
+    """
+    raw = (
+        (os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "")
+        .strip()
+        .lower()
+    )
+    return _DEPLOY_ENV_ALIASES.get(raw)
+
 
 def configure_langsmith():
     """Configure LangSmith tracing if an API key is available.
@@ -26,31 +52,37 @@ def configure_langsmith():
     provided, this propagates to both so libraries on either convention pick
     it up.
     """
-    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get(
-        "LANGCHAIN_API_KEY"
-    )
+    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get("LANGCHAIN_API_KEY")
     if not api_key:
         logger.debug(
-            "LangSmith tracing disabled "
-            "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
+            "LangSmith tracing disabled " "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
         )
         return
 
     os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
-    # Separate traces per deploy environment so dev/staging/prod don't
-    # co-mingle (an explicit LANGSMITH_PROJECT/LANGCHAIN_PROJECT still wins).
-    deploy_env = (
-        os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "dev"
-    ).lower()
-    project = (
-        os.environ.get("LANGSMITH_PROJECT")
-        or os.environ.get("LANGCHAIN_PROJECT")
-        or f"rag-agent-{deploy_env}"
-    )
-    os.environ.setdefault("LANGSMITH_PROJECT", project)
-    os.environ.setdefault("LANGCHAIN_PROJECT", project)
+    # Project name is derived authoritatively from the deploy environment so a
+    # stale externally-injected value (e.g. an old Infisical
+    # LANGSMITH_PROJECT=rag-agent-dev-local) can't fragment or mis-route traces.
+    # For a recognised deploy env we force rag-agent-{dev|staging|prod}; an
+    # explicit LANGSMITH_PROJECT_OVERRIDE always wins (escape hatch for one-off
+    # namespaces); otherwise we fall back to any provided value or rag-agent-dev.
+    norm_env = _normalize_deploy_env()
+    override = os.environ.get("LANGSMITH_PROJECT_OVERRIDE")
+    if override:
+        project = override
+    elif norm_env:
+        project = f"rag-agent-{norm_env}"
+    else:
+        project = (
+            os.environ.get("LANGSMITH_PROJECT")
+            or os.environ.get("LANGCHAIN_PROJECT")
+            or "rag-agent-dev"
+        )
+    # Force (not setdefault) so the derived value overrides a stale injected one.
+    os.environ["LANGSMITH_PROJECT"] = project
+    os.environ["LANGCHAIN_PROJECT"] = project
 
     # Both SDK generations read their own flag; set both to "true" by default.
     os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
@@ -60,7 +92,7 @@ def configure_langsmith():
     # RAG chunks, tool args) to LangSmith — tags, metadata, latency, and token
     # usage still flow, so dashboards keep working. Override with
     # LANGSMITH_HIDE_IO=false to opt back in. Dev keeps full I/O for debugging.
-    hide_io_default = "false" if deploy_env == "dev" else "true"
+    hide_io_default = "false" if norm_env == "dev" else "true"
     hide_io = os.environ.get("LANGSMITH_HIDE_IO", hide_io_default).lower() == "true"
     if hide_io:
         os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
@@ -85,6 +117,51 @@ def get_langsmith_base_url() -> str:
         or os.environ.get("LANGCHAIN_ENDPOINT")
         or "https://smith.langchain.com"
     )
+
+
+def tag_trace_intent(intent: str) -> None:
+    """Best-effort: tag the current LangSmith ROOT run with the classified
+    intent so top-level traces are filterable by intent in the UI.
+
+    Walks from the current ``RunTree`` up to the root (the run whose
+    ``id`` matches ``trace_id``), then calls ``add_tags`` and
+    ``add_metadata`` — the official SDK mutation methods — so the root
+    run carries ``intent:<value>`` in its tag list and ``intent`` in its
+    metadata dict.
+
+    No-op when:
+    - ``intent`` is empty/falsy.
+    - LangSmith SDK is not installed.
+    - No active run context exists (``get_current_run_tree()`` returns None).
+    - Any unexpected SDK shape is encountered.
+
+    Never raises — observability must never break the agent.
+    """
+    if not intent:
+        return
+    try:
+        from langsmith.run_helpers import get_current_run_tree
+
+        rt = get_current_run_tree()
+        if rt is None:
+            return
+
+        # Walk to the root of the trace.  RunTree.trace_id equals the id of
+        # the root run; RunTree.id is the current run's own id.  Walk via
+        # parent_run (the populated parent object) until we reach the run
+        # whose id matches trace_id, or until parent_run is None.
+        root = rt
+        while getattr(root, "parent_run", None) is not None:
+            root = root.parent_run  # type: ignore[assignment]
+
+        tag = f"intent:{intent}"
+        existing_tags: list = list(getattr(root, "tags", None) or [])
+        if tag not in existing_tags:
+            root.add_tags(tag)
+
+        root.add_metadata({"intent": intent})
+    except Exception:
+        logger.debug("tag_trace_intent failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +317,7 @@ def track_node_execution(node_name: str):
     Records both the success and the error paths into Prometheus so node
     latency dashboards have data even when no error is raised.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -247,9 +325,7 @@ def track_node_execution(node_name: str):
             try:
                 result = await func(*args, **kwargs)
                 duration = time.monotonic() - t0
-                logger.debug(
-                    "Node %s completed in %.2fs", node_name, duration
-                )
+                logger.debug("Node %s completed in %.2fs", node_name, duration)
                 if _METRICS_AVAILABLE:
                     AGENT_NODE_DURATION.labels(
                         node=node_name, status="success"
@@ -264,14 +340,16 @@ def track_node_execution(node_name: str):
                     "Node %s failed after %.2fs", node_name, duration, exc_info=True
                 )
                 if _METRICS_AVAILABLE:
-                    AGENT_NODE_DURATION.labels(
-                        node=node_name, status="error"
-                    ).observe(duration)
+                    AGENT_NODE_DURATION.labels(node=node_name, status="error").observe(
+                        duration
+                    )
                     AGENT_ERRORS.labels(
                         node=node_name, error_type=type(e).__name__
                     ).inc()
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -284,18 +362,14 @@ def record_tool_call(tool_name: str, status: str):
 def record_execution_duration(intent: str, status: str, duration: float):
     """Record agent execution duration."""
     if _METRICS_AVAILABLE:
-        AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(
-            duration
-        )
+        AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(duration)
 
 
 def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
     """Record token usage metrics."""
     if _METRICS_AVAILABLE:
         AGENT_TOKEN_USAGE.labels(model=model, type="prompt").inc(prompt_tokens)
-        AGENT_TOKEN_USAGE.labels(model=model, type="completion").inc(
-            completion_tokens
-        )
+        AGENT_TOKEN_USAGE.labels(model=model, type="completion").inc(completion_tokens)
 
 
 def record_loop_exhaustion(intent: str, subgraph: str = "main"):

@@ -1,10 +1,10 @@
-"""Online trajectory evaluators for project `rag-agent-dev-local`.
+"""Online trajectory evaluators for the NOUS agent.
 
 Each evaluator returns ONE metric. Designed to upload via:
 
     langsmith evaluator upload backend/tests/eval/langsmith_trajectory_evaluators.py \\
       --name "Tool Call Validity" --function tool_call_validity \\
-      --project "rag-agent-dev-local" --replace --api-key $LANGSMITH_API_KEY
+      --project "rag-agent-evals" --replace --api-key $LANGSMITH_API_KEY
 
 Uploaded evaluators run in a sandbox. All imports are placed inside each
 function. Run signature is `(run)` only (online — no dataset example).

@@ -24,7 +24,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 ENV_FILE = REPO / "backend" / ".env"
 EVALUATORS_FILE = Path(__file__).with_name("langsmith_trajectory_evaluators.py")
-PROJECT_NAME = "rag-agent-dev-local"
+PROJECT_NAME = os.environ.get("LANGSMITH_EVAL_PROJECT", "rag-agent-evals")
 
 METRICS = [
     ("tool_call_validity", "Tool Call Validity"),

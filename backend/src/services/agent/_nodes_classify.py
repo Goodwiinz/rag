@@ -30,7 +30,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_memory import memory_retrieval_node
 from src.services.agent._nodes_rag import _coerce_text, rag_node
-from src.services.agent.observability import track_node_execution
+from src.services.agent.observability import tag_trace_intent, track_node_execution
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -202,6 +202,11 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
             merged.update(default)
         else:
             merged.update(result)
+
+    # Tag the LangSmith ROOT run with the classified intent so top-level
+    # traces are filterable by intent in the UI.  Best-effort — never raises.
+    tag_trace_intent(merged.get("intent", ""))
+
     return merged
 
 
