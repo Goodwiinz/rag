@@ -81,3 +81,6 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# AI Elements reference scratch (MCP comparison, not shipped)
+.scratch-ai-elements/

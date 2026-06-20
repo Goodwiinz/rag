@@ -13,5 +13,8 @@
   "aliases": {
     "components": "src/components",
     "utils": "src/lib/utils"
+  },
+  "registries": {
+    "@ai-elements": "https://registry.ai-sdk.dev/{name}.json"
   }
 }
