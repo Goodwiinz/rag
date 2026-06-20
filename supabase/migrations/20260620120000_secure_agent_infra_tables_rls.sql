@@ -53,7 +53,9 @@ FROM anon, authenticated;
 -- ============================================================================
 -- handle_new_user() is the SECURITY DEFINER trigger that provisions a
 -- public.users row on auth.users insert. It must not be directly callable via
--- /rest/v1/rpc/handle_new_user by anon/authenticated.
-REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon, authenticated;
+-- /rest/v1/rpc/handle_new_user. Functions grant EXECUTE to PUBLIC by default,
+-- so anon/authenticated inherit it regardless of role-specific revokes — revoke
+-- from PUBLIC (and the named roles) to actually block direct invocation.
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 
 COMMIT;
