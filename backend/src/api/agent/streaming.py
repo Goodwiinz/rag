@@ -442,7 +442,15 @@ async def stream_event_generator(
                                     passed = getattr(reflection_result, "passed", True)
                                     issues = getattr(reflection_result, "issues", [])
                                     round_num = output.get("reflection_count", 0)
-                                    yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num})}\n\n"
+                                    severity = getattr(
+                                        reflection_result, "severity", "none"
+                                    )
+                                    revising = (
+                                        (not passed)
+                                        and severity == "major"
+                                        and round_num < 2
+                                    )
+                                    yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num, 'revising': revising})}\n\n"
                     break
                 except _PgOpError as op_err:
                     if first_event_yielded:
@@ -769,7 +777,11 @@ async def stream_confirm_event_generator(
                             passed = getattr(reflection_result, "passed", True)
                             issues = getattr(reflection_result, "issues", [])
                             round_num = output.get("reflection_count", 0)
-                            yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num})}\n\n"
+                            severity = getattr(reflection_result, "severity", "none")
+                            revising = (
+                                (not passed) and severity == "major" and round_num < 2
+                            )
+                            yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num, 'revising': revising})}\n\n"
 
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
         final_snapshot = await graph.aget_state(config)
