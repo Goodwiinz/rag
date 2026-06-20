@@ -217,6 +217,22 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }));
                 });
               },
+              onRagContext: (contexts: Array<Record<string, unknown>>) => {
+                set((state) => {
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === placeholderId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].citations = contexts.map((ctx) => ({
+                      documentId: (ctx.document_id as string | undefined) ?? '',
+                      documentTitle:
+                        (ctx.title as string | undefined) ?? 'Source',
+                      snippet: ctx.content as string | undefined,
+                      score: ctx.score as number | undefined,
+                    }));
+                  }
+                });
+              },
               onReflection: (_passed, _issues, _round, revising) => {
                 if (!revising) return;
                 streamedContent = '';
