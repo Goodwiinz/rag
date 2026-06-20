@@ -1,6 +1,9 @@
 'use client';
 
-import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  ActivityStep,
+  ChatPageMessage,
+} from '@/components/chat/shared/cloudMessageView';
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
@@ -15,6 +18,7 @@ import {
   useChatStore,
 } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -315,10 +319,15 @@ export function useChatStreaming(
         let streamHadConfirmation = false;
         const responseStart = Date.now();
 
+        // Per-turn step tracking — reset each send
+        const turnSteps: ActivityStep[] = [];
+        const toolStartTimes = new Map<string, number>();
+
         // Set streaming state in store for UI
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
+          streamingSteps: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
         });
@@ -386,6 +395,14 @@ export function useChatStreaming(
                   .getState()
                   .pushToolStart(currentThreadId, tool);
               }
+              // Per-turn tracking for inline activity strip
+              toolStartTimes.set(tool, Date.now());
+              turnSteps.push({
+                tool,
+                label: toolLabel(tool),
+                status: 'running',
+              });
+              useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
             onToolEnd: (tool, result, isError) => {
               console.log('[Agent] Tool end:', tool, result, { isError });
@@ -394,6 +411,21 @@ export function useChatStreaming(
                   .getState()
                   .pushToolEnd(currentThreadId, tool, !isError);
               }
+              // Update last matching running step for this tool
+              const startTime = toolStartTimes.get(tool);
+              const durationMs = startTime ? Date.now() - startTime : undefined;
+              const idx = [...turnSteps]
+                .map((s, i) => ({ s, i }))
+                .reverse()
+                .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+              if (idx !== undefined) {
+                turnSteps[idx] = {
+                  ...turnSteps[idx],
+                  status: isError ? 'error' : 'done',
+                  durationMs,
+                };
+              }
+              useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
             onRagContext: (contexts) => {
               console.log('[Agent] RAG contexts:', contexts.length);
@@ -492,6 +524,7 @@ export function useChatStreaming(
             isStreaming: false,
             streamingContent: '',
             streamingCitations: [],
+            streamingSteps: [],
           });
           setIsLoading(false);
           return;
@@ -518,6 +551,7 @@ export function useChatStreaming(
             isStreaming: false,
             streamingContent: '',
             streamingCitations: [],
+            streamingSteps: [],
           });
           setIsLoading(false);
           stoppedByUserRef.current = false;
@@ -532,13 +566,21 @@ export function useChatStreaming(
         // together during the (awaited) DB save window below.
         const responseTimeMs = Date.now() - responseStart;
         const wasStopped = stoppedByUserRef.current;
+        const finalTurnSteps = [...turnSteps];
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
+          toolExecutions:
+            finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
           metadata: {
             responseTimeMs,
             ...(wasStopped ? { stopped: true } : {}),
+            ...(finalTurnSteps.length > 0
+              ? {
+                  toolsUsed: finalTurnSteps.map((s) => s.label),
+                }
+              : {}),
           },
         };
         stoppedByUserRef.current = false;
@@ -548,6 +590,7 @@ export function useChatStreaming(
           isStreaming: false,
           streamingContent: '',
           streamingCitations: [],
+          streamingSteps: [],
         });
         lastStreamedContentRef.current = '';
 
