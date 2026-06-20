@@ -164,6 +164,108 @@ _INGEST_FAILURE_DISCLOSURE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ---------------------------------------------------------------------------
+# Fabricated ingest guard
+# ---------------------------------------------------------------------------
+
+# Question / offer / disclosure patterns that indicate the AI is ASKING
+# whether to ingest, not asserting that it already did. If any of these
+# match we skip the fabrication check — no false positives on the
+# "which of these would you like me to ingest?" search-results turn.
+_INGEST_QUESTION_RE = re.compile(
+    r"\bwould\s+you\s+like\s+me\s+to\b"
+    r"|\bdo\s+you\s+want\s+me\s+to\b"
+    r"|\bshould\s+I\b"
+    r"|\bwhich\s+of\s+these\b"
+    r"|\bwant\s+me\s+to\s+ingest\b",
+    re.IGNORECASE,
+)
+
+# Strong, low-false-positive signals that the AI is asserting an ingest
+# happened (or is actively in progress) WITHOUT having called the tool.
+#
+# Signals (each sufficient on its own):
+#   A) Inline tool-arg JSON: {"paper_ids": ...} dumped into prose.
+#   B) Literal narration artefact "Tool call made".
+#   C) Past/progressive first-person assertions:
+#      "I ran the import", "I've imported/ingested", "is being imported/
+#      ingested", "has been imported/ingested", "importing/ingesting … now".
+#
+# NOT triggered by pure future-tense offers without a strong signal above:
+#   "I will import it", "I can ingest it for you" → no match.
+_INGEST_FABRICATION_CLAIM_RE = re.compile(
+    # A) Inline tool-arg JSON (model dumping ingest args as prose)
+    r'\{[^}]*"paper_ids"\s*:'
+    # B) Literal narration artefact
+    r"|\bTool\s+call\s+made\b"
+    # C) Past/progressive assertions
+    r"|\bI\s+ran\s+the\s+import\b"
+    r"|\b(I'?ve|I\s+have)\s+(imported|ingested)\b"
+    r"|\bis\s+being\s+(imported|ingested)\b"
+    r"|\bhas\s+been\s+(imported|ingested)\b"
+    r"|\b(importing|ingesting)\b.{0,40}\bnow\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _detect_fabricated_ingest(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims an arXiv ingest happened but
+    no ``ingest_arxiv_papers`` tool completed this turn, else None.
+
+    Guards against the hallucination pattern (observed in prod trace) where
+    the model dumps the tool-call JSON + "Tool call made." + "I ran the import"
+    into prose without ever executing the tool.
+
+    Returns None when:
+    - ``ingest_arxiv_papers`` actually completed this turn (a real ingest ran;
+      the count-0 lie is handled separately by ``_detect_ingest_success_lie``).
+    - The AI text is asking / offering to ingest rather than asserting it did.
+    - No strong ingest-assertion signal is present.
+    """
+    tool_executions: list[Any] = state.get("tool_executions", []) or []
+
+    executed_ingest = any(
+        isinstance(te, dict)
+        and te.get("tool_name") == "ingest_arxiv_papers"
+        and te.get("status") == "completed"
+        for te in tool_executions
+    )
+    # Real ingest ran — the count-0 lie is handled by _detect_ingest_success_lie.
+    if executed_ingest:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    # Question / disclosure guard — must come BEFORE the claim regex so that
+    # a search-results turn ("do you want me to ingest any of them?") is never
+    # flagged.  Also reuse the honest-disclosure phrases from the count-0 guard.
+    if _INGEST_QUESTION_RE.search(text):
+        return None
+    if _CREATE_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    if not _INGEST_FABRICATION_CLAIM_RE.search(text):
+        return None
+
+    return (
+        "Assistant claims an arXiv paper was imported/ingested, but no "
+        "ingest_arxiv_papers tool executed this turn — the import was not "
+        "performed (any inline tool JSON is fabricated). Re-answer: either "
+        "call ingest_arxiv_papers or tell the user the import did not run."
+    )
+
 
 def _ingest_zero_count(te: Any) -> bool:
     """Detect an ``ingest_arxiv_papers`` execution that ingested nothing.
@@ -408,11 +510,13 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         # Defer to existing missing-message handling in the node.
         return (False, "no-ai-message")
 
-    # Fabrication guard runs first — before any skip conditions — so that
-    # a hallucinated "project created" response is never silently passed
-    # through, regardless of content length or tool_executions state.
+    # Fabrication guards run first — before any skip conditions — so that
+    # a hallucinated "project created" or "paper imported" response is never
+    # silently passed through, regardless of content length or tool_executions.
     if _detect_fabricated_tool_success(state) is not None:
         return (False, "potential fabricated tool success")
+    if _detect_fabricated_ingest(state) is not None:
+        return (False, "potential fabricated ingest")
 
     tool_calls = getattr(last_ai, "tool_calls", None) or []
     has_tool_calls = bool(tool_calls)
@@ -648,6 +752,28 @@ def make_reflection_gate(
                 "reflection_count": current_count + 1,
                 "_reflection_result": ReflectionResult(
                     passed=False, issues=[fabrication_issue], severity="major"
+                ),
+            }
+
+        # Deterministic guard: AI claims an arXiv paper was imported/ingested
+        # but ingest_arxiv_papers never executed this turn. The model may dump
+        # the tool-arg JSON {"paper_ids":[...]} + "Tool call made." + "I ran
+        # the import" inline as prose — a fully-fabricated ingest that slips
+        # past both _detect_ingest_success_lie (no tool ran) and the LLM
+        # reflector (text looks plausible). Hard-fail without an LLM call.
+        fabricated_ingest_issue = _detect_fabricated_ingest(state)
+        if fabricated_ingest_issue is not None:
+            logger.warning(
+                "Reflection guard: forcing major-revise — fabricated ingest detected "
+                "(ingest_arxiv_papers never executed). intent=%s",
+                intent,
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False,
+                    issues=[fabricated_ingest_issue],
+                    severity="major",
                 ),
             }
 
