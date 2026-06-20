@@ -1,6 +1,7 @@
 """
 Health check API endpoints.
 """
+
 import asyncio
 import time
 from datetime import datetime, timedelta
@@ -19,6 +20,17 @@ router = APIRouter(prefix="/health", tags=["health"])
 _health_checker: Optional[HealthChecker] = None
 _last_check_time: float = 0
 _check_cache_ttl: float = 30  # Cache health checks for 30 seconds
+
+# Readiness flag: set False when LLM config is missing at startup so the
+# /health/readiness probe returns 503 and the pod stays out of the LB.
+# Starts True so development boots don't 503 before startup runs.
+_llm_config_ready: bool = True
+
+
+def set_llm_config_ready(ok: bool) -> None:
+    """Called from main.py lifespan after validate_llm_config()."""
+    global _llm_config_ready
+    _llm_config_ready = ok
 
 
 def get_health_checker() -> HealthChecker:
@@ -234,7 +246,19 @@ async def readiness_probe():
     """
     Kubernetes readiness probe.
     Checks if the application is ready to serve traffic.
+    Returns 503 when the LLM config is incomplete (non-dev) or when a
+    critical dependency is unhealthy. Liveness (/health/liveness) is
+    unaffected — the pod stays alive but is removed from the LB.
     """
+    if not _llm_config_ready:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "LLM configuration incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
+                "AZURE_OPENAI_CHAT_API_KEY are not set. Pod kept out of load balancer."
+            ),
+        )
+
     try:
         health_checker = get_health_checker()
 
@@ -253,6 +277,8 @@ async def readiness_probe():
 
         return {"status": "ready", "timestamp": time.time()}
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")
 

@@ -110,7 +110,9 @@ def _build_chat_llm(
     # family + reasoning_effort to Azure Responses API, which currently
     # rejects multi-part / tool_call messages with "Unsupported data type".
     # Callers can opt back in by passing use_responses_api=True explicitly.
-    extra["use_responses_api"] = False if use_responses_api is None else use_responses_api
+    extra["use_responses_api"] = (
+        False if use_responses_api is None else use_responses_api
+    )
 
     # gpt-5 family supports reasoning_effort. Lightweight tasks (classifier,
     # reflection, planner complexity check) default to "minimal".
@@ -193,7 +195,9 @@ def build_synthesis_llm(
     # Synthesis call can be long (full 4096-token completion). Use the main
     # agent timeout, not the lightweight one, unless caller overrides.
     resolved_timeout = (
-        request_timeout if request_timeout is not None else settings.AGENT_LLM_REQUEST_TIMEOUT
+        request_timeout
+        if request_timeout is not None
+        else settings.AGENT_LLM_REQUEST_TIMEOUT
     )
     llm = _build_chat_llm(
         _resolve_synthesis_deployment(),
@@ -216,3 +220,12 @@ def get_lightweight_model_name() -> str:
 def get_synthesis_model_name() -> str:
     """Return the configured synthesis model/deployment name."""
     return _resolve_synthesis_deployment()
+
+
+def validate_llm_config() -> bool:
+    """True if an Azure/OpenAI chat endpoint AND api key resolve. Used at
+    startup to fail readiness rather than crash individual turns."""
+    s = get_settings()
+    endpoint = s.AZURE_OPENAI_CHAT_ENDPOINT or s.AZURE_OPENAI_ENDPOINT or ""
+    api_key = s.AZURE_OPENAI_CHAT_API_KEY or s.AZURE_OPENAI_API_KEY or ""
+    return bool(endpoint and api_key)

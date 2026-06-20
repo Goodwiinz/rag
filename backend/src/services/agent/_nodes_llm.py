@@ -174,7 +174,9 @@ def _is_greeting(content: str) -> bool:
     return normalized in _GREETING_PATTERNS
 
 
-def _greeting_reply(last_user_msg: str, page_context: dict, messages: list) -> str | None:
+def _greeting_reply(
+    last_user_msg: str, page_context: dict, messages: list
+) -> str | None:
     """Templated greeting reply, or ``None`` when *last_user_msg* is not a bare
     greeting.
 
@@ -324,17 +326,36 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     use_synthesis = settings.AGENT_LIGHTWEIGHT_SYNTHESIS and (
         last_is_tool_msg or intent == "general"
     )
-    if use_synthesis:
-        from src.services.agent.llm_factory import build_synthesis_llm
+    try:
+        if use_synthesis:
+            from src.services.agent.llm_factory import build_synthesis_llm
 
-        llm = build_synthesis_llm(max_tokens=4096)
-        logger.debug(
-            "llm_node: using synthesis model (intent=%s, last_is_tool=%s)",
+            llm = build_synthesis_llm(max_tokens=4096)
+            logger.debug(
+                "llm_node: using synthesis model (intent=%s, last_is_tool=%s)",
+                intent,
+                last_is_tool_msg,
+            )
+        else:
+            llm = _build_llm(model_override=state.get("model") or None)
+    except RuntimeError:
+        logger.error(
+            "llm_node: LLM build failed — Azure/OpenAI config missing (intent=%s)",
             intent,
-            last_is_tool_msg,
+            exc_info=True,
         )
-    else:
-        llm = _build_llm(model_override=state.get("model") or None)
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "The assistant is temporarily unavailable due to a "
+                        "configuration issue. Please contact support or try again later."
+                    ),
+                ),
+            ],
+            "last_error": "llm_config_error",
+            "error_count": state.get("error_count", 0) + 1,
+        }
     # parallel_tool_calls=False forces gpt-5 to emit one tool_call per turn.
     # Trace 019e18f0 showed 13+ parallel search_arxiv calls when this was
     # implicitly True — agent never got a chance to see the first result
@@ -344,7 +365,9 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     invoke_config = _merge_run_config(
-        config, run_name=f"llm_node:{intent}", tags=[f"intent:{intent}", "subgraph:main"]
+        config,
+        run_name=f"llm_node:{intent}",
+        tags=[f"intent:{intent}", "subgraph:main"],
     )
     try:
         response = await asyncio.wait_for(
@@ -420,7 +443,11 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
     invoke_config = _merge_run_config(
         config,
         run_name="force_synthesis_node",
-        tags=[f"intent:{state.get('intent', 'general')}", "subgraph:main", "phase:synthesis"],
+        tags=[
+            f"intent:{state.get('intent', 'general')}",
+            "subgraph:main",
+            "phase:synthesis",
+        ],
     )
     try:
         response = await asyncio.wait_for(
