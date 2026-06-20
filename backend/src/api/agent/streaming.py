@@ -364,6 +364,7 @@ async def stream_event_generator(
 
         event_stream_iter = await _open_event_stream()
         first_event_yielded = False
+        streamed_token = False
         client_disconnected = False
         async with asyncio.timeout(300):  # 5 minutes
             while True:
@@ -394,6 +395,7 @@ async def stream_event_generator(
                                 continue
                             chunk = event.get("data", {}).get("chunk")
                             if chunk and hasattr(chunk, "content") and chunk.content:
+                                streamed_token = True
                                 yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
                         elif kind == "on_chat_model_end":
@@ -498,6 +500,14 @@ async def stream_event_generator(
                 if hasattr(msg, "type") and msg.type == "ai" and msg.content:
                     assistant_content = msg.content
                     break
+
+            # Surface a final answer that was produced WITHOUT streaming — the
+            # greeting fast-path, a templated/degraded reply, or force_synthesis
+            # set the AIMessage directly and emit no on_chat_model_stream chunks.
+            # Without this the client receives zero `token` events and renders an
+            # empty response ("stream completed without any tokens").
+            if not streamed_token and assistant_content:
+                yield f"event: token\ndata: {_json.dumps({'content': assistant_content})}\n\n"
 
             tool_executions_out = [
                 ToolExecutionResponse(**te)
@@ -837,6 +847,13 @@ async def stream_confirm_event_generator(
                 "event: usage\n"
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
             )
+
+        if not tokens_emitted and assistant_content:
+            # Resume produced a final answer without streaming (templated /
+            # degraded / non-streamed node) — surface it so the client isn't
+            # left with an empty response.
+            tokens_emitted = True
+            yield f"event: token\ndata: {_json.dumps({'content': assistant_content})}\n\n"
 
         if not tokens_emitted and tool_executions_out:
             names = ", ".join(
