@@ -317,3 +317,7 @@ rbac:
 
 backup:
   enabled: false
+
+# Synthetic traffic is dev-only; never runs in production.
+syntheticTraffic:
+  enabled: false

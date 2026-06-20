@@ -542,3 +542,11 @@ backup:
   retention: "30d"
   storageClass: "gp2"
   storageSize: "50Gi"
+
+# Synthetic traffic generator — drives the compiled LangGraph agent in-process
+# to produce continuous LangSmith traces. Disabled by default; enabled only in
+# dev via values-dev.yaml.
+syntheticTraffic:
+  enabled: false
+  schedule: "*/20 * * * *"
+  args: ["--rotate"]
