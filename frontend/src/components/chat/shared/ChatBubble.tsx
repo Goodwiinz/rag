@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 import {
   Activity,
@@ -280,7 +281,7 @@ export const ChatBubble = React.memo(function ChatBubble({
                     whitespace-pre-wrap text. Pass empty citations — they aren't
                     available until the stream commits. */}
                 <CitationRenderer
-                  content={streamingContent}
+                  content={completeStreamingMarkdown(streamingContent)}
                   citations={[]}
                   onCitationClick={() => {}}
                 />
