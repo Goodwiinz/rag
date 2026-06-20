@@ -132,12 +132,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "CORS_ORIGIN_REGEX must use ^https:// in production/staging"
                 )
-        elif not (
-            pattern.startswith("^https://") or pattern.startswith("^http://")
-        ):
-            raise ValueError(
-                "CORS_ORIGIN_REGEX must start with ^https:// or ^http://"
-            )
+        elif not (pattern.startswith("^https://") or pattern.startswith("^http://")):
+            raise ValueError("CORS_ORIGIN_REGEX must start with ^https:// or ^http://")
 
         try:
             re.compile(pattern)
@@ -195,6 +191,11 @@ class Settings(BaseSettings):
     DO_KB_DEFAULT_TOP_K: int = 8
     DO_KB_RETRIEVE_ALPHA: Optional[float] = 0.5
     DO_KB_REQUEST_TIMEOUT_SECONDS: float = 30.0
+    # Hot-path retrieval cap: on timeout the agent falls back to hybrid search.
+    # Live traces: p50=0.6s, p95=1.5s — 3 s leaves headroom without masking
+    # real failures.  DO_KB_REQUEST_TIMEOUT_SECONDS (30 s) still governs all
+    # other DO KB HTTP calls (index, list, delete …).
+    DO_KB_RETRIEVE_TIMEOUT_SECONDS: float = 3.0
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
     DO_KB_RERANKING_ENABLED: Optional[bool] = True
     DO_KB_SEARCH_TYPE: Optional[str] = None
@@ -228,7 +229,10 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DATABASE_URL must start with postgresql:// or postgresql+asyncpg://"
             )
-        if self.ENVIRONMENT in ("production", "staging") and "localhost" in self.DATABASE_URL:
+        if (
+            self.ENVIRONMENT in ("production", "staging")
+            and "localhost" in self.DATABASE_URL
+        ):
             raise ValueError(
                 "DATABASE_URL must not point to localhost in production/staging"
             )
@@ -314,7 +318,9 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: Optional[str] = None
     S3_BUCKET_NAME: str = "rag-system-storage"
     S3_REGION: str = "nyc3"
-    S3_CDN_ENDPOINT: Optional[str] = None  # https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com
+    S3_CDN_ENDPOINT: Optional[str] = (
+        None  # https://rag-system-storage.nyc3.cdn.digitaloceanspaces.com
+    )
     S3_STORAGE_TEMP_DIR: str = "/tmp/rag_s3_storage"
 
     # Supabase Storage (legacy)

@@ -191,7 +191,10 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     resolved_id, title = title_by_key.get(storage_key, (None, None))
     return {
         "document_id": resolved_id or storage_key,
-        "title": title or (chunk.metadata or {}).get("title") or storage_key or "Untitled",
+        "title": title
+        or (chunk.metadata or {}).get("title")
+        or storage_key
+        or "Untitled",
         "content": chunk.text[:3000],
         "score": float(chunk.score),
     }
@@ -206,6 +209,7 @@ except Exception:  # noqa: BLE001 - langsmith optional at runtime
 def _maybe_traced_retriever(name: str):
     """Return a langsmith traceable decorator with run_type=retriever, or no-op."""
     if _ls_traceable is None:
+
         def _identity(fn):
             return fn
 
@@ -249,7 +253,17 @@ async def _try_primary_do_kb_read(
                 return None
 
             client = get_do_kb_client()
-            result = await client.retrieve(kb_uuid=kb_uuid, query=query)
+            try:
+                result = await asyncio.wait_for(
+                    client.retrieve(kb_uuid=kb_uuid, query=query),
+                    timeout=_kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "do_kb retrieve timed out after %.1fs — falling back to hybrid search",
+                    _kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
+                )
+                return None
             if not result.chunks:
                 return None
 
@@ -279,9 +293,7 @@ async def _try_primary_do_kb_read(
                 )
                 return None
 
-        return [
-            _shape_do_kb_context(c, title_by_key) for c in chunks_to_emit
-        ]
+        return [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
     except Exception:  # noqa: BLE001
         # exc_info keeps the traceback for operators; the raw exception string
         # stays out of the indexed message (can carry the user query / chunks).
@@ -290,9 +302,7 @@ async def _try_primary_do_kb_read(
 
 
 @_maybe_traced_retriever("hybrid_search_retriever")
-async def _legacy_hybrid_search_fallback(
-    query: str, current_user
-) -> List[dict]:
+async def _legacy_hybrid_search_fallback(query: str, current_user) -> List[dict]:
     """Fallback to hybrid search when DO KB is unavailable or returns nothing."""
     try:
         from src.models.search_schemas import SearchQuery, SearchSortOrder, SearchType
@@ -306,9 +316,7 @@ async def _legacy_hybrid_search_fallback(
             filters=None,
         )
         org_id = (
-            str(current_user.organization_id)
-            if current_user.organization_id
-            else None
+            str(current_user.organization_id) if current_user.organization_id else None
         )
         uid = str(current_user.id)
         search_response = await asyncio.wait_for(
@@ -329,12 +337,14 @@ async def _legacy_hybrid_search_fallback(
             if not content:
                 content = getattr(result, "content_preview", None) or ""
             score = getattr(result, "relevance_score", 0.0)
-            contexts.append({
-                "document_id": str(doc_id) if doc_id else None,
-                "title": title,
-                "content": content[:3000],
-                "score": float(score),
-            })
+            contexts.append(
+                {
+                    "document_id": str(doc_id) if doc_id else None,
+                    "title": title,
+                    "content": content[:3000],
+                    "score": float(score),
+                }
+            )
         return contexts
     except Exception:
         logger.warning("hybrid search fallback failed", exc_info=True)
@@ -511,9 +521,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # filter the chunks are noise that bloats input by ~10k chars. The
     # agent will use search_arxiv/search_documents for explicit lookup.
     if not resolved_project_id:
-        logger.debug(
-            "rag_node: skipping DO KB read — no active project context"
-        )
+        logger.debug("rag_node: skipping DO KB read — no active project context")
         return {"retrieved_contexts": [], **state_update}
 
     # Production retrieval: DO KB primary, hybrid search fallback.
