@@ -713,6 +713,12 @@ export function useChatStreaming(
                   !isError
                 );
             },
+            onReflection: (_passed, _issues, _round, revising) => {
+              if (!revising) return;
+              confirmContent = '';
+              pendingStreamContentRef.current = '';
+              useChatStore.setState({ streamingContent: '' });
+            },
             onDone: () => {
               if (confirmContent.trim()) {
                 const msg: ChatPageMessage = {
