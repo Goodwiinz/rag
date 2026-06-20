@@ -17,6 +17,32 @@ logger = logging.getLogger(__name__)
 # LangSmith configuration
 # ---------------------------------------------------------------------------
 
+# Map the many ways a deploy env can be spelled onto the canonical suffix used
+# in the LangSmith project name. Anything unrecognised (local shells, CI, eval,
+# unset) returns None so the caller can fall back instead of inventing a name.
+_DEPLOY_ENV_ALIASES = {
+    "dev": "dev",
+    "development": "dev",
+    "staging": "staging",
+    "stage": "staging",
+    "prod": "prod",
+    "production": "prod",
+}
+
+
+def _normalize_deploy_env() -> Optional[str]:
+    """Resolve DEPLOY_ENV/ENVIRONMENT to a canonical ``dev|staging|prod`` suffix.
+
+    Returns ``None`` for unknown/unset envs (local, test, CI) so trace project
+    naming stays deliberate rather than guessing.
+    """
+    raw = (
+        (os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "")
+        .strip()
+        .lower()
+    )
+    return _DEPLOY_ENV_ALIASES.get(raw)
+
 
 def configure_langsmith():
     """Configure LangSmith tracing if an API key is available.
@@ -36,18 +62,27 @@ def configure_langsmith():
     os.environ.setdefault("LANGSMITH_API_KEY", api_key)
     os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
-    # Separate traces per deploy environment so dev/staging/prod don't
-    # co-mingle (an explicit LANGSMITH_PROJECT/LANGCHAIN_PROJECT still wins).
-    deploy_env = (
-        os.environ.get("DEPLOY_ENV") or os.environ.get("ENVIRONMENT") or "dev"
-    ).lower()
-    project = (
-        os.environ.get("LANGSMITH_PROJECT")
-        or os.environ.get("LANGCHAIN_PROJECT")
-        or f"rag-agent-{deploy_env}"
-    )
-    os.environ.setdefault("LANGSMITH_PROJECT", project)
-    os.environ.setdefault("LANGCHAIN_PROJECT", project)
+    # Project name is derived authoritatively from the deploy environment so a
+    # stale externally-injected value (e.g. an old Infisical
+    # LANGSMITH_PROJECT=rag-agent-dev-local) can't fragment or mis-route traces.
+    # For a recognised deploy env we force rag-agent-{dev|staging|prod}; an
+    # explicit LANGSMITH_PROJECT_OVERRIDE always wins (escape hatch for one-off
+    # namespaces); otherwise we fall back to any provided value or rag-agent-dev.
+    norm_env = _normalize_deploy_env()
+    override = os.environ.get("LANGSMITH_PROJECT_OVERRIDE")
+    if override:
+        project = override
+    elif norm_env:
+        project = f"rag-agent-{norm_env}"
+    else:
+        project = (
+            os.environ.get("LANGSMITH_PROJECT")
+            or os.environ.get("LANGCHAIN_PROJECT")
+            or "rag-agent-dev"
+        )
+    # Force (not setdefault) so the derived value overrides a stale injected one.
+    os.environ["LANGSMITH_PROJECT"] = project
+    os.environ["LANGCHAIN_PROJECT"] = project
 
     # Both SDK generations read their own flag; set both to "true" by default.
     os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
@@ -57,7 +92,7 @@ def configure_langsmith():
     # RAG chunks, tool args) to LangSmith — tags, metadata, latency, and token
     # usage still flow, so dashboards keep working. Override with
     # LANGSMITH_HIDE_IO=false to opt back in. Dev keeps full I/O for debugging.
-    hide_io_default = "false" if deploy_env == "dev" else "true"
+    hide_io_default = "false" if norm_env == "dev" else "true"
     hide_io = os.environ.get("LANGSMITH_HIDE_IO", hide_io_default).lower() == "true"
     if hide_io:
         os.environ.setdefault("LANGCHAIN_HIDE_INPUTS", "true")
