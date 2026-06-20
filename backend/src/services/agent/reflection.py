@@ -236,6 +236,131 @@ def _detect_ingest_success_lie(state: dict) -> Optional[str]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Fabricated tool success guard
+# ---------------------------------------------------------------------------
+
+# Creation tools whose *actual* execution is required before the AI may
+# claim a project / note / draft / document was created or added.
+# Names verified from ``backend/src/services/agent/_nodes_tools.py``
+# (DESTRUCTIVE_TOOLS) and ``backend/src/services/agent/tools.py``.
+CREATION_TOOLS: frozenset[str] = frozenset(
+    {
+        "create_project",
+        "create_project_note",
+        "create_draft",
+        "add_document_to_project",
+    }
+)
+
+# Patterns that indicate the AI is asserting a creation already happened.
+#
+# Design intent: require an EXPLICIT success assertion in the model's own
+# action voice, OR a fabricated tool-call/result JSON blob.  A bare
+# ``project_id`` substring must NOT trigger on its own — it appears in
+# legitimate quoted tool results (e.g. list_projects output) and forward-
+# looking suggestions ("you could add this paper to the project later").
+#
+# A hit requires at least one of:
+#   A) An explicit success-assertion verb near "project"/"note"/"draft"
+#      ("created the project", "note saved", "I've added … to the project",
+#      "Project created", "creating the project", "I've created", …).
+#   B) An inline fabricated tool-call/result JSON blob that contains
+#      ``"name":`` / ``"project_id":`` / ``"status":"active"`` — the model
+#      dumping tool args or result JSON directly into prose.
+#   C) A ``project_id`` token that co-occurs with a nearby ``active``
+#      keyword (e.g. "project_id: … is active") — catches the common shape
+#      of a fabricated status summary without a JSON wrapper.
+#
+# NOT triggered by:
+#   - "Here are your projects: NLP (project_id: abc-123)" (list output)
+#   - "You could add this paper to the project later"      (suggestion)
+_CREATE_SUCCESS_CLAIM_RE = re.compile(
+    # A) explicit success-assertion verbs in model's own voice ---------------
+    r'"status"\s*:\s*"active"'  # inline JSON status field
+    r"|\bproject\s+created\b"  # "project created"
+    r"|\bcreating\s+the\s+project\b"  # "Creating the project …"
+    r"|\bcreated\s+(the\s+)?project\b"  # "created the project"
+    r"|\b(I'?ve|I\s+have)\s+(created|added|saved)\b"  # "I've created / I have added"
+    r"|\bnote\b.{0,25}(created|saved|added)\b"  # "note created / note has been saved"
+    r"|\badded\s+.{0,40}\bto\s+(the\s+)?project\b"  # "added X to project"
+    # B) inline fabricated JSON blob -----------------------------------------
+    r'|\{[^}]*"name"\s*:'  # {"name": …}
+    r'|\{[^}]*"project_id"\s*:'  # {"project_id": …}
+    # C) project_id co-occurring with active (fabricated status summary) ------
+    r"|project_id\b.{0,80}\bactive\b",  # "project_id: … active"
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Honest-disclosure phrases: the AI admits the action wasn't performed.
+# If any match, we do NOT flag — the model is being truthful.
+_CREATE_FAILURE_DISCLOSURE_RE = re.compile(
+    r"couldn'?t\s+save"
+    r"|no\s+project_id\s+was\s+provided"
+    r"|need\s+the\s+destination"
+    r"|would\s+you\s+like\s+me\s+to"
+    r"|I\s+was\s+unable"
+    r"|could\s+not\s+create"
+    r"|was\s+not\s+(?:able|performed|completed)",
+    re.IGNORECASE,
+)
+
+
+def _detect_fabricated_tool_success(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims a creation succeeded but no
+    creation tool actually executed this turn, else None.
+
+    Guards against the hallucination pattern where the LLM emits a response
+    like "Project created (project_id: …, status: active)" or
+    "I have created the project for NLP" without ever calling
+    ``create_project``, ``create_project_note``, ``create_draft``, or
+    ``add_document_to_project``.
+
+    Returns:
+        A non-None string when fabrication is detected; None when the turn
+        looks honest (real tool ran, or AI disclosed it didn't act).
+    """
+    tool_executions: list[Any] = state.get("tool_executions", []) or []
+
+    # Check whether at least one creation tool completed this turn.
+    executed = [
+        te
+        for te in tool_executions
+        if isinstance(te, dict)
+        and te.get("tool_name") in CREATION_TOOLS
+        and te.get("status") == "completed"
+    ]
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    # If the AI honestly discloses it didn't act, no fabrication.
+    if _CREATE_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    # Fabrication: AI claims creation but no creation tool ran.
+    if _CREATE_SUCCESS_CLAIM_RE.search(text) and not executed:
+        return (
+            "Assistant claims a project/note/draft was created or added, but no "
+            "creation tool actually executed this turn — the result (including any "
+            "id) is fabricated. Re-answer: either call the tool or tell the user "
+            "the action was not performed."
+        )
+
+    return None
+
+
 def _is_completed_or_transient(te: Any) -> bool:
     """Status counts toward the transient-acknowledged skip: completed
     successes, transient failures, or deduped (already-counted) entries.
@@ -282,6 +407,12 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
     if last_ai is None:
         # Defer to existing missing-message handling in the node.
         return (False, "no-ai-message")
+
+    # Fabrication guard runs first — before any skip conditions — so that
+    # a hallucinated "project created" response is never silently passed
+    # through, regardless of content length or tool_executions state.
+    if _detect_fabricated_tool_success(state) is not None:
+        return (False, "potential fabricated tool success")
 
     tool_calls = getattr(last_ai, "tool_calls", None) or []
     has_tool_calls = bool(tool_calls)
@@ -485,6 +616,38 @@ def make_reflection_gate(
                 "reflection_count": current_count + 1,
                 "_reflection_result": ReflectionResult(
                     passed=False, issues=[ingest_issue], severity="major"
+                ),
+            }
+
+        # Deterministic guard: AI claims a project/note/draft was created or
+        # a document was added, but no creation tool actually ran. Hard-fail
+        # without an LLM call — the fabricated ID / status field is a clear
+        # signal that does not need probabilistic critique.
+        fabrication_issue = _detect_fabricated_tool_success(state)
+        if fabrication_issue is not None:
+            last_ai_for_log = _last_ai_message(state)
+            _snippet = ""
+            if last_ai_for_log is not None:
+                _raw = last_ai_for_log.content
+                _text = (
+                    " ".join(
+                        b.get("text", "") if isinstance(b, dict) else str(b)
+                        for b in _raw
+                    )
+                    if isinstance(_raw, list)
+                    else (str(_raw) if _raw else "")
+                )
+                _snippet = _text[:120].replace("\n", " ")
+            logger.warning(
+                "Reflection guard: forcing major-revise — fabricated tool success "
+                "detected (no creation tool ran). snippet=%r intent=%s",
+                _snippet,
+                intent,
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False, issues=[fabrication_issue], severity="major"
                 ),
             }
 
