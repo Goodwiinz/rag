@@ -26,13 +26,10 @@ def configure_langsmith():
     provided, this propagates to both so libraries on either convention pick
     it up.
     """
-    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get(
-        "LANGCHAIN_API_KEY"
-    )
+    api_key = os.environ.get("LANGSMITH_API_KEY") or os.environ.get("LANGCHAIN_API_KEY")
     if not api_key:
         logger.debug(
-            "LangSmith tracing disabled "
-            "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
+            "LangSmith tracing disabled " "(no LANGSMITH_API_KEY / LANGCHAIN_API_KEY)"
         )
         return
 
@@ -85,6 +82,51 @@ def get_langsmith_base_url() -> str:
         or os.environ.get("LANGCHAIN_ENDPOINT")
         or "https://smith.langchain.com"
     )
+
+
+def tag_trace_intent(intent: str) -> None:
+    """Best-effort: tag the current LangSmith ROOT run with the classified
+    intent so top-level traces are filterable by intent in the UI.
+
+    Walks from the current ``RunTree`` up to the root (the run whose
+    ``id`` matches ``trace_id``), then calls ``add_tags`` and
+    ``add_metadata`` — the official SDK mutation methods — so the root
+    run carries ``intent:<value>`` in its tag list and ``intent`` in its
+    metadata dict.
+
+    No-op when:
+    - ``intent`` is empty/falsy.
+    - LangSmith SDK is not installed.
+    - No active run context exists (``get_current_run_tree()`` returns None).
+    - Any unexpected SDK shape is encountered.
+
+    Never raises — observability must never break the agent.
+    """
+    if not intent:
+        return
+    try:
+        from langsmith.run_helpers import get_current_run_tree
+
+        rt = get_current_run_tree()
+        if rt is None:
+            return
+
+        # Walk to the root of the trace.  RunTree.trace_id equals the id of
+        # the root run; RunTree.id is the current run's own id.  Walk via
+        # parent_run (the populated parent object) until we reach the run
+        # whose id matches trace_id, or until parent_run is None.
+        root = rt
+        while getattr(root, "parent_run", None) is not None:
+            root = root.parent_run  # type: ignore[assignment]
+
+        tag = f"intent:{intent}"
+        existing_tags: list = list(getattr(root, "tags", None) or [])
+        if tag not in existing_tags:
+            root.add_tags(tag)
+
+        root.add_metadata({"intent": intent})
+    except Exception:
+        logger.debug("tag_trace_intent failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +282,7 @@ def track_node_execution(node_name: str):
     Records both the success and the error paths into Prometheus so node
     latency dashboards have data even when no error is raised.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -247,9 +290,7 @@ def track_node_execution(node_name: str):
             try:
                 result = await func(*args, **kwargs)
                 duration = time.monotonic() - t0
-                logger.debug(
-                    "Node %s completed in %.2fs", node_name, duration
-                )
+                logger.debug("Node %s completed in %.2fs", node_name, duration)
                 if _METRICS_AVAILABLE:
                     AGENT_NODE_DURATION.labels(
                         node=node_name, status="success"
@@ -264,14 +305,16 @@ def track_node_execution(node_name: str):
                     "Node %s failed after %.2fs", node_name, duration, exc_info=True
                 )
                 if _METRICS_AVAILABLE:
-                    AGENT_NODE_DURATION.labels(
-                        node=node_name, status="error"
-                    ).observe(duration)
+                    AGENT_NODE_DURATION.labels(node=node_name, status="error").observe(
+                        duration
+                    )
                     AGENT_ERRORS.labels(
                         node=node_name, error_type=type(e).__name__
                     ).inc()
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -284,18 +327,14 @@ def record_tool_call(tool_name: str, status: str):
 def record_execution_duration(intent: str, status: str, duration: float):
     """Record agent execution duration."""
     if _METRICS_AVAILABLE:
-        AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(
-            duration
-        )
+        AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(duration)
 
 
 def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
     """Record token usage metrics."""
     if _METRICS_AVAILABLE:
         AGENT_TOKEN_USAGE.labels(model=model, type="prompt").inc(prompt_tokens)
-        AGENT_TOKEN_USAGE.labels(model=model, type="completion").inc(
-            completion_tokens
-        )
+        AGENT_TOKEN_USAGE.labels(model=model, type="completion").inc(completion_tokens)
 
 
 def record_loop_exhaustion(intent: str, subgraph: str = "main"):
