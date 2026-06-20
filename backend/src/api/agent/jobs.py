@@ -66,7 +66,7 @@ def _sum_message_usage(messages: list) -> tuple[int, int]:
     for i, msg in enumerate(msgs):
         if getattr(msg, "type", None) == "human":
             last_human = i
-    turn_msgs = msgs[last_human + 1:] if last_human >= 0 else msgs
+    turn_msgs = msgs[last_human + 1 :] if last_human >= 0 else msgs
     in_tok = out_tok = 0
     for msg in turn_msgs:
         usage = getattr(msg, "usage_metadata", None)
@@ -83,6 +83,7 @@ def _sum_message_usage(messages: list) -> tuple[int, int]:
                     tu.get("completion_tokens") or tu.get("output_tokens") or 0
                 )
     return in_tok, out_tok
+
 
 # Strong references to in-flight fire-and-forget Redis write tasks. Without
 # this the event loop keeps only a weak reference and the task can be garbage
@@ -219,7 +220,9 @@ def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
     return None
 
 
-async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) -> bool:
+async def _clear_stale_pending_confirmation(
+    graph: Any, config: Dict[str, Any]
+) -> Optional[List[str]]:
     """Wipe a stale HITL interrupt from the checkpoint before a fresh turn.
 
     A pending confirmation can only be answered with ``Command(resume=...)``.
@@ -233,20 +236,38 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
     ``preprocessing_node`` cannot silently inherit a stale counter from the
     abandoned turn.
 
-    Returns True when state was cleared so callers can log/observe.
+    Returns the list of dropped tool name(s) when state was cleared, or None
+    when nothing needed clearing, so callers can observe the drop.
     """
     try:
         snapshot = await graph.aget_state(config)
     except Exception:
-        return False
+        return None
     if not snapshot or not snapshot.values:
-        return False
+        return None
     # A live interrupt is a pending task carrying `.interrupts` — NOT a truthy
     # `pending_confirmation` value (that key is only ever written back as `{}`).
     # The old `if not pending_confirmation` predicate was inverted, so this
     # cleanup never ran and an abandoned interrupt could re-fire on the next turn.
-    if not any(getattr(t, "interrupts", None) for t in (snapshot.tasks or ())):
-        return False
+    active_tasks = [t for t in (snapshot.tasks or ()) if getattr(t, "interrupts", None)]
+    if not active_tasks:
+        return None
+
+    # Extract tool names from the interrupt values so the drop is observable.
+    dropped_tools: List[str] = []
+    for task in active_tasks:
+        for interrupt in task.interrupts:
+            value = getattr(interrupt, "value", {}) or {}
+            # Guard against a future interrupt site passing a non-dict value
+            # (e.g. a bare string) — observability must never raise here.
+            if not isinstance(value, dict):
+                continue
+            for tool in value.get("tools", []):
+                name = tool.get("name") if isinstance(tool, dict) else None
+                if name:
+                    dropped_tools.append(name)
+
+    thread_id = config.get("configurable", {}).get("thread_id")
     try:
         await graph.aupdate_state(
             config,
@@ -260,12 +281,13 @@ async def _clear_stale_pending_confirmation(graph: Any, config: Dict[str, Any]) 
         )
     except Exception:
         logger.exception("Failed to clear stale pending_confirmation")
-        return False
-    logger.info(
-        "Cleared stale pending_confirmation for thread %s",
-        config.get("configurable", {}).get("thread_id"),
+        return None
+    logger.warning(
+        "Abandoned HITL interrupt silently dropped for thread %s — tools: %s",
+        thread_id,
+        dropped_tools or "<unknown>",
     )
-    return True
+    return dropped_tools if dropped_tools else ["<unknown>"]
 
 
 # ---------------------------------------------------------------------------
