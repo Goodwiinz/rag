@@ -161,7 +161,12 @@ class AgentChatService {
         steps: Array<Record<string, unknown>>,
         reasoning: string
       ) => void;
-      onReflection?: (passed: boolean, issues: string[], round: number) => void;
+      onReflection?: (
+        passed: boolean,
+        issues: string[],
+        round: number,
+        revising?: boolean
+      ) => void;
       onConfirmation?: (
         threadId: string,
         confirmation: Record<string, unknown>
@@ -271,7 +276,8 @@ class AgentChatService {
                   callbacks.onReflection?.(
                     data.passed,
                     data.issues,
-                    data.round
+                    data.round,
+                    data.revising
                   );
                   break;
                 case 'confirmation':
@@ -310,6 +316,12 @@ class AgentChatService {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
       onToolEnd?: (tool: string, result: string, isError: boolean) => void;
+      onReflection?: (
+        passed: boolean,
+        issues: string[],
+        round: number,
+        revising?: boolean
+      ) => void;
       onConfirmation?: (
         threadId: string,
         confirmation: Record<string, unknown>
@@ -402,6 +414,14 @@ class AgentChatService {
                   );
                   break;
                 case 'trace':
+                  break;
+                case 'reflection':
+                  callbacks.onReflection?.(
+                    data.passed,
+                    data.issues,
+                    data.round,
+                    data.revising
+                  );
                   break;
                 case 'confirmation':
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);

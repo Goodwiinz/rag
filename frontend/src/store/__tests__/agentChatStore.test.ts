@@ -9,6 +9,8 @@ vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     listThreads: vi.fn(async () => ({ threads: [] })),
     getThreadMessages: vi.fn(async () => ({ messages: [] })),
+    streamMessage: vi.fn(async () => {}),
+    startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
   },
 }));
 
@@ -219,6 +221,49 @@ describe('agentChatStore', () => {
       await expect(
         useAgentChatStore.getState().loadThreadMessages('thread-1')
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('reflection revise loop', () => {
+    it('replaces first-answer tokens with second when revising=true fires between them', async () => {
+      // Arrange: streamMessage calls onToken('A'), then onReflection(revising=true),
+      // then onToken('B'), then onDone — the final message content must be 'B'.
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onToken?.('A');
+          callbacks.onReflection?.(false, [], 1, true);
+          callbacks.onToken?.('B');
+          callbacks.onDone?.();
+        }
+      );
+
+      useAgentChatStore.setState({ inputValue: 'test prompt' });
+      await useAgentChatStore.getState().sendMessage();
+
+      const messages = useAgentChatStore.getState().messages;
+      const assistant = messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('B');
+    });
+
+    it('does NOT reset content when revising=false', async () => {
+      // Arrange: onReflection with revising=false (quality passed) should leave
+      // accumulated content untouched.
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onToken?.('A');
+          callbacks.onReflection?.(true, [], 0, false);
+          callbacks.onDone?.();
+        }
+      );
+
+      useAgentChatStore.setState({ inputValue: 'test prompt' });
+      await useAgentChatStore.getState().sendMessage();
+
+      const messages = useAgentChatStore.getState().messages;
+      const assistant = messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('A');
     });
   });
 
