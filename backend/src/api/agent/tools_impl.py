@@ -78,13 +78,13 @@ AGENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_arxiv",
-            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles. Defaults sort to submittedDate (most recent first) and last-12-months window — pass recency_days=0 to disable.",
+            "description": "Search arXiv for academic papers. Use when the user asks to find, search, or look up research papers, academic publications, or scientific articles. Pass clean topic KEYWORDS in `query` (e.g. 'retrieval-augmented generation', 'transformer attention mechanisms') — NOT filler words like 'recent', 'papers', or 'latest'; recency is controlled by `recency_days` and chronological ranking by `chronological`. Default: relevance-ranked results within the last 12 months.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query for arXiv papers (e.g., 'transformer attention mechanisms')",
+                        "description": "Topic keywords for arXiv search (e.g., 'retrieval-augmented generation'). Omit filler words like 'recent', 'papers', 'latest' — use recency_days for time-bounding.",
                     },
                     "max_results": {
                         "type": "integer",
@@ -100,6 +100,11 @@ AGENT_TOOLS = [
                         "type": "integer",
                         "description": "Only return papers submitted within the last N days. Default 365. Pass 0 to disable the date filter and search all-time.",
                         "default": 365,
+                    },
+                    "chronological": {
+                        "type": "boolean",
+                        "description": "If true, sort results by submission date (newest first) instead of relevance. Default false (relevance ranking).",
+                        "default": False,
                     },
                 },
                 "required": ["query"],
@@ -712,6 +717,45 @@ def _is_valid_uuid(value: Any) -> bool:
         return False
 
 
+# Filler/recency words that add noise to arXiv's all-field search index.
+# The model is instructed to pass clean keywords, but LLM output often leaks
+# these tokens (e.g. "recent papers on RAG"). Stripping them before composing
+# the `search_query` prevents them from diluting relevance scores.
+_ARXIV_STOPWORDS = {
+    "recent",
+    "recently",
+    "latest",
+    "newest",
+    "new",
+    "papers",
+    "paper",
+    "articles",
+    "on",
+    "about",
+    "for",
+    "the",
+    "a",
+    "an",
+    "find",
+    "search",
+    "me",
+    "please",
+}
+
+
+def _sanitize_arxiv_query(q: str) -> str:
+    """Drop leading recency/filler tokens so they don't pollute arXiv's
+    all-field search (e.g. 'recent papers on RAG' -> 'RAG'). Conservative:
+    only strips known stopwords, preserves the meaningful remainder verbatim;
+    returns the original if stripping would empty it."""
+    tokens = q.split()
+    kept = [
+        t for t in tokens if re.sub(r"[^a-z]", "", t.lower()) not in _ARXIV_STOPWORDS
+    ]
+    cleaned = " ".join(kept).strip()
+    return cleaned or q
+
+
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
     from datetime import datetime, timedelta, timezone
@@ -724,6 +768,10 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # otherwise make two identical searches a minute apart miss the bounded
     # cache and defeat its 429-avoidance purpose (audit #14).
     original_query = query
+    # Strip filler/recency words (e.g. "recent papers on") before the query
+    # reaches arXiv's all-field index — they dilute relevance scores without
+    # adding signal. The raw ``original_query`` is still used as the cache key.
+    query = _sanitize_arxiv_query(query)
     # Hard cap at 5 papers + 250-char abstracts. Trace showed 10×500-char
     # results = 8087 chars feeding into the synthesis LLM call and triggering
     # 1536 reasoning tokens (~46s). Smaller payload = faster synthesis.
@@ -750,6 +798,14 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         date_filter = f"submittedDate:[{cutoff_str} TO 999912312359]"
         query = f"({query}) AND {date_filter}" if query else date_filter
 
+    # chronological=True: sort newest-first (useful for "what came out this
+    # week"). Default false: rank by relevance so the best-matching papers
+    # surface first regardless of date — the date FILTER above already bounds
+    # the window; sorting by date inside a date-bounded window just re-orders
+    # noise words and unrelated papers that happen to be recent.
+    chronological = bool(args.get("chronological", False))
+    sort_by = "submittedDate" if chronological else "relevance"
+
     # Key on the original query + recency_days (an int that already captures
     # the window), NOT the date-filtered query whose minute-precision cutoff
     # changes every minute. (audit #14)
@@ -764,9 +820,7 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                 query=query,
                 max_results=max_results,
                 categories=categories,
-                # Sort by submission date so the "most recent" claim matches
-                # what comes back, not relevance order across 30 years.
-                sort_by="submittedDate",
+                sort_by=sort_by,
                 sort_order="descending",
             )
             results = []
