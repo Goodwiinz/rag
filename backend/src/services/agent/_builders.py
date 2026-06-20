@@ -106,6 +106,27 @@ def should_continue(state: AgentState) -> str:
     return "reflection_gate"
 
 
+def route_after_tool_node(state: AgentState) -> str:
+    """Route from tool_node: skip the re-plan loop when the batch was fully deduped.
+
+    A fully-deduped batch (every tool call was already executed this turn with
+    identical args) carries zero new information.  Routing through
+    compactor_node → llm_node would burn another LLM round-trip (~8 s Azure
+    p95) for no gain.  Instead go straight to force_synthesis_node so it
+    produces a final answer from the cached results already in state.
+
+    For all normal batches (at least one fresh call ran) we keep the existing
+    compactor_node → llm_node path so no behavior changes for the common case.
+
+    Subgraph filtered_tool_nodes are NOT affected — this function only wires
+    the main-graph tool_node.  Follow-up: apply the same optimisation to the
+    research/writing/data filtered_tool_nodes (GOO-XXX).
+    """
+    if state.get("tools_all_deduped"):
+        return "force_synthesis_node"
+    return "compactor_node"
+
+
 def after_interrupt(state: AgentState) -> str:
     """Route after interrupt: proceed to tool_node if confirmed, else reflection gate and end."""
     if state.get("user_confirmed", False):
@@ -206,8 +227,17 @@ def build_agent_graph() -> StateGraph:
         {"tool_node": "tool_node", "reflection_gate": "reflection_gate"},
     )
 
-    # General path: tool_node -> compactor_node -> llm_node (loop)
-    graph.add_edge("tool_node", "compactor_node")
+    # General path: tool_node -> compactor_node -> llm_node (normal loop),
+    # OR tool_node -> force_synthesis_node when the entire batch was deduped
+    # (no fresh calls ran; skips the wasted re-plan round-trip).
+    graph.add_conditional_edges(
+        "tool_node",
+        route_after_tool_node,
+        {
+            "compactor_node": "compactor_node",
+            "force_synthesis_node": "force_synthesis_node",
+        },
+    )
     graph.add_edge("compactor_node", "llm_node")
 
     # Reflection gate routes: proceed -> memory_save, revise -> llm_node
@@ -305,6 +335,7 @@ __all__ = [
     "RECURSION_LIMIT",
     "should_continue",
     "after_interrupt",
+    "route_after_tool_node",
     "build_agent_graph",
     "compile_agent_graph",
     "reset_compiled_graph_cache",
