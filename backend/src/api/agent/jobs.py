@@ -258,6 +258,10 @@ async def _clear_stale_pending_confirmation(
     for task in active_tasks:
         for interrupt in task.interrupts:
             value = getattr(interrupt, "value", {}) or {}
+            # Guard against a future interrupt site passing a non-dict value
+            # (e.g. a bare string) — observability must never raise here.
+            if not isinstance(value, dict):
+                continue
             for tool in value.get("tools", []):
                 name = tool.get("name") if isinstance(tool, dict) else None
                 if name:
