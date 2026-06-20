@@ -1,131 +1,97 @@
 """Tests for tag_trace_intent in observability.py.
 
+It patches the ROOT run (identified by RunTree.trace_id) directly via
+Client.update_run(run_id=trace_id, tags=[...]) — the RunTree-walk + add_tags
+approach didn't land under astream_events. In a sync test there is no running
+loop, so the fire-and-forget path falls back to the inline patch and we can
+assert synchronously.
+
 Covers:
 - No-op when get_current_run_tree() returns None.
 - No-op when intent is empty.
-- Tags + metadata are set on the root run when a fake RunTree is present.
+- The root run (trace_id) is patched with the intent tag.
+- Only tags are patched (tenant metadata in `extra` is never touched).
+- Never raises when the client errors.
 """
 
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.services.agent.observability import tag_trace_intent
 
 
+def _fake_rt(trace_id: str = "root-trace-id") -> SimpleNamespace:
+    # Current node run tree; trace_id == the root run's id.
+    return SimpleNamespace(id="node-id", trace_id=trace_id)
+
+
 def test_noop_when_no_run_tree() -> None:
-    """tag_trace_intent must not raise when there is no active run context."""
-    with patch(
-        "langsmith.run_helpers.get_current_run_tree",
-        return_value=None,
+    """No active run context → no patch, no raise."""
+    client = MagicMock()
+    with (
+        patch("langsmith.run_helpers.get_current_run_tree", return_value=None),
+        patch("src.services.agent.observability._get_ls_client", return_value=client),
     ):
-        # Should return without error — any exception is a bug.
         tag_trace_intent("research")
+    client.update_run.assert_not_called()
 
 
 def test_noop_when_intent_empty() -> None:
-    """tag_trace_intent must return immediately for an empty intent string."""
-    # We do NOT patch get_current_run_tree here; if the function doesn't
-    # short-circuit on the empty check it would try to import langsmith in a
-    # context where the tree might not be available — an empty string is the
-    # earliest possible bail-out.
-    tag_trace_intent("")
-    tag_trace_intent("   "[:0])  # another falsy string for completeness
+    """Empty intent short-circuits before any SDK access."""
+    client = MagicMock()
+    with patch("src.services.agent.observability._get_ls_client", return_value=client):
+        tag_trace_intent("")
+    client.update_run.assert_not_called()
 
 
-def test_tags_and_metadata_set_on_root_run() -> None:
-    """With a fake root RunTree, add_tags and add_metadata are called correctly."""
-    added_tags: list[str] = []
-    added_metadata: list[dict] = []
-
-    # Simulate the RunTree interface used by tag_trace_intent.
-    fake_root = SimpleNamespace(
-        id="root-id",
-        trace_id="root-id",
-        tags=[],
-        parent_run=None,
-        add_tags=lambda tag: added_tags.append(tag),
-        add_metadata=lambda meta: added_metadata.append(meta),
-    )
-
-    with patch(
-        "langsmith.run_helpers.get_current_run_tree",
-        return_value=fake_root,
+def test_patches_root_run_by_trace_id_with_intent_tag() -> None:
+    """The root run (trace_id) is patched with the intent tag."""
+    client = MagicMock()
+    with (
+        patch(
+            "langsmith.run_helpers.get_current_run_tree",
+            return_value=_fake_rt("root-trace-id"),
+        ),
+        patch("src.services.agent.observability._get_ls_client", return_value=client),
     ):
         tag_trace_intent("research")
 
-    assert (
-        "intent:research" in added_tags
-    ), f"Expected 'intent:research' in add_tags calls, got: {added_tags}"
-    assert any(
-        m.get("intent") == "research" for m in added_metadata
-    ), f"Expected metadata with intent='research', got: {added_metadata}"
-
-
-def test_tag_not_duplicated_when_already_present() -> None:
-    """tag_trace_intent should not add a duplicate tag if it's already set."""
-    added_tags: list[str] = []
-    added_metadata: list[dict] = []
-
-    fake_root = SimpleNamespace(
-        id="root-id",
-        trace_id="root-id",
-        tags=["intent:research"],  # tag already present
-        parent_run=None,
-        add_tags=lambda tag: added_tags.append(tag),
-        add_metadata=lambda meta: added_metadata.append(meta),
+    client.update_run.assert_called_once()
+    _args, kwargs = client.update_run.call_args
+    assert kwargs.get("run_id") == "root-trace-id" or (
+        _args and _args[0] == "root-trace-id"
     )
-
-    with patch(
-        "langsmith.run_helpers.get_current_run_tree",
-        return_value=fake_root,
-    ):
-        tag_trace_intent("research")
-
-    assert "intent:research" not in added_tags, (
-        "add_tags should not have been called when tag already exists; "
-        f"got: {added_tags}"
-    )
+    assert kwargs.get("tags") == ["intent:research"]
+    # Must NOT patch extra/metadata (would clobber tenant metadata on the root).
+    assert "extra" not in kwargs
 
 
-def test_walks_to_root_via_parent_run() -> None:
-    """tag_trace_intent must walk up through parent_run to reach the root."""
-    added_tags: list[str] = []
-    added_metadata: list[dict] = []
-
-    fake_root = SimpleNamespace(
-        id="root-id",
-        trace_id="root-id",
-        tags=[],
-        parent_run=None,
-        add_tags=lambda tag: added_tags.append(tag),
-        add_metadata=lambda meta: added_metadata.append(meta),
-    )
-    fake_child = SimpleNamespace(
-        id="child-id",
-        trace_id="root-id",
-        tags=[],
-        parent_run=fake_root,
-        add_tags=lambda tag: (_ for _ in ()).throw(
-            AssertionError("should not tag child")
-        ),
-        add_metadata=lambda meta: (_ for _ in ()).throw(
-            AssertionError("should not meta child")
-        ),
-    )
-
-    with patch(
-        "langsmith.run_helpers.get_current_run_tree",
-        return_value=fake_child,
+def test_noop_when_no_trace_id() -> None:
+    """A run tree without a trace_id can't identify the root → no patch."""
+    client = MagicMock()
+    rt = SimpleNamespace(id="node-id", trace_id=None)
+    with (
+        patch("langsmith.run_helpers.get_current_run_tree", return_value=rt),
+        patch("src.services.agent.observability._get_ls_client", return_value=client),
     ):
         tag_trace_intent("writing")
+    client.update_run.assert_not_called()
 
-    assert (
-        "intent:writing" in added_tags
-    ), f"Expected root to be tagged, got: {added_tags}"
-    assert any(
-        m.get("intent") == "writing" for m in added_metadata
-    ), f"Expected root metadata, got: {added_metadata}"
+
+def test_never_raises_on_client_error() -> None:
+    """A failing update_run must be swallowed — observability never breaks the agent."""
+    client = MagicMock()
+    client.update_run.side_effect = RuntimeError("boom")
+    with (
+        patch(
+            "langsmith.run_helpers.get_current_run_tree",
+            return_value=_fake_rt(),
+        ),
+        patch("src.services.agent.observability._get_ls_client", return_value=client),
+    ):
+        # Should not raise.
+        tag_trace_intent("data")
