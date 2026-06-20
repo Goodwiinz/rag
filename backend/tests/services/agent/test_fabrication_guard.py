@@ -227,6 +227,77 @@ class TestDetectFabricatedToolSuccess:
         issue = _detect_fabricated_tool_success(state)
         assert issue is not None
 
+    # -----------------------------------------------------------------------
+    # False-positive regression cases (tightened regex must NOT trigger)
+    # -----------------------------------------------------------------------
+
+    def test_listing_projects_with_project_id_is_not_flagged(self):
+        """AI quoting a list_projects tool result that contains project_id
+        tokens must NOT trigger the fabrication guard — it's legitimate
+        retrieval output, not a creation claim."""
+        state = _make_state(
+            ai_content=(
+                "Here are your projects: NLP (project_id: abc-123), "
+                "ML Experiments (project_id: def-456). "
+                "Let me know which one you'd like to work with."
+            ),
+            tool_executions=[
+                {
+                    "tool_name": "list_projects",
+                    "status": "completed",
+                    "result": {
+                        "projects": [
+                            {"project_id": "abc-123", "name": "NLP"},
+                            {"project_id": "def-456", "name": "ML Experiments"},
+                        ]
+                    },
+                }
+            ],
+        )
+        assert _detect_fabricated_tool_success(state) is None
+
+    def test_forward_looking_suggestion_is_not_flagged(self):
+        """'You could add this paper to the project later' is a forward-looking
+        suggestion, NOT a past-action claim.  Must return None."""
+        state = _make_state(
+            ai_content=(
+                "I've found three relevant papers on transformer architectures. "
+                "You could add this paper to the project later if you'd like, "
+                "or I can search for more specific results first."
+            ),
+            tool_executions=[],
+        )
+        assert _detect_fabricated_tool_success(state) is None
+
+    def test_real_fabrication_string_still_caught(self):
+        """The actual fabrication from the PR description must still be caught:
+        the model dumps JSON tool args + result blob inline with prose."""
+        state = _make_state(
+            ai_content=(
+                'Creating the project "NLP" now. {"name":"NLP"} '
+                '{"project_id":"b3f9e2d4","status":"active"} '
+                "Project created (project_id: b3f9e2d4)."
+            ),
+            tool_executions=[],
+        )
+        issue = _detect_fabricated_tool_success(state)
+        assert issue is not None
+        assert "fabricated" in issue
+
+    def test_ive_created_without_tool_is_caught(self):
+        """'I've created the project for you (project_id: x)' with no
+        completed create_project execution must still be caught."""
+        state = _make_state(
+            ai_content=(
+                "I've created the project for you (project_id: x-001). "
+                "It should now appear in your dashboard."
+            ),
+            tool_executions=[],
+        )
+        issue = _detect_fabricated_tool_success(state)
+        assert issue is not None
+        assert "fabricated" in issue
+
 
 # ---------------------------------------------------------------------------
 # Tests: _should_skip_reflection does NOT skip on fabrication

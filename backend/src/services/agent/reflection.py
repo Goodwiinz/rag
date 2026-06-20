@@ -253,17 +253,43 @@ CREATION_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Patterns that indicate the AI is asserting a creation happened.
+# Patterns that indicate the AI is asserting a creation already happened.
+#
+# Design intent: require an EXPLICIT success assertion in the model's own
+# action voice, OR a fabricated tool-call/result JSON blob.  A bare
+# ``project_id`` substring must NOT trigger on its own — it appears in
+# legitimate quoted tool results (e.g. list_projects output) and forward-
+# looking suggestions ("you could add this paper to the project later").
+#
+# A hit requires at least one of:
+#   A) An explicit success-assertion verb near "project"/"note"/"draft"
+#      ("created the project", "note saved", "I've added … to the project",
+#      "Project created", "creating the project", "I've created", …).
+#   B) An inline fabricated tool-call/result JSON blob that contains
+#      ``"name":`` / ``"project_id":`` / ``"status":"active"`` — the model
+#      dumping tool args or result JSON directly into prose.
+#   C) A ``project_id`` token that co-occurs with a nearby ``active``
+#      keyword (e.g. "project_id: … is active") — catches the common shape
+#      of a fabricated status summary without a JSON wrapper.
+#
+# NOT triggered by:
+#   - "Here are your projects: NLP (project_id: abc-123)" (list output)
+#   - "You could add this paper to the project later"      (suggestion)
 _CREATE_SUCCESS_CLAIM_RE = re.compile(
-    r"project_id"  # key in JSON or prose
-    r'|"status"\s*:\s*"active"'  # inline JSON status field
+    # A) explicit success-assertion verbs in model's own voice ---------------
+    r'"status"\s*:\s*"active"'  # inline JSON status field
     r"|\bproject\s+created\b"  # "project created"
+    r"|\bcreating\s+the\s+project\b"  # "Creating the project …"
     r"|\bcreated\s+(the\s+)?project\b"  # "created the project"
+    r"|\b(I'?ve|I\s+have)\s+(created|added|saved)\b"  # "I've created / I have added"
     r"|\bnote\b.{0,25}(created|saved|added)\b"  # "note created / note has been saved"
     r"|\badded\s+.{0,40}\bto\s+(the\s+)?project\b"  # "added X to project"
-    r'|\{[^}]*"name"\s*:'  # inline JSON {"name": ...}
-    r'|\{[^}]*"project_id"\s*:',  # inline JSON {"project_id": ...}
-    re.IGNORECASE,
+    # B) inline fabricated JSON blob -----------------------------------------
+    r'|\{[^}]*"name"\s*:'  # {"name": …}
+    r'|\{[^}]*"project_id"\s*:'  # {"project_id": …}
+    # C) project_id co-occurring with active (fabricated status summary) ------
+    r"|project_id\b.{0,80}\bactive\b",  # "project_id: … active"
+    re.IGNORECASE | re.DOTALL,
 )
 
 # Honest-disclosure phrases: the AI admits the action wasn't performed.
@@ -599,8 +625,24 @@ def make_reflection_gate(
         # signal that does not need probabilistic critique.
         fabrication_issue = _detect_fabricated_tool_success(state)
         if fabrication_issue is not None:
+            last_ai_for_log = _last_ai_message(state)
+            _snippet = ""
+            if last_ai_for_log is not None:
+                _raw = last_ai_for_log.content
+                _text = (
+                    " ".join(
+                        b.get("text", "") if isinstance(b, dict) else str(b)
+                        for b in _raw
+                    )
+                    if isinstance(_raw, list)
+                    else (str(_raw) if _raw else "")
+                )
+                _snippet = _text[:120].replace("\n", " ")
             logger.warning(
-                "Reflection deterministic fail: fabricated tool success claim"
+                "Reflection guard: forcing major-revise — fabricated tool success "
+                "detected (no creation tool ran). snippet=%r intent=%s",
+                _snippet,
+                intent,
             )
             return {
                 "reflection_count": current_count + 1,
