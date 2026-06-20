@@ -101,7 +101,8 @@ async def test_clear_stale_pending_confirmation_resets_counters():
 
     cleared = await _clear_stale_pending_confirmation(graph, config)
 
-    assert cleared is True
+    # Now returns the dropped tool name(s) (truthy) instead of bool True.
+    assert cleared
     graph.aupdate_state.assert_awaited_once()
     args, _kwargs = graph.aupdate_state.call_args
     assert args[0] is config
@@ -127,7 +128,8 @@ async def test_clear_stale_pending_confirmation_skips_when_no_interrupt():
 
     cleared = await _clear_stale_pending_confirmation(graph, config)
 
-    assert cleared is False
+    # No interrupt → None (was bool False before the Optional[list] return).
+    assert cleared is None
     graph.aupdate_state.assert_not_called()
 
 
