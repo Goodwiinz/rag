@@ -1,4 +1,5 @@
 """Agent state schema for LangGraph."""
+
 from typing import Annotated, Any
 
 from typing_extensions import TypedDict
@@ -26,19 +27,19 @@ class AgentState(TypedDict):
     user_confirmed: bool
     intent: str
     user_memories: list
-    project_memories: list     # Durable facts saved for the bound project,
-                               # recalled across all its threads (list[str])
+    project_memories: list  # Durable facts saved for the bound project,
+    # recalled across all its threads (list[str])
     # --- v2 additions ---
-    plan: list                # [{step, tool, args_hint}] advisory plan
-    reflection_count: int     # Max 2 per turn, reset per user message
-    compaction_count: int     # Increments each compaction, reset per turn
+    plan: list  # [{step, tool, args_hint}] advisory plan
+    reflection_count: int  # Max 2 per turn, reset per user message
+    compaction_count: int  # Increments each compaction, reset per turn
     intent_confidence: float  # LLM classifier confidence 0-1
-    last_error_info: dict     # {category, message, suggestion}
-    user_id: str              # Owner user ID for HITL ownership verification
-    current_project_id: str   # UUID of the project the user is currently discussing
-                              # (extracted from URLs, inherited from page_context,
-                              # or carried forward across turns via checkpoint)
-    model: str                # Per-request Azure deployment override; "" ⇒ server default
+    last_error_info: dict  # {category, message, suggestion}
+    user_id: str  # Owner user ID for HITL ownership verification
+    current_project_id: str  # UUID of the project the user is currently discussing
+    # (extracted from URLs, inherited from page_context,
+    # or carried forward across turns via checkpoint)
+    model: str  # Per-request Azure deployment override; "" ⇒ server default
     # Reflection result of the latest LLM response; cleared at the start of
     # each turn so a stale value from turn N cannot trigger a spurious
     # revision at the start of turn N+1. Stored as ``Any`` to avoid a
@@ -48,3 +49,9 @@ class AgentState(TypedDict):
     # routes a defective synthesis (one that still has tool_calls) to
     # the reflection gate instead of looping back into forced synthesis.
     _force_synthesis_fired: bool
+    # Set by tool_node when an entire tool batch was served from the
+    # in-turn dedupe cache (no fresh calls ran) — signals the graph to
+    # skip the wasted re-plan loop (compactor_node → llm_node, ~8 s on
+    # Azure p95) and route straight to force_synthesis_node to produce
+    # the final answer from the cached results already in state.
+    tools_all_deduped: bool

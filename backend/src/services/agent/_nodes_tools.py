@@ -90,7 +90,11 @@ def _scrub_tool_value(value, _depth: int = 0):
         return "[REDACTED:deep]"
     if isinstance(value, dict):
         return {
-            k: "[REDACTED]" if k in _SENSITIVE_ARG_KEYS else _scrub_tool_value(v, _depth + 1)
+            k: (
+                "[REDACTED]"
+                if k in _SENSITIVE_ARG_KEYS
+                else _scrub_tool_value(v, _depth + 1)
+            )
             for k, v in value.items()
         }
     if isinstance(value, (list, tuple)):
@@ -606,6 +610,13 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # Prune to last 20 entries to prevent unbounded growth
     tool_executions = tool_executions[-20:]
 
+    # True iff every tool call in the batch was a cache hit (fully deduped).
+    # An empty tool_calls list cannot reach here (guarded at entry), so
+    # len(cached) > 0 is equivalent to "there were calls" in this context.
+    # When True, route_after_tool_node skips the compactor→llm re-plan loop
+    # (saving ~8 s Azure p95) and goes straight to force_synthesis_node.
+    tools_all_deduped: bool = len(fresh_calls) == 0 and len(cached) > 0
+
     return {
         "messages": tool_messages,
         "tool_executions": tool_executions,
@@ -613,6 +624,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         "last_error": last_error,
         "last_error_info": last_error_info,
         "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+        "tools_all_deduped": tools_all_deduped,
     }
 
 
