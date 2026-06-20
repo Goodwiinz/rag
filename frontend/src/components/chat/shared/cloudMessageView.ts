@@ -2,6 +2,14 @@ import { MessageRole, type ChatMessage } from '@/types/workspace';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 
+/** A single agent tool execution captured during a streaming turn. */
+export interface ActivityStep {
+  tool: string;
+  label: string;
+  status: 'running' | 'done' | 'error';
+  durationMs?: number;
+}
+
 export interface ChatPageMessage {
   id?: string;
   role: 'user' | 'assistant';
@@ -9,6 +17,8 @@ export interface ChatPageMessage {
   timestamp: number;
   citations?: Citation[];
   diagnosticsTraceId?: string;
+  /** Tool executions recorded during the turn that produced this message. */
+  toolExecutions?: ActivityStep[];
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;

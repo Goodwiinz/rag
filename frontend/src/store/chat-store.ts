@@ -26,6 +26,7 @@ import {
   ThreadStatus,
 } from '@/types/workspace';
 import { workspaceService } from '@/services/workspaceService';
+import type { ActivityStep } from '@/components/chat/shared/cloudMessageView';
 
 // ============================================================================
 // Helper Functions
@@ -168,6 +169,8 @@ interface ChatState {
   // the first token or rag_context event). Drives the composer's
   // "reading sources…" status phase.
   isRetrievingRag: boolean;
+  /** Tool executions accumulated during the current streaming turn. */
+  streamingSteps: ActivityStep[];
 }
 
 interface ChatActions {
@@ -394,6 +397,7 @@ const initialState: ChatState = {
   streamingCitations: [],
   streamingDiagnosticsTraceId: null,
   isRetrievingRag: false,
+  streamingSteps: [],
 };
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)

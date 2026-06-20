@@ -15,6 +15,9 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
+import { ChatActivityStrip } from './ChatActivityStrip';
+import { useChatStore } from '@/store/chat-store';
+import type { ActivityStep } from './cloudMessageView';
 
 export interface ChatBubbleMessage {
   id?: string;
@@ -23,6 +26,8 @@ export interface ChatBubbleMessage {
   timestamp: number;
   citations?: Citation[];
   diagnosticsTraceId?: string;
+  /** Tool executions recorded during the turn that produced this message. */
+  toolExecutions?: ActivityStep[];
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
@@ -128,6 +133,11 @@ export const ChatBubble = React.memo(function ChatBubble({
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
 
+  // Read live streaming steps from the store — only meaningful for the
+  // currently-streaming message (isStreaming=true). For committed messages
+  // we fall back to message.toolExecutions.
+  const storeStreamingSteps = useChatStore((s) => s.streamingSteps);
+
   const timestamp = message.timestamp
     ? new Date(message.timestamp).toLocaleTimeString('en-US', {
         hour: '2-digit',
@@ -163,8 +173,21 @@ export const ChatBubble = React.memo(function ChatBubble({
 
   const stripSourcesCount =
     message.metadata?.sourcesCount ?? visibleCitations.length;
-  const stripToolsUsed = message.metadata?.toolsUsed;
+  // Prefer committed metadata; fall back to toolExecutions labels so the strip
+  // never shows "0 tools" when executions are present but metadata wasn't set.
+  const stripToolsUsed =
+    message.metadata?.toolsUsed ??
+    (message.toolExecutions && message.toolExecutions.length > 0
+      ? message.toolExecutions.map((s) => s.label)
+      : undefined);
   const stripResponseMs = message.metadata?.responseTimeMs;
+
+  // Steps to show in the activity strip:
+  // — while streaming: live store steps (scoped to this turn)
+  // — after commit: persisted toolExecutions on the message
+  const activitySteps: ActivityStep[] = isStreaming
+    ? storeStreamingSteps
+    : (message.toolExecutions ?? []);
 
   return (
     <div className="group relative mb-7 sm:mb-8">
@@ -243,11 +266,24 @@ export const ChatBubble = React.memo(function ChatBubble({
           </div>
         ) : (
           <div className="relative">
+            {/* Inline agent activity strip — above body, quiet */}
+            {activitySteps.length > 0 && (
+              <ChatActivityStrip steps={activitySteps} live={isStreaming} />
+            )}
+
             {isStreaming && !streamingContent ? (
               <ThinkingPill label={thinkingLabel} />
             ) : isStreaming && streamingContent ? (
               <div className="nous-chat-body">
-                <span className="whitespace-pre-wrap">{streamingContent}</span>
+                {/* Render streaming content through CitationRenderer so
+                    markdown (bold, lists, headings) renders live, not as raw
+                    whitespace-pre-wrap text. Pass empty citations — they aren't
+                    available until the stream commits. */}
+                <CitationRenderer
+                  content={streamingContent}
+                  citations={[]}
+                  onCitationClick={() => {}}
+                />
                 <span
                   className="ml-0.5 inline-block h-4 w-[3px] rounded-sm align-text-bottom animate-pulse bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
                   data-testid="streaming-cursor"
