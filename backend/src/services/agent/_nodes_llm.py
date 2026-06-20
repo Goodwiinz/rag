@@ -338,7 +338,11 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
             )
         else:
             llm = _build_llm(model_override=state.get("model") or None)
-    except RuntimeError:
+    except RuntimeError as exc:
+        # Only the missing-Azure/OpenAI-config RuntimeError is degraded
+        # gracefully; any other RuntimeError from the build propagates.
+        if "must be configured" not in str(exc):
+            raise
         logger.error(
             "llm_node: LLM build failed — Azure/OpenAI config missing (intent=%s)",
             intent,
