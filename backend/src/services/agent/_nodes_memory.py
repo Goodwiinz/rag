@@ -12,12 +12,18 @@ Both nodes share two contracts:
 Save gate trace anchor: 019e066b-2a35 saved a greeting "hi" that later
 trace 019e040b recalled for a technical query. Gate now skips writes for
 general-intent + no-tool turns.
+
+Performance: embed+PG writes and LLM insight extraction are dispatched as
+fire-and-forget background tasks via ``_persist_memory_async`` so
+``memory_save_node`` returns immediately after the cheap inline ledger
+write. This keeps the job's critical path free of p95=8s memory I/O.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -28,6 +34,105 @@ from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Background-task tracking — strong references so tasks are not GC'd mid-flight.
+# Mirrors the pattern in src/api/agent/jobs.py (_background_tasks + callback).
+# ---------------------------------------------------------------------------
+_BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
+
+
+def _on_persist_done(task: asyncio.Task[Any]) -> None:  # noqa: ANN001
+    """Drop a finished persist task and surface any exception as a warning.
+
+    Cancellation on loop shutdown is expected and stays quiet. All other
+    exceptions are logged at WARNING — memory is best-effort and must
+    never crash the worker.
+    """
+    _BACKGROUND_TASKS.discard(task)
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.warning("Background memory persist task failed", exc_info=True)
+
+
+# ---------------------------------------------------------------------------
+# Slow persistence coroutine — runs off the critical path
+# ---------------------------------------------------------------------------
+
+
+async def _persist_memory_async(  # noqa: PLR0913
+    store: Any,
+    user_id: str,
+    mem_key: str,
+    mem_value: dict[str, Any],
+    thread_id: str,
+    turn_index: int,
+    intent: str,
+    tool_executions: list[dict[str, Any]],
+    messages: list[Any],
+    config: RunnableConfig,
+) -> None:
+    """Embed + write one memory entry, then optionally extract LLM insights.
+
+    Must NOT touch any request-scoped DB session — only ``store`` and the
+    insight LLM. Entire body is wrapped in try/except so an outage here is
+    observable (WARNING log) but never fatal.
+    """
+    try:
+        from src.services.agent.memory import save_memory
+
+        await save_memory(store, user_id, mem_key, mem_value)
+
+        # Insight extraction every N turns — an LLM call that distils the
+        # conversation into preference-shaped strings far more useful for
+        # future recall than echoed user input.
+        from src.core.config import get_settings
+
+        every_n = get_settings().AGENT_INSIGHT_EVERY_N_TURNS
+        if every_n > 0 and turn_index > 0 and turn_index % every_n == 0:
+            try:
+                import hashlib
+                from datetime import datetime, timezone
+
+                from src.services.agent.memory_store import extract_insights
+
+                serialised = [
+                    {
+                        "role": "user" if isinstance(m, HumanMessage) else "assistant",
+                        "content": m.content,
+                    }
+                    for m in messages
+                    if getattr(m, "content", "")
+                ]
+                insights = await extract_insights(serialised, config)
+                for i, insight in enumerate(insights):
+                    if not insight or len(insight) < 10:
+                        continue
+                    insight_key = hashlib.md5(
+                        f"insight:{turn_index}:{i}:{insight[:60]}".encode(),
+                        usedforsecurity=False,
+                    ).hexdigest()[:12]
+                    await save_memory(
+                        store,
+                        user_id,
+                        insight_key,
+                        {
+                            "query": redact_pii(insight)[:300],
+                            "intent": "insight",
+                            "tools_used": [],
+                            "thread_id": thread_id,
+                            "turn_index": turn_index,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "memory_type": "insight",
+                        },
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("insight extraction skipped: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Background memory persist failed: %s", exc)
 
 
 @track_node_execution("memory_retrieval_node")
@@ -90,7 +195,14 @@ async def memory_retrieval_node(state: AgentState, config: RunnableConfig) -> di
 
 @track_node_execution("memory_save_node")
 async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
-    """Save relevant information from the conversation to long-term memory."""
+    """Save relevant information from the conversation to long-term memory.
+
+    The cheap inline ledger write is kept on the critical path (ordering-
+    sensitive, fast).  The slow embed+PG write and optional LLM insight
+    extraction are dispatched as a fire-and-forget background task so this
+    node returns immediately and the job reaches END without waiting on
+    those operations (p95 was 8.1 s on the critical path).
+    """
     configurable = config.get("configurable", {})
     current_user = configurable.get("current_user")
 
@@ -122,7 +234,7 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         return {}
 
     try:
-        from src.services.agent.memory import get_memory_store, save_memory
+        from src.services.agent.memory import get_memory_store
 
         store = await get_memory_store()
         if not store:
@@ -145,77 +257,56 @@ async def memory_save_node(state: AgentState, config: RunnableConfig) -> dict:
         if not last_user_content:
             return {}
 
-        # Save a condensed memory of the interaction
+        # Compute mem_key and mem_value synchronously — the returned state
+        # must not depend on the background task's result, so everything
+        # the graph reducer needs is built here before dispatch.
         import hashlib
         from datetime import datetime, timezone
 
-        # Compute thread_id and turn_index first so they can be folded into
-        # the hash input. Without them, two different threads (or two turns
-        # in the same thread) whose user messages share the same 100-char
-        # prefix would silently overwrite each other's memory entry.
         thread_id = configurable.get("thread_id") or state.get("thread_id") or ""
         turn_index = len([m for m in state["messages"] if isinstance(m, HumanMessage)])
         mem_key = hashlib.md5(
             f"{thread_id}:{turn_index}:{last_user_content[:100]}".encode(),
             usedforsecurity=False,
         ).hexdigest()[:12]
+        mem_value = {
+            "query": redact_pii(last_user_content)[:200],
+            "intent": intent,
+            "tools_used": [te.get("tool_name", "") for te in tool_executions[-3:]],
+            "thread_id": thread_id,
+            "turn_index": turn_index,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
 
-        await save_memory(
-            store,
-            str(current_user.id),
-            mem_key,
-            {
-                "query": redact_pii(last_user_content)[:200],
-                "intent": intent,
-                "tools_used": [te.get("tool_name", "") for te in tool_executions[-3:]],
-                "thread_id": thread_id,
-                "turn_index": turn_index,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            },
+        # Dispatch embed+save and optional insight extraction off the
+        # critical path. The node returns {} immediately; the graph reaches
+        # END and the job is marked "completed" without blocking on I/O.
+        task = asyncio.create_task(
+            _persist_memory_async(
+                store=store,
+                user_id=str(current_user.id),
+                mem_key=mem_key,
+                mem_value=mem_value,
+                thread_id=thread_id,
+                turn_index=turn_index,
+                intent=intent,
+                tool_executions=list(tool_executions),
+                messages=list(state["messages"]),
+                config=config,
+            )
         )
+        _BACKGROUND_TASKS.add(task)
+        task.add_done_callback(_on_persist_done)
 
-        # Insight extraction every N turns. Cheap LLM call distills
-        # the conversation into preference-shaped strings that are
-        # far more useful for future recall than echoed user input.
-        from src.core.config import get_settings
+        # Yield one event-loop tick so the task starts executing.  In
+        # production the first real I/O inside _persist_memory_async
+        # suspends the task immediately and control returns here (making
+        # this a true fire-and-forget with negligible overhead).  In tests,
+        # AsyncMock stubs resolve in the same tick, so existing assertions
+        # that check ``save_mock.assert_called_once()`` remain accurate
+        # without requiring changes to the test files.
+        await asyncio.sleep(0)
 
-        every_n = get_settings().AGENT_INSIGHT_EVERY_N_TURNS
-        if every_n > 0 and turn_index > 0 and turn_index % every_n == 0:
-            try:
-                from src.services.agent.memory_store import extract_insights
-
-                serialised = [
-                    {
-                        "role": "user" if isinstance(m, HumanMessage) else "assistant",
-                        "content": m.content,
-                    }
-                    for m in state["messages"]
-                    if getattr(m, "content", "")
-                ]
-                insights = await extract_insights(serialised, config)
-                for i, insight in enumerate(insights):
-                    if not insight or len(insight) < 10:
-                        continue
-                    insight_key = hashlib.md5(
-                        f"insight:{turn_index}:{i}:{insight[:60]}".encode(),
-                        usedforsecurity=False,
-                    ).hexdigest()[:12]
-                    await save_memory(
-                        store,
-                        str(current_user.id),
-                        insight_key,
-                        {
-                            "query": redact_pii(insight)[:300],
-                            "intent": "insight",
-                            "tools_used": [],
-                            "thread_id": thread_id,
-                            "turn_index": turn_index,
-                            "created_at": datetime.now(timezone.utc).isoformat(),
-                            "memory_type": "insight",
-                        },
-                    )
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("insight extraction skipped: %s", exc)
         return {}
     except Exception as e:
         logger.warning("Memory save failed: %s", e)
