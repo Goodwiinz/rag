@@ -8,10 +8,12 @@ import time
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, Response, status
+from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.routing import Match
 
+from src.core.database import get_db_sync
 from src.exceptions.analytics_exceptions import PermissionDeniedException
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
 from src.middleware.responses import error_response
@@ -94,7 +96,9 @@ class RBACMiddleware(BaseHTTPMiddleware):
                     response = await call_next(request)
                     return response
                 else:
-                    return error_response(401, "Authentication required for access control")
+                    return error_response(
+                        401, "Authentication required for access control"
+                    )
 
             # Get required permissions for this endpoint
             required_permissions = self._get_required_permissions(request)
@@ -117,7 +121,9 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return error_response(403, f"Access denied: {str(e)}")
         except Exception as e:
             logger.error(f"RBAC middleware error: {e}")
-            return error_response(500, "Internal server error during access control", "internal_error")
+            return error_response(
+                500, "Internal server error during access control", "internal_error"
+            )
 
     def _should_skip_rbac(self, request: Request) -> bool:
         """Check if RBAC should be skipped for this endpoint"""
@@ -233,9 +239,9 @@ class RBACMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"Error checking permissions: {e}")
             raise PermissionDeniedException(
-                required_permission=required_permissions[0]
-                if required_permissions
-                else "unknown",
+                required_permission=(
+                    required_permissions[0] if required_permissions else "unknown"
+                ),
                 user_role="unknown",
                 details={"error": "Permission check failed"},
             )
@@ -297,6 +303,42 @@ def require_permission(permission_name: str):
         return wrapper
 
     return decorator
+
+
+def require_permission_dep(permission_name: str):
+    """FastAPI **dependency** that enforces a permission — use with ``Depends()``.
+
+    ``require_permission`` above is a *decorator* (``@require_permission(...)``).
+    Using it inside ``Depends(require_permission("x"))`` does NOT enforce the
+    check — FastAPI calls the outer ``decorator`` and never invokes the inner
+    ``wrapper`` that holds the 401/403 logic, leaving the endpoint broken
+    (422/500) and unguarded. This factory returns a real dependency callable so
+    ``Depends(require_permission_dep("x"))`` works as intended.
+    """
+
+    def dependency(db: Session = Depends(get_db_sync)) -> None:
+        user_id = get_current_user_id()
+        organization_id = get_current_tenant_id()
+
+        if not user_id or not organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+
+        # Pass the request-scoped session explicitly. RBACService() with no db
+        # leaves self.db=None and silently returns no permissions (→ always
+        # 403); and do NOT use it as a context manager — __exit__ would close
+        # the FastAPI-managed session early.
+        if not RBACService(db).user_has_permission(
+            user_id, permission_name, organization_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied: {permission_name} required",
+            )
+
+    return dependency
 
 
 def require_any_permission(permission_names: List[str]):

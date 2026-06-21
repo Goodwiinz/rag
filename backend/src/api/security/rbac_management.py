@@ -18,7 +18,7 @@ from src.exceptions.analytics_exceptions import (
     create_permission_denied_http_exception,
 )
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
-from src.middleware.rbac import require_permission, require_role
+from src.middleware.rbac import require_permission_dep
 from src.models.permission import (
     Permission,
     PermissionCategory,
@@ -162,7 +162,7 @@ async def get_permissions(
     scope: Optional[str] = Query(None, description="Filter by scope"),
     active_only: bool = Query(True, description="Only active permissions"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("permission_read")),
+    _: str = Depends(require_permission_dep("permission_read")),
 ):
     """Get list of available permissions"""
     try:
@@ -191,7 +191,7 @@ async def get_permissions(
 @router.get("/permissions/categories", response_model=List[PermissionCategoryResponse])
 async def get_permission_categories(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("permission_read")),
+    _: str = Depends(require_permission_dep("permission_read")),
 ):
     """Get permissions grouped by category"""
     try:
@@ -209,7 +209,7 @@ async def get_permission_categories(
 async def create_role(
     role_data: RoleCreate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_create")),
+    _: str = Depends(require_permission_dep("role_create")),
 ):
     """Create a new role"""
     try:
@@ -248,7 +248,7 @@ async def get_roles(
     include_custom: bool = Query(True, description="Include custom roles"),
     active_only: bool = Query(True, description="Only active roles"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_read")),
+    _: str = Depends(require_permission_dep("role_read")),
 ):
     """Get roles for current organization"""
     try:
@@ -279,7 +279,7 @@ async def get_roles(
 async def get_role(
     role_id: str = Path(..., description="Role ID"),
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_read")),
+    _: str = Depends(require_permission_dep("role_read")),
 ):
     """Get specific role details"""
     try:
@@ -312,7 +312,7 @@ async def update_role(
     role_id: str,
     role_data: RoleUpdate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_update")),
+    _: str = Depends(require_permission_dep("role_update")),
 ):
     """Update role details"""
     try:
@@ -374,7 +374,7 @@ async def update_role(
 async def delete_role(
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("role_delete")),
+    _: str = Depends(require_permission_dep("role_delete")),
 ):
     """Delete a role"""
     try:
@@ -431,7 +431,7 @@ async def assign_role_to_user(
     user_id: str,
     assignment_data: RoleAssignmentCreate,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_manage_roles")),
+    _: str = Depends(require_permission_dep("user_manage_roles")),
 ):
     """Assign a role to a user"""
     try:
@@ -471,7 +471,7 @@ async def revoke_role_from_user(
     user_id: str,
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_manage_roles")),
+    _: str = Depends(require_permission_dep("user_manage_roles")),
 ):
     """Revoke a role from a user"""
     try:
@@ -500,7 +500,7 @@ async def revoke_role_from_user(
 async def get_user_permissions(
     user_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_read")),
+    _: str = Depends(require_permission_dep("user_read")),
 ):
     """Get user's permissions and roles"""
     try:
@@ -561,7 +561,7 @@ async def get_current_user_permissions(
 async def get_users_with_role(
     role_id: str,
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("user_read")),
+    _: str = Depends(require_permission_dep("user_read")),
 ):
     """Get all users assigned to a specific role"""
     try:
@@ -578,9 +578,9 @@ async def get_users_with_role(
                     "first_name": user.first_name,
                     "last_name": user.last_name,
                     "is_active": user.is_active,
-                    "created_at": user.created_at.isoformat()
-                    if user.created_at
-                    else None,
+                    "created_at": (
+                        user.created_at.isoformat() if user.created_at else None
+                    ),
                 }
             )
 
@@ -596,7 +596,7 @@ async def get_users_with_role(
 @router.post("/initialize", response_model=Dict[str, Any])
 async def initialize_rbac_system(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("system_admin")),
+    _: str = Depends(require_permission_dep("system_admin")),
 ):
     """Initialize RBAC system with permissions and default roles"""
     try:
@@ -630,7 +630,7 @@ async def initialize_rbac_system(
 @router.post("/cleanup-expired", response_model=Dict[str, Any])
 async def cleanup_expired_assignments(
     rbac_service: RBACService = Depends(get_rbac_service),
-    _: str = Depends(require_permission("system_admin")),
+    _: str = Depends(require_permission_dep("system_admin")),
 ):
     """Clean up expired role assignments"""
     try:
