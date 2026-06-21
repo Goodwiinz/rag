@@ -329,3 +329,12 @@ syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"
   args: ["--rotate"]
+  # Loads the full agent graph once per run; 512Mi OOM-killed every fire.
+  # Sized to the agent's real footprint (backend serving pod uses 2Gi).
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
