@@ -59,11 +59,19 @@ spec:
                   value: {{ .Values.global.environment | default "dev" | quote }}
                 - name: PYTHONPATH
                   value: "/app"
+              # The job loads the full LangGraph agent (model clients, tool
+              # registry, embeddings) once per run — the same stack the backend
+              # serving pod runs. 512Mi OOM-killed every fire; size the floor to
+              # the agent's real footprint. Overridable via values for tuning.
               resources:
+                {{- with .Values.syntheticTraffic.resources }}
+                {{- toYaml . | nindent 16 }}
+                {{- else }}
                 requests:
-                  cpu: 100m
-                  memory: 256Mi
+                  cpu: 250m
+                  memory: 1Gi
                 limits:
-                  cpu: 500m
-                  memory: 512Mi
+                  cpu: "1"
+                  memory: 1536Mi
+                {{- end }}
 {{- end }}
