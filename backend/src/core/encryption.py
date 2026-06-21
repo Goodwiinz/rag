@@ -384,9 +384,11 @@ class AESEncryption:
             "nonce": base64.b64encode(nonce).decode("utf-8"),
             "key_id": key.key_id,
             "algorithm": key.algorithm,
-            "associated_data": base64.b64encode(associated_data).decode("utf-8")
-            if associated_data
-            else None,
+            "associated_data": (
+                base64.b64encode(associated_data).decode("utf-8")
+                if associated_data
+                else None
+            ),
         }
 
     def decrypt(self, encrypted_payload: Dict[str, Any]) -> bytes:
@@ -556,6 +558,7 @@ class HashUtils:
             True if password matches
         """
         import secrets
+
         test_hash, _ = HashUtils.hash_password(password, salt)
         return secrets.compare_digest(test_hash, hashed_password)
 
@@ -681,6 +684,32 @@ def decrypt_sensitive_field(
 ) -> Optional[str]:
     """Decrypt a sensitive field value"""
     return get_field_encryption().decrypt_field(encrypted_value, field_name)
+
+
+def is_encrypted_payload(value: Any) -> bool:
+    """Return True if *value* is a serialized FieldEncryption envelope.
+
+    An encrypted field is stored as ``json.dumps`` of the dict produced by
+    ``AESEncryption.encrypt`` (see :meth:`FieldEncryption.encrypt_field`), which
+    always carries ``encrypted_data``, ``nonce`` and ``key_id``. Requiring all
+    three makes an accidental collision with legitimate plaintext JSON
+    (e.g. user-supplied ``EncryptedJSON`` content) negligible.
+
+    Used to tell "stored plaintext, encryption disabled" (safe to return raw on
+    a decrypt failure) apart from "stored ciphertext, decryption failed" (must
+    NEVER return the raw ciphertext to the caller).
+    """
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return isinstance(parsed, dict) and {
+        "encrypted_data",
+        "nonce",
+        "key_id",
+    }.issubset(parsed.keys())
 
 
 def encrypt_file_data(file_data: bytes, filename: str) -> Dict[str, Any]:
