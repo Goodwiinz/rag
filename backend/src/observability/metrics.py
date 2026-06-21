@@ -10,7 +10,6 @@ Provides comprehensive metrics collection including:
 - Custom SLI/SLO tracking
 """
 
-import logging
 import os
 import threading
 import time
@@ -18,6 +17,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import structlog
 from opentelemetry import metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
@@ -33,7 +33,7 @@ from opentelemetry.sdk.resources import (
 
 from .config import config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Global meter and metrics instances
 _meter = None
@@ -134,8 +134,9 @@ def configure_metrics() -> metrics.Meter:
         )
     else:
         logger.info(
-            "OTLP metric export disabled (OTEL_EXPORTER_OTLP_ENABLED=false); "
-            "metrics served via Prometheus scrape only"
+            "otlp_metric_export_disabled",
+            otel_exporter_otlp_enabled=False,
+            export_mode="prometheus_scrape_only",
         )
 
     # Create meter provider

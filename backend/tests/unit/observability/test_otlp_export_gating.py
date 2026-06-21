@@ -16,8 +16,11 @@ from src.observability.config import ObservabilityConfig
 
 
 @pytest.mark.unit
-def test_otlp_disabled_by_default():
+def test_otlp_disabled_by_default(monkeypatch: pytest.MonkeyPatch):
     """A fresh config must not enable OTLP push export."""
+    # Ambient OTEL_EXPORTER_OTLP_ENABLED (CI/local shell) would override the
+    # field default, so clear it before asserting the default.
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENABLED", raising=False)
     assert ObservabilityConfig().otel_exporter_otlp_enabled is False
 
 

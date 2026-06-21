@@ -10,13 +10,14 @@ Provides comprehensive distributed tracing capabilities including:
 - Custom span attributes and events
 """
 
-import logging
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
+
+import structlog
 
 try:
     from opentelemetry import baggage, context, trace
@@ -44,7 +45,7 @@ from opentelemetry.trace.propagation import get_current_span
 
 from .config import config
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Global tracer instance
 _tracer = None
@@ -89,8 +90,9 @@ def configure_tracing() -> trace.Tracer:
         )
     else:
         logger.info(
-            "OTLP span export disabled (OTEL_EXPORTER_OTLP_ENABLED=false); "
-            "tracing runs in-process only"
+            "otlp_span_export_disabled",
+            otel_exporter_otlp_enabled=False,
+            tracing_mode="in_process_only",
         )
 
     # Set as global tracer provider
