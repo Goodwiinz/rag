@@ -413,6 +413,16 @@ def extract_entities(self, job_id: str):
         service = LLMEntityExtractionService()
         extraction_result = asyncio.run(service.extract_entities(document.content_text))
 
+        # A timeout that skips chunks (or all-chunks-failed) sets
+        # ExtractionResult.error while still returning the entities found so far.
+        # Surface it instead of reporting unqualified success.
+        if extraction_result.error:
+            logger.warning(
+                "Entity extraction for document %s was partial: %s",
+                document.id,
+                extraction_result.error,
+            )
+
         # Save entities
         from src.models.entity import Entity, ExtractionMethod
         from src.services.processing.llm_entity_extraction import map_to_entity_type
@@ -444,6 +454,8 @@ def extract_entities(self, job_id: str):
                 "entity_types": list(
                     set(ent.type for ent in extraction_result.entities)
                 ),
+                "extraction_error": extraction_result.error,
+                "partial": bool(extraction_result.error),
             }
         )
         db.commit()
@@ -616,6 +628,7 @@ def kg_extract_entities_job(self, job_id: str):
         relationships_found_total = 0
         relationships_created_total = 0
         errors_total = 0
+        extraction_errors_total = 0
 
         total_docs = len(document_ids)
         for index, document_id in enumerate(document_ids):
@@ -639,6 +652,14 @@ def kg_extract_entities_job(self, job_id: str):
             extraction_result = asyncio.run(
                 service.extract_entities(content, timeout_seconds=300.0)
             )
+            if extraction_result.error:
+                extraction_errors_total += 1
+                logger.warning(
+                    "Entity extraction partial for document %s in KG job: %s",
+                    document.id,
+                    extraction_result.error,
+                )
+
             extracted_entities = extraction_result.entities
             extracted_relationships = extraction_result.relationships
             entities_found_total += len(extracted_entities)
@@ -739,6 +760,7 @@ def kg_extract_entities_job(self, job_id: str):
                 "relationships_found": relationships_found_total,
                 "relationships_created": relationships_created_total,
                 "errors": errors_total,
+                "extraction_errors": extraction_errors_total,
             }
         )
         db.commit()
