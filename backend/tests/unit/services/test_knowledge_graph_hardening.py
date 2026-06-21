@@ -508,9 +508,15 @@ class TestSchemaOnConnect:
             KnowledgeGraphService,
         )
 
-        # Clear the shared singleton so _connect takes the slow (create) path.
+        # Clear the shared singleton so _connect takes the slow (create) path,
+        # and reset the schema latch so _maybe_ensure_schema actually attempts.
         KnowledgeGraphService._driver_instance = None
+        KnowledgeGraphService._schema_ensured = False
         return KnowledgeGraphService
+
+    def _reset(self, cls):
+        cls._driver_instance = None
+        cls._schema_ensured = False
 
     @patch("src.services.knowledge_graph.knowledge_graph_service.GraphDatabase")
     def test_connect_runs_ensure_schema(self, mock_graphdb):
@@ -520,13 +526,15 @@ class TestSchemaOnConnect:
                 svc = KnowledgeGraphService()
                 svc._connect()
                 mock_schema.assert_called_once()
+                # A successful bootstrap latches so later calls don't re-run it.
+                assert KnowledgeGraphService._schema_ensured is True
         finally:
-            KnowledgeGraphService._driver_instance = None
+            self._reset(KnowledgeGraphService)
 
     @patch("src.services.knowledge_graph.knowledge_graph_service.GraphDatabase")
     def test_schema_failure_does_not_null_driver(self, mock_graphdb):
         """A schema hiccup must leave a healthy connection intact (CONTAINS
-        fallback still serves queries)."""
+        fallback still serves queries) and must NOT latch, so it retries."""
         KnowledgeGraphService = self._fresh_service()
         try:
             with patch.object(
@@ -538,5 +546,62 @@ class TestSchemaOnConnect:
                 svc._connect()
                 assert svc.driver is not None
                 assert KnowledgeGraphService._driver_instance is not None
+                # Failed bootstrap leaves the latch unset for a later retry.
+                assert KnowledgeGraphService._schema_ensured is False
         finally:
-            KnowledgeGraphService._driver_instance = None
+            self._reset(KnowledgeGraphService)
+
+    def test_maybe_ensure_schema_skips_when_breaker_open(self):
+        """Breaker open at first attempt: do NOT run schema, do NOT latch — so a
+        later call (once the breaker recovers) still gets a chance to create the
+        index instead of being stuck on CONTAINS for the pod's lifetime."""
+        KnowledgeGraphService = self._fresh_service()
+        open_breaker = MagicMock()
+        open_breaker.can_execute.return_value = False
+        try:
+            with (
+                patch(
+                    "src.services.knowledge_graph.knowledge_graph_service.get_circuit_breaker",
+                    return_value=open_breaker,
+                ),
+                patch.object(KnowledgeGraphService, "_ensure_schema") as mock_schema,
+            ):
+                svc = KnowledgeGraphService()
+                svc._maybe_ensure_schema()
+                mock_schema.assert_not_called()
+                assert KnowledgeGraphService._schema_ensured is False
+        finally:
+            self._reset(KnowledgeGraphService)
+
+    def test_maybe_ensure_schema_runs_when_breaker_closed(self):
+        """Once the breaker is closed, the bootstrap runs and latches."""
+        KnowledgeGraphService = self._fresh_service()
+        closed_breaker = MagicMock()
+        closed_breaker.can_execute.return_value = True
+        try:
+            with (
+                patch(
+                    "src.services.knowledge_graph.knowledge_graph_service.get_circuit_breaker",
+                    return_value=closed_breaker,
+                ),
+                patch.object(KnowledgeGraphService, "_ensure_schema") as mock_schema,
+            ):
+                svc = KnowledgeGraphService()
+                svc._maybe_ensure_schema()
+                mock_schema.assert_called_once()
+                assert KnowledgeGraphService._schema_ensured is True
+        finally:
+            self._reset(KnowledgeGraphService)
+
+    def test_maybe_ensure_schema_reentrancy_guard(self):
+        """The nested get_session inside _ensure_schema must not recurse back
+        into a second _ensure_schema on the same instance."""
+        KnowledgeGraphService = self._fresh_service()
+        try:
+            with patch.object(KnowledgeGraphService, "_ensure_schema") as mock_schema:
+                svc = KnowledgeGraphService()
+                svc._ensuring_schema = True  # simulate in-flight bootstrap
+                svc._maybe_ensure_schema()
+                mock_schema.assert_not_called()
+        finally:
+            self._reset(KnowledgeGraphService)
