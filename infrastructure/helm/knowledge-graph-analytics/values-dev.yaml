@@ -320,3 +320,12 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
+# ──────────────────────────────────────────────
+# Synthetic traffic generator — in-process LangGraph driver that produces
+# continuous LangSmith traces in rag-agent-dev while the dev agent is idle.
+# Runs every 20 min; set enabled: false to pause without code changes.
+# ──────────────────────────────────────────────
+syntheticTraffic:
+  enabled: true
+  schedule: "*/20 * * * *"
+  args: ["--rotate"]

@@ -1,0 +1,69 @@
+{{- if .Values.syntheticTraffic.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "knowledge-graph-analytics.fullname" . }}-synthetic-traffic
+  labels:
+    {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
+    app.kubernetes.io/component: synthetic-traffic
+spec:
+  schedule: {{ .Values.syntheticTraffic.schedule | quote }}
+  # Forbid overlapping runs: if the previous job is still running when the
+  # next tick fires, skip that tick rather than stacking a second pod.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  # If the CronJob controller misses a fire (e.g. cluster restart), only
+  # attempt a catch-up run if we missed by less than 2 minutes.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      # Only retry once — a second attempt will just produce duplicate traces
+      # for the same window.  Prefer a clean failure over double-counting.
+      backoffLimit: 1
+      # Hard ceiling: the most expensive scenario (ingest) targets 60 s;
+      # 600 s gives ≈10× headroom for slow-path Azure + arXiv calls.
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: synthetic-traffic
+        spec:
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "knowledge-graph-analytics.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          restartPolicy: Never
+          containers:
+            - name: synthetic-traffic
+              image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+              workingDir: /app
+              command: ["python", "-m", "scripts.synthetic_traffic"]
+              args: {{ .Values.syntheticTraffic.args | default (list "--rotate") | toJson }}
+              envFrom:
+                {{- if .Values.backend.envFrom }}
+                {{- toYaml .Values.backend.envFrom | nindent 16 }}
+                {{- end }}
+              env:
+                {{- if .Values.backend.env }}
+                {{- toYaml .Values.backend.env | nindent 16 }}
+                {{- end }}
+                # Ensure PYTHONPATH and ENVIRONMENT are always set even if
+                # backend.env is overridden in a future values file.
+                - name: ENVIRONMENT
+                  value: {{ .Values.global.environment | default "dev" | quote }}
+                - name: PYTHONPATH
+                  value: "/app"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+{{- end }}
