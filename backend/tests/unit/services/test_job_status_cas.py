@@ -7,9 +7,8 @@ these cover its in-memory (Redis-unavailable, single-process) path
 deterministically.
 """
 
-from unittest.mock import AsyncMock, patch
-
 import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -60,3 +59,36 @@ async def test_cas_conflict_when_not_in_expected_status():
             await js.compare_and_set_status("j2", "awaiting_confirmation", "running")
             == "conflict"
         )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_cas_falls_back_to_memory_on_redis_error():
+    """A Redis operational error must degrade to the in-memory transition, not
+    silently drop the claim (which would stall a HITL confirm)."""
+
+    class _BadPipe:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def watch(self, *a):
+            raise RuntimeError("redis down mid-op")
+
+    bad = MagicMock()
+    bad.pipeline = MagicMock(return_value=_BadPipe())
+
+    js._l1["j3"] = {
+        "status": "awaiting_confirmation",
+        "created_at": time.time(),
+        "user_id": "u",
+    }
+    with patch.object(js, "_get_redis", AsyncMock(return_value=bad)):
+        result = await js.compare_and_set_status(
+            "j3", "awaiting_confirmation", "running"
+        )
+
+    assert result == "claimed"
+    assert js._l1["j3"]["status"] == "running"
