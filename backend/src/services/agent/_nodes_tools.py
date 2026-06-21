@@ -766,6 +766,12 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         # Prune to last 20 entries to prevent unbounded growth
         tool_executions = tool_executions[-20:]
 
+        # True iff every *allowed* tool call in the batch was a cache hit.
+        # Mirrors the main tool_node's tools_all_deduped computation so the
+        # subgraph route_after_*_tool_node helpers can skip the wasted
+        # compactor → llm re-plan round-trip when no new data arrived.
+        tools_all_deduped: bool = len(fresh_calls) == 0 and len(cached) > 0
+
         return {
             "messages": tool_messages,
             "tool_executions": tool_executions,
@@ -773,6 +779,7 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
             "last_error": last_error,
             "last_error_info": last_error_info,
             "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+            "tools_all_deduped": tools_all_deduped,
         }
 
     return filtered_tool_node

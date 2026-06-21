@@ -121,9 +121,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         from src.services.agent.llm_factory import build_synthesis_llm
 
         llm = build_synthesis_llm(max_tokens=4096)
-        logger.debug(
-            "research_llm_node: using synthesis model after ToolMessage"
-        )
+        logger.debug("research_llm_node: using synthesis model after ToolMessage")
     else:
         # Tool-decision turn: route off model-router to the lightweight
         # deployment (gpt-5-mini). LangSmith showed model-router hitting the
@@ -133,9 +131,7 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         from src.services.agent.llm_factory import build_lightweight_llm
 
         llm = build_lightweight_llm(max_tokens=4096)
-        logger.debug(
-            "research_llm_node: using lightweight model for tool decision"
-        )
+        logger.debug("research_llm_node: using lightweight model for tool decision")
     # See graph.llm_node for rationale on parallel_tool_calls=False.
     llm_with_tools = llm.bind_tools(
         RESEARCH_TOOLS,
@@ -344,6 +340,21 @@ def research_after_interrupt(state: AgentState) -> str:
     return "research_reflection_gate"
 
 
+def route_after_research_tool_node(state: AgentState) -> str:
+    """Route from research_tool_node: skip the re-plan loop when the batch was fully deduped.
+
+    A fully-deduped batch (every tool call was already executed this turn with
+    identical args) carries zero new information.  Routing through
+    research_compactor_node → research_llm_node would burn another LLM
+    round-trip (~8 s Azure p95) for no gain.  Instead go straight to
+    research_force_synthesis_node so it produces a final answer from the
+    cached results already in state.
+    """
+    if state.get("tools_all_deduped"):
+        return "research_force_synthesis_node"
+    return "research_compactor_node"
+
+
 def _research_reflection_route(state: AgentState) -> str:
     """Route after reflection: revise loops back to LLM, proceed exits."""
     from src.services.agent.reflection import ReflectionResult
@@ -414,7 +425,16 @@ def build_research_subgraph() -> StateGraph:
         },
     )
 
-    graph.add_edge("research_tool_node", "research_compactor_node")
+    # When the entire tool batch was deduped (no fresh calls ran), skip the
+    # wasted compactor → llm re-plan hop and go straight to force_synthesis.
+    graph.add_conditional_edges(
+        "research_tool_node",
+        route_after_research_tool_node,
+        {
+            "research_compactor_node": "research_compactor_node",
+            "research_force_synthesis_node": "research_force_synthesis_node",
+        },
+    )
     graph.add_edge("research_compactor_node", "research_llm_node")
 
     graph.add_conditional_edges(
