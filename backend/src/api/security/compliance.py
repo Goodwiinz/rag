@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.exceptions.analytics_exceptions import (
     ConfigurationException,
     PermissionDeniedException,
@@ -167,9 +167,14 @@ class UserActivitySummaryResponse(BaseModel):
 # Helper functions
 
 
-def get_audit_service() -> AuditService:
-    """Get audit service instance"""
-    return AuditService()
+def get_audit_service(db: Session = Depends(get_db_sync)) -> AuditService:
+    """Get audit service instance backed by a request-scoped sync session.
+
+    AuditService uses self.db.query(...) (sync), so it needs a real sync
+    Session. The previous AuditService() left self.db=None, so every endpoint
+    that touched audit_service.db raised AttributeError (opaque 500s).
+    """
+    return AuditService(db)
 
 
 # API Endpoints
