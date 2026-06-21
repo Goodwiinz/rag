@@ -13,14 +13,32 @@ from sqlalchemy import TEXT, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.mutable import Mutable, MutableDict
 
+import os
+
 from ..core.encryption import (
     EncryptionError,
     decrypt_sensitive_field,
     encrypt_sensitive_field,
     get_field_encryption,
+    is_encrypted_payload,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _encryption_strict() -> bool:
+    """Fail-closed on decrypt failure of encrypted data when set.
+
+    Default off: returning None keeps result sets loading (raising inside a
+    SQLAlchemy result processor aborts the ENTIRE query, 500-ing list
+    endpoints for all users). Set ENCRYPTION_STRICT=true where serving a
+    blanked PII field is worse than failing the read.
+    """
+    return os.getenv("ENCRYPTION_STRICT", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 class EncryptedType(TypeDecorator):
@@ -44,16 +62,42 @@ class EncryptedType(TypeDecorator):
             raise
 
     def process_result_value(self, value: Optional[str], dialect) -> Any:
-        """Decrypt value after retrieving from database"""
+        """Decrypt value after retrieving from database.
+
+        On decrypt failure we must distinguish two cases:
+
+        * The stored value is an encryption envelope but could not be
+          decrypted (no/changed key, corruption). Returning the raw value
+          would leak the ciphertext payload to the caller as if it were the
+          plaintext — a silent confidentiality + integrity failure. Log at
+          ERROR and return None (or raise under ENCRYPTION_STRICT). Never
+          return the ciphertext.
+        * The stored value is plain text (encryption was disabled at write,
+          or pre-encryption legacy rows). Returning it raw is the intended
+          graceful fallback; log at DEBUG.
+        """
         if value is None:
             return None
 
+        field_name = getattr(self, "_field_name", "unknown")
         try:
-            return decrypt_sensitive_field(
-                value, getattr(self, "_field_name", "unknown")
+            return decrypt_sensitive_field(value, field_name)
+        except EncryptionError as e:
+            if is_encrypted_payload(value):
+                # Genuine failure to decrypt real ciphertext — never hand the
+                # envelope back. Log without the value (it is sensitive).
+                logger.error(
+                    "Failed to decrypt encrypted field %s: %s", field_name, str(e)
+                )
+                if _encryption_strict():
+                    raise
+                return None
+            # Not an envelope: legacy/plaintext row or encryption disabled.
+            logger.debug(
+                "Field %s is not encrypted (returning raw value): %s",
+                field_name,
+                str(e),
             )
-        except (EncryptionError, Exception) as e:
-            logger.debug(f"Decryption failed for field {getattr(self, '_field_name', 'unknown')} (returning raw value): {str(e)}")
             return value
 
     def copy(self, **kwargs):

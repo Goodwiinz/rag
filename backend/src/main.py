@@ -186,8 +186,9 @@ async def lifespan(app: FastAPI):
         )
 
     # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
-    # Non-fatal: if the key is missing the app still boots but encrypted fields
-    # (first_name, last_name) return raw/ciphertext values instead of plaintext.
+    # Non-fatal: if the key is missing the app still boots. Plaintext/legacy rows
+    # read back raw; genuinely-encrypted values that can't be decrypted return
+    # None (never the ciphertext) — see EncryptedType.process_result_value.
     try:
         from src.core.encryption import initialize_encryption
 
