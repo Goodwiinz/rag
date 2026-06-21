@@ -280,7 +280,10 @@ def process_document_ingestion(self, job_id: str):
             result={
                 "text_extracted": bool(document.content_text),
                 "entities_found": len(entities) if "entities" in locals() else 0,
-                "embedding_generated": bool(document.embedding_id),
+                # is_embedded is the source of truth (set after DO KB sync).
+                # embedding_id is the dead Qdrant vector-id column (always NULL
+                # now), so bool(embedding_id) always reported False.
+                "embedding_generated": bool(document.is_embedded),
                 "word_count": text_extraction_result.get("word_count", 0),
             }
         )
