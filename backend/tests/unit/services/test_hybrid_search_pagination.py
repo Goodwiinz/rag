@@ -13,7 +13,7 @@ import pytest
 from src.services.search.hybrid_search_service import HybridSearchService
 
 
-def _raw(i: int):
+def _raw(i: int) -> SimpleNamespace:
     sr = SimpleNamespace(
         title=f"title {i}",
         content_preview=f"content {i}",
@@ -30,7 +30,7 @@ def _raw(i: int):
 
 
 @pytest.mark.unit
-def test_apply_final_filtering_returns_page_and_total():
+def test_apply_final_filtering_returns_page_and_total() -> None:
     svc = HybridSearchService(db=None)
     fused = [_raw(i) for i in range(5)]
 
