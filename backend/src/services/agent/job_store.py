@@ -230,15 +230,22 @@ async def compare_and_set_status(job_id: str, expected: str, new_status: str) ->
     """
     redis_client = await _get_redis()
     if redis_client is None:
-        # In-memory only ⇒ single process; the L1 lock makes this atomic.
+        # In-memory only ⇒ single process. Read via get_job (L1, falling back to
+        # any store the caller mocks), flip under the L1 lock for atomicity, then
+        # persist write-through. The lock around the read-compare-write makes
+        # concurrent same-process confirms claim exactly once.
+        job = await get_job(job_id)
+        if job is None:
+            return "missing"
         with _l1_lock:
-            job = _l1.get(job_id)
-            if job is None:
-                return "missing"
-            if job.get("status") != expected:
+            current = _l1.get(job_id) or job
+            if current.get("status") != expected:
                 return "conflict"
-            job["status"] = new_status
-            return "claimed"
+            current["status"] = new_status
+            _l1[job_id] = current
+            claimed = current
+        await set_job(job_id, claimed)
+        return "claimed"
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
     from redis.exceptions import WatchError
@@ -267,7 +274,11 @@ async def compare_and_set_status(job_id: str, expected: str, new_status: str) ->
                     await pipe.execute()  # raises WatchError if key changed
                     break
                 except WatchError:
-                    continue  # another writer touched the key — retry
+                    # Reset clears the WATCH/command state before re-watching —
+                    # required so the retry's watch() starts from a clean slate
+                    # and the connection isn't left bound.
+                    await pipe.reset()
+                    continue
     except Exception:
         logger.exception("compare_and_set_status failed for job %s", job_id)
         # Fail closed: report conflict so the caller does NOT double-schedule.

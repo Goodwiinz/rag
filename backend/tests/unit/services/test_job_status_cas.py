@@ -9,6 +9,8 @@ deterministically.
 
 from unittest.mock import AsyncMock, patch
 
+import time
+
 import pytest
 
 from src.services.agent import job_store as js
@@ -25,7 +27,7 @@ def _clear_l1():
 @pytest.mark.asyncio
 async def test_cas_claims_exactly_once():
     with patch.object(js, "_get_redis", AsyncMock(return_value=None)):
-        js._l1["j1"] = {"status": "awaiting_confirmation", "created_at": 0}
+        js._l1["j1"] = {"status": "awaiting_confirmation", "created_at": time.time()}
 
         first = await js.compare_and_set_status(
             "j1", "awaiting_confirmation", "running"
@@ -53,7 +55,7 @@ async def test_cas_missing_job():
 @pytest.mark.asyncio
 async def test_cas_conflict_when_not_in_expected_status():
     with patch.object(js, "_get_redis", AsyncMock(return_value=None)):
-        js._l1["j2"] = {"status": "completed", "created_at": 0}
+        js._l1["j2"] = {"status": "completed", "created_at": time.time()}
         assert (
             await js.compare_and_set_status("j2", "awaiting_confirmation", "running")
             == "conflict"
