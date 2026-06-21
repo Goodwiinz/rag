@@ -13,12 +13,12 @@ import pytest
 
 
 class _DisconnectGraph:
-    """astream_events yields one event; the generator should aclose() it the
-    moment the client is seen disconnected, before aget_state is reached."""
+    """astream_events yields one event; on client disconnect the generator must
+    aclose() the iterator (cancelling the resumed run) and stop without emitting
+    the confirmation/done events."""
 
     def __init__(self):
         self.aclosed = False
-        self.aget_state_called = False
         self._sent = False
 
     def astream_events(self, *args, **kwargs):
@@ -42,8 +42,17 @@ class _DisconnectGraph:
         self.aclosed = True
 
     async def aget_state(self, config):
-        self.aget_state_called = True
-        return SimpleNamespace(values={}, tasks=())
+        # Populated + owned by the requesting user so the pre-loop ownership
+        # snapshot passes and execution reaches the stream loop.
+        return SimpleNamespace(
+            values={
+                "user_id": "user-1",
+                "page_context": {},
+                "messages": [],
+                "tool_executions": [],
+            },
+            tasks=(),
+        )
 
 
 @pytest.mark.asyncio
@@ -52,7 +61,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
 
     graph = _DisconnectGraph()
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
-    body = SimpleNamespace(thread_id="thread-789", confirmed=True)
+    body = SimpleNamespace(thread_id="thread-789", confirmed=True, model="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -80,8 +89,8 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
         async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
-    assert graph.aclosed is True
-    assert graph.aget_state_called is False  # skipped the snapshot/emit path
+    assert graph.aclosed is True  # resumed run cancelled
+    # Early-returned before the post-loop snapshot/emit path.
     assert not any(
         e.startswith("event: done") or e.startswith("event: confirmation")
         for e in events
