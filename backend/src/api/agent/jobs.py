@@ -1093,6 +1093,7 @@ async def _resume_agent_graph(
     current_user: User,
 ):
     """Resume the agent graph after human confirmation."""
+    from langgraph.errors import GraphInterrupt
     from langgraph.types import Command
 
     from src.services.agent.checkpointer import get_checkpointer
@@ -1263,6 +1264,34 @@ async def _resume_agent_graph(
                     "user_id": str(current_user.id),
                 },
             )
+        except GraphInterrupt as exc:
+            # A multi-step destructive flow can re-fire interrupt() during the
+            # resume (user confirms tool #1, the agent then issues tool #2).
+            # Without this handler the second interrupt bubbles into the generic
+            # ``except Exception`` below and the job is wrongly marked "failed"
+            # via client_safe_error, losing the second confirmation and breaking
+            # HITL on the job/poll path. Mirror _run_agent_graph: re-park the job
+            # as awaiting_confirmation. Uses original_request (the resume path's
+            # request), not ``request``.
+            interrupts = getattr(exc, "interrupts", [])
+            confirmation_details = {}
+            if interrupts:
+                confirmation_details = getattr(interrupts[0], "value", {})
+            await _set_job_async(
+                job_id,
+                {
+                    "status": "awaiting_confirmation",
+                    "confirmation": confirmation_details,
+                    # ainvoke raised before returning, so no final_state exists —
+                    # match _run_agent_graph and reset the per-turn executions.
+                    "tool_executions": [],
+                    "user_id": str(current_user.id),
+                    "request": (
+                        original_request.model_dump() if original_request else None
+                    ),
+                },
+            )
+            return
         except asyncio.CancelledError:
             # See parallel handler in _run_agent_graph above — CancelledError
             # is a BaseException, so the ``except Exception`` below misses it.

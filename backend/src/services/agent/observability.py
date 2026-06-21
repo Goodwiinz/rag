@@ -15,6 +15,20 @@ from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# LangGraph control-flow signals. interrupt() (HITL confirm for destructive
+# tools) raises GraphInterrupt, and Send/Command parent-bubbling raises
+# ParentCommand; both subclass GraphBubbleUp. They are normal control flow that
+# must propagate to the graph runner — NOT node failures. Catching them in the
+# node wrapper's generic ``except Exception`` logged a false ERROR and bumped
+# AGENT_ERRORS on every HITL confirm. Import is guarded so observability never
+# hard-fails if langgraph is absent (metrics are already optional here).
+try:
+    from langgraph.errors import GraphBubbleUp as _GraphBubbleUp
+
+    _CONTROL_FLOW_EXC: tuple = (_GraphBubbleUp,)
+except ImportError:  # pragma: no cover - langgraph always present in app runtime
+    _CONTROL_FLOW_EXC = ()
+
 # Cached LangSmith client for run patching (intent tagging). Building one per
 # call re-reads env + sets up a session; cache it behind a lock.
 _LS_CLIENT: Any = None
@@ -363,6 +377,17 @@ def track_node_execution(node_name: str):
                         node=node_name, status="success"
                     ).observe(duration)
                 return result
+            except _CONTROL_FLOW_EXC:
+                # HITL interrupt / parent-command bubble-up — control flow, not a
+                # node failure. Record the latency under a benign status and
+                # re-raise so the graph runner can pause/route; do NOT log ERROR
+                # or increment AGENT_ERRORS.
+                duration = time.monotonic() - t0
+                if _METRICS_AVAILABLE:
+                    AGENT_NODE_DURATION.labels(
+                        node=node_name, status="interrupted"
+                    ).observe(duration)
+                raise
             except Exception as e:
                 duration = time.monotonic() - t0
                 # Keep the traceback for operators (exc_info) but keep the raw
