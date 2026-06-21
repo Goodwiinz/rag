@@ -189,7 +189,7 @@ class HybridSearchService:
                 fused_results = reranked
 
             # Apply final filtering and pagination
-            final_results = self._apply_final_filtering(
+            final_results, total_filtered = self._apply_final_filtering(
                 fused_results, search_request, organization_id, db=db
             )
 
@@ -203,12 +203,13 @@ class HybridSearchService:
                 search_id=str(uuid.uuid4()),
                 search_type=SearchType.HYBRID,
                 results=final_results,
-                total_results=len(final_results),
+                total_results=total_filtered,
                 returned_results=len(final_results),
                 search_time_ms=search_time_ms,
                 limit=search_request.limit,
                 offset=search_request.offset,
-                has_more=len(final_results) >= search_request.limit,
+                has_more=total_filtered
+                > (search_request.offset + search_request.limit),
                 suggestions=self._get_hybrid_suggestions(
                     search_request, source_results
                 ),
@@ -392,7 +393,7 @@ class HybridSearchService:
                 trace.rerank = RerankDiagnostics(enabled=False)
 
             # Step 5: Final filtering
-            final_results = self._apply_final_filtering(
+            final_results, total_filtered = self._apply_final_filtering(
                 fused_results, search_request, organization_id, db=db
             )
 
@@ -405,12 +406,13 @@ class HybridSearchService:
                 search_id=str(uuid.uuid4()),
                 search_type=SearchType.HYBRID,
                 results=final_results,
-                total_results=len(final_results),
+                total_results=total_filtered,
                 returned_results=len(final_results),
                 search_time_ms=search_time_ms,
                 limit=search_request.limit,
                 offset=search_request.offset,
-                has_more=len(final_results) >= search_request.limit,
+                has_more=total_filtered
+                > (search_request.offset + search_request.limit),
                 suggestions=self._get_hybrid_suggestions(
                     search_request, source_results
                 ),
@@ -749,9 +751,9 @@ class HybridSearchService:
             for result in kg_result:
                 # Create SearchResult from knowledge graph result
                 search_result = SearchResult(
-                    document_id=str(result.id)
-                    if hasattr(result, "id")
-                    else str(uuid.uuid4()),
+                    document_id=(
+                        str(result.id) if hasattr(result, "id") else str(uuid.uuid4())
+                    ),
                     title=getattr(result, "name", "Entity"),
                     document_type=DocumentType.TEXT,
                     content_preview=getattr(result, "description", ""),
@@ -1087,8 +1089,13 @@ class HybridSearchService:
         search_request: SearchQuery,
         organization_id: Optional[str],
         db: Optional[Session] = None,
-    ) -> List[SearchResult]:
-        """Apply final filtering and pagination to fused results"""
+    ) -> Tuple[List[SearchResult], int]:
+        """Apply final filtering and pagination to fused results.
+
+        Returns ``(page_results, total_after_filter)`` — the second value is the
+        full post-filter candidate count (pre-pagination), so callers can
+        compute ``has_more`` correctly instead of guessing from the sliced page.
+        """
         selected_document_ids = (
             set(search_request.filters.document_ids or [])
             if search_request.filters
@@ -1135,18 +1142,15 @@ class HybridSearchService:
         if db and final_results:
             self._enrich_titles_from_db(final_results, db)
 
-        return final_results
+        return final_results, len(filtered_fused_results)
 
-    def _enrich_titles_from_db(
-        self, results: List[SearchResult], db: Session
-    ) -> None:
+    def _enrich_titles_from_db(self, results: List[SearchResult], db: Session) -> None:
         """Look up actual document titles from DB for results with placeholder titles."""
         try:
             ids_needing_titles = [
                 r.document_id
                 for r in results
-                if r.title in ("Untitled", "Untitled Document", "")
-                or len(r.title) > 80
+                if r.title in ("Untitled", "Untitled Document", "") or len(r.title) > 80
             ]
             if not ids_needing_titles:
                 return
@@ -1223,7 +1227,10 @@ class HybridSearchService:
         return unique_suggestions[:5]
 
     def _fallback_to_fulltext(
-        self, search_request: SearchQuery, user_id: Optional[str], organization_id: Optional[str]
+        self,
+        search_request: SearchQuery,
+        user_id: Optional[str],
+        organization_id: Optional[str],
     ) -> SearchResponse:
         """Fallback to full-text search if hybrid search fails"""
         logger.warning("Hybrid search failed, falling back to full-text search")
