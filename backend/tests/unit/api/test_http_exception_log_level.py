@@ -16,14 +16,14 @@ from fastapi.exceptions import RequestValidationError
 from src.main import http_exception_handler, validation_exception_handler
 
 
-def _request(path="/api/v1/processing/jobs"):
+def _request(path: str = "/api/v1/processing/jobs") -> types.SimpleNamespace:
     return types.SimpleNamespace(url=types.SimpleNamespace(path=path))
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 422, 429])
-async def test_4xx_logged_as_warning_not_error(status_code):
+async def test_4xx_logged_as_warning_not_error(status_code: int) -> None:
     with patch("src.main.logger") as log:
         resp = await http_exception_handler(
             _request(), HTTPException(status_code=status_code, detail="nope")
@@ -36,7 +36,7 @@ async def test_4xx_logged_as_warning_not_error(status_code):
 @pytest.mark.unit
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status_code", [500, 502, 503])
-async def test_5xx_logged_as_error(status_code):
+async def test_5xx_logged_as_error(status_code: int) -> None:
     with patch("src.main.logger") as log:
         resp = await http_exception_handler(
             _request(), HTTPException(status_code=status_code, detail="boom")
@@ -48,7 +48,7 @@ async def test_5xx_logged_as_error(status_code):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_401_preserves_www_authenticate_header():
+async def test_401_preserves_www_authenticate_header() -> None:
     """Fix must be log-only — 401 keeps its WWW-Authenticate header."""
     with patch("src.main.logger"):
         resp = await http_exception_handler(
@@ -65,7 +65,7 @@ async def test_401_preserves_www_authenticate_header():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_validation_error_logged_as_warning():
+async def test_validation_error_logged_as_warning() -> None:
     """422 (RequestValidationError) is a client error — warning, not error."""
     with patch("src.main.logger") as log:
         resp = await validation_exception_handler(
@@ -74,3 +74,16 @@ async def test_validation_error_logged_as_warning():
     assert resp.status_code == 422
     log.warning.assert_called_once()
     log.error.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_crlf_in_path_is_neutralized_in_log() -> None:
+    """A request path with CR/LF must not forge log lines."""
+    with patch("src.main.logger") as log:
+        await http_exception_handler(
+            _request("/jobs\r\nFAKE ERROR injected"),
+            HTTPException(status_code=404, detail="x"),
+        )
+    logged_path = log.warning.call_args.args[2]
+    assert "\n" not in logged_path and "\r" not in logged_path

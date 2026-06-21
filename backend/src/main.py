@@ -11,7 +11,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Optional
 
 import redis  # Added this line
 import sentry_sdk
@@ -617,13 +617,27 @@ async def root():
 
 
 # Global exception handlers
+def _sanitize_log(value: Any) -> str:
+    """Neutralize CR/LF in request-derived values before logging.
+
+    Prevents log-forging / line-injection when a request path or error detail
+    contains newlines. (JSON log output already escapes these, but plaintext
+    handlers and downstream consumers should not have to rely on that.)
+    """
+    return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
     # 422 is a client error (malformed request), not a server fault — log at
     # warning so it doesn't inflate error-rate alerts (matches the HTTP 4xx
     # handling below).
-    logger.warning("Validation error on %s: %s", request.url.path, exc.errors())
+    logger.warning(
+        "Validation error on %s: %s",
+        _sanitize_log(request.url.path),
+        _sanitize_log(exc.errors()),
+    )
     safe_errors = []
     for err in exc.errors():
         safe = {k: v for k, v in err.items() if k != "ctx"}
@@ -660,7 +674,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """
     status_code = getattr(exc, "status_code", 500)
     log = logger.error if status_code >= 500 else logger.warning
-    log("HTTP %s error on %s: %s", status_code, request.url.path, exc.detail)
+    log(
+        "HTTP %s error on %s: %s",
+        status_code,
+        _sanitize_log(request.url.path),
+        _sanitize_log(exc.detail),
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={
