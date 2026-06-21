@@ -209,3 +209,67 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
     # Error detail is no longer leaked to the client-facing job record.
     assert job["error"] == "The request could not be completed. Please retry."
     assert "kaboom" not in job["error"]
+
+
+async def test_resume_agent_graph_reparks_on_chained_interrupt():
+    """A multi-step destructive flow re-fires interrupt() during resume.
+
+    The resume runner must catch GraphInterrupt and re-park the job as
+    ``awaiting_confirmation`` (mirroring _run_agent_graph) rather than letting
+    it fall through to ``except Exception`` and marking the job ``failed`` —
+    which would silently drop the second confirmation and break HITL.
+    """
+    from langgraph.errors import GraphInterrupt
+    from langgraph.types import Interrupt
+
+    from src.api.agent.execute import _set_job, _get_job
+    from src.api.agent.jobs import _resume_agent_graph
+
+    job_id = str(uuid4())
+    user = _make_mock_user()
+    db = _make_mock_db()
+
+    _set_job(
+        job_id,
+        {
+            "status": "awaiting_confirmation",
+            "tool_executions": [],
+            "user_id": str(user.id),
+            "request": {
+                "messages": [{"role": "user", "content": "ingest then note"}],
+                "page_context": {"type": "unknown"},
+                "model": "model-router",
+                "use_rag": True,
+                "max_context_docs": 5,
+            },
+        },
+    )
+
+    confirmation = {
+        "tools": [{"name": "create_note", "args": {"title": "n"}}],
+        "message": "The agent wants to execute 1 action(s) that modify your data.",
+    }
+
+    mock_graph = MagicMock()
+    mock_graph.ainvoke = AsyncMock(
+        side_effect=GraphInterrupt((Interrupt(value=confirmation, id="i2"),))
+    )
+    mock_graph.aget_state = AsyncMock(return_value=None)
+
+    with (
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer", new_callable=AsyncMock
+        ),
+        patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
+        patch(
+            "src.api.agent.jobs.AsyncSessionLocal",
+            return_value=_async_session_yielding(db),
+        ),
+    ):
+        # GraphInterrupt is control flow — caught, not re-raised.
+        await _resume_agent_graph(job_id, True, user)
+
+    job = _get_job(job_id)
+    assert job is not None
+    assert job["status"] == "awaiting_confirmation"
+    assert job["confirmation"] == confirmation
