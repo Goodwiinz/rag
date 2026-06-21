@@ -240,6 +240,21 @@ async def data_force_synthesis_node(state: AgentState, config: RunnableConfig) -
     }
 
 
+def route_after_data_tool_node(state: AgentState) -> str:
+    """Route from data_tool_node: skip the re-plan loop when the batch was fully deduped.
+
+    A fully-deduped batch (every tool call was already executed this turn with
+    identical args) carries zero new information.  Routing through
+    data_compactor_node → data_llm_node would burn another LLM
+    round-trip (~8 s Azure p95) for no gain.  Instead go straight to
+    data_force_synthesis_node so it produces a final answer from the
+    cached results already in state.
+    """
+    if state.get("tools_all_deduped"):
+        return "data_force_synthesis_node"
+    return "data_compactor_node"
+
+
 def _data_reflection_route(state: AgentState) -> str:
     """Route after reflection: revise loops back to LLM, proceed exits.
 
@@ -308,7 +323,16 @@ def build_data_subgraph() -> StateGraph:
     # Forced synthesis always goes to reflection (it produced a final answer).
     graph.add_edge("data_force_synthesis_node", "data_reflection_gate")
 
-    graph.add_edge("data_tool_node", "data_compactor_node")
+    # When the entire tool batch was deduped (no fresh calls ran), skip the
+    # wasted compactor → llm re-plan hop and go straight to force_synthesis.
+    graph.add_conditional_edges(
+        "data_tool_node",
+        route_after_data_tool_node,
+        {
+            "data_compactor_node": "data_compactor_node",
+            "data_force_synthesis_node": "data_force_synthesis_node",
+        },
+    )
     graph.add_edge("data_compactor_node", "data_llm_node")
 
     graph.add_conditional_edges(

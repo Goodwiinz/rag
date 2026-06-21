@@ -315,6 +315,21 @@ def writing_after_interrupt(state: AgentState) -> str:
     return "writing_reflection_gate"
 
 
+def route_after_writing_tool_node(state: AgentState) -> str:
+    """Route from writing_tool_node: skip the re-plan loop when the batch was fully deduped.
+
+    A fully-deduped batch (every tool call was already executed this turn with
+    identical args) carries zero new information.  Routing through
+    writing_compactor_node → writing_llm_node would burn another LLM
+    round-trip (~8 s Azure p95) for no gain.  Instead go straight to
+    writing_force_synthesis_node so it produces a final answer from the
+    cached results already in state.
+    """
+    if state.get("tools_all_deduped"):
+        return "writing_force_synthesis_node"
+    return "writing_compactor_node"
+
+
 def _writing_reflection_route(state: AgentState) -> str:
     """Route after reflection: revise loops back to LLM, proceed exits."""
     from src.services.agent.reflection import ReflectionResult
@@ -386,7 +401,16 @@ def build_writing_subgraph() -> StateGraph:
         },
     )
 
-    graph.add_edge("writing_tool_node", "writing_compactor_node")
+    # When the entire tool batch was deduped (no fresh calls ran), skip the
+    # wasted compactor → llm re-plan hop and go straight to force_synthesis.
+    graph.add_conditional_edges(
+        "writing_tool_node",
+        route_after_writing_tool_node,
+        {
+            "writing_compactor_node": "writing_compactor_node",
+            "writing_force_synthesis_node": "writing_force_synthesis_node",
+        },
+    )
     graph.add_edge("writing_compactor_node", "writing_llm_node")
 
     graph.add_conditional_edges(
