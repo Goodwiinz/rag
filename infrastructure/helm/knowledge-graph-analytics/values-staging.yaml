@@ -220,3 +220,6 @@ serviceAccount:
   create: true
   annotations: {}
   name: ""
+# Synthetic traffic is dev-only; disabled in staging and production.
+syntheticTraffic:
+  enabled: false
