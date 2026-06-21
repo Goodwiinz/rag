@@ -13,10 +13,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _mock_neo4j_entity(
     entity_id: str = None,
@@ -45,10 +45,13 @@ def _mock_neo4j_entity(
 # Phase 1: Tenant Isolation
 # ---------------------------------------------------------------------------
 
+
 class TestTenantIsolation:
     """Verify source_document_ids filtering in service methods."""
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session"
+    )
     def test_get_entity_scoped_returns_none_for_wrong_org(self, mock_session):
         """get_entity with source_document_ids should return None when entity
         belongs to a different org's document."""
@@ -75,7 +78,9 @@ class TestTenantIsolation:
         assert "source_document_id IN $source_document_ids" in query
         assert call_args[0][1]["source_document_ids"] == ["doc-B"]
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session"
+    )
     def test_search_entities_scoped(self, mock_session):
         """search_entities with source_document_ids should include the filter."""
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -97,7 +102,9 @@ class TestTenantIsolation:
         query = call_args[0][0]
         assert "source_document_id IN $source_document_ids" in query
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session"
+    )
     def test_delete_entity_scoped(self, mock_session):
         """delete_entity with source_document_ids should scope the MATCH."""
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -120,7 +127,9 @@ class TestTenantIsolation:
         query = call_args[0][0]
         assert "source_document_id IN $source_document_ids" in query
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session"
+    )
     def test_get_all_entities_no_null_escape(self, mock_session):
         """get_all_entities should NOT include IS NULL escape hatch."""
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -147,6 +156,7 @@ class TestTenantIsolation:
 # Phase 2: Integration Contracts
 # ---------------------------------------------------------------------------
 
+
 class TestIntegrationContracts:
     """Verify adapter methods match caller expectations."""
 
@@ -155,6 +165,7 @@ class TestIntegrationContracts:
         from src.services.knowledge_graph.knowledge_graph_service import (
             KnowledgeGraphService,
         )
+
         assert hasattr(KnowledgeGraphService, "search")
 
     def test_create_entity_node_adapter_exists(self):
@@ -162,6 +173,7 @@ class TestIntegrationContracts:
         from src.services.knowledge_graph.knowledge_graph_service import (
             KnowledgeGraphService,
         )
+
         assert hasattr(KnowledgeGraphService, "create_entity_node")
 
     def test_find_entity_node_adapter_exists(self):
@@ -169,6 +181,7 @@ class TestIntegrationContracts:
         from src.services.knowledge_graph.knowledge_graph_service import (
             KnowledgeGraphService,
         )
+
         assert hasattr(KnowledgeGraphService, "find_entity_node")
 
     def test_query_graph_adapter_exists(self):
@@ -176,9 +189,12 @@ class TestIntegrationContracts:
         from src.services.knowledge_graph.knowledge_graph_service import (
             KnowledgeGraphService,
         )
+
         assert hasattr(KnowledgeGraphService, "query_graph")
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities"
+    )
     def test_search_returns_search_response(self, mock_search_entities):
         """search() should return a SearchResponse with .results attribute."""
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -199,7 +215,9 @@ class TestIntegrationContracts:
         assert hasattr(result, "total_results")
         assert isinstance(result.results, list)
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities"
+    )
     def test_query_graph_returns_list_of_dicts(self, mock_search_entities):
         """query_graph() should return a list of dicts."""
         from src.services.knowledge_graph.knowledge_graph_service import (
@@ -216,6 +234,7 @@ class TestIntegrationContracts:
 # Phase 3: Serialization
 # ---------------------------------------------------------------------------
 
+
 class TestSerialization:
     """Verify JSON serialization roundtrips correctly."""
 
@@ -224,6 +243,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_metadata,
         )
+
         data = {"key": "value", "nested": {"a": 1}}
         result = _parse_metadata(json.dumps(data))
         assert result == data
@@ -233,6 +253,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_metadata,
         )
+
         result = _parse_metadata("{'key': 'value'}")
         assert result == {"key": "value"}
 
@@ -241,6 +262,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_metadata,
         )
+
         data = {"key": "value"}
         assert _parse_metadata(data) == data
 
@@ -249,6 +271,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_metadata,
         )
+
         assert _parse_metadata(None) == {}
         assert _parse_metadata("") == {}
         assert _parse_metadata("{}") == {}
@@ -258,6 +281,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_evidence,
         )
+
         data = ["evidence1", "evidence2"]
         result = _parse_evidence(json.dumps(data))
         assert result == data
@@ -267,6 +291,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_evidence,
         )
+
         data = ["a", "b"]
         assert _parse_evidence(data) == data
 
@@ -275,6 +300,7 @@ class TestSerialization:
         from src.services.knowledge_graph.knowledge_graph_service import (
             _parse_evidence,
         )
+
         assert _parse_evidence(None) == []
         assert _parse_evidence("") == []
         assert _parse_evidence("[]") == []
@@ -283,6 +309,7 @@ class TestSerialization:
 # ---------------------------------------------------------------------------
 # Phase 4: Entity Identity
 # ---------------------------------------------------------------------------
+
 
 class TestEntityIdentity:
     """Verify name validation in entity creation."""
@@ -317,7 +344,9 @@ class TestEntityIdentity:
         with pytest.raises(ValueError, match="blank"):
             svc.create_entity(request)
 
-    @patch("src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session")
+    @patch(
+        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.get_session"
+    )
     def test_create_entity_strips_whitespace(self, mock_session):
         """create_entity should strip leading/trailing whitespace from names."""
         from src.models.graph import CreateEntityRequest, EntityType
@@ -374,6 +403,7 @@ class TestRelationshipDatetimeCoercion:
 # ---------------------------------------------------------------------------
 # #50 read-flip: org-scoping predicate (OR-transition)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestEntityScopePredicate:
@@ -458,3 +488,55 @@ class TestTwoEndpointScope:
         assert "organization_id" in frag
         assert "source_document_id" not in frag
         assert params == {"organization_id": "org-1"}
+
+
+# ---------------------------------------------------------------------------
+# Schema bootstrap on first connect (entity_fulltext_idx)
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaOnConnect:
+    """The fulltext index backing search_entities must be created on connect.
+
+    Nothing else calls _ensure_schema on the hot path, so without this a fresh
+    Neo4j never gets entity_fulltext_idx and every search degrades to a CONTAINS
+    full-scan (observed live: 'There is no such fulltext schema index').
+    """
+
+    def _fresh_service(self):
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
+
+        # Clear the shared singleton so _connect takes the slow (create) path.
+        KnowledgeGraphService._driver_instance = None
+        return KnowledgeGraphService
+
+    @patch("src.services.knowledge_graph.knowledge_graph_service.GraphDatabase")
+    def test_connect_runs_ensure_schema(self, mock_graphdb):
+        KnowledgeGraphService = self._fresh_service()
+        try:
+            with patch.object(KnowledgeGraphService, "_ensure_schema") as mock_schema:
+                svc = KnowledgeGraphService()
+                svc._connect()
+                mock_schema.assert_called_once()
+        finally:
+            KnowledgeGraphService._driver_instance = None
+
+    @patch("src.services.knowledge_graph.knowledge_graph_service.GraphDatabase")
+    def test_schema_failure_does_not_null_driver(self, mock_graphdb):
+        """A schema hiccup must leave a healthy connection intact (CONTAINS
+        fallback still serves queries)."""
+        KnowledgeGraphService = self._fresh_service()
+        try:
+            with patch.object(
+                KnowledgeGraphService,
+                "_ensure_schema",
+                side_effect=RuntimeError("transient schema error"),
+            ):
+                svc = KnowledgeGraphService()
+                svc._connect()
+                assert svc.driver is not None
+                assert KnowledgeGraphService._driver_instance is not None
+        finally:
+            KnowledgeGraphService._driver_instance = None
