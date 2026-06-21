@@ -329,6 +329,10 @@ syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"
   args: ["--rotate"]
+  # Keep ~one full scenario rotation of run history so heavy-scenario traces
+  # (arxiv / kg / ingest) stay inspectable instead of being GC'd at limit 2.
+  successfulJobsHistoryLimit: 8
+  failedJobsHistoryLimit: 4
   # Loads the full agent graph once per run; 512Mi OOM-killed every fire.
   # Sized to the agent's real footprint (backend serving pod uses 2Gi).
   resources:
