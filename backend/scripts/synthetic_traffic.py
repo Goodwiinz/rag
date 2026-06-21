@@ -157,10 +157,10 @@ async def _get_or_create_synth_user(db: Any) -> Any:
     - is_active = True
     - password: random (synthetic user never authenticates via HTTP)
     """
-    from sqlalchemy import select
+    from sqlalchemy import select, text
 
     from src.models.organization import Organization, StorageTier
-    from src.models.user import User, UserRole
+    from src.models.user import User
     from src.models.workspace import Workspace
 
     # 1. Look up user
@@ -187,18 +187,56 @@ async def _get_or_create_synth_user(db: Any) -> Any:
             db.add(org)
             await db.flush()
 
-        user = User(
-            email=SYNTH_EMAIL,
-            first_name=SYNTH_FIRST_NAME,
-            last_name=SYNTH_LAST_NAME,
-            role=UserRole.USER,
-            organization_id=org.id,
-            is_active=True,
+        # Insert the user via raw SQL, NOT the ORM. User.first_name/last_name
+        # use an encrypted column type whose bind-param encrypts on flush, but
+        # ENCRYPTION_MASTER_KEY is unset in dev (real users are created by the
+        # Supabase handle_new_user trigger at SQL level, never the ORM), so an
+        # ORM insert raises "Encryption not initialized". Plaintext names are
+        # fine here: the agent never reads them, and the read path returns the
+        # raw value when decryption fails.
+        new_id = uuid.uuid4()
+        # Build a valid bcrypt hash without flushing (set_password mutates the
+        # transient object; password_hash is a plain, non-encrypted column).
+        _tmp = User(email=SYNTH_EMAIL)
+        _tmp.set_password(f"synth-{uuid.uuid4().hex}")
+        pw_hash = _tmp.password_hash
+        await db.execute(
+            text(
+                "INSERT INTO users (id, email, password_hash, first_name, "
+                "last_name, role, is_active, organization_id, login_count, "
+                "created_at, updated_at, is_deleted) VALUES (:id, :email, :pw, "
+                ":fn, :ln, CAST(:role AS userrole), true, :org, 0, now(), "
+                "now(), false) ON CONFLICT (email) DO NOTHING"
+            ),
+            {
+                "id": new_id,
+                "email": SYNTH_EMAIL,
+                "pw": pw_hash,
+                "fn": SYNTH_FIRST_NAME,
+                "ln": SYNTH_LAST_NAME,
+                # The userrole PG enum uses the Python member NAMES (uppercase),
+                # not the lowercase values — SQLAlchemy Enum's default mapping.
+                "role": "USER",
+                "org": org.id,
+            },
         )
-        # Random password — synthetic user never logs in via HTTP
-        user.set_password(f"synth-{uuid.uuid4().hex}")
-        db.add(user)
-        await db.flush()
+        await db.commit()
+
+        result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
+        user = result.scalar_one_or_none()
+        if user is None:
+            # Insert lost a race or failed — fall back to any active user so the
+            # job still produces traffic rather than dying.
+            fb = await db.execute(select(User).where(User.is_active.is_(True)).limit(1))
+            user = fb.scalar_one_or_none()
+            if user is None:
+                raise RuntimeError("synthetic_traffic: no usable user found")
+            log.warning(
+                "synthetic_traffic.bootstrap",
+                action="fallback_existing_user",
+                user_id=str(user.id),
+            )
+            return user
 
         # Create a default workspace so project tools have a home
         workspace = Workspace(
@@ -277,6 +315,35 @@ class TurnResult:
     error: Optional[str] = None
 
 
+def _tag_root_run(run_id: Any, scenario_key: str, deploy_env: str) -> None:
+    """Patch the discriminating tag onto the LangSmith ROOT run.
+
+    Config-level ``tags`` don't reliably land on the uploaded root run under
+    LangGraph's astream/ainvoke tracing (only ``run_name`` and node-level tags
+    do), so dashboards can't filter synthetic traffic by tag alone. We pinned an
+    explicit ``run_id`` on the config; here we patch the tags directly onto that
+    root run. Best-effort: never raise into the scenario driver, and silently
+    no-op when tracing is disabled or the SDK is unavailable.
+    """
+    try:
+        from langsmith import Client
+
+        Client().update_run(
+            run_id=str(run_id),
+            tags=[
+                "synthetic-traffic",
+                f"scenario:{scenario_key}",
+                f"deploy:{deploy_env}",
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "synthetic_traffic.tag_root_run_failed",
+            scenario=scenario_key,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
 async def run_scenario(
     scenario: Scenario,
     graph: Any,
@@ -336,8 +403,16 @@ async def run_scenario(
         "_force_synthesis_fired": False,
     }
 
+    # Pin the root run id so we can reliably tag the ROOT run afterwards.
+    # Config-level "tags" don't always land on the uploaded root run under
+    # LangGraph's astream/ainvoke tracing (only run_name + node-level tags do),
+    # so dashboards can't filter synthetic vs real traffic by tag alone. We set
+    # an explicit run_id and patch the tag onto it via Client.update_run below.
+    root_run_id = uuid.uuid4()
+
     config = {
         "recursion_limit": RECURSION_LIMIT,
+        "run_id": root_run_id,
         "run_name": f"synthetic:{scenario.key}",
         "tags": [
             "synthetic-traffic",
@@ -397,6 +472,10 @@ async def run_scenario(
         error = f"{type(exc).__name__}: {exc}"
 
     wall = time.perf_counter() - t0
+
+    # Force the discriminating tag onto the ROOT run so LangSmith dashboards can
+    # filter synthetic traffic out (tags=synthetic-traffic). Best-effort.
+    _tag_root_run(root_run_id, scenario.key, deploy_env)
 
     intent = ""
     assistant_preview = ""
@@ -546,6 +625,18 @@ async def _main(args: argparse.Namespace) -> int:
     from src.services.agent.observability import configure_langsmith
 
     configure_langsmith()
+
+    # Field-level encryption must be initialized before any User write — the
+    # User model encrypts first_name/last_name on insert. The app does this in
+    # its startup lifespan; this standalone CronJob script does not boot the
+    # app, so initialize it here or the synthetic-user INSERT raises
+    # "Encryption not initialized" (ENCRYPTION_MASTER_KEY is in app-secrets).
+    try:
+        from src.core.encryption import initialize_encryption
+
+        initialize_encryption()
+    except Exception as exc:  # pragma: no cover - best effort
+        log.warning("synthetic_traffic: encryption init failed: %s", exc)
 
     run_cleanup_only = getattr(args, "cleanup", False)
 
