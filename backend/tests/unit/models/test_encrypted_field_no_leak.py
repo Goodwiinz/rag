@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.core.encryption import is_encrypted_payload
+from src.core.encryption import EncryptionError, is_encrypted_payload
 from src.models import encrypted_fields as ef
 from src.models.encrypted_fields import EncryptedString
 
@@ -107,7 +107,7 @@ def test_corrupt_envelope_raises_under_strict(encryption):
     corrupt = json.dumps(payload)
 
     with patch.dict(os.environ, {"ENCRYPTION_STRICT": "true"}):
-        with pytest.raises(Exception):
+        with pytest.raises(EncryptionError):
             f.process_result_value(corrupt, None)
 
 
