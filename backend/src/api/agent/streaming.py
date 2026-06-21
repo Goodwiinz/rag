@@ -724,11 +724,17 @@ async def stream_confirm_event_generator(
         turn_output_tokens = 0
         tokens_emitted = False
 
+        # Named iterator so a mid-stream client disconnect can aclose() it and
+        # cancel the resumed graph run, instead of leaving it executing into a
+        # dead socket (a resumed turn may run destructive tools).
+        confirm_event_iter = graph.astream_events(
+            resume_input, config=config, version="v2"
+        ).__aiter__()
+        client_disconnected = False
         async with asyncio.timeout(300):
-            async for event in graph.astream_events(
-                resume_input, config=config, version="v2"
-            ):
+            async for event in confirm_event_iter:
                 if await request.is_disconnected():
+                    client_disconnected = True
                     break
 
                 kind = event.get("event", "")
@@ -779,6 +785,18 @@ async def stream_confirm_event_generator(
                                 (not passed) and severity == "major" and round_num < 2
                             )
                             yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num, 'revising': revising})}\n\n"
+
+        # Client hung up mid-resume — cancel the run by closing the graph
+        # iterator instead of letting it finish into a dead socket, and skip the
+        # snapshot + emit path (mirrors stream_event_generator).
+        if client_disconnected:
+            with contextlib.suppress(Exception):
+                await confirm_event_iter.aclose()
+            logger.info(
+                "SSE confirm client disconnected; cancelled resumed run for thread %s",
+                request_body.thread_id,
+            )
+            return
 
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
         final_snapshot = await graph.aget_state(config)
