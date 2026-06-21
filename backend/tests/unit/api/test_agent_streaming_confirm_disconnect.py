@@ -73,6 +73,10 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
             new=AsyncMock(return_value=object()),
         ),
         patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
             "src.services.agent.graph.compile_agent_graph",
             return_value=graph,
         ),
