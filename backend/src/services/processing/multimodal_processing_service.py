@@ -183,15 +183,22 @@ class MultimodalProcessingService:
                         # this the document would be stranded in PROCESSING.
                         job.fail_job(error_msg)
                         try:
-                            document.update_processing_status(ProcessingStatus.FAILED)
+                            document.update_processing_status(
+                                ProcessingStatus.FAILED, error_msg
+                            )
                         except Exception:
+                            # Fall back to setting the columns directly so we
+                            # never commit a FAILED job alongside a doc still in
+                            # PROCESSING (state divergence).
                             logger.warning(
-                                "Failed to mark document %s FAILED after required "
-                                "step '%s' failure",
+                                "update_processing_status failed for document %s "
+                                "after required step '%s'; setting status directly",
                                 getattr(document, "id", "?"),
                                 step.name,
                                 exc_info=True,
                             )
+                            document.processing_status = ProcessingStatus.FAILED
+                            document.processing_error = error_msg
                         self.db.commit()
                         return processing_results
 
