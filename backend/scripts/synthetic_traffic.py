@@ -157,10 +157,10 @@ async def _get_or_create_synth_user(db: Any) -> Any:
     - is_active = True
     - password: random (synthetic user never authenticates via HTTP)
     """
-    from sqlalchemy import select
+    from sqlalchemy import select, text
 
     from src.models.organization import Organization, StorageTier
-    from src.models.user import User, UserRole
+    from src.models.user import User
     from src.models.workspace import Workspace
 
     # 1. Look up user
@@ -187,18 +187,56 @@ async def _get_or_create_synth_user(db: Any) -> Any:
             db.add(org)
             await db.flush()
 
-        user = User(
-            email=SYNTH_EMAIL,
-            first_name=SYNTH_FIRST_NAME,
-            last_name=SYNTH_LAST_NAME,
-            role=UserRole.USER,
-            organization_id=org.id,
-            is_active=True,
+        # Insert the user via raw SQL, NOT the ORM. User.first_name/last_name
+        # use an encrypted column type whose bind-param encrypts on flush, but
+        # ENCRYPTION_MASTER_KEY is unset in dev (real users are created by the
+        # Supabase handle_new_user trigger at SQL level, never the ORM), so an
+        # ORM insert raises "Encryption not initialized". Plaintext names are
+        # fine here: the agent never reads them, and the read path returns the
+        # raw value when decryption fails.
+        new_id = uuid.uuid4()
+        # Build a valid bcrypt hash without flushing (set_password mutates the
+        # transient object; password_hash is a plain, non-encrypted column).
+        _tmp = User(email=SYNTH_EMAIL)
+        _tmp.set_password(f"synth-{uuid.uuid4().hex}")
+        pw_hash = _tmp.password_hash
+        await db.execute(
+            text(
+                "INSERT INTO users (id, email, password_hash, first_name, "
+                "last_name, role, is_active, organization_id, login_count, "
+                "created_at, updated_at, is_deleted) VALUES (:id, :email, :pw, "
+                ":fn, :ln, CAST(:role AS userrole), true, :org, 0, now(), "
+                "now(), false) ON CONFLICT (email) DO NOTHING"
+            ),
+            {
+                "id": new_id,
+                "email": SYNTH_EMAIL,
+                "pw": pw_hash,
+                "fn": SYNTH_FIRST_NAME,
+                "ln": SYNTH_LAST_NAME,
+                # The userrole PG enum uses the Python member NAMES (uppercase),
+                # not the lowercase values — SQLAlchemy Enum's default mapping.
+                "role": "USER",
+                "org": org.id,
+            },
         )
-        # Random password — synthetic user never logs in via HTTP
-        user.set_password(f"synth-{uuid.uuid4().hex}")
-        db.add(user)
-        await db.flush()
+        await db.commit()
+
+        result = await db.execute(select(User).where(User.email == SYNTH_EMAIL))
+        user = result.scalar_one_or_none()
+        if user is None:
+            # Insert lost a race or failed — fall back to any active user so the
+            # job still produces traffic rather than dying.
+            fb = await db.execute(select(User).where(User.is_active.is_(True)).limit(1))
+            user = fb.scalar_one_or_none()
+            if user is None:
+                raise RuntimeError("synthetic_traffic: no usable user found")
+            log.warning(
+                "synthetic_traffic.bootstrap",
+                action="fallback_existing_user",
+                user_id=str(user.id),
+            )
+            return user
 
         # Create a default workspace so project tools have a home
         workspace = Workspace(
@@ -546,6 +584,18 @@ async def _main(args: argparse.Namespace) -> int:
     from src.services.agent.observability import configure_langsmith
 
     configure_langsmith()
+
+    # Field-level encryption must be initialized before any User write — the
+    # User model encrypts first_name/last_name on insert. The app does this in
+    # its startup lifespan; this standalone CronJob script does not boot the
+    # app, so initialize it here or the synthetic-user INSERT raises
+    # "Encryption not initialized" (ENCRYPTION_MASTER_KEY is in app-secrets).
+    try:
+        from src.core.encryption import initialize_encryption
+
+        initialize_encryption()
+    except Exception as exc:  # pragma: no cover - best effort
+        log.warning("synthetic_traffic: encryption init failed: %s", exc)
 
     run_cleanup_only = getattr(args, "cleanup", False)
 
