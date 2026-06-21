@@ -1796,8 +1796,15 @@ async def _tool_compare_documents(
                 ]
             )
             comparison = response.content
-        except Exception:
-            comparison = "Comparison could not be generated. Documents were retrieved successfully."
+        except Exception as llm_exc:
+            # Don't fabricate a successful comparison when the LLM call failed —
+            # returning success-shaped text ("retrieved successfully") makes the
+            # agent present a non-comparison as a real one. Surface an error so
+            # the agent can retry or tell the user it couldn't compare.
+            logger.warning("compare_documents LLM call failed", exc_info=llm_exc)
+            return {
+                "error": "Document comparison could not be generated due to a model error. Please retry."
+            }
 
         return {
             "comparison": comparison,
