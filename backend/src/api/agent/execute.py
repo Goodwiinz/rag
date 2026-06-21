@@ -412,8 +412,8 @@ async def confirm_agent_action(
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
         # Another worker already claimed this confirmation (or it is no longer
-        # pending). Idempotent: report the running state without double-resuming.
-        return {"status": "running", "job_id": job_id}
+        # pending). Don't double-resume; surface 409 like the validate path.
+        raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
     # Winner: keep the local L1 view consistent, then resume.
     with _jobs_lock:
