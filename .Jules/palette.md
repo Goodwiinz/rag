@@ -13,3 +13,7 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+
+## 2024-06-21 - Keyboard accessibility for raw HTML dropdown menus
+**Learning:** Custom dropdown menus built with raw native HTML elements (like `button` toggles and `div` menus) in layout components often lack proper WAI-ARIA roles (`aria-expanded`, `aria-haspopup`, `role="menu"`, `role="menuitem"`) and visible focus states.
+**Action:** When implementing custom interactive dropdowns, explicitly add these WAI-ARIA properties and `focus-visible` CSS utilities to ensure full screen reader and keyboard accessibility, preventing usability barriers.
