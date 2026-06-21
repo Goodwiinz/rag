@@ -75,7 +75,8 @@ async def test_cas_falls_back_to_memory_on_redis_error():
             return False
 
         async def watch(self, *a):
-            raise RuntimeError("redis down mid-op")
+            # Operational error (ConnectionError ⊂ OSError) → triggers fallback.
+            raise ConnectionError("redis down mid-op")
 
     bad = MagicMock()
     bad.pipeline = MagicMock(return_value=_BadPipe())

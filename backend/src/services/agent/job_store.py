@@ -9,6 +9,7 @@ so the hot path (polling) avoids a Redis round-trip.
 
 from __future__ import annotations
 
+import asyncio
 import json as _json
 import logging
 import time
@@ -256,7 +257,7 @@ async def compare_and_set_status(job_id: str, expected: str, new_status: str) ->
         return await _cas_in_memory(job_id, expected, new_status)
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
-    from redis.exceptions import WatchError
+    from redis.exceptions import RedisError, WatchError
 
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
@@ -287,10 +288,11 @@ async def compare_and_set_status(job_id: str, expected: str, new_status: str) ->
                     # and the connection isn't left bound.
                     await pipe.reset()
                     continue
-    except Exception:
-        # Operational Redis error (not a logical conflict). Degrade to the
-        # in-memory path rather than fail-closed: dropping the transition would
-        # silently stall a HITL confirm on a transient Redis blip.
+    except (RedisError, OSError, asyncio.TimeoutError):
+        # Operational Redis/connection error (not a logical conflict). Degrade to
+        # the in-memory path rather than fail-closed: dropping the transition
+        # would silently stall a HITL confirm on a transient Redis blip.
+        # Unexpected (non-operational) errors propagate so real defects surface.
         logger.warning(
             "compare_and_set_status Redis path failed for job %s; "
             "falling back to in-memory",
