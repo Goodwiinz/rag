@@ -288,6 +288,19 @@ class KnowledgeGraphService:
                 with self.driver.session() as session:
                     session.run("RETURN 1")
                 logger.info(f"Connected to Neo4j at {self.uri}")
+
+                # Ensure constraints + indexes (incl. the entity_fulltext_idx
+                # backing search_entities) exist now that the driver is up.
+                # Nothing else calls _ensure_schema on the hot path, so on a
+                # fresh Neo4j the fulltext index was never created and every
+                # search silently fell back to an unindexed CONTAINS scan.
+                # Idempotent (IF NOT EXISTS), runs once per driver lifetime.
+                # Best-effort: a schema hiccup must not null a healthy driver —
+                # queries still work via the CONTAINS fallback.
+                try:
+                    self._ensure_schema()
+                except Exception as schema_err:  # noqa: BLE001
+                    logger.warning("Neo4j schema init deferred: %s", schema_err)
             except Exception as e:
                 logger.error(f"Failed to connect to Neo4j: {e}")
                 # Don't raise here, let the caller handle it or retry later
