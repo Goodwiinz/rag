@@ -9,6 +9,7 @@ so the hot path (polling) avoids a Redis round-trip.
 
 from __future__ import annotations
 
+import asyncio
 import json as _json
 import logging
 import time
@@ -212,43 +213,51 @@ async def set_job_redis_only(job_id: str, data: dict) -> None:
             logger.exception("Failed to write job %s to Redis", job_id)
 
 
+async def _cas_in_memory(job_id: str, expected: str, new_status: str) -> str:
+    """Compare-and-set the status using the store API (L1 + write-through).
+
+    Used when Redis is unavailable (single process ⇒ the L1 lock is sufficient)
+    AND as the graceful fallback when a Redis operational error interrupts the
+    WATCH/MULTI path — so a transient Redis hiccup degrades to single-process
+    behavior (still flips + lets the caller proceed) rather than silently
+    dropping the transition.
+    """
+    job = await get_job(job_id)
+    if job is None:
+        return "missing"
+    with _l1_lock:
+        current = _l1.get(job_id) or job
+        if current.get("status") != expected:
+            return "conflict"
+        current["status"] = new_status
+        _l1[job_id] = current
+        claimed = current
+    await set_job(job_id, claimed)
+    return "claimed"
+
+
 async def compare_and_set_status(job_id: str, expected: str, new_status: str) -> str:
     """Atomically flip a job's status from *expected* to *new_status*.
 
     Returns one of: ``"claimed"`` (transition applied — caller is the winner),
     ``"conflict"`` (job exists but status != expected — a concurrent caller
     already transitioned it, or it is denied/completed), ``"missing"`` (no such
-    job). Also updates the L1 cache on a claim.
+    job).
 
     This closes the multi-worker double-resume race on /confirm: two workers
     racing to confirm the same HITL job both read ``awaiting_confirmation``, but
     only one wins this compare-and-set, so only one schedules a resume — without
     it a destructive HITL tool (ingest/create_note/create_draft) could execute
     twice. Uses a Redis WATCH/MULTI optimistic transaction (JSON parsed in
-    Python to avoid cjson's empty-dict ambiguity). When Redis is unavailable the
-    process is single-instance, so an L1 transition under the lock is sufficient.
+    Python to avoid cjson's empty-dict ambiguity), falling back to an in-memory
+    transition when Redis is unavailable or errors mid-op.
     """
     redis_client = await _get_redis()
     if redis_client is None:
-        # In-memory only ⇒ single process. Read via get_job (L1, falling back to
-        # any store the caller mocks), flip under the L1 lock for atomicity, then
-        # persist write-through. The lock around the read-compare-write makes
-        # concurrent same-process confirms claim exactly once.
-        job = await get_job(job_id)
-        if job is None:
-            return "missing"
-        with _l1_lock:
-            current = _l1.get(job_id) or job
-            if current.get("status") != expected:
-                return "conflict"
-            current["status"] = new_status
-            _l1[job_id] = current
-            claimed = current
-        await set_job(job_id, claimed)
-        return "claimed"
+        return await _cas_in_memory(job_id, expected, new_status)
 
     key = f"{_JOB_KEY_PREFIX}{job_id}"
-    from redis.exceptions import WatchError
+    from redis.exceptions import RedisError, WatchError
 
     try:
         async with redis_client.pipeline(transaction=True) as pipe:
@@ -279,10 +288,18 @@ async def compare_and_set_status(job_id: str, expected: str, new_status: str) ->
                     # and the connection isn't left bound.
                     await pipe.reset()
                     continue
-    except Exception:
-        logger.exception("compare_and_set_status failed for job %s", job_id)
-        # Fail closed: report conflict so the caller does NOT double-schedule.
-        return "conflict"
+    except (RedisError, OSError, asyncio.TimeoutError):
+        # Operational Redis/connection error (not a logical conflict). Degrade to
+        # the in-memory path rather than fail-closed: dropping the transition
+        # would silently stall a HITL confirm on a transient Redis blip.
+        # Unexpected (non-operational) errors propagate so real defects surface.
+        logger.warning(
+            "compare_and_set_status Redis path failed for job %s; "
+            "falling back to in-memory",
+            job_id,
+            exc_info=True,
+        )
+        return await _cas_in_memory(job_id, expected, new_status)
 
     # Mirror the winning transition into L1 so this worker's polls are consistent.
     with _l1_lock:
