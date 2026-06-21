@@ -15,6 +15,7 @@ from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.graph import _sanitize_messages
+from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
@@ -87,6 +88,7 @@ RESEARCH_DESTRUCTIVE_TOOLS = {
 }
 
 
+@track_node_execution("research_llm_node")
 async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Research-specialized LLM node."""
     from langchain_core.messages import ToolMessage
@@ -198,6 +200,7 @@ def research_should_continue(state: AgentState) -> str:
     return "research_reflection_gate"
 
 
+@track_node_execution("research_force_synthesis_node")
 async def research_force_synthesis_node(
     state: AgentState, config: RunnableConfig
 ) -> dict:
@@ -292,6 +295,7 @@ async def research_force_synthesis_node(
     }
 
 
+@track_node_execution("research_interrupt_node")
 async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Pause for user confirmation before executing destructive research tools."""
     last = state["messages"][-1] if state.get("messages") else None

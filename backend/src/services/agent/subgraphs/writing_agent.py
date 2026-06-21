@@ -15,6 +15,7 @@ from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.graph import _sanitize_messages
+from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
@@ -93,6 +94,7 @@ def _build_writing_system_prompt() -> str:
     )
 
 
+@track_node_execution("writing_llm_node")
 async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Writing-specialized LLM node."""
     from langchain_core.messages import ToolMessage
@@ -191,6 +193,7 @@ def writing_should_continue(state: AgentState) -> str:
     return "writing_reflection_gate"
 
 
+@track_node_execution("writing_force_synthesis_node")
 async def writing_force_synthesis_node(
     state: AgentState, config: RunnableConfig
 ) -> dict:
@@ -269,6 +272,7 @@ async def writing_force_synthesis_node(
     }
 
 
+@track_node_execution("writing_interrupt_node")
 async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
     """Pause for user confirmation before executing destructive writing tools."""
     last = state["messages"][-1] if state.get("messages") else None
