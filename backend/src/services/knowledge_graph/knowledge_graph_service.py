@@ -235,12 +235,21 @@ class KnowledgeGraphService:
 
     _driver_instance: Optional[Driver] = None
     _driver_lock = threading.Lock()
+    # Process-wide latch: flips True only after _ensure_schema succeeds. Stays
+    # False if the first attempt was blocked (e.g. the neo4j circuit breaker was
+    # open at startup), so a later call retries instead of leaving the pod
+    # permanently on the unindexed CONTAINS fallback.
+    _schema_ensured: bool = False
 
     def __init__(self):
         self.driver: Optional[Driver] = None
         self.uri = settings.NEO4J_URI
         self.user = settings.NEO4J_USER
         self.password = settings.NEO4J_PASSWORD
+        # Re-entrancy guard: _maybe_ensure_schema -> _ensure_schema -> get_session
+        # would otherwise recurse back into _maybe_ensure_schema on the same
+        # instance. Per-instance flag keeps that nested call a no-op.
+        self._ensuring_schema = False
         # Do not connect immediately to avoid import-time side effects
         # self._connect()
 
@@ -294,13 +303,10 @@ class KnowledgeGraphService:
                 # Nothing else calls _ensure_schema on the hot path, so on a
                 # fresh Neo4j the fulltext index was never created and every
                 # search silently fell back to an unindexed CONTAINS scan.
-                # Idempotent (IF NOT EXISTS), runs once per driver lifetime.
-                # Best-effort: a schema hiccup must not null a healthy driver —
-                # queries still work via the CONTAINS fallback.
-                try:
-                    self._ensure_schema()
-                except Exception as schema_err:  # noqa: BLE001
-                    logger.warning("Neo4j schema init deferred: %s", schema_err)
+                # Idempotent (IF NOT EXISTS). Goes through _maybe_ensure_schema
+                # so that if the breaker is open right now the latch stays unset
+                # and get_session retries it once the breaker recovers.
+                self._maybe_ensure_schema()
             except Exception as e:
                 logger.error(f"Failed to connect to Neo4j: {e}")
                 # Don't raise here, let the caller handle it or retry later
@@ -325,6 +331,11 @@ class KnowledgeGraphService:
                 breaker.record_failure()
             raise RuntimeError("Neo4j driver not initialized")
 
+        # Retry the one-time schema bootstrap if a prior attempt was blocked
+        # (e.g. breaker open at first connect). No-op once the latch is set or
+        # while a schema-ensure is already in flight on this instance.
+        self._maybe_ensure_schema()
+
         session = self.driver.session(database=database)
         try:
             yield session
@@ -338,6 +349,44 @@ class KnowledgeGraphService:
             raise
         finally:
             session.close()
+
+    def _maybe_ensure_schema(self):
+        """Run the one-time schema bootstrap, retrying until it actually lands.
+
+        ``_connect`` caches the shared driver as soon as its ``RETURN 1`` probe
+        succeeds — and that probe bypasses the circuit breaker. ``_ensure_schema``
+        does not: it goes through ``get_session``, which raises
+        ``CircuitBreakerError`` while the neo4j breaker is open. So if the breaker
+        is open at first connect (Neo4j briefly flaky, then recovers), the driver
+        is cached but schema creation is skipped — and the ``_connect`` fast path
+        never re-runs it, leaving the pod permanently on the unindexed CONTAINS
+        fallback. Calling this from ``get_session`` retries the bootstrap on a
+        later request once the breaker closes.
+
+        Lock-free by design: the DDL is idempotent (``IF NOT EXISTS``) and Neo4j
+        serializes schema changes, so a rare concurrent double-run is harmless —
+        cheaper than ordering a new lock against ``_driver_lock``. The per-instance
+        ``_ensuring_schema`` guard stops the nested ``get_session`` call inside
+        ``_ensure_schema`` from recursing back in.
+        """
+        if KnowledgeGraphService._schema_ensured or self._ensuring_schema:
+            return
+        # Don't attempt (and don't latch) while the breaker is open — retry later.
+        breaker = get_circuit_breaker("neo4j")
+        if breaker and not breaker.can_execute():
+            return
+
+        self._ensuring_schema = True
+        try:
+            self._ensure_schema()
+            KnowledgeGraphService._schema_ensured = True
+        except Exception as schema_err:  # noqa: BLE001
+            # Best-effort: a schema hiccup must not break callers — queries still
+            # work via the CONTAINS fallback, and the latch stays unset so a
+            # later call retries.
+            logger.warning("Neo4j schema init deferred: %s", schema_err)
+        finally:
+            self._ensuring_schema = False
 
     def _ensure_schema(self):
         """Ensure database schema constraints and indexes exist"""
