@@ -460,14 +460,19 @@ async def _execute_single_tool(
             # Check if the result payload itself indicates an error
             if isinstance(result, dict) and "error" in result:
                 tool_error = classify_error_from_payload(tool_name, result)
-                if tool_error.category != "transient":
-                    status = "failed"
-                    error_increment = 1
-                    error_text = tool_error.message
-                    error_info = tool_error.to_state_info()
-                    result_content = tool_error.to_tool_message_content()
-                    _record_tool_error_category(tool_name, tool_error.category)
-                # Transient payload errors: already retried by retry_transient above
+                status = "failed"
+                error_text = tool_error.message
+                error_info = tool_error.to_state_info()
+                result_content = tool_error.to_tool_message_content()
+                _record_tool_error_category(tool_name, tool_error.category)
+                # error_increment counts toward the error ceiling only for
+                # non-transient errors. Either way the status is "failed" (not
+                # "completed"), so the dedupe cache won't treat a returned error
+                # payload as a successful result and suppress a retry — a tool
+                # that returns {"error": <transient>} is retried on re-plan
+                # (retry_transient only retries raised exceptions, not returned
+                # payloads).
+                error_increment = 1 if tool_error.category != "transient" else 0
         except Exception as e:
             tool_error = classify_error(tool_name, e)
             logger.error(
