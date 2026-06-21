@@ -628,7 +628,9 @@ def _sanitize_log(value: Any) -> str:
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Handle validation errors"""
     # 422 is a client error (malformed request), not a server fault — log at
     # warning so it doesn't inflate error-rate alerts (matches the HTTP 4xx
@@ -663,7 +665,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions.
 
     Log by severity class: 5xx are server faults (ERROR); 4xx are routine
