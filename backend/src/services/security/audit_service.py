@@ -5,6 +5,7 @@ Provides comprehensive audit logging, compliance reporting, and security monitor
 
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Union
 
@@ -322,9 +323,11 @@ class AuditService:
                 "period_days": days,
                 "total_events": total_events or 0,
                 "failed_events": failed_events or 0,
-                "success_rate": ((total_events - failed_events) / total_events * 100)
-                if total_events > 0
-                else 100,
+                "success_rate": (
+                    ((total_events - failed_events) / total_events * 100)
+                    if total_events > 0
+                    else 100
+                ),
                 "event_types": {et.event_type: et.count for et in event_types},
                 "recent_activity": [event.to_dict() for event in recent_events],
             }
@@ -492,10 +495,10 @@ class AuditService:
                 "successful_logins": successful_logins or 0,
                 "failed_logins": failed_logins or 0,
                 "login_success_rate": (
-                    (successful_logins / (successful_logins + failed_logins)) * 100
-                )
-                if (successful_logins + failed_logins) > 0
-                else 100,
+                    ((successful_logins / (successful_logins + failed_logins)) * 100)
+                    if (successful_logins + failed_logins) > 0
+                    else 100
+                ),
                 "active_users": active_users or 0,
                 "high_severity_events": len(
                     [
