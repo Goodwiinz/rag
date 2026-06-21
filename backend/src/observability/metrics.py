@@ -10,6 +10,7 @@ Provides comprehensive metrics collection including:
 - Custom SLI/SLO tracking
 """
 
+import logging
 import os
 import threading
 import time
@@ -31,6 +32,8 @@ from opentelemetry.sdk.resources import (
 )
 
 from .config import config
+
+logger = logging.getLogger(__name__)
 
 # Global meter and metrics instances
 _meter = None
@@ -111,25 +114,32 @@ def configure_metrics() -> metrics.Meter:
         }
     )
 
-    # Configure Prometheus exporter for scraping
+    # Configure Prometheus exporter for scraping — the primary metrics path.
     prometheus_reader = PrometheusMetricReader()
+    metric_readers = [prometheus_reader]
 
-    # Configure OTLP exporter for remote monitoring
-    otlp_exporter = OTLPMetricExporter(
-        endpoint=config.otel_exporter_otlp_endpoint,
-        insecure=True,
-    )
-
-    # Create periodic exporter for OTLP
-    periodic_reader = PeriodicExportingMetricReader(
-        exporter=otlp_exporter,
-        export_interval_millis=15000,  # 15 seconds
-    )
+    # Only add the OTLP push reader when explicitly enabled AND a collector is
+    # reachable. Without this guard, environments with no collector (rag-dev,
+    # CI) make the gRPC exporter log an ERROR and retry every 15s forever.
+    if config.otel_exporter_otlp_enabled:
+        otlp_exporter = OTLPMetricExporter(
+            endpoint=config.otel_exporter_otlp_endpoint,
+            insecure=True,
+        )
+        metric_readers.append(
+            PeriodicExportingMetricReader(
+                exporter=otlp_exporter,
+                export_interval_millis=15000,  # 15 seconds
+            )
+        )
+    else:
+        logger.info(
+            "OTLP metric export disabled (OTEL_EXPORTER_OTLP_ENABLED=false); "
+            "metrics served via Prometheus scrape only"
+        )
 
     # Create meter provider
-    meter_provider = MeterProvider(
-        resource=resource, metric_readers=[prometheus_reader, periodic_reader]
-    )
+    meter_provider = MeterProvider(resource=resource, metric_readers=metric_readers)
 
     # Set as global meter provider
     metrics.set_meter_provider(meter_provider)

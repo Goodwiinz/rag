@@ -21,6 +21,15 @@ class ObservabilityConfig(BaseSettings):
     otel_exporter_otlp_endpoint: str = Field(
         default="http://jaeger:4317", env="OTEL_EXPORTER_OTLP_ENDPOINT"
     )
+    # OTLP push export is OFF by default. Metrics are scraped via the
+    # Prometheus reader, so the OTLP push path is only useful when a real
+    # collector (Jaeger/otel-collector) is reachable. Leaving it on without a
+    # collector — as in rag-dev and CI, which have no jaeger:4317 — makes the
+    # gRPC exporter log an ERROR + retry every few seconds forever. Opt in by
+    # setting OTEL_EXPORTER_OTLP_ENABLED=true where a collector exists.
+    otel_exporter_otlp_enabled: bool = Field(
+        default=False, env="OTEL_EXPORTER_OTLP_ENABLED"
+    )
     otel_exporter_jaeger_endpoint: str = Field(
         default="http://jaeger:14250", env="OTEL_EXPORTER_JAEGER_ENDPOINT"
     )

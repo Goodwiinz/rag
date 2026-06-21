@@ -10,6 +10,7 @@ Provides comprehensive distributed tracing capabilities including:
 - Custom span attributes and events
 """
 
+import logging
 import os
 import time
 import uuid
@@ -43,6 +44,8 @@ from opentelemetry.trace.propagation import get_current_span
 
 from .config import config
 
+logger = logging.getLogger(__name__)
+
 # Global tracer instance
 _tracer = None
 
@@ -65,19 +68,30 @@ def configure_tracing() -> trace.Tracer:
     # Create tracer provider
     trace_provider = TracerProvider(resource=resource)
 
-    # Configure OTLP exporter (Jaeger 1.35+ accepts OTLP directly via port 4317)
-    otlp_exporter = OTLPSpanExporter(
-        endpoint=config.otel_exporter_otlp_endpoint,
-        insecure=True,
-    )
-
-    trace_provider.add_span_processor(
-        BatchSpanProcessor(
-            otlp_exporter,
-            max_export_batch_size=config.otel_max_export_batch_size,
-            export_timeout_millis=config.otel_batch_timeout,
+    # Only attach the OTLP span exporter when push export is explicitly
+    # enabled AND a collector is reachable. Without this guard, environments
+    # with no collector (rag-dev, CI) make the gRPC exporter log an ERROR and
+    # retry every few seconds forever. In-process tracing (spans, propagation,
+    # auto-instrumentation) still works; spans are simply not pushed.
+    if config.otel_exporter_otlp_enabled:
+        # Configure OTLP exporter (Jaeger 1.35+ accepts OTLP directly via port 4317)
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=config.otel_exporter_otlp_endpoint,
+            insecure=True,
         )
-    )
+
+        trace_provider.add_span_processor(
+            BatchSpanProcessor(
+                otlp_exporter,
+                max_export_batch_size=config.otel_max_export_batch_size,
+                export_timeout_millis=config.otel_batch_timeout,
+            )
+        )
+    else:
+        logger.info(
+            "OTLP span export disabled (OTEL_EXPORTER_OTLP_ENABLED=false); "
+            "tracing runs in-process only"
+        )
 
     # Set as global tracer provider
     trace.set_tracer_provider(trace_provider)
