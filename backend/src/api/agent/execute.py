@@ -389,42 +389,38 @@ async def confirm_agent_action(
     db: AsyncSession = Depends(get_db),
 ):
     """Confirm or deny a pending agent action (human-in-the-loop)."""
-    job = None
+    from src.services.agent.job_store import compare_and_set_status
+    from src.services.agent.job_store import get_job as _get_job_async_local
 
-    # Atomic check-and-update to prevent TOCTOU race on the local hot cache.
+    # Read the job (L1 then Redis) for a friendly 404 + ownership/status check.
     with _jobs_lock:
         job = _jobs.get(job_id)
-        if job is not None:
-            _validate_confirmable_job(job, current_user)
-            job["status"] = "running"
-
-    # L1 can evict old entries before Redis does (max 500 entries), so fall
-    # back to the shared async store and then re-check under the lock.
     if job is None:
-        from src.services.agent.job_store import get_job as _get_job_async_local
-        from src.services.agent.job_store import set_job as _set_job_async_local
+        job = await _get_job_async_local(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _validate_confirmable_job(job, current_user)
 
-        redis_job = await _get_job_async_local(job_id)
-        if not redis_job:
-            raise HTTPException(status_code=404, detail="Job not found")
+    # Authoritatively claim the resume with an atomic awaiting_confirmation →
+    # running transition. With multiple workers a second /confirm (retry,
+    # double-click, LB re-dispatch) reads the same awaiting_confirmation state;
+    # only the CAS winner schedules a resume, so a destructive HITL tool can't
+    # be executed twice. The transition self-resets when a multi-step resume
+    # re-parks the job as awaiting_confirmation, so the next confirm still works.
+    result = await compare_and_set_status(job_id, "awaiting_confirmation", "running")
+    if result == "missing":
+        raise HTTPException(status_code=404, detail="Job not found")
+    if result == "conflict":
+        # Another worker already claimed this confirmation (or it is no longer
+        # pending). Idempotent: report the running state without double-resuming.
+        return {"status": "running", "job_id": job_id}
 
-        persist_after_lock = False
-        with _jobs_lock:
-            job = _jobs.get(job_id)
-            if job is None:
-                _validate_confirmable_job(redis_job, current_user)
-                redis_job["status"] = "running"
-                _jobs[job_id] = redis_job
-                job = redis_job
-                persist_after_lock = True
-            else:
-                _validate_confirmable_job(job, current_user)
-                job["status"] = "running"
+    # Winner: keep the local L1 view consistent, then resume.
+    with _jobs_lock:
+        cached = _jobs.get(job_id)
+        if cached is not None:
+            cached["status"] = "running"
 
-        if persist_after_lock:
-            await _set_job_async_local(job_id, job)
-
-    # Resume the graph with the user's decision
     background_tasks.add_task(
         _resume_agent_graph,
         job_id,

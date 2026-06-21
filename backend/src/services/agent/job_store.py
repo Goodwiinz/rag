@@ -62,7 +62,9 @@ def _l1_cleanup() -> None:
     """
     global _LAST_L1_CLEANUP
     now = time.time()
-    expired = [k for k, v in _l1.items() if now - v.get("created_at", now) > _JOB_TTL_SECONDS]
+    expired = [
+        k for k, v in _l1.items() if now - v.get("created_at", now) > _JOB_TTL_SECONDS
+    ]
     for k in expired:
         del _l1[k]
     while len(_l1) > _L1_MAX_ENTRIES:
@@ -208,6 +210,86 @@ async def set_job_redis_only(job_id: str, data: dict) -> None:
             )
         except Exception:
             logger.exception("Failed to write job %s to Redis", job_id)
+
+
+async def compare_and_set_status(job_id: str, expected: str, new_status: str) -> str:
+    """Atomically flip a job's status from *expected* to *new_status*.
+
+    Returns one of: ``"claimed"`` (transition applied — caller is the winner),
+    ``"conflict"`` (job exists but status != expected — a concurrent caller
+    already transitioned it, or it is denied/completed), ``"missing"`` (no such
+    job). Also updates the L1 cache on a claim.
+
+    This closes the multi-worker double-resume race on /confirm: two workers
+    racing to confirm the same HITL job both read ``awaiting_confirmation``, but
+    only one wins this compare-and-set, so only one schedules a resume — without
+    it a destructive HITL tool (ingest/create_note/create_draft) could execute
+    twice. Uses a Redis WATCH/MULTI optimistic transaction (JSON parsed in
+    Python to avoid cjson's empty-dict ambiguity). When Redis is unavailable the
+    process is single-instance, so an L1 transition under the lock is sufficient.
+    """
+    redis_client = await _get_redis()
+    if redis_client is None:
+        # In-memory only ⇒ single process. Read via get_job (L1, falling back to
+        # any store the caller mocks), flip under the L1 lock for atomicity, then
+        # persist write-through. The lock around the read-compare-write makes
+        # concurrent same-process confirms claim exactly once.
+        job = await get_job(job_id)
+        if job is None:
+            return "missing"
+        with _l1_lock:
+            current = _l1.get(job_id) or job
+            if current.get("status") != expected:
+                return "conflict"
+            current["status"] = new_status
+            _l1[job_id] = current
+            claimed = current
+        await set_job(job_id, claimed)
+        return "claimed"
+
+    key = f"{_JOB_KEY_PREFIX}{job_id}"
+    from redis.exceptions import WatchError
+
+    try:
+        async with redis_client.pipeline(transaction=True) as pipe:
+            while True:
+                try:
+                    await pipe.watch(key)
+                    raw = await pipe.get(key)  # immediate mode after WATCH
+                    if raw is None:
+                        await pipe.reset()
+                        return "missing"
+                    job = _json.loads(raw)
+                    if job.get("status") != expected:
+                        await pipe.reset()
+                        return "conflict"
+                    job["status"] = new_status
+                    ttl = await pipe.ttl(key)
+                    pipe.multi()
+                    pipe.setex(
+                        key,
+                        ttl if (ttl and ttl > 0) else _JOB_TTL_SECONDS,
+                        _json.dumps(job, default=str),
+                    )
+                    await pipe.execute()  # raises WatchError if key changed
+                    break
+                except WatchError:
+                    # Reset clears the WATCH/command state before re-watching —
+                    # required so the retry's watch() starts from a clean slate
+                    # and the connection isn't left bound.
+                    await pipe.reset()
+                    continue
+    except Exception:
+        logger.exception("compare_and_set_status failed for job %s", job_id)
+        # Fail closed: report conflict so the caller does NOT double-schedule.
+        return "conflict"
+
+    # Mirror the winning transition into L1 so this worker's polls are consistent.
+    with _l1_lock:
+        cached = _l1.get(job_id)
+        if cached is not None:
+            cached["status"] = new_status
+    return "claimed"
 
 
 async def get_job(job_id: str) -> Optional[dict]:
