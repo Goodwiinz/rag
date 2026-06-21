@@ -316,28 +316,60 @@ class TurnResult:
 
 
 def _tag_root_run(run_id: Any, scenario_key: str, deploy_env: str) -> None:
-    """Patch the discriminating tag onto the LangSmith ROOT run.
+    """Add the synthetic-traffic discriminator tags to the LangSmith ROOT run.
 
     Config-level ``tags`` don't reliably land on the uploaded root run under
     LangGraph's astream/ainvoke tracing (only ``run_name`` and node-level tags
     do), so dashboards can't filter synthetic traffic by tag alone. We pinned an
-    explicit ``run_id`` on the config; here we patch the tags directly onto that
-    root run. Best-effort: never raise into the scenario driver, and silently
-    no-op when tracing is disabled or the SDK is unavailable.
+    explicit ``run_id`` on the config and patch the tags onto that root run here.
+
+    Two correctness details, both learned from live traces:
+
+    * **Flush first.** Calling ``update_run`` the instant ``ainvoke`` returns
+      races the SDK's own end-of-run upload, and LangSmith rejects the second
+      writer with ``409 "payloads already received"``. ``wait_for_all_tracers``
+      blocks until the background tracer has fully posted the root run, so our
+      PATCH lands cleanly afterward.
+    * **Merge, don't clobber.** ``update_run(tags=...)`` *replaces* the tag list.
+      The agent's own ``tag_trace_intent`` already stamps ``intent:<x>`` on the
+      same root run, so we read the current tags and union our discriminators in
+      rather than overwriting that signal.
+
+    Best-effort throughout: never raises into the scenario driver, no-ops when
+    tracing is disabled or the SDK is unavailable, and a residual conflict is
+    logged at debug (metadata ``synthetic:true`` already discriminates traffic).
     """
+    synthetic_tags = [
+        "synthetic-traffic",
+        f"scenario:{scenario_key}",
+        f"deploy:{deploy_env}",
+    ]
     try:
         from langsmith import Client
 
-        Client().update_run(
-            run_id=str(run_id),
-            tags=[
-                "synthetic-traffic",
-                f"scenario:{scenario_key}",
-                f"deploy:{deploy_env}",
-            ],
-        )
+        # Serialize after the SDK's end-of-run upload (avoids the 409 race).
+        try:
+            from langchain_core.tracers.langchain import wait_for_all_tracers
+
+            wait_for_all_tracers()
+        except Exception:  # noqa: BLE001 — flush is an optimization, not required
+            pass
+
+        client = Client()
+        existing: List[str] = []
+        try:
+            existing = list(getattr(client.read_run(str(run_id)), "tags", None) or [])
+        except Exception:  # noqa: BLE001 — read is best-effort; fall back to set
+            existing = []
+
+        merged = existing + [t for t in synthetic_tags if t not in existing]
+        client.update_run(run_id=str(run_id), tags=merged)
     except Exception as exc:  # noqa: BLE001
-        log.warning(
+        # A lingering 409 is harmless: metadata.synthetic + run_name already
+        # let dashboards isolate synthetic traffic. Keep it quiet (debug).
+        msg = str(exc)
+        emit = log.debug if ("409" in msg or "Conflict" in msg.lower()) else log.warning
+        emit(
             "synthetic_traffic.tag_root_run_failed",
             scenario=scenario_key,
             error=f"{type(exc).__name__}: {exc}",
