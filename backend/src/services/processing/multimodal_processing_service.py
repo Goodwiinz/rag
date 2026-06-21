@@ -177,8 +177,28 @@ class MultimodalProcessingService:
                     processing_results["errors"].append(error_msg)
 
                     if step.required:
-                        # Fail the job if required step fails
+                        # Fail the job AND the document if a required step fails.
+                        # This branch returns before update_document_with_results
+                        # (the only other place that sets doc status), so without
+                        # this the document would be stranded in PROCESSING.
                         job.fail_job(error_msg)
+                        try:
+                            document.update_processing_status(
+                                ProcessingStatus.FAILED, error_msg
+                            )
+                        except Exception:
+                            # Fall back to setting the columns directly so we
+                            # never commit a FAILED job alongside a doc still in
+                            # PROCESSING (state divergence).
+                            logger.warning(
+                                "update_processing_status failed for document %s "
+                                "after required step '%s'; setting status directly",
+                                getattr(document, "id", "?"),
+                                step.name,
+                                exc_info=True,
+                            )
+                            document.processing_status = ProcessingStatus.FAILED
+                            document.processing_error = error_msg
                         self.db.commit()
                         return processing_results
 
@@ -1018,9 +1038,9 @@ class MultimodalProcessingService:
                             relationship_type=graph_rel_type,
                             confidence_score=rel.get("confidence", 0.7),
                             context=rel.get("evidence", ""),
-                            evidence=[rel.get("evidence", "")]
-                            if rel.get("evidence")
-                            else [],
+                            evidence=(
+                                [rel.get("evidence", "")] if rel.get("evidence") else []
+                            ),
                             metadata={
                                 "document_id": str(document.id),
                                 "pattern_matched": rel.get("pattern_matched", ""),

@@ -117,7 +117,9 @@ class FileService:
         Returns (bucket, key) tuple.
         """
         bucket = self.TYPE_TO_BUCKET.get(document_type, "documents")
-        key = f"{organization_id}/{doc_id}/{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        key = (
+            f"{organization_id}/{doc_id}/{int(time.time())}_{uuid.uuid4().hex[:8]}{ext}"
+        )
         return bucket, key
 
     async def save_file_to_storage(
@@ -495,8 +497,18 @@ class FileService:
         try:
             with local_file_for_document(document) as file_path:
                 return self._extract_text_from_path(file_path, document)
-        except Exception as e:
-            return f"Error extracting text: {str(e)}"
+        except Exception:
+            # Re-raise instead of returning an "Error extracting text: ..."
+            # string — callers stored that string as document.content_text and
+            # marked the document COMPLETED/indexed, indexing an error message
+            # as the document's content. The processing pipeline (and agent
+            # tools) catch this and fail the document / return a clean error.
+            logger.warning(
+                "Text extraction failed for document %s",
+                getattr(document, "id", "?"),
+                exc_info=True,
+            )
+            raise
 
     def _extract_text_from_path(self, file_path: str, document: Document) -> str:
         """Extract text from a local file path."""
@@ -512,7 +524,9 @@ class FileService:
                 with open(file_path, "rb") as file:
                     pdf_reader = PdfReader(file)
                     for page in pdf_reader.pages:
-                        text.append(page.extract_text())
+                        # `or ""` so a single page that yields None doesn't
+                        # TypeError the whole join (losing every other page).
+                        text.append(page.extract_text() or "")
                 return "\n".join(text)
 
             elif document.document_type in [DocumentType.SPREADSHEET]:
@@ -521,7 +535,9 @@ class FileService:
                     logger.warning(
                         "Pandas not available, skipping spreadsheet processing"
                     )
-                    return "Spreadsheet processing not available"
+                    # Empty (no text), not a capability-gap string — the latter
+                    # would be indexed as the document's content.
+                    return ""
                 try:
                     if file_path.endswith(".csv"):
                         df = pd.read_csv(file_path)
@@ -555,8 +571,11 @@ class FileService:
             else:
                 return ""
 
-        except Exception as e:
-            return f"Error extracting text: {str(e)}"
+        except Exception:
+            # Genuine extraction failure must fail the document, not be indexed
+            # as an "Error extracting text: ..." content string. See
+            # extract_text_content above.
+            raise
 
     def extract_metadata(self, document: Document) -> Dict[str, Any]:
         """Extract metadata from document.
@@ -568,7 +587,9 @@ class FileService:
         with local_file_for_document(document) as file_path:
             return self._extract_metadata_from_path(file_path, document)
 
-    def _extract_metadata_from_path(self, file_path: str, document: Document) -> Dict[str, Any]:
+    def _extract_metadata_from_path(
+        self, file_path: str, document: Document
+    ) -> Dict[str, Any]:
         """Extract metadata from a local file path."""
         metadata = {}
 
@@ -708,9 +729,9 @@ class FileService:
                 {
                     "type": stat.document_type.value,
                     "count": stat.count,
-                    "total_size_mb": stat.total_size / (1024 * 1024)
-                    if stat.total_size
-                    else 0,
+                    "total_size_mb": (
+                        stat.total_size / (1024 * 1024) if stat.total_size else 0
+                    ),
                 }
                 for stat in files_by_type
             ],
