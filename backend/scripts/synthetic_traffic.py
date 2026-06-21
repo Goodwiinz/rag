@@ -315,6 +315,35 @@ class TurnResult:
     error: Optional[str] = None
 
 
+def _tag_root_run(run_id: Any, scenario_key: str, deploy_env: str) -> None:
+    """Patch the discriminating tag onto the LangSmith ROOT run.
+
+    Config-level ``tags`` don't reliably land on the uploaded root run under
+    LangGraph's astream/ainvoke tracing (only ``run_name`` and node-level tags
+    do), so dashboards can't filter synthetic traffic by tag alone. We pinned an
+    explicit ``run_id`` on the config; here we patch the tags directly onto that
+    root run. Best-effort: never raise into the scenario driver, and silently
+    no-op when tracing is disabled or the SDK is unavailable.
+    """
+    try:
+        from langsmith import Client
+
+        Client().update_run(
+            run_id=str(run_id),
+            tags=[
+                "synthetic-traffic",
+                f"scenario:{scenario_key}",
+                f"deploy:{deploy_env}",
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "synthetic_traffic.tag_root_run_failed",
+            scenario=scenario_key,
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
 async def run_scenario(
     scenario: Scenario,
     graph: Any,
@@ -374,8 +403,16 @@ async def run_scenario(
         "_force_synthesis_fired": False,
     }
 
+    # Pin the root run id so we can reliably tag the ROOT run afterwards.
+    # Config-level "tags" don't always land on the uploaded root run under
+    # LangGraph's astream/ainvoke tracing (only run_name + node-level tags do),
+    # so dashboards can't filter synthetic vs real traffic by tag alone. We set
+    # an explicit run_id and patch the tag onto it via Client.update_run below.
+    root_run_id = uuid.uuid4()
+
     config = {
         "recursion_limit": RECURSION_LIMIT,
+        "run_id": root_run_id,
         "run_name": f"synthetic:{scenario.key}",
         "tags": [
             "synthetic-traffic",
@@ -435,6 +472,10 @@ async def run_scenario(
         error = f"{type(exc).__name__}: {exc}"
 
     wall = time.perf_counter() - t0
+
+    # Force the discriminating tag onto the ROOT run so LangSmith dashboards can
+    # filter synthetic traffic out (tags=synthetic-traffic). Best-effort.
+    _tag_root_run(root_run_id, scenario.key, deploy_env)
 
     intent = ""
     assistant_preview = ""
