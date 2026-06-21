@@ -47,6 +47,7 @@ def _sync_document_to_kb_blocking(document) -> str | None:
     Returns the data-source uuid, or ``None`` when DO KB is disabled or the
     sync fails. Never raises — ingestion must not fail on a KB outage.
     """
+
     async def _run() -> str | None:
         from src.core.database import AsyncSessionLocal
         from src.services.do_kb import sync_document_to_kb
@@ -220,7 +221,11 @@ def process_document_ingestion(self, job_id: str):
                 for entity in entities:
                     entity_id = knowledge_graph_service.create_entity_node(
                         entity_text=entity.name,
-                        entity_type=entity.entity_type.value if hasattr(entity.entity_type, 'value') else str(entity.entity_type),
+                        entity_type=(
+                            entity.entity_type.value
+                            if hasattr(entity.entity_type, "value")
+                            else str(entity.entity_type)
+                        ),
                         document_id=str(document.id),
                         confidence=entity.confidence_score or 0.8,
                     )
@@ -339,9 +344,13 @@ def extract_text_content(self, job_id: str):
         job.start_job(worker_id=self.request.id)
         db.commit()
 
-        # Extract text
+        # Extract text. process_text_extraction is async — run it in a managed
+        # event loop (mirrors the process_document task and extract_entities).
+        # Calling it without asyncio.run returned a coroutine, so the next line
+        # (result["text_content"]) raised "'coroutine' object is not
+        # subscriptable" and this task failed on every document.
         processing_service = ProcessingPipeline(db)
-        result = processing_service.process_text_extraction(document)
+        result = asyncio.run(processing_service.process_text_extraction(document))
 
         # Update document
         document.content_text = result["text_content"]
@@ -399,9 +408,7 @@ def extract_entities(self, job_id: str):
         # get_event_loop().run_until_complete raises "no current event loop"
         # / deprecation on Python 3.10+ in a worker thread.
         service = LLMEntityExtractionService()
-        extraction_result = asyncio.run(
-            service.extract_entities(document.content_text)
-        )
+        extraction_result = asyncio.run(service.extract_entities(document.content_text))
 
         # Save entities
         from src.models.entity import Entity, ExtractionMethod
@@ -431,7 +438,9 @@ def extract_entities(self, job_id: str):
         job.complete_job(
             result={
                 "entities_extracted": len(saved_entities),
-                "entity_types": list(set(ent.type for ent in extraction_result.entities)),
+                "entity_types": list(
+                    set(ent.type for ent in extraction_result.entities)
+                ),
             }
         )
         db.commit()
@@ -495,7 +504,9 @@ def generate_embeddings(self, job_id: str):
             # DO KB disabled or returned nothing — not a failure. Complete the
             # job cleanly rather than raising (there is no other embedding
             # backend now that Qdrant is gone).
-            job.complete_job(result={"status": "skipped", "reason": "do_kb_unavailable"})
+            job.complete_job(
+                result={"status": "skipped", "reason": "do_kb_unavailable"}
+            )
             db.commit()
             return {"status": "skipped", "reason": "do_kb_unavailable"}
 
@@ -589,7 +600,9 @@ def kg_extract_entities_job(self, job_id: str):
         document_ids = []
         if job.parameters:
             if job.parameters.get("document_ids"):
-                document_ids = [str(doc_id) for doc_id in job.parameters.get("document_ids", [])]
+                document_ids = [
+                    str(doc_id) for doc_id in job.parameters.get("document_ids", [])
+                ]
             elif job.parameters.get("document_id"):
                 document_ids = [str(job.parameters.get("document_id"))]
         if not document_ids:
@@ -708,7 +721,9 @@ def kg_extract_entities_job(self, job_id: str):
                         document_id=str(document.id),
                     )
                 )
-                relationships_created_total += len(relationship_result.created_relationships)
+                relationships_created_total += len(
+                    relationship_result.created_relationships
+                )
                 errors_total += len(relationship_result.errors)
 
         job.update_progress("Finalizing extraction job", 90)
@@ -761,20 +776,40 @@ def kg_merge_entities_job(self, job_id: str):
                 failure_count += 1
                 continue
 
-            duplicate_ids = [e.get("id") for e in group_entities if e.get("id") and e.get("id") != primary_id]
+            duplicate_ids = [
+                e.get("id")
+                for e in group_entities
+                if e.get("id") and e.get("id") != primary_id
+            ]
             step_message = f"Merging group {index + 1}/{total_groups}"
-            job.update_progress(step_message, min(90.0, ((index + 1) / max(total_groups, 1)) * 85.0))
+            job.update_progress(
+                step_message, min(90.0, ((index + 1) / max(total_groups, 1)) * 85.0)
+            )
             db.commit()
 
             try:
                 for duplicate_id in duplicate_ids:
-                    relationships = knowledge_graph_service.get_relationships(duplicate_id)
+                    relationships = knowledge_graph_service.get_relationships(
+                        duplicate_id
+                    )
                     for rel in relationships:
                         create_request = CreateRelationshipRequest(
-                            source_entity_id=primary_id if rel.source_entity_id == duplicate_id else rel.source_entity_id,
-                            target_entity_id=primary_id if rel.target_entity_id == duplicate_id else rel.target_entity_id,
+                            source_entity_id=(
+                                primary_id
+                                if rel.source_entity_id == duplicate_id
+                                else rel.source_entity_id
+                            ),
+                            target_entity_id=(
+                                primary_id
+                                if rel.target_entity_id == duplicate_id
+                                else rel.target_entity_id
+                            ),
                             relationship_type=_safe_relationship_type(
-                                getattr(rel.relationship_type, "value", rel.relationship_type)
+                                getattr(
+                                    rel.relationship_type,
+                                    "value",
+                                    rel.relationship_type,
+                                )
                             ),
                             strength=rel.strength,
                             confidence_score=rel.confidence_score,
