@@ -17,7 +17,7 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 
-from ._errors import client_safe_error
+from ._errors import client_safe_error, extract_interrupt_confirmation
 from . import jobs as _jobs_mod
 from .jobs import (
     _clear_stale_pending_confirmation,
@@ -575,10 +575,7 @@ async def stream_event_generator(
     except GraphInterrupt as exc:
         # Graph hit an interrupt mid-stream (HITL confirmation needed).
         # Verify the checkpoint was persisted before telling the CLI to confirm.
-        interrupts = getattr(exc, "interrupts", [])
-        confirmation_details = {}
-        if interrupts:
-            confirmation_details = getattr(interrupts[0], "value", {})
+        confirmation_details = extract_interrupt_confirmation(exc)
         thread_id = (config.get("configurable") or {}).get(
             "thread_id"
         ) or stream_thread_id
