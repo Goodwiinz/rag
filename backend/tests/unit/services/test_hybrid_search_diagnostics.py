@@ -34,7 +34,6 @@ from src.services.search.hybrid_search_service import (
     SearchSourceType,
 )
 
-
 # ============================================================================
 # Factories
 # ============================================================================
@@ -52,7 +51,9 @@ def _make_search_request(**overrides) -> SearchQuery:
     return SearchQuery(**defaults)
 
 
-def _make_search_result(document_id: str = "doc-1", score: float = 0.85) -> SearchResult:
+def _make_search_result(
+    document_id: str = "doc-1", score: float = 0.85
+) -> SearchResult:
     """Factory for a SearchResult."""
     return SearchResult(
         document_id=document_id,
@@ -98,8 +99,7 @@ def _make_source_result(
     """Factory for SearchSourceResult."""
     if results is None:
         results = [
-            _make_raw_result(f"doc-{i}", source_type, 0.9 - i * 0.1)
-            for i in range(3)
+            _make_raw_result(f"doc-{i}", source_type, 0.9 - i * 0.1) for i in range(3)
         ]
     return SearchSourceResult(
         source_type=source_type,
@@ -163,7 +163,10 @@ def _create_service_with_mocks(
     service._execute_parallel_searches = MagicMock(return_value=source_results)
     service._fuse_search_results = MagicMock(return_value=fused_results)
     service._apply_cohere_reranking = MagicMock(return_value=reranked_results)
-    service._apply_final_filtering = MagicMock(return_value=final_results)
+    # _apply_final_filtering now returns (page, total_after_filter).
+    service._apply_final_filtering = MagicMock(
+        return_value=(final_results, len(final_results))
+    )
     service._get_hybrid_suggestions = MagicMock(return_value=[])
 
     mocks = {

@@ -114,6 +114,7 @@ def test_final_filtering_respects_selected_document_ids() -> None:
         filters=SearchFilter(document_ids=["doc-allow-1"]),
     )
 
-    filtered = service._apply_final_filtering([r1, r2], request, "org-1")
+    filtered, total = service._apply_final_filtering([r1, r2], request, "org-1")
 
     assert [result.document_id for result in filtered] == ["doc-allow-1"]
+    assert total == 1
