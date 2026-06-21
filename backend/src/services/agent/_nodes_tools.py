@@ -671,6 +671,11 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
                 "error_count": state.get("error_count", 0),
                 "last_error": state.get("last_error", ""),
                 "tool_loop_count": state.get("tool_loop_count", 0) + 1,
+                # No tools ran ⇒ explicitly clear the dedupe flag. Omitting it
+                # leaves a stale True from a prior turn in the checkpointed state,
+                # which route_after_*_tool_node would read and wrongly divert to
+                # force_synthesis instead of the re-plan path.
+                "tools_all_deduped": False,
             }
 
         # Execute allowed tools using existing tool_node logic
