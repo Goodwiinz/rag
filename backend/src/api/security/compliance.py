@@ -27,7 +27,7 @@ from src.exceptions.analytics_exceptions import (
     create_permission_denied_http_exception,
 )
 from src.middleware.multi_tenancy import get_current_tenant_id, get_current_user_id
-from src.middleware.rbac import require_permission
+from src.middleware.rbac import require_permission_dep
 from src.models.audit import AuditEvent, ComplianceReport, SecurityIncident
 from src.services.security.audit_service import (
     AuditEventType,
@@ -187,7 +187,7 @@ async def get_audit_events(
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of events"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("audit_read")),
+    _: str = Depends(require_permission_dep("audit_read")),
 ):
     """Get audit events with filtering and pagination"""
     try:
@@ -224,7 +224,7 @@ async def get_audit_events(
 async def get_audit_event(
     event_id: str = Path(..., description="Event ID"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("audit_read")),
+    _: str = Depends(require_permission_dep("audit_read")),
 ):
     """Get specific audit event details"""
     try:
@@ -261,7 +261,7 @@ async def get_user_activity_summary(
     user_id: str = Path(..., description="User ID"),
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("audit_read")),
+    _: str = Depends(require_permission_dep("audit_read")),
 ):
     """Get activity summary for a specific user"""
     try:
@@ -296,7 +296,7 @@ async def create_compliance_report(
     report_data: ComplianceReportRequest,
     background_tasks: BackgroundTasks,
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("compliance_manage")),
+    _: str = Depends(require_permission_dep("compliance_manage")),
 ):
     """Create a compliance report"""
     try:
@@ -349,11 +349,13 @@ async def create_compliance_report(
 @router.get("/reports", response_model=List[ComplianceReportResponse])
 async def get_compliance_reports(
     report_type: Optional[str] = Query(None, description="Filter by report type"),
-    compliance_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    compliance_status: Optional[str] = Query(
+        None, alias="status", description="Filter by status"
+    ),
     limit: int = Query(50, ge=1, le=500, description="Maximum number of reports"),
     offset: int = Query(0, ge=0, description="Number of reports to skip"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("compliance_read")),
+    _: str = Depends(require_permission_dep("compliance_read")),
 ):
     """Get compliance reports with filtering"""
     try:
@@ -393,7 +395,7 @@ async def get_compliance_reports(
 async def get_compliance_report(
     report_id: str = Path(..., description="Report ID"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("compliance_read")),
+    _: str = Depends(require_permission_dep("compliance_read")),
 ):
     """Get specific compliance report"""
     try:
@@ -433,7 +435,7 @@ async def get_compliance_report(
 async def create_security_incident(
     incident_data: SecurityIncidentRequest,
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("security_manage")),
+    _: str = Depends(require_permission_dep("security_manage")),
 ):
     """Create a security incident"""
     try:
@@ -469,13 +471,15 @@ async def create_security_incident(
 
 @router.get("/security/incidents", response_model=List[SecurityIncidentResponse])
 async def get_security_incidents(
-    compliance_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    compliance_status: Optional[str] = Query(
+        None, alias="status", description="Filter by status"
+    ),
     severity: Optional[str] = Query(None, description="Filter by severity"),
     category: Optional[str] = Query(None, description="Filter by category"),
     limit: int = Query(50, ge=1, le=500, description="Maximum number of incidents"),
     offset: int = Query(0, ge=0, description="Number of incidents to skip"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("security_read")),
+    _: str = Depends(require_permission_dep("security_read")),
 ):
     """Get security incidents with filtering"""
     try:
@@ -512,7 +516,7 @@ async def get_security_incidents(
 async def get_security_incident(
     incident_id: str = Path(..., description="Incident ID"),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("security_read")),
+    _: str = Depends(require_permission_dep("security_read")),
 ):
     """Get specific security incident"""
     try:
@@ -550,7 +554,7 @@ async def cleanup_old_audit_events(
         365, ge=30, le=2555, description="Retention period in days"
     ),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("system_admin")),
+    _: str = Depends(require_permission_dep("system_admin")),
 ):
     """Clean up old audit events based on retention policy"""
     try:
@@ -575,7 +579,7 @@ async def get_compliance_dashboard(
         30, ge=1, le=365, description="Number of days for dashboard data"
     ),
     audit_service: AuditService = Depends(get_audit_service),
-    _: str = Depends(require_permission("compliance_read")),
+    _: str = Depends(require_permission_dep("compliance_read")),
 ):
     """Get compliance dashboard data"""
     try:
@@ -671,9 +675,11 @@ async def get_compliance_dashboard(
             "period_days": days,
             "total_events": total_events or 0,
             "failed_events": failed_events or 0,
-            "success_rate": ((total_events - failed_events) / total_events * 100)
-            if total_events > 0
-            else 100,
+            "success_rate": (
+                ((total_events - failed_events) / total_events * 100)
+                if total_events > 0
+                else 100
+            ),
             "open_incidents": open_incidents or 0,
             "event_types": {et.event_type: et.count for et in event_types},
             "severity_breakdown": {sb.severity: sb.count for sb in severity_breakdown},
