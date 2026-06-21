@@ -305,7 +305,15 @@ def test_double_confirm_second_request_returns_409(confirm_client):
         },
     )
 
-    with patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock):
+    with (
+        patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock),
+        # Force the in-memory CAS path so the test is deterministic regardless of
+        # whether a Redis server is reachable in the test environment.
+        patch(
+            "src.services.agent.job_store._get_redis",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
         first = client.post(f"/api/v1/agent/confirm/{job_id}", json={"confirmed": True})
         second = client.post(
             f"/api/v1/agent/confirm/{job_id}", json={"confirmed": True}
@@ -337,6 +345,12 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
             new=AsyncMock(),
         ) as mock_set_job,
         patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock),
+        # Force the in-memory CAS path (store-API level, which this test mocks)
+        # so it doesn't depend on a reachable Redis server.
+        patch(
+            "src.services.agent.job_store._get_redis",
+            new=AsyncMock(return_value=None),
+        ),
     ):
         response = client.post(
             f"/api/v1/agent/confirm/{job_id}", json={"confirmed": True}
