@@ -620,7 +620,10 @@ async def root():
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle validation errors"""
-    logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    # 422 is a client error (malformed request), not a server fault — log at
+    # warning so it doesn't inflate error-rate alerts (matches the HTTP 4xx
+    # handling below).
+    logger.warning("Validation error on %s: %s", request.url.path, exc.errors())
     safe_errors = []
     for err in exc.errors():
         safe = {k: v for k, v in err.items() if k != "ctx"}
@@ -647,8 +650,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions"""
-    logger.error(f"HTTP {exc.status_code} error on {request.url.path}: {exc.detail}")
+    """Handle HTTP exceptions.
+
+    Log by severity class: 5xx are server faults (ERROR); 4xx are routine
+    client conditions — expired/missing JWTs (401), missing rows (404),
+    validation (422) — and must NOT be logged at ERROR, or they flood the
+    error logs and inflate error-rate alerts with normal traffic. The auth
+    layer already records the expired-token case at DEBUG.
+    """
+    status_code = getattr(exc, "status_code", 500)
+    log = logger.error if status_code >= 500 else logger.warning
+    log("HTTP %s error on %s: %s", status_code, request.url.path, exc.detail)
     return JSONResponse(
         status_code=exc.status_code,
         content={
