@@ -18,13 +18,19 @@ from src.services.security.rbac_service import RBACService
 
 
 class _FakeQuery:
+    """Minimal stand-in for a SQLAlchemy Query that ignores filters and
+    returns a preset ``first()`` result."""
+
     def __init__(self, result):
+        """Store the value ``first()`` should return."""
         self._result = result
 
     def filter(self, *args, **kwargs):
+        """Ignore filter args; return self for chaining."""
         return self
 
     def first(self):
+        """Return the preset result."""
         return self._result
 
 
@@ -36,6 +42,7 @@ def _make_db(*, role, user_in_org, existing_assignment=None):
     """
 
     def query(entity):
+        """Resolve the queried entity to the matching preset result."""
         # db.query(User.id) passes a column; resolve to its parent class.
         target = getattr(entity, "class_", entity)
         if target is Role:
@@ -53,6 +60,7 @@ def _make_db(*, role, user_in_org, existing_assignment=None):
 
 @pytest.mark.unit
 def test_assign_rejects_user_outside_org():
+    """A target user not in the org is rejected before any write."""
     role = MagicMock(name="role", name_attr="r")
     db = _make_db(role=role, user_in_org=None)
     svc = RBACService(db)
@@ -70,6 +78,7 @@ def test_assign_rejects_user_outside_org():
 
 @pytest.mark.unit
 def test_assign_creates_for_member():
+    """A target user in the org gets the assignment created and committed."""
     role = MagicMock()
     role.name = "editor"
     db = _make_db(role=role, user_in_org=(1,), existing_assignment=None)
