@@ -154,3 +154,70 @@ class TestConnectionKeywordScoping:
 
         err = classify_error_from_payload("search_documents", {"error": message})
         assert err.category == "transient"
+
+
+@pytest.mark.unit
+class TestRateLimitIsTransient:
+    """Rate-limit errors (429 / "rate limit" / "too many requests") must be
+    transient, not fatal.
+
+    A fatal classification burns the error-ceiling counter (error_increment=1)
+    and, because the reflection gate only skips on a transient failure, lets a
+    rate-limited turn trigger a wasteful revise loop — observed as two answers
+    streamed back-to-back and concatenated in the client bubble. The canonical
+    arXiv shape is "Ingestion failed: ArXiv rate limited (HTTP 429). ...".
+    """
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Ingestion failed: ArXiv rate limited (HTTP 429). Try again in 60 seconds.",
+            "rate limit exceeded",
+            "HTTP 429 Too Many Requests",
+            "Too Many Requests",
+        ],
+    )
+    def test_rate_limit_payload_is_transient(self, message: str):
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload("ingest_arxiv_papers", {"error": message})
+        assert err.category == "transient"
+
+    def test_rate_limit_exception_is_transient(self):
+        from src.services.agent.error_recovery import classify_error
+
+        err = classify_error(
+            "ingest_arxiv_papers",
+            RuntimeError("ArXiv rate limited (HTTP 429). Try again in 60 seconds."),
+        )
+        assert err.category == "transient"
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Paper 2304.04290 not found",
+            "entity e429 does not exist",
+            "4290 records rejected — invalid input",
+        ],
+    )
+    def test_bare_429_digits_are_not_transient(self, message: str):
+        """A 429 buried in an arXiv id / count / year must NOT read as a rate
+        limit — only an anchored "http 429" (or rate-limit wording) counts."""
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload("search_arxiv", {"error": message})
+        assert err.category != "transient"
+
+    def test_transient_429_does_not_burn_error_ceiling(self):
+        """A transient classification must yield error_increment=0 downstream.
+
+        _execute_single_tool sets error_increment = 1 only when the category is
+        NOT transient; assert the category here so that contract holds.
+        """
+        from src.services.agent.error_recovery import classify_error_from_payload
+
+        err = classify_error_from_payload(
+            "ingest_arxiv_papers",
+            {"error": "ArXiv rate limited (HTTP 429)."},
+        )
+        assert err.category == "transient"
