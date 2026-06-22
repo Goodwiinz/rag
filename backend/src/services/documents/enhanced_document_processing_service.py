@@ -654,7 +654,12 @@ class EnhancedDocumentProcessingService:
                     entity_type=entity_data["label"],
                     document_id=str(document.id),
                     confidence=entity_data.get("confidence", 1.0),
-                    metadata=entity_data.get("context", "")
+                    metadata=entity_data.get("context", ""),
+                    organization_id=(
+                        str(document.organization_id)
+                        if getattr(document, "organization_id", None)
+                        else None
+                    ),
                 )
 
                 if node_id:

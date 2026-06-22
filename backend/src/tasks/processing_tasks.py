@@ -228,6 +228,11 @@ def process_document_ingestion(self, job_id: str):
                         ),
                         document_id=str(document.id),
                         confidence=entity.confidence_score or 0.8,
+                        organization_id=(
+                            str(document.organization_id)
+                            if document.organization_id
+                            else None
+                        ),
                     )
                     if entity_id:
                         kg_indexed += 1
@@ -681,6 +686,11 @@ def kg_extract_entities_job(self, job_id: str):
                             "aliases": ent.aliases,
                         },
                         source_document_id=str(document.id),
+                        organization_id=(
+                            str(document.organization_id)
+                            if document.organization_id
+                            else None
+                        ),
                     )
                 )
 

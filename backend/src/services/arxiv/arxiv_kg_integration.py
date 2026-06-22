@@ -107,6 +107,15 @@ class ArXivKnowledgeGraphIntegration:
                     logger.info(
                         f"Processing paper {i+1}/{len(papers)} for knowledge graph: {paper['title'][:50]}..."
                     )
+                    # SimpleDocument from arxiv ingest carries no org, so fall
+                    # back to an explicit organization_id kwarg when the caller
+                    # supplies one. (This method currently has no live caller;
+                    # the kwarg keeps it correct if it is wired up later.)
+                    doc_org_id = (
+                        str(doc.organization_id)
+                        if getattr(doc, "organization_id", None)
+                        else kwargs.get("organization_id")
+                    )
 
                     # Extract entities
                     if extract_entities:
@@ -115,7 +124,9 @@ class ArXivKnowledgeGraphIntegration:
 
                         # Add entities to knowledge graph
                         for entity in entities:
-                            await self._add_entity_to_kg(entity, paper)
+                            await self._add_entity_to_kg(
+                                entity, paper, organization_id=doc_org_id
+                            )
 
                     # Create relationships
                     if create_relationships:
@@ -678,8 +689,13 @@ class ArXivKnowledgeGraphIntegration:
 
         return relationships
 
-    async def _add_entity_to_kg(self, entity: Dict[str, Any], paper: Dict[str, Any]):
-        """Add entity to knowledge graph"""
+    async def _add_entity_to_kg(
+        self,
+        entity: Dict[str, Any],
+        paper: Dict[str, Any],
+        organization_id: Optional[str] = None,
+    ):
+        """Add entity to knowledge graph, stamped with the owning org when known."""
         if not self.kg_service:
             return
 
@@ -721,6 +737,7 @@ class ArXivKnowledgeGraphIntegration:
                     "full_name": entity.get("full_name", ""),
                     "field": entity.get("field", ""),
                 },
+                organization_id=organization_id,
             )
 
             # Create entity
@@ -1058,7 +1075,7 @@ class ArXivKnowledgeGraphIntegration:
         return {"monthly_trends": monthly_keywords}
 
     async def process_paper_kg_integration(
-        self, paper: Dict[str, Any]
+        self, paper: Dict[str, Any], organization_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Process a paper with full knowledge graph integration
@@ -1084,7 +1101,9 @@ class ArXivKnowledgeGraphIntegration:
             if self.kg_service:
                 # Add entities
                 for entity in entities:
-                    await self._add_entity_to_kg(entity, paper)
+                    await self._add_entity_to_kg(
+                        entity, paper, organization_id=organization_id
+                    )
 
                 # Add relationships
                 for relationship in relationships:
