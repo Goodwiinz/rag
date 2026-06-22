@@ -163,51 +163,60 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             return <div key={message.id || `msg-${index}`}>{bubble}</div>;
           })}
 
-          {/* Streaming assistant message */}
+          {/* Streaming assistant message.
+              Hide it the instant the committed assistant answer lands in
+              `messages` — both derive from the same React list, so the bubble
+              unmounts in the SAME render the final message appears. Gating only
+              on the Zustand `storeIsStreaming` flag raced the React message
+              append across two reactive systems, leaving a window where the
+              same answer painted twice (streamed bubble + committed bubble).
+              The exit is instant so the exiting bubble can't repaint the full
+              streamed answer over the committed one. */}
           <AnimatePresence>
-            {storeIsStreaming && (
-              <motion.div
-                key="streaming-message"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                transition={{ duration: 0.25 }}
-              >
-                <InlineAgentSummary threadId={activeThreadId} />
-                {streamingCitations.length > 0 && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
-                    style={{
-                      color: 'var(--nous-fg-2)',
-                      backgroundColor: 'var(--nous-bg-2)',
-                      borderColor: 'var(--nous-border-1)',
+            {storeIsStreaming &&
+              messages[messages.length - 1]?.role !== 'assistant' && (
+                <motion.div
+                  key="streaming-message"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, transition: { duration: 0 } }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <InlineAgentSummary threadId={activeThreadId} />
+                  {streamingCitations.length > 0 && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
+                      style={{
+                        color: 'var(--nous-fg-2)',
+                        backgroundColor: 'var(--nous-bg-2)',
+                        borderColor: 'var(--nous-border-1)',
+                      }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: 'var(--nous-sol)' }}
+                      />
+                      Reading {streamingCitations.length}{' '}
+                      {streamingCitations.length === 1 ? 'source' : 'sources'}
+                    </div>
+                  )}
+                  <ChatBubble
+                    message={{
+                      role: 'assistant',
+                      content: '',
+                      timestamp: streamingTimestamp,
                     }}
-                  >
-                    <span
-                      className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: 'var(--nous-sol)' }}
-                    />
-                    Reading {streamingCitations.length}{' '}
-                    {streamingCitations.length === 1 ? 'source' : 'sources'}
-                  </div>
-                )}
-                <ChatBubble
-                  message={{
-                    role: 'assistant',
-                    content: '',
-                    timestamp: streamingTimestamp,
-                  }}
-                  index={messages.length}
-                  modelName="NOUS"
-                  isStreaming={true}
-                  streamingContent={storeStreamingContent}
-                  onCitationClick={onCitationClick}
-                  thinkingLabel={thinkingLabel}
-                />
-              </motion.div>
-            )}
+                    index={messages.length}
+                    modelName="NOUS"
+                    isStreaming={true}
+                    streamingContent={storeStreamingContent}
+                    onCitationClick={onCitationClick}
+                    thinkingLabel={thinkingLabel}
+                  />
+                </motion.div>
+              )}
           </AnimatePresence>
 
           {/* Ephemeral CLI command output (not persisted, not sent to agent) */}
