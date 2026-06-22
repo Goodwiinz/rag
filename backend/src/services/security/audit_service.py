@@ -754,27 +754,39 @@ class AuditService:
             logger.error(f"Failed to get security incidents: {e}")
             return []
 
-    def cleanup_old_audit_events(self, retention_days: int = 365) -> int:
-        """Clean up old audit events based on retention policy"""
+    def cleanup_old_audit_events(
+        self, retention_days: int = 365, organization_id: Optional[str] = None
+    ) -> int:
+        """Clean up old audit events based on retention policy.
+
+        When *organization_id* is given the deletion is scoped to that org —
+        required for the per-org admin endpoint, which would otherwise wipe
+        EVERY tenant's audit trail (cross-tenant data destruction). Leaving it
+        None deletes globally and must only be used by trusted platform-level
+        maintenance, never an org-scoped request.
+        """
         try:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-            # Count events to be deleted
-            count = (
-                self.db.query(func.count(AuditEvent.id))
-                .filter(AuditEvent.created_at < cutoff_date)
-                .scalar()
-            )
+            def _scoped(q):
+                q = q.filter(AuditEvent.created_at < cutoff_date)
+                if organization_id is not None:
+                    q = q.filter(AuditEvent.organization_id == organization_id)
+                return q
 
-            # Delete old events
-            self.db.query(AuditEvent).filter(
-                AuditEvent.created_at < cutoff_date
-            ).delete()
+            # Count events to be deleted
+            count = _scoped(self.db.query(func.count(AuditEvent.id))).scalar()
+
+            # Delete old events (same scope)
+            _scoped(self.db.query(AuditEvent)).delete()
 
             self.db.commit()
 
             logger.info(
-                f"Cleaned up {count} old audit events older than {retention_days} days"
+                "Cleaned up %s audit events older than %s days (org=%s)",
+                count,
+                retention_days,
+                organization_id or "ALL",
             )
             return count
 

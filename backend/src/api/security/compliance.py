@@ -563,7 +563,10 @@ async def cleanup_old_audit_events(
 ):
     """Clean up old audit events based on retention policy"""
     try:
-        deleted_count = audit_service.cleanup_old_audit_events(retention_days)
+        # Scope to the caller's org — never wipe other tenants' audit trails.
+        deleted_count = audit_service.cleanup_old_audit_events(
+            retention_days, organization_id=get_current_tenant_id()
+        )
 
         return {
             "message": "Audit cleanup completed",
