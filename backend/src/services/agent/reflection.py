@@ -267,6 +267,129 @@ def _detect_fabricated_ingest(state: dict) -> Optional[str]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Fabricated knowledge-graph search guard
+# ---------------------------------------------------------------------------
+
+# Knowledge-graph READ tools. A completed execution of ANY of these means the
+# graph was genuinely queried this turn, so a "I searched/explored/queried the
+# knowledge graph" narration is truthful (not a fabrication). Mirrors the data
+# subgraph's KG read set (subgraphs/data_agent.py).
+_KG_READ_TOOLS: frozenset[str] = frozenset(
+    {
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+    }
+)
+
+# Offer / question phrasing — the AI is proposing to search the graph, not
+# claiming it already did. Skip the fabrication check on these.
+_KG_SEARCH_QUESTION_RE = re.compile(
+    r"\bwould\s+you\s+like\s+me\s+to\b"
+    r"|\bdo\s+you\s+want\s+me\s+to\b"
+    r"|\bshould\s+I\b"
+    r"|\bI\s+can\s+(?:search|explore|query)\b"
+    r"|\b(?:use|call)\s+search_knowledge_graph\b",  # instructional, not a claim
+    re.IGNORECASE,
+)
+
+# Strong, low-false-positive signal that the AI is ASSERTING, in its own action
+# voice, that it searched the knowledge graph this turn — a first-person past
+# action explicitly naming the "knowledge graph". Deliberately narrow: a paper
+# SUMMARY describing a graph ("the authors explored the graph", "the knowledge
+# graph community found …") or an API note ("each node has an entity_id") is NOT
+# the assistant claiming it performed a search, so those must not match.
+# NOT triggered by future/offer phrasing (handled by the question guard).
+_KG_SEARCH_FABRICATION_CLAIM_RE = re.compile(
+    r"\bI\s+(?:searched|queried|explored)\s+the\s+knowledge\s+graph\b"
+    r"|\bsearched\s+the\s+knowledge\s+graph\s+for\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Honest-failure phrasings specific to a KG search — the assistant says the
+# search ran but came back empty / failed. Reused alongside the creation
+# disclosure regex so a truthful "I searched the knowledge graph but it returned
+# nothing" (where the tool may have errored, status!=completed) is not flagged.
+_KG_SEARCH_FAILURE_DISCLOSURE_RE = re.compile(
+    r"\breturned\s+(?:nothing|no\s+\w+)"
+    r"|\bfound\s+(?:nothing|no\s+\w+)"
+    r"|\bno\s+(?:entit|result|match|relation)"
+    r"|\bnothing\s+(?:relevant|found)"
+    r"|\bsearch\s+(?:failed|errored)"
+    r"|\bcould\s*n'?o?t\s+(?:find|search|reach)"
+    r"|\bwas\s+unable\b"
+    r"|\bdid\s*n'?o?t\s+return\b"
+    r"|\bcame\s+back\s+empty\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims it searched the knowledge graph
+    (or presents graph entities/relations) but no ``search_knowledge_graph``
+    tool completed this turn, else None.
+
+    Mirrors ``_detect_fabricated_ingest`` for the read-side failure observed in
+    a trace: the model narrates "I searched the knowledge graph … found these
+    entities (entity_id: …)" and dumps plausible ids while emitting NO
+    ``search_knowledge_graph`` tool_call, so the graph was never queried and the
+    ids are fabricated/carried-over. The ingest/create fabrication guards did
+    not cover read tools, so this slipped past reflection.
+
+    Returns None when:
+    - Any knowledge-graph READ tool actually completed this turn (real results) —
+      not just ``search_knowledge_graph`` but also the neighborhood/path/stats
+      reads, since the model legitimately narrates "I explored/queried the
+      knowledge graph" for those too.
+    - The AI text is offering / instructing rather than asserting it searched.
+    - No strong KG-result-assertion signal is present.
+    """
+    tool_executions: list[Any] = state.get("tool_executions", []) or []
+
+    executed_search = any(
+        isinstance(te, dict)
+        and te.get("tool_name") in _KG_READ_TOOLS
+        and te.get("status") == "completed"
+        for te in tool_executions
+    )
+    if executed_search:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    if _KG_SEARCH_QUESTION_RE.search(text):
+        return None
+    if _CREATE_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+    if _KG_SEARCH_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    if not _KG_SEARCH_FABRICATION_CLAIM_RE.search(text):
+        return None
+
+    return (
+        "Assistant claims it searched the knowledge graph or presents graph "
+        "entities/relations, but no search_knowledge_graph tool executed this "
+        "turn — the graph was not queried (any entity ids are fabricated). "
+        "Re-answer: either call search_knowledge_graph or tell the user the "
+        "search did not run."
+    )
+
+
 def _ingest_zero_count(te: Any) -> bool:
     """Detect an ``ingest_arxiv_papers`` execution that ingested nothing.
 
@@ -517,6 +640,8 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         return (False, "potential fabricated tool success")
     if _detect_fabricated_ingest(state) is not None:
         return (False, "potential fabricated ingest")
+    if _detect_fabricated_kg_search(state) is not None:
+        return (False, "potential fabricated kg search")
 
     tool_calls = getattr(last_ai, "tool_calls", None) or []
     has_tool_calls = bool(tool_calls)
@@ -698,13 +823,18 @@ def make_reflection_gate(
         intent = state.get("intent", "general")
         current_count = state.get("reflection_count", 0)
 
-        # Skip if intent not in filter
-        if intent not in intent_filter:
-            return {"reflection_count": current_count}
-
-        # Skip if max rounds reached
+        # Skip if max rounds reached. Checked before the deterministic guards so
+        # a fabrication can't force an unbounded revise loop.
         if current_count >= 2:
             return {"reflection_count": current_count}
+
+        # The deterministic fabrication guards below run for EVERY intent, BEFORE
+        # the intent_filter gate. A fabricated ingest/create/search is a hard
+        # error regardless of routing, and these are cheap (regex + a
+        # tool_executions scan, no LLM call). Running them unconditionally also
+        # protects knowledge_graph turns, which deliberately skip the expensive
+        # LLM critique (deterministic lookups) and would otherwise let a
+        # narrated-but-never-executed KG search reach the user.
 
         # Deterministic guard: AI claims ingest worked but the tool
         # actually returned 0 documents (status=ingestion_failed/partial).
@@ -776,6 +906,34 @@ def make_reflection_gate(
                     severity="major",
                 ),
             }
+
+        # Deterministic guard: AI claims it searched the knowledge graph (or
+        # presents graph entities/relations with ids) but search_knowledge_graph
+        # never executed this turn — the read tool was narrated, not called, so
+        # the results are fabricated. The ingest/create guards above don't cover
+        # read tools, so this would otherwise reach the user unflagged.
+        fabricated_kg_search_issue = _detect_fabricated_kg_search(state)
+        if fabricated_kg_search_issue is not None:
+            logger.warning(
+                "Reflection guard: forcing major-revise — fabricated KG search "
+                "detected (search_knowledge_graph never executed). intent=%s",
+                intent,
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False,
+                    issues=[fabricated_kg_search_issue],
+                    severity="major",
+                ),
+            }
+
+        # Gate the EXPENSIVE LLM critique by intent. The deterministic guards
+        # above already ran for every intent; intents outside the filter (e.g.
+        # knowledge_graph deterministic lookups) skip only the probabilistic
+        # reflection, not the fabrication guards.
+        if intent not in intent_filter:
+            return {"reflection_count": current_count}
 
         # Cheap pre-LLM gate: skip critique for trivial / tool-less turns.
         skip, reason = _should_skip_reflection(state)
