@@ -164,17 +164,24 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           })}
 
           {/* Streaming assistant message.
-              Hide it the instant the committed assistant answer lands in
-              `messages` — both derive from the same React list, so the bubble
-              unmounts in the SAME render the final message appears. Gating only
+              Hide it the instant the streamed answer is COMMITTED — i.e. the
+              last message is an assistant turn whose content equals what we
+              streamed. Both derive from the same React list, so the bubble
+              unmounts in the same render the final message appears. Gating only
               on the Zustand `storeIsStreaming` flag raced the React message
               append across two reactive systems, leaving a window where the
               same answer painted twice (streamed bubble + committed bubble).
-              The exit is instant so the exiting bubble can't repaint the full
-              streamed answer over the committed one. */}
+              We compare CONTENT, not just role: during a regenerate the stale
+              assistant answer is still the last message while a NEW stream is
+              in flight, so a role-only check would wrongly hide the live bubble
+              for the whole turn. The exit is instant so the exiting bubble
+              can't repaint the full streamed answer over the committed one. */}
           <AnimatePresence>
             {storeIsStreaming &&
-              messages[messages.length - 1]?.role !== 'assistant' && (
+              !(
+                messages[messages.length - 1]?.role === 'assistant' &&
+                messages[messages.length - 1]?.content === storeStreamingContent
+              ) && (
                 <motion.div
                   key="streaming-message"
                   initial={{ opacity: 0, y: 16 }}

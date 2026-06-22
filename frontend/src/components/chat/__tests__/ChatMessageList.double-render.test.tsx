@@ -62,4 +62,24 @@ describe('ChatMessageList streaming bubble (double-render guard)', () => {
     expect(screen.getByTestId('streaming-bubble')).toBeTruthy();
     expect(screen.getByText('ANSWER')).toBeTruthy();
   });
+
+  it('shows the streaming bubble during regenerate (last message is the STALE assistant answer, not the live stream)', () => {
+    // Regenerate truncates local messages, so the displayed list can still end
+    // in the previous assistant answer while a NEW stream is in flight. The
+    // live bubble must stay visible because the stale content !== the stream.
+    render(
+      <ChatMessageList
+        {...baseProps}
+        storeIsStreaming
+        storeStreamingContent="NEW partial answer"
+        messages={[
+          { role: 'user', content: 'q', timestamp: 1 },
+          { role: 'assistant', content: 'OLD answer', timestamp: 2 },
+        ]}
+      />
+    );
+
+    expect(screen.getByTestId('streaming-bubble')).toBeTruthy();
+    expect(screen.getByText('NEW partial answer')).toBeTruthy();
+  });
 });
