@@ -759,6 +759,30 @@ class TestFabricatedKgSearchGuard:
         )
         assert issue is None
 
+    def test_silent_when_other_kg_read_tool_ran(self):
+        """A legit turn that calls explore_entity_neighborhood / find_entity_paths
+        (not search_knowledge_graph) and narrates "I explored the knowledge
+        graph" is NOT a fabrication — any completed KG read tool counts."""
+        for tool_name, text in (
+            (
+                "explore_entity_neighborhood",
+                "I explored the knowledge graph around RAG and found 5 concepts.",
+            ),
+            (
+                "find_entity_paths",
+                "I queried the knowledge graph for paths and found a 2-hop link.",
+            ),
+        ):
+            issue = _detect_fabricated_kg_search(
+                _make_kg_state(
+                    ai_content=text,
+                    tool_executions=[
+                        {"tool_name": tool_name, "status": "completed", "result": {}}
+                    ],
+                )
+            )
+            assert issue is None, tool_name
+
     def test_silent_on_paper_description_of_a_graph(self):
         """A summary DESCRIBING a graph/entities (not the assistant claiming it
         searched) must not be flagged."""

@@ -271,6 +271,19 @@ def _detect_fabricated_ingest(state: dict) -> Optional[str]:
 # Fabricated knowledge-graph search guard
 # ---------------------------------------------------------------------------
 
+# Knowledge-graph READ tools. A completed execution of ANY of these means the
+# graph was genuinely queried this turn, so a "I searched/explored/queried the
+# knowledge graph" narration is truthful (not a fabrication). Mirrors the data
+# subgraph's KG read set (subgraphs/data_agent.py).
+_KG_READ_TOOLS: frozenset[str] = frozenset(
+    {
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+    }
+)
+
 # Offer / question phrasing — the AI is proposing to search the graph, not
 # claiming it already did. Skip the fabrication check on these.
 _KG_SEARCH_QUESTION_RE = re.compile(
@@ -326,7 +339,10 @@ def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
     not cover read tools, so this slipped past reflection.
 
     Returns None when:
-    - ``search_knowledge_graph`` actually completed this turn (real results).
+    - Any knowledge-graph READ tool actually completed this turn (real results) —
+      not just ``search_knowledge_graph`` but also the neighborhood/path/stats
+      reads, since the model legitimately narrates "I explored/queried the
+      knowledge graph" for those too.
     - The AI text is offering / instructing rather than asserting it searched.
     - No strong KG-result-assertion signal is present.
     """
@@ -334,7 +350,7 @@ def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
 
     executed_search = any(
         isinstance(te, dict)
-        and te.get("tool_name") == "search_knowledge_graph"
+        and te.get("tool_name") in _KG_READ_TOOLS
         and te.get("status") == "completed"
         for te in tool_executions
     )
