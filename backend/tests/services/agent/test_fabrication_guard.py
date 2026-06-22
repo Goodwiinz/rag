@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from src.services.agent.reflection import (
     ReflectionResult,
     _detect_fabricated_ingest,
+    _detect_fabricated_kg_search,
     _detect_fabricated_tool_success,
     _detect_ingest_success_lie,
     _should_skip_reflection,
@@ -678,4 +679,175 @@ class TestGateNodeFabricatedIngestIntegration:
             assert mock_build.called is False
 
         assert updates["reflection_count"] == 2
+        assert "_reflection_result" not in updates
+
+
+# ---------------------------------------------------------------------------
+# Fabricated knowledge-graph search guard
+# ---------------------------------------------------------------------------
+
+
+def _make_kg_state(
+    *,
+    ai_content: str | list,
+    tool_executions: list | None = None,
+    intent: str = "knowledge_graph",
+    reflection_count: int = 0,
+) -> dict:
+    """State with a KG-style user question + an assistant answer."""
+    return {
+        "messages": [
+            HumanMessage(content="Explore the knowledge graph for EHR-RAGp"),
+            AIMessage(content=ai_content),
+        ],
+        "tool_executions": tool_executions if tool_executions is not None else [],
+        "intent": intent,
+        "reflection_count": reflection_count,
+    }
+
+
+def _completed_kg_search_te() -> dict:
+    return {
+        "tool_name": "search_knowledge_graph",
+        "status": "completed",
+        "result": {"entities": [{"id": "a588bad6", "name": "RAG"}]},
+    }
+
+
+_FABRICATED_KG_ANSWER = (
+    "I searched the knowledge graph for entities and relations related to "
+    "EHR-RAGp. Results found several extracted entities. Relevant concept "
+    "entities: Retrieval-Augmented Generation (entity_id: a588bad6-9972-4c43)."
+)
+
+
+class TestFabricatedKgSearchGuard:
+    def test_fires_when_no_search_tool_ran(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(ai_content=_FABRICATED_KG_ANSWER, tool_executions=[])
+        )
+        assert issue is not None
+        assert "search_knowledge_graph" in issue
+
+    def test_silent_when_search_tool_completed(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content=_FABRICATED_KG_ANSWER,
+                tool_executions=[_completed_kg_search_te()],
+            )
+        )
+        assert issue is None
+
+    def test_silent_on_offer_to_search(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content=(
+                    "Would you like me to search the knowledge graph for related "
+                    "entities? I can explore the graph if you confirm."
+                ),
+                tool_executions=[],
+            )
+        )
+        assert issue is None
+
+    def test_silent_when_no_kg_claim(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content="Here is a concise summary of the paper's methods.",
+                tool_executions=[],
+            )
+        )
+        assert issue is None
+
+    def test_silent_when_other_kg_read_tool_ran(self):
+        """A legit turn that calls explore_entity_neighborhood / find_entity_paths
+        (not search_knowledge_graph) and narrates "I explored the knowledge
+        graph" is NOT a fabrication — any completed KG read tool counts."""
+        for tool_name, text in (
+            (
+                "explore_entity_neighborhood",
+                "I explored the knowledge graph around RAG and found 5 concepts.",
+            ),
+            (
+                "find_entity_paths",
+                "I queried the knowledge graph for paths and found a 2-hop link.",
+            ),
+        ):
+            issue = _detect_fabricated_kg_search(
+                _make_kg_state(
+                    ai_content=text,
+                    tool_executions=[
+                        {"tool_name": tool_name, "status": "completed", "result": {}}
+                    ],
+                )
+            )
+            assert issue is None, tool_name
+
+    def test_silent_on_paper_description_of_a_graph(self):
+        """A summary DESCRIBING a graph/entities (not the assistant claiming it
+        searched) must not be flagged."""
+        for text in (
+            "The authors explored the graph structure of citation networks.",
+            "The knowledge graph community found that embeddings help.",
+            "Each node has an entity_id field you can reference.",
+            "The authors queried the graph database to retrieve neighbors.",
+        ):
+            assert (
+                _detect_fabricated_kg_search(
+                    _make_kg_state(ai_content=text, tool_executions=[])
+                )
+                is None
+            ), text
+
+    def test_silent_on_honest_empty_or_failed_search(self):
+        """A truthful 'I searched the KG but it returned nothing / failed' is not
+        a fabrication even if the tool errored (status != completed)."""
+        for text in (
+            "I searched the knowledge graph but it returned nothing relevant.",
+            "I searched the knowledge graph for EHR-RAGp; it returned no entities.",
+            "I searched the knowledge graph but the search failed — service down.",
+        ):
+            assert (
+                _detect_fabricated_kg_search(
+                    _make_kg_state(ai_content=text, tool_executions=[])
+                )
+                is None
+            ), text
+
+    @pytest.mark.asyncio
+    async def test_gate_fires_even_when_intent_outside_filter(self):
+        """The deterministic guard must protect knowledge_graph turns, which the
+        data subgraph deliberately routes with intent_filter={"research",
+        "writing"} (KG intent NOT in the filter). The guard runs before the
+        intent-filter gate, so a fabricated KG search is still caught."""
+        node_fn, _ = make_reflection_gate(intent_filter={"research", "writing"})
+        state = _make_kg_state(
+            ai_content=_FABRICATED_KG_ANSWER,
+            tool_executions=[],
+            intent="knowledge_graph",
+        )
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
+            updates = await node_fn(state, {"configurable": {}})
+            assert mock_build.called is False  # deterministic, no LLM call
+
+        result = updates["_reflection_result"]
+        assert result.passed is False
+        assert result.severity == "major"
+        assert any("search_knowledge_graph" in issue for issue in result.issues)
+        assert updates["reflection_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_gate_silent_when_intent_outside_filter_and_no_fabrication(self):
+        """A clean knowledge_graph turn (intent outside filter) still skips the
+        LLM critique — no fabrication, no forced revise."""
+        node_fn, _ = make_reflection_gate(intent_filter={"research", "writing"})
+        state = _make_kg_state(
+            ai_content="Here are the entities from the graph.",
+            tool_executions=[_completed_kg_search_te()],
+            intent="knowledge_graph",
+        )
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
+            updates = await node_fn(state, {"configurable": {}})
+            assert mock_build.called is False  # intent gates the LLM critique
+
         assert "_reflection_result" not in updates
