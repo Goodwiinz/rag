@@ -11,9 +11,13 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+import structlog
+
 from src.core.dependencies import get_current_user
 from src.services.connectors import connector_registry
 from src.services.connectors.base import ConnectorDomain
+
+logger = structlog.get_logger(__name__)
 
 # Authentication enforced at the router level: every connector endpoint drives
 # server-side external-database credentials, so all require an authenticated
@@ -69,6 +73,10 @@ class SearchResponse(BaseModel):
     total_results: int
     results: List[SearchResultItem]
     connectors_searched: List[str]
+    # Connectors that were attempted but raised — surfaced so a partial failure
+    # (auth/upstream error) is distinguishable from "searched and found nothing"
+    # instead of being silently swallowed.
+    failed_connectors: List[str] = Field(default_factory=list)
 
 
 # ---- Endpoints ----
@@ -154,13 +162,23 @@ async def search_connectors(body: SearchRequest):
 
     merged: List[SearchResultItem] = []
     searched: List[str] = []
+    failed: List[str] = []
     from src.core.async_utils import reraise_if_cancelled
 
     for connector, result in zip(targets, all_results):
         searched.append(connector.info.name)
         reraise_if_cancelled(result)
         if isinstance(result, Exception):
-            continue  # skip failed connectors silently
+            # A connector raising must not vanish: log it and report it as a
+            # failed connector so the caller knows the result set is partial.
+            logger.warning(
+                "connector_search_failed",
+                connector=connector.info.name,
+                error=str(result),
+                error_type=type(result).__name__,
+            )
+            failed.append(connector.info.name)
+            continue
         for r in result:
             merged.append(
                 SearchResultItem(
@@ -181,6 +199,7 @@ async def search_connectors(body: SearchRequest):
         total_results=len(merged),
         results=merged,
         connectors_searched=searched,
+        failed_connectors=failed,
     )
 
 
