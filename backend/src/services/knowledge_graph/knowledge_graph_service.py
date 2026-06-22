@@ -1040,15 +1040,24 @@ class KnowledgeGraphService:
                     if source_document_ids is not None
                     else ""
                 )
-                # MERGE (not CREATE) on (source, target, type) so re-ingesting
-                # the same pair does not pile up duplicate RELATED_TO edges. The
-                # type lives in the relationship pattern as the dedupe key;
-                # mutable fields are refreshed on every ingest. LIMIT 1 guards
-                # against legacy duplicate edges left by the old CREATE path.
+                # MERGE (not CREATE) so re-ingesting the SAME document does not
+                # pile up duplicate RELATED_TO edges. The dedupe key is
+                # (source, target, type, source_document_id): source_document_id
+                # is part of the key so two DIFFERENT documents asserting the
+                # same pair keep their own provenance edges (a doc-scoped read
+                # filtering r.source_document_id still finds them) rather than
+                # one overwriting the other. source_document_id is coalesced to
+                # "" in params because Cypher cannot MERGE on a null key value.
+                # LIMIT 1 keeps the read to one row; it does NOT consolidate any
+                # legacy duplicate edges left by the old CREATE path (that is a
+                # separate one-time data cleanup, out of scope here).
                 query = f"""
                 MATCH (source:Entity {{id: $source_entity_id}})
                 MATCH (target:Entity {{id: $target_entity_id}}){tenant_filter}
-                MERGE (source)-[r:RELATED_TO {{type: $relationship_type}}]->(target)
+                MERGE (source)-[r:RELATED_TO {{
+                    type: $relationship_type,
+                    source_document_id: $source_document_id
+                }}]->(target)
                 ON CREATE SET
                     r.id = $id,
                     r.strength = $strength,
@@ -1056,7 +1065,6 @@ class KnowledgeGraphService:
                     r.context = $context,
                     r.evidence = $evidence,
                     r.metadata = $metadata,
-                    r.source_document_id = $source_document_id,
                     r.created_at = datetime(),
                     r.updated_at = datetime()
                 ON MATCH SET
@@ -1065,7 +1073,6 @@ class KnowledgeGraphService:
                     r.context = $context,
                     r.evidence = $evidence,
                     r.metadata = $metadata,
-                    r.source_document_id = $source_document_id,
                     r.updated_at = datetime()
                 RETURN r, source, target
                 LIMIT 1
@@ -1089,7 +1096,9 @@ class KnowledgeGraphService:
                     "context": request.context,
                     "evidence": evidence_str,
                     "metadata": metadata_str,
-                    "source_document_id": request.source_document_id,
+                    # Coalesced to "" so it can serve as a MERGE key (Cypher
+                    # rejects a null key value).
+                    "source_document_id": request.source_document_id or "",
                 }
                 if source_document_ids is not None:
                     params["source_document_ids"] = source_document_ids
@@ -1980,12 +1989,17 @@ class KnowledgeGraphService:
     ) -> Optional[RelationshipResponse]:
         """Helper to create relationship within a transaction"""
         relationship_id = str(uuid.uuid4())
-        # MERGE on (source, target, type) for idempotent re-ingest — see the
-        # note in create_relationship. LIMIT 1 guards against legacy duplicates.
+        # MERGE on (source, target, type, source_document_id) for idempotent
+        # re-ingest while preserving per-document provenance — see the note in
+        # create_relationship. LIMIT 1 keeps the read to one row (it does not
+        # consolidate legacy duplicate edges).
         query = """
         MATCH (source:Entity {id: $source_entity_id})
         MATCH (target:Entity {id: $target_entity_id})
-        MERGE (source)-[r:RELATED_TO {type: $relationship_type}]->(target)
+        MERGE (source)-[r:RELATED_TO {
+            type: $relationship_type,
+            source_document_id: $source_document_id
+        }]->(target)
         ON CREATE SET
             r.id = $id,
             r.strength = $strength,
@@ -1993,7 +2007,6 @@ class KnowledgeGraphService:
             r.context = $context,
             r.evidence = $evidence,
             r.metadata = $metadata,
-            r.source_document_id = $source_document_id,
             r.created_at = datetime(),
             r.updated_at = datetime()
         ON MATCH SET
@@ -2002,7 +2015,6 @@ class KnowledgeGraphService:
             r.context = $context,
             r.evidence = $evidence,
             r.metadata = $metadata,
-            r.source_document_id = $source_document_id,
             r.updated_at = datetime()
         RETURN r
         LIMIT 1
@@ -2024,7 +2036,8 @@ class KnowledgeGraphService:
                 "context": request.context,
                 "evidence": evidence_str,
                 "metadata": metadata_str,
-                "source_document_id": request.source_document_id,
+                # Coalesced to "" so it can serve as a MERGE key.
+                "source_document_id": request.source_document_id or "",
             },
         )
 
