@@ -335,6 +335,28 @@ class RBACService:
                     reason="Role not found or inactive for this organization",
                 )
 
+            # Validate the target user is a member of this organization. Without
+            # this check a caller could grant a role to a user in another tenant
+            # (the user_id is path-controlled), since only the role's org was
+            # being verified above.
+            user_in_org = (
+                self.db.query(User.id)
+                .filter(
+                    and_(
+                        User.id == user_id,
+                        User.organization_id == organization_id,
+                    )
+                )
+                .first()
+            )
+
+            if not user_in_org:
+                raise ConfigurationException(
+                    config_key="user_id",
+                    config_value=user_id,
+                    reason="User is not a member of this organization",
+                )
+
             # Check if assignment already exists
             existing_assignment = (
                 self.db.query(UserRoleAssignment)
