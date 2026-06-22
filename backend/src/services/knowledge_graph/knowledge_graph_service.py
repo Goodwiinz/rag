@@ -1040,22 +1040,42 @@ class KnowledgeGraphService:
                     if source_document_ids is not None
                     else ""
                 )
+                # MERGE (not CREATE) so re-ingesting the SAME document does not
+                # pile up duplicate RELATED_TO edges. The dedupe key is
+                # (source, target, type, source_document_id): source_document_id
+                # is part of the key so two DIFFERENT documents asserting the
+                # same pair keep their own provenance edges (a doc-scoped read
+                # filtering r.source_document_id still finds them) rather than
+                # one overwriting the other. source_document_id is coalesced to
+                # "" in params because Cypher cannot MERGE on a null key value.
+                # LIMIT 1 keeps the read to one row; it does NOT consolidate any
+                # legacy duplicate edges left by the old CREATE path (that is a
+                # separate one-time data cleanup, out of scope here).
                 query = f"""
                 MATCH (source:Entity {{id: $source_entity_id}})
                 MATCH (target:Entity {{id: $target_entity_id}}){tenant_filter}
-                CREATE (source)-[r:RELATED_TO {{
-                    id: $id,
+                MERGE (source)-[r:RELATED_TO {{
                     type: $relationship_type,
-                    strength: $strength,
-                    confidence_score: $confidence_score,
-                    context: $context,
-                    evidence: $evidence,
-                    metadata: $metadata,
-                    source_document_id: $source_document_id,
-                    created_at: datetime(),
-                    updated_at: datetime()
+                    source_document_id: $source_document_id
                 }}]->(target)
+                ON CREATE SET
+                    r.id = $id,
+                    r.strength = $strength,
+                    r.confidence_score = $confidence_score,
+                    r.context = $context,
+                    r.evidence = $evidence,
+                    r.metadata = $metadata,
+                    r.created_at = datetime(),
+                    r.updated_at = datetime()
+                ON MATCH SET
+                    r.strength = $strength,
+                    r.confidence_score = $confidence_score,
+                    r.context = $context,
+                    r.evidence = $evidence,
+                    r.metadata = $metadata,
+                    r.updated_at = datetime()
                 RETURN r, source, target
+                LIMIT 1
                 """
 
                 # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
@@ -1076,7 +1096,9 @@ class KnowledgeGraphService:
                     "context": request.context,
                     "evidence": evidence_str,
                     "metadata": metadata_str,
-                    "source_document_id": request.source_document_id,
+                    # Coalesced to "" so it can serve as a MERGE key (Cypher
+                    # rejects a null key value).
+                    "source_document_id": request.source_document_id or "",
                 }
                 if source_document_ids is not None:
                     params["source_document_ids"] = source_document_ids
@@ -1087,13 +1109,19 @@ class KnowledgeGraphService:
                 if not record:
                     raise RuntimeError("Failed to create relationship")
 
+                # On MATCH the existing edge keeps its original id, so read it
+                # back from the result rather than returning the freshly minted
+                # uuid (which is only applied ON CREATE).
+                resolved_rel = record["r"]
+                resolved_id = resolved_rel.get("id", relationship_id)
+
                 processing_time = time.time() - start_time
                 logger.info(
-                    f"Created relationship: {request.source_entity_id} -> {request.target_entity_id} ({relationship_id}) in {processing_time:.3f}s"
+                    f"Upserted relationship: {request.source_entity_id} -> {request.target_entity_id} ({resolved_id}) in {processing_time:.3f}s"
                 )
 
                 return RelationshipResponse(
-                    id=relationship_id,
+                    id=resolved_id,
                     source_entity_id=request.source_entity_id,
                     target_entity_id=request.target_entity_id,
                     relationship_type=request.relationship_type,
@@ -1961,22 +1989,35 @@ class KnowledgeGraphService:
     ) -> Optional[RelationshipResponse]:
         """Helper to create relationship within a transaction"""
         relationship_id = str(uuid.uuid4())
+        # MERGE on (source, target, type, source_document_id) for idempotent
+        # re-ingest while preserving per-document provenance — see the note in
+        # create_relationship. LIMIT 1 keeps the read to one row (it does not
+        # consolidate legacy duplicate edges).
         query = """
         MATCH (source:Entity {id: $source_entity_id})
         MATCH (target:Entity {id: $target_entity_id})
-        CREATE (source)-[r:RELATED_TO {
-            id: $id,
+        MERGE (source)-[r:RELATED_TO {
             type: $relationship_type,
-            strength: $strength,
-            confidence_score: $confidence_score,
-            context: $context,
-            evidence: $evidence,
-            metadata: $metadata,
-            source_document_id: $source_document_id,
-            created_at: datetime(),
-            updated_at: datetime()
+            source_document_id: $source_document_id
         }]->(target)
+        ON CREATE SET
+            r.id = $id,
+            r.strength = $strength,
+            r.confidence_score = $confidence_score,
+            r.context = $context,
+            r.evidence = $evidence,
+            r.metadata = $metadata,
+            r.created_at = datetime(),
+            r.updated_at = datetime()
+        ON MATCH SET
+            r.strength = $strength,
+            r.confidence_score = $confidence_score,
+            r.context = $context,
+            r.evidence = $evidence,
+            r.metadata = $metadata,
+            r.updated_at = datetime()
         RETURN r
+        LIMIT 1
         """
 
         # Serialize evidence and metadata to JSON strings (Neo4j only accepts primitives)
@@ -1995,7 +2036,8 @@ class KnowledgeGraphService:
                 "context": request.context,
                 "evidence": evidence_str,
                 "metadata": metadata_str,
-                "source_document_id": request.source_document_id,
+                # Coalesced to "" so it can serve as a MERGE key.
+                "source_document_id": request.source_document_id or "",
             },
         )
 
@@ -2003,8 +2045,12 @@ class KnowledgeGraphService:
         if not rel:
             return None
 
+        # On MATCH the existing edge keeps its original id (the new uuid is only
+        # applied ON CREATE), so read it back from the result.
+        resolved_id = rel["r"].get("id", relationship_id)
+
         return RelationshipResponse(
-            id=relationship_id,
+            id=resolved_id,
             source_entity_id=request.source_entity_id,
             target_entity_id=request.target_entity_id,
             relationship_type=request.relationship_type,
