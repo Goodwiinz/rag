@@ -39,6 +39,33 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
 _TRANSIENT_EXCEPTIONS = (asyncio.TimeoutError, ConnectionError, OSError)
 _USER_FIXABLE_EXCEPTIONS = (PermissionError,)
 
+# Keyword signals that an error is transient/upstream — retrying (or simply
+# waiting) can recover, and regenerating the AI response cannot. Connection
+# keywords are scoped: a bare "connection" also matches benign payload text
+# like "no connection found between entities" and must not retry a fatal error.
+# Rate-limit signals ("429", "rate limit", "too many requests") are included so
+# that e.g. an arXiv 429 — surfaced as "ArXiv rate limited (HTTP 429)" — is not
+# misclassified as fatal, which would burn the error ceiling and trigger a
+# wasteful reflection revise loop (the response cannot fix an upstream limit).
+_TRANSIENT_ERROR_KEYWORDS = (
+    "timeout",
+    "timed out",
+    "connection refused",
+    "connection reset",
+    "connection error",
+    "connection closed",
+    "connection failed",
+    # Canonical requests/urllib3 failure string:
+    # ('Connection aborted.', RemoteDisconnected(...))
+    "connection aborted",
+    "econnrefused",
+    "econnreset",
+    # Rate limiting (substring "rate limit" also matches "rate limited").
+    "rate limit",
+    "429",
+    "too many requests",
+)
+
 
 @dataclass(frozen=True)
 class ToolError:
@@ -80,6 +107,12 @@ def classify_error(tool_name: str, exc: Exception) -> ToolError:
     for (tn, keyword), (cat, suggestion) in TOOL_ERROR_HINTS.items():
         if tn == tool_name and keyword in msg_lower:
             return ToolError(category=cat, message=msg, suggestion=suggestion)
+
+    # Transient infrastructure / rate-limit errors raised as exceptions.
+    if any(kw in msg_lower for kw in _TRANSIENT_ERROR_KEYWORDS):
+        return ToolError(
+            category="transient", message=msg, suggestion="Retrying automatically..."
+        )
 
     return ToolError(category="fatal", message=msg)
 
@@ -131,26 +164,10 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             suggestion="You may need different permissions.",
         )
 
-    # 4. Transient infrastructure errors. Connection keywords are scoped —
-    # a bare "connection" also matches benign payload text like "no
-    # connection found between entities" and would retry a fatal error.
-    if any(
-        kw in msg_lower
-        for kw in (
-            "timeout",
-            "timed out",
-            "connection refused",
-            "connection reset",
-            "connection error",
-            "connection closed",
-            "connection failed",
-            # Canonical requests/urllib3 failure string:
-            # ('Connection aborted.', RemoteDisconnected(...))
-            "connection aborted",
-            "econnrefused",
-            "econnreset",
-        )
-    ):
+    # 4. Transient infrastructure / rate-limit errors. See
+    # _TRANSIENT_ERROR_KEYWORDS for why connection keywords are scoped and
+    # why rate-limit signals are treated as transient.
+    if any(kw in msg_lower for kw in _TRANSIENT_ERROR_KEYWORDS):
         return ToolError(category="transient", message=error_msg)
 
     # 5. Recoverable input-shape errors (LLM can usually retry differently).
