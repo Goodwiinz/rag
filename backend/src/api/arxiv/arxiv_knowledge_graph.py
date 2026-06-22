@@ -214,9 +214,16 @@ async def bulk_ingest_with_kg(
         # Create knowledge graph entries if requested
         kg_entries_count = 0
         if request.create_kg_entries:
+            paper_org_id = (
+                str(current_user.organization_id)
+                if getattr(current_user, "organization_id", None)
+                else None
+            )
             for paper in papers:
                 try:
-                    await kg_integration.process_paper_kg_integration(paper)
+                    await kg_integration.process_paper_kg_integration(
+                        paper, organization_id=paper_org_id
+                    )
                     kg_entries_count += 1
                 except Exception as e:
                     logger.warning(
