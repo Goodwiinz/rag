@@ -24,6 +24,12 @@ from .base import (
 
 logger = structlog.get_logger(__name__)
 
+# Upper bound on a single BioServices lookup. Without it a hung upstream
+# (KEGG/Reactome/ChEBI) pins a worker in the shared asyncio.to_thread executor
+# indefinitely; enough hung calls exhaust the pool and stall every other
+# to_thread caller process-wide.
+_BIOSERVICES_TIMEOUT_SECONDS = 30.0
+
 # Services exposed through the bridge.  Each entry maps a short name to
 # (bioservices_class_name, description, search_method, id_field).
 _SUPPORTED_SERVICES: Dict[str, Dict[str, str]] = {
@@ -107,10 +113,23 @@ class BioServicesBridgeConnector(ExternalDBConnector):
             return []
 
         try:
-            results = await asyncio.to_thread(
-                self._sync_search, service_name, query, max_results
+            # Bound the caller so a hung upstream cannot block this coroutine
+            # forever. (wait_for stops the await; _sync_search additionally sets
+            # the service's own HTTP timeout so the worker thread is freed too.)
+            results = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._sync_search, service_name, query, max_results
+                ),
+                timeout=_BIOSERVICES_TIMEOUT_SECONDS,
             )
             return results
+        except asyncio.TimeoutError:
+            logger.warning(
+                "bioservices_search_timeout",
+                service=service_name,
+                timeout=_BIOSERVICES_TIMEOUT_SECONDS,
+            )
+            return []
         except Exception:
             logger.exception("bioservices_search_failed", service=service_name)
             return []
@@ -124,6 +143,15 @@ class BioServicesBridgeConnector(ExternalDBConnector):
         svc_info = _SUPPORTED_SERVICES[service_name]
         cls = getattr(bioservices, svc_info["class"])
         svc = cls()
+
+        # Bound the underlying HTTP call so a hung upstream actually frees this
+        # worker thread (asyncio.wait_for in search() cancels the await but
+        # cannot stop a running thread). Best-effort: older/newer bioservices
+        # may not expose a settable TIMEOUT.
+        try:
+            svc.TIMEOUT = _BIOSERVICES_TIMEOUT_SECONDS
+        except Exception:  # noqa: BLE001 - timeout knob is advisory
+            pass
 
         method = getattr(svc, svc_info["search"])
         raw = method(query)
