@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
 import structlog
@@ -43,7 +44,7 @@ def _parse_gene(record: Dict[str, Any]) -> ConnectorResult:
         id=gene,
         title=gene or "Unknown gene",
         source="cosmic",
-        url=f"{_BASE_URL}/gene/analysis?ln={gene}",
+        url=f"{_BASE_URL}/gene/analysis?ln={quote(gene, safe='')}",
         content="\n".join(parts),
         metadata=record,
         document_type="gene",
@@ -91,7 +92,7 @@ class COSMICConnector(ExternalDBConnector):
                     id=query,
                     title=f"COSMIC: {query}",
                     source="cosmic",
-                    url=f"{_BASE_URL}/gene/analysis?ln={query}",
+                    url=f"{_BASE_URL}/gene/analysis?ln={quote(query, safe='')}",
                     content=(
                         "COSMIC requires academic authentication. "
                         "Set COSMIC_AUTH env var as 'email:password' to enable API access."
@@ -101,10 +102,17 @@ class COSMICConnector(ExternalDBConnector):
                 )
             ]
 
-        url = f"{_API_BASE_URL}/genes/{query}"
+        # Encode the user-supplied gene symbol so it cannot inject extra path
+        # segments ("../"), query params ("?x="), or a fragment into the COSMIC
+        # request URL. follow_redirects stays False (httpx default, set here
+        # explicitly) so the attached Basic-auth credentials are never replayed
+        # to a redirect target.
+        url = f"{_API_BASE_URL}/genes/{quote(query, safe='')}"
         try:
             async with httpx.AsyncClient(
-                timeout=30.0, headers=self._auth_headers()
+                timeout=30.0,
+                headers=self._auth_headers(),
+                follow_redirects=False,
             ) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
