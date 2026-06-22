@@ -295,9 +295,20 @@ async def extract_features_from_local_pdfs(
             logger.info(
                 f"Scheduling knowledge graph update for {processed_count} papers"
             )
+            # Resolve the caller's org once and thread it into the background KG
+            # task so entities created off the request thread are tenant-scoped
+            # (the background task gets no current_user otherwise).
+            _org_raw = (
+                current_user.get("organization_id")
+                if isinstance(current_user, dict)
+                else getattr(current_user, "organization_id", None)
+            )
+            org_id = str(_org_raw) if _org_raw else None
             # Create background tasks for each result to process independently
             for result in extraction_results:
-                background_tasks.add_task(_post_process_extraction, result, request)
+                background_tasks.add_task(
+                    _post_process_extraction, result, request, org_id
+                )
 
         return LocalExtractionResponse(
             status="success",
@@ -323,7 +334,7 @@ async def extract_features_from_local_pdfs(
 KG_UPDATE_EXECUTOR = ThreadPoolExecutor(max_workers=5)
 
 
-async def _post_process_extraction(result, request):
+async def _post_process_extraction(result, request, organization_id=None):
     """
     Handle async post-processing steps (embeddings, KG update)
     """
@@ -386,6 +397,7 @@ async def _post_process_extraction(result, request):
                     KG_UPDATE_EXECUTOR,
                     _update_knowledge_graph_with_local_extractions_sync,
                     result,
+                    organization_id,
                 )
                 logger.info(
                     f"KG update task submitted for {result.get('paper_id', 'unknown')}"
@@ -400,7 +412,9 @@ async def _post_process_extraction(result, request):
         logger.error(f"Error in post-processing: {e}")
 
 
-def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
+def _update_knowledge_graph_with_local_extractions_sync(
+    result: Dict[str, Any], organization_id: Optional[str] = None
+):
     """
     Synchronous wrapper for knowledge graph updates
     """
@@ -445,6 +459,7 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
                 "summary": features.get("summary", ""),
                 "extracted_at": datetime.now().isoformat(),
             },
+            organization_id=organization_id,
         )
 
         logger.info(f"Creating paper entity for {paper_id}...")
@@ -471,6 +486,7 @@ def _update_knowledge_graph_with_local_extractions_sync(result: Dict[str, Any]):
                     confidence_score=0.8,
                     extraction_method=ExtractionMethod.SPACY_NER,
                     metadata={"source": "arxiv_extraction", "paper_id": paper_id},
+                    organization_id=organization_id,
                 )
                 topic_entity = kg_service.create_entity(topic_entity_request)
 
