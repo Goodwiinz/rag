@@ -1939,11 +1939,13 @@ class KnowledgeGraphService:
             e.context = $context,
             e.metadata = $metadata,
             e.source_document_id = $source_document_id,
+            e.organization_id = $organization_id,
             e.created_at = datetime(),
             e.updated_at = datetime()
         ON MATCH SET
             e.name = $name,
             e.updated_at = datetime(),
+            e.organization_id = coalesce(e.organization_id, $organization_id),
             e.confidence_score = CASE
                 WHEN $confidence_score > e.confidence_score THEN $confidence_score
                 ELSE e.confidence_score END
@@ -1963,6 +1965,10 @@ class KnowledgeGraphService:
                 "context": request.context,
                 "metadata": json.dumps(request.metadata) if request.metadata else "{}",
                 "source_document_id": request.source_document_id,
+                # Stamp the owning org so batch-fallback nodes are tenant-scoped
+                # like create_entity (478/484). Without this the apoc-failure
+                # fallback path created org-less nodes invisible to org reads.
+                "organization_id": getattr(request, "organization_id", None),
             },
         )
 
@@ -2391,6 +2397,7 @@ class KnowledgeGraphService:
         document_id: str = None,
         confidence: float = 0.8,
         metadata: str = "",
+        organization_id: str = None,
     ) -> Optional[str]:
         """Adapter for legacy callers that expect create_entity_node.
 
@@ -2404,6 +2411,7 @@ class KnowledgeGraphService:
                 extraction_method=ExtractionMethod.LLM_EXTRACTION,
                 context=metadata if isinstance(metadata, str) else None,
                 source_document_id=document_id,
+                organization_id=organization_id,
             )
             result = self.create_entity(request)
             return result.id if result else None
