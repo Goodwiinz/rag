@@ -14,6 +14,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from src.services.agent.reflection import (
     ReflectionResult,
     _detect_fabricated_ingest,
+    _detect_fabricated_kg_search,
     _detect_fabricated_tool_success,
     _detect_ingest_success_lie,
     _should_skip_reflection,
@@ -679,3 +680,97 @@ class TestGateNodeFabricatedIngestIntegration:
 
         assert updates["reflection_count"] == 2
         assert "_reflection_result" not in updates
+
+
+# ---------------------------------------------------------------------------
+# Fabricated knowledge-graph search guard
+# ---------------------------------------------------------------------------
+
+
+def _make_kg_state(
+    *,
+    ai_content: str | list,
+    tool_executions: list | None = None,
+    intent: str = "data",
+    reflection_count: int = 0,
+) -> dict:
+    """State with a KG-style user question + an assistant answer."""
+    return {
+        "messages": [
+            HumanMessage(content="Explore the knowledge graph for EHR-RAGp"),
+            AIMessage(content=ai_content),
+        ],
+        "tool_executions": tool_executions if tool_executions is not None else [],
+        "intent": intent,
+        "reflection_count": reflection_count,
+    }
+
+
+def _completed_kg_search_te() -> dict:
+    return {
+        "tool_name": "search_knowledge_graph",
+        "status": "completed",
+        "result": {"entities": [{"id": "a588bad6", "name": "RAG"}]},
+    }
+
+
+_FABRICATED_KG_ANSWER = (
+    "I searched the knowledge graph for entities and relations related to "
+    "EHR-RAGp. Results found several extracted entities. Relevant concept "
+    "entities: Retrieval-Augmented Generation (entity_id: a588bad6-9972-4c43)."
+)
+
+
+class TestFabricatedKgSearchGuard:
+    def test_fires_when_no_search_tool_ran(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(ai_content=_FABRICATED_KG_ANSWER, tool_executions=[])
+        )
+        assert issue is not None
+        assert "search_knowledge_graph" in issue
+
+    def test_silent_when_search_tool_completed(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content=_FABRICATED_KG_ANSWER,
+                tool_executions=[_completed_kg_search_te()],
+            )
+        )
+        assert issue is None
+
+    def test_silent_on_offer_to_search(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content=(
+                    "Would you like me to search the knowledge graph for related "
+                    "entities? I can explore the graph if you confirm."
+                ),
+                tool_executions=[],
+            )
+        )
+        assert issue is None
+
+    def test_silent_when_no_kg_claim(self):
+        issue = _detect_fabricated_kg_search(
+            _make_kg_state(
+                ai_content="Here is a concise summary of the paper's methods.",
+                tool_executions=[],
+            )
+        )
+        assert issue is None
+
+    @pytest.mark.asyncio
+    async def test_gate_forces_major_revise_on_fabricated_kg_search(self):
+        node_fn, _ = make_reflection_gate(intent_filter={"data"})
+        state = _make_kg_state(
+            ai_content=_FABRICATED_KG_ANSWER, tool_executions=[], intent="data"
+        )
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
+            updates = await node_fn(state, {"configurable": {}})
+            assert mock_build.called is False  # deterministic, no LLM call
+
+        result = updates["_reflection_result"]
+        assert result.passed is False
+        assert result.severity == "major"
+        assert any("search_knowledge_graph" in issue for issue in result.issues)
+        assert updates["reflection_count"] == 1

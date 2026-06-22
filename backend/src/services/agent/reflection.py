@@ -267,6 +267,95 @@ def _detect_fabricated_ingest(state: dict) -> Optional[str]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Fabricated knowledge-graph search guard
+# ---------------------------------------------------------------------------
+
+# Offer / question phrasing — the AI is proposing to search the graph, not
+# claiming it already did. Skip the fabrication check on these.
+_KG_SEARCH_QUESTION_RE = re.compile(
+    r"\bwould\s+you\s+like\s+me\s+to\b"
+    r"|\bdo\s+you\s+want\s+me\s+to\b"
+    r"|\bshould\s+I\b"
+    r"|\bI\s+can\s+(?:search|explore|query)\b"
+    r"|\b(?:use|call)\s+search_knowledge_graph\b",  # instructional, not a claim
+    re.IGNORECASE,
+)
+
+# Strong, low-false-positive signals that the AI is ASSERTING it searched the
+# knowledge graph / is presenting graph results, WITHOUT having called the tool.
+#   A) Explicit past-tense action: "I searched/queried/explored the (knowledge) graph".
+#   B) Presenting a result id: "entity_id: <…>" (dumped result row).
+#   C) KG context next to a results verb: "knowledge graph … found/returned/extracted".
+# NOT triggered by pure future/offer phrasing (handled by the question guard).
+_KG_SEARCH_FABRICATION_CLAIM_RE = re.compile(
+    r"\b(?:I\s+)?(?:searched|queried|explored)\s+the\s+(?:knowledge\s+)?graph\b"
+    r"|\bentity_id\s*[:=]"
+    r"|\bknowledge\s+graph\b.{0,80}\b(?:found|returned|extracted|"
+    r"several\s+(?:extracted\s+)?entit)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims it searched the knowledge graph
+    (or presents graph entities/relations) but no ``search_knowledge_graph``
+    tool completed this turn, else None.
+
+    Mirrors ``_detect_fabricated_ingest`` for the read-side failure observed in
+    a trace: the model narrates "I searched the knowledge graph … found these
+    entities (entity_id: …)" and dumps plausible ids while emitting NO
+    ``search_knowledge_graph`` tool_call, so the graph was never queried and the
+    ids are fabricated/carried-over. The ingest/create fabrication guards did
+    not cover read tools, so this slipped past reflection.
+
+    Returns None when:
+    - ``search_knowledge_graph`` actually completed this turn (real results).
+    - The AI text is offering / instructing rather than asserting it searched.
+    - No strong KG-result-assertion signal is present.
+    """
+    tool_executions: list[Any] = state.get("tool_executions", []) or []
+
+    executed_search = any(
+        isinstance(te, dict)
+        and te.get("tool_name") == "search_knowledge_graph"
+        and te.get("status") == "completed"
+        for te in tool_executions
+    )
+    if executed_search:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    if _KG_SEARCH_QUESTION_RE.search(text):
+        return None
+    if _CREATE_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    if not _KG_SEARCH_FABRICATION_CLAIM_RE.search(text):
+        return None
+
+    return (
+        "Assistant claims it searched the knowledge graph or presents graph "
+        "entities/relations, but no search_knowledge_graph tool executed this "
+        "turn — the graph was not queried (any entity ids are fabricated). "
+        "Re-answer: either call search_knowledge_graph or tell the user the "
+        "search did not run."
+    )
+
+
 def _ingest_zero_count(te: Any) -> bool:
     """Detect an ``ingest_arxiv_papers`` execution that ingested nothing.
 
@@ -517,6 +606,8 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         return (False, "potential fabricated tool success")
     if _detect_fabricated_ingest(state) is not None:
         return (False, "potential fabricated ingest")
+    if _detect_fabricated_kg_search(state) is not None:
+        return (False, "potential fabricated kg search")
 
     tool_calls = getattr(last_ai, "tool_calls", None) or []
     has_tool_calls = bool(tool_calls)
@@ -773,6 +864,27 @@ def make_reflection_gate(
                 "_reflection_result": ReflectionResult(
                     passed=False,
                     issues=[fabricated_ingest_issue],
+                    severity="major",
+                ),
+            }
+
+        # Deterministic guard: AI claims it searched the knowledge graph (or
+        # presents graph entities/relations with ids) but search_knowledge_graph
+        # never executed this turn — the read tool was narrated, not called, so
+        # the results are fabricated. The ingest/create guards above don't cover
+        # read tools, so this would otherwise reach the user unflagged.
+        fabricated_kg_search_issue = _detect_fabricated_kg_search(state)
+        if fabricated_kg_search_issue is not None:
+            logger.warning(
+                "Reflection guard: forcing major-revise — fabricated KG search "
+                "detected (search_knowledge_graph never executed). intent=%s",
+                intent,
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False,
+                    issues=[fabricated_kg_search_issue],
                     severity="major",
                 ),
             }
