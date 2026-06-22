@@ -214,11 +214,15 @@ async def bulk_ingest_with_kg(
         # Create knowledge graph entries if requested
         kg_entries_count = 0
         if request.create_kg_entries:
-            paper_org_id = (
-                str(current_user.organization_id)
-                if getattr(current_user, "organization_id", None)
-                else None
+            # get_current_user returns a User ORM object (despite the dict
+            # annotation), but handle both shapes so the tenant org is never
+            # silently dropped.
+            _org_raw = (
+                current_user.get("organization_id")
+                if isinstance(current_user, dict)
+                else getattr(current_user, "organization_id", None)
             )
+            paper_org_id = str(_org_raw) if _org_raw else None
             for paper in papers:
                 try:
                     await kg_integration.process_paper_kg_integration(
