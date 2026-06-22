@@ -17,15 +17,15 @@ from src.services.knowledge_graph.knowledge_graph_service import (
 
 
 class _Result:
-    def __init__(self, record):
+    def __init__(self, record: Dict[str, Any]) -> None:
         self._record = record
 
-    def single(self):
+    def single(self) -> Dict[str, Any]:
         return self._record
 
 
 @pytest.mark.unit
-def test_create_entity_in_transaction_stamps_org():
+def test_create_entity_in_transaction_stamps_org() -> None:
     captured: Dict[str, Any] = {}
 
     class _Tx:
@@ -50,11 +50,11 @@ def test_create_entity_in_transaction_stamps_org():
 
 
 @pytest.mark.unit
-def test_create_entity_node_adapter_threads_org():
+def test_create_entity_node_adapter_threads_org() -> None:
     svc = KnowledgeGraphService()
     captured: Dict[str, Any] = {}
 
-    def _fake_create_entity(request: CreateEntityRequest):
+    def _fake_create_entity(request: CreateEntityRequest) -> Any:
         captured["request"] = request
         return MagicMock(id="e2")
 
