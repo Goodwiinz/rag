@@ -60,9 +60,11 @@ _TRANSIENT_ERROR_KEYWORDS = (
     "connection aborted",
     "econnrefused",
     "econnreset",
-    # Rate limiting (substring "rate limit" also matches "rate limited").
+    # Rate limiting. "rate limit" also matches "rate limited". "429" is
+    # anchored as "http 429" so a bare 429 inside an arXiv id / count / year
+    # (e.g. "2304.04290 not found") is not misread as a rate limit.
     "rate limit",
-    "429",
+    "http 429",
     "too many requests",
 )
 
