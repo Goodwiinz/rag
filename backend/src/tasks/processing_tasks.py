@@ -228,6 +228,7 @@ def process_document_ingestion(self, job_id: str):
                         ),
                         document_id=str(document.id),
                         confidence=entity.confidence_score or 0.8,
+                        organization_id=str(document.organization_id),
                     )
                     if entity_id:
                         kg_indexed += 1

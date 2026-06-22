@@ -107,10 +107,14 @@ class ArXivKnowledgeGraphIntegration:
                     logger.info(
                         f"Processing paper {i+1}/{len(papers)} for knowledge graph: {paper['title'][:50]}..."
                     )
+                    # SimpleDocument from arxiv ingest carries no org, so fall
+                    # back to an explicit organization_id kwarg when the caller
+                    # supplies one. (This method currently has no live caller;
+                    # the kwarg keeps it correct if it is wired up later.)
                     doc_org_id = (
                         str(doc.organization_id)
                         if getattr(doc, "organization_id", None)
-                        else None
+                        else kwargs.get("organization_id")
                     )
 
                     # Extract entities
