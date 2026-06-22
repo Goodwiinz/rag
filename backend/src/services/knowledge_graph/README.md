@@ -39,7 +39,7 @@ Schema constraints and indexes applied at startup:
 
 ## Cypher patterns
 
-- **Entity upsert** — `MERGE (e:Entity {canonical_key, type}) ON CREATE SET ... ON MATCH SET ...`. On `MATCH`, `organization_id` is filled only if currently `NULL` (one-time backfill safe); `confidence_score` is updated only if the new value is higher.
+- **Entity upsert** — `MERGE (e:Entity {canonical_key, type, organization_id}) ON CREATE SET ... ON MATCH SET ...`. `organization_id` is part of the MERGE identity (constraint `entity_canonical_org_unique`) so two orgs' same name+type entities are distinct nodes; it is coalesced to `""` because Cypher cannot MERGE on a null key. `confidence_score` is updated only if the new value is higher.
 - **Traversal depth** — `find_related_entities`, `get_neighborhood`, and `find_paths` all clamp `max_depth` to `[1, 5]` and restrict the pattern to `[:RELATED_TO*1..N]`. Untyped `[*1..N]` patterns and unbounded depth cause combinatorial fanout on hub nodes and are explicitly avoided.
 - **Batch relationship fetch** — `get_relationships_among` and `get_relationships_for_entities` retrieve all edges in a single query rather than N per-entity calls.
 

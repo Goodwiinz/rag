@@ -402,9 +402,17 @@ class KnowledgeGraphService:
                 # Create constraints
                 constraints = [
                     "CREATE CONSTRAINT entity_id_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
-                    # Identity for idempotent MERGE: one node per (canonical_key, type).
-                    # Makes re-ingest + concurrent ingest dedup instead of duplicating.
-                    "CREATE CONSTRAINT entity_canonical_unique IF NOT EXISTS FOR (e:Entity) REQUIRE (e.canonical_key, e.type) IS UNIQUE",
+                    # Identity for idempotent MERGE: one node per
+                    # (canonical_key, type, organization_id) so re-ingest dedups
+                    # WITHOUT collapsing two orgs' same name+type entities onto
+                    # one shared node (tenant isolation). Migrate from the old
+                    # (canonical_key, type) constraint: drop it, then create the
+                    # composite. The new key is a strict superset so existing
+                    # nodes stay unique; the tolerant loop below swallows a
+                    # missing-drop / already-exists on either statement, and a
+                    # failed migration cannot crash the schema bootstrap.
+                    "DROP CONSTRAINT entity_canonical_unique IF EXISTS",
+                    "CREATE CONSTRAINT entity_canonical_org_unique IF NOT EXISTS FOR (e:Entity) REQUIRE (e.canonical_key, e.type, e.organization_id) IS UNIQUE",
                     "CREATE CONSTRAINT document_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE",
                     "CREATE INDEX entity_name_index IF NOT EXISTS FOR (e:Entity) ON (e.name)",
                     "CREATE INDEX entity_type_index IF NOT EXISTS FOR (e:Entity) ON (e.type)",
@@ -464,8 +472,14 @@ class KnowledgeGraphService:
 
         try:
             with self.get_session() as session:
+                # organization_id is part of the MERGE identity so two orgs'
+                # same name+type entities get separate nodes (tenant isolation).
+                # Coalesced to "" because Cypher cannot MERGE on a null key; the
+                # stored property therefore equals the key (never re-set to null
+                # in ON CREATE/ON MATCH, which would desync key and property and
+                # cause duplicate nodes on the next MERGE).
                 query = f"""
-                MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type}})
+                MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type, organization_id: $org_key}})
                 ON CREATE SET
                     e.id = $id,
                     e.name = $name,
@@ -475,13 +489,11 @@ class KnowledgeGraphService:
                     e.context = $context,
                     e.metadata = $metadata,
                     e.source_document_id = $source_document_id,
-                    e.organization_id = $organization_id,
                     e.created_at = datetime(),
                     e.updated_at = datetime()
                 ON MATCH SET
                     e.name = $name,
                     e.updated_at = datetime(),
-                    e.organization_id = coalesce(e.organization_id, $organization_id),
                     e.confidence_score = CASE
                         WHEN $confidence_score > e.confidence_score THEN $confidence_score
                         ELSE e.confidence_score END
@@ -503,7 +515,7 @@ class KnowledgeGraphService:
                             json.dumps(request.metadata) if request.metadata else "{}"
                         ),
                         "source_document_id": request.source_document_id,
-                        "organization_id": getattr(request, "organization_id", None),
+                        "org_key": getattr(request, "organization_id", None) or "",
                     },
                 )
 
@@ -1856,11 +1868,13 @@ class KnowledgeGraphService:
         rows = []
         for i, e in enumerate(valid):
             e.name = e.name.strip()
+            org_key = getattr(e, "organization_id", None) or ""
             rows.append(
                 {
                     "idx": i,
                     "etype": e.entity_type.value,
                     "canonical_key": e.name.lower(),
+                    "org_key": org_key,
                     "props": {
                         "id": str(uuid.uuid4()),
                         "name": e.name,
@@ -1870,18 +1884,22 @@ class KnowledgeGraphService:
                         "context": e.context,
                         "metadata": json.dumps(e.metadata) if e.metadata else "{}",
                         "source_document_id": e.source_document_id,
-                        "organization_id": getattr(e, "organization_id", None),
+                        # Equal to the identity-map org so the stored property
+                        # never desyncs from the MERGE key.
+                        "organization_id": org_key,
                     },
                 }
             )
+        # organization_id is part of the apoc.merge identity map (matches the
+        # entity_canonical_org_unique constraint) so two orgs' same name+type
+        # entities are separate nodes. Coalesced to "" since the key can't be null.
         query = """
         UNWIND $rows AS row
         CALL apoc.merge.node(['Entity', row.etype],
-            {canonical_key: row.canonical_key, type: row.etype},
+            {canonical_key: row.canonical_key, type: row.etype, organization_id: row.org_key},
             row.props) YIELD node
         SET node.created_at = coalesce(node.created_at, datetime()),
             node.updated_at = datetime(),
-            node.organization_id = coalesce(node.organization_id, row.props.organization_id),
             node.name = row.props.name,
             node.confidence_score = CASE
                 WHEN row.props.confidence_score > coalesce(node.confidence_score, 0.0)
@@ -1924,12 +1942,14 @@ class KnowledgeGraphService:
 
         entity_id = str(uuid.uuid4())
         canonical_key = request.name.strip().lower()
-        # Idempotent MERGE keyed on (canonical_key, type) — same identity as
-        # create_entity — so batch re-ingest and concurrent ingest of the same
-        # entity dedup onto one node (backed by the entity_canonical_unique
-        # constraint) instead of creating a fresh UUID node every time.
+        # Idempotent MERGE keyed on (canonical_key, type, organization_id) —
+        # same identity as create_entity — so batch re-ingest and concurrent
+        # ingest of the same entity dedup onto one node (backed by the
+        # entity_canonical_org_unique constraint) while keeping two orgs'
+        # same-name entities separate. org_key coalesced to "" (Cypher can't
+        # MERGE on null); the stored property equals the key.
         query = f"""
-        MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type}})
+        MERGE (e:Entity:{request.entity_type.value} {{canonical_key: $canonical_key, type: $entity_type, organization_id: $org_key}})
         ON CREATE SET
             e.id = $id,
             e.name = $name,
@@ -1939,13 +1959,11 @@ class KnowledgeGraphService:
             e.context = $context,
             e.metadata = $metadata,
             e.source_document_id = $source_document_id,
-            e.organization_id = $organization_id,
             e.created_at = datetime(),
             e.updated_at = datetime()
         ON MATCH SET
             e.name = $name,
             e.updated_at = datetime(),
-            e.organization_id = coalesce(e.organization_id, $organization_id),
             e.confidence_score = CASE
                 WHEN $confidence_score > e.confidence_score THEN $confidence_score
                 ELSE e.confidence_score END
@@ -1965,10 +1983,7 @@ class KnowledgeGraphService:
                 "context": request.context,
                 "metadata": json.dumps(request.metadata) if request.metadata else "{}",
                 "source_document_id": request.source_document_id,
-                # Stamp the owning org so batch-fallback nodes are tenant-scoped
-                # like create_entity (478/484). Without this the apoc-failure
-                # fallback path created org-less nodes invisible to org reads.
-                "organization_id": getattr(request, "organization_id", None),
+                "org_key": getattr(request, "organization_id", None) or "",
             },
         )
 
