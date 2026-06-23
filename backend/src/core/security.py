@@ -44,6 +44,10 @@ class TokenData(BaseModel):
     organization_id: Optional[str] = None
     role: Optional[str] = None
     exp: Optional[datetime] = None
+    # CLI-token revocation support: issued-at + a marker so the auth chokepoint
+    # can reject CLI tokens minted before a per-user "revoked before" cutoff.
+    issued_at: Optional[datetime] = None
+    is_cli: bool = False
 
 
 def _extract_forwarded_ip(headers: Any) -> Optional[str]:
@@ -220,12 +224,15 @@ def _extract_cli_token_data(payload: dict) -> Optional[TokenData]:
         return None
     app_metadata = payload.get("app_metadata", {}) or {}
     exp = payload.get("exp")
+    iat = payload.get("iat")
     return TokenData(
         user_id=user_id,
         email=payload.get("email"),
         organization_id=app_metadata.get("organization_id"),
         role=app_metadata.get("role", "USER"),
         exp=datetime.utcfromtimestamp(exp) if exp else None,
+        issued_at=datetime.utcfromtimestamp(iat) if iat else None,
+        is_cli=True,
     )
 
 
