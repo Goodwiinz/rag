@@ -446,10 +446,14 @@ def create_relationship(
 ):
     """Create a new relationship between entities"""
     try:
-        # Force the caller's org onto the request so both endpoints are
-        # org-scoped (keeps the org-doc-id list as a fallback).
-        if current_user.organization_id:
-            request.organization_id = str(current_user.organization_id)
+        # Force the caller's org onto the request (never trust a client-supplied
+        # value — a tenantless caller must not be able to set one). Both
+        # endpoints are then org-scoped; the org-doc-id list stays as a fallback.
+        request.organization_id = (
+            str(current_user.organization_id)
+            if current_user.organization_id
+            else None
+        )
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationship = knowledge_graph_service.create_relationship(
             request, source_document_ids=org_doc_ids

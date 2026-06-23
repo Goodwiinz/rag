@@ -519,6 +519,7 @@ async def _update_knowledge_graph_with_extractions(
                         confidence_score=0.9,
                         extraction_method=ExtractionMethod.SPACY_NER,
                         metadata={"paper_id": paper_id, "source": "arxiv_extraction"},
+                        organization_id=organization_id,
                     )
                     doc_entity = kg.kg_service.create_entity(doc_entity_request)
 
@@ -549,6 +550,7 @@ async def _update_knowledge_graph_with_extractions(
                                 ),
                                 extraction_method=ExtractionMethod.SPACY_NER,
                                 metadata=entity.get("properties", {}),
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(entity_request)
 
@@ -563,6 +565,7 @@ async def _update_knowledge_graph_with_extractions(
                                     "source": "arxiv_extraction",
                                     "paper_id": paper_id,
                                 },
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(topic_request)
 
@@ -577,6 +580,7 @@ async def _update_knowledge_graph_with_extractions(
                                     "source": "arxiv_keyphrase",
                                     "paper_id": paper_id,
                                 },
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(kp_request)
 
@@ -592,10 +596,10 @@ async def _update_knowledge_graph_with_extractions(
                             continue
 
                         source_entities = kg.kg_service.search_entities(
-                            query=source_name, limit=1
+                            query=source_name, limit=1, organization_id=organization_id
                         )
                         target_entities = kg.kg_service.search_entities(
-                            query=target_name, limit=1
+                            query=target_name, limit=1, organization_id=organization_id
                         )
 
                         if source_entities and target_entities:

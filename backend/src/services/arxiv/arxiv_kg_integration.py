@@ -766,9 +766,10 @@ class ArXivKnowledgeGraphIntegration:
             source_name = relationship["source"]["text"]
             target_name = relationship["target"]["text"]
 
-            # Find source entity
+            # Find source entity (org-scoped so a name collision can't resolve
+            # to another tenant's entity).
             source_entities = self.kg_service.search_entities(
-                query=source_name, limit=1
+                query=source_name, limit=1, organization_id=organization_id
             )
             if not source_entities:
                 # logger.warning(f"Source entity not found for relationship: {source_name}")
@@ -777,7 +778,7 @@ class ArXivKnowledgeGraphIntegration:
 
             # Find target entity
             target_entities = self.kg_service.search_entities(
-                query=target_name, limit=1
+                query=target_name, limit=1, organization_id=organization_id
             )
             if not target_entities:
                 # logger.warning(f"Target entity not found for relationship: {target_name}")
