@@ -250,10 +250,14 @@ async def extract_paper_features(
             if request.update_knowledge_graph and processed_count > 0:
                 if background_tasks:
                     background_tasks.add_task(
-                        _update_knowledge_graph_with_extractions, extraction_results
+                        _update_knowledge_graph_with_extractions,
+                        extraction_results,
+                        organization_id,
                     )
                 else:
-                    await _update_knowledge_graph_with_extractions(extraction_results)
+                    await _update_knowledge_graph_with_extractions(
+                        extraction_results, organization_id
+                    )
 
             return ExtractionResponse(
                 status="success",
@@ -486,7 +490,7 @@ async def _generate_summary(text: str, title: str, max_length: int = 200) -> str
 
 
 async def _update_knowledge_graph_with_extractions(
-    extraction_results: List[Dict[str, Any]]
+    extraction_results: List[Dict[str, Any]], organization_id: Optional[str] = None
 ):
     """Background task to update knowledge graph with extracted features"""
     try:
@@ -603,6 +607,7 @@ async def _update_knowledge_graph_with_extractions(
                                     rel.get("properties", {}).get("confidence", 0.5)
                                 ),
                                 metadata=rel.get("properties", {}),
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_relationship(rel_request)
 

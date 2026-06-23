@@ -421,7 +421,16 @@ def get_all_relationships(
         if project_id is not None and not scope_doc_ids:
             return []
         relationships = knowledge_graph_service.get_all_relationships(
-            limit, offset, relationship_types, source_document_ids=scope_doc_ids
+            limit,
+            offset,
+            relationship_types,
+            source_document_ids=scope_doc_ids,
+            # Tenant-scope by org when not narrowing to a project's documents.
+            organization_id=(
+                str(current_user.organization_id)
+                if project_id is None and current_user.organization_id
+                else None
+            ),
         )
         return relationships
     except Exception as e:
@@ -437,6 +446,10 @@ def create_relationship(
 ):
     """Create a new relationship between entities"""
     try:
+        # Force the caller's org onto the request so both endpoints are
+        # org-scoped (keeps the org-doc-id list as a fallback).
+        if current_user.organization_id:
+            request.organization_id = str(current_user.organization_id)
         org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
         relationship = knowledge_graph_service.create_relationship(
             request, source_document_ids=org_doc_ids
@@ -870,6 +883,11 @@ def extract_entities_from_document(
                         "pattern_matched": relationship.get("pattern_matched"),
                     },
                     source_document_id=document_id,
+                    organization_id=(
+                        str(current_user.organization_id)
+                        if current_user.organization_id
+                        else None
+                    ),
                 )
             )
 

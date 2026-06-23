@@ -138,7 +138,9 @@ class ArXivKnowledgeGraphIntegration:
 
                         # Add relationships to knowledge graph
                         for rel in relationships:
-                            await self._add_relationship_to_kg(rel, paper)
+                            await self._add_relationship_to_kg(
+                                rel, paper, organization_id=doc_org_id
+                            )
 
                 except Exception as e:
                     logger.error(f"Failed to process paper for KG: {e}")
@@ -747,9 +749,12 @@ class ArXivKnowledgeGraphIntegration:
             logger.error(f"Failed to add entity to KG: {e}")
 
     async def _add_relationship_to_kg(
-        self, relationship: Dict[str, Any], paper: Dict[str, Any]
+        self,
+        relationship: Dict[str, Any],
+        paper: Dict[str, Any],
+        organization_id: Optional[str] = None,
     ):
-        """Add relationship to knowledge graph"""
+        """Add relationship to knowledge graph, scoped to the owning org when known."""
         if not self.kg_service:
             return
 
@@ -792,6 +797,7 @@ class ArXivKnowledgeGraphIntegration:
                     "paper_id": paper.get("id", ""),
                     "paper_title": paper.get("title", ""),
                 },
+                organization_id=organization_id,
             )
 
             # Create relationship
@@ -1107,7 +1113,9 @@ class ArXivKnowledgeGraphIntegration:
 
                 # Add relationships
                 for relationship in relationships:
-                    await self._add_relationship_to_kg(relationship, paper)
+                    await self._add_relationship_to_kg(
+                        relationship, paper, organization_id=organization_id
+                    )
 
             return {
                 "paper_id": paper.get("id"),
