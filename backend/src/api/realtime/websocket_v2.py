@@ -19,9 +19,14 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
+from src.core.database import AsyncSessionLocal
 from src.core.dependencies import get_current_user
+from src.core.security import TokenData
+from src.core.user_provisioning import ensure_user_and_org
 from src.core.websocket_auth import WebSocketAuthenticator, WebSocketAuthError
 from src.models.user import User
 from src.services.infrastructure.status_update_service import (
@@ -37,6 +42,49 @@ from src.services.websocket.websocket_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_ws_organization_id(
+    user_id: str,
+    user_payload: Dict[str, Any],
+    session_factory=AsyncSessionLocal,
+) -> Optional[str]:
+    """Resolve a WS connection's REAL organization_id from the DB.
+
+    Supabase JWTs carry no org claim (it's None, then dropped by
+    model_dump(exclude_none=True)), so the org MUST be looked up — never
+    defaulted to a shared "default" bucket, which co-locates every tenant and
+    leaks cross-tenant messages. Mirrors get_current_user (active-user filter +
+    JIT-provision). Returns None on any miss/error so the caller fails closed.
+    """
+    stmt = (
+        select(User)
+        .options(selectinload(User.organization))
+        .where(
+            User.id == user_id,
+            User.is_active == True,  # noqa: E712
+            User.is_deleted == False,  # noqa: E712
+        )
+    )
+    try:
+        async with session_factory() as db:
+            user = (await db.execute(stmt)).scalars().first()
+            if user is None:
+                # First login over WS — JIT-provision like get_current_user does.
+                token_data = TokenData(
+                    user_id=user_id,
+                    email=user_payload.get("email"),
+                    organization_id=user_payload.get("organization_id"),
+                    role=user_payload.get("role", "USER"),
+                )
+                if await ensure_user_and_org(db, token_data):
+                    await db.commit()
+                    user = (await db.execute(stmt)).scalars().first()
+            if user is not None and user.organization_id is not None:
+                return str(user.organization_id)
+    except Exception as e:  # DB failure must NOT silently grant shared access
+        logger.error("WebSocket org resolution failed for user %s: %s", user_id, e)
+    return None
 
 router = APIRouter(prefix="/api/v2/ws", tags=["websocket-v2"])
 
@@ -175,13 +223,23 @@ async def websocket_connect_v2_secure(
 
     # Extract user info from authenticated payload
     user_id = user_payload.get("sub")
-    organization_id = user_payload.get("organization_id", "default")
 
     if not user_id:
         logger.error("Authentication succeeded but user_id (sub) missing from payload")
         await websocket.close(
             code=4003, reason="Invalid token payload: missing user ID"
         )
+        return
+
+    # Resolve the connection's REAL organization from the DB. Never fall back to
+    # a shared "default" bucket: that co-locates every tenant's connections and
+    # leaks org-scoped / shared-channel messages across tenants. Fail closed.
+    organization_id = await _resolve_ws_organization_id(user_id, user_payload)
+    if not organization_id:
+        logger.warning(
+            "WebSocket rejected: no organization resolved for user %s", user_id
+        )
+        await websocket.close(code=4003, reason="No organization for user")
         return
 
     # Parse client information
