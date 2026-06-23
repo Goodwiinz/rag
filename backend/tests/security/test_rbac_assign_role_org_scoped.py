@@ -93,8 +93,11 @@ def test_assign_creates_for_member():
     assert isinstance(assignment, UserRoleAssignment)
     assert assignment.user_id == "user-1"
     assert assignment.organization_id == "org-1"
-    db.add.assert_called_once()
-    db.commit.assert_called_once()
+    # The role assignment is added + committed. (A second add/commit now also
+    # occurs for the best-effort audit event via AuditService on the same mock
+    # session, so assert "called" rather than "called once".)
+    assert db.add.called
+    assert db.commit.called
 
 
 @pytest.mark.unit
