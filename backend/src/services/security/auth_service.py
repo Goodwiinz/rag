@@ -288,6 +288,20 @@ class AuthService:
         target_user.is_active = False
         await self.db.commit()
 
+        # Also revoke any outstanding long-lived CLI tokens so a deactivated
+        # user's token can't keep working until a chokepoint DB-rechecks
+        # is_active. Best-effort (never blocks deactivation).
+        try:
+            from src.core.cli_token_revocation import revoke_user_cli_tokens
+
+            await revoke_user_cli_tokens(str(target_user.id))
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "CLI token revocation on deactivate failed for %s: %s",
+                target_user.id,
+                e,
+            )
+
         return True
 
     async def get_organization_users(
