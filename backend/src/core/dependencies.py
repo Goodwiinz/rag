@@ -20,6 +20,19 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """Get current authenticated user with eagerly loaded organization"""
+    # Reject a CLI token that has been revoked (per-user "revoked before"
+    # cutoff). Fail-open if Redis is down — see cli_token_revocation.
+    if getattr(token_data, "is_cli", False):
+        from src.core.cli_token_revocation import is_cli_token_revoked
+
+        if await is_cli_token_revoked(
+            token_data.user_id, getattr(token_data, "issued_at", None)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+            )
+
     stmt = (
         select(User)
         .options(selectinload(User.organization))
