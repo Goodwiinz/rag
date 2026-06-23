@@ -7,7 +7,7 @@ a role to a user in another tenant. The fix verifies the target user belongs to
 organization_id before creating/updating the assignment.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -93,5 +93,84 @@ def test_assign_creates_for_member():
     assert isinstance(assignment, UserRoleAssignment)
     assert assignment.user_id == "user-1"
     assert assignment.organization_id == "org-1"
-    db.add.assert_called_once()
-    db.commit.assert_called_once()
+    # The role assignment is added + committed. (A second add/commit now also
+    # occurs for the best-effort audit event via AuditService on the same mock
+    # session, so assert "called" rather than "called once".)
+    assert db.add.called
+    assert db.commit.called
+
+
+@pytest.mark.unit
+def test_assign_emits_security_audit_event():
+    """A successful role grant writes a security audit event (privilege change)."""
+    role = MagicMock()
+    role.name = "editor"
+    db = _make_db(role=role, user_in_org=(1,), existing_assignment=None)
+    svc = RBACService(db)
+
+    with patch(
+        "src.services.security.audit_service.AuditService"
+    ) as audit_cls:
+        svc.assign_role_to_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    audit_cls.assert_called_once_with(db)
+    audit_cls.return_value.log_security_event.assert_called_once()
+    kwargs = audit_cls.return_value.log_security_event.call_args.kwargs
+    assert kwargs["event_type"] == "role_assigned"
+    assert kwargs["organization_id"] == "org-1"
+
+
+@pytest.mark.unit
+def test_audit_failure_does_not_break_assignment():
+    """An audit write failure must not fail the (already-committed) role grant."""
+    role = MagicMock()
+    role.name = "editor"
+    db = _make_db(role=role, user_in_org=(1,), existing_assignment=None)
+    svc = RBACService(db)
+
+    with patch(
+        "src.services.security.audit_service.AuditService",
+        side_effect=RuntimeError("audit down"),
+    ):
+        assignment = svc.assign_role_to_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    assert isinstance(assignment, UserRoleAssignment)
+
+
+@pytest.mark.unit
+def test_audit_log_call_failure_swallowed():
+    """A failure inside log_security_event (not just construction) is swallowed."""
+    role = MagicMock()
+    role.name = "editor"
+    db = _make_db(role=role, user_in_org=(1,), existing_assignment=None)
+    svc = RBACService(db)
+
+    with patch("src.services.security.audit_service.AuditService") as audit_cls:
+        audit_cls.return_value.log_security_event.side_effect = RuntimeError("db err")
+        assignment = svc.assign_role_to_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    assert isinstance(assignment, UserRoleAssignment)
+
+
+@pytest.mark.unit
+def test_revoke_emits_role_revoked_audit():
+    """Revoking a role writes a role_revoked security event."""
+    existing = MagicMock(is_active=True)
+    db = _make_db(role=None, user_in_org=None, existing_assignment=existing)
+    svc = RBACService(db)
+
+    with patch("src.services.security.audit_service.AuditService") as audit_cls:
+        result = svc.revoke_role_from_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    assert result is True
+    audit_cls.return_value.log_security_event.assert_called_once()
+    kwargs = audit_cls.return_value.log_security_event.call_args.kwargs
+    assert kwargs["event_type"] == "role_revoked"

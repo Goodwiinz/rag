@@ -394,6 +394,9 @@ class RBACService:
             logger.info(
                 f"Assigned role {role.name} to user {user_id} in organization {organization_id}"
             )
+            self._audit_role_change(
+                "role_assigned", user_id, role_id, organization_id, assigned_by
+            )
             return assignment
 
         except Exception as e:
@@ -425,6 +428,9 @@ class RBACService:
                 logger.info(
                     f"Revoked role {role_id} from user {user_id} in organization {organization_id}"
                 )
+                self._audit_role_change(
+                    "role_revoked", user_id, role_id, organization_id, None
+                )
                 return True
 
             return False
@@ -433,6 +439,43 @@ class RBACService:
             self.db.rollback()
             logger.error(f"Failed to revoke role {role_id} from user {user_id}: {e}")
             raise
+
+    def _audit_role_change(
+        self,
+        action: str,
+        target_user_id: str,
+        role_id: str,
+        organization_id: str,
+        actor_id: Optional[str],
+    ) -> None:
+        """Best-effort security audit of a privilege change. Never let an audit
+        failure break the role mutation (which is already committed).
+
+        Trade-off (intentional): the audit write is a SEPARATE transaction from
+        the role change — availability of the privilege operation is prioritized
+        over a guaranteed audit row, so under a DB error the change can persist
+        with only a logged warning. If the audit trail must be compliance-grade
+        (atomic with the mutation), move the audit add() before the single
+        commit in the caller instead."""
+        try:
+            from src.services.security.audit_service import AuditService
+
+            AuditService(self.db).log_security_event(
+                event_type=action,
+                description=(
+                    f"{action}: role {role_id} for user {target_user_id} "
+                    f"in org {organization_id}"
+                ),
+                organization_id=organization_id,
+                user_id=actor_id,  # the admin performing the change
+                details={
+                    "action": action,
+                    "target_user_id": str(target_user_id),
+                    "role_id": str(role_id),
+                },
+            )
+        except Exception as e:  # noqa: BLE001 - audit must not break the op
+            logger.warning("Failed to write RBAC audit event (%s): %s", action, e)
 
     def get_user_permissions(
         self, user_id: str, organization_id: str = None
