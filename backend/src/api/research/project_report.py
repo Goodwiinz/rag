@@ -26,14 +26,20 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.config import get_settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models import Collection, CollectionDocument, ProjectNote, User
+from src.models import (
+    Collection,
+    CollectionDocument,
+    ProjectNote,
+    User,
+    Workspace,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/projects", tags=["project-report"])
@@ -105,14 +111,26 @@ async def render_project_report(
     notes, and recent agent activity from the iteration ledger (if the
     ``AGENT_LEDGER_DIR`` ledger is enabled).
     """
-    project = await db.get(Collection, project_id)
+    # Ownership lives on the parent Workspace (Collection has no owner_id), so
+    # scope the lookup to the caller's workspaces in one query. A single 404
+    # (not a 404/403 split) avoids leaking project existence to non-owners —
+    # mirrors _get_project_with_auth in project_chat.py.
+    project = (
+        await db.execute(
+            select(Collection)
+            .join(Workspace, Collection.workspace_id == Workspace.id)
+            .where(
+                and_(
+                    Collection.id == project_id,
+                    Workspace.owner_id == current_user.id,
+                )
+            )
+        )
+    ).scalar_one_or_none()
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
-        )
-    if project.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Project not accessible"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found or access denied",
         )
 
     docs_q = (
