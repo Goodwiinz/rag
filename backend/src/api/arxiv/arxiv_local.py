@@ -506,6 +506,7 @@ def _update_knowledge_graph_with_local_extractions_sync(
                         relationship_type=RelationshipType.RELATED_TO,
                         confidence_score=0.85,
                         metadata={"type": "topic_extraction"},
+                        organization_id=organization_id,
                     )
                     relationship = kg_service.create_relationship(rel_request)
                     if relationship:

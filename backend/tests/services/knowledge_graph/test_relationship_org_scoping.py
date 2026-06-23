@@ -137,3 +137,40 @@ def test_blank_org_rejected_at_request_boundary() -> None:
         _req(organization_id="   ")
     # None stays allowed (genuinely org-less).
     assert _req().organization_id is None
+
+
+@pytest.mark.unit
+def test_get_all_relationships_scopes_by_org() -> None:
+    """Read side: org filter on BOTH endpoints, preferred over doc-ids."""
+    import contextlib
+
+    captured: Dict[str, Any] = {}
+
+    class _EmptyResult:
+        def __iter__(self):
+            return iter([])
+
+    class _Session:
+        def run(self, query: str, params: Dict[str, Any]) -> "_EmptyResult":
+            captured["query"] = query
+            captured["params"] = params
+            return _EmptyResult()
+
+    svc = KnowledgeGraphService()
+
+    @contextlib.contextmanager
+    def _fake_get_session(database: str = "neo4j"):
+        yield _Session()
+
+    svc.get_session = _fake_get_session  # type: ignore[method-assign]
+
+    svc.get_all_relationships(
+        organization_id="org-A", source_document_ids=["d1"]
+    )
+
+    q = captured["query"]
+    assert "source.organization_id = $organization_id" in q
+    assert "target.organization_id = $organization_id" in q
+    # org takes precedence over the doc-id filter.
+    assert "r.source_document_id IN $source_document_ids" not in q
+    assert captured["params"]["organization_id"] == "org-A"
