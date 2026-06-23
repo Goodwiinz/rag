@@ -1042,6 +1042,12 @@ class ChatService:
         if not message:
             return None
 
+        # get_message only checks read access (member/public viewer); writing
+        # feedback requires edit rights. Mirrors delete_message's guard below
+        # and the workspaces.py feedback handlers. None -> 404 at the endpoint.
+        if not message.thread.conversation.workspace.can_user_edit(str(user_id)):
+            return None
+
         if data.feedback_rating is not None:
             message.feedback_rating = data.feedback_rating
         if data.feedback_text is not None:
