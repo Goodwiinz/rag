@@ -854,6 +854,11 @@ async def update_message_feedback(
         db, workspace_id, conversation_id, thread_id, current_user
     )
 
+    # _get_thread_or_404 grants read access to members/public viewers; mutating
+    # feedback requires edit rights (matches update_thread/delete_thread).
+    if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     stmt = select(ChatMessage).where(
         ChatMessage.id == message_id,
         ChatMessage.thread_id == thread_id,
@@ -1999,6 +2004,11 @@ async def update_message_standalone(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
+
+    # Read access (member/public) is not enough to mutate; require edit rights
+    # (matches delete_message_standalone).
+    if not workspace.can_user_edit(str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     if request.feedback_rating is not None:
         message.feedback_rating = request.feedback_rating
