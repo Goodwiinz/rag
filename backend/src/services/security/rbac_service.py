@@ -449,7 +449,14 @@ class RBACService:
         actor_id: Optional[str],
     ) -> None:
         """Best-effort security audit of a privilege change. Never let an audit
-        failure break the role mutation (which is already committed)."""
+        failure break the role mutation (which is already committed).
+
+        Trade-off (intentional): the audit write is a SEPARATE transaction from
+        the role change — availability of the privilege operation is prioritized
+        over a guaranteed audit row, so under a DB error the change can persist
+        with only a logged warning. If the audit trail must be compliance-grade
+        (atomic with the mutation), move the audit add() before the single
+        commit in the caller instead."""
         try:
             from src.services.security.audit_service import AuditService
 

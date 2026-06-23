@@ -136,3 +136,38 @@ def test_audit_failure_does_not_break_assignment():
         )
 
     assert isinstance(assignment, UserRoleAssignment)
+
+
+@pytest.mark.unit
+def test_audit_log_call_failure_swallowed():
+    """A failure inside log_security_event (not just construction) is swallowed."""
+    role = MagicMock()
+    role.name = "editor"
+    db = _make_db(role=role, user_in_org=(1,), existing_assignment=None)
+    svc = RBACService(db)
+
+    with patch("src.services.security.audit_service.AuditService") as audit_cls:
+        audit_cls.return_value.log_security_event.side_effect = RuntimeError("db err")
+        assignment = svc.assign_role_to_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    assert isinstance(assignment, UserRoleAssignment)
+
+
+@pytest.mark.unit
+def test_revoke_emits_role_revoked_audit():
+    """Revoking a role writes a role_revoked security event."""
+    existing = MagicMock(is_active=True)
+    db = _make_db(role=None, user_in_org=None, existing_assignment=existing)
+    svc = RBACService(db)
+
+    with patch("src.services.security.audit_service.AuditService") as audit_cls:
+        result = svc.revoke_role_from_user(
+            user_id="user-1", role_id="role-1", organization_id="org-1"
+        )
+
+    assert result is True
+    audit_cls.return_value.log_security_event.assert_called_once()
+    kwargs = audit_cls.return_value.log_security_event.call_args.kwargs
+    assert kwargs["event_type"] == "role_revoked"
