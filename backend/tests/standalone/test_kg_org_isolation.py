@@ -18,14 +18,17 @@ from src.services.knowledge_graph.knowledge_graph_service import (
 
 def _neo4j_or_skip() -> KnowledgeGraphService:
     svc = KnowledgeGraphService()
+    # Only a connection failure should skip. Run the probe OUTSIDE the skip
+    # guard so a connected-but-broken Neo4j surfaces as a real test failure
+    # instead of a false-green skip.
     try:
         svc._connect()
-        if not svc.driver:
-            pytest.skip("Neo4j unavailable")
-        with svc.get_session() as session:
-            session.run("RETURN 1")
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - connection error -> skip, not fail
         pytest.skip("Neo4j unavailable")
+    if not svc.driver:
+        pytest.skip("Neo4j unavailable")
+    with svc.get_session() as session:
+        session.run("RETURN 1")
     return svc
 
 

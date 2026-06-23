@@ -28,7 +28,7 @@ Neo4j-backed service responsible for storing, querying, and visualizing the enti
 
 Schema constraints and indexes applied at startup:
 
-- Unique constraint on `Entity.id` and `(Entity.canonical_key, Entity.type)` — the composite constraint enables idempotent `MERGE` on re-ingest and concurrent writes.
+- Unique constraint on `Entity.id` and `(Entity.canonical_key, Entity.type, Entity.organization_id)` (`entity_canonical_org_unique`) — the composite constraint enables idempotent, org-isolated `MERGE` on re-ingest and concurrent writes.
 - Indexes on `Entity.name`, `Entity.type`, `Entity.source_document_id`, `Entity.organization_id`.
 - Fulltext index `entity_fulltext_idx` on `Entity.name` — used by `search_entities` with Lucene prefix matching; falls back to `CONTAINS` if the index call fails.
 - Index on `RELATED_TO.strength` and `RELATED_TO.created_at` (pagination ordering).

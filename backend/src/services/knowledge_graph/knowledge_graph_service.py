@@ -429,6 +429,12 @@ class KnowledgeGraphService:
                     "CREATE INDEX entity_organization_index IF NOT EXISTS FOR (e:Entity) ON (e.organization_id)",
                 ]
 
+                # The tenant-isolation constraint is critical: if it can't be
+                # created we must NOT latch _schema_ensured (else the failure is
+                # permanently masked and the constraint never retried). Other
+                # constraints/indexes stay best-effort.
+                _CRITICAL = "entity_canonical_org_unique"
+                critical_failed = False
                 for constraint in constraints:
                     try:
                         session.run(constraint)
@@ -436,6 +442,16 @@ class KnowledgeGraphService:
                     except Exception as e:
                         if "already exists" not in str(e).lower():
                             logger.warning(f"Failed to apply constraint: {e}")
+                            if _CRITICAL in constraint:
+                                critical_failed = True
+
+                if critical_failed:
+                    # Raise so _maybe_ensure_schema leaves the latch unset and a
+                    # later connect retries the migration.
+                    raise RuntimeError(
+                        "tenant-isolation constraint "
+                        f"{_CRITICAL} not created; will retry on next connect"
+                    )
 
                 logger.info("Database schema ensured")
         except Exception as e:

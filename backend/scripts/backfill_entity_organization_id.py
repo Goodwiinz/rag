@@ -61,45 +61,64 @@ async def _doc_org_map(source_document_ids: List[str]) -> Dict[str, str]:
         }
 
 
-async def backfill(dry_run: bool) -> int:
+async def backfill(dry_run: bool, batch_size: int) -> int:
     driver = GraphDatabase.driver(
         settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
     )
     try:
         with driver.session() as session:
-            null_nodes = session.run(
+            total = session.run(
                 "MATCH (e:Entity) WHERE e.organization_id IS NULL "
-                "RETURN e.id AS id, e.source_document_id AS sdid"
-            ).data()
-            logger.info("Found %d entities with NULL organization_id", len(null_nodes))
-            if not null_nodes:
+                "RETURN count(e) AS c"
+            ).single()["c"]
+            logger.info("Found %d entities with NULL organization_id", total)
+            if total == 0:
                 logger.info("Nothing to backfill.")
                 return 0
 
-            sdids = sorted({n["sdid"] for n in null_nodes if n["sdid"]})
-            org_map = await _doc_org_map(sdids)
+            processed = derived_total = 0
+            while True:
+                # Read a bounded batch. On a real run each batch's nodes leave
+                # the NULL set after the SET below, so the next LIMIT query
+                # advances; on a dry-run nothing changes, so we page with SKIP.
+                batch = session.run(
+                    "MATCH (e:Entity) WHERE e.organization_id IS NULL "
+                    "RETURN e.id AS id, e.source_document_id AS sdid "
+                    "SKIP $skip LIMIT $limit",
+                    {"skip": processed if dry_run else 0, "limit": batch_size},
+                ).data()
+                if not batch:
+                    break
 
-            rows = [
-                {"id": n["id"], "org": org_map.get(n["sdid"]) or ""}
-                for n in null_nodes
-            ]
-            derived = sum(1 for r in rows if r["org"])
+                sdids = sorted({n["sdid"] for n in batch if n["sdid"]})
+                org_map = await _doc_org_map(sdids)
+                rows = [
+                    {"id": n["id"], "org": org_map.get(n["sdid"]) or ""}
+                    for n in batch
+                ]
+                derived_total += sum(1 for r in rows if r["org"])
+                processed += len(rows)
+
+                if not dry_run:
+                    session.run(
+                        "UNWIND $rows AS row "
+                        "MATCH (e:Entity {id: row.id}) "
+                        "SET e.organization_id = row.org",
+                        {"rows": rows},
+                    )
+                logger.info("Processed %d/%d", processed, total)
+                if dry_run and processed >= total:
+                    break
+
             logger.info(
                 "Derived a real org for %d node(s); '' sentinel for %d node(s)",
-                derived,
-                len(rows) - derived,
+                derived_total,
+                processed - derived_total,
             )
-
             if dry_run:
                 logger.info("--dry-run: no writes performed.")
                 return 0
 
-            session.run(
-                "UNWIND $rows AS row "
-                "MATCH (e:Entity {id: row.id}) "
-                "SET e.organization_id = row.org",
-                {"rows": rows},
-            )
             remaining = session.run(
                 "MATCH (e:Entity) WHERE e.organization_id IS NULL "
                 "RETURN count(e) AS c"
@@ -121,5 +140,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Report what would change without writing.",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1000,
+        help="Nodes (and Postgres lookups) per batch. Default 1000.",
+    )
     args = parser.parse_args()
-    sys.exit(asyncio.run(backfill(args.dry_run)))
+    sys.exit(asyncio.run(backfill(args.dry_run, args.batch_size)))
