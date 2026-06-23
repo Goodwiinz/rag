@@ -135,9 +135,78 @@ async def test_agent_stream_path_sets_tenant_context():
     assert response.json() == {"tenant_id": "org-123"}
 
 
+def _fast_path_session(db_user):
+    """A mock AsyncSessionLocal() context manager whose execute() resolves to
+    db_user (or None)."""
+    from unittest.mock import AsyncMock
+
+    class _Res:
+        def scalars(self):
+            return self
+
+        def first(self):
+            return db_user
+
+    prov_db = AsyncMock()
+    prov_db.execute = AsyncMock(return_value=_Res())
+    prov_db.commit = AsyncMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=prov_db)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
 @pytest.mark.asyncio
-async def test_fast_path_skips_db_when_org_id_in_token():
-    """When token_data already has organization_id, skip the DB lookup."""
+async def test_fast_path_validates_db_user_and_uses_db_role():
+    """Fast path (org embedded in token) now resolves + validates the live DB
+    user; the role comes from the DB, not the token claim."""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from fastapi import Request
+
+    from src.middleware.multi_tenancy import MultiTenancyMiddleware
+    from src.models.user import UserRole
+
+    middleware = MultiTenancyMiddleware(app=None)
+    middleware._should_skip_tenant_validation = lambda _: False
+
+    token_data_mock = MagicMock()
+    token_data_mock.user_id = "user-456"
+    token_data_mock.organization_id = "org-embedded"
+    token_data_mock.role = "admin"  # token CLAIMS admin
+
+    db_user = SimpleNamespace(
+        id="user-456", organization_id="org-embedded", role=UserRole.USER
+    )
+
+    with patch(
+        "src.middleware.multi_tenancy.verify_token", return_value=token_data_mock
+    ), patch(
+        "src.middleware.multi_tenancy.AsyncSessionLocal",
+        return_value=_fast_path_session(db_user),
+    ), patch(
+        "src.middleware.multi_tenancy.ensure_user_and_org",
+        new=AsyncMock(return_value=None),
+    ):
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers.get.return_value = "Bearer fake-token"
+        result = await middleware._extract_tenant_info(mock_request, db=None)
+
+    assert result is not None
+    assert result["organization_id"] == "org-embedded"
+    assert result["user_id"] == "user-456"
+    assert result["role"] == "user"  # DB role wins over token's "admin"
+
+
+@pytest.mark.asyncio
+async def test_fast_path_denies_inactive_user():
+    """Fast path returns no context when the DB user is inactive/deleted (the
+    active filter excludes the row, so the lookup resolves to None)."""
+    from unittest.mock import AsyncMock
+
+    from fastapi import Request
+
     from src.middleware.multi_tenancy import MultiTenancyMiddleware
 
     middleware = MultiTenancyMiddleware(app=None)
@@ -146,20 +215,19 @@ async def test_fast_path_skips_db_when_org_id_in_token():
     token_data_mock = MagicMock()
     token_data_mock.user_id = "user-456"
     token_data_mock.organization_id = "org-embedded"
-    token_data_mock.role = "user"
+    token_data_mock.role = "admin"
 
     with patch(
         "src.middleware.multi_tenancy.verify_token", return_value=token_data_mock
+    ), patch(
+        "src.middleware.multi_tenancy.AsyncSessionLocal",
+        return_value=_fast_path_session(None),
+    ), patch(
+        "src.middleware.multi_tenancy.ensure_user_and_org",
+        new=AsyncMock(return_value=None),
     ):
-        from fastapi import Request
-        from unittest.mock import AsyncMock
-
         mock_request = MagicMock(spec=Request)
         mock_request.headers.get.return_value = "Bearer fake-token"
-
         result = await middleware._extract_tenant_info(mock_request, db=None)
 
-    assert result is not None
-    assert result["organization_id"] == "org-embedded"
-    assert result["user_id"] == "user-456"
-    assert result["role"] == "user"
+    assert result is None
