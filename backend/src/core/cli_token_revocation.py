@@ -47,6 +47,14 @@ async def _get_redis() -> Optional["redis.Redis"]:
         return None
 
 
+def _reset_client() -> None:
+    """Drop the cached client so the next call reconnects. Prevents a client
+    bound to a now-dead event loop from failing every subsequent call (which
+    would silently defeat revocation forever — fail-open with no recovery)."""
+    global _client
+    _client = None
+
+
 async def revoke_user_cli_tokens(user_id: str) -> None:
     """Revoke every CLI token issued to ``user_id`` up to now (best-effort)."""
     client = await _get_redis()
@@ -58,6 +66,7 @@ async def revoke_user_cli_tokens(user_id: str) -> None:
         await client.set(_KEY.format(user_id=user_id), now, ex=_TTL_SECONDS)
     except Exception as e:  # noqa: BLE001 - never raise into the caller
         logger.warning("CLI revocation write failed for user %s: %s", user_id, e)
+        _reset_client()
 
 
 async def is_cli_token_revoked(
@@ -81,4 +90,5 @@ async def is_cli_token_revoked(
         return iat < cutoff
     except Exception as e:  # noqa: BLE001 - fail open
         logger.warning("CLI revocation check failed for user %s: %s", user_id, e)
+        _reset_client()
         return False

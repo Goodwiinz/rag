@@ -89,3 +89,21 @@ async def test_revoke_writes_cutoff_with_ttl() -> None:
 async def test_revoke_noop_without_redis() -> None:
     with patch.object(ctr, "_get_redis", AsyncMock(return_value=None)):
         await ctr.revoke_user_cli_tokens("user-1")  # must not raise
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_cached_client_reset_after_error() -> None:
+    """A client error resets the cached client so the next call reconnects
+    (prevents a loop-bound dead client from defeating revocation forever)."""
+    broken = AsyncMock()
+    broken.get = AsyncMock(side_effect=RuntimeError("loop closed"))
+    ctr._client = broken
+    try:
+        revoked = await ctr.is_cli_token_revoked(
+            "user-1", datetime.now(timezone.utc)
+        )
+        assert revoked is False  # fail-open
+        assert ctr._client is None  # cached client dropped for reconnect
+    finally:
+        ctr._client = None
