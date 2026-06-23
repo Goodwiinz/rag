@@ -693,6 +693,11 @@ class EnhancedDocumentProcessingService:
                         relationship_type=rel_type,
                         confidence_score=rel_data.get("confidence", 0.8),
                         source_document_id=str(document.id),
+                        organization_id=(
+                            str(document.organization_id)
+                            if getattr(document, "organization_id", None)
+                            else None
+                        ),
                     )
                     rel_result = self.knowledge_graph_service.create_relationship(rel_request)
 

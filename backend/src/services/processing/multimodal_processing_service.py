@@ -1053,6 +1053,11 @@ class MultimodalProcessingService:
                                 "source": "document_processing",
                             },
                             source_document_id=str(document.id),
+                            organization_id=(
+                                str(document.organization_id)
+                                if document.organization_id
+                                else None
+                            ),
                         )
 
                         # Store relationship in knowledge graph

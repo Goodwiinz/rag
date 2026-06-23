@@ -743,6 +743,11 @@ def kg_extract_entities_job(self, job_id: str):
                             "document_id": str(document.id),
                         },
                         source_document_id=str(document.id),
+                        organization_id=(
+                            str(document.organization_id)
+                            if document.organization_id
+                            else None
+                        ),
                     )
                 )
 

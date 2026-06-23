@@ -250,10 +250,14 @@ async def extract_paper_features(
             if request.update_knowledge_graph and processed_count > 0:
                 if background_tasks:
                     background_tasks.add_task(
-                        _update_knowledge_graph_with_extractions, extraction_results
+                        _update_knowledge_graph_with_extractions,
+                        extraction_results,
+                        organization_id,
                     )
                 else:
-                    await _update_knowledge_graph_with_extractions(extraction_results)
+                    await _update_knowledge_graph_with_extractions(
+                        extraction_results, organization_id
+                    )
 
             return ExtractionResponse(
                 status="success",
@@ -486,7 +490,7 @@ async def _generate_summary(text: str, title: str, max_length: int = 200) -> str
 
 
 async def _update_knowledge_graph_with_extractions(
-    extraction_results: List[Dict[str, Any]]
+    extraction_results: List[Dict[str, Any]], organization_id: Optional[str] = None
 ):
     """Background task to update knowledge graph with extracted features"""
     try:
@@ -515,6 +519,7 @@ async def _update_knowledge_graph_with_extractions(
                         confidence_score=0.9,
                         extraction_method=ExtractionMethod.SPACY_NER,
                         metadata={"paper_id": paper_id, "source": "arxiv_extraction"},
+                        organization_id=organization_id,
                     )
                     doc_entity = kg.kg_service.create_entity(doc_entity_request)
 
@@ -545,6 +550,7 @@ async def _update_knowledge_graph_with_extractions(
                                 ),
                                 extraction_method=ExtractionMethod.SPACY_NER,
                                 metadata=entity.get("properties", {}),
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(entity_request)
 
@@ -559,6 +565,7 @@ async def _update_knowledge_graph_with_extractions(
                                     "source": "arxiv_extraction",
                                     "paper_id": paper_id,
                                 },
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(topic_request)
 
@@ -573,6 +580,7 @@ async def _update_knowledge_graph_with_extractions(
                                     "source": "arxiv_keyphrase",
                                     "paper_id": paper_id,
                                 },
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_entity(kp_request)
 
@@ -588,10 +596,10 @@ async def _update_knowledge_graph_with_extractions(
                             continue
 
                         source_entities = kg.kg_service.search_entities(
-                            query=source_name, limit=1
+                            query=source_name, limit=1, organization_id=organization_id
                         )
                         target_entities = kg.kg_service.search_entities(
-                            query=target_name, limit=1
+                            query=target_name, limit=1, organization_id=organization_id
                         )
 
                         if source_entities and target_entities:
@@ -603,6 +611,7 @@ async def _update_knowledge_graph_with_extractions(
                                     rel.get("properties", {}).get("confidence", 0.5)
                                 ),
                                 metadata=rel.get("properties", {}),
+                                organization_id=organization_id,
                             )
                             kg.kg_service.create_relationship(rel_request)
 

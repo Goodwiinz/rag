@@ -138,7 +138,9 @@ class ArXivKnowledgeGraphIntegration:
 
                         # Add relationships to knowledge graph
                         for rel in relationships:
-                            await self._add_relationship_to_kg(rel, paper)
+                            await self._add_relationship_to_kg(
+                                rel, paper, organization_id=doc_org_id
+                            )
 
                 except Exception as e:
                     logger.error(f"Failed to process paper for KG: {e}")
@@ -747,9 +749,12 @@ class ArXivKnowledgeGraphIntegration:
             logger.error(f"Failed to add entity to KG: {e}")
 
     async def _add_relationship_to_kg(
-        self, relationship: Dict[str, Any], paper: Dict[str, Any]
+        self,
+        relationship: Dict[str, Any],
+        paper: Dict[str, Any],
+        organization_id: Optional[str] = None,
     ):
-        """Add relationship to knowledge graph"""
+        """Add relationship to knowledge graph, scoped to the owning org when known."""
         if not self.kg_service:
             return
 
@@ -761,9 +766,10 @@ class ArXivKnowledgeGraphIntegration:
             source_name = relationship["source"]["text"]
             target_name = relationship["target"]["text"]
 
-            # Find source entity
+            # Find source entity (org-scoped so a name collision can't resolve
+            # to another tenant's entity).
             source_entities = self.kg_service.search_entities(
-                query=source_name, limit=1
+                query=source_name, limit=1, organization_id=organization_id
             )
             if not source_entities:
                 # logger.warning(f"Source entity not found for relationship: {source_name}")
@@ -772,7 +778,7 @@ class ArXivKnowledgeGraphIntegration:
 
             # Find target entity
             target_entities = self.kg_service.search_entities(
-                query=target_name, limit=1
+                query=target_name, limit=1, organization_id=organization_id
             )
             if not target_entities:
                 # logger.warning(f"Target entity not found for relationship: {target_name}")
@@ -792,6 +798,7 @@ class ArXivKnowledgeGraphIntegration:
                     "paper_id": paper.get("id", ""),
                     "paper_title": paper.get("title", ""),
                 },
+                organization_id=organization_id,
             )
 
             # Create relationship
@@ -1107,7 +1114,9 @@ class ArXivKnowledgeGraphIntegration:
 
                 # Add relationships
                 for relationship in relationships:
-                    await self._add_relationship_to_kg(relationship, paper)
+                    await self._add_relationship_to_kg(
+                        relationship, paper, organization_id=organization_id
+                    )
 
             return {
                 "paper_id": paper.get("id"),

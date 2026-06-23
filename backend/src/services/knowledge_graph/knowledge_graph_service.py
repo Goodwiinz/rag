@@ -950,8 +950,9 @@ class KnowledgeGraphService:
         offset: int = 0,
         relationship_types: Optional[List[RelationshipType]] = None,
         source_document_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
     ) -> List[RelationshipResponse]:
-        """Get all relationships with pagination"""
+        """Get all relationships with pagination, optionally org-scoped."""
         # Cap limit to prevent OOM on large graphs
         limit = min(limit, 200)
         try:
@@ -964,7 +965,16 @@ class KnowledgeGraphService:
                     conditions.append("r.type IN $relationship_types")
                     params["relationship_types"] = type_values
 
-                if source_document_ids is not None:
+                if organization_id is not None:
+                    # Scope by ENDPOINT org (not edge org) so legacy edges that
+                    # predate edge-org stamping but connect correctly-stamped
+                    # entities still surface for the owning tenant.
+                    conditions.append(
+                        "source.organization_id = $organization_id"
+                        " AND target.organization_id = $organization_id"
+                    )
+                    params["organization_id"] = organization_id
+                elif source_document_ids is not None:
                     # Use relationship-level source_document_id for filtering
                     # (more reliable than entity node property for scoping)
                     conditions.append("r.source_document_id IN $source_document_ids")
