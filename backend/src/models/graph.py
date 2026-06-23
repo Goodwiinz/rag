@@ -208,6 +208,11 @@ class CreateRelationshipRequest(BaseModel):
         default_factory=dict, description="Additional relationship metadata"
     )
     source_document_id: Optional[str] = Field(None, description="Source document ID")
+    organization_id: Optional[str] = Field(
+        None,
+        description="Owning organization; both endpoints are scoped to it and "
+        "the edge is stamped with it for tenant isolation.",
+    )
 
 
 class RelationshipResponse(BaseModel):

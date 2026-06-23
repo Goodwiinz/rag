@@ -1034,12 +1034,22 @@ class KnowledgeGraphService:
 
         try:
             with self.get_session() as session:
-                tenant_filter = (
-                    "\nWHERE source.source_document_id IN $source_document_ids"
-                    " AND target.source_document_id IN $source_document_ids"
-                    if source_document_ids is not None
-                    else ""
-                )
+                # Scope BOTH endpoints to the caller's org so a relationship can
+                # never bind a cross-tenant entity. Prefer the indexed
+                # organization_id; fall back to the source_document_id IN-list
+                # for callers that still pass doc ids; else unscoped (legacy).
+                if request.organization_id:
+                    tenant_filter = (
+                        "\nWHERE source.organization_id = $organization_id"
+                        " AND target.organization_id = $organization_id"
+                    )
+                elif source_document_ids is not None:
+                    tenant_filter = (
+                        "\nWHERE source.source_document_id IN $source_document_ids"
+                        " AND target.source_document_id IN $source_document_ids"
+                    )
+                else:
+                    tenant_filter = ""
                 # MERGE (not CREATE) so re-ingesting the SAME document does not
                 # pile up duplicate RELATED_TO edges. The dedupe key is
                 # (source, target, type, source_document_id): source_document_id
@@ -1065,6 +1075,7 @@ class KnowledgeGraphService:
                     r.context = $context,
                     r.evidence = $evidence,
                     r.metadata = $metadata,
+                    r.organization_id = $organization_id,
                     r.created_at = datetime(),
                     r.updated_at = datetime()
                 ON MATCH SET
@@ -1073,6 +1084,7 @@ class KnowledgeGraphService:
                     r.context = $context,
                     r.evidence = $evidence,
                     r.metadata = $metadata,
+                    r.organization_id = coalesce(r.organization_id, $organization_id),
                     r.updated_at = datetime()
                 RETURN r, source, target
                 LIMIT 1
@@ -1099,6 +1111,8 @@ class KnowledgeGraphService:
                     # Coalesced to "" so it can serve as a MERGE key (Cypher
                     # rejects a null key value).
                     "source_document_id": request.source_document_id or "",
+                    # Edge org (non-key property; null allowed for org-less edges).
+                    "organization_id": request.organization_id,
                 }
                 if source_document_ids is not None:
                     params["source_document_ids"] = source_document_ids
@@ -1995,17 +2009,25 @@ class KnowledgeGraphService:
     ) -> Optional[RelationshipResponse]:
         """Helper to create relationship within a transaction"""
         relationship_id = str(uuid.uuid4())
+        # Scope both endpoints to the caller's org when known (mirrors
+        # create_relationship). MERGE key unchanged ((type, source_document_id)).
+        endpoint_filter = (
+            "\nWHERE source.organization_id = $organization_id"
+            " AND target.organization_id = $organization_id"
+            if request.organization_id
+            else ""
+        )
         # MERGE on (source, target, type, source_document_id) for idempotent
         # re-ingest while preserving per-document provenance — see the note in
         # create_relationship. LIMIT 1 keeps the read to one row (it does not
         # consolidate legacy duplicate edges).
-        query = """
-        MATCH (source:Entity {id: $source_entity_id})
-        MATCH (target:Entity {id: $target_entity_id})
-        MERGE (source)-[r:RELATED_TO {
+        query = f"""
+        MATCH (source:Entity {{id: $source_entity_id}})
+        MATCH (target:Entity {{id: $target_entity_id}}){endpoint_filter}
+        MERGE (source)-[r:RELATED_TO {{
             type: $relationship_type,
             source_document_id: $source_document_id
-        }]->(target)
+        }}]->(target)
         ON CREATE SET
             r.id = $id,
             r.strength = $strength,
@@ -2013,6 +2035,7 @@ class KnowledgeGraphService:
             r.context = $context,
             r.evidence = $evidence,
             r.metadata = $metadata,
+            r.organization_id = $organization_id,
             r.created_at = datetime(),
             r.updated_at = datetime()
         ON MATCH SET
@@ -2021,6 +2044,7 @@ class KnowledgeGraphService:
             r.context = $context,
             r.evidence = $evidence,
             r.metadata = $metadata,
+            r.organization_id = coalesce(r.organization_id, $organization_id),
             r.updated_at = datetime()
         RETURN r
         LIMIT 1
@@ -2044,6 +2068,7 @@ class KnowledgeGraphService:
                 "metadata": metadata_str,
                 # Coalesced to "" so it can serve as a MERGE key.
                 "source_document_id": request.source_document_id or "",
+                "organization_id": request.organization_id,
             },
         )
 
