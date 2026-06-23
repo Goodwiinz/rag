@@ -43,9 +43,9 @@ def test_create_entity_in_transaction_stamps_org() -> None:
     resp = svc._create_entity_in_transaction(_Tx(), req)
 
     query = captured["query"]
-    assert "e.organization_id = $organization_id" in query  # ON CREATE
-    assert "coalesce(e.organization_id, $organization_id)" in query  # ON MATCH
-    assert captured["params"]["organization_id"] == "org-A"
+    # org is part of the MERGE identity (key), not a re-settable property.
+    assert "organization_id: $org_key" in query
+    assert captured["params"]["org_key"] == "org-A"
     assert resp is not None
 
 
