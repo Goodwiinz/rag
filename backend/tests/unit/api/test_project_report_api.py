@@ -7,6 +7,7 @@ inaccessible projects (no existence disclosure). Mocked DB, no real Postgres.
 """
 
 from datetime import datetime, timezone
+from typing import Any, Sequence
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -19,7 +20,7 @@ from src.models import Collection, User, UserRole
 
 
 @pytest.fixture
-def mock_user():
+def mock_user() -> MagicMock:
     user = MagicMock(spec=User)
     user.id = uuid4()
     user.email = "owner@example.com"
@@ -29,7 +30,7 @@ def mock_user():
 
 
 @pytest.fixture
-def mock_project():
+def mock_project() -> MagicMock:
     project = MagicMock(spec=Collection)
     project.id = uuid4()
     project.name = "Test Research Project"
@@ -40,19 +41,19 @@ def mock_project():
 
 
 @pytest.fixture
-def mock_db():
+def mock_db() -> AsyncMock:
     db = AsyncMock(spec=AsyncSession)
     db.execute = AsyncMock()
     return db
 
 
-def _scalar_one_or_none(value):
+def _scalar_one_or_none(value: Any) -> MagicMock:
     result = MagicMock()
     result.scalar_one_or_none.return_value = value
     return result
 
 
-def _scalars_all(values):
+def _scalars_all(values: Sequence[Any]) -> MagicMock:
     result = MagicMock()
     result.scalars.return_value.all.return_value = values
     return result
@@ -60,7 +61,9 @@ def _scalars_all(values):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_report_renders_for_owner(mock_user, mock_project, mock_db):
+async def test_report_renders_for_owner(
+    mock_user: MagicMock, mock_project: MagicMock, mock_db: AsyncMock
+) -> None:
     """Owner gets a rendered HTML report (200)."""
     from src.api.research.project_report import render_project_report
 
@@ -85,7 +88,9 @@ async def test_report_renders_for_owner(mock_user, mock_project, mock_db):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_report_404_when_not_owned_or_missing(mock_user, mock_db):
+async def test_report_404_when_not_owned_or_missing(
+    mock_user: MagicMock, mock_db: AsyncMock
+) -> None:
     """A project in another user's workspace (or absent) yields 404 — the
     scoped query returns nothing, so missing and forbidden are indistinguishable.
     """
