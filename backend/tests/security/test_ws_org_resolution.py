@@ -69,6 +69,32 @@ async def test_returns_none_when_no_user_and_no_provision() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_jit_provision_success_resolves_org() -> None:
+    """First query misses → JIT-provision succeeds → re-query yields real org."""
+    db = AsyncMock()
+    # 1st execute: no user; 2nd execute (post-provision): user with org.
+    db.execute = AsyncMock(
+        side_effect=[
+            _Result(None),
+            _Result(SimpleNamespace(organization_id="org-NEW")),
+        ]
+    )
+    db.commit = AsyncMock()
+
+    with patch(
+        "src.api.realtime.websocket_v2.ensure_user_and_org",
+        new=AsyncMock(return_value=SimpleNamespace(id="user-1")),
+    ):
+        org = await _resolve_ws_organization_id(
+            "user-1", {"role": "USER"}, session_factory=_factory(db)
+        )
+
+    assert org == "org-NEW"
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_returns_none_when_user_has_null_org() -> None:
     db = AsyncMock()
     db.execute = AsyncMock(
