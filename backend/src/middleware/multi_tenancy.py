@@ -26,6 +26,15 @@ from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
+
+def _role_to_str(role: Any) -> str:
+    """Normalize a DB User.role (UserRole enum) to the string the tenancy
+    permission checks compare against; default to 'user'."""
+    if role is None:
+        return "user"
+    return getattr(role, "value", None) or str(role) or "user"
+
+
 # Context variables for tenant information
 tenant_context: ContextVar[Optional[str]] = ContextVar("tenant_id", default=None)
 user_context: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
@@ -101,30 +110,47 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
         if not token_data or not token_data.user_id:
             return None
 
-        # Fast path: org_id already embedded in JWT (CLI tokens, future Supabase tokens)
+        # The authenticated DB user record is the single source of truth for
+        # role and account status — NOT the JWT claim. A long-lived CLI token
+        # (up to 30 days) must not let a since-deactivated or since-demoted user
+        # keep tenant access / an elevated role. Both paths below resolve and
+        # validate the live User row.
+        active_user = (
+            User.id == token_data.user_id,
+            User.is_active == True,  # noqa: E712 - SQLAlchemy needs == True
+            User.is_deleted == False,  # noqa: E712
+        )
+
+        # Fast path: org_id already embedded in JWT (CLI tokens). JIT-provision,
+        # then validate against the DB in the same session.
         if token_data.organization_id:
-            # JIT-provision only when we haven't resolved the user from DB yet.
-            # Uses a separate session to avoid tainting the caller's session
-            # with a potential rollback from IntegrityError (duplicate insert).
             try:
                 async with AsyncSessionLocal() as prov_db:
                     provisioned = await ensure_user_and_org(prov_db, token_data)
                     if provisioned:
                         await prov_db.commit()
+                    user = (
+                        (await prov_db.execute(select(User).where(*active_user)))
+                        .scalars()
+                        .first()
+                    )
             except Exception as e:
-                logger.debug("JIT-provision skipped (non-fatal): %s", e)
+                logger.debug("Fast-path user resolve failed (non-fatal): %s", e)
+                user = None
+            if not user:
+                return None  # inactive / deleted / unresolved -> no tenant context
             return {
-                "organization_id": str(token_data.organization_id),
+                "organization_id": str(
+                    user.organization_id or token_data.organization_id
+                ),
                 "user_id": str(token_data.user_id),
-                "role": token_data.role or "user",
+                "role": _role_to_str(user.role),
             }
 
         # Fallback: resolve org from DB (current Supabase JWTs don't embed org_id).
         # Reuses the caller's session — no extra connection needed.
         try:
-            result = await db.execute(
-                select(User).where(User.id == token_data.user_id)
-            )
+            result = await db.execute(select(User).where(*active_user))
             user = result.scalars().first()
             if not user:
                 # User doesn't exist yet — JIT-provision, then re-query.
@@ -134,16 +160,14 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                         await prov_db.commit()
                 except Exception as e:
                     logger.debug("JIT-provision skipped (non-fatal): %s", e)
-                result = await db.execute(
-                    select(User).where(User.id == token_data.user_id)
-                )
+                result = await db.execute(select(User).where(*active_user))
                 user = result.scalars().first()
             if not user or not user.organization_id:
                 return None
             return {
                 "organization_id": str(user.organization_id),
                 "user_id": str(token_data.user_id),
-                "role": token_data.role or "user",
+                "role": _role_to_str(user.role),
             }
         except Exception as e:
             logger.error(f"Error resolving tenant from token: {e}")
