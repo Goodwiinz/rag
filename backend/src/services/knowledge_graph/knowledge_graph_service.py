@@ -2010,13 +2010,22 @@ class KnowledgeGraphService:
         """Helper to create relationship within a transaction"""
         relationship_id = str(uuid.uuid4())
         # Scope both endpoints to the caller's org when known (mirrors
-        # create_relationship). MERGE key unchanged ((type, source_document_id)).
-        endpoint_filter = (
-            "\nWHERE source.organization_id = $organization_id"
-            " AND target.organization_id = $organization_id"
-            if request.organization_id
-            else ""
-        )
+        # create_relationship). Batch ingest uses this path, so fall back to the
+        # edge's own source_document_id when no org is set — both endpoints must
+        # share that document — instead of leaving it fully unscoped. MERGE key
+        # unchanged ((type, source_document_id)).
+        if request.organization_id:
+            endpoint_filter = (
+                "\nWHERE source.organization_id = $organization_id"
+                " AND target.organization_id = $organization_id"
+            )
+        elif request.source_document_id:
+            endpoint_filter = (
+                "\nWHERE source.source_document_id = $source_document_id"
+                " AND target.source_document_id = $source_document_id"
+            )
+        else:
+            endpoint_filter = ""
         # MERGE on (source, target, type, source_document_id) for idempotent
         # re-ingest while preserving per-document provenance — see the note in
         # create_relationship. LIMIT 1 keeps the read to one row (it does not

@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EntityType(str, Enum):
@@ -213,6 +213,16 @@ class CreateRelationshipRequest(BaseModel):
         description="Owning organization; both endpoints are scoped to it and "
         "the edge is stamped with it for tenant isolation.",
     )
+
+    @field_validator("organization_id")
+    @classmethod
+    def _org_not_blank(cls, v: Optional[str]) -> Optional[str]:
+        # A blank-but-present org is falsy, which would silently drop the
+        # endpoint scoping and re-enable unscoped cross-tenant binding. Reject
+        # it at the boundary; None (genuinely org-less) stays allowed.
+        if v is not None and not v.strip():
+            raise ValueError("organization_id must be non-blank when provided")
+        return v
 
 
 class RelationshipResponse(BaseModel):
