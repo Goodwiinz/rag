@@ -40,7 +40,14 @@ async def _get_redis() -> Optional["redis.Redis"]:
     if not url:
         return None
     try:
-        _client = redis.from_url(url, decode_responses=True)
+        # Socket timeouts (repo's 5s standard) so a degraded/hung Redis fails
+        # fast and the auth path fails OPEN instead of stalling get_current_user.
+        _client = redis.from_url(
+            url,
+            decode_responses=True,
+            socket_timeout=5,
+            socket_connect_timeout=5,
+        )
         return _client
     except Exception as e:  # noqa: BLE001 - fail open
         logger.warning("CLI revocation: Redis unavailable (%s)", e)
@@ -62,8 +69,11 @@ async def revoke_user_cli_tokens(user_id: str) -> None:
         logger.warning("CLI revocation skipped (no Redis) for user %s", user_id)
         return
     try:
-        now = int(datetime.now(timezone.utc).timestamp())
-        await client.set(_KEY.format(user_id=user_id), now, ex=_TTL_SECONDS)
+        # Store cutoff = next whole second so a token minted in the SAME second
+        # as the revoke (iat is whole-second from create_cli_token) is still
+        # caught by the `iat < cutoff` check ("revoke up to now" inclusive).
+        cutoff = int(datetime.now(timezone.utc).timestamp()) + 1
+        await client.set(_KEY.format(user_id=user_id), cutoff, ex=_TTL_SECONDS)
     except Exception as e:  # noqa: BLE001 - never raise into the caller
         logger.warning("CLI revocation write failed for user %s: %s", user_id, e)
         _reset_client()
