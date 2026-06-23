@@ -105,7 +105,7 @@ dev = [
     "httpx>=0.28.1",
     "pydantic>=2.13.4",
     "pyjwt>=2.11.0",
-    "pytest>=9.0.2",
+    "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "sqlalchemy>=2.0.50",
 ]
