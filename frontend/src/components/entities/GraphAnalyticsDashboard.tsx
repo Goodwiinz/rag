@@ -260,9 +260,10 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
               const percentage = (item.count / analytics.total_entities) * 100;
               return (
                 <button
+                  type="button"
                   key={item.entity_type}
                   onClick={() => onTypeClick?.(item.entity_type as EntityType)}
-                  className="w-full space-y-1 text-left hover:bg-[var(--nous-bg-3)] p-2 rounded-md transition-colors cursor-pointer"
+                  className="w-full space-y-1 text-left hover:bg-[var(--nous-bg-3)] p-2 rounded-md transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-1"
                   title={`Click to filter by ${item.entity_type}`}
                 >
                   <div className="flex justify-between text-xs font-mono">

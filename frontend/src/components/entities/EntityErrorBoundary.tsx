@@ -165,6 +165,7 @@ export class EntityErrorBoundary extends React.Component<
               }}
             >
               <button
+                type="button"
                 onClick={this.handleReset}
                 style={{
                   width: '100%',
@@ -179,7 +180,9 @@ export class EntityErrorBoundary extends React.Component<
                   border: 'none',
                   borderRadius: '0.375rem',
                   cursor: 'pointer',
+                  outline: 'none',
                 }}
+                className="focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#D4A039]"
               >
                 RETRY
               </button>
