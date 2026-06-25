@@ -530,6 +530,16 @@ export function ThreadMessageSearch({
                     onSelectMessage?.(result.id, result.thread_id);
                   }
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    if (result.result_type === 'thread') {
+                      onSelectThread?.(result.id);
+                    } else if (result.thread_id) {
+                      onSelectMessage?.(result.id, result.thread_id);
+                    }
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
@@ -578,6 +588,12 @@ export function ThreadMessageSearch({
                 tabIndex={0}
                 className="p-3 bg-[var(--nous-bg-1)]/40 border border-border rounded-md hover:border-border cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => onSelectThread?.(result.thread_id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectThread?.(result.thread_id);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <MessageSquare
@@ -637,6 +653,12 @@ export function ThreadMessageSearch({
                 onClick={() =>
                   onSelectMessage?.(result.message_id, result.thread_id)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectMessage?.(result.message_id, result.thread_id);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-1">
