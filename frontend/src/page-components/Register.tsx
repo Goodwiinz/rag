@@ -12,6 +12,10 @@ interface RegisterFormData {
   organization_name: string;
 }
 
+interface RegisterResponse {
+  requiresEmailConfirmation: boolean;
+}
+
 export const Register: React.FC = () => {
   const { register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -107,7 +111,7 @@ export const Register: React.FC = () => {
         password,
       };
 
-      const result = await register(backendData as any);
+      const result = (await register(backendData)) as RegisterResponse;
       if (!result.requiresEmailConfirmation) {
         navigate('/dashboard');
       }

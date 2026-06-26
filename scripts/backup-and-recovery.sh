@@ -185,15 +185,23 @@ encrypt_backup() {
     # Encrypt each backup file
     for file in "$BACKUP_PATH"/*.tar.gz "$BACKUP_PATH"/*.sql "$BACKUP_PATH"/dump*; do
         if [[ -f "$file" ]]; then
-            openssl enc -aes-256-cbc -salt -in "$file" -out "$BACKUP_DIR/encrypted/$(basename "$file").enc" \
+            openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
+                -in "$file" -out "$BACKUP_DIR/encrypted/$(basename "$file").enc" \
                 -kfile "$ENCRYPTION_KEY_FILE"
             rm "$file"
         fi
     done
 
-    # Copy encryption key separately (encrypted)
-    openssl enc -aes-256-cbc -salt -in "$ENCRYPTION_KEY_FILE" \
-        -out "$BACKUP_DIR/encrypted/backup_key.enc" -kfile "$(openssl rand -hex 32)"
+    # Copy encryption key separately, wrapped with a passphrase that must be
+    # stored outside the backup (e.g. a KMS / secrets manager). Using an
+    # ephemeral random key here would make every backup unrecoverable.
+    if [[ -z "${BACKUP_KEY_PASSPHRASE:-}" ]]; then
+        error_exit "BACKUP_KEY_PASSPHRASE must be set (stored in a KMS / secrets manager) so the wrapped backup key is recoverable"
+    fi
+    openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
+        -in "$ENCRYPTION_KEY_FILE" \
+        -out "$BACKUP_DIR/encrypted/backup_key.enc" \
+        -pass env:BACKUP_KEY_PASSPHRASE
 
     success "Backup encryption completed"
 }
@@ -235,16 +243,20 @@ verify_backup() {
         fi
     done
 
-    # Test encryption/decryption
+    # Test encryption/decryption (write to a restricted mktemp file, not /tmp/test.txt)
     local test_file="$BACKUP_DIR/encrypted/test.enc"
     if [[ -f "$test_file" ]]; then
-        openssl enc -d -aes-256-cbc -in "$test_file" -out /tmp/test.txt -kfile "$ENCRYPTION_KEY_FILE"
-        if [[ $? -eq 0 ]]; then
+        local test_out
+        test_out=$(mktemp)
+        chmod 600 "$test_out"
+        if openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+            -in "$test_file" -out "$test_out" -kfile "$ENCRYPTION_KEY_FILE"; then
             success "Encryption verification passed"
-            rm -f /tmp/test.txt
         else
+            rm -f "$test_out"
             error_exit "Encryption verification failed"
         fi
+        rm -f "$test_out"
     fi
 
     success "Backup verification completed"

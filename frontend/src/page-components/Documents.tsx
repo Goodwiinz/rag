@@ -10,6 +10,7 @@ const Documents: React.FC = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDocumentSelect = (document: Document) => {
     // Handle document selection for preview or detailed view
@@ -32,20 +33,21 @@ const Documents: React.FC = () => {
   };
 
   const handleDocumentDownload = async (doc: Document) => {
+    const a = window.document.createElement('a');
+    let url: string | null = null;
     try {
-      // TODO: Implement actual download functionality
-      console.log('Downloading document:', doc.id);
       const blob = await api.request<Blob>(`/api/documents/${doc.id}/download`, { method: 'GET' });
-      const url = window.URL.createObjectURL(blob);
-      const a = window.document.createElement('a');
+      url = window.URL.createObjectURL(blob);
       a.href = url;
-      a.download = doc.filename;
+      a.download = doc.filename ?? 'download';
       window.document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      window.document.body.removeChild(a);
     } catch (error) {
       console.error('Failed to download document:', error);
+      setDownloadError('Failed to download document. Please try again.');
+    } finally {
+      if (url) window.URL.revokeObjectURL(url);
+      if (a.parentNode) window.document.body.removeChild(a);
     }
   };
 
@@ -88,6 +90,11 @@ const Documents: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {downloadError && (
+        <div className="mb-4 rounded-md bg-red-50 p-4">
+          <div className="text-sm text-red-800">{downloadError}</div>
+        </div>
+      )}
       <DocumentLibrary
         onDocumentSelect={handleDocumentSelect}
         onDocumentPreview={handleDocumentPreview}

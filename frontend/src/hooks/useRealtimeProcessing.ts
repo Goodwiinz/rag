@@ -138,7 +138,7 @@ export const useRealtimeProcessing = (
         });
       }
     },
-    [store]
+    [storeActions]
   );
 
   const handleQueueUpdate = useCallback(
@@ -149,21 +149,21 @@ export const useRealtimeProcessing = (
       storeActions.setQueueSummary(payload.summary);
       storeActions.setQueueMetrics(payload.metrics);
     },
-    [store]
+    [storeActions]
   );
 
   const handleSystemMetrics = useCallback(
     (message: SystemMetricsMessage) => {
       storeActions.updateSystemMetrics(message.payload);
     },
-    [store]
+    [storeActions]
   );
 
   const handleNotification = useCallback(
     (message: NotificationMessage) => {
       storeActions.addNotification(message.payload);
     },
-    [store]
+    [storeActions]
   );
 
   const handleConnectionChange = useCallback(
@@ -177,7 +177,7 @@ export const useRealtimeProcessing = (
         setError(null);
       }
     },
-    [store]
+    [storeActions]
   );
 
   const handlePerformanceUpdate = useCallback((metrics: PerformanceMetrics) => {
@@ -298,29 +298,29 @@ export const useRealtimeProcessing = (
   // Bulk actions using store methods
   const pauseSelectedDocuments = useCallback(() => {
     storeActions.pauseSelectedDocuments();
-  }, [store]);
+  }, [storeActions]);
 
   const resumeSelectedDocuments = useCallback(() => {
     storeActions.resumeSelectedDocuments();
-  }, [store]);
+  }, [storeActions]);
 
   const cancelSelectedDocuments = useCallback(() => {
     storeActions.cancelSelectedDocuments();
-  }, [store]);
+  }, [storeActions]);
 
   const retrySelectedDocuments = useCallback(() => {
     storeActions.retrySelectedDocuments();
-  }, [store]);
+  }, [storeActions]);
 
   // Utilities
   const clearNotifications = useCallback(() => {
     storeActions.clearNotifications();
-  }, [store]);
+  }, [storeActions]);
 
   const retryConnection = useCallback(async () => {
     storeActions.incrementReconnectionAttempts();
     await reconnect();
-  }, [store, reconnect]);
+  }, [storeActions, reconnect]);
 
   // Auto-connect when authenticated
   useEffect(() => {

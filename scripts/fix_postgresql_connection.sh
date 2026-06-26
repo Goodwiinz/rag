@@ -121,19 +121,19 @@ setup_backend_env() {
     cd backend
 
     # Create environment file with correct settings
-    cat > .env.local << 'EOF'
+    cat > .env.local << EOF
 # Database Configuration
-DATABASE_URL=postgresql://raguser:rag_password@localhost:5432/ragdb
+DATABASE_URL=postgresql://raguser:${DB_PASSWORD:?DB_PASSWORD is required}@localhost:5432/ragdb
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=ragdb
 DB_USER=raguser
-DB_PASSWORD=rag_password
+DB_PASSWORD="${DB_PASSWORD:?DB_PASSWORD is required}"
 
 # Neo4j Configuration
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=neo4j_password
+NEO4J_PASSWORD="${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
 
 # Qdrant Configuration
 QDRANT_URL=http://localhost:6333
@@ -152,7 +152,7 @@ DEBUG=false
 # API Configuration
 API_HOST=0.0.0.0
 API_PORT=8000
-SECRET_KEY=your-secret-key-change-in-production
+SECRET_KEY="${SECRET_KEY:?SECRET_KEY is required}"
 
 # OpenAI Configuration
 OPENAI_API_KEY=your-openai-key

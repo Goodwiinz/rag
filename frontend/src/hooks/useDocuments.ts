@@ -188,11 +188,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
   const fetchDocuments = useCallback(
     async (page?: number, pageSize?: number, filters?: DocumentFilters) => {
       // Check if user is authenticated before making API call
-      console.log('🔍 Authentication check in fetchDocuments:', {
-        isAuthenticated,
-        authLoading,
-      });
-
       if (!isAuthenticated) {
         console.warn('🚫 Cannot fetch documents: User not authenticated');
         setState((prev) => ({
@@ -202,14 +197,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
         }));
         return;
       }
-
-      console.log('Fetching documents with params:', {
-        page,
-        pageSize,
-        filters,
-        isAuthenticated,
-        authLoading,
-      });
 
       let actualPage: number = page ?? 1;
       let actualPageSize: number = pageSize ?? 20;
@@ -245,12 +232,10 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
           params.date_to = actualFilters.date_range.end;
         }
 
-        console.log('Making API call to getDocuments with params:', params);
         const queryString = new URLSearchParams(
           Object.entries(params).map(([k, v]) => [k, String(v)])
         ).toString();
         const response = (await api.get(`/documents/?${queryString}`)) as DocumentsApiResponse;
-        console.log('API response received:', response);
 
         // Check if response has the expected structure
         if (!response) {
@@ -301,16 +286,11 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
 
         // Handle APIErrorClass instances (from API client)
         if (error instanceof APIErrorClass) {
-          console.log('APIErrorClass caught:', error.error);
-
           // Check if it's an authentication error (401/403)
           if (
             error.error.status_code === 401 ||
             error.error.status_code === 403
           ) {
-            console.log(
-              'Authentication error detected in APIErrorClass, triggering logout'
-            );
             handleAuthError();
             setState((prev) => ({
               ...prev,
@@ -344,9 +324,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
           errorMessage.includes('Session expired');
 
         if (isAuthError) {
-          console.log(
-            'Authentication error detected in error message, triggering logout'
-          );
           handleAuthError();
           setState((prev) => ({
             ...prev,
@@ -469,9 +446,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
             error.error.status_code === 401 ||
             error.error.status_code === 403
           ) {
-            console.log(
-              'Authentication error detected in deleteDocument, triggering logout'
-            );
             handleAuthError();
             throw new Error('Your session has expired. Please log in again.');
           }
@@ -491,9 +465,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
           errorMessage.includes('Session expired');
 
         if (isAuthError) {
-          console.log(
-            'Authentication error detected in deleteDocument error message, triggering logout'
-          );
           handleAuthError();
           throw new Error('Your session has expired. Please log in again.');
         }
@@ -554,9 +525,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
             error.error.status_code === 401 ||
             error.error.status_code === 403
           ) {
-            console.log(
-              'Authentication error detected in retryDocument, triggering logout'
-            );
             handleAuthError();
             setState((prev) => ({
               ...prev,
@@ -590,9 +558,6 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
           errorMessage.includes('Session expired');
 
         if (isAuthError) {
-          console.log(
-            'Authentication error detected in retryDocument error message, triggering logout'
-          );
           handleAuthError();
           setState((prev) => ({
             ...prev,
@@ -615,15 +580,7 @@ export const useDocuments = (options: UseDocumentsOptions = {}) => {
 
   // Auto-fetch on mount and when dependencies change
   useEffect(() => {
-    console.log('Auto-fetch effect triggered:', {
-      autoFetch,
-      isAuthenticated,
-      authLoading,
-      shouldFetch: autoFetch && isAuthenticated && !authLoading,
-    });
-
     if (autoFetch && isAuthenticated && !authLoading) {
-      console.log('Auto-fetching documents...');
       fetchDocuments();
     }
   }, [autoFetch, fetchDocuments, isAuthenticated, authLoading]);

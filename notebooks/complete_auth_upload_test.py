@@ -1,6 +1,7 @@
 # Complete Authentication + Upload Test
 # Paste this into a NEW cell in your notebook
 
+import os
 import time
 import requests
 
@@ -13,8 +14,8 @@ print("=" * 60)
 
 # Generate unique credentials
 test_timestamp = int(time.time())
-test_email = f"test_{test_timestamp}@example.com"
-test_password = "SecurePass123!"
+test_email = os.environ.get("TEST_EMAIL", "test@example.com")
+test_password = os.environ.get("TEST_PASSWORD", "SecurePass123!")
 test_org = f"Test Org {test_timestamp}"
 
 print(f"📧 Email: {test_email}")
