@@ -50,6 +50,7 @@ interface MonitoringState {
   alertHistory: AlertHistory | null;
   alertsLoading: LoadingState;
   acknowledgedAlerts: Set<string>;
+  suppressedUntil: Record<string, number>;
 
   // User Analytics
   userAnalytics: UserAnalytics | null;
@@ -147,7 +148,18 @@ interface MonitoringState {
   dismissNotification: (index: number) => void;
 
   // Loading Actions
-  setLoading: (key: string, loading: boolean, error?: string) => void;
+  setLoading: (
+    key:
+      | 'systemHealth'
+      | 'performance'
+      | 'business'
+      | 'infrastructure'
+      | 'alerts'
+      | 'userAnalytics'
+      | 'integrations',
+    loading: boolean,
+    error?: string
+  ) => void;
   clearAllLoading: () => void;
 
   // Reset Actions
@@ -227,6 +239,7 @@ const initialState: Omit<
   alertHistory: null,
   alertsLoading: { loading: false },
   acknowledgedAlerts: new Set(),
+  suppressedUntil: {},
 
   // User Analytics
   userAnalytics: null,
@@ -313,13 +326,34 @@ export const useMonitoringStore = create<MonitoringState>()(
     // Alert Actions
     updateActiveAlerts: (alerts) => {
       set((state) => {
-        // Filter out acknowledged alerts that are no longer active
-        const filteredAlerts = alerts.filter(
-          (alert) =>
-            !state.acknowledgedAlerts.has(alert.id) || alert.status === 'active'
-        );
+        const now = Date.now();
+        // Auto-unsuppress alerts whose suppression window has expired
+        const expired = Object.entries(state.suppressedUntil)
+          .filter(([, until]) => until <= now)
+          .map(([id]) => id);
+        const nextSuppressedUntil =
+          expired.length > 0
+            ? Object.fromEntries(
+                Object.entries(state.suppressedUntil).filter(
+                  ([id]) => !expired.includes(id)
+                )
+              )
+            : state.suppressedUntil;
+
+        const filteredAlerts = alerts
+          .map((alert) => {
+            if (expired.includes(alert.id)) {
+              return { ...alert, status: 'active' as const };
+            }
+            return alert;
+          })
+          .filter(
+            (alert) =>
+              !state.acknowledgedAlerts.has(alert.id) || alert.status === 'active'
+          );
         return {
           activeAlerts: filteredAlerts,
+          suppressedUntil: nextSuppressedUntil,
           alertsLoading: {
             loading: false,
             last_updated: new Date().toISOString(),
@@ -364,6 +398,10 @@ export const useMonitoringStore = create<MonitoringState>()(
 
     suppressAlert: (alertId, durationMinutes) => {
       set((state) => ({
+        suppressedUntil: {
+          ...state.suppressedUntil,
+          [alertId]: Date.now() + durationMinutes * 60_000,
+        },
         activeAlerts: state.activeAlerts.map((alert) =>
           alert.id === alertId
             ? { ...alert, status: 'suppressed' as const }
@@ -611,13 +649,22 @@ export const useMonitoringStore = create<MonitoringState>()(
 
     // Loading Actions
     setLoading: (key, loading, error) => {
-      set((state) => ({
-        [`${key}Loading`]: {
-          loading,
-          error: error || undefined,
-          last_updated: loading ? undefined : new Date().toISOString(),
-        },
-      }));
+      const loadingState: LoadingState = {
+        loading,
+        error: error ?? undefined,
+        last_updated: loading ? undefined : new Date().toISOString(),
+      };
+      const keyMap = {
+        systemHealth: 'systemHealthLoading',
+        performance: 'performanceLoading',
+        business: 'businessLoading',
+        infrastructure: 'infrastructureLoading',
+        alerts: 'alertsLoading',
+        userAnalytics: 'userAnalyticsLoading',
+        integrations: 'integrationsLoading',
+      } as const;
+      const stateKey = keyMap[key];
+      set({ [stateKey]: loadingState } as Pick<MonitoringState, typeof stateKey>);
     },
 
     clearAllLoading: () => {
@@ -697,7 +744,7 @@ export const useActiveDashboardId = () =>
 export const useActiveDashboard = () =>
   useMonitoringStore((state) =>
     state.activeDashboardId
-      ? state.dashboardConfigs[state.activeDashboardId]
+      ? (state.dashboardConfigs[state.activeDashboardId] ?? null)
       : null
   );
 export const useDashboardLayout = () =>

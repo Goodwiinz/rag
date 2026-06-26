@@ -244,20 +244,22 @@ export const useWebSocketConnection = ({
         setConnectionStatus('disconnected');
         onDisconnect?.();
 
+        // Read the live reconnection count from the store rather than the
+        // stale closure value captured when `connect` was created.
+        const reconnAttempts =
+          useRealtimeProcessingStore.getState().connection.reconnectionAttempts;
+
         // Attempt reconnection if not a normal close and we haven't exceeded max attempts
-        if (
-          event.code !== 1000 &&
-          connection.reconnectionAttempts < maxReconnectAttempts
-        ) {
+        if (event.code !== 1000 && reconnAttempts < maxReconnectAttempts) {
           incrementReconnectionAttempts();
           const delay = Math.min(
-            reconnectInterval * Math.pow(2, connection.reconnectionAttempts),
+            reconnectInterval * Math.pow(2, reconnAttempts),
             30000
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log(
-              `Attempting to reconnect... (${connection.reconnectionAttempts + 1}/${maxReconnectAttempts})`
+              `Attempting to reconnect... (${reconnAttempts + 1}/${maxReconnectAttempts})`
             );
             connect();
           }, delay);
@@ -293,7 +295,6 @@ export const useWebSocketConnection = ({
     startHeartbeat,
     handleMessage,
     clearTimeouts,
-    connection.reconnectionAttempts,
   ]);
 
   // Disconnect WebSocket
@@ -346,9 +347,16 @@ export const useWebSocketConnection = ({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Pause heartbeat when tab is hidden
+        // Pause heartbeat when tab is hidden — clear the recurring interval
+        // (heartbeatIntervalRef) and the pending pong timeout
+        // (heartbeatTimeoutRef). Previously this called clearInterval on the
+        // timeout handle, which was a no-op and left the ping firing.
         if (heartbeatTimeoutRef.current) {
-          clearInterval(heartbeatTimeoutRef.current);
+          clearTimeout(heartbeatTimeoutRef.current);
+        }
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = undefined;
         }
       } else {
         // Resume heartbeat and check connection when tab becomes visible

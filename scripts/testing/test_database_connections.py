@@ -4,20 +4,22 @@ Quick test script to verify all database connections
 Tests: PostgreSQL, Redis, Neo4j, and Qdrant
 """
 
+import os
 import sys
 from datetime import datetime
+
 
 def test_postgresql():
     """Test PostgreSQL connection"""
     try:
         import psycopg2
-        
+
         conn = psycopg2.connect(
-            host="localhost",
-            port=5432,
-            database="ragdb",
-            user="raguser",
-            password="REDACTED"
+            host=os.environ.get("DB_HOST", "localhost"),
+            port=int(os.environ.get("DB_PORT", "5432")),
+            database=os.environ.get("DB_NAME", "ragdb"),
+            user=os.environ.get("DB_USER", "raguser"),
+            password=os.environ.get("DB_PASSWORD", ""),
         )
         cur = conn.cursor()
         cur.execute("SELECT version();")
@@ -26,7 +28,7 @@ def test_postgresql():
         tables = cur.fetchone()[0]
         cur.close()
         conn.close()
-        
+
         print("✅ PostgreSQL: Connected")
         print(f"   Version: {version.split(',')[0]}")
         print(f"   Tables: {tables}")
@@ -35,24 +37,25 @@ def test_postgresql():
         print(f"❌ PostgreSQL: Failed - {e}")
         return False
 
+
 def test_redis():
     """Test Redis connection"""
     try:
         import redis
-        
+
         r = redis.Redis(
-            host='localhost',
-            port=6379,
-            password='REDACTED',
-            decode_responses=True
+            host=os.environ.get("REDIS_HOST", "localhost"),
+            port=int(os.environ.get("REDIS_PORT", "6379")),
+            password=os.environ.get("REDIS_PASSWORD", ""),
+            decode_responses=True,
         )
-        
+
         # Test ping
         r.ping()
-        
+
         # Get info
         info = r.info()
-        
+
         print("✅ Redis: Connected")
         print(f"   Version: {info['redis_version']}")
         print(f"   Used Memory: {info['used_memory_human']}")
@@ -62,16 +65,20 @@ def test_redis():
         print(f"❌ Redis: Failed - {e}")
         return False
 
+
 def test_neo4j():
     """Test Neo4j connection"""
     try:
         from neo4j import GraphDatabase
-        
+
         driver = GraphDatabase.driver(
-            "bolt://localhost:7687",
-            auth=("neo4j", "REDACTED")
+            os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+            auth=(
+                os.environ.get("NEO4J_USER", "neo4j"),
+                os.environ.get("NEO4J_PASSWORD", ""),
+            ),
         )
-        
+
         with driver.session() as session:
             # Get version
             result = session.run(
@@ -79,17 +86,17 @@ def test_neo4j():
                 "RETURN name, versions[0] as version, edition"
             )
             record = result.single()
-            
+
             # Count nodes
             count_result = session.run("MATCH (n) RETURN count(n) as count")
             node_count = count_result.single()["count"]
-            
+
             # Count relationships
             rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as count")
             rel_count = rel_result.single()["count"]
-        
+
         driver.close()
-        
+
         print("✅ Neo4j: Connected")
         print(f"   Version: {record['version']} ({record['edition']})")
         print(f"   Nodes: {node_count}")
@@ -99,26 +106,26 @@ def test_neo4j():
         print(f"❌ Neo4j: Failed - {e}")
         return False
 
+
 def test_qdrant():
     """Test Qdrant connection"""
     try:
         from qdrant_client import QdrantClient
-        
+
         client = QdrantClient(
-            url="http://localhost:6333",
-            api_key="REDACTED"
+            url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
+            api_key=os.environ.get("QDRANT_API_KEY", ""),
         )
-        
+
         # Get collections
         collections = client.get_collections()
-        
+
         # Get cluster info (if available)
         try:
-            info = client.cluster_info()
-            version = "Unknown"
-        except:
-            version = "Unknown"
-        
+            client.cluster_info()
+        except Exception:
+            pass
+
         print("✅ Qdrant: Connected")
         print(f"   Collections: {len(collections.collections)}")
         if collections.collections:
@@ -129,6 +136,7 @@ def test_qdrant():
         print(f"❌ Qdrant: Failed - {e}")
         return False
 
+
 def main():
     """Run all database tests"""
     print("=" * 60)
@@ -136,35 +144,36 @@ def main():
     print(f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
     print()
-    
+
     results = {
         "PostgreSQL": test_postgresql(),
         "Redis": test_redis(),
         "Neo4j": test_neo4j(),
-        "Qdrant": test_qdrant()
+        "Qdrant": test_qdrant(),
     }
-    
+
     print()
     print("=" * 60)
     print("📊 Summary")
     print("=" * 60)
-    
+
     success_count = sum(results.values())
     total_count = len(results)
-    
+
     for db, status in results.items():
         status_icon = "✅" if status else "❌"
         print(f"{status_icon} {db}: {'Connected' if status else 'Failed'}")
-    
+
     print()
     print(f"Total: {success_count}/{total_count} databases connected")
-    
+
     if success_count == total_count:
         print("🎉 All databases are working!")
         return 0
     else:
         print("⚠️  Some databases failed to connect")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

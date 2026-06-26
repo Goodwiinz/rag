@@ -45,5 +45,17 @@
     "@isaacs/brace-expansion": "^5.0.1",
     "jsonpath": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "hono": "4.12.25",
+      "form-data": "4.0.6",
+      "ws": "8.21.0",
+      "dompurify": "3.4.11",
+      "systeminformation": "5.31.6",
+      "js-yaml": "4.2.0",
+      "protobufjs": "7.6.3",
+      "postcss": "8.5.10"
+    }
   }
 }

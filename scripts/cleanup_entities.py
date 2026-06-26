@@ -10,12 +10,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def cleanup_manual_entities():
+
+def cleanup_manual_entities() -> None:
     uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     user = os.getenv("NEO4J_USER", "neo4j")
-    password = os.getenv("NEO4J_PASSWORD", "password")
-
-    driver = GraphDatabase.driver(uri, auth=(user, password))
+    password = os.getenv("NEO4J_PASSWORD")
+    if not password:
+        sys.exit("Error: NEO4J_PASSWORD environment variable is required")
 
     query = """
     MATCH (e:Entity)
@@ -23,16 +24,22 @@ def cleanup_manual_entities():
     DETACH DELETE e
     RETURN count(e) as deleted_count
     """
-    
+
+    driver = None
     try:
+        driver = GraphDatabase.driver(uri, auth=(user, password))
         with driver.session() as session:
             result = session.run(query)
             count = result.single()["deleted_count"]
-            logger.info(f"Successfully deleted {count} entities with extraction_method='manual'")
+            logger.info(
+                f"Successfully deleted {count} entities with extraction_method='manual'"
+            )
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
     finally:
-        driver.close()
+        if driver is not None:
+            driver.close()
+
 
 if __name__ == "__main__":
     cleanup_manual_entities()
