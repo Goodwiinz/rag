@@ -4,6 +4,7 @@ Complete Authentication & Upload Test
 Tests all fixed functionality in the RAG system
 """
 
+import os
 import time
 import json
 
@@ -20,8 +21,8 @@ BASE_URL = "http://localhost:8000"
 
 # Generate unique test credentials
 test_timestamp = int(time.time())
-test_email = f"test_{test_timestamp}@example.com"
-test_password = "SecurePass123!"
+test_email = os.environ.get("TEST_EMAIL", "test@example.com")
+test_password = os.environ.get("TEST_PASSWORD", "SecurePass123!")
 test_org = f"Test Org {test_timestamp}"
 
 print("📋 Test Configuration:")
@@ -250,6 +251,5 @@ print()
 print("=" * 80)
 
 # Cleanup
-import os
 if os.path.exists("test_auth_doc.txt"):
     os.remove("test_auth_doc.txt")

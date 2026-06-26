@@ -22,8 +22,8 @@ def test_gpt4o_mini():
         # Initialize client
         # Use the specific API key for the goodwiinzapi endpoint
         client = AzureOpenAI(
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY", "your_azure_openai_key_here"),
-            azure_endpoint="https://goodwiinzapi.cognitiveservices.azure.com/",
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+            azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
             api_version="2025-01-01-preview"
         )
 
@@ -74,7 +74,7 @@ def test_gpt4o_mini():
         print("✅ GPT-4o-mini is ready for RAG and entity extraction!")
         print("="*80)
         print("\nConfiguration details:")
-        print(f"  Endpoint: https://goodwiinzapi.cognitiveservices.azure.com/")
+        print(f"  Endpoint: {os.environ.get('AZURE_OPENAI_ENDPOINT', '')}")
         print(f"  Deployment: gpt-4o-mini")
         print(f"  API Version: 2025-01-01-preview")
         print(f"  Model ID: gpt-4o-mini (2024-07)")

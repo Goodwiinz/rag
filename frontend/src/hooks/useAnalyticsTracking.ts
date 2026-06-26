@@ -1,18 +1,19 @@
 'use client';
 
 import { getAnalytics } from '@/lib/analytics';
-import { useRouter } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 
 export function useAnalyticsTracking() {
-  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const analyticsRef = useRef(getAnalytics());
   const lastPathRef = useRef<string>('');
 
   // Track page views on route changes
   useEffect(() => {
     const handleRouteChange = () => {
-      const currentPath = window.location.pathname;
+      const currentPath = pathname;
       if (currentPath !== lastPathRef.current) {
         lastPathRef.current = currentPath;
         analyticsRef.current.trackPageView(
@@ -22,37 +23,8 @@ export function useAnalyticsTracking() {
       }
     };
 
-    // Initial page view
     handleRouteChange();
-
-    // Listen for route changes
-    const originalPush = router.push;
-    const originalReplace = router.replace;
-    const originalBack = router.back;
-
-    router.push = (...args) => {
-      const result = originalPush(...args);
-      setTimeout(handleRouteChange, 0);
-      return result;
-    };
-
-    router.replace = (...args) => {
-      const result = originalReplace(...args);
-      setTimeout(handleRouteChange, 0);
-      return result;
-    };
-
-    router.back = () => {
-      originalBack();
-      setTimeout(handleRouteChange, 100);
-    };
-
-    return () => {
-      router.push = originalPush;
-      router.replace = originalReplace;
-      router.back = originalBack;
-    };
-  }, [router]);
+  }, [pathname, searchParams]);
 
   // Memoized tracking functions
   const trackEvent = useCallback((

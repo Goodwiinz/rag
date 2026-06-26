@@ -75,8 +75,8 @@ FLOWER_USER=admin
 FLOWER_PASSWORD=admin-$(date +%s)
 
 # Additional configuration
-NEO4J_PASSWORD=ragpassword2024
-POSTGRES_PASSWORD=rag_password2024
+NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
 EOF
         warning "Created .env file with default values. Please review and update as needed."
     fi

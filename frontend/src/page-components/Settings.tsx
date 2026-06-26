@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 
 export const Settings: React.FC = () => {
   const { isAuthenticated, user } = useAuth();
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() =>
+    typeof window !== 'undefined' && localStorage.getItem('isDarkMode') === 'true'
+  );
+  const [emailNotifications, setEmailNotifications] = useState<boolean>(() =>
+    typeof window !== 'undefined' && localStorage.getItem('emailNotifications') !== 'false'
+  );
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('isDarkMode', String(isDarkMode));
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('emailNotifications', String(emailNotifications));
+  }, [emailNotifications]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

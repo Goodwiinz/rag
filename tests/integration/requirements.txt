@@ -1,6 +1,6 @@
 # Integration Test Requirements
 # Core testing framework
-pytest>=7.4.0
+pytest>=9.0.3
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.1
@@ -25,8 +25,8 @@ testcontainers-postgres>=0.0.1rc1
 testcontainers-redis>=0.0.1rc1
 
 # Authentication and security
-PyJWT>=2.8.0
-cryptography>=41.0.4
+PyJWT>=2.13.0  # CVE-2026-48526 (GHSA-xgmm-8j9v-c9wx)
+cryptography>=48.0.1
 passlib>=1.7.4
 
 # Data validation

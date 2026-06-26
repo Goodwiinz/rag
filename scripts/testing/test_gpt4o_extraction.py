@@ -34,8 +34,8 @@ async def test_gpt4o_extraction():
 
         # Initialize client with GPT-4o-mini
         client = AzureOpenAI(
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY", "your_azure_openai_key_here"),
-            azure_endpoint="https://goodwiinzapi.cognitiveservices.azure.com/",
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
+            azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
             api_version="2025-01-01-preview"
         )
         print("✓ Azure OpenAI client initialized")

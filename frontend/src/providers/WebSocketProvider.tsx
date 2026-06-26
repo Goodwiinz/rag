@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useWebSocketConnection } from '@/hooks/useWebSocketConnection';
 import { useRealtimeProcessingStore } from '@/store/realtimeProcessingStore';
+import type { WebSocketMessage } from '@/types/realtime-processing';
 
 interface WebSocketContextType {
   connection: ReturnType<typeof useWebSocketConnection>;
-  sendMessage: (message: any) => boolean;
+  sendMessage: (message: Omit<WebSocketMessage, 'timestamp'>) => boolean;
   isReady: boolean;
 }
 
@@ -23,7 +24,22 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 }) => {
   const { preferences } = useRealtimeProcessingStore();
 
-  const connection = useWebSocketConnection({
+  // Destructure the stable pieces returned by the hook so the context value
+  // can be memoized. The hook returns a fresh object literal every render, so
+  // memoizing on that object (as before) never held — every consumer re-rendered
+  // on every parent render. The individual callbacks are stable useCallbacks and
+  // the connection slice only changes when connection state actually changes.
+  const {
+    connection: wsConnection,
+    connect,
+    disconnect,
+    reconnect,
+    sendMessage,
+    isConnected,
+    isConnecting,
+    isReconnecting,
+    hasError,
+  } = useWebSocketConnection({
     url: wsUrl,
     token: authToken,
     reconnectInterval: preferences.refreshInterval,
@@ -41,15 +57,36 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     },
   });
 
-  const isReady = connection.isConnected;
+  const isReady = isConnected;
 
   const contextValue = useMemo<WebSocketContextType>(
     () => ({
-      connection,
-      sendMessage: connection.sendMessage,
+      connection: {
+        connection: wsConnection,
+        connect,
+        disconnect,
+        reconnect,
+        sendMessage,
+        isConnected,
+        isConnecting,
+        isReconnecting,
+        hasError,
+      },
+      sendMessage,
       isReady,
     }),
-    [connection, isReady]
+    [
+      wsConnection,
+      connect,
+      disconnect,
+      reconnect,
+      sendMessage,
+      isConnected,
+      isConnecting,
+      isReconnecting,
+      hasError,
+      isReady,
+    ]
   );
 
   return (

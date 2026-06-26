@@ -5,10 +5,13 @@ Run this in your notebook to verify the registration fix works
 ✅ FIXED: Multiple users can now register with the same organization name
 """
 
+import os
 import time
 import requests
 
 BASE_URL = "http://localhost:8000"
+TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "SecurePass123!")
+TEST_EMAIL = os.environ.get("TEST_EMAIL", "test@example.com")
 
 def verify_registration_fix():
     """Verify that duplicate organization registration works"""
@@ -22,11 +25,11 @@ def verify_registration_fix():
 
     # Test 1: Register first user
     print("📝 Test 1: Register first user")
-    user1_email = f"demo_user_1_{timestamp}@example.com"
+    user1_email = f"demo_user_1_{timestamp}@{TEST_EMAIL.split('@')[-1]}"
 
     user1_data = {
         "email": user1_email,
-        "password": "SecurePass123!",
+        "password": TEST_PASSWORD,
         "first_name": "Demo",
         "last_name": "User1",
         "organization_name": org_name
@@ -59,11 +62,11 @@ def verify_registration_fix():
     # Test 2: Register second user with SAME org name
     print()
     print("📝 Test 2: Register second user with SAME organization name")
-    user2_email = f"demo_user_2_{timestamp}@example.com"
+    user2_email = f"demo_user_2_{timestamp}@{TEST_EMAIL.split('@')[-1]}"
 
     user2_data = {
         "email": user2_email,
-        "password": "SecurePass123!",
+        "password": TEST_PASSWORD,
         "first_name": "Demo",
         "last_name": "User2",
         "organization_name": org_name  # SAME org name
@@ -107,7 +110,7 @@ def verify_registration_fix():
     print()
     print("📝 Test 3: Login as second user to verify authentication")
 
-    login_data = {"email": user2_email, "password": "SecurePass123!"}
+    login_data = {"email": user2_email, "password": TEST_PASSWORD}
 
     try:
         login_response = requests.post(
