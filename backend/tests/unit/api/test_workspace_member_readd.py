@@ -15,8 +15,8 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.models.workspace import WorkspaceMember, WorkspaceRole
-from src.schemas.chat import WorkspaceMemberCreate
+from src.models.workspace import WorkspaceMember
+from src.schemas.chat import WorkspaceMemberCreate, WorkspaceRole
 
 MODULE = "src.api.threads.workspaces"
 
