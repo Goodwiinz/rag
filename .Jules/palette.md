@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-06-27 - ChatPanel IconButton Migration
+**Learning:** Generic raw `<button>` elements inside utility panels (like ChatPanel) often lack consistent visual weight and accessible touch targets, and can look inconsistent when mixed with standard UI components. The `IconButton` component handles screen reader labeling and adds tooltips automatically.
+**Action:** When finding raw action icon buttons inside panels or sidebars, standardize them by replacing them with `IconButton` and map any existing `aria-label` directly to the `label` prop.

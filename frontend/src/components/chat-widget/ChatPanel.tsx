@@ -7,6 +7,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 import { ChatContextBar } from './ChatContextBar';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatPanelInput } from './ChatPanelInput';
@@ -105,21 +106,19 @@ export function ChatPanel({
           Quick Chat
         </h3>
         <div className="flex items-center gap-1">
-          <button
+          <IconButton
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            label="Clear chat messages"
             onClick={onClear}
-            aria-label="Clear chat messages"
             disabled={messages.length === 0}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-          <button
+            className="p-1.5 h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          />
+          <IconButton
+            icon={<X className="h-4 w-4" />}
+            label="Close chat panel"
             onClick={onClose}
-            aria-label="Close chat panel"
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+            className="p-1.5 h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          />
         </div>
       </div>
 
