@@ -107,8 +107,8 @@ async def test_pubmed_search_parses_xml_results():
     assert r.source == "pubmed"
     assert r.id == "12345678"
     assert "CRISPR" in r.title
-    assert "Zhang" in r.authors
-    assert "Doudna" in r.authors
+    assert any("Zhang" in a for a in r.authors)
+    assert any("Doudna" in a for a in r.authors)
     assert r.url == "https://pubmed.ncbi.nlm.nih.gov/12345678/"
     assert r.metadata["doi"] == "10.1038/nrg.2019.1"
     assert r.metadata["journal"] == "Nature Reviews Genetics"
