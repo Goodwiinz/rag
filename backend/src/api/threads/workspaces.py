@@ -244,25 +244,36 @@ async def add_workspace_member(
             status_code=403, detail="Insufficient permissions to add members"
         )
 
-    # Check if user already a member
+    # Look up any existing membership row, INCLUDING a soft-deleted one. The
+    # uq_workspace_member (workspace_id, user_id) constraint is not partial, so
+    # it still covers removed members; inserting a fresh row for a previously
+    # removed user would hit the constraint and 500. Restore the row instead.
     stmt = select(WorkspaceMember).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == request.user_id,
-        WorkspaceMember.is_deleted == False,
     )
     result = await db.execute(stmt)
     existing = result.scalars().first()
 
-    if existing:
+    if existing and not existing.is_deleted:
         raise HTTPException(status_code=400, detail="User is already a member")
 
-    member = WorkspaceMember(
-        workspace_id=workspace_id,
-        user_id=request.user_id,
-        role=request.role,
-        invited_by_id=current_user.id,
-    )
-    db.add(member)
+    if existing:
+        # Re-add a previously removed member by restoring the soft-deleted row.
+        existing.restore()
+        existing.role = request.role
+        existing.invited_by_id = current_user.id
+        existing.joined_at = datetime.utcnow()
+        member = existing
+    else:
+        member = WorkspaceMember(
+            workspace_id=workspace_id,
+            user_id=request.user_id,
+            role=request.role,
+            invited_by_id=current_user.id,
+        )
+        db.add(member)
+
     await db.commit()
     await db.refresh(member)
 
