@@ -64,9 +64,7 @@ export const workspaceService = {
   },
 
   async getWorkspace(workspaceId: string): Promise<WorkspaceDetail> {
-    return api.get<WorkspaceDetail>(
-      `${API_PREFIX}/workspaces/${workspaceId}`
-    );
+    return api.get<WorkspaceDetail>(`${API_PREFIX}/workspaces/${workspaceId}`);
   },
 
   async updateWorkspace(
@@ -170,17 +168,15 @@ export const workspaceService = {
   // ============================================================================
 
   async bulkResolveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.post<BulkThreadResponse>(
-      `${API_PREFIX}/threads/bulk/resolve`,
-      { thread_ids: threadIds }
-    );
+    return api.post<BulkThreadResponse>(`${API_PREFIX}/threads/bulk/resolve`, {
+      thread_ids: threadIds,
+    });
   },
 
   async bulkArchiveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.post<BulkThreadResponse>(
-      `${API_PREFIX}/threads/bulk/archive`,
-      { thread_ids: threadIds }
-    );
+    return api.post<BulkThreadResponse>(`${API_PREFIX}/threads/bulk/archive`, {
+      thread_ids: threadIds,
+    });
   },
 
   async bulkSummarizeThreads(threadIds: string[]): Promise<BulkThreadResponse> {
@@ -191,14 +187,11 @@ export const workspaceService = {
   },
 
   async bulkDeleteThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.request<BulkThreadResponse>(
-      `${API_PREFIX}/threads/bulk`,
-      {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ thread_ids: threadIds }),
-      }
-    );
+    return api.request<BulkThreadResponse>(`${API_PREFIX}/threads/bulk`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ thread_ids: threadIds }),
+    });
   },
 
   // ============================================================================
@@ -207,13 +200,25 @@ export const workspaceService = {
 
   async listMessages(
     threadId: string,
-    options: { page?: number; limit?: number; offset?: number } = {}
+    options: {
+      page?: number;
+      limit?: number;
+      offset?: number;
+      before_id?: string;
+      order?: 'asc' | 'desc';
+    } = {}
   ): Promise<ChatMessageListResponse> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset !== undefined) {
       params.append('offset', options.offset.toString());
+    }
+    if (options.before_id) {
+      params.append('before_id', options.before_id);
+    }
+    if (options.order) {
+      params.append('order', options.order);
     }
 
     const queryString = params.toString();
@@ -233,10 +238,7 @@ export const workspaceService = {
     messageId: string,
     data: ChatMessageUpdate
   ): Promise<ChatMessage> {
-    return api.patch<ChatMessage>(
-      `${API_PREFIX}/messages/${messageId}`,
-      data
-    );
+    return api.patch<ChatMessage>(`${API_PREFIX}/messages/${messageId}`, data);
   },
 
   async deleteMessage(messageId: string): Promise<void> {
@@ -298,14 +300,11 @@ export const workspaceService = {
     collectionId: string,
     documentIds: string[]
   ): Promise<void> {
-    await api.request(
-      `${API_PREFIX}/collections/${collectionId}/documents`,
-      {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ document_ids: documentIds }),
-      }
-    );
+    await api.request(`${API_PREFIX}/collections/${collectionId}/documents`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_ids: documentIds }),
+    });
   },
 
   // ============================================================================

@@ -7,7 +7,7 @@ Provides CRUD operations for workspaces, conversations, threads, and messages.
 import logging
 import uuid as uuid_mod
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import and_, desc, func, or_, select
@@ -423,7 +423,9 @@ class ChatService:
                     selectinload(Thread.messages)
                     .selectinload(ChatMessage.citations)
                     .selectinload(Citation.document),
-                    selectinload(Thread.messages).selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+                    selectinload(Thread.messages)
+                    .selectinload(ChatMessage.attachments)
+                    .selectinload(MessageAttachment.document),
                 ]
             )
 
@@ -891,9 +893,12 @@ class ChatService:
                 if doc_id:
                     try:
                         import uuid as _uuid
+
                         _uuid.UUID(str(doc_id))
                     except (ValueError, AttributeError):
-                        logger.warning(f"Invalid document_id '{doc_id}', setting to None")
+                        logger.warning(
+                            f"Invalid document_id '{doc_id}', setting to None"
+                        )
                         doc_id = None
 
                 try:
@@ -954,7 +959,9 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+                selectinload(ChatMessage.attachments).selectinload(
+                    MessageAttachment.document
+                ),
                 selectinload(ChatMessage.thread)
                 .selectinload(Thread.conversation)
                 .selectinload(Conversation.workspace)
@@ -984,12 +991,18 @@ class ChatService:
         offset: int = 0,
         before_id: Optional[UUID] = None,
         since: Optional[datetime] = None,
+        order: Literal["asc", "desc"] = "asc",
     ) -> Tuple[List[ChatMessage], int]:
         """List messages in a thread.
 
         ``since`` (optional) filters to messages with ``created_at > since``
         (strict). Used by clients (CLI, web) to delta-fetch only rows newer
         than their last-seen timestamp.
+
+        ``order`` controls the sort direction by ``created_at``: ``"asc"``
+        (oldest first, default for backward compatibility) or ``"desc"``
+        (newest first, used by the web client for newest-first pagination).
+        ``before_id`` filtering works identically with either sort order.
         """
         # Verify thread access
         thread = await self.get_thread(thread_id, user_id)
@@ -1022,10 +1035,16 @@ class ChatService:
             select(ChatMessage)
             .options(
                 selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+                selectinload(ChatMessage.attachments).selectinload(
+                    MessageAttachment.document
+                ),
             )
             .where(*base_conditions)
-            .order_by(ChatMessage.created_at.asc())
+            .order_by(
+                ChatMessage.created_at.asc()
+                if order == "asc"
+                else ChatMessage.created_at.desc()
+            )
             .offset(offset)
             .limit(limit)
         )

@@ -37,6 +37,8 @@ export interface ChatBubbleMessage {
   };
 }
 
+const EMPTY_STEPS: ActivityStep[] = [];
+
 export interface ChatBubbleProps {
   message: ChatBubbleMessage;
   index: number;
@@ -136,8 +138,11 @@ export const ChatBubble = React.memo(function ChatBubble({
 
   // Read live streaming steps from the store — only meaningful for the
   // currently-streaming message (isStreaming=true). For committed messages
-  // we fall back to message.toolExecutions.
-  const storeStreamingSteps = useChatStore((s) => s.streamingSteps);
+  // we return a stable empty array so the store subscription doesn't
+  // trigger re-renders on every tool start/end during streaming.
+  const storeStreamingSteps = useChatStore((s) =>
+    isStreaming ? s.streamingSteps : EMPTY_STEPS
+  );
 
   const timestamp = message.timestamp
     ? new Date(message.timestamp).toLocaleTimeString('en-US', {
