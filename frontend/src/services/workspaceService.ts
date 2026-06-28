@@ -207,13 +207,21 @@ export const workspaceService = {
 
   async listMessages(
     threadId: string,
-    options: { page?: number; limit?: number; offset?: number } = {}
+    options: {
+      page?: number;
+      limit?: number;
+      offset?: number;
+      before_id?: string;
+    } = {}
   ): Promise<ChatMessageListResponse> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset !== undefined) {
       params.append('offset', options.offset.toString());
+    }
+    if (options.before_id) {
+      params.append('before_id', options.before_id);
     }
 
     const queryString = params.toString();

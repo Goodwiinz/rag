@@ -142,6 +142,12 @@ interface ChatState {
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
 
+  // Pagination state per thread
+  messagePagination: Record<
+    string,
+    { hasMore: boolean; loadingOlder: boolean; loadedCount: number }
+  >;
+
   // Reinitialization guard for 404 recovery
   isReinitializing: boolean;
   reinitRetryCount: number;
@@ -224,6 +230,7 @@ interface ChatActions {
 
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;
+  loadOlderMessages: (threadId: string) => Promise<void>;
   sendMessage: (
     content: string,
     threadId?: string
@@ -381,6 +388,7 @@ const initialState: ChatState = {
   isLoadingThreads: false,
   isLoadingMessages: false,
   isSendingMessage: false,
+  messagePagination: {},
   isReinitializing: false,
   reinitRetryCount: 0,
   error: null,
@@ -1044,13 +1052,22 @@ export const useChatStore = create<ChatStore>()(
         });
 
         try {
-          const response = await workspaceService.listMessages(threadId);
+          const response = await workspaceService.listMessages(threadId, {
+            limit: 100,
+          });
           set((state) => {
             state.messages[threadId] = response.messages;
             // Populate reverse index for O(1) lookup (GOO-86)
             for (const msg of response.messages) {
               state.messageToThread[msg.id] = threadId;
             }
+
+            // Track pagination state for this thread
+            state.messagePagination[threadId] = {
+              hasMore: response.has_more,
+              loadingOlder: false,
+              loadedCount: response.messages.length,
+            };
 
             // Evict oldest cached threads when exceeding the cap (FIFO by key insertion order)
             const threadKeys = Object.keys(state.messages);
@@ -1064,6 +1081,9 @@ export const useChatStore = create<ChatStore>()(
                 for (const msg of state.messages[key] || []) {
                   delete state.messageToThread[msg.id];
                 }
+                delete state.messagePagination[key];
+              }
+              for (const key of toEvict) {
                 delete state.messages[key];
               }
             }
@@ -1075,6 +1095,54 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             state.error = 'Failed to load messages';
             state.isLoadingMessages = false;
+          });
+        }
+      },
+
+      loadOlderMessages: async (threadId) => {
+        const pagination = get().messagePagination[threadId];
+        if (!pagination || !pagination.hasMore || pagination.loadingOlder) {
+          return;
+        }
+
+        set((state) => {
+          if (!state.messagePagination[threadId]) return;
+          state.messagePagination[threadId].loadingOlder = true;
+        });
+
+        try {
+          // Use offset-based pagination: offset = current loaded count
+          const response = await workspaceService.listMessages(threadId, {
+            limit: 100,
+            offset: pagination.loadedCount,
+          });
+
+          set((state) => {
+            const existing = state.messages[threadId] || [];
+            // Prepend older messages (API returns old-to-new, so they go at the front)
+            state.messages[threadId] = [
+              ...response.messages,
+              ...existing,
+            ];
+            // Populate reverse index for new messages
+            for (const msg of response.messages) {
+              if (!state.messageToThread[msg.id]) {
+                state.messageToThread[msg.id] = threadId;
+              }
+            }
+            state.messagePagination[threadId] = {
+              hasMore: response.has_more,
+              loadingOlder: false,
+              loadedCount:
+                pagination.loadedCount + response.messages.length,
+            };
+          });
+        } catch (error) {
+          console.error('[ChatStore] Error loading older messages:', error);
+          set((state) => {
+            if (state.messagePagination[threadId]) {
+              state.messagePagination[threadId].loadingOlder = false;
+            }
           });
         }
       },
@@ -1200,6 +1268,7 @@ export const useChatStore = create<ChatStore>()(
             delete state.messageToThread[msg.id];
           }
           delete state.messages[threadId];
+          delete state.messagePagination[threadId];
         });
       },
 

@@ -18,7 +18,7 @@ import {
 } from '@/types/workspace';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface UseChatSessionReturn {
   // State
@@ -41,7 +41,7 @@ export interface UseChatSessionReturn {
   // Store bindings
   currentThreadIdFromStore: string | null;
   setCurrentThread: (threadId: string | null) => void;
-  storeMessages: Record<string, import('@/types/workspace').ChatMessage[]>;
+  storeMessages: import('@/types/workspace').ChatMessage[] | null;
   addMessageToStore: (
     threadId: string,
     message: import('@/types/workspace').ChatMessage
@@ -99,15 +99,23 @@ export function useChatSession(): UseChatSessionReturn {
     (state) => state.currentThreadId
   );
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
-  const storeMessages = useChatStore((state) => state.messages);
+  // Select only the active thread's messages to avoid re-renders when
+  // background threads change (streaming elsewhere, FIFO eviction, etc.).
+  const activeThreadMessages = useChatStore(
+    (state) => (activeThreadId ? state.messages[activeThreadId] ?? null : null)
+  );
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
 
   // ---- Derived values ----
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
-  const displayedMessages = selectDisplayedMessages({
-    localMessages: messages,
-    storeMessages: activeThreadId ? storeMessages[activeThreadId] || [] : [],
-  });
+  const displayedMessages = useMemo(
+    () =>
+      selectDisplayedMessages({
+        localMessages: messages,
+        storeMessages: activeThreadMessages ?? [],
+      }),
+    [messages, activeThreadMessages]
+  );
 
   // ---- Callbacks ----
 
@@ -170,7 +178,7 @@ export function useChatSession(): UseChatSessionReturn {
       return;
     }
 
-    const activeStoreMessages = storeMessages[activeThreadId] || [];
+    const activeStoreMessages = activeThreadMessages || [];
 
     if (activeStoreMessages.length === 0) {
       return;
@@ -183,7 +191,7 @@ export function useChatSession(): UseChatSessionReturn {
         activeStoreMessages
       )
     );
-  }, [activeThreadId, storeMessages]);
+  }, [activeThreadId, activeThreadMessages]);
 
   // Handle thread switching from URL query param (single source of truth)
   useEffect(() => {
@@ -632,7 +640,7 @@ export function useChatSession(): UseChatSessionReturn {
     // Store bindings
     currentThreadIdFromStore,
     setCurrentThread,
-    storeMessages,
+    storeMessages: activeThreadMessages,
     addMessageToStore,
     isAuthenticated,
 

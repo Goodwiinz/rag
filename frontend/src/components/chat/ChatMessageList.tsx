@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
+import { VirtualizedMessageList } from '@/components/chat/VirtualizedMessageList';
 import { CommandOutputBubble } from '@/components/chat/CommandOutputBubble';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import type {
@@ -13,6 +14,8 @@ import type {
 } from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 import { useChatStore } from '@/store/chat-store';
+
+const MESSAGE_VIRTUALIZATION_THRESHOLD = 75;
 
 export interface ChatMessageListProps {
   messages: ChatPageMessage[];
@@ -32,6 +35,12 @@ export interface ChatMessageListProps {
   onCommandItemAction?: (action: CommandAction) => void;
   /** True while RAG retrieval is in flight (drives the thinking-pill label). */
   isRetrievingRag?: boolean;
+  /** Pagination: load older messages. */
+  onLoadOlder?: () => void;
+  /** Pagination: more messages available on the server. */
+  hasMore?: boolean;
+  /** Pagination: currently fetching older messages. */
+  isLoadingOlder?: boolean;
 }
 
 export const ChatMessageList = React.memo(function ChatMessageList({
@@ -46,6 +55,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   commandOutputs,
   onCommandItemAction,
   isRetrievingRag,
+  onLoadOlder,
+  hasMore,
+  isLoadingOlder,
 }: ChatMessageListProps) {
   // Live citations captured mid-stream (set once by onRagContext); used to
   // surface a subtle "reading sources" chip while the answer streams.
@@ -57,7 +69,11 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const scrollRafRef = useRef<number | null>(null);
   const prevMessageCountRef = useRef(messages.length);
 
-  // Throttled auto-scroll: only one scrollIntoView per animation frame
+  // Throttled auto-scroll: only one scrollIntoView per animation frame.
+  // Depends on message count + streaming state, NOT on storeStreamingContent
+  // (which changes every rAF frame during streaming). The streaming bubble
+  // is rendered separately and grows the scroll height naturally; this
+  // effect just needs to keep the view pinned to the bottom.
   useEffect(() => {
     if (showScrollButton) return;
     if (scrollRafRef.current !== null) return;
@@ -65,7 +81,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       scrollRafRef.current = null;
     });
-  }, [messages, storeStreamingContent, commandOutputs, showScrollButton]);
+  }, [messages.length, storeIsStreaming, commandOutputs, showScrollButton]);
 
   useEffect(() => {
     return () => {
@@ -82,6 +98,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   }, [messages.length]);
 
   const scrollTickRef = useRef(false);
+  const loadOlderTriggeredRef = useRef(false);
   const handleScroll = useCallback(() => {
     if (scrollTickRef.current) return;
     scrollTickRef.current = true;
@@ -92,8 +109,25 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       const { scrollTop, scrollHeight, clientHeight } = container;
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
       setShowScrollButton(!isNearBottom && messages.length > 0);
+
+      // Auto-trigger load older when scrolled near the top
+      if (
+        onLoadOlder &&
+        hasMore &&
+        !isLoadingOlder &&
+        !loadOlderTriggeredRef.current &&
+        scrollTop < 150 &&
+        messages.length > 0
+      ) {
+        loadOlderTriggeredRef.current = true;
+        onLoadOlder();
+      }
+      // Reset the trigger guard when scrolling back down
+      if (scrollTop > 300) {
+        loadOlderTriggeredRef.current = false;
+      }
     });
-  }, [messages.length]);
+  }, [messages.length, onLoadOlder, hasMore, isLoadingOlder]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,6 +138,75 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   // Phase-aware "thinking" label (the pill only shows before any token arrives).
   const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
+  // Memoize the committed message list so it doesn't re-map on every
+  // streaming token. The streaming bubble (below) reads storeStreamingContent
+  // and streamingCitations directly and is outside this memo. Dependencies
+  // are only things that actually change the committed list's output.
+  const renderedMessages = useMemo(
+    () =>
+      messages.map((message, index) => {
+        const isLast = index === lastIndex;
+        const shouldAnimate = isLast && isNewMessage;
+
+        const bubble = (
+          <>
+            {message.role === 'assistant' &&
+              isLast &&
+              !storeIsStreaming && (
+                <InlineAgentSummary threadId={activeThreadId} />
+              )}
+            <ChatBubble
+              message={message}
+              index={index}
+              modelName={message.role === 'assistant' ? 'NOUS' : undefined}
+              isTyping={
+                isLast &&
+                isLoading &&
+                !storeIsStreaming &&
+                message.role === 'assistant'
+              }
+              onRetry={
+                message.role === 'assistant'
+                  ? () => onRegenerate(index)
+                  : undefined
+              }
+              onCitationClick={onCitationClick}
+              thinkingLabel={thinkingLabel}
+            />
+          </>
+        );
+
+        if (shouldAnimate) {
+          return (
+            <motion.div
+              key={message.id || `msg-${index}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: [0.25, 0.46, 0.45, 0.94],
+              }}
+            >
+              {bubble}
+            </motion.div>
+          );
+        }
+
+        return <div key={message.id || `msg-${index}`}>{bubble}</div>;
+      }),
+    [
+      messages,
+      lastIndex,
+      isNewMessage,
+      storeIsStreaming,
+      activeThreadId,
+      isLoading,
+      onRegenerate,
+      onCitationClick,
+      thinkingLabel,
+    ]
+  );
+
   return (
     <div className="flex-1 relative min-h-0">
       <div
@@ -112,56 +215,43 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
         <div className="max-w-[var(--nous-chat-col)] mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
-          {messages.map((message, index) => {
-            const isLast = index === lastIndex;
-            const shouldAnimate = isLast && isNewMessage;
+          {/* Load older messages indicator */}
+          {hasMore && !isLoadingOlder && messages.length > 0 && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={onLoadOlder}
+                className="text-xs font-medium text-[var(--nous-fg-2)] hover:text-[var(--nous-sol)] transition-colors"
+              >
+                Load older messages
+              </button>
+            </div>
+          )}
+          {isLoadingOlder && (
+            <div className="flex justify-center py-2">
+              <span
+                className="text-xs font-medium text-[var(--nous-fg-2)]"
+              >
+                Loading older messages...
+              </span>
+            </div>
+          )}
 
-            const bubble = (
-              <>
-                {message.role === 'assistant' &&
-                  isLast &&
-                  !storeIsStreaming && (
-                    <InlineAgentSummary threadId={activeThreadId} />
-                  )}
-                <ChatBubble
-                  message={message}
-                  index={index}
-                  modelName={message.role === 'assistant' ? 'NOUS' : undefined}
-                  isTyping={
-                    isLast &&
-                    isLoading &&
-                    !storeIsStreaming &&
-                    message.role === 'assistant'
-                  }
-                  onRetry={
-                    message.role === 'assistant'
-                      ? () => onRegenerate(index)
-                      : undefined
-                  }
-                  onCitationClick={onCitationClick}
-                  thinkingLabel={thinkingLabel}
-                />
-              </>
-            );
-
-            if (shouldAnimate) {
-              return (
-                <motion.div
-                  key={message.id || `msg-${index}`}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.3,
-                    ease: [0.25, 0.46, 0.45, 0.94],
-                  }}
-                >
-                  {bubble}
-                </motion.div>
-              );
-            }
-
-            return <div key={message.id || `msg-${index}`}>{bubble}</div>;
-          })}
+          {messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD ? (
+            <VirtualizedMessageList
+              messages={messages}
+              activeThreadId={activeThreadId}
+              isLoading={isLoading}
+              storeIsStreaming={storeIsStreaming}
+              onRegenerate={onRegenerate}
+              onCitationClick={onCitationClick}
+              isRetrievingRag={isRetrievingRag}
+              onLoadOlder={onLoadOlder}
+              hasMore={hasMore}
+              isLoadingOlder={isLoadingOlder}
+            />
+          ) : (
+            renderedMessages
+          )}
 
           {/* Streaming assistant message.
               Hide it the instant the streamed answer is COMMITTED — i.e. the

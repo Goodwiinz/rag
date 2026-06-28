@@ -40,7 +40,10 @@ function groupToolExecutions(
   return groups;
 }
 
-export function AgentMessageItem({ message, onRetry }: AgentMessageItemProps) {
+export const AgentMessageItem = React.memo(function AgentMessageItem({
+  message,
+  onRetry,
+}: AgentMessageItemProps) {
   const isUser = message.role === 'user';
   const isError = message.isError;
   const [copied, setCopied] = useState(false);
@@ -146,7 +149,9 @@ export function AgentMessageItem({ message, onRetry }: AgentMessageItemProps) {
       </div>
     </div>
   );
-}
+});
+
+AgentMessageItem.displayName = 'AgentMessageItem';
 
 /**
  * Grouped card for multiple identical tool calls (e.g., 3x add_document_to_project).
