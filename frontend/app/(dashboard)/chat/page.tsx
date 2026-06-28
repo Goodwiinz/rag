@@ -150,6 +150,8 @@ function ChatPageContent() {
     isAuthenticated,
     activeThreadId,
     displayedMessages,
+    loadOlderMessages,
+    messagePagination,
     mapDbMessageToUiMessage,
     loadThreadsFromDb,
   } = useChatSession();
@@ -951,6 +953,21 @@ function ChatPageContent() {
             commandOutputs={commandOutputs}
             onCommandItemAction={handleCommandItemAction}
             isRetrievingRag={storeIsRetrievingRag}
+            onLoadOlder={
+              activeThreadId
+                ? () => loadOlderMessages(activeThreadId)
+                : undefined
+            }
+            hasMore={
+              activeThreadId
+                ? (messagePagination?.[activeThreadId]?.hasMore ?? false)
+                : false
+            }
+            isLoadingOlder={
+              activeThreadId
+                ? (messagePagination?.[activeThreadId]?.loadingOlder ?? false)
+                : false
+            }
           />
         )}
 

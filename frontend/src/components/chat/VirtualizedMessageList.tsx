@@ -55,7 +55,10 @@ interface RowData {
     traceId?: string
   ) => void;
   thinkingLabel: string;
-  setRowHeight: (index: number, height: number) => void;
+  // Keyed by stable message id so cached heights survive prepend (older-message
+  // pagination shifts every index, which would otherwise stale the cache). The
+  // index is still passed through for react-window's resetAfterIndex.
+  setRowHeight: (messageId: string, height: number, index: number) => void;
 }
 
 interface RowProps {
@@ -64,11 +67,7 @@ interface RowProps {
   data: RowData;
 }
 
-const MessageRow = memo(function MessageRow({
-  index,
-  style,
-  data,
-}: RowProps) {
+const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
   const {
     messages,
     lastIndex,
@@ -88,11 +87,23 @@ const MessageRow = memo(function MessageRow({
   const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (rowRef.current) {
-      const height = rowRef.current.getBoundingClientRect().height + MEASURE_PADDING;
-      setRowHeight(index, height);
+    // Measure the INNER content node (children[0]), not the outer wrapper:
+    // react-window imposes the virtual row height on the outer element via
+    // `style`, so measuring the outer node feeds the stale imposed height back
+    // into the cache. The inner node carries the natural content height.
+    const inner = rowRef.current?.children[0] as HTMLElement | undefined;
+    if (inner) {
+      const height = inner.getBoundingClientRect().height + MEASURE_PADDING;
+      setRowHeight(message.id ?? `row-${index}`, height, index);
     }
-  }, [index, setRowHeight, message.content, isLast, storeIsStreaming]);
+  }, [
+    index,
+    message.id,
+    setRowHeight,
+    message.content,
+    isLast,
+    storeIsStreaming,
+  ]);
 
   const bubble = (
     <>
@@ -103,19 +114,28 @@ const MessageRow = memo(function MessageRow({
         message={message}
         index={index}
         modelName={message.role === 'assistant' ? 'NOUS' : undefined}
-        isTyping={isLast && isLoading && !storeIsStreaming && message.role === 'assistant'}
-        onRetry={message.role === 'assistant' ? () => onRegenerate(index) : undefined}
+        isTyping={
+          isLast &&
+          isLoading &&
+          !storeIsStreaming &&
+          message.role === 'assistant'
+        }
+        onRetry={
+          message.role === 'assistant' ? () => onRegenerate(index) : undefined
+        }
         onCitationClick={onCitationClick}
         thinkingLabel={thinkingLabel}
       />
     </>
   );
 
+  // rowRef sits on the OUTER (style-bearing) node in both branches; the
+  // measured content is always children[0] so getBoundingClientRect reads the
+  // natural content height rather than react-window's imposed row height.
   if (shouldAnimate) {
     return (
-      <div style={style}>
+      <div style={style} ref={rowRef}>
         <motion.div
-          ref={rowRef}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -128,7 +148,7 @@ const MessageRow = memo(function MessageRow({
 
   return (
     <div style={style} ref={rowRef}>
-      {bubble}
+      <div>{bubble}</div>
     </div>
   );
 });
@@ -146,16 +166,29 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
   isLoadingOlder,
 }: VirtualizedMessageListProps) {
   const listRef = useRef<List<RowData>>(null);
-  const rowHeights = useRef<Record<number, number>>({});
+  // Keyed by stable message id (not index): prepending older messages shifts
+  // every index, so an index-keyed cache would mis-map heights after pagination.
+  const rowHeights = useRef<Record<string, number>>({});
   const [containerHeight, setContainerHeight] = useState(600);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(messages.length);
+  const prevLastIdRef = useRef<string | undefined>(
+    messages[messages.length - 1]?.id
+  );
   const loadOlderTriggeredRef = useRef(false);
 
-  const isNewMessage = messages.length > prevMessageCountRef.current;
+  const currentLastId = messages[messages.length - 1]?.id;
+  // "New" means a message was APPENDED at the tail (length grew AND the tail id
+  // changed). A prepended older batch also grows the length but keeps the same
+  // tail id, so it is correctly treated as NOT new — this is what stops the
+  // auto-scroll effect from snapping to the bottom on pagination.
+  const isNewMessage =
+    messages.length > prevMessageCountRef.current &&
+    currentLastId !== prevLastIdRef.current;
   useEffect(() => {
     prevMessageCountRef.current = messages.length;
-  }, [messages.length]);
+    prevLastIdRef.current = currentLastId;
+  }, [messages.length, currentLastId]);
 
   const lastIndex = messages.length - 1;
   const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
@@ -181,16 +214,21 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
     [onLoadOlder, hasMore, isLoadingOlder, messages.length]
   );
 
-  const setRowHeight = useCallback((index: number, height: number) => {
-    if (rowHeights.current[index] !== height) {
-      rowHeights.current[index] = height;
-      listRef.current?.resetAfterIndex(index);
-    }
-  }, []);
+  const setRowHeight = useCallback(
+    (messageId: string, height: number, index: number) => {
+      if (rowHeights.current[messageId] !== height) {
+        rowHeights.current[messageId] = height;
+        listRef.current?.resetAfterIndex(index);
+      }
+    },
+    []
+  );
 
   const getItemSize = useCallback(
-    (index: number) => rowHeights.current[index] ?? DEFAULT_ROW_HEIGHT,
-    []
+    (index: number) =>
+      rowHeights.current[messages[index]?.id ?? `row-${index}`] ??
+      DEFAULT_ROW_HEIGHT,
+    [messages]
   );
 
   useEffect(() => {
@@ -203,11 +241,15 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
     return () => observer.disconnect();
   }, []);
 
+  // Auto-scroll to the newest row ONLY when a message was appended. On a
+  // prepended older batch the count also grows, but isNewMessage stays false
+  // (prepend is detected separately below), so we keep the user's scroll anchor
+  // instead of snapping to the bottom.
   useEffect(() => {
-    if (listRef.current && messages.length > 0) {
+    if (isNewMessage && listRef.current && messages.length > 0) {
       listRef.current.scrollToItem(messages.length - 1, 'end');
     }
-  }, [messages.length]);
+  }, [messages.length, isNewMessage]);
 
   const itemData = useMemo<RowData>(
     () => ({

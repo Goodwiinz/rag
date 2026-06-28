@@ -52,6 +52,13 @@ export interface UseChatSessionReturn {
   activeThreadId: string | null;
   displayedMessages: ChatPageMessage[];
 
+  // Pagination
+  loadOlderMessages: (threadId: string) => Promise<void>;
+  messagePagination: Record<
+    string,
+    { hasMore: boolean; loadingOlder: boolean; loadedCount: number }
+  > | null;
+
   // Helpers
   mapDbMessageToUiMessage: (dbMsg: DBChatMessage) => ChatPageMessage;
   loadThreadsFromDb: (
@@ -101,10 +108,14 @@ export function useChatSession(): UseChatSessionReturn {
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
   // Select only the active thread's messages to avoid re-renders when
   // background threads change (streaming elsewhere, FIFO eviction, etc.).
-  const activeThreadMessages = useChatStore(
-    (state) => (activeThreadId ? state.messages[activeThreadId] ?? null : null)
+  const activeThreadMessages = useChatStore((state) =>
+    activeThreadId ? (state.messages[activeThreadId] ?? null) : null
   );
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
+  const storeLoadOlderMessages = useChatStore(
+    (state) => state.loadOlderMessages
+  );
+  const messagePagination = useChatStore((state) => state.messagePagination);
 
   // ---- Derived values ----
   const activeThreadId = currentThreadIdFromStore || activeConversationId;
@@ -139,6 +150,14 @@ export function useChatSession(): UseChatSessionReturn {
       };
     },
     []
+  );
+
+  // Pagination: load older messages for a thread (prepends to the store list).
+  const loadOlderMessages = useCallback(
+    async (threadId: string) => {
+      await storeLoadOlderMessages(threadId);
+    },
+    [storeLoadOlderMessages]
   );
 
   // ---- Router / Search params ----
@@ -647,6 +666,10 @@ export function useChatSession(): UseChatSessionReturn {
     // Derived
     activeThreadId,
     displayedMessages,
+
+    // Pagination
+    loadOlderMessages,
+    messagePagination,
 
     // Helpers
     mapDbMessageToUiMessage,
