@@ -8,7 +8,7 @@ import logging
 import threading
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -722,9 +722,11 @@ async def create_message(
                 thread_id=str(thread_id),
                 conversation_id=str(thread.conversation_id),
                 user_id=str(current_user.id),
-                role=message.role.value
-                if hasattr(message.role, "value")
-                else str(message.role),
+                role=(
+                    message.role.value
+                    if hasattr(message.role, "value")
+                    else str(message.role)
+                ),
                 content_preview=message.content[:100] if message.content else None,
                 has_citations=bool(message.citations),
             )
@@ -746,6 +748,10 @@ async def list_messages(
         None,
         description="Return only messages with created_at > since (ISO 8601)",
     ),
+    order: Optional[Literal["asc", "desc"]] = Query(
+        None,
+        description="Sort order: asc (oldest first) or desc (newest first)",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -760,6 +766,7 @@ async def list_messages(
         offset=offset,
         before_id=before_id,
         since=since,
+        order=order or "asc",
     )
 
     page = (offset // limit) + 1 if limit > 0 else 1
@@ -900,9 +907,11 @@ async def _build_bulk_response(
                 thread_id=thread_id,
                 success=success,
                 error=error,
-                thread=ThreadResponse.model_validate(thread)
-                if thread and include_threads
-                else None,
+                thread=(
+                    ThreadResponse.model_validate(thread)
+                    if thread and include_threads
+                    else None
+                ),
             )
         )
         if success:
@@ -945,7 +954,9 @@ def _format_message_response(message) -> ChatMessageResponse:
                 document_type=c.document_type
                 or (
                     c.document.document_type.value
-                    if hasattr(c, "document") and c.document and c.document.document_type
+                    if hasattr(c, "document")
+                    and c.document
+                    and c.document.document_type
                     else None
                 ),
             )
@@ -960,15 +971,21 @@ def _format_message_response(message) -> ChatMessageResponse:
                 document_id=a.document_id,
                 display_name=a.display_name,
                 thumbnail_url=a.thumbnail_url,
-                document_title=a.document.title
-                if hasattr(a, "document") and a.document
-                else None,
-                document_type=a.document.document_type.value
-                if hasattr(a, "document") and a.document and a.document.document_type
-                else None,
-                mime_type=a.document.mime_type
-                if hasattr(a, "document") and a.document
-                else None,
+                document_title=(
+                    a.document.title if hasattr(a, "document") and a.document else None
+                ),
+                document_type=(
+                    a.document.document_type.value
+                    if hasattr(a, "document")
+                    and a.document
+                    and a.document.document_type
+                    else None
+                ),
+                mime_type=(
+                    a.document.mime_type
+                    if hasattr(a, "document") and a.document
+                    else None
+                ),
             )
             for a in message.attachments
         ]

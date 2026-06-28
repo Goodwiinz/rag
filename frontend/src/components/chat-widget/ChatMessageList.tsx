@@ -17,16 +17,33 @@ interface ChatMessageListProps {
   isStreaming: boolean;
 }
 
-export function ChatMessageList({
+export const ChatMessageList = React.memo(function ChatMessageList({
   messages,
   isStreaming,
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
-  // Auto-scroll to bottom when messages change or streaming starts
+  // rAF-throttled auto-scroll — avoids queueing multiple smooth-scroll
+  // animations when messages arrive faster than a frame. Use 'auto'
+  // (instant) during streaming to avoid catch-up jitter.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      bottomRef.current?.scrollIntoView({
+        behavior: isStreaming ? 'auto' : 'smooth',
+      });
+    });
   }, [messages, isStreaming]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
 
   // Empty state
   if (messages.length === 0 && !isStreaming) {
@@ -73,4 +90,4 @@ export function ChatMessageList({
       </div>
     </ScrollArea>
   );
-}
+});

@@ -12,7 +12,7 @@ interface AgentMessageListProps {
   isStreaming: boolean;
 }
 
-export function AgentMessageList({
+export const AgentMessageList = React.memo(function AgentMessageList({
   messages,
   isStreaming,
 }: AgentMessageListProps) {
@@ -106,4 +106,4 @@ export function AgentMessageList({
       )}
     </div>
   );
-}
+});
