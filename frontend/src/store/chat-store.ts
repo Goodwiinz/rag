@@ -1052,21 +1052,29 @@ export const useChatStore = create<ChatStore>()(
         });
 
         try {
+          // Newest-first: fetch the most recent page (order=desc) so a long
+          // thread opens at its latest messages, then reverse into ascending
+          // display order (oldest first, newest at the bottom). `has_more`
+          // from a desc query means "older messages remain".
           const response = await workspaceService.listMessages(threadId, {
             limit: 100,
+            order: 'desc',
           });
+          const ordered = Array.isArray(response.messages)
+            ? [...response.messages].reverse()
+            : [];
           set((state) => {
-            state.messages[threadId] = response.messages;
+            state.messages[threadId] = ordered;
             // Populate reverse index for O(1) lookup (GOO-86)
-            for (const msg of response.messages) {
+            for (const msg of ordered) {
               state.messageToThread[msg.id] = threadId;
             }
 
             // Track pagination state for this thread
             state.messagePagination[threadId] = {
-              hasMore: response.has_more,
+              hasMore: ordered.length > 0 && response.has_more,
               loadingOlder: false,
-              loadedCount: response.messages.length,
+              loadedCount: ordered.length,
             };
 
             // Evict oldest cached threads when exceeding the cap (FIFO by key insertion order)
@@ -1111,34 +1119,65 @@ export const useChatStore = create<ChatStore>()(
         });
 
         try {
-          // Use offset-based pagination: offset = current loaded count
+          // Cursor pagination: ask for messages strictly OLDER than the oldest
+          // one currently loaded (display index 0), newest-first. Offset-based
+          // paging against an ascending list would walk toward NEWER messages
+          // and scramble order — before_id is the only correct "load older".
+          const oldestLoaded = get().messages[threadId]?.[0];
+          if (!oldestLoaded) {
+            return;
+          }
           const response = await workspaceService.listMessages(threadId, {
             limit: 100,
-            offset: pagination.loadedCount,
+            order: 'desc',
+            before_id: oldestLoaded.id,
           });
+
+          // Runtime validation: a malformed payload must not corrupt the
+          // message list. Bail out (the finally block clears loadingOlder).
+          if (!response.messages || !Array.isArray(response.messages)) {
+            console.error(
+              '[ChatStore] Invalid response.messages in loadOlderMessages'
+            );
+            return;
+          }
+
+          // desc response is newest→oldest; reverse to ascending so it slots in
+          // front of the existing list in chronological order.
+          const olderAscending = [...response.messages].reverse();
 
           set((state) => {
             const existing = state.messages[threadId] || [];
-            // Prepend older messages (API returns old-to-new, so they go at the front)
-            state.messages[threadId] = [
-              ...response.messages,
-              ...existing,
-            ];
+            // De-dup against already-loaded messages: overlapping pages (e.g.
+            // a message inserted between fetches) must not produce duplicates.
+            const existingIds = new Set(existing.map((m) => m.id));
+            const newMessages = olderAscending.filter(
+              (m) => !existingIds.has(m.id)
+            );
+            // Prepend the older batch at the front, preserving newest-at-the-end
+            // display order.
+            state.messages[threadId] = [...newMessages, ...existing];
             // Populate reverse index for new messages
-            for (const msg of response.messages) {
+            for (const msg of newMessages) {
               if (!state.messageToThread[msg.id]) {
                 state.messageToThread[msg.id] = threadId;
               }
             }
             state.messagePagination[threadId] = {
-              hasMore: response.has_more,
+              // Empty page (or none new) means we've reached the start — stop,
+              // even if the server still reports has_more, to avoid re-fetching
+              // the same cursor forever.
+              hasMore: response.messages.length > 0 && response.has_more,
               loadingOlder: false,
-              loadedCount:
-                pagination.loadedCount + response.messages.length,
+              loadedCount: pagination.loadedCount + newMessages.length,
             };
           });
         } catch (error) {
           console.error('[ChatStore] Error loading older messages:', error);
+          set((state) => {
+            state.error = 'Failed to load older messages';
+          });
+        } finally {
           set((state) => {
             if (state.messagePagination[threadId]) {
               state.messagePagination[threadId].loadingOlder = false;

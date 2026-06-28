@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
@@ -68,12 +74,26 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollRafRef = useRef<number | null>(null);
   const prevMessageCountRef = useRef(messages.length);
+  const prevLastIdRef = useRef<string | undefined>(
+    messages[messages.length - 1]?.id
+  );
 
-  // Throttled auto-scroll: only one scrollIntoView per animation frame.
-  // Depends on message count + streaming state, NOT on storeStreamingContent
-  // (which changes every rAF frame during streaming). The streaming bubble
-  // is rendered separately and grows the scroll height naturally; this
-  // effect just needs to keep the view pinned to the bottom.
+  // Track which messages are "new" for entrance animation. Computed before the
+  // auto-scroll effect so that effect can distinguish an appended message (snap
+  // to bottom) from a prepended older batch (preserve the user's scroll anchor).
+  // "New" = length grew AND the tail id changed (append); a prepended older
+  // batch grows the length but keeps the same tail id, so it is not "new".
+  const currentLastId = messages[messages.length - 1]?.id;
+  const isNewMessage =
+    messages.length > prevMessageCountRef.current &&
+    currentLastId !== prevLastIdRef.current;
+
+  // Throttled auto-scroll: at most one scrollIntoView per animation frame.
+  // `storeStreamingContent` is in the deps so the view follows tokens as the
+  // answer streams, but the rAF guard coalesces the per-token re-renders into
+  // a single scroll per frame — the follow is restored without the per-token
+  // jank. Skipped entirely once the user scrolls up (showScrollButton), so we
+  // never fight a user reading history.
   useEffect(() => {
     if (showScrollButton) return;
     if (scrollRafRef.current !== null) return;
@@ -81,29 +101,42 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       scrollRafRef.current = null;
     });
-  }, [messages.length, storeIsStreaming, commandOutputs, showScrollButton]);
+  }, [
+    messages.length,
+    isNewMessage,
+    storeIsStreaming,
+    storeStreamingContent,
+    commandOutputs,
+    showScrollButton,
+  ]);
 
   useEffect(() => {
     return () => {
       if (scrollRafRef.current !== null) {
         cancelAnimationFrame(scrollRafRef.current);
       }
+      // Also cancel a pending scroll-event throttle frame so its callback
+      // (setShowScrollButton / onLoadOlder) can't fire after unmount.
+      if (scrollTickRafRef.current !== null) {
+        cancelAnimationFrame(scrollTickRafRef.current);
+      }
     };
   }, []);
 
-  // Track which messages are "new" for entrance animation
-  const isNewMessage = messages.length > prevMessageCountRef.current;
   useEffect(() => {
     prevMessageCountRef.current = messages.length;
-  }, [messages.length]);
+    prevLastIdRef.current = currentLastId;
+  }, [messages.length, currentLastId]);
 
   const scrollTickRef = useRef(false);
+  const scrollTickRafRef = useRef<number | null>(null);
   const loadOlderTriggeredRef = useRef(false);
   const handleScroll = useCallback(() => {
     if (scrollTickRef.current) return;
     scrollTickRef.current = true;
-    requestAnimationFrame(() => {
+    scrollTickRafRef.current = requestAnimationFrame(() => {
       scrollTickRef.current = false;
+      scrollTickRafRef.current = null;
       const container = scrollContainerRef.current;
       if (!container) return;
       const { scrollTop, scrollHeight, clientHeight } = container;
@@ -150,11 +183,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
 
         const bubble = (
           <>
-            {message.role === 'assistant' &&
-              isLast &&
-              !storeIsStreaming && (
-                <InlineAgentSummary threadId={activeThreadId} />
-              )}
+            {message.role === 'assistant' && isLast && !storeIsStreaming && (
+              <InlineAgentSummary threadId={activeThreadId} />
+            )}
             <ChatBubble
               message={message}
               index={index}
@@ -228,9 +259,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           )}
           {isLoadingOlder && (
             <div className="flex justify-center py-2">
-              <span
-                className="text-xs font-medium text-[var(--nous-fg-2)]"
-              >
+              <span className="text-xs font-medium text-[var(--nous-fg-2)]">
                 Loading older messages...
               </span>
             </div>
