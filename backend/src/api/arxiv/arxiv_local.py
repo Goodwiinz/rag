@@ -181,27 +181,41 @@ async def extract_features_from_local_pdfs(
                         # Extract metadata
                         metadata = pdf_document.metadata
                         pdf_metadata = {
-                            "title": metadata.get("title", "")
-                            if metadata.get("title")
-                            else "",
-                            "author": metadata.get("author", "")
-                            if metadata.get("author")
-                            else "",
-                            "subject": metadata.get("subject", "")
-                            if metadata.get("subject")
-                            else "",
-                            "creator": metadata.get("creator", "")
-                            if metadata.get("creator")
-                            else "",
-                            "producer": metadata.get("producer", "")
-                            if metadata.get("producer")
-                            else "",
-                            "creation_date": metadata.get("creationDate", "")
-                            if metadata.get("creationDate")
-                            else "",
-                            "modification_date": metadata.get("modDate", "")
-                            if metadata.get("modDate")
-                            else "",
+                            "title": (
+                                metadata.get("title", "")
+                                if metadata.get("title")
+                                else ""
+                            ),
+                            "author": (
+                                metadata.get("author", "")
+                                if metadata.get("author")
+                                else ""
+                            ),
+                            "subject": (
+                                metadata.get("subject", "")
+                                if metadata.get("subject")
+                                else ""
+                            ),
+                            "creator": (
+                                metadata.get("creator", "")
+                                if metadata.get("creator")
+                                else ""
+                            ),
+                            "producer": (
+                                metadata.get("producer", "")
+                                if metadata.get("producer")
+                                else ""
+                            ),
+                            "creation_date": (
+                                metadata.get("creationDate", "")
+                                if metadata.get("creationDate")
+                                else ""
+                            ),
+                            "modification_date": (
+                                metadata.get("modDate", "")
+                                if metadata.get("modDate")
+                                else ""
+                            ),
                             "page_count": len(pdf_document),
                         }
 
@@ -441,9 +455,11 @@ def _update_knowledge_graph_with_local_extractions_sync(
 
         paper_entity_request = CreateEntityRequest(
             entity_type=EntityType.DOCUMENT,
-            name=paper_title
-            if paper_title and paper_title != "pdf"
-            else f"ArXiv Paper: {paper_id}",
+            name=(
+                paper_title
+                if paper_title and paper_title != "pdf"
+                else f"ArXiv Paper: {paper_id}"
+            ),
             confidence_score=0.9,
             extraction_method=ExtractionMethod.SPACY_NER,
             metadata={
@@ -560,9 +576,11 @@ async def get_local_papers_stats(current_user: dict = Depends(get_current_user))
             "statistics": {
                 "total_files": total_files,
                 "total_size_mb": round(total_size / (1024 * 1024), 2),
-                "average_size_mb": round((total_size / total_files) / (1024 * 1024), 2)
-                if total_files > 0
-                else 0,
+                "average_size_mb": (
+                    round((total_size / total_files) / (1024 * 1024), 2)
+                    if total_files > 0
+                    else 0
+                ),
                 "date_distribution": date_groups,
             },
         }
@@ -574,6 +592,7 @@ async def get_local_papers_stats(current_user: dict = Depends(get_current_user))
 
 @router.post("/process-batch")
 async def process_batch_local_papers(
+    background_tasks: BackgroundTasks,
     batch_size: int = Query(
         default=10, description="Number of papers to process in this batch"
     ),
@@ -609,8 +628,15 @@ async def process_batch_local_papers(
             paper_ids=[f.stem for f in batch_files], **extraction_options
         )
 
+        # Pass the request's BackgroundTasks through (NOT None): when
+        # extraction_options enables update_knowledge_graph, the inner handler
+        # schedules per-paper KG tasks via background_tasks.add_task — a None
+        # here raised AttributeError that the broad except reported as a failed
+        # batch, silently dropping the KG update.
         result = await extract_features_from_local_pdfs(
-            request=extraction_request, background_tasks=None, current_user=current_user
+            request=extraction_request,
+            background_tasks=background_tasks,
+            current_user=current_user,
         )
 
         return {
@@ -838,7 +864,7 @@ def _extract_keyphrases_from_filename(filename: str) -> List[str]:
 
 
 async def _update_knowledge_graph_with_local_extractions(
-    extraction_results: List[Dict[str, Any]]
+    extraction_results: List[Dict[str, Any]],
 ):
     """Background task to update knowledge graph with extracted features from local papers"""
     try:
@@ -888,9 +914,11 @@ async def _update_knowledge_graph_with_local_extractions(
                     # Create a paper entity in the knowledge graph
                     paper_entity_request = CreateEntityRequest(
                         entity_type=EntityType.DOCUMENT,  # Use DOCUMENT for papers
-                        name=paper_title
-                        if paper_title and paper_title != "pdf"
-                        else f"ArXiv Paper: {paper_id}",
+                        name=(
+                            paper_title
+                            if paper_title and paper_title != "pdf"
+                            else f"ArXiv Paper: {paper_id}"
+                        ),
                         confidence_score=0.9,
                         extraction_method=ExtractionMethod.SPACY_NER,
                         metadata={
