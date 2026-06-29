@@ -517,6 +517,7 @@ async def cancel_upload(
     upload_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    file_service: FileService = Depends(get_file_service),
 ):
     """Cancel an ongoing upload or delete a recently uploaded document"""
     try:
@@ -582,8 +583,13 @@ async def cancel_upload(
             # Handle document deletion (for recently uploaded documents)
             # Allow cancellation/deletion of documents that are still in processing state
             if document.processing_status.value in ["pending", "processing"]:
-                document.soft_delete()
-                await db.commit()
+                # Route through file_service.delete_file (not a bare
+                # soft_delete): the object was already uploaded to storage at
+                # PENDING time, so a plain soft-delete orphans it AND never
+                # decrements org storage usage — an upload-then-cancel loop
+                # leaks both. delete_file removes the physical object, reverts
+                # the quota, soft-deletes, and commits.
+                await file_service.delete_file(document, current_user)
 
                 return {
                     "message": "Document upload cancelled successfully",
