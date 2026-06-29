@@ -3,6 +3,8 @@
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
+import { GoesOutComesInUnderline } from '@/components/ui/underline-animation';
+
 const FOOTER_COLS = [
   {
     head: 'Product',
@@ -91,9 +93,12 @@ export function FooterSection() {
                     <li key={l.label}>
                       <Link
                         href={l.href}
-                        className="text-sm text-[var(--nous-parchment)] hover:text-[var(--nous-ivory)] transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                        className="inline-block text-sm text-[var(--nous-parchment)] hover:text-[var(--nous-ivory)] transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                       >
-                        {l.label}
+                        <GoesOutComesInUnderline
+                          label={l.label}
+                          direction="left"
+                        />
                       </Link>
                     </li>
                   ))}
