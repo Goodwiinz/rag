@@ -219,6 +219,26 @@ class UploadManager:
 upload_manager = UploadManager()
 
 
+def _resolve_job_priority(processing_priority: str) -> JobPriority:
+    """Map a client-supplied priority string to JobPriority, or 400.
+
+    ``JobPriority[value]`` raises KeyError on an unknown value; called up front
+    so an invalid priority is rejected BEFORE the file is uploaded/committed
+    (otherwise the KeyError surfaced only after the object + row existed → an
+    orphaned upload).
+    """
+    try:
+        return JobPriority[(processing_priority or "").upper()]
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Invalid processing_priority '{processing_priority}'. Valid: "
+                f"{[p.name.lower() for p in JobPriority]}"
+            ),
+        )
+
+
 @router.post("/single", response_model=DocumentUploadResponse)
 async def upload_single_document(
     file: UploadFile = File(..., description="Document file to upload"),
@@ -246,6 +266,15 @@ async def upload_single_document(
     """
     # Generate upload ID for tracking
     upload_id = str(uuid.uuid4())
+
+    # Bound for the except cleanup: upload_file commits the Document + uploads
+    # its object before later steps run, so a failure after that must delete it.
+    document = None
+
+    # Validate processing_priority BEFORE any upload (see _resolve_job_priority):
+    # JobPriority[...] is a hard KeyError on an unknown client value, which
+    # previously fell to the generic 500 AFTER the object + row were committed.
+    job_priority = _resolve_job_priority(processing_priority)
 
     try:
         # Parse form inputs
@@ -296,7 +325,7 @@ async def upload_single_document(
         await upload_manager.update_progress(upload_id, 60.0, "File saved successfully")
 
         # Create processing job with enhanced configuration
-        job_priority = JobPriority[processing_priority.upper()]
+        # (job_priority validated up front, before the upload)
         processing_job = ProcessingJob(
             job_type=JobType.DOCUMENT_INGESTION,
             status=JobStatus.PENDING,
@@ -391,6 +420,30 @@ async def upload_single_document(
         raise
     except Exception as e:
         logger.error(f"Document upload failed: {str(e)}")
+        # Compensating cleanup: upload_file already committed the Document and
+        # uploaded its storage object before this failure (e.g. the ProcessingJob
+        # commit). Leaving them behind orphans the object AND a PENDING row that
+        # the org-scoped content-hash dedup then blocks from re-upload. Best-
+        # effort: delete the object, soft-delete the row, revert the quota.
+        if document is not None:
+            try:
+                # The motivating failure is the ProcessingJob commit, which
+                # leaves the AsyncSession in a doomed state — any further DB op
+                # raises PendingRollbackError until an explicit rollback. Clear
+                # it FIRST, otherwise the soft-delete + quota-revert below never
+                # persist and the orphaned PENDING row survives. (After rollback
+                # the already-committed rows reload cleanly.)
+                await db.rollback()
+                file_service._best_effort_delete_object(document)
+                document.soft_delete()
+                organization.update_storage_usage(-(document.file_size_bytes or 0))
+                await db.commit()
+            except Exception:  # noqa: BLE001
+                await db.rollback()
+                logger.warning(
+                    "Failed to clean up orphaned document after upload error",
+                    exc_info=True,
+                )
         await upload_manager.update_progress(
             upload_id, 0.0, error_message=f"Upload failed: {str(e)}"
         )
