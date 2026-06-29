@@ -13,10 +13,28 @@ Run with the bundled `/loop` skill to schedule repeats
 
 Branch from `develop`; PRs target `develop` (ArgoCD auto-syncs `dev` + `staging`).
 
-## Tick procedure
+## Coordination (multiple loops share this repo)
+
+More than one loop may run at once (e.g. `clawd` + `zcode`). They collide in the
+**pick → open-PR window**: `gh pr list` only shows work that already has a PR, so
+two loops can pick the same bug before either opens one. Use the shared claims
+bridge (`scripts/loop_bridge.py`, storage `$LOOP_BRIDGE_DIR`, default
+`/home/clawdbot/.loop-bridge`) — flock-guarded, on the shared filesystem both
+agents see. Set `LOOP_AGENT` to your name (`clawd` / `zcode`).
+
+- **Before picking** a bug: `loop_bridge.py list` to see what the other loop holds.
+- **Before touching code** (right after you've chosen): `loop_bridge.py claim
+--branch <b> --area "<bug/subsystem>" --files <a,b>`. If it prints `CONFLICT`
+  (exit 2 — same area or an overlapping file is already claimed), **pick something
+  else**. The claim is the reservation; `gh pr list` is the second check.
+- **Each tick while the PR is open**: `loop_bridge.py heartbeat --branch <b>` so
+  the claim doesn't expire (TTL 45m; a crashed loop's claims auto-expire).
+- **On merge or abandon**: `loop_bridge.py release --branch <b> --reason merged`.
 
 ```bash
 git checkout develop && git pull
+loop_bridge=scripts/loop_bridge.py
+python3 $loop_bridge list                                     # what is the other loop on?
 gh pr list --repo Goodwiinz/rag --state open --author '@me'   # any green loop PR to merge first?
 ```
 
@@ -34,7 +52,9 @@ gh pr list --repo Goodwiinz/rag --state open --author '@me'   # any green loop P
 
 3. **Verify it's real AND live.** Re-read the cited code — memory drifts (wrong
    file/line, already-fixed, **dead/unmounted code**). Confirm the path is mounted
-   and reachable in `src/main.py` before treating a finding as a live bug.
+   and reachable in `src/main.py` before treating a finding as a live bug. Then
+   **claim it** (`loop_bridge.py claim ...`) before writing any code; on `CONFLICT`,
+   go back to step 2 and pick another.
 
 4. **Ultra-code debug it.** For non-trivial or security-class bugs, run the
    `Workflow` tool: parallel adversarial lenses verify exploitability + fix
@@ -55,12 +75,13 @@ gh pr list --repo Goodwiinz/rag --state open --author '@me'   # any green loop P
      Address real findings; a clean review is the gate, not a formality.
 
 7. **Merge when green.** Wait for full CI (lint → unit → integration → e2e).
-   Squash-merge + delete branch only at `mergeStateStatus: CLEAN`.
+   Squash-merge + delete branch only at `mergeStateStatus: CLEAN`. While the PR is
+   open across ticks, `loop_bridge.py heartbeat --branch <b>` keeps the claim live.
 
-8. **Record + reschedule.** Mark the item done in auto-memory
-   (`memory/nous-*.md` + `MEMORY.md` index); note any sibling bugs found for next
-   tick. If looping, `ScheduleWakeup` (~1500s idle, ~270s when polling CI to keep
-   the prompt cache warm).
+8. **Record + reschedule.** `loop_bridge.py release --branch <b> --reason merged`.
+   Mark the item done in auto-memory (`memory/nous-*.md` + `MEMORY.md` index); note
+   any sibling bugs found for next tick. If looping, `ScheduleWakeup` (~1500s idle,
+   ~270s when polling CI to keep the prompt cache warm).
 
 ## Guardrails
 
