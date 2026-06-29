@@ -65,7 +65,9 @@ class DocumentUploadRequest(BaseModel):
         default=False, description="Whether document is publicly accessible"
     )
     processing_priority: str = Field(
-        "normal", regex="^(low|normal|high|urgent)$", description="Processing priority"
+        "normal",
+        pattern="^(low|normal|high|urgent)$",
+        description="Processing priority",
     )
     enable_quality_check: bool = Field(
         default=True, description="Enable quality assessment"
@@ -101,7 +103,7 @@ class BatchUploadRequest(BaseModel):
 
     documents: List[DocumentUploadRequest] = Field(..., min_items=1, max_items=50)
     processing_mode: str = Field(
-        "parallel", regex="^(parallel|sequential)$", description="Processing mode"
+        "parallel", pattern="^(parallel|sequential)$", description="Processing mode"
     )
     enable_deduplication: bool = Field(
         default=True, description="Enable duplicate detection"

@@ -213,7 +213,7 @@ async def get_user_engagement_metrics(
 
 @router.get("/alerts")
 async def get_active_alerts(
-    severity: Optional[str] = Query(None, regex="^(critical|high|medium|low|info)$"),
+    severity: Optional[str] = Query(None, pattern="^(critical|high|medium|low|info)$"),
     limit: int = Query(50, ge=1, le=200, description="Maximum alerts to return"),
     current_user: User = Depends(get_current_user),
 ):
@@ -248,7 +248,7 @@ async def get_metric_chart_data(
         MetricTimeRange.LAST_24H, description="Time range for metrics"
     ),
     granularity: str = Query(
-        "hour", regex="^(minute|hour|day|week|month)$", description="Data granularity"
+        "hour", pattern="^(minute|hour|day|week|month)$", description="Data granularity"
     ),
     current_user: User = Depends(get_current_user),
 ):
@@ -638,7 +638,9 @@ async def get_available_metrics(current_user: User = Depends(get_current_user)):
 
 @router.get("/export")
 async def export_dashboard_data(
-    format: str = Query("json", regex="^(json|csv|xlsx)$", description="Export format"),
+    format: str = Query(
+        "json", pattern="^(json|csv|xlsx)$", description="Export format"
+    ),
     time_range: MetricTimeRange = Query(
         MetricTimeRange.LAST_24H, description="Time range for export"
     ),

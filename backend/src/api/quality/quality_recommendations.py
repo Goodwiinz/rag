@@ -36,12 +36,12 @@ async def get_quality_recommendations(
     ),
     priority: Optional[str] = Query(
         None,
-        regex="^(critical|high|medium|low)$",
+        pattern="^(critical|high|medium|low)$",
         description="Filter by priority level",
     ),
     status: Optional[str] = Query(
         None,
-        regex="^(pending|in_progress|completed|rejected|deferred)$",
+        pattern="^(pending|in_progress|completed|rejected|deferred)$",
         description="Filter by status",
     ),
     days_back: int = Query(30, ge=1, le=365, description="Days of history to analyze"),
@@ -102,12 +102,12 @@ async def get_quality_recommendations(
                     "due_date": rec.due_date.isoformat() if rec.due_date else None,
                     "status": rec.status.value,
                     "assigned_to": rec.assigned_to,
-                    "created_at": rec.created_at.isoformat()
-                    if rec.created_at
-                    else None,
-                    "updated_at": rec.updated_at.isoformat()
-                    if rec.updated_at
-                    else None,
+                    "created_at": (
+                        rec.created_at.isoformat() if rec.created_at else None
+                    ),
+                    "updated_at": (
+                        rec.updated_at.isoformat() if rec.updated_at else None
+                    ),
                 }
             )
 
@@ -458,14 +458,16 @@ async def get_quality_metrics_for_recommendations(
                 "search_volume": sum(
                     t["search_count"] for t in user_behavior["search_trends"]
                 ),
-                "avg_satisfaction": sum(
-                    t["avg_satisfaction"]
-                    for t in user_behavior["engagement_trends"]
-                    if t["avg_satisfaction"]
-                )
-                / len(user_behavior["engagement_trends"])
-                if user_behavior["engagement_trends"]
-                else 0,
+                "avg_satisfaction": (
+                    sum(
+                        t["avg_satisfaction"]
+                        for t in user_behavior["engagement_trends"]
+                        if t["avg_satisfaction"]
+                    )
+                    / len(user_behavior["engagement_trends"])
+                    if user_behavior["engagement_trends"]
+                    else 0
+                ),
             },
             "period_days": days_back,
             "generated_at": datetime.utcnow().isoformat(),
