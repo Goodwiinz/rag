@@ -120,6 +120,47 @@ def _resolve_active_project_id(
     return existing_project_id or extracted_pid or None
 
 
+async def _user_owns_project(session, project_id: Optional[str], current_user) -> bool:
+    """True if ``current_user`` owns the project (collection) ``project_id``.
+
+    The DO KB is org-scoped, and ``resolve_and_filter_chunks`` happily filters
+    chunks by ANY project id it's handed. ``project_id`` here originates from
+    client-supplied ``page_context`` / message text, so without this check a
+    user could pass another in-org project's id and learn which org documents
+    belong to it (membership inference). Mirrors the ownership guard the agent
+    tools use (``_verify_project_ownership``); kept inline to avoid a
+    services→api import. A non-UUID id is treated as not-owned (drop the scope).
+    """
+    if not project_id or current_user is None:
+        return False
+    try:
+        from uuid import UUID as _UUID
+
+        proj_uuid = _UUID(str(project_id).strip())
+    except (ValueError, AttributeError, TypeError):
+        return False
+    try:
+        from sqlalchemy import select
+
+        from src.models.collection import Collection
+        from src.models.workspace import Workspace
+
+        stmt = (
+            select(Collection.id)
+            .join(Workspace, Collection.workspace_id == Workspace.id)
+            .where(
+                Collection.id == proj_uuid,
+                Collection.is_deleted == False,  # noqa: E712
+                Workspace.owner_id == current_user.id,
+            )
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+    except Exception:  # noqa: BLE001 — fail closed: unverifiable => not owned
+        logger.warning("project ownership check failed; dropping scope", exc_info=True)
+        return False
+
+
 def is_conversational(content: str) -> bool:
     """Return ``True`` when *content* is a bare greeting / acknowledgement.
 
@@ -269,27 +310,41 @@ async def _try_primary_do_kb_read(
 
             from src.services.do_kb.resolve import resolve_and_filter_chunks
 
+            # Only scope by project_id if the caller actually owns it; otherwise
+            # drop the scope (org-wide read, the same as no project context)
+            # rather than filter by — and thereby disclose membership of — a
+            # project that isn't theirs.
+            scoped_project_id = project_id
+            if project_id and not await _user_owns_project(
+                session, project_id, current_user
+            ):
+                logger.info(
+                    "do_kb_read: project %s not owned by caller — dropping scope",
+                    project_id,
+                )
+                scoped_project_id = None
+
             title_by_key, chunks_to_emit = await resolve_and_filter_chunks(
                 chunks=result.chunks,
                 org_id=org_id,
                 session=session,
-                project_id=project_id,
+                project_id=scoped_project_id,
             )
 
             # Two distinct empty-result paths that trigger Qdrant fallback:
-            if project_id and not title_by_key and result.chunks:
+            if scoped_project_id and not title_by_key and result.chunks:
                 logger.info(
                     "do_kb_read: %d chunks unresolvable to org documents under "
                     "project scope %s — returning None to trigger fallback",
                     len(result.chunks),
-                    project_id,
+                    scoped_project_id,
                 )
                 return None
-            if project_id and title_by_key and not chunks_to_emit:
+            if scoped_project_id and title_by_key and not chunks_to_emit:
                 logger.info(
                     "do_kb_read: all %d chunks filtered out by project scope %s",
                     len(result.chunks),
-                    project_id,
+                    scoped_project_id,
                 )
                 return None
 
