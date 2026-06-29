@@ -117,9 +117,8 @@ class ConnectionInfo:
         # Tenant gate: a message addressed to a specific organization must
         # never reach a connection from another org, even via a shared
         # broadcast channel. Closes the cross-tenant document/job leak.
-        if (
-            message.target_organization is not None
-            and str(self.organization_id) != str(message.target_organization)
+        if message.target_organization is not None and str(self.organization_id) != str(
+            message.target_organization
         ):
             return False
 
@@ -183,6 +182,13 @@ class EnhancedConnectionManager(BaseService):
         self.heartbeat_interval = 30  # seconds
         self.connection_timeout = 300  # 5 minutes
         self.max_connections = 10000
+        # Per-user cap: the global cap alone lets one user (or a single leaked
+        # token) open thousands of sockets and starve the global budget for
+        # every other tenant. Bound each user_id to a sane number of concurrent
+        # connections (multiple tabs/devices stay comfortably under it).
+        self.max_connections_per_user = getattr(
+            settings, "WS_MAX_CONNECTIONS_PER_USER", 100
+        )
         self.message_queue = asyncio.Queue(maxsize=1000)
 
     async def initialize(self):
@@ -257,6 +263,7 @@ class EnhancedConnectionManager(BaseService):
         On auth failure, accepts the WebSocket before closing it to ensure
         proper protocol ordering (close frame requires an accepted connection).
         """
+
         async def _reject(code: int, reason: str) -> None:
             """Accept then immediately close to avoid connection leak."""
             try:
@@ -285,9 +292,7 @@ class EnhancedConnectionManager(BaseService):
             organization_id = payload.get("organization_id")
 
             if not user_id or not organization_id:
-                await _reject(
-                    status.WS_1008_POLICY_VIOLATION, "Invalid token payload"
-                )
+                await _reject(status.WS_1008_POLICY_VIOLATION, "Invalid token payload")
                 return None
 
             return {
@@ -298,15 +303,11 @@ class EnhancedConnectionManager(BaseService):
 
         except JWTError as e:
             logger.warning(f"JWT authentication failed: {e}")
-            await _reject(
-                status.WS_1008_POLICY_VIOLATION, "Invalid or expired token"
-            )
+            await _reject(status.WS_1008_POLICY_VIOLATION, "Invalid or expired token")
             return None
         except Exception as e:
             logger.error(f"WebSocket authentication error: {e}")
-            await _reject(
-                status.WS_1011_INTERNAL_ERROR, "Authentication error"
-            )
+            await _reject(status.WS_1011_INTERNAL_ERROR, "Authentication error")
             return None
 
     async def _connect_internal(
@@ -391,6 +392,29 @@ class EnhancedConnectionManager(BaseService):
 
         return connection_id
 
+    def _user_at_capacity(self, user_id: str) -> bool:
+        """True when this user already holds the max allowed concurrent sockets."""
+        return (
+            len(self.user_connections.get(user_id, ())) >= self.max_connections_per_user
+        )
+
+    async def _reject_connection(
+        self, websocket: WebSocket, reason: str, subprotocol: Optional[str] = None
+    ) -> None:
+        """Accept then immediately close (WS_1013) so the client sees a clean
+        'try again later' instead of a silently dropped handshake."""
+        try:
+            if subprotocol:
+                await websocket.accept(subprotocol=subprotocol)
+            else:
+                await websocket.accept()
+        except Exception:
+            pass
+        try:
+            await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER, reason=reason)
+        except Exception:
+            pass
+
     async def connect(
         self, websocket: WebSocket, token: str, client_info: Dict[str, Any] = None
     ) -> Optional[str]:
@@ -402,16 +426,19 @@ class EnhancedConnectionManager(BaseService):
 
         # Check connection limits — accept then close to avoid connection leak
         if len(self.active_connections) >= self.max_connections:
-            try:
-                await websocket.accept()
-            except Exception:
-                pass
-            try:
-                await websocket.close(
-                    code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
-                )
-            except Exception:
-                pass
+            await self._reject_connection(websocket, "Server at maximum capacity")
+            return None
+
+        # Per-user cap — one principal must not exhaust the global budget.
+        if self._user_at_capacity(auth_result["user_id"]):
+            logger.warning(
+                "WebSocket per-user connection limit reached for user %s (limit=%s)",
+                auth_result["user_id"],
+                self.max_connections_per_user,
+            )
+            await self._reject_connection(
+                websocket, "Per-user connection limit reached"
+            )
             return None
 
         # Accept connection
@@ -453,16 +480,21 @@ class EnhancedConnectionManager(BaseService):
         """
         # Check connection limits — accept then close to avoid connection leak
         if len(self.active_connections) >= self.max_connections:
-            try:
-                await websocket.accept()
-            except Exception:
-                pass
-            try:
-                await websocket.close(
-                    code=status.WS_1013_TRY_AGAIN_LATER, reason="Server at maximum capacity"
-                )
-            except Exception:
-                pass
+            await self._reject_connection(
+                websocket, "Server at maximum capacity", subprotocol=subprotocol
+            )
+            return None
+
+        # Per-user cap — one principal must not exhaust the global budget.
+        if self._user_at_capacity(user_id):
+            logger.warning(
+                "WebSocket per-user connection limit reached for user %s (limit=%s)",
+                user_id,
+                self.max_connections_per_user,
+            )
+            await self._reject_connection(
+                websocket, "Per-user connection limit reached", subprotocol=subprotocol
+            )
             return None
 
         # Accept connection with appropriate subprotocol
@@ -582,13 +614,15 @@ class EnhancedConnectionManager(BaseService):
             logger.error(f"Failed to send message to {connection_id}: {e}")
 
             # Connection might be dead, schedule cleanup
-            self._fire_and_forget(self.disconnect(connection_id, f"Send error: {str(e)}"))
+            self._fire_and_forget(
+                self.disconnect(connection_id, f"Send error: {str(e)}")
+            )
             return False
 
     async def broadcast_to_channel(self, channel: str, message: WebSocketMessage):
         """Broadcast message to all subscribers of a channel"""
         # Validate channel name to prevent injection
-        if not re.match(r'^[a-zA-Z0-9_.\-]+$', channel):
+        if not re.match(r"^[a-zA-Z0-9_.\-]+$", channel):
             raise ValueError(f"Invalid channel name: {channel}")
 
         # Add channel to target channels if not already present
@@ -685,9 +719,7 @@ class EnhancedConnectionManager(BaseService):
                     # gate so a non-admin cannot escalate mid-session.
                     conn = self.active_connections.get(connection_id)
                     role = str(
-                        (conn.client_info or {}).get("role", "USER")
-                        if conn
-                        else "USER"
+                        (conn.client_info or {}).get("role", "USER") if conn else "USER"
                     ).lower()
                     if channel in _ADMIN_ONLY_CHANNELS and role != "admin":
                         logger.warning(
@@ -928,6 +960,7 @@ class EnhancedConnectionManager(BaseService):
                 for channel, subscribers in self.channel_subscribers.items()
             },
             "max_connections": self.max_connections,
+            "max_connections_per_user": self.max_connections_per_user,
             "redis_enabled": self.redis_client is not None,
         }
 
