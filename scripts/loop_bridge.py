@@ -179,14 +179,23 @@ def cmd_claim(args) -> int:
 def cmd_heartbeat(args) -> int:
     with _locked() as d:
         state = _read(d)
-        found = False
+        # Only extend claims that are STILL LIVE. Extending an already-expired
+        # claim would resurrect it after another agent may have legitimately
+        # taken the overlapping area (e.g. a tick that outran the TTL) —
+        # recreating the very double-claim the board prevents. Expiry is final;
+        # a lapsed claim must be re-acquired via `claim` (which re-runs the
+        # conflict check), not silently revived by a heartbeat.
+        live_branches = {c.get("branch") for c in _live(state)}
+        if args.branch not in live_branches:
+            print(
+                f"no live claim for branch {args.branch} "
+                f"(expired or released — re-run `claim`)",
+                file=sys.stderr,
+            )
+            return 1
         for c in state.get("claims", []):
             if c.get("branch") == args.branch and c.get("status") == "active":
                 c["expires_at"] = _iso(_now() + _dt.timedelta(seconds=args.ttl))
-                found = True
-        if not found:
-            print(f"no active claim for branch {args.branch}", file=sys.stderr)
-            return 1
         _write(d, state)
         _audit(d, "heartbeat", {"branch": args.branch})
     print(f"HEARTBEAT {args.branch} (+{args.ttl}s)")
