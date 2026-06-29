@@ -238,6 +238,7 @@ async def create_thread(
             thread_id=str(thread.id),
             conversation_id=str(thread.conversation_id),
             user_id=str(current_user.id),
+            organization_id=str(current_user.organization_id),
             title=thread.title,
         )
     except Exception as e:
@@ -337,7 +338,10 @@ async def bulk_resolve_threads(
     )
 
     return await _build_bulk_response(
-        results=results, action="resolved", user_id=current_user.id
+        results=results,
+        action="resolved",
+        user_id=current_user.id,
+        organization_id=str(current_user.organization_id),
     )
 
 
@@ -359,7 +363,10 @@ async def bulk_archive_threads(
     )
 
     return await _build_bulk_response(
-        results=results, action="archived", user_id=current_user.id
+        results=results,
+        action="archived",
+        user_id=current_user.id,
+        organization_id=str(current_user.organization_id),
     )
 
 
@@ -382,6 +389,7 @@ async def bulk_summarize_threads(
         results=results,
         action="summarized",
         user_id=current_user.id,
+        organization_id=str(current_user.organization_id),
         include_threads=False,  # Thread data would be stale since summarization is async
     )
 
@@ -405,6 +413,7 @@ async def bulk_delete_threads(
         results=results,
         action="deleted",
         user_id=current_user.id,
+        organization_id=str(current_user.organization_id),
         include_threads=False,
     )
 
@@ -484,6 +493,7 @@ async def update_thread(
             thread_id=str(thread.id),
             conversation_id=str(thread.conversation_id),
             user_id=str(current_user.id),
+            organization_id=str(current_user.organization_id),
             changes=changes,
         )
     except Exception as e:
@@ -537,6 +547,7 @@ async def delete_thread(
         thread_id=str(thread_id),
         conversation_id=conversation_id,
         user_id=str(current_user.id),
+        organization_id=str(current_user.organization_id),
     )
 
 
@@ -747,6 +758,7 @@ async def create_message(
                 thread_id=str(thread_id),
                 conversation_id=str(thread.conversation_id),
                 user_id=str(current_user.id),
+                organization_id=str(current_user.organization_id),
                 role=(
                     message.role.value
                     if hasattr(message.role, "value")
@@ -906,7 +918,11 @@ async def delete_message(
 
 
 async def _build_bulk_response(
-    results: List[tuple], action: str, user_id: UUID, include_threads: bool = True
+    results: List[tuple],
+    action: str,
+    user_id: UUID,
+    organization_id: str,
+    include_threads: bool = True,
 ) -> BulkThreadResponse:
     """
     Build bulk response and broadcast events.
@@ -915,6 +931,8 @@ async def _build_bulk_response(
         results: List of tuples (thread_id, success, error, [thread])
         action: Action name for event broadcasting ('resolved', 'archived', 'deleted')
         user_id: ID of the user performing the action
+        organization_id: Owning organization — required so the bulk broadcast is
+            tenant-scoped (a missed value would reopen the cross-tenant leak).
         include_threads: Whether to include thread objects in the response results
     """
     bulk_results = []
@@ -944,7 +962,10 @@ async def _build_bulk_response(
 
     if succeeded_ids:
         await thread_event_service.broadcast_threads_bulk_updated(
-            thread_ids=succeeded_ids, action=action, user_id=str(user_id)
+            thread_ids=succeeded_ids,
+            action=action,
+            user_id=str(user_id),
+            organization_id=str(organization_id),
         )
 
     return BulkThreadResponse(

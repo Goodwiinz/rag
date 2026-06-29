@@ -19,7 +19,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.research.chat import RAG_SYSTEM_PROMPT, build_context_prompt, retrieve_context
+from src.api.research.chat import (
+    RAG_SYSTEM_PROMPT,
+    build_context_prompt,
+    retrieve_context,
+)
 from src.core.database import AsyncSessionLocal, get_db
 from src.core.dependencies import get_current_user
 from src.models.user import User
@@ -161,6 +165,7 @@ async def stream_thread_chat(
                                     thread_id=str(thread_id),
                                     conversation_id=str(thread.conversation_id),
                                     user_id=str(current_user.id),
+                                    organization_id=str(current_user.organization_id),
                                     role="assistant",
                                     content_preview=None,
                                     has_citations=False,

@@ -7,6 +7,18 @@ Channel naming convention:
 - conversation:{conversation_id} - All activity in a conversation
 - thread:{thread_id} - Activity in a specific thread
 - user:{user_id}:threads - All thread activity for a user
+
+Tenant isolation: every broadcast MUST carry ``target_organization`` so the
+connection-manager gate (``ConnectionInfo.should_receive_message``) rejects
+cross-org delivery. These channels (``thread:{id}``/``conversation:{id}``/
+``user:{uid}:threads``) are NOT in the admin-only set, so any authenticated user
+can subscribe to another tenant's channel mid-session; the org tag on the
+message is the only thing that stops the payload (incl. ``content_preview``)
+fanning out across tenants. The gate is SKIPPED when ``target_organization`` is
+None, so ``organization_id`` is a required argument and is str-coerced
+*unconditionally* — ``str(None) == "None"`` matches no authenticated connection
+(``authenticate_websocket`` rejects orgless tokens), i.e. it fails CLOSED. Do
+not "simplify" this back to a None/unrestricted default.
 """
 
 import logging
@@ -64,6 +76,8 @@ class ThreadEventService:
 
                 if connection_id in self._manager.active_connections:
                     connection_info = self._manager.active_connections[connection_id]
+                    # should_receive_message enforces the target_organization gate
+                    # — a cross-org subscriber is dropped here.
                     if connection_info.should_receive_message(message):
                         await self._manager.send_message_to_connection(
                             connection_id, message
@@ -75,6 +89,7 @@ class ThreadEventService:
         thread_id: str,
         conversation_id: str,
         user_id: str,
+        organization_id: str,
         title: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -84,6 +99,7 @@ class ThreadEventService:
             thread_id: The created thread's ID
             conversation_id: Parent conversation ID
             user_id: User who created the thread
+            organization_id: Owning organization (tenant scope — required)
             title: Thread title if available
             metadata: Additional thread metadata
         """
@@ -101,6 +117,8 @@ class ThreadEventService:
                 f"conversation:{conversation_id}",
                 f"user:{user_id}:threads",
             ],
+            # Tenant scope — fail-closed (str(None)=="None" matches no connection).
+            target_organization=str(organization_id),
         )
 
         # Broadcast to all channels with deduplication
@@ -115,6 +133,7 @@ class ThreadEventService:
         thread_id: str,
         conversation_id: str,
         user_id: str,
+        organization_id: str,
         changes: Dict[str, Any],
     ) -> None:
         """Broadcast thread update event.
@@ -123,6 +142,7 @@ class ThreadEventService:
             thread_id: The updated thread's ID
             conversation_id: Parent conversation ID
             user_id: User who updated the thread
+            organization_id: Owning organization (tenant scope — required)
             changes: Dictionary of changed fields
         """
         message = WebSocketMessage(
@@ -138,6 +158,7 @@ class ThreadEventService:
                 f"thread:{thread_id}",
                 f"conversation:{conversation_id}",
             ],
+            target_organization=str(organization_id),
         )
 
         await self._broadcast_to_channels(
@@ -151,6 +172,7 @@ class ThreadEventService:
         thread_id: str,
         conversation_id: str,
         user_id: str,
+        organization_id: str,
     ) -> None:
         """Broadcast thread deletion event.
 
@@ -158,6 +180,7 @@ class ThreadEventService:
             thread_id: The deleted thread's ID
             conversation_id: Parent conversation ID
             user_id: User who deleted the thread
+            organization_id: Owning organization (tenant scope — required)
         """
         message = WebSocketMessage(
             type=MessageType.THREAD_DELETED,
@@ -171,6 +194,7 @@ class ThreadEventService:
                 f"thread:{thread_id}",
                 f"conversation:{conversation_id}",
             ],
+            target_organization=str(organization_id),
         )
 
         await self._broadcast_to_channels(
@@ -185,6 +209,7 @@ class ThreadEventService:
         thread_id: str,
         conversation_id: str,
         user_id: str,
+        organization_id: str,
         role: str,
         content_preview: Optional[str] = None,
         has_citations: bool = False,
@@ -196,6 +221,7 @@ class ThreadEventService:
             thread_id: Parent thread ID
             conversation_id: Parent conversation ID
             user_id: User who created the message
+            organization_id: Owning organization (tenant scope — required)
             role: Message role (user/assistant)
             content_preview: First 100 chars of content
             has_citations: Whether message has citations
@@ -216,6 +242,7 @@ class ThreadEventService:
                 f"thread:{thread_id}",
                 f"conversation:{conversation_id}",
             ],
+            target_organization=str(organization_id),
         )
 
         await self._broadcast_to_channels(
@@ -229,6 +256,7 @@ class ThreadEventService:
         message_id: str,
         thread_id: str,
         conversation_id: str,
+        organization_id: str,
         changes: Dict[str, Any],
     ) -> None:
         """Broadcast message update event.
@@ -237,6 +265,7 @@ class ThreadEventService:
             message_id: The updated message's ID
             thread_id: Parent thread ID
             conversation_id: Parent conversation ID
+            organization_id: Owning organization (tenant scope — required)
             changes: Dictionary of changed fields
         """
         message = WebSocketMessage(
@@ -252,6 +281,7 @@ class ThreadEventService:
                 f"thread:{thread_id}",
                 f"conversation:{conversation_id}",
             ],
+            target_organization=str(organization_id),
         )
 
         await self._broadcast_to_channels(
@@ -264,6 +294,7 @@ class ThreadEventService:
         self,
         conversation_id: str,
         user_id: str,
+        organization_id: str,
         changes: Dict[str, Any],
     ) -> None:
         """Broadcast conversation update event.
@@ -271,6 +302,7 @@ class ThreadEventService:
         Args:
             conversation_id: The updated conversation's ID
             user_id: User who updated the conversation
+            organization_id: Owning organization (tenant scope — required)
             changes: Dictionary of changed fields
         """
         message = WebSocketMessage(
@@ -285,6 +317,7 @@ class ThreadEventService:
                 f"conversation:{conversation_id}",
                 f"user:{user_id}:threads",
             ],
+            target_organization=str(organization_id),
         )
 
         await self._broadcast_to_channels(
@@ -300,6 +333,7 @@ class ThreadEventService:
         thread_ids: list[str],
         action: str,
         user_id: str,
+        organization_id: str,
     ) -> None:
         """Broadcast bulk thread operation event.
 
@@ -307,6 +341,7 @@ class ThreadEventService:
             thread_ids: List of affected thread IDs
             action: The action performed ("resolved", "archived", "deleted")
             user_id: User who performed the operation
+            organization_id: Owning organization (tenant scope — required)
         """
         if not thread_ids:
             return
@@ -321,6 +356,7 @@ class ThreadEventService:
             },
             timestamp=datetime.now(timezone.utc),
             target_channels=[f"thread:{tid}" for tid in thread_ids],
+            target_organization=str(organization_id),
         )
 
         # Broadcast to all affected thread channels
