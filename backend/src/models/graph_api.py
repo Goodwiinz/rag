@@ -126,7 +126,7 @@ class CentralityRequest(GraphAlgorithmRequest):
 
     algorithm_type: GraphAlgorithmType = Field(
         ...,
-        regex="^(degree_centrality|betweenness_centrality|closeness_centrality|eigenvector_centrality|pagerank)$",
+        pattern="^(degree_centrality|betweenness_centrality|closeness_centrality|eigenvector_centrality|pagerank)$",
     )
     include_weights: bool = Field(
         default=True, description="Include edge weights in computation"

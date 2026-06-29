@@ -27,7 +27,7 @@ async def create_report(
     report_config: Dict[str, Any],
     description: Optional[str] = None,
     schedule_config: Optional[Dict[str, Any]] = None,
-    output_format: str = Query("pdf", regex="^(pdf|csv|xlsx|json)$"),
+    output_format: str = Query("pdf", pattern="^(pdf|csv|xlsx|json)$"),
     delivery_config: Optional[Dict[str, Any]] = None,
     current_user: User = Depends(get_current_user),
 ):

@@ -163,7 +163,7 @@ async def get_quality_metrics(
 @router.get("/metrics/aggregations", response_model=List[MetricAggregationResponse])
 async def get_metric_aggregations(
     metric_types: Optional[List[str]] = Query(None),
-    aggregation_type: str = Query("hourly", regex="^(hourly|daily|weekly|monthly)$"),
+    aggregation_type: str = Query("hourly", pattern="^(hourly|daily|weekly|monthly)$"),
     start_time: Optional[datetime] = Query(None),
     end_time: Optional[datetime] = Query(None),
     current_user: User = Depends(get_current_user),
@@ -212,8 +212,8 @@ async def get_metric_aggregations(
 
 @router.get("/alerts", response_model=List[QualityAlertResponse])
 async def get_quality_alerts(
-    severity: Optional[str] = Query(None, regex="^(low|medium|high|critical)$"),
-    status: Optional[str] = Query("active", regex="^(active|acknowledged|resolved)$"),
+    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$"),
+    status: Optional[str] = Query("active", pattern="^(active|acknowledged|resolved)$"),
     limit: int = Query(100, le=1000),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -242,12 +242,12 @@ async def get_quality_alerts(
                 message=alert.message,
                 status=alert.status,
                 created_at=alert.created_at.isoformat(),
-                acknowledged_at=alert.acknowledged_at.isoformat()
-                if alert.acknowledged_at
-                else None,
-                resolved_at=alert.resolved_at.isoformat()
-                if alert.resolved_at
-                else None,
+                acknowledged_at=(
+                    alert.acknowledged_at.isoformat() if alert.acknowledged_at else None
+                ),
+                resolved_at=(
+                    alert.resolved_at.isoformat() if alert.resolved_at else None
+                ),
             )
             for alert in alerts
         ]
@@ -471,7 +471,7 @@ async def health_check():
 @router.get("/analytics/trends")
 async def get_quality_trends(
     metric_type: str = Query(...),
-    period: str = Query("7d", regex="^(24h|7d|30d)$"),
+    period: str = Query("7d", pattern="^(24h|7d|30d)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -518,10 +518,12 @@ async def get_quality_trends(
             "data": trend_data,
             "summary": {
                 "current_value": trend_data[-1]["value"] if trend_data else None,
-                "trend_direction": "up"
-                if len(trend_data) > 1
-                and trend_data[-1]["value"] > trend_data[0]["value"]
-                else "down",
+                "trend_direction": (
+                    "up"
+                    if len(trend_data) > 1
+                    and trend_data[-1]["value"] > trend_data[0]["value"]
+                    else "down"
+                ),
                 "data_points": len(trend_data),
             },
         }

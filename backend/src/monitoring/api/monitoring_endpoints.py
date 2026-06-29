@@ -82,7 +82,7 @@ class AlertRuleRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     conditions: Dict[str, Any] = Field(..., min_items=1)
-    severity: str = Field(default="medium", regex="^(low|medium|high|critical)$")
+    severity: str = Field(default="medium", pattern="^(low|medium|high|critical)$")
     channels: Optional[List[str]] = Field(default_factory=list)
     description: Optional[str] = None
     category: Optional[str] = None

@@ -174,15 +174,11 @@ async def get_user_behavior_analytics(
             # Must look up target user to compare orgs
             from src.models.user import User as UserModel
 
-            target_user = (
-                db.query(UserModel).filter(UserModel.id == user_id).first()
-            )
+            target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
             if not target_user or str(target_user.organization_id) != str(
                 current_user.organization_id
             ):
-                raise HTTPException(
-                    status_code=403, detail="Insufficient permissions"
-                )
+                raise HTTPException(status_code=403, detail="Insufficient permissions")
 
         metrics = await user_behavior_service.analyze_user_behavior(
             user_id=user_id, days_back=days_back
@@ -248,7 +244,7 @@ async def get_session_analysis(
 async def get_organization_behavior_trends(
     days_back: int = Query(30, ge=1, le=365, description="Days of history to analyze"),
     group_by: str = Query(
-        "day", regex="^(day|week|month)$", description="Grouping period"
+        "day", pattern="^(day|week|month)$", description="Grouping period"
     ),
     current_user: User = Depends(get_current_user),
 ):
@@ -360,9 +356,9 @@ async def get_organization_user_behavior(
     limit: int = Query(50, ge=1, le=200, description="Maximum users to return"),
     sort_by: str = Query(
         "engagement_score",
-        regex="^(engagement_score|session_count|total_searches|last_active)$",
+        pattern="^(engagement_score|session_count|total_searches|last_active)$",
     ),
-    order: str = Query("desc", regex="^(asc|desc)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_sync),
 ):
@@ -377,8 +373,7 @@ async def get_organization_user_behavior(
         # Get all users in the organization
 
         users = db.execute(
-            text(
-                """
+            text("""
             SELECT DISTINCT u.id
             FROM users u
             WHERE u.organization_id = :org_id
@@ -389,8 +384,7 @@ async def get_organization_user_behavior(
             )
             ORDER BY u.created_at DESC
             LIMIT :limit
-        """
-            ),
+        """),
             {
                 "org_id": current_user.organization_id,
                 "cutoff_date": datetime.utcnow() - timedelta(days=90),
@@ -465,8 +459,7 @@ async def get_content_usage_analytics(
 
         # Query content usage from search events
         content_usage = db.execute(
-            text(
-                """
+            text("""
             SELECT
                 d.id as document_id,
                 d.title,
@@ -486,8 +479,7 @@ async def get_content_usage_analytics(
             HAVING COUNT(DISTINCT s.user_id) > 0
             ORDER BY unique_users DESC, total_clicks DESC
             LIMIT :limit
-        """
-            ),
+        """),
             {
                 "org_id": current_user.organization_id,
                 "cutoff_date": datetime.utcnow() - timedelta(days=days_back),
@@ -514,9 +506,11 @@ async def get_content_usage_analytics(
                     "total_clicks": content.total_clicks,
                     "click_through_rate": float(ctr),
                     "avg_results_in_search": float(content.avg_results_in_search or 0),
-                    "last_accessed": content.last_accessed.isoformat()
-                    if content.last_accessed
-                    else None,
+                    "last_accessed": (
+                        content.last_accessed.isoformat()
+                        if content.last_accessed
+                        else None
+                    ),
                 }
             )
 
