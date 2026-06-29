@@ -517,8 +517,9 @@ _CREATE_SUCCESS_CLAIM_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Honest-disclosure phrases: the AI admits the action wasn't performed.
-# If any match, we do NOT flag — the model is being truthful.
+# Honest-disclosure phrases: the AI admits the action wasn't performed (or is
+# uncertain whether the target exists). If any match, we do NOT flag — the model
+# is being truthful, not asserting a fabricated success.
 _CREATE_FAILURE_DISCLOSURE_RE = re.compile(
     r"couldn'?t\s+save"
     r"|no\s+project_id\s+was\s+provided"
@@ -526,7 +527,12 @@ _CREATE_FAILURE_DISCLOSURE_RE = re.compile(
     r"|would\s+you\s+like\s+me\s+to"
     r"|I\s+was\s+unable"
     r"|could\s+not\s+create"
-    r"|was\s+not\s+(?:able|performed|completed)",
+    r"|was\s+not\s+(?:able|performed|completed)"
+    # Honest uncertainty about the target's state — incompatible with claiming a
+    # creation succeeded. Observed false positive (ingest scenario): "I'm ready
+    # to ingest, but I don't yet know if the project X exists in your workspace."
+    r"|do(?:n'?t|\s+not)\s+(?:yet\s+)?know\s+(?:if|whether)"
+    r"|not\s+sure\s+(?:yet\s+)?(?:if|whether)",
     re.IGNORECASE,
 )
 
@@ -861,6 +867,7 @@ def make_reflection_gate(
         if fabrication_issue is not None:
             last_ai_for_log = _last_ai_message(state)
             _snippet = ""
+            _matched = ""
             if last_ai_for_log is not None:
                 _raw = last_ai_for_log.content
                 _text = (
@@ -872,9 +879,15 @@ def make_reflection_gate(
                     else (str(_raw) if _raw else "")
                 )
                 _snippet = _text[:120].replace("\n", " ")
+                # Log the exact span that tripped the claim regex — the 120-char
+                # head often truncates before the match, leaving false positives
+                # undiagnosable. The matched phrase is what to tune against.
+                _m = _CREATE_SUCCESS_CLAIM_RE.search(_text)
+                _matched = _m.group(0).replace("\n", " ") if _m else ""
             logger.warning(
                 "Reflection guard: forcing major-revise — fabricated tool success "
-                "detected (no creation tool ran). snippet=%r intent=%s",
+                "detected (no creation tool ran). matched=%r snippet=%r intent=%s",
+                _matched,
                 _snippet,
                 intent,
             )
