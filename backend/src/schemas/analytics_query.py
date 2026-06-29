@@ -361,7 +361,7 @@ class ComparativeAnalyticsQuery(BaseAnalyticsQuery):
 
     # Comparison metrics
     metrics: List[str] = Field(
-        ..., min_items=1, max_items=10, description="List of metrics to compare"
+        ..., min_length=1, max_length=10, description="List of metrics to compare"
     )
     dimensions: Optional[List[str]] = Field(
         None, description="Dimensions for comparison"

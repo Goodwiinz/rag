@@ -101,7 +101,7 @@ class DocumentUploadResponse(BaseModel):
 class BatchUploadRequest(BaseModel):
     """Batch upload request"""
 
-    documents: List[DocumentUploadRequest] = Field(..., min_items=1, max_items=50)
+    documents: List[DocumentUploadRequest] = Field(..., min_length=1, max_length=50)
     processing_mode: str = Field(
         "parallel", pattern="^(parallel|sequential)$", description="Processing mode"
     )

@@ -124,7 +124,7 @@ class ExperimentCreateRequest(BaseModel):
     )
 
     variants: List[Dict[str, Any]] = Field(
-        ..., min_items=2, description="Experiment variants"
+        ..., min_length=2, description="Experiment variants"
     )
 
     @validator("end_time")
@@ -304,12 +304,14 @@ class VariantResponse(BaseModel):
             click_through_rate=variant.click_through_rate,
             average_response_time_ms=variant.average_response_time_ms,
             standard_error=variant.standard_error,
-            confidence_interval={
-                "lower": variant.confidence_interval_lower,
-                "upper": variant.confidence_interval_upper,
-            }
-            if variant.confidence_interval_lower is not None
-            else None,
+            confidence_interval=(
+                {
+                    "lower": variant.confidence_interval_lower,
+                    "upper": variant.confidence_interval_upper,
+                }
+                if variant.confidence_interval_lower is not None
+                else None
+            ),
             p_value=variant.p_value,
             created_at=variant.created_at,
             updated_at=variant.updated_at,
@@ -405,12 +407,14 @@ class ExperimentResponse(BaseModel):
             winning_variant_id=experiment.winning_variant_id,
             statistical_significance=experiment.statistical_significance,
             effect_size=experiment.effect_size,
-            confidence_interval={
-                "lower": experiment.confidence_interval_lower,
-                "upper": experiment.confidence_interval_upper,
-            }
-            if experiment.confidence_interval_lower is not None
-            else None,
+            confidence_interval=(
+                {
+                    "lower": experiment.confidence_interval_lower,
+                    "upper": experiment.confidence_interval_upper,
+                }
+                if experiment.confidence_interval_lower is not None
+                else None
+            ),
             organization_id=experiment.organization_id,
             created_by=experiment.created_by,
             tags=experiment.tags,
@@ -525,7 +529,7 @@ class MetricSubmissionRequest(BaseModel):
 class BulkMetricSubmissionRequest(BaseModel):
     """Request schema for submitting multiple metrics"""
 
-    metrics: List[MetricSubmissionRequest] = Field(..., min_items=1, max_items=10000)
+    metrics: List[MetricSubmissionRequest] = Field(..., min_length=1, max_length=10000)
     batch_metadata: Optional[Dict[str, Any]] = Field(
         None, description="Batch-level metadata"
     )

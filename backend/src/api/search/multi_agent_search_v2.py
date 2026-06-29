@@ -60,7 +60,7 @@ class AgentBenchmarkRequest(BaseModel):
     """Request for agent benchmarking"""
 
     queries: List[str] = Field(
-        ..., description="List of test queries", min_items=1, max_items=100
+        ..., description="List of test queries", min_length=1, max_length=100
     )
     workflow_types: List[WorkflowType] = Field(
         default=[WorkflowType.FACTUAL_LOOKUP], description="Workflow types to test"
@@ -144,9 +144,11 @@ async def enhanced_multi_agent_search(
                         "title": r.title,
                         "content_preview": r.content_preview,
                         "relevance_score": r.relevance_score,
-                        "source_type": r.source_type.value
-                        if hasattr(r.source_type, "value")
-                        else str(r.source_type),
+                        "source_type": (
+                            r.source_type.value
+                            if hasattr(r.source_type, "value")
+                            else str(r.source_type)
+                        ),
                         "metadata": r.metadata,
                     }
                     for r in result.search_results
@@ -158,10 +160,11 @@ async def enhanced_multi_agent_search(
             agent_performance={
                 agent_type: {
                     "executions": metrics.total_executions,
-                    "success_rate": metrics.successful_executions
-                    / metrics.total_executions
-                    if metrics.total_executions > 0
-                    else 0,
+                    "success_rate": (
+                        metrics.successful_executions / metrics.total_executions
+                        if metrics.total_executions > 0
+                        else 0
+                    ),
                     "avg_time": metrics.average_execution_time,
                     "confidence": metrics.confidence_score,
                 }
@@ -250,9 +253,7 @@ async def get_service_status(current_user: User = Depends(get_current_user)):
 
     except Exception as e:
         logger.error(f"Failed to get service status: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/workflow-recommendations")
@@ -289,9 +290,7 @@ async def get_workflow_recommendations(
 
     except Exception as e:
         logger.error(f"Failed to get workflow recommendations: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/benchmark")
@@ -380,9 +379,7 @@ async def run_agent_benchmark(
 
     except Exception as e:
         logger.error(f"Benchmark failed: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/performance-report")
@@ -433,9 +430,7 @@ async def get_performance_report(
         raise
     except Exception as e:
         logger.error(f"Failed to get performance report: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/reset-metrics")
@@ -483,9 +478,7 @@ async def reset_performance_metrics(
 
     except Exception as e:
         logger.error(f"Failed to reset metrics: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/query-history")
@@ -517,9 +510,11 @@ async def get_query_history(
                 "timestamp": entry["timestamp"].isoformat(),
                 "execution_time": entry["execution_time"],
                 "success_rate": entry["success_rate"],
-                "workflow_type": entry["analysis"].get("workflow_type", {}).value
-                if isinstance(entry["analysis"].get("workflow_type"), WorkflowType)
-                else "unknown",
+                "workflow_type": (
+                    entry["analysis"].get("workflow_type", {}).value
+                    if isinstance(entry["analysis"].get("workflow_type"), WorkflowType)
+                    else "unknown"
+                ),
             }
             formatted_history.append(formatted_entry)
 
@@ -531,9 +526,7 @@ async def get_query_history(
 
     except Exception as e:
         logger.error(f"Failed to get query history: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # Helper Functions
