@@ -26,14 +26,14 @@ def test_schema_registered():
 async def test_returns_empty_when_disabled(monkeypatch):
     fake_settings = MagicMock()
     fake_settings.DO_KB_ENABLED = False
-    monkeypatch.setattr("src.api.agent.tools_impl.settings", fake_settings, raising=False)
+    monkeypatch.setattr(
+        "src.api.agent.tools_impl.settings", fake_settings, raising=False
+    )
 
     user = MagicMock()
     user.organization_id = "org-1"
     db = MagicMock()
-    result = await _tool_do_kb_retrieve(
-        {"query": "anything", "top_k": 4}, db, user
-    )
+    result = await _tool_do_kb_retrieve({"query": "anything", "top_k": 4}, db, user)
     assert result["chunks"] == []
     assert result["total"] == 0
     assert result.get("reason") == "disabled"
@@ -48,15 +48,16 @@ async def test_returns_empty_when_org_has_no_kb():
     db = MagicMock()
     db.get = AsyncMock(return_value=MagicMock(do_kb_uuid=None))
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client",
-    ) as mock_factory:
-        result = await _tool_do_kb_retrieve(
-            {"query": "anything", "top_k": 4}, db, user
-        )
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch(
+            "src.services.do_kb.get_do_kb_client",
+        ) as mock_factory,
+    ):
+        result = await _tool_do_kb_retrieve({"query": "anything", "top_k": 4}, db, user)
         mock_factory.assert_not_called()
 
     assert result["chunks"] == []
@@ -83,22 +84,23 @@ async def test_happy_path_returns_chunks():
     fake_client.retrieve = AsyncMock(
         return_value=RetrieveResult(
             chunks=[
-                Chunk(text="hello", score=0.9, document_id="doc-1", metadata={"k": "v"}),
+                Chunk(
+                    text="hello", score=0.9, document_id="doc-1", metadata={"k": "v"}
+                ),
                 Chunk(text="world", score=0.5, document_id="doc-2", metadata={}),
             ],
             total=2,
         )
     )
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
     ):
-        result = await _tool_do_kb_retrieve(
-            {"query": "hello", "top_k": 5}, db, user
-        )
+        result = await _tool_do_kb_retrieve({"query": "hello", "top_k": 5}, db, user)
 
     assert result["total"] == 2
     assert result["source"] == "do_kb"
@@ -124,15 +126,14 @@ async def test_retrieve_failure_returns_error_not_raise():
     fake_client = MagicMock()
     fake_client.retrieve = AsyncMock(side_effect=RuntimeError("boom"))
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
     ):
-        result = await _tool_do_kb_retrieve(
-            {"query": "x", "top_k": 3}, db, user
-        )
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 3}, db, user)
 
     assert result["chunks"] == []
     assert "error" in result
@@ -151,19 +152,16 @@ async def test_clamps_top_k():
     db.get = AsyncMock(return_value=org_row)
 
     fake_client = MagicMock()
-    fake_client.retrieve = AsyncMock(
-        return_value=RetrieveResult(chunks=[], total=0)
-    )
+    fake_client.retrieve = AsyncMock(return_value=RetrieveResult(chunks=[], total=0))
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
     ):
-        await _tool_do_kb_retrieve(
-            {"query": "x", "top_k": 9999}, db, user
-        )
+        await _tool_do_kb_retrieve({"query": "x", "top_k": 9999}, db, user)
 
     args = fake_client.retrieve.await_args
     assert args.kwargs["top_k"] == 20
@@ -227,11 +225,18 @@ async def test_project_id_filters_out_cross_project_chunks():
         )
     )
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    owned = MagicMock()
+    owned.id = pid
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch(
+            "src.api.agent.tools_impl._verify_project_ownership",
+            AsyncMock(return_value=owned),
+        ),
     ):
         result = await _tool_do_kb_retrieve(
             {"query": "x", "top_k": 5, "project_id": str(pid)}, db, user
@@ -269,15 +274,14 @@ async def test_no_project_id_keeps_all_chunks():
         )
     )
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
     ):
-        result = await _tool_do_kb_retrieve(
-            {"query": "x", "top_k": 5}, db, user
-        )
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
 
     assert len(result["chunks"]) == 2
     assert result["total"] == 2
@@ -285,13 +289,12 @@ async def test_no_project_id_keeps_all_chunks():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_invalid_project_id_uuid_skips_filter_gracefully():
-    """Malformed project_id (not a UUID) with unresolvable chunks returns empty.
+async def test_owned_project_id_with_unresolvable_chunks_returns_empty():
+    """Owned project_id but no chunk resolves to a known document → empty.
 
-    When project_id is set but no chunks resolve to known documents, the
-    shared resolve_and_filter_chunks helper correctly returns an empty list
-    to prevent leaking unscoped content — regardless of whether the
-    project_id itself is a valid UUID.
+    Once ownership is verified, the shared resolve_and_filter_chunks helper
+    still returns an empty list when none of the retrieved chunks map to a
+    document in the project, so unscoped content is never leaked.
     """
     user = MagicMock()
     user.organization_id = "org-1"
@@ -313,15 +316,71 @@ async def test_invalid_project_id_uuid_skips_filter_gracefully():
         )
     )
 
-    with patch(
-        "src.core.config.settings",
-        MagicMock(DO_KB_ENABLED=True),
-    ), patch(
-        "src.services.do_kb.get_do_kb_client", return_value=fake_client
+    owned = MagicMock()
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch(
+            "src.api.agent.tools_impl._verify_project_ownership",
+            AsyncMock(return_value=owned),
+        ),
     ):
         result = await _tool_do_kb_retrieve(
-            {"query": "x", "top_k": 5, "project_id": "not-a-uuid"}, db, user
+            {
+                "query": "x",
+                "top_k": 5,
+                "project_id": "11111111-1111-1111-1111-111111111111",
+            },
+            db,
+            user,
         )
 
     # Unresolvable chunks + project_id → empty (no leaking unscoped content).
     assert len(result["chunks"]) == 0
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_project_id_not_owned_returns_access_denied():
+    """A project_id the caller does not own must be rejected, not used as a
+    filter — otherwise it leaks which org documents belong to that project
+    (membership inference). Mirrors the sibling project tools' guard."""
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[Chunk(text="secret", score=0.9, document_id="x.pdf", metadata={})],
+            total=1,
+        )
+    )
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(DO_KB_ENABLED=True),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch(
+            "src.api.agent.tools_impl._verify_project_ownership",
+            AsyncMock(return_value=None),  # not owned / not found
+        ),
+    ):
+        result = await _tool_do_kb_retrieve(
+            {"query": "x", "top_k": 5, "project_id": "someone-elses-project"},
+            db,
+            user,
+        )
+
+    assert result["chunks"] == []
+    assert result["total"] == 0
+    assert "access denied" in result.get("error", "").lower()
