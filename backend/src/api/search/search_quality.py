@@ -52,7 +52,7 @@ class BenchmarkRequest(BaseModel):
     """Request for search quality benchmark"""
 
     test_queries: List[str] = Field(
-        ..., min_items=1, max_items=50, description="Test queries for benchmarking"
+        ..., min_length=1, max_length=50, description="Test queries for benchmarking"
     )
     search_types: Optional[List[SearchType]] = Field(
         None, description="Search types to test (defaults to all)"
@@ -151,9 +151,7 @@ async def evaluate_search_quality(
 
     except Exception as e:
         logger.error(f"Error evaluating search quality: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/feedback")
@@ -193,9 +191,7 @@ async def submit_user_feedback(
 
     except Exception as e:
         logger.error(f"Error recording user feedback: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/analytics", response_model=QualityAnalyticsResponse)
@@ -230,9 +226,7 @@ async def get_quality_analytics(
         raise
     except Exception as e:
         logger.error(f"Error getting quality analytics: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/benchmark", response_model=BenchmarkResponse)
@@ -321,9 +315,7 @@ async def run_quality_benchmark(
         raise
     except Exception as e:
         logger.error(f"Error running quality benchmark: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/metrics/types")
@@ -390,7 +382,7 @@ async def health_check():
 
 
 def _generate_benchmark_summary(
-    results: Dict[str, Dict[str, SearchEvaluationResponse]]
+    results: Dict[str, Dict[str, SearchEvaluationResponse]],
 ) -> Dict[str, Any]:
     """Generate summary statistics for benchmark results"""
     summary = {

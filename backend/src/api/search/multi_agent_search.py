@@ -82,7 +82,7 @@ class AgentBenchmarkRequest(BaseModel):
     """Request for agent performance benchmark"""
 
     test_queries: List[str] = Field(
-        ..., min_items=1, max_items=10, description="Test queries for benchmarking"
+        ..., min_length=1, max_length=10, description="Test queries for benchmarking"
     )
     agent_configurations: List[Dict[str, Any]] = Field(
         default_factory=list, description="Different agent configurations to test"
@@ -177,9 +177,7 @@ async def multi_agent_search(
 
     except Exception as e:
         logger.error(f"Multi-agent search failed: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/status", response_model=AgentStatusResponse)
@@ -202,9 +200,7 @@ async def get_agent_status(current_user: User = Depends(get_current_user)):
 
     except Exception as e:
         logger.error(f"Error getting agent status: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/benchmark", response_model=AgentBenchmarkResponse)
@@ -543,9 +539,7 @@ async def get_performance_metrics(
 
     except Exception as e:
         logger.error(f"Error getting performance metrics: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/compare")
@@ -595,12 +589,12 @@ async def compare_search_methods(
             "standard_search": {
                 "results_count": len(standard_result.results),
                 "execution_time": standard_time,
-                "avg_relevance_score": sum(
-                    r.relevance_score for r in standard_result.results
-                )
-                / len(standard_result.results)
-                if standard_result.results
-                else 0,
+                "avg_relevance_score": (
+                    sum(r.relevance_score for r in standard_result.results)
+                    / len(standard_result.results)
+                    if standard_result.results
+                    else 0
+                ),
                 "search_type": "hybrid",
             },
             "multi_agent_search": {
@@ -629,9 +623,7 @@ async def compare_search_methods(
 
     except Exception as e:
         logger.error(f"Search comparison failed: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal server error"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 def _get_recommendation(
