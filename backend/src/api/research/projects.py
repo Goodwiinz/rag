@@ -355,9 +355,11 @@ async def list_project_documents(
                         "title": cd.document.title or cd.document.filename,
                         "filename": cd.document.filename,
                         "status": cd.document.processing_status,
-                        "created_at": cd.document.created_at.isoformat()
-                        if cd.document.created_at
-                        else None,
+                        "created_at": (
+                            cd.document.created_at.isoformat()
+                            if cd.document.created_at
+                            else None
+                        ),
                     },
                 }
             )
@@ -411,9 +413,8 @@ async def add_document_to_project(
                 detail=f"Document {document_id} not found",
             )
 
-        if (
-            document.uploaded_by_user_id != current_user.id
-            and not getattr(document, "is_public", False)
+        if document.uploaded_by_user_id != current_user.id and not getattr(
+            document, "is_public", False
         ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -539,18 +540,20 @@ async def add_document_to_project(
             "id": str(collection_doc.id),
             "project_id": str(project_id),
             "document_id": str(document_id),
-            "added_at": collection_doc.created_at.isoformat()
-            if collection_doc.created_at
-            else None,
+            "added_at": (
+                collection_doc.created_at.isoformat()
+                if collection_doc.created_at
+                else None
+            ),
             "sort_order": sort_order,
             "document": {
                 "id": str(document.id),
                 "title": document.title or document.filename,
                 "filename": document.filename,
                 "status": document.processing_status,
-                "created_at": document.created_at.isoformat()
-                if document.created_at
-                else None,
+                "created_at": (
+                    document.created_at.isoformat() if document.created_at else None
+                ),
             },
             "extraction_task_ids": extraction_task_ids,
             "kg_job_id": kg_job_id,
@@ -935,7 +938,7 @@ async def toggle_note_pin(
 @router.get("/{project_id}/bibliography")
 async def get_project_bibliography(
     project_id: UUID,
-    format: str = Query("bibtex", regex="^(bibtex|ieee|apa|mla)$"),
+    format: str = Query("bibtex", pattern="^(bibtex|ieee|apa|mla)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
