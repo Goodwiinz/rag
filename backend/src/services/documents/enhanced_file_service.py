@@ -1010,6 +1010,7 @@ class EnhancedFileService:
         validation_result: Dict[str, Any],
     ) -> Document:
         """Process and store uploaded file with enhanced validation"""
+        document = None  # bound for the except cleanup if commit fails post-upload
         try:
             basic = validation_result["basic_validation"]
             original_ext = Path(file.filename).suffix
@@ -1156,7 +1157,41 @@ class EnhancedFileService:
 
         except Exception as e:
             self.db.rollback()
+            # The storage object was uploaded BEFORE the failed commit, so a
+            # rollback alone orphans it (and, with the org-scoped content-hash
+            # dedup, a stale orphan can block re-uploading the same content).
+            # Best-effort delete the object before surfacing the error.
+            if document is not None:
+                self._best_effort_delete_object(document)
             raise FileStorageError(f"Failed to upload file: {str(e)}")
+
+    def _best_effort_delete_object(self, document: "Document") -> None:
+        """Delete an already-uploaded storage object; never raises.
+
+        Mirrors FileService.delete_physical_file's per-backend dispatch, used to
+        clean up after a commit failure so a failed upload leaves no orphan.
+        """
+        try:
+            backend = getattr(document, "storage_backend", None)
+            path = getattr(document, "storage_path", None)
+            if backend == "s3" and path:
+                from src.core.s3_client import S3StorageHelper
+
+                S3StorageHelper().delete_file(path)
+            elif backend == "supabase" and path:
+                from src.core.supabase_client import parse_storage_key
+
+                bucket, key = parse_storage_key(path)
+                self.storage_helper.delete_file(bucket, key)
+            else:
+                file_path = getattr(document, "file_path", None)
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+        except Exception as cleanup_err:  # noqa: BLE001
+            logger.warning(
+                "Failed to clean up orphaned upload object after commit failure: %s",
+                cleanup_err,
+            )
 
     def generate_file_path(
         self, document_type: DocumentType, organization_id: str
