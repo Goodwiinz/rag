@@ -100,6 +100,16 @@ class AlphaVantageConnector(ExternalDBConnector):
                     )
                 )
             return results
+        except httpx.HTTPStatusError as exc:
+            # raise_for_status's exception stringifies the full request URL,
+            # which carries the apikey query param — log only status + query so
+            # the key never reaches the logs. (Mirrors fred/pubmed.)
+            logger.warning(
+                "alpha_vantage_search_http_error",
+                status=exc.response.status_code,
+                query=query,
+            )
+            return []
         except Exception as exc:
             logger.error("alpha_vantage_search_error", error=str(exc), query=query)
             return []
@@ -130,6 +140,15 @@ class AlphaVantageConnector(ExternalDBConnector):
                 metadata={"symbol": record_id, "quote": quote},
                 document_type="quote",
             )
+        except httpx.HTTPStatusError as exc:
+            # See search(): the exception's URL carries the apikey — log status
+            # + symbol only, never str(exc).
+            logger.warning(
+                "alpha_vantage_fetch_http_error",
+                status=exc.response.status_code,
+                symbol=record_id,
+            )
+            return None
         except Exception as exc:
             logger.error("alpha_vantage_fetch_error", error=str(exc), symbol=record_id)
             return None
