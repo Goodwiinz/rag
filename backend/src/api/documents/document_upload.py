@@ -427,6 +427,13 @@ async def upload_single_document(
         # effort: delete the object, soft-delete the row, revert the quota.
         if document is not None:
             try:
+                # The motivating failure is the ProcessingJob commit, which
+                # leaves the AsyncSession in a doomed state — any further DB op
+                # raises PendingRollbackError until an explicit rollback. Clear
+                # it FIRST, otherwise the soft-delete + quota-revert below never
+                # persist and the orphaned PENDING row survives. (After rollback
+                # the already-committed rows reload cleanly.)
+                await db.rollback()
                 file_service._best_effort_delete_object(document)
                 document.soft_delete()
                 organization.update_storage_usage(-(document.file_size_bytes or 0))
