@@ -106,6 +106,12 @@ export function useChatSession(): UseChatSessionReturn {
     (state) => state.currentThreadId
   );
   const setCurrentThread = useChatStore((state) => state.setCurrentThread);
+  // `activeThreadId` MUST be declared before the selector below. zustand runs
+  // the selector synchronously during render, so referencing activeThreadId
+  // while it was still declared further down read it in its temporal dead zone
+  // -> "Cannot access 'activeThreadId' before initialization", which crashed
+  // /chat on mount in the production bundle.
+  const activeThreadId = currentThreadIdFromStore || activeConversationId;
   // Select only the active thread's messages to avoid re-renders when
   // background threads change (streaming elsewhere, FIFO eviction, etc.).
   const activeThreadMessages = useChatStore((state) =>
@@ -118,7 +124,6 @@ export function useChatSession(): UseChatSessionReturn {
   const messagePagination = useChatStore((state) => state.messagePagination);
 
   // ---- Derived values ----
-  const activeThreadId = currentThreadIdFromStore || activeConversationId;
   const displayedMessages = useMemo(
     () =>
       selectDisplayedMessages({
