@@ -1,7 +1,7 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **One environment so far — `dev`** (no staging/prod yet).
-Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS `dev` cluster** (namespace `rag-dev`):
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **`dev` + `staging` are live** (ArgoCD auto-sync from `develop`, gitops image bumps for both); **`production` is scaffolded** (`values-production.yaml`, `api.gen-text.app`, namespace `rag-production`) but not yet actively deployed/bumped. `dev` is the primary working env.
+Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS cluster** — namespaces `rag-dev` / `rag-staging` / `rag-production`:
 Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
 ## Development Workflow
@@ -78,7 +78,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
+`dev` + `staging` deploy via ArgoCD (gitops bumps both); `production` is scaffolded (values + `rag-production` namespace) but not yet actively bumped. `dev` is the primary working env. Two ways to run `dev`:
 
 ### Local (`docker-compose.development.yml`)
 
@@ -92,18 +92,19 @@ Only one environment so far: **`dev`**. No staging/prod yet. Two ways to run it:
 
 ### DOKS `dev` cluster (namespace `rag-dev`, ArgoCD auto-sync from `develop`)
 
-| Layer          | Provider                     | Notes                                                                  |
-| -------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler      |
-| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                              |
-| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)         |
-| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                      |
-| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`                 |
-| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                      |
-| LLM            | **Azure OpenAI**             | Chat/agent deployment                                                  |
-| Frontend       | **Vercel**                   | `goodwiinz.tech` (+ `www`); backend API ingress `dev-api.gen-text.app` |
-| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                 |
-| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)     |
+| Layer          | Provider                     | Notes                                                                                                                                                            |
+| -------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Postgres       | **Supabase** (managed)       | `SUPABASE_DB_URL` overrides `DATABASE_URL`; pool tuned for pooler                                                                                                |
+| Auth           | **Supabase** (hosted GoTrue) | No backend login/register                                                                                                                                        |
+| Redis          | **DO Managed Redis**         | External; in-cluster subchart disabled (`redis.enabled:false`)                                                                                                   |
+| Object storage | **DO Spaces** `nyc3`         | `STORAGE_BACKEND=s3`, bucket `rag-system-storage`                                                                                                                |
+| Neo4j          | In-cluster                   | `bolt://nous-dev-knowledge-graph-analytics-neo4j:7687`                                                                                                           |
+| Background     | **Celery** worker (HPA 1–5)  | Broker = DO Redis                                                                                                                                                |
+| Synthetic load | **CronJob** (`*/20`, dev)    | `scripts.synthetic_traffic --rotate` drives the agent in-process → real `rag-agent-dev` LangSmith traces; gated `syntheticTraffic.enabled` (off in staging/prod) |
+| LLM            | **Azure OpenAI**             | Chat/agent deployment                                                                                                                                            |
+| Frontend       | **Vercel**                   | `goodwiinz.tech` (+ `www`); backend API ingress `dev-api.gen-text.app`                                                                                           |
+| Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                                                                                                           |
+| Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)                                                                                               |
 
 > **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
 
