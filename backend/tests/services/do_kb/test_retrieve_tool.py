@@ -289,13 +289,12 @@ async def test_no_project_id_keeps_all_chunks():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_invalid_project_id_uuid_skips_filter_gracefully():
-    """Malformed project_id (not a UUID) with unresolvable chunks returns empty.
+async def test_owned_project_id_with_unresolvable_chunks_returns_empty():
+    """Owned project_id but no chunk resolves to a known document → empty.
 
-    When project_id is set but no chunks resolve to known documents, the
-    shared resolve_and_filter_chunks helper correctly returns an empty list
-    to prevent leaking unscoped content — regardless of whether the
-    project_id itself is a valid UUID.
+    Once ownership is verified, the shared resolve_and_filter_chunks helper
+    still returns an empty list when none of the retrieved chunks map to a
+    document in the project, so unscoped content is never leaked.
     """
     user = MagicMock()
     user.organization_id = "org-1"
