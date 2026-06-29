@@ -582,6 +582,28 @@ async def archive_thread(
     )
 
 
+def _run_thread_summary_sync(thread_id: UUID) -> Optional[str]:
+    """Drive the (sync-session) summarization service from a worker thread.
+
+    Mirrors ``summarize_thread_task``: a fresh sync ``SessionLocal`` plus
+    ``asyncio.run`` for the service's async LLM calls. Module-level (not a
+    closure) so it can be unit-tested directly. Always closes its session.
+    """
+    import asyncio
+
+    from src.core.database import SessionLocal
+    from src.services.threads.thread_summarization_service import (
+        get_thread_summarization_service,
+    )
+
+    sync_db = SessionLocal()
+    try:
+        service = get_thread_summarization_service(sync_db)
+        return asyncio.run(service.generate_summary(thread_id, force=True))
+    finally:
+        sync_db.close()
+
+
 @router.post("/{thread_id}/summarize", response_model=ThreadResponse)
 async def regenerate_thread_summary(
     thread_id: UUID,
@@ -601,15 +623,17 @@ async def regenerate_thread_summary(
             status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found"
         )
 
-    # Import and call summarization service
-    from src.services.threads.thread_summarization_service import (
-        get_thread_summarization_service,
-    )
-
-    summarization_service = get_thread_summarization_service(db)
+    # The summarization service uses the SYNC SQLAlchemy API (db.query / commit)
+    # and is shared with the Celery task, which drives it from a sync
+    # SessionLocal + asyncio.run. The HTTP path must do the same: handing it the
+    # request's AsyncSession raises AttributeError ("'AsyncSession' has no
+    # attribute 'query'") and 500s every call. Run it in a worker thread with its
+    # own sync session + event loop so the blocking DB I/O stays off the request
+    # loop, mirroring the Celery driver exactly.
+    import asyncio
 
     try:
-        summary = await summarization_service.generate_summary(thread_id, force=True)
+        summary = await asyncio.to_thread(_run_thread_summary_sync, thread_id)
 
         if summary:
             logger.info(f"Regenerated summary for thread {thread_id}")
@@ -623,8 +647,9 @@ async def regenerate_thread_summary(
             detail="Summary generation failed",
         )
 
-    # Refresh thread to get updated summary
-    db.refresh(thread)
+    # The sync service committed via its own session; refresh the async-session
+    # copy so the response reflects the freshly written summary.
+    await db.refresh(thread)
 
     return ThreadResponse(
         id=thread.id,
