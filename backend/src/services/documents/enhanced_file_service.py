@@ -107,6 +107,7 @@ class EnhancedFileService:
         # Security scan configuration
         # Use standard ClamAV socket locations, configurable via settings
         import os
+
         default_socket = os.environ.get("CLAMD_SOCKET", "/var/run/clamav/clamd.sock")
         self.clamd_socket = getattr(settings, "CLAMD_SOCKET", default_socket)
         self.max_scan_size_mb = getattr(settings, "MAX_VIRUS_SCAN_SIZE_MB", 100)
@@ -211,9 +212,9 @@ class EnhancedFileService:
                 "security_scan": security_scan,
                 "integrity_check": integrity_check,
                 "validation_timestamp": datetime.utcnow(),
-                "validation_status": "passed"
-                if not security_scan["virus_detected"]
-                else "failed",
+                "validation_status": (
+                    "passed" if not security_scan["virus_detected"] else "failed"
+                ),
             }
 
         except Exception as e:
@@ -683,9 +684,11 @@ class EnhancedFileService:
                     "file_hash": file_hash,
                     "structure_valid": structure_valid,
                     "corruption_check": corruption_check,
-                    "integrity_status": "passed"
-                    if structure_valid and not corruption_check
-                    else "failed",
+                    "integrity_status": (
+                        "passed"
+                        if structure_valid and not corruption_check
+                        else "failed"
+                    ),
                 }
 
             finally:
@@ -954,6 +957,46 @@ class EnhancedFileService:
                 hash_sha256.update(chunk)
         return hash_sha256.hexdigest()
 
+    # Generic 409 message — must NOT echo the matching document's title /
+    # filename / id (that would disclose another row's metadata).
+    _DUPLICATE_DETAIL = (
+        "A document with identical content already exists in this workspace."
+    )
+
+    def _find_org_duplicate(
+        self, file_hash: str, organization_id
+    ) -> Optional["Document"]:
+        """Return a non-deleted Document in THIS org with the same content hash.
+
+        Scoped to ``organization_id``: a content match in another tenant must
+        never block this upload nor be disclosed back to the caller. Without the
+        org filter the by-hash dedup leaked another tenant's title/filename/id
+        via the 409 detail and wrongly blocked common shared content. Checks the
+        ``checksum_sha256`` column first, then the legacy ``metadata.file_hash``.
+        """
+        existing = (
+            self.db.query(Document)
+            .filter(
+                Document.checksum_sha256 == file_hash,
+                Document.organization_id == organization_id,
+                Document.is_deleted.isnot(True),
+            )
+            .first()
+        )
+        if existing is None:
+            from sqlalchemy import String, cast
+
+            existing = (
+                self.db.query(Document)
+                .filter(
+                    cast(Document.document_metadata["file_hash"], String) == file_hash,
+                    Document.organization_id == organization_id,
+                    Document.is_deleted.isnot(True),
+                )
+                .first()
+            )
+        return existing
+
     async def upload_file(
         self,
         file: UploadFile,
@@ -977,7 +1020,9 @@ class EnhancedFileService:
                 import uuid as _uuid
 
                 doc_id = str(_uuid.uuid4())
-                bucket_prefix = self.TYPE_TO_BUCKET.get(basic["document_type"], "documents")
+                bucket_prefix = self.TYPE_TO_BUCKET.get(
+                    basic["document_type"], "documents"
+                )
                 s3_key = (
                     f"{bucket_prefix}/{organization.id}/{doc_id}/"
                     f"{int(time.time())}_{_uuid.uuid4().hex[:8]}{original_ext}"
@@ -987,34 +1032,9 @@ class EnhancedFileService:
                 file.file.seek(0)
                 file_hash = hashlib.sha256(file_content).hexdigest()
 
-                # Check for duplicate by content hash
-                existing = (
-                    self.db.query(Document)
-                    .filter(
-                        Document.checksum_sha256 == file_hash,
-                        Document.is_deleted.isnot(True),
-                    )
-                    .first()
-                )
-                if existing is None:
-                    from sqlalchemy import cast, String
-                    existing = (
-                        self.db.query(Document)
-                        .filter(
-                            cast(Document.document_metadata["file_hash"], String) == file_hash,
-                            Document.is_deleted.isnot(True),
-                        )
-                        .first()
-                    )
-                if existing is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"A document with identical content already exists: "
-                            f"'{existing.title or existing.filename}' "
-                            f"(id: {existing.id})"
-                        ),
-                    )
+                # Block re-uploading identical content (scoped to THIS org).
+                if self._find_org_duplicate(file_hash, organization.id) is not None:
+                    raise HTTPException(status_code=409, detail=self._DUPLICATE_DETAIL)
 
                 self.s3_helper.upload_file(s3_key, file_content, mime_type)
 
@@ -1051,34 +1071,9 @@ class EnhancedFileService:
                 file.file.seek(0)
                 file_hash = hashlib.sha256(file_content).hexdigest()
 
-                # Check for duplicate by content hash
-                existing = (
-                    self.db.query(Document)
-                    .filter(
-                        Document.checksum_sha256 == file_hash,
-                        Document.is_deleted.isnot(True),
-                    )
-                    .first()
-                )
-                if existing is None:
-                    from sqlalchemy import cast, String
-                    existing = (
-                        self.db.query(Document)
-                        .filter(
-                            cast(Document.document_metadata["file_hash"], String) == file_hash,
-                            Document.is_deleted.isnot(True),
-                        )
-                        .first()
-                    )
-                if existing is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"A document with identical content already exists: "
-                            f"'{existing.title or existing.filename}' "
-                            f"(id: {existing.id})"
-                        ),
-                    )
+                # Block re-uploading identical content (scoped to THIS org).
+                if self._find_org_duplicate(file_hash, organization.id) is not None:
+                    raise HTTPException(status_code=409, detail=self._DUPLICATE_DETAIL)
 
                 storage_key = self.storage_helper.upload_file(
                     bucket, key, file_content, mime_type
@@ -1112,29 +1107,14 @@ class EnhancedFileService:
                 saved_path = await self.save_file_permanently(file, file_path_with_ext)
                 file_hash = self.calculate_file_hash(saved_path)
 
-                # Check for duplicate by content hash
-                existing = (
-                    self.db.query(Document)
-                    .filter(
-                        Document.checksum_sha256 == file_hash,
-                        Document.is_deleted.isnot(True),
-                    )
-                    .first()
-                )
-                if existing is not None:
-                    # Clean up the saved file since it's a duplicate
+                # Block re-uploading identical content (scoped to THIS org).
+                if self._find_org_duplicate(file_hash, organization.id) is not None:
+                    # Clean up the saved file since it's a duplicate.
                     try:
                         os.remove(saved_path)
                     except OSError:
                         pass
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"A document with identical content already exists: "
-                            f"'{existing.title or existing.filename}' "
-                            f"(id: {existing.id})"
-                        ),
-                    )
+                    raise HTTPException(status_code=409, detail=self._DUPLICATE_DETAIL)
 
                 document = Document(
                     title=title,
