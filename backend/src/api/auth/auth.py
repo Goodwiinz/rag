@@ -25,6 +25,8 @@ from src.core.security import (
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
     AuthService,
+    AuthenticationError,
+    RegistrationError,
     get_auth_service,
 )
 
@@ -93,8 +95,14 @@ async def update_profile(
             "user": updated_user.to_dict(exclude_sensitive=True),
         }
 
-    except Exception as e:
+    except (AuthenticationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in update_profile: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
 
 
 @router.post("/change-password")
@@ -141,12 +149,20 @@ async def change_password(
         # Success: no recording
         return {"message": "Password changed successfully"}
 
+    except (AuthenticationError, RegistrationError) as e:
+        # Failure: record attempts for both layers
+        await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
+        await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         # Failure: record attempts for both layers
         await auth_rate_limiter.record_attempt(client_ip, prefix="chpw_ip")
         await auth_rate_limiter.record_attempt(current_user.email, prefix="chpw_email")
-
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        logger.error(f"Error in change_password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
 
 
 @router.get("/users")
@@ -207,8 +223,14 @@ async def update_user_role(
             "user": updated_user.to_dict(exclude_sensitive=True),
         }
 
-    except Exception as e:
+    except (AuthenticationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in update_user_role: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
 
 
 @router.post("/users/{user_id}/deactivate")
@@ -239,8 +261,14 @@ async def deactivate_user(
 
         return {"message": "User deactivated successfully"}
 
-    except Exception as e:
+    except (AuthenticationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in deactivate_user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
 
 
 @router.get("/statistics")
@@ -274,5 +302,11 @@ async def cleanup_inactive_users(
             "deleted_count": deleted_count,
         }
 
-    except Exception as e:
+    except (AuthenticationError, RegistrationError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in cleanup_inactive_users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred while processing the request"
+        )
