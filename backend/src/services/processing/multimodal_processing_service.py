@@ -3,6 +3,7 @@ Multimodal Processing Service with async pipeline for OCR, transcription, and AI
 """
 
 import asyncio
+import io
 import logging
 import os
 import time
