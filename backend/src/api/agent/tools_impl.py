@@ -1261,6 +1261,27 @@ async def _tool_do_kb_retrieve(
     # Resolve storage-key document_ids back to real Document rows and
     # optionally filter by project membership.
     project_id = args.get("project_id")
+    # When the caller scopes to a project, verify they actually own it before
+    # using it as a filter — otherwise passing another (in-org) project's id
+    # would reveal which org documents belong to it (membership inference).
+    # Mirrors the _verify_project_ownership guard the sibling project tools use.
+    resolved_project_id: Optional[str] = None
+    if project_id:
+        if db is None:
+            # Can't verify without a session — drop the filter rather than
+            # trust an unverified id (fall back to org-wide scoping).
+            project_id = None
+        else:
+            project = await _verify_project_ownership(project_id, db, current_user)
+            if not project:
+                return {
+                    "chunks": [],
+                    "total": 0,
+                    "source": "do_kb",
+                    "error": "Project not found or access denied",
+                }
+            resolved_project_id = str(project.id)
+
     title_by_key: dict[str, tuple[str, str]] = {}
     chunks_to_emit = result.chunks
     if db is not None and result.chunks:
@@ -1270,7 +1291,7 @@ async def _tool_do_kb_retrieve(
             chunks=result.chunks,
             org_id=current_user.organization_id,
             session=db,
-            project_id=project_id,
+            project_id=resolved_project_id,
         )
 
     chunks_payload = []
