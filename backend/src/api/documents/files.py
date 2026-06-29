@@ -241,7 +241,8 @@ async def list_files(
     except Exception as e:
         logger.error(f"Error in list_files: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
         )
 
 
@@ -264,7 +265,8 @@ async def get_file_statistics(
     except Exception as e:
         logger.error(f"Error getting file statistics: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
         )
 
 
@@ -320,6 +322,19 @@ async def download_file(
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
         signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
+        return RedirectResponse(url=signed_url, status_code=302)
+
+    # S3 / DO Spaces (the deployed default). Without this branch the code fell
+    # through to the os.path.exists() check below against an 's3://...' path,
+    # which never exists on disk → every S3-backed document 404'd. Mirror the
+    # supabase branch: redirect to a short-lived presigned URL keyed by the
+    # stored object key.
+    if document.storage_backend == "s3" and document.storage_path:
+        from src.core.s3_client import S3StorageHelper
+
+        signed_url = S3StorageHelper().create_signed_url(
+            document.storage_path, expires_in=3600
+        )
         return RedirectResponse(url=signed_url, status_code=302)
 
     # Local file path
@@ -597,7 +612,6 @@ async def cancel_upload(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
-
 
 
 @router.post("/{file_id}/reprocess")
