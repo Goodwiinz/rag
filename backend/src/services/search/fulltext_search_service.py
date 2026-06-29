@@ -144,7 +144,9 @@ class FullTextSearchService:
             # Generate suggestions if needed
             suggestions = None
             if len(search_results) < 5:
-                suggestions = self._get_search_suggestions(search_request.query, db)
+                suggestions = self._get_search_suggestions(
+                    search_request.query, db, organization_id
+                )
 
             return SearchResponse(
                 query=search_request.query,
@@ -189,9 +191,7 @@ class FullTextSearchService:
         max_results = limit or self.default_limit
 
         for row in rows[:max_results]:
-            score = (
-                self._calculate_bm25_score(query, row) if use_ranking else 1.0
-            )
+            score = self._calculate_bm25_score(query, row) if use_ranking else 1.0
             results.append(
                 {
                     "document_id": getattr(row, "id", None),
@@ -451,9 +451,9 @@ class FullTextSearchService:
                 document_type=document_type,
                 content_preview=content_preview,
                 snippets=snippets,
-                relevance_score=float(row.relevance_score)
-                if row.relevance_score
-                else 0.0,
+                relevance_score=(
+                    float(row.relevance_score) if row.relevance_score else 0.0
+                ),
                 file_size_bytes=row.file_size_bytes,
                 created_at=row.created_at,
                 updated_at=row.updated_at,
@@ -513,26 +513,38 @@ class FullTextSearchService:
 
         return snippets
 
-    def _get_search_suggestions(self, query: str, db: Session) -> List[str]:
-        """Get search suggestions based on existing documents"""
+    def _get_search_suggestions(
+        self, query: str, db: Session, organization_id: Optional[str] = None
+    ) -> List[str]:
+        """Get search suggestions from existing documents IN THE CALLER'S ORG.
+
+        Suggestions are derived from document titles via a substring LIKE, so
+        without an org filter they leak other tenants' document titles to any
+        user whose search returned <5 results. Scope to ``organization_id``;
+        when it's absent we can't scope safely, so return no suggestions rather
+        than disclose across tenants.
+        """
+        if not organization_id:
+            return []
         try:
-            # Simple suggestion based on document titles and content
-            suggestion_query = text(
-                r"""
+            # Simple suggestion based on document titles and content, scoped to
+            # the caller's organization.
+            suggestion_query = text(r"""
                 SELECT DISTINCT
                     regexp_replace(regexp_replace(lower(title), '[^a-zA-Z0-9\s]', ' ', 'g'), '\s+', ' ', 'g') as suggestion
                 FROM documents
                 WHERE is_deleted = false
                     AND processing_status = :completed_status
+                    AND organization_id = :organization_id
                     AND lower(title) LIKE lower(:query_pattern)
                 LIMIT 5
-            """
-            )
+            """)
 
             result = db.execute(
                 suggestion_query,
                 {
                     "completed_status": ProcessingStatus.COMPLETED.name,
+                    "organization_id": organization_id,
                     "query_pattern": f"%{query}%",
                 },
             )
@@ -576,9 +588,11 @@ class FullTextSearchService:
 
         return {
             "document_ids": filters.document_ids,
-            "document_types": [dt.value for dt in filters.document_types]
-            if filters.document_types
-            else None,
+            "document_types": (
+                [dt.value for dt in filters.document_types]
+                if filters.document_types
+                else None
+            ),
             "tags": filters.tags,
             "date_from": filters.date_from.isoformat() if filters.date_from else None,
             "date_to": filters.date_to.isoformat() if filters.date_to else None,
@@ -635,8 +649,7 @@ class FullTextSearchService:
             db = next(get_db_sync())
 
         try:
-            update_query = text(
-                """
+            update_query = text("""
                 UPDATE documents
                 SET search_vector =
                     setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -644,8 +657,7 @@ class FullTextSearchService:
                     setweight(to_tsvector('english', coalesce(content_summary, '')), 'C') ||
                     setweight(to_tsvector('english', coalesce(array_to_string(tags, ' '), '')), 'D')
                 WHERE id = :document_id
-            """
-            )
+            """)
 
             db.execute(update_query, {"document_id": document_id})
             db.commit()
@@ -696,9 +708,9 @@ class FullTextSearchService:
 
                 return {
                     "total_documents": row.total_documents if row else 0,
-                    "avg_file_size_bytes": float(row.avg_file_size)
-                    if row and row.avg_file_size
-                    else 0,
+                    "avg_file_size_bytes": (
+                        float(row.avg_file_size) if row and row.avg_file_size else 0
+                    ),
                     "unique_types": row.unique_types if row else 0,
                     "unique_uploaders": row.unique_uploaders if row else 0,
                     "searchable_documents": row.total_documents if row else 0,
