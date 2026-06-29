@@ -110,6 +110,37 @@ class TestDetectFabricatedToolSuccess:
         )
         assert _detect_fabricated_tool_success(state) is None
 
+    def test_honest_uncertainty_suppresses_flag(self):
+        """Observed false positive (ingest scenario): the model expresses honest
+        uncertainty about whether the target project exists — incompatible with
+        claiming a creation succeeded. Even when a later clause trips the claim
+        regex, the uncertainty disclosure must suppress the flag so an honest
+        no-tool turn isn't force-revised. (Disclosure is checked before the
+        claim regex, so it wins.)"""
+        # "added … to the project" trips the claim regex; "don't yet know if"
+        # is the honest-uncertainty disclosure that must override it.
+        state = _make_state(
+            ai_content=(
+                "I don't yet know if the project synthtraffic-20260629 exists in "
+                "your workspace, but I've added the paper to the project."
+            ),
+            tool_executions=[],
+        )
+        assert _detect_fabricated_tool_success(state) is None
+
+    def test_not_sure_whether_suppresses_flag(self):
+        """'not sure whether' uncertainty also reads as honest, not a claim.
+
+        'created the project' trips the claim regex; 'not sure whether' overrides."""
+        state = _make_state(
+            ai_content=(
+                "I'm not sure whether that project exists yet, so I have not "
+                "created the project — want me to?"
+            ),
+            tool_executions=[],
+        )
+        assert _detect_fabricated_tool_success(state) is None
+
     def test_real_success_suppresses_flag(self):
         """AI says created + create_project completed → no fabrication."""
         state = _make_state(
