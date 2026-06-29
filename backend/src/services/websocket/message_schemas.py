@@ -422,7 +422,7 @@ class BatchUpdateData(BaseModel):
 
     # Sample updates (for large batches)
     sample_document_updates: List[DocumentStatusData] = Field(
-        default_factory=list, max_items=10
+        default_factory=list, max_length=10
     )
 
     # Batch metadata

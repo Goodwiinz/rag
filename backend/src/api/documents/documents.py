@@ -131,7 +131,12 @@ class DocumentStatusResponse(BaseModel):
 
 
 class DuplicateCheckRequest(BaseModel):
-    sha256: str = Field(..., min_length=64, max_length=64, description="SHA-256 hex digest of file content")
+    sha256: str = Field(
+        ...,
+        min_length=64,
+        max_length=64,
+        description="SHA-256 hex digest of file content",
+    )
 
 
 class DuplicateCheckResponse(BaseModel):
@@ -140,7 +145,7 @@ class DuplicateCheckResponse(BaseModel):
 
 
 class BulkDocumentRequest(BaseModel):
-    document_ids: List[str] = Field(..., min_items=1, max_items=100)
+    document_ids: List[str] = Field(..., min_length=1, max_length=100)
 
 
 class BulkDocumentResponse(BaseModel):
@@ -246,7 +251,8 @@ async def list_documents(
         None, description="Filter by document type"
     ),
     processing_status: Optional[str] = Query(
-        None, description="Filter by processing status (accepts: pending, processing, completed, failed, retrying, queued, indexed)"
+        None,
+        description="Filter by processing status (accepts: pending, processing, completed, failed, retrying, queued, indexed)",
     ),
     search: Optional[str] = Query(None, description="Search in title and filename"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
@@ -698,7 +704,9 @@ async def get_document_status(
         and processing_job.progress_percentage < 100
     ):
         # Simple estimation based on current progress
-        elapsed_time = (datetime.now(timezone.utc) - processing_job.started_at).total_seconds()
+        elapsed_time = (
+            datetime.now(timezone.utc) - processing_job.started_at
+        ).total_seconds()
         if processing_job.progress_percentage > 0:
             estimated_total_time = elapsed_time / (
                 processing_job.progress_percentage / 100
@@ -781,8 +789,14 @@ async def check_duplicate(
             is_public=existing.is_public or False,
             created_at=str(existing.created_at) if existing.created_at else "",
             updated_at=str(existing.updated_at) if existing.updated_at else "",
-            uploaded_by_user_id=str(existing.uploaded_by_user_id) if existing.uploaded_by_user_id else "",
-            organization_id=str(existing.organization_id) if existing.organization_id else "",
+            uploaded_by_user_id=(
+                str(existing.uploaded_by_user_id)
+                if existing.uploaded_by_user_id
+                else ""
+            ),
+            organization_id=(
+                str(existing.organization_id) if existing.organization_id else ""
+            ),
         ),
     )
 
