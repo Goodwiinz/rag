@@ -545,8 +545,13 @@ class FileService:
                         df = pd.read_excel(file_path)
                     return df.to_string()
                 except Exception as e:
-                    logger.warning(f"Spreadsheet processing failed: {str(e)}")
-                    return ""
+                    # pandas IS available here (the missing-pandas capability
+                    # gap returned "" above), so this is a real parse failure of
+                    # an existing file. Raise — returning "" would index the
+                    # corrupt file as empty and mark it COMPLETED/indexed, i.e.
+                    # silently unqueryable. The pipeline catches this → FAILED.
+                    logger.error(f"Spreadsheet extraction failed for {file_path}: {e}")
+                    raise
 
             elif document.document_type == DocumentType.PRESENTATION:
                 # PowerPoint file (basic extraction)
@@ -560,9 +565,19 @@ class FileService:
                             if hasattr(shape, "text"):
                                 text.append(shape.text)
                     return "\n".join(text)
-                except (ImportError, ValueError, IOError) as e:
-                    logger.warning(f"Failed to extract text from PowerPoint: {e}")
+                except ImportError:
+                    # python-pptx not installed: a capability gap, not a bad
+                    # file. Empty (like the missing-pandas case) — don't fail the
+                    # document over a missing optional dependency.
+                    logger.warning(
+                        "python-pptx not available, skipping presentation processing"
+                    )
                     return ""
+                except (ValueError, IOError) as e:
+                    # Corrupt/unreadable presentation — raise so the document is
+                    # marked FAILED rather than indexed empty + COMPLETED.
+                    logger.error(f"Presentation extraction failed for {file_path}: {e}")
+                    raise
 
             elif document.document_type == DocumentType.IMAGE:
                 # For images, we could use OCR here (integrate with Tesseract)
