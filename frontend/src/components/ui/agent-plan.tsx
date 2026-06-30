@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   Circle,
@@ -16,7 +16,7 @@ import {
 } from 'framer-motion';
 
 // Type definitions
-interface Subtask {
+export interface Subtask {
   id: string;
   title: string;
   description: string;
@@ -25,7 +25,7 @@ interface Subtask {
   tools?: string[]; // Optional array of MCP server tools
 }
 
-interface Task {
+export interface Task {
   id: string;
   title: string;
   description: string;
@@ -34,10 +34,12 @@ interface Task {
   level: number;
   dependencies: string[];
   subtasks: Subtask[];
+  /** Optional tools surfaced at the task level (used when a task has no subtasks) */
+  tools?: string[];
 }
 
-// Initial task data
-const initialTasks: Task[] = [
+// Initial task data — used as the default for the standalone demo route
+export const initialTasks: Task[] = [
   {
     id: '1',
     title: 'Research Project Requirements',
@@ -223,12 +225,64 @@ const initialTasks: Task[] = [
   },
 ];
 
-export default function Plan(): React.JSX.Element {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+// Status → NOUS-themed glyph. Shared by task and subtask rows.
+function statusGlyph(status: string, sizeClass: string): React.JSX.Element {
+  switch (status) {
+    case 'completed':
+      return <CheckCircle2 className={`${sizeClass} text-emerald-500`} />;
+    case 'in-progress':
+      return <CircleDotDashed className={`${sizeClass} text-sol`} />;
+    case 'need-help':
+      return <CircleAlert className={`${sizeClass} text-amber-500`} />;
+    case 'failed':
+      return <CircleX className={`${sizeClass} text-red-500`} />;
+    default:
+      return <Circle className={`text-muted-foreground/40 ${sizeClass}`} />;
+  }
+}
+
+// Status → NOUS-themed badge classes.
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case 'completed':
+      return 'bg-emerald-500/10 text-emerald-500';
+    case 'in-progress':
+      return 'bg-sol/10 text-sol';
+    case 'need-help':
+      return 'bg-amber-500/10 text-amber-600';
+    case 'failed':
+      return 'bg-red-500/10 text-red-500';
+    default:
+      return 'bg-muted text-muted-foreground';
+  }
+}
+
+interface PlanProps {
+  /** Tasks to render. Defaults to the demo dataset. */
+  tasks?: Task[];
+  /**
+   * Read-only mode: status is derived externally, so the status glyphs are not
+   * clickable and never mutate. Expand/collapse stays interactive.
+   */
+  readOnly?: boolean;
+}
+
+export default function Plan({
+  tasks: tasksProp = initialTasks,
+  readOnly = false,
+}: PlanProps): React.JSX.Element {
+  const [tasks, setTasks] = useState<Task[]>(tasksProp);
   const [expandedTasks, setExpandedTasks] = useState<string[]>(['1']);
   const [expandedSubtasks, setExpandedSubtasks] = useState<{
     [key: string]: boolean;
   }>({});
+
+  // Re-sync internal state when the caller supplies new tasks (e.g. live plan
+  // updates). Expansion state is preserved across updates.
+  useEffect(() => {
+    setTasks(tasksProp);
+  }, [tasksProp]);
+
   // Add support for reduced motion preference
   const prefersReducedMotion =
     typeof window !== 'undefined'
@@ -253,7 +307,7 @@ export default function Plan(): React.JSX.Element {
     }));
   };
 
-  // Toggle task status
+  // Toggle task status (demo-only; disabled in read-only mode)
   const toggleTaskStatus = (taskId: string): void => {
     setTasks((prev) =>
       prev.map((task) => {
@@ -286,7 +340,7 @@ export default function Plan(): React.JSX.Element {
     );
   };
 
-  // Toggle subtask status
+  // Toggle subtask status (demo-only; disabled in read-only mode)
   const toggleSubtaskStatus = (taskId: string, subtaskId: string): void => {
     setTasks((prev) =>
       prev.map((task) => {
@@ -438,6 +492,10 @@ export default function Plan(): React.JSX.Element {
               {tasks.map((task, index) => {
                 const isExpanded = expandedTasks.includes(task.id);
                 const isCompleted = task.status === 'completed';
+                const hasSubtasks = task.subtasks.length > 0;
+                const hasFlatDetail =
+                  !hasSubtasks &&
+                  (Boolean(task.description) || (task.tools?.length ?? 0) > 0);
 
                 return (
                   <motion.li
@@ -448,21 +506,19 @@ export default function Plan(): React.JSX.Element {
                     variants={taskVariants}
                   >
                     {/* Task row */}
-                    <motion.div
-                      className="group flex items-center px-3 py-1.5 rounded-md"
-                      whileHover={{
-                        backgroundColor: 'rgba(0,0,0,0.03)',
-                        transition: { duration: 0.2 },
-                      }}
-                    >
+                    <motion.div className="group flex items-center px-3 py-1.5 rounded-md hover:bg-muted/20">
                       <motion.div
-                        className="mr-2 flex-shrink-0 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleTaskStatus(task.id);
-                        }}
-                        whileTap={{ scale: 0.9 }}
-                        whileHover={{ scale: 1.1 }}
+                        className={`mr-2 flex-shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
+                        onClick={
+                          readOnly
+                            ? undefined
+                            : (e) => {
+                                e.stopPropagation();
+                                toggleTaskStatus(task.id);
+                              }
+                        }
+                        whileTap={readOnly ? undefined : { scale: 0.9 }}
+                        whileHover={readOnly ? undefined : { scale: 1.1 }}
                       >
                         <AnimatePresence mode="wait">
                           <motion.div
@@ -475,17 +531,7 @@ export default function Plan(): React.JSX.Element {
                               ease: [0.2, 0.65, 0.3, 0.9],
                             }}
                           >
-                            {task.status === 'completed' ? (
-                              <CheckCircle2 className="h-4.5 w-4.5 text-green-500" />
-                            ) : task.status === 'in-progress' ? (
-                              <CircleDotDashed className="h-4.5 w-4.5 text-blue-500" />
-                            ) : task.status === 'need-help' ? (
-                              <CircleAlert className="h-4.5 w-4.5 text-yellow-500" />
-                            ) : task.status === 'failed' ? (
-                              <CircleX className="h-4.5 w-4.5 text-red-500" />
-                            ) : (
-                              <Circle className="text-muted-foreground h-4.5 w-4.5" />
-                            )}
+                            {statusGlyph(task.status, 'h-4.5 w-4.5')}
                           </motion.div>
                         </AnimatePresence>
                       </motion.div>
@@ -509,7 +555,7 @@ export default function Plan(): React.JSX.Element {
                                 {task.dependencies.map((dep, idx) => (
                                   <motion.span
                                     key={idx}
-                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
+                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{
@@ -518,7 +564,6 @@ export default function Plan(): React.JSX.Element {
                                     }}
                                     whileHover={{
                                       y: -1,
-                                      backgroundColor: 'rgba(0,0,0,0.1)',
                                       transition: { duration: 0.2 },
                                     }}
                                   >
@@ -530,17 +575,7 @@ export default function Plan(): React.JSX.Element {
                           )}
 
                           <motion.span
-                            className={`rounded px-1.5 py-0.5 ${
-                              task.status === 'completed'
-                                ? 'bg-green-100 text-green-700'
-                                : task.status === 'in-progress'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : task.status === 'need-help'
-                                    ? 'bg-yellow-100 text-yellow-700'
-                                    : task.status === 'failed'
-                                      ? 'bg-red-100 text-red-700'
-                                      : 'bg-muted text-muted-foreground'
-                            }`}
+                            className={`rounded px-1.5 py-0.5 ${statusBadgeClass(task.status)}`}
                             variants={statusBadgeVariants}
                             initial="initial"
                             animate="animate"
@@ -554,7 +589,7 @@ export default function Plan(): React.JSX.Element {
 
                     {/* Subtasks - staggered */}
                     <AnimatePresence mode="wait">
-                      {isExpanded && task.subtasks.length > 0 && (
+                      {isExpanded && hasSubtasks && (
                         <motion.div
                           className="relative overflow-hidden"
                           variants={subtaskListVariants}
@@ -585,24 +620,28 @@ export default function Plan(): React.JSX.Element {
                                   layout
                                 >
                                   <motion.div
-                                    className="flex flex-1 items-center rounded-md p-1"
-                                    whileHover={{
-                                      backgroundColor: 'rgba(0,0,0,0.03)',
-                                      transition: { duration: 0.2 },
-                                    }}
+                                    className="flex flex-1 items-center rounded-md p-1 hover:bg-muted/20"
                                     layout
                                   >
                                     <motion.div
-                                      className="mr-2 flex-shrink-0 cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleSubtaskStatus(
-                                          task.id,
-                                          subtask.id
-                                        );
-                                      }}
-                                      whileTap={{ scale: 0.9 }}
-                                      whileHover={{ scale: 1.1 }}
+                                      className={`mr-2 flex-shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
+                                      onClick={
+                                        readOnly
+                                          ? undefined
+                                          : (e) => {
+                                              e.stopPropagation();
+                                              toggleSubtaskStatus(
+                                                task.id,
+                                                subtask.id
+                                              );
+                                            }
+                                      }
+                                      whileTap={
+                                        readOnly ? undefined : { scale: 0.9 }
+                                      }
+                                      whileHover={
+                                        readOnly ? undefined : { scale: 1.1 }
+                                      }
                                       layout
                                     >
                                       <AnimatePresence mode="wait">
@@ -628,17 +667,9 @@ export default function Plan(): React.JSX.Element {
                                             ease: [0.2, 0.65, 0.3, 0.9],
                                           }}
                                         >
-                                          {subtask.status === 'completed' ? (
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                                          ) : subtask.status ===
-                                            'in-progress' ? (
-                                            <CircleDotDashed className="h-3.5 w-3.5 text-blue-500" />
-                                          ) : subtask.status === 'need-help' ? (
-                                            <CircleAlert className="h-3.5 w-3.5 text-yellow-500" />
-                                          ) : subtask.status === 'failed' ? (
-                                            <CircleX className="h-3.5 w-3.5 text-red-500" />
-                                          ) : (
-                                            <Circle className="text-muted-foreground h-3.5 w-3.5" />
+                                          {statusGlyph(
+                                            subtask.status,
+                                            'h-3.5 w-3.5'
                                           )}
                                         </motion.div>
                                       </AnimatePresence>
@@ -675,7 +706,7 @@ export default function Plan(): React.JSX.Element {
                                                   (tool, idx) => (
                                                     <motion.span
                                                       key={idx}
-                                                      className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
+                                                      className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
                                                       initial={{
                                                         opacity: 0,
                                                         y: -5,
@@ -690,8 +721,6 @@ export default function Plan(): React.JSX.Element {
                                                       }}
                                                       whileHover={{
                                                         y: -1,
-                                                        backgroundColor:
-                                                          'rgba(0,0,0,0.1)',
                                                         transition: {
                                                           duration: 0.2,
                                                         },
@@ -711,6 +740,55 @@ export default function Plan(): React.JSX.Element {
                               );
                             })}
                           </ul>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Flat detail — shown when a task has no subtasks (e.g. a
+                        live plan step). Reveals description + tools on expand. */}
+                    <AnimatePresence mode="wait">
+                      {isExpanded && hasFlatDetail && (
+                        <motion.div
+                          className="text-muted-foreground border-foreground/20 mt-1 mb-1 ml-9 border-l border-dashed pl-3 text-xs overflow-hidden"
+                          variants={subtaskDetailsVariants}
+                          initial="hidden"
+                          animate="visible"
+                          exit="hidden"
+                          layout
+                        >
+                          {task.description && (
+                            <p className="py-1">{task.description}</p>
+                          )}
+                          {task.tools && task.tools.length > 0 && (
+                            <div className="mt-0.5 mb-1 flex flex-wrap items-center gap-1.5">
+                              <span className="text-muted-foreground font-medium">
+                                Tools:
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {task.tools.map((tool, idx) => (
+                                  <motion.span
+                                    key={idx}
+                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
+                                    initial={{ opacity: 0, y: -5 }}
+                                    animate={{
+                                      opacity: 1,
+                                      y: 0,
+                                      transition: {
+                                        duration: 0.2,
+                                        delay: idx * 0.05,
+                                      },
+                                    }}
+                                    whileHover={{
+                                      y: -1,
+                                      transition: { duration: 0.2 },
+                                    }}
+                                  >
+                                    {tool}
+                                  </motion.span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
