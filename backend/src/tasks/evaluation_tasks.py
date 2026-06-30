@@ -327,6 +327,14 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                     "overall_score": overall_score,
                     "success_rate": success_rate,
                 }
+            else:
+                # No query produced a metric (every item errored). Without this
+                # branch the job — already start_job()'d to RUNNING — was never
+                # completed or failed, leaving it stuck in RUNNING forever.
+                # Mirrors run_rag_triad_evaluation's empty-results handling.
+                job.fail_job("No queries were successfully evaluated")
+                db.commit()
+                raise ValueError("No queries were successfully evaluated")
 
         finally:
             loop.close()
