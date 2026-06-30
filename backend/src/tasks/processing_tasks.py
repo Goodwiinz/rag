@@ -927,9 +927,14 @@ def cleanup_old_jobs():
 # Periodic tasks
 from celery.schedules import crontab
 
-current_app.conf.beat_schedule = {
-    "cleanup-old-jobs": {
-        "task": "src.tasks.processing_tasks.cleanup_old_jobs",
-        "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
-    },
-}
+# Merge (not assign) — every task module shares one app.conf.beat_schedule, so a
+# full `= {...}` here is clobbered by whichever module Celery imports last
+# (include order in celery_app.py). .update() lets all modules' schedules coexist.
+current_app.conf.beat_schedule.update(
+    {
+        "cleanup-old-jobs": {
+            "task": "src.tasks.processing_tasks.cleanup_old_jobs",
+            "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
+        },
+    }
+)
