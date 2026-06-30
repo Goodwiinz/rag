@@ -156,6 +156,26 @@ def process_document_ingestion(self, job_id: str):
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
 
+        # Idempotency guard for acks_late redelivery. The Celery app sets
+        # task_acks_late, so a worker recycled/killed AFTER this job finished but
+        # before the broker ack causes the message to be redelivered and the
+        # whole pipeline to re-run — re-extracting and re-inserting a second full
+        # set of Postgres Entity rows (the Neo4j path upserts; Postgres has no
+        # unique constraint to dedup). This is the dominant redelivery case;
+        # short-circuit it. (A crash mid-run, job still RUNNING, can still leave
+        # a partial entity set behind on re-run — that needs an idempotency key
+        # rather than a destructive delete that would clobber curated entities;
+        # tracked as a follow-up.)
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered ingestion run"
+            )
+            return {
+                "status": "completed",
+                "document_id": str(document.id),
+                "skipped": "duplicate_delivery",
+            }
+
         # Initialize processing service
         processing_service = ProcessingPipeline(db)
 
