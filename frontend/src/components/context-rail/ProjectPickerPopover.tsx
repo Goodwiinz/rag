@@ -56,9 +56,13 @@ export function ProjectPickerPopover({
   useEffect(() => {
     if (open) {
       setQuery('');
+      setError(null);
       doFetch();
     }
-    return () => abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+      clearTimeout(debounceRef.current);
+    };
   }, [open, doFetch]);
 
   const handleSearch = (value: string) => {
@@ -78,7 +82,14 @@ export function ProjectPickerPopover({
         onProjectBound(projectId, projectName);
         setOpen(false);
       } else {
-        setError('Failed to link thread to project');
+        // The store swallows the failure and stashes the real message under
+        // errors[projectId]; surface it instead of a generic line so the user
+        // sees the actual cause (e.g. "Thread and project must be in the same
+        // workspace") rather than always "Failed to link thread to project".
+        setError(
+          useProjectChatStore.getState().errors[projectId] ||
+            'Failed to link thread to project'
+        );
       }
     } catch {
       setError('Network error — please try again');
