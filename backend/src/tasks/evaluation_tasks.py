@@ -334,6 +334,10 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
     except Exception as e:
         logger.error(f"Batch evaluation failed for job {job_id}: {str(e)}")
 
+        # Roll back a possibly-poisoned session before writing fail state, else
+        # the commit below throws PendingRollbackError and the job stays RUNNING.
+        db.rollback()
+
         # Update job status
         try:
             if job:
@@ -423,6 +427,10 @@ def run_real_time_evaluation(
 
     except Exception as e:
         logger.error(f"Real-time evaluation failed: {str(e)}")
+
+        # Roll back a possibly-poisoned session before writing fail state, else
+        # the commit below throws PendingRollbackError and the job stays RUNNING.
+        db.rollback()
 
         # Update job status
         try:
