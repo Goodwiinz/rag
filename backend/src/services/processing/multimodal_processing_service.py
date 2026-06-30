@@ -210,17 +210,9 @@ class MultimodalProcessingService:
             # Update document with processing results
             await self.update_document_with_results(document, processing_results)
 
-            # Complete job
-            job.complete_job(
-                result={"processing_results": processing_results},
-                artifacts={"processed_files": self.get_processed_files(document)},
-                metrics={
-                    "processing_time_seconds": processing_results["processing_time"]
-                },
-            )
+            # Finalize the job to MATCH the document outcome.
+            self._finalize_job(job, document, processing_results)
             self.db.commit()
-
-            logger.info(f"Document processing completed for {document.id}")
 
             return processing_results
 
@@ -1232,6 +1224,37 @@ class MultimodalProcessingService:
                 "error": str(e),
                 "overall_score": 0.0,
             }
+
+    def _finalize_job(
+        self, job, document: Document, processing_results: Dict[str, Any]
+    ) -> None:
+        """Mark the ProcessingJob to match the document outcome.
+
+        Completing the job unconditionally marked it COMPLETED even when a step
+        failed and ``update_document_with_results`` set the document FAILED —
+        leaving a job=COMPLETED / document=FAILED split, so a client polling the
+        job status saw a false success. Fail the job when processing did not
+        succeed so the two statuses agree.
+        """
+        if processing_results["success"]:
+            job.complete_job(
+                result={"processing_results": processing_results},
+                artifacts={"processed_files": self.get_processed_files(document)},
+                metrics={
+                    "processing_time_seconds": processing_results["processing_time"]
+                },
+            )
+            logger.info(f"Document processing completed for {document.id}")
+        else:
+            job.fail_job(
+                error_message="; ".join(processing_results["errors"])
+                or "Document processing failed",
+                error_type="processing_error",
+            )
+            logger.warning(
+                f"Document processing failed for {document.id}: "
+                f"{processing_results['errors']}"
+            )
 
     async def update_document_with_results(
         self, document: Document, results: Dict[str, Any]
