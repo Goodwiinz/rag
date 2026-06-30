@@ -550,8 +550,15 @@ async def reindex_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Update search vector
+        # Update search vector, then restore the searchable flag + persist.
+        # A document whose ingestion-time search-vector build failed is left
+        # is_indexed=False (so it isn't falsely advertised as searchable); a
+        # successful reindex makes it searchable again, so the flag must flip
+        # back, else can_be_searched() stays False and this recovery path is a
+        # no-op for the very documents it exists to fix.
         fulltext_search_service.update_document_search_vector(document_id, db)
+        document.is_indexed = True
+        db.commit()
 
         return {
             "message": f"Document {document_id} reindexed successfully",
@@ -978,9 +985,9 @@ async def persist_api_key_usage_log(
                 client_ip=client_ip,
                 user_agent=user_agent[:500] if user_agent else None,  # Limit length
                 response_time_ms=int(response_time_ms),
-                search_query=search_query[:1000]
-                if search_query
-                else None,  # Limit length
+                search_query=(
+                    search_query[:1000] if search_query else None
+                ),  # Limit length
                 results_count=results_count,
                 response_status=response_status,
             )

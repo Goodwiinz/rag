@@ -263,8 +263,10 @@ def process_document_ingestion(self, job_id: str):
         db.commit()
 
         # Update search vector for full-text search
+        search_vector_ok = False
         try:
             fulltext_search_service.update_document_search_vector(str(document.id), db)
+            search_vector_ok = True
             logger.info(f"Updated search vector for document {document.id}")
         except Exception as e:
             logger.warning(
@@ -275,9 +277,14 @@ def process_document_ingestion(self, job_id: str):
         job.update_progress("Finalizing", 95)
         db.commit()
 
-        # Mark document as processed
+        # Mark document as processed. is_indexed must reflect ACTUAL full-text
+        # searchability: if the search-vector build above failed the document has
+        # no tsvector and the primary full-text retrieval can never surface it —
+        # claiming is_indexed=True there is a silent partial index (the doc looks
+        # ready but is unreachable). Tie the flag to the real outcome so a
+        # re-index can be triggered for the not-yet-searchable docs.
         document.update_processing_status(ProcessingStatus.COMPLETED)
-        document.is_indexed = True
+        document.is_indexed = search_vector_ok
         db.commit()
 
         # Complete job
@@ -289,6 +296,7 @@ def process_document_ingestion(self, job_id: str):
                 # embedding_id is the dead Qdrant vector-id column (always NULL
                 # now), so bool(embedding_id) always reported False.
                 "embedding_generated": bool(document.is_embedded),
+                "search_indexed": search_vector_ok,
                 "word_count": text_extraction_result.get("word_count", 0),
             }
         )
