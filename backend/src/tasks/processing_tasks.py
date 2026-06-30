@@ -305,6 +305,13 @@ def process_document_ingestion(self, job_id: str):
     except Exception as e:
         logger.error(f"Document ingestion failed for job {job_id}: {str(e)}")
 
+        # Roll back first: if the failure came from a DB op the session is
+        # poisoned (PendingRollbackError), so the queries/commit below to write
+        # the FAILED status would themselves throw and get swallowed — leaving
+        # the document stuck in PROCESSING (never FAILED), which then blocks
+        # content-hash dedup from ever re-uploading it.
+        db.rollback()
+
         # Update document and job status
         try:
             document = (
@@ -377,6 +384,8 @@ def extract_text_content(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Text extraction failed for job {job_id}: {str(e)}")
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -472,6 +481,8 @@ def extract_entities(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Entity extraction failed for job {job_id}: {str(e)}")
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -532,6 +543,8 @@ def generate_embeddings(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Embedding generation failed for job {job_id}: {str(e)}")
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -596,6 +609,8 @@ def index_in_graph(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Graph indexing failed for job {job_id}: {str(e)}")
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -781,6 +796,8 @@ def kg_extract_entities_job(self, job_id: str):
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()
@@ -881,6 +898,8 @@ def kg_merge_entities_job(self, job_id: str):
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
+        # Roll back a possibly-poisoned session before writing fail state.
+        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()

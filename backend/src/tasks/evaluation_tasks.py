@@ -218,6 +218,11 @@ def run_rag_triad_evaluation(self, job_id: str):
     except Exception as e:
         logger.error(f"RAG Triad evaluation failed for job {job_id}: {str(e)}")
 
+        # Roll back first: a DB-origin failure poisons the session, so the
+        # fail_job + commit below would themselves throw and get swallowed,
+        # leaving the EvaluationJob stuck in RUNNING.
+        db.rollback()
+
         # Update job status
         try:
             if job:
@@ -329,6 +334,10 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
     except Exception as e:
         logger.error(f"Batch evaluation failed for job {job_id}: {str(e)}")
 
+        # Roll back a possibly-poisoned session before writing fail state, else
+        # the commit below throws PendingRollbackError and the job stays RUNNING.
+        db.rollback()
+
         # Update job status
         try:
             if job:
@@ -418,6 +427,10 @@ def run_real_time_evaluation(
 
     except Exception as e:
         logger.error(f"Real-time evaluation failed: {str(e)}")
+
+        # Roll back a possibly-poisoned session before writing fail state, else
+        # the commit below throws PendingRollbackError and the job stays RUNNING.
+        db.rollback()
 
         # Update job status
         try:
