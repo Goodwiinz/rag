@@ -1,8 +1,14 @@
 """Add organization_id to stance_classifications (tenant isolation)
 
-Revision ID: add_org_id_stance_classifications
+Revision ID: add_org_id_stance_class
 Revises: e1f2a3b4c5d6
 Create Date: 2026-06-29 23:00:00
+
+NOTE: the revision id MUST stay <= 32 chars. ``alembic_version.version_num`` is
+``VARCHAR(32)``, so a longer id raises StringDataRightTruncation on the version
+stamp and crash-loops the migration init container (the original 33-char id
+``add_org_id_stance_classifications`` did exactly this, blocking every deploy
+past e1f2a3b4c5d6).
 
 Closes a cross-tenant information disclosure: /api/v1/evidence/breakdown was scoped
 only by claim_hash + model_version (a deterministic SHA-256 of public claim text),
@@ -27,7 +33,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 # revision identifiers, used by Alembic.
-revision = "add_org_id_stance_classifications"
+revision = "add_org_id_stance_class"
 down_revision = "e1f2a3b4c5d6"
 branch_labels = None
 depends_on = None
