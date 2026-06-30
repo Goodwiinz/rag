@@ -4,7 +4,7 @@ Background tasks for document processing with async pipeline execution
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from celery.exceptions import Retry
@@ -573,9 +573,9 @@ def generate_processing_report(self, organization_id: str, date_range_days: int 
                 {
                     "status": stat.status.value,
                     "count": stat.count,
-                    "avg_duration_seconds": float(stat.avg_duration)
-                    if stat.avg_duration
-                    else 0,
+                    "avg_duration_seconds": (
+                        float(stat.avg_duration) if stat.avg_duration else 0
+                    ),
                 }
                 for stat in stats
             ],
@@ -612,8 +612,10 @@ def health_check():
         # the literal SQL — passing a raw string here used to fail every minute.
         db.execute(text("SELECT 1"))
 
-        # Check Redis connectivity
-        celery_app.backend.result_backend.ping()
+        # Check Redis connectivity. The result backend exposes its redis client
+        # as `.client`; `.result_backend` does not exist (AttributeError every
+        # run made health_check report unhealthy unconditionally).
+        celery_app.backend.client.ping()
 
         db.close()
 
@@ -636,22 +638,26 @@ def health_check():
 # Schedule periodic tasks
 from celery.schedules import crontab
 
-celery_app.conf.beat_schedule = {
-    "cleanup-artifacts": {
-        "task": "src.tasks.document_processing_tasks.cleanup_processing_artifacts",
-        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
-        "args": (7,),  # Clean up artifacts older than 7 days
-    },
-    "health-check": {
-        "task": "src.tasks.document_processing_tasks.health_check",
-        "schedule": crontab(minute="*/5"),  # Every 5 minutes
-    },
-    "generate-reports": {
-        "task": "src.tasks.document_processing_tasks.generate_processing_report",
-        "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
-        "args": ("default_organization_id", 30),  # This should be configurable
-    },
-}
+# Merge (not assign) — a full `= {...}` is clobbered by the task module Celery
+# imports last; .update() lets every module's schedule coexist on the shared conf.
+celery_app.conf.beat_schedule.update(
+    {
+        "cleanup-artifacts": {
+            "task": "src.tasks.document_processing_tasks.cleanup_processing_artifacts",
+            "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+            "args": (7,),  # Clean up artifacts older than 7 days
+        },
+        "health-check": {
+            "task": "src.tasks.document_processing_tasks.health_check",
+            "schedule": crontab(minute="*/5"),  # Every 5 minutes
+        },
+        "generate-reports": {
+            "task": "src.tasks.document_processing_tasks.generate_processing_report",
+            "schedule": crontab(hour=1, minute=0),  # Daily at 1 AM
+            "args": ("default_organization_id", 30),  # This should be configurable
+        },
+    }
+)
 
 
 # Task monitoring and metrics

@@ -113,9 +113,9 @@ def run_rag_triad_evaluation(self, job_id: str):
                         query=question,
                         generated_answer="",  # Will be generated during evaluation
                         retrieved_context=contexts[i] if i < len(contexts) else [],
-                        reference_answer=reference_answers[i]
-                        if i < len(reference_answers)
-                        else None,
+                        reference_answer=(
+                            reference_answers[i] if i < len(reference_answers) else None
+                        ),
                         metadata={"item_index": i, "total_items": total_items},
                     )
 
@@ -610,9 +610,13 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
 # Periodic tasks
 from celery.schedules import crontab
 
-current_app.conf.beat_schedule = {
-    "cleanup-old-evaluations": {
-        "task": "src.tasks.evaluation_tasks.cleanup_old_evaluations",
-        "schedule": crontab(hour=3, minute=0),  # Run daily at 3 AM
-    },
-}
+# Merge (not assign) — a full `= {...}` is clobbered by the task module Celery
+# imports last; .update() lets every module's schedule coexist on the shared conf.
+current_app.conf.beat_schedule.update(
+    {
+        "cleanup-old-evaluations": {
+            "task": "src.tasks.evaluation_tasks.cleanup_old_evaluations",
+            "schedule": crontab(hour=3, minute=0),  # Run daily at 3 AM
+        },
+    }
+)
