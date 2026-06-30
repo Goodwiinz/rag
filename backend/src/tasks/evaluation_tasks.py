@@ -218,6 +218,11 @@ def run_rag_triad_evaluation(self, job_id: str):
     except Exception as e:
         logger.error(f"RAG Triad evaluation failed for job {job_id}: {str(e)}")
 
+        # Roll back first: a DB-origin failure poisons the session, so the
+        # fail_job + commit below would themselves throw and get swallowed,
+        # leaving the EvaluationJob stuck in RUNNING.
+        db.rollback()
+
         # Update job status
         try:
             if job:
