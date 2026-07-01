@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from src.services.agent.reflection import (
     ReflectionResult,
+    _detect_fabricated_doc_search,
     _detect_fabricated_ingest,
     _detect_fabricated_kg_search,
     _detect_fabricated_tool_success,
@@ -882,3 +883,216 @@ class TestFabricatedKgSearchGuard:
             assert mock_build.called is False  # intent gates the LLM critique
 
         assert "_reflection_result" not in updates
+
+
+# ---------------------------------------------------------------------------
+# Tests: _detect_fabricated_doc_search  (search_documents / search_arxiv /
+#        do_kb_retrieve — the document/retrieval read-tool fabrication guard)
+# ---------------------------------------------------------------------------
+
+
+def _make_doc_state(
+    *,
+    ai_content: str | list,
+    tool_executions: list | None = None,
+    intent: str = "research",
+    reflection_count: int = 0,
+) -> dict:
+    """State with a document-search user question + an assistant answer."""
+    return {
+        "messages": [
+            HumanMessage(content="Search my documents for what they say about RAG"),
+            AIMessage(content=ai_content),
+        ],
+        "tool_executions": tool_executions if tool_executions is not None else [],
+        "intent": intent,
+        "reflection_count": reflection_count,
+    }
+
+
+def _completed_doc_search_te(tool_name: str = "search_documents") -> dict:
+    return {
+        "tool_name": tool_name,
+        "status": "completed",
+        "result": {"results": [{"id": "doc-1", "title": "RAG survey"}]},
+    }
+
+
+_FABRICATED_DOC_ANSWER = (
+    "I searched your documents for material on retrieval-augmented generation "
+    "and found several relevant passages. From your uploaded documents I found "
+    "that RAG combines retrieval with generation (source: doc-4271)."
+)
+
+
+class TestFabricatedDocSearchGuard:
+    def test_fires_when_no_search_tool_ran(self):
+        issue = _detect_fabricated_doc_search(
+            _make_doc_state(ai_content=_FABRICATED_DOC_ANSWER, tool_executions=[])
+        )
+        assert issue is not None
+        assert "search_documents" in issue
+
+    def test_silent_when_search_documents_completed(self):
+        issue = _detect_fabricated_doc_search(
+            _make_doc_state(
+                ai_content=_FABRICATED_DOC_ANSWER,
+                tool_executions=[_completed_doc_search_te("search_documents")],
+            )
+        )
+        assert issue is None
+
+    def test_silent_when_any_doc_read_tool_completed(self):
+        """search_arxiv / do_kb_retrieve and the other document reads all count —
+        any completed doc read tool means the retrieval genuinely ran."""
+        for tool_name, text in (
+            (
+                "search_arxiv",
+                "I searched arXiv and found 3 papers on retrieval-augmented "
+                "generation.",
+            ),
+            (
+                "do_kb_retrieve",
+                "I searched the knowledge base and retrieved 2 relevant chunks.",
+            ),
+            (
+                "list_project_documents",
+                "I searched your documents and found 4 files in the project.",
+            ),
+            (
+                "search_external_database",
+                "I searched the papers and found several relevant studies.",
+            ),
+            (
+                "summarize_document",
+                "I looked through the paper and found three key contributions.",
+            ),
+            (
+                "compare_documents",
+                "I looked through the documents and found they disagree on scope.",
+            ),
+        ):
+            issue = _detect_fabricated_doc_search(
+                _make_doc_state(
+                    ai_content=text,
+                    tool_executions=[_completed_doc_search_te(tool_name)],
+                )
+            )
+            assert issue is None, tool_name
+
+    def test_silent_when_rag_context_retrieved(self):
+        """rag_node is the PRIMARY document-retrieval path and grounds answers
+        via state['retrieved_contexts'] WITHOUT emitting a tool_execution. A
+        first-person 'I searched your documents and found ...' over real RAG
+        context is truthful — the guard must not force-revise it."""
+        for text in (
+            _FABRICATED_DOC_ANSWER,
+            "I looked through the paper and found three key contributions.",
+            "From your uploaded documents I found that RAG improves grounding.",
+            "I searched your documents and the results show strong recall gains.",
+        ):
+            state = _make_doc_state(ai_content=text, tool_executions=[])
+            state["retrieved_contexts"] = [
+                {"id": "ctx-1", "text": "real retrieved passage", "score": 0.8}
+            ]
+            assert _detect_fabricated_doc_search(state) is None, text
+
+    def test_fires_when_rag_context_empty_and_no_tool(self):
+        """Empty retrieved_contexts + no read tool + a first-person search claim
+        is the genuine fabrication case the guard exists for."""
+        state = _make_doc_state(ai_content=_FABRICATED_DOC_ANSWER, tool_executions=[])
+        state["retrieved_contexts"] = []
+        assert _detect_fabricated_doc_search(state) is not None
+
+    def test_silent_on_offer_to_search(self):
+        for text in (
+            "Would you like me to search your documents for that topic?",
+            "I can search your library if you upload the papers first.",
+            "Should I search arXiv for recent work on this?",
+        ):
+            assert (
+                _detect_fabricated_doc_search(
+                    _make_doc_state(ai_content=text, tool_executions=[])
+                )
+                is None
+            ), text
+
+    def test_silent_when_no_doc_claim(self):
+        issue = _detect_fabricated_doc_search(
+            _make_doc_state(
+                ai_content="Retrieval-augmented generation combines retrieval "
+                "with a generative model. Here is a two-sentence overview.",
+                tool_executions=[],
+            )
+        )
+        assert issue is None
+
+    def test_silent_on_honest_empty_or_failed_search(self):
+        for text in (
+            "I searched your documents but found nothing relevant to that query.",
+            "I searched your library for RAG; it returned no matching results.",
+            "I searched arXiv but the search failed — the service was unreachable.",
+        ):
+            assert (
+                _detect_fabricated_doc_search(
+                    _make_doc_state(ai_content=text, tool_executions=[])
+                )
+                is None
+            ), text
+
+    def test_silent_on_paper_description_not_a_search_claim(self):
+        """A summary DESCRIBING that some authors searched a corpus (not the
+        assistant claiming it retrieved) must not be flagged."""
+        for text in (
+            "The authors searched a large corpus of biomedical abstracts.",
+            "You can search your documents using the search bar in the sidebar.",
+            "Their method retrieves from a document collection at query time.",
+        ):
+            assert (
+                _detect_fabricated_doc_search(
+                    _make_doc_state(ai_content=text, tool_executions=[])
+                )
+                is None
+            ), text
+
+    def test_multimodal_content_list_fires(self):
+        issue = _detect_fabricated_doc_search(
+            _make_doc_state(
+                ai_content=[{"type": "text", "text": _FABRICATED_DOC_ANSWER}],
+                tool_executions=[],
+            )
+        )
+        assert issue is not None
+
+    def test_no_ai_message_returns_none(self):
+        assert (
+            _detect_fabricated_doc_search(
+                {"messages": [HumanMessage(content="hi")], "tool_executions": []}
+            )
+            is None
+        )
+
+    def test_skip_reflection_not_triggered_when_doc_fabrication_detected(self):
+        skip, reason = _should_skip_reflection(
+            _make_doc_state(ai_content=_FABRICATED_DOC_ANSWER, tool_executions=[])
+        )
+        assert skip is False
+        assert "doc search" in reason
+
+    @pytest.mark.asyncio
+    async def test_gate_forces_major_revise_on_doc_fabrication(self):
+        node_fn, _ = make_reflection_gate(intent_filter={"research", "writing"})
+        state = _make_doc_state(
+            ai_content=_FABRICATED_DOC_ANSWER,
+            tool_executions=[],
+            intent="research",
+        )
+        with patch("src.services.agent.reflection._build_reflection_llm") as mock_build:
+            updates = await node_fn(state, {"configurable": {}})
+            assert mock_build.called is False  # deterministic, no LLM call
+
+        result = updates["_reflection_result"]
+        assert result.passed is False
+        assert result.severity == "major"
+        assert any("search_documents" in issue for issue in result.issues)
+        assert updates["reflection_count"] == 1

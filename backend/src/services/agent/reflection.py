@@ -325,6 +325,125 @@ _KG_SEARCH_FAILURE_DISCLOSURE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Document / arXiv / DO-KB READ tools — the retrieval side-channels the model
+# can claim to have searched without ever emitting a tool_call. Mirrors
+# _KG_READ_TOOLS for the same fabrication failure mode on the document surface.
+_DOC_READ_TOOLS: frozenset[str] = frozenset(
+    {
+        "search_documents",
+        "search_arxiv",
+        "do_kb_retrieve",
+        # Other document/retrieval reads whose completion means the model
+        # legitimately grounded on real content — narrating "I searched /
+        # looked through the documents" after any of these is truthful.
+        "list_project_documents",
+        "search_external_database",
+        "summarize_document",
+        "compare_documents",
+    }
+)
+
+# Offer / question phrasing on the document surface — proposing to search, not
+# claiming it already searched. Skip the fabrication check on these.
+_DOC_SEARCH_QUESTION_RE = re.compile(
+    r"\bwould\s+you\s+like\s+me\s+to\b"
+    r"|\bdo\s+you\s+want\s+me\s+to\b"
+    r"|\bshould\s+I\b"
+    r"|\bI\s+can\s+(?:search|look|find)\b"
+    r"|\b(?:use|call)\s+(?:search_documents|search_arxiv|do_kb_retrieve)\b",
+    re.IGNORECASE,
+)
+
+# Strong, low-false-positive signal that the AI ASSERTS, in first-person past
+# action voice, that it searched the documents / library / arXiv this turn.
+# Deliberately narrow: a paper summary that mentions "the authors searched a
+# corpus" or generic "search your documents" instructional text must NOT match —
+# only a first-person past-tense claim of having performed the retrieval.
+_DOC_SEARCH_FABRICATION_CLAIM_RE = re.compile(
+    r"\bI\s+(?:searched|queried|looked\s+through|scanned|retrieved\s+from)\s+"
+    r"(?:your\s+|the\s+|our\s+)?"
+    r"(?:documents?|library|collection|corpus|papers?|arxiv|knowledge\s+base)\b"
+    r"|\bsearched\s+(?:your\s+|the\s+|our\s+)"
+    r"(?:documents?|library|collection|corpus)\s+for\b"
+    r"|\bfrom\s+(?:your\s+|the\s+)(?:uploaded\s+|indexed\s+)?documents?\s+I\s+found\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _detect_fabricated_doc_search(state: dict) -> Optional[str]:
+    """Return an issue string when the AI claims it searched the documents /
+    library / arXiv (or presents retrieved results) but no document READ tool
+    completed this turn, else None.
+
+    Mirrors ``_detect_fabricated_kg_search`` for the retrieval side-channels
+    (``search_documents`` / ``search_arxiv`` / ``do_kb_retrieve``). Same failure
+    mode: the model narrates "I searched your documents and found …" while
+    emitting NO read tool_call, so nothing was retrieved and any cited
+    sources/ids are fabricated or carried over from context. The KG guard only
+    covered graph reads, so document-surface fabrication slipped past reflection.
+
+    Returns None when:
+    - The RAG channel retrieved real context this turn (``rag_node`` populates
+      ``state["retrieved_contexts"]`` WITHOUT emitting a tool_execution — it is
+      the platform's PRIMARY document-retrieval path, so a first-person "I
+      searched your documents and found …" over real RAG context is truthful,
+      not fabricated). Checked first; without it the guard would force-revise a
+      broad class of correct, correctly-cited RAG answers.
+    - Any document READ tool actually completed this turn (real results).
+    - The AI text is offering / instructing rather than asserting it searched.
+    - An honest-failure disclosure is present ("returned nothing", "couldn't
+      find …" — reuses the shared failure-disclosure regex).
+    - No strong retrieval-assertion signal is present.
+    """
+    # rag_node grounds answers via retrieved_contexts, not a tool_execution —
+    # non-empty means retrieval genuinely happened this turn.
+    if state.get("retrieved_contexts"):
+        return None
+
+    tool_executions: list[Any] = state.get("tool_executions", []) or []
+
+    executed_search = any(
+        isinstance(te, dict)
+        and te.get("tool_name") in _DOC_READ_TOOLS
+        and te.get("status") == "completed"
+        for te in tool_executions
+    )
+    if executed_search:
+        return None
+
+    last_ai = _last_ai_message(state)
+    if last_ai is None:
+        return None
+
+    content = last_ai.content
+    if isinstance(content, list):
+        text = " ".join(
+            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+        )
+    elif isinstance(content, str):
+        text = content
+    else:
+        return None
+
+    if _DOC_SEARCH_QUESTION_RE.search(text):
+        return None
+    if _CREATE_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+    if _KG_SEARCH_FAILURE_DISCLOSURE_RE.search(text):
+        return None
+
+    if not _DOC_SEARCH_FABRICATION_CLAIM_RE.search(text):
+        return None
+
+    return (
+        "Assistant claims it searched your documents / library / arXiv or "
+        "presents retrieved sources, but no document read tool "
+        "(search_documents / search_arxiv / do_kb_retrieve) executed this turn — "
+        "nothing was retrieved (any cited sources or ids are fabricated). "
+        "Re-answer: either call the search tool or tell the user the search did "
+        "not run."
+    )
+
 
 def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
     """Return an issue string when the AI claims it searched the knowledge graph
@@ -648,6 +767,8 @@ def _should_skip_reflection(state: dict) -> tuple[bool, str]:
         return (False, "potential fabricated ingest")
     if _detect_fabricated_kg_search(state) is not None:
         return (False, "potential fabricated kg search")
+    if _detect_fabricated_doc_search(state) is not None:
+        return (False, "potential fabricated doc search")
 
     tool_calls = getattr(last_ai, "tool_calls", None) or []
     has_tool_calls = bool(tool_calls)
@@ -937,6 +1058,26 @@ def make_reflection_gate(
                 "_reflection_result": ReflectionResult(
                     passed=False,
                     issues=[fabricated_kg_search_issue],
+                    severity="major",
+                ),
+            }
+
+        # Same read-side fabrication guard for the DOCUMENT retrieval tools
+        # (search_documents / search_arxiv / do_kb_retrieve): the model claims
+        # it searched the library/arXiv and cites sources, but no read tool ran.
+        fabricated_doc_search_issue = _detect_fabricated_doc_search(state)
+        if fabricated_doc_search_issue is not None:
+            logger.warning(
+                "Reflection guard: forcing major-revise — fabricated document "
+                "search detected (no search_documents/search_arxiv/do_kb_retrieve "
+                "executed). intent=%s",
+                intent,
+            )
+            return {
+                "reflection_count": current_count + 1,
+                "_reflection_result": ReflectionResult(
+                    passed=False,
+                    issues=[fabricated_doc_search_issue],
                     severity="major",
                 ),
             }
