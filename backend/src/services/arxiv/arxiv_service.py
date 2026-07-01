@@ -227,8 +227,7 @@ class ArXivIngestionService:
 
                 # Use async httpx directly
                 response_text = await self._make_async_request(
-                    self.ARXIV_API_BASE,
-                    params
+                    self.ARXIV_API_BASE, params
                 )
 
                 if not response_text:
@@ -531,9 +530,11 @@ class ArXivIngestionService:
         # Create document metadata dict
         metadata_dict = {
             "title": paper["title"],
-            "description": paper["abstract"][:500] + "..."
-            if len(paper["abstract"]) > 500
-            else paper["abstract"],
+            "description": (
+                paper["abstract"][:500] + "..."
+                if len(paper["abstract"]) > 500
+                else paper["abstract"]
+            ),
             "authors": paper["authors"],
             "publication_date": datetime.fromisoformat(
                 paper["published"].replace("Z", "+00:00")
@@ -566,7 +567,13 @@ class ArXivIngestionService:
         if paper["categories"]:
             content_parts.append(f"\n# Categories\n\n{', '.join(paper['categories'])}")
 
-        # Download and extract PDF content if requested
+        # Download and extract PDF content if requested. Track whether full
+        # text was actually obtained so the persisted metadata is honest: a
+        # PDF fetch/extract failure still yields a COMPLETED abstract-only
+        # document (legit graceful degradation), but downstream consumers must
+        # be able to tell it apart from a full-text ingest — otherwise the
+        # agent may narrate "I read the paper" over an abstract-only doc.
+        has_full_text = False
         if download_pdfs and paper["links"].get("pdf"):
             try:
                 pdf_content = await self.download_paper_pdf(
@@ -580,6 +587,7 @@ class ArXivIngestionService:
                     if extracted["full_text"]:
                         preview = extracted["full_text"][:2000]
                         content_parts.append(f"\n# Content Preview\n\n{preview}...")
+                        has_full_text = True
 
                     # Update metadata with PDF info
                     metadata_dict["num_pages"] = extracted.get("num_pages")
@@ -589,6 +597,11 @@ class ArXivIngestionService:
 
             except Exception as e:
                 logger.warning(f"Failed to process PDF for {paper_id}: {e}")
+                metadata_dict["pdf_extraction_failed"] = True
+
+        # Record full-text availability for every path (full-text success,
+        # PDF failure, or metadata-only ingest with download_pdfs=False).
+        metadata_dict["has_full_text"] = has_full_text
 
         # Combine all content
         full_content = "\n".join(content_parts)
@@ -599,16 +612,18 @@ class ArXivIngestionService:
             "content_text": full_content,
             "document_metadata": metadata_dict,
             "processing_status": ProcessingStatus.COMPLETED,
-            "document_type": "PDF"
-            if download_pdfs and paper["links"].get("pdf")
-            else "TEXT",
+            "document_type": (
+                "PDF" if download_pdfs and paper["links"].get("pdf") else "TEXT"
+            ),
             "filename": f"{paper_id}.pdf",
-            "mime_type": "application/pdf"
-            if download_pdfs and paper["links"].get("pdf")
-            else "text/plain",
-            "file_size_bytes": len(pdf_content)
-            if "pdf_content" in locals() and pdf_content
-            else 0,
+            "mime_type": (
+                "application/pdf"
+                if download_pdfs and paper["links"].get("pdf")
+                else "text/plain"
+            ),
+            "file_size_bytes": (
+                len(pdf_content) if "pdf_content" in locals() and pdf_content else 0
+            ),
         }
 
         # Return a simple object with the required attributes
