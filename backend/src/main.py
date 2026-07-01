@@ -164,12 +164,19 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables only for local Docker Compose development.
-    # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
-    # running create_all there grabs session-mode pooler connections on every worker
-    # boot and can exhaust Supabase's session-mode pool.
+    # Create database tables ONLY for a genuinely local dev DB. Any managed /
+    # deployed database (dev/staging/prod all set SUPABASE_DB_URL) is owned by the
+    # Alembic init container. Running create_all against a managed DB (a) grabs
+    # session-mode pooler connections on every worker boot and can exhaust
+    # Supabase's pool, and (b) races Alembic: create_all skips existing tables and
+    # never back-fills constraints added to a model later, permanently drifting the
+    # schema (this is how project_threads lost uq_project_thread). Fail-safe:
+    # require BOTH an explicit development ENVIRONMENT and the absence of
+    # SUPABASE_DB_URL, so a managed cluster can never trigger create_all even if
+    # ENVIRONMENT is misconfigured to "development".
     environment = os.environ.get("ENVIRONMENT", "development")
-    if environment == "development":
+    uses_managed_db = bool(os.environ.get("SUPABASE_DB_URL"))
+    if environment == "development" and not uses_managed_db:
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -181,8 +188,10 @@ async def lifespan(app: FastAPI):
                 raise
     else:
         logger.info(
-            "Skipping create_all in %s (Alembic migrations are authoritative)",
+            "Skipping create_all (environment=%s, managed_db=%s) — "
+            "Alembic migrations are authoritative",
             environment,
+            uses_managed_db,
         )
 
     # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
