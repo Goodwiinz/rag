@@ -812,6 +812,28 @@ async def _persist_thread_messages(
 # ---------------------------------------------------------------------------
 
 
+def _extract_pending_interrupt(snapshot: Any) -> Optional[Dict[str, Any]]:
+    """Return the first pending interrupt's confirmation payload, or None.
+
+    With a checkpointer attached (this graph always has one), LangGraph's
+    ``interrupt()`` does NOT raise ``GraphInterrupt`` to an ``ainvoke()``
+    caller — it pauses the graph and persists the pause to the checkpoint.
+    ``except GraphInterrupt`` around a plain ``ainvoke()`` call is therefore a
+    defensive fallback, not the reliable detection path (proven in
+    ``tests/unit/agent/test_interrupt_ainvoke_semantics.py``; a LangSmith
+    trace audit found create_project/ingest silently never triggered it).
+    The real signal is a pending task carrying ``.interrupts`` on the
+    checkpoint snapshot — the same mechanism streaming.py's SSE path
+    (its primary, working detection) and this module's pre-resume
+    ownership check already use.
+    """
+    pending_tasks = snapshot.tasks if snapshot else ()
+    for task in pending_tasks:
+        for intr in getattr(task, "interrupts", None) or ():
+            return getattr(intr, "value", {}) or {}
+    return None
+
+
 async def _run_agent_graph(
     job_id: str,
     request: Any,  # AgentExecuteRequest
@@ -943,7 +965,27 @@ async def _run_agent_graph(
 
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
+
+                # Primary interrupt detection — see _extract_pending_interrupt.
+                # ainvoke() returning without raising does NOT mean the turn
+                # completed; the graph may have paused at interrupt_node.
+                confirmation_details = _extract_pending_interrupt(
+                    await graph.aget_state(config)
+                )
+                if confirmation_details is not None:
+                    await _set_job_async(
+                        job_id,
+                        {
+                            "status": "awaiting_confirmation",
+                            "confirmation": confirmation_details,
+                            "tool_executions": [],
+                            "user_id": str(current_user.id),
+                            "request": request.model_dump(),
+                        },
+                    )
+                    return
             except GraphInterrupt as exc:
+                # Defensive fallback — see _extract_pending_interrupt docstring.
                 confirmation_details = extract_interrupt_confirmation(exc)
                 await _set_job_async(
                     job_id,
@@ -1194,6 +1236,27 @@ async def _resume_agent_graph(
                     Command(resume={"confirmed": confirmed}),
                     config=config,
                 )
+
+            # Primary interrupt detection (mirrors _run_agent_graph and the
+            # pre-resume check above) — a multi-step destructive flow can
+            # re-fire interrupt() during resume without raising GraphInterrupt.
+            confirmation_details = _extract_pending_interrupt(
+                await graph.aget_state(config)
+            )
+            if confirmation_details is not None:
+                await _set_job_async(
+                    job_id,
+                    {
+                        "status": "awaiting_confirmation",
+                        "confirmation": confirmation_details,
+                        "tool_executions": list(final_state.get("tool_executions", [])),
+                        "user_id": str(current_user.id),
+                        "request": (
+                            original_request.model_dump() if original_request else None
+                        ),
+                    },
+                )
+                return
 
             # Extract assistant content
             assistant_content = ""
