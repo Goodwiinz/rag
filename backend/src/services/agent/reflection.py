@@ -333,6 +333,13 @@ _DOC_READ_TOOLS: frozenset[str] = frozenset(
         "search_documents",
         "search_arxiv",
         "do_kb_retrieve",
+        # Other document/retrieval reads whose completion means the model
+        # legitimately grounded on real content — narrating "I searched /
+        # looked through the documents" after any of these is truthful.
+        "list_project_documents",
+        "search_external_database",
+        "summarize_document",
+        "compare_documents",
     }
 )
 
@@ -376,12 +383,23 @@ def _detect_fabricated_doc_search(state: dict) -> Optional[str]:
     covered graph reads, so document-surface fabrication slipped past reflection.
 
     Returns None when:
+    - The RAG channel retrieved real context this turn (``rag_node`` populates
+      ``state["retrieved_contexts"]`` WITHOUT emitting a tool_execution — it is
+      the platform's PRIMARY document-retrieval path, so a first-person "I
+      searched your documents and found …" over real RAG context is truthful,
+      not fabricated). Checked first; without it the guard would force-revise a
+      broad class of correct, correctly-cited RAG answers.
     - Any document READ tool actually completed this turn (real results).
     - The AI text is offering / instructing rather than asserting it searched.
     - An honest-failure disclosure is present ("returned nothing", "couldn't
       find …" — reuses the shared failure-disclosure regex).
     - No strong retrieval-assertion signal is present.
     """
+    # rag_node grounds answers via retrieved_contexts, not a tool_execution —
+    # non-empty means retrieval genuinely happened this turn.
+    if state.get("retrieved_contexts"):
+        return None
+
     tool_executions: list[Any] = state.get("tool_executions", []) or []
 
     executed_search = any(

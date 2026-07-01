@@ -943,8 +943,8 @@ class TestFabricatedDocSearchGuard:
         assert issue is None
 
     def test_silent_when_any_doc_read_tool_completed(self):
-        """search_arxiv / do_kb_retrieve also count — any completed doc read
-        tool means the retrieval genuinely ran."""
+        """search_arxiv / do_kb_retrieve and the other document reads all count —
+        any completed doc read tool means the retrieval genuinely ran."""
         for tool_name, text in (
             (
                 "search_arxiv",
@@ -955,6 +955,22 @@ class TestFabricatedDocSearchGuard:
                 "do_kb_retrieve",
                 "I searched the knowledge base and retrieved 2 relevant chunks.",
             ),
+            (
+                "list_project_documents",
+                "I searched your documents and found 4 files in the project.",
+            ),
+            (
+                "search_external_database",
+                "I searched the papers and found several relevant studies.",
+            ),
+            (
+                "summarize_document",
+                "I looked through the paper and found three key contributions.",
+            ),
+            (
+                "compare_documents",
+                "I looked through the documents and found they disagree on scope.",
+            ),
         ):
             issue = _detect_fabricated_doc_search(
                 _make_doc_state(
@@ -963,6 +979,30 @@ class TestFabricatedDocSearchGuard:
                 )
             )
             assert issue is None, tool_name
+
+    def test_silent_when_rag_context_retrieved(self):
+        """rag_node is the PRIMARY document-retrieval path and grounds answers
+        via state['retrieved_contexts'] WITHOUT emitting a tool_execution. A
+        first-person 'I searched your documents and found ...' over real RAG
+        context is truthful — the guard must not force-revise it."""
+        for text in (
+            _FABRICATED_DOC_ANSWER,
+            "I looked through the paper and found three key contributions.",
+            "From your uploaded documents I found that RAG improves grounding.",
+            "I searched your documents and the results show strong recall gains.",
+        ):
+            state = _make_doc_state(ai_content=text, tool_executions=[])
+            state["retrieved_contexts"] = [
+                {"id": "ctx-1", "text": "real retrieved passage", "score": 0.8}
+            ]
+            assert _detect_fabricated_doc_search(state) is None, text
+
+    def test_fires_when_rag_context_empty_and_no_tool(self):
+        """Empty retrieved_contexts + no read tool + a first-person search claim
+        is the genuine fabrication case the guard exists for."""
+        state = _make_doc_state(ai_content=_FABRICATED_DOC_ANSWER, tool_executions=[])
+        state["retrieved_contexts"] = []
+        assert _detect_fabricated_doc_search(state) is not None
 
     def test_silent_on_offer_to_search(self):
         for text in (
