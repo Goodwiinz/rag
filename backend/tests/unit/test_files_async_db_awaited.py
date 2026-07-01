@@ -27,6 +27,12 @@ COROUTINE_METHODS = {
     "delete",
     "merge",
     "close",
+    "get",
+    "get_one",
+    "scalar",
+    "scalars",
+    "stream",
+    "stream_scalars",
 }
 
 
