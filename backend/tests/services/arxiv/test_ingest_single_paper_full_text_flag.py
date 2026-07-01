@@ -68,9 +68,10 @@ async def test_pdf_failure_keeps_completed_but_flags_metadata(monkeypatch):
         _paper(), download_pdfs=True, extract_content=True
     )
 
-    # Graceful degradation: still COMPLETED with the abstract as content.
+    # Graceful degradation: still COMPLETED, with the abstract preserved as
+    # real content (this is why the doc stays COMPLETED, not FAILED).
     assert doc.status == ProcessingStatus.COMPLETED
-    assert "Attention Is All You Need" not in doc.content_text or doc.content_text
+    assert "We propose the Transformer" in doc.content_text
     md = doc.document_metadata
     assert md["has_full_text"] is False
     assert md["pdf_extraction_failed"] is True
