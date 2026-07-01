@@ -921,15 +921,32 @@ def kg_merge_entities_job(self, job_id: str):
                         )
                         try:
                             knowledge_graph_service.create_relationship(create_request)
-                        except Exception:
-                            # Ignore duplicate relationship insertion errors
-                            pass
+                        except Exception as rel_error:
+                            # Duplicate-relationship inserts are expected while
+                            # re-pointing edges onto the primary; log at debug so
+                            # a genuine create failure isn't fully invisible.
+                            logger.debug(
+                                "Skipped relationship insert during entity merge: %s",
+                                rel_error,
+                                exc_info=True,
+                            )
 
                     knowledge_graph_service.delete_entity(duplicate_id)
 
                 success_count += 1
-            except Exception:
+            except Exception as merge_error:
+                # A group that fails to merge was previously counted but never
+                # logged, so the cause was invisible while the job still reported
+                # COMPLETED. Log which group failed and why.
                 failure_count += 1
+                logger.warning(
+                    "Failed to merge entity group %s/%s (primary %s): %s",
+                    index + 1,
+                    total_groups,
+                    primary_id,
+                    merge_error,
+                    exc_info=True,
+                )
 
         job.update_progress("Finalizing merge job", 95)
         job.complete_job(
