@@ -12,9 +12,11 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -40,6 +42,23 @@ class ChatMessage(BaseModel):
     """
 
     __tablename__ = "chat_messages"
+    __table_args__ = (
+        # Partial unique index backing the ON CONFLICT idempotency upsert in
+        # jobs._persist_user_message. Declared on the model so create_all
+        # (local docker-compose bootstrap) produces it too — on deployed
+        # clusters it already exists via migrations v0a1b2c3d4e5 /
+        # ensure_upsert_uq_constraints; the predicate must stay byte-identical
+        # to those migrations or ON CONFLICT inference breaks.
+        Index(
+            "uq_chat_messages_thread_client_msg_user",
+            "thread_id",
+            "client_message_id",
+            unique=True,
+            postgresql_where=text(
+                "client_message_id IS NOT NULL AND role = 'user'"
+            ),
+        ),
+    )
 
     # Parent relationship
     thread_id = Column(
