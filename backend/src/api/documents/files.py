@@ -495,7 +495,11 @@ async def get_file_metadata(
         )
 
     return {
-        "metadata": document.metadata,
+        # `document.metadata` is SQLAlchemy's reserved declarative MetaData
+        # registry, not the document's JSON metadata — returning it makes
+        # jsonable_encoder raise and the endpoint 500 on every call. The JSON
+        # column is `document_metadata`, exposed via get_metadata().
+        "metadata": document.get_metadata(),
         "file_info": {
             "id": str(document.id),
             "title": document.title,
