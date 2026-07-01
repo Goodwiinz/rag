@@ -396,7 +396,7 @@ async def update_file_metadata(
             document.is_public = is_public
 
         await db.commit()
-        db.refresh(document)
+        await db.refresh(document)
 
         return {
             "message": "File metadata updated successfully",
@@ -404,7 +404,7 @@ async def update_file_metadata(
         }
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -616,7 +616,7 @@ async def cancel_upload(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Failed to cancel upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -671,5 +671,5 @@ async def reprocess_file(
         }
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
