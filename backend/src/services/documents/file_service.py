@@ -680,32 +680,47 @@ class FileService:
 
     async def delete_file(self, document: Document, user: User) -> bool:
         """Delete file and update storage"""
+        # Check permissions first — outside the try so a 403 propagates as-is
+        # instead of being wrapped into a FileStorageError.
+        if document.uploaded_by_user_id != user.id and not user.has_permission(
+            UserRole.ADMIN
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only delete your own files or require admin role",
+            )
+
+        # Make the DB the source of truth FIRST: soft-delete the record + revert
+        # quota, then commit. Only after that succeeds do we remove the physical
+        # object. Deleting the object before the commit meant a commit failure
+        # rolled back the row while the storage object was already irreversibly
+        # gone — a live row pointing at a missing file (every later download /
+        # content / reprocess 403/404, quota still counted). With this order a
+        # failure leaves at worst a sweepable orphan object, never a live row
+        # whose backing file is gone.
         try:
-            # Check permissions
-            if document.uploaded_by_user_id != user.id and not user.has_permission(
-                UserRole.ADMIN
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Can only delete your own files or require admin role",
-                )
-
-            # Delete physical file (local or Supabase)
-            self.delete_physical_file(document)
-
-            # Soft delete document record
             document.soft_delete()
-
-            # Update organization storage usage
             organization = document.organization
             organization.update_storage_usage(-document.file_size_bytes)
             await self.db.commit()
-
-            return True
-
         except Exception as e:
             await self.db.rollback()
             raise FileStorageError(f"Failed to delete file: {str(e)}")
+
+        # Best-effort physical delete AFTER the commit. A failure here must NOT
+        # roll back the committed soft-delete — log it as a recoverable orphan.
+        try:
+            self.delete_physical_file(document)
+        except Exception as delete_error:
+            logger.warning(
+                "Soft-deleted document %s but failed to remove its storage "
+                "object (orphan, recoverable by a later sweep): %s",
+                document.id,
+                delete_error,
+                exc_info=True,
+            )
+
+        return True
 
     async def get_file_stats(self, organization_id: str) -> Dict[str, Any]:
         """Get file statistics for organization"""
