@@ -85,21 +85,14 @@ def run_rag_triad_evaluation(self, job_id: str):
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
 
-        # Get evaluation dataset
-        dataset = (
-            db.query(EvaluationDataset)
-            .filter(EvaluationDataset.job_id == job_id)
-            .first()
-        )
-
-        if not dataset:
-            raise ValueError(f"Evaluation dataset for job {job_id} not found")
-
         # Idempotency guard for acks_late redelivery (mirrors
         # processing_tasks.process_document_ingestion): a worker recycled after
         # this job reached a terminal state but before the broker ack causes the
         # message to be redelivered — re-running would re-incur paid LLM
         # evaluation and append a duplicate set of EvaluationMetric rows.
+        # Placed BEFORE the dataset fetch so a dataset deleted after completion
+        # can't raise on redelivery and flip a terminal job to FAILED via
+        # on_failure.
         if job.status in _TERMINAL_EVAL_STATUSES:
             logger.info(
                 f"Evaluation job {job_id} already {job.status}; "
@@ -110,6 +103,16 @@ def run_rag_triad_evaluation(self, job_id: str):
                 "job_id": job_id,
                 "skipped": "duplicate_delivery",
             }
+
+        # Get evaluation dataset
+        dataset = (
+            db.query(EvaluationDataset)
+            .filter(EvaluationDataset.job_id == job_id)
+            .first()
+        )
+
+        if not dataset:
+            raise ValueError(f"Evaluation dataset for job {job_id} not found")
 
         # Start job
         job.start_job()
@@ -449,7 +452,9 @@ def run_real_time_evaluation(
             existing = (
                 db.query(EvaluationJob)
                 .filter(
-                    EvaluationJob.parameters["celery_task_id"].as_string() == task_id
+                    EvaluationJob.evaluation_type
+                    == EvaluationType.REAL_TIME_EVALUATION.value,
+                    EvaluationJob.parameters["celery_task_id"].as_string() == task_id,
                 )
                 .first()
             )
