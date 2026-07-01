@@ -191,8 +191,33 @@ def run_rag_triad_evaluation(self, job_id: str):
             successful_items = sum(1 for m in metrics_results if m.overall_score > 0.5)
             success_rate = (successful_items / len(metrics_results)) * 100
 
+            # Persist the processed/total counts so a partial run (some items
+            # hit the `except: continue` above and were dropped) is VISIBLE on
+            # the job — otherwise a job that only processed 2/10 items still
+            # reports COMPLETED with metrics averaged over the 2 survivors and
+            # no trace of the 8 failures. Keep COMPLETED (the partial metrics
+            # are still useful and failing the whole job would discard them),
+            # but record the degradation honestly.
+            failed_items = total_items - processed_items
+            job.dataset_size = total_items
+            job.update_progress(processed_items)
+
             # Complete job
             job.complete_job(overall_score=overall_score, success_rate=success_rate)
+            if failed_items > 0:
+                job.error_message = (
+                    f"Completed with partial results: {processed_items}/{total_items} "
+                    f"items processed, {failed_items} failed (see logs). Scores are "
+                    f"averaged over the {processed_items} processed items only."
+                )
+                logger.warning(
+                    "RAG Triad evaluation for job %s completed PARTIALLY: %d/%d "
+                    "items processed, %d failed",
+                    job_id,
+                    processed_items,
+                    total_items,
+                    failed_items,
+                )
             db.commit()
 
             logger.info(f"RAG Triad evaluation completed for job {job_id}")
@@ -205,6 +230,7 @@ def run_rag_triad_evaluation(self, job_id: str):
                 "job_id": job_id,
                 "processed_items": processed_items,
                 "total_items": total_items,
+                "failed_items": failed_items,
                 "overall_score": overall_score,
                 "success_rate": success_rate,
                 "duration_seconds": job.duration_seconds,
