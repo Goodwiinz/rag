@@ -810,17 +810,33 @@ def kg_extract_entities_job(self, job_id: str):
 
         job.update_progress("Finalizing extraction job", 90)
 
-        job.complete_job(
-            result={
-                "document_ids": document_ids,
-                "entities_found": entities_found_total,
-                "entities_created": entities_created_total,
-                "relationships_found": relationships_found_total,
-                "relationships_created": relationships_created_total,
-                "errors": errors_total,
-                "extraction_errors": extraction_errors_total,
-            }
-        )
+        result = {
+            "document_ids": document_ids,
+            "entities_found": entities_found_total,
+            "entities_created": entities_created_total,
+            "relationships_found": relationships_found_total,
+            "relationships_created": relationships_created_total,
+            "errors": errors_total,
+            "extraction_errors": extraction_errors_total,
+        }
+
+        # Honest outcome: if NOTHING was created and something errored (all
+        # documents missing/empty, or every KG write failed), completing the job
+        # reports a false success to anything polling job status. Fail it so the
+        # total failure is visible; a legitimately-empty run (no creates, no
+        # errors) still completes.
+        total_created = entities_created_total + relationships_created_total
+        total_errors = errors_total + extraction_errors_total
+        if total_created == 0 and total_errors > 0:
+            job.fail_job(
+                f"KG extraction created no entities or relationships "
+                f"({total_errors} errors across {total_docs} documents)",
+                error_type="extraction_failed",
+            )
+            db.commit()
+            return {"status": "failed", "job_id": job_id, "result": result}
+
+        job.complete_job(result=result)
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
