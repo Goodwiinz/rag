@@ -323,10 +323,11 @@ async def run_scenario(
 ) -> TurnResult:
     """Drive one agent scenario with a real DB session + user.
 
-    HITL auto-confirm: on ``GraphInterrupt`` we resume with
-    ``Command(resume={"confirmed": True})`` up to ``MAX_HITL_RESUMES``
-    times so destructive tools (create_project / ingest) actually execute
-    rather than hanging on the interrupt.
+    HITL auto-confirm: on a pending interrupt (detected via the returned
+    ``__interrupt__`` state, or ``GraphInterrupt`` as a defensive fallback)
+    we resume with ``Command(resume={"confirmed": True})`` up to
+    ``MAX_HITL_RESUMES`` times so destructive tools (create_project / ingest)
+    actually execute rather than hanging on the interrupt.
 
     The scenario result is logged regardless of error; exceptions are
     swallowed so a single failure never aborts the whole sweep.
