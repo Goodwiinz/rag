@@ -29,8 +29,6 @@ explicitly (NULL-org users never see any classifications). See memory/nous-loop-
 """
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 # revision identifiers, used by Alembic.
 revision = "add_org_id_stance_class"
@@ -51,13 +49,11 @@ ORG_INDEX = "ix_stance_classifications_organization_id"
 
 def upgrade():
     # 1. Add the tenant column.
-    op.add_column(
-        TABLE,
-        sa.Column(
-            "organization_id",
-            PG_UUID(as_uuid=True),
-            nullable=True,
-        ),
+    # Idempotent: the DOKS dev cluster runs create_all
+    # (ENVIRONMENT=development); if the model already carries organization_id the
+    # column may exist, and a plain add_column would crash-loop the init container.
+    op.execute(
+        f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS organization_id UUID"
     )
 
     # 2. Drop the legacy 3-tuple unique constraint if it exists (left behind by the
