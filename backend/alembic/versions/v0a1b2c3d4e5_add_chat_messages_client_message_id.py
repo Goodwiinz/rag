@@ -9,9 +9,7 @@ INSERT ... ON CONFLICT DO NOTHING by adding a partial unique index on
 (thread_id, client_message_id) restricted to user-role rows.
 """
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 
 revision = "v0a1b2c3d4e5"
@@ -21,9 +19,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "chat_messages",
-        sa.Column("client_message_id", PG_UUID(as_uuid=True), nullable=True),
+    # Idempotent add: the DOKS dev cluster runs create_all
+    # (ENVIRONMENT=development) and may already have materialised this column
+    # from the model, so a plain op.add_column would raise "column already
+    # exists" and crash-loop the migration init container.
+    op.execute(
+        "ALTER TABLE chat_messages "
+        "ADD COLUMN IF NOT EXISTS client_message_id UUID"
     )
     with op.get_context().autocommit_block():
         op.execute(
