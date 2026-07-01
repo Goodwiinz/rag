@@ -35,6 +35,16 @@ from src.services.evaluation.rag_evaluation_service import (
 logger = logging.getLogger(__name__)
 
 
+# Terminal EvaluationJob states for the acks_late idempotency guards below.
+_TERMINAL_EVAL_STATUSES = frozenset(
+    {
+        EvaluationStatus.COMPLETED.value,
+        EvaluationStatus.FAILED.value,
+        EvaluationStatus.CANCELLED.value,
+    }
+)
+
+
 class EvaluationTask(Task):
     """Base class for evaluation tasks"""
 
@@ -84,6 +94,22 @@ def run_rag_triad_evaluation(self, job_id: str):
 
         if not dataset:
             raise ValueError(f"Evaluation dataset for job {job_id} not found")
+
+        # Idempotency guard for acks_late redelivery (mirrors
+        # processing_tasks.process_document_ingestion): a worker recycled after
+        # this job reached a terminal state but before the broker ack causes the
+        # message to be redelivered — re-running would re-incur paid LLM
+        # evaluation and append a duplicate set of EvaluationMetric rows.
+        if job.status in _TERMINAL_EVAL_STATUSES:
+            logger.info(
+                f"Evaluation job {job_id} already {job.status}; "
+                "skipping redelivered run"
+            )
+            return {
+                "status": job.status,
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
 
         # Start job
         job.start_job()
@@ -276,6 +302,18 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery — see run_rag_triad_evaluation.
+        if job.status in _TERMINAL_EVAL_STATUSES:
+            logger.info(
+                f"Evaluation job {job_id} already {job.status}; "
+                "skipping redelivered run"
+            )
+            return {
+                "status": job.status,
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         # Start job
         job.start_job()
         job.update_progress(0)
@@ -400,11 +438,42 @@ def run_real_time_evaluation(
     """
     db = SessionLocal()
     try:
+        # Idempotency guard for acks_late redelivery: unlike the job_id-based
+        # tasks above, this task CREATES its job — a redelivered message would
+        # create a second EvaluationJob and re-incur paid LLM evaluation. The
+        # Celery task id is stable across redeliveries of the same message, so
+        # stamp it into parameters and short-circuit when a job for this
+        # delivery already exists.
+        task_id = getattr(self.request, "id", None)
+        if task_id:
+            existing = (
+                db.query(EvaluationJob)
+                .filter(
+                    EvaluationJob.parameters["celery_task_id"].as_string() == task_id
+                )
+                .first()
+            )
+            if existing:
+                logger.info(
+                    f"Real-time evaluation for task {task_id} already exists "
+                    f"as job {existing.id} ({existing.status}); "
+                    "skipping redelivered run"
+                )
+                return {
+                    "status": existing.status,
+                    "job_id": str(existing.id),
+                    "skipped": "duplicate_delivery",
+                }
+
         # Create a temporary evaluation job for real-time evaluation
         job = EvaluationJob(
             name=f"Real-time Evaluation: {query[:50]}...",
             evaluation_type=EvaluationType.REAL_TIME_EVALUATION.value,
-            parameters={"real_time": True, "query": query},
+            parameters={
+                "real_time": True,
+                "query": query,
+                "celery_task_id": task_id,
+            },
             dataset_size=1,
             organization_id=organization_id,
         )
