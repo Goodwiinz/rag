@@ -321,6 +321,14 @@ async def download_file(
 
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
+        # Verify the object exists before redirecting: a blind presign+302 for
+        # a missing object serves the storage provider's raw XML error (and
+        # bucket hostname) instead of a clean app 404, unlike the local branch.
+        if not helper.object_exists(bucket, key):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found in storage",
+            )
         signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
         return RedirectResponse(url=signed_url, status_code=302)
 
@@ -332,9 +340,13 @@ async def download_file(
     if document.storage_backend == "s3" and document.storage_path:
         from src.core.s3_client import S3StorageHelper
 
-        signed_url = S3StorageHelper().create_signed_url(
-            document.storage_path, expires_in=3600
-        )
+        s3_helper = S3StorageHelper()
+        if not s3_helper.object_exists(document.storage_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found in storage",
+            )
+        signed_url = s3_helper.create_signed_url(document.storage_path, expires_in=3600)
         return RedirectResponse(url=signed_url, status_code=302)
 
     # Local file path
