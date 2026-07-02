@@ -886,6 +886,16 @@ def extract_entities_from_document(
                         "document_id": document_id,
                     },
                     source_document_id=document_id,
+                    # Stamp the caller's org (the document is already verified as
+                    # theirs). Without this the entities are created with an empty
+                    # org_key and never appear in the caller's own org-scoped
+                    # entity list / search — the relationships below already do
+                    # this; the entity requests were missed.
+                    organization_id=(
+                        str(current_user.organization_id)
+                        if current_user.organization_id
+                        else None
+                    ),
                 )
             )
 
