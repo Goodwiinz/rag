@@ -11,6 +11,7 @@ Provides REST API endpoints for:
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -360,7 +361,7 @@ async def get_arxiv_statistics(
 async def _process_arxiv_ingestion(
     paper_ids: List[str],
     user_id: str,
-    organization_id: str,
+    organization_id: "str | UUID",
     download_pdfs: bool,
     extract_content: bool,
     batch_size: int,
