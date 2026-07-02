@@ -4,8 +4,9 @@ Revision ID: ensure_upsert_uq_constraints
 Revises: uq_project_thread_constraint
 Create Date: 2026-07-01 00:00:00
 
-The DOKS dev cluster boots with ENVIRONMENT=development, so app startup runs
-``Base.metadata.create_all`` against Supabase. ``create_all`` uses checkfirst:
+The DOKS dev cluster HISTORICALLY ran ``Base.metadata.create_all`` against
+Supabase at startup (create_all is now gated off managed DBs by the
+SUPABASE_DB_URL check added in #925). ``create_all`` uses checkfirst:
 it SKIPS existing tables and never ALTERs them, so any constraint added to a
 model after its table first existed never lands, and the alembic migration that
 was supposed to add it may have been stamped-not-run at bootstrap (its
@@ -37,17 +38,14 @@ CHAT_MSG_INDEX = "uq_chat_messages_thread_client_msg_user"
 
 def upgrade() -> None:
     # --- collection_documents: uq_collection_documents (collection_id, document_id)
-    op.execute(
-        """
+    op.execute("""
         DELETE FROM collection_documents a
         USING collection_documents b
         WHERE a.ctid < b.ctid
           AND a.collection_id = b.collection_id
           AND a.document_id   = b.document_id;
-        """
-    )
-    op.execute(
-        """
+        """)
+    op.execute("""
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -59,16 +57,13 @@ def upgrade() -> None:
             END IF;
         END
         $$;
-        """
-    )
+        """)
 
     # --- chat_messages: column + partial unique index for the idempotency upsert.
     op.execute(
-        "ALTER TABLE chat_messages "
-        "ADD COLUMN IF NOT EXISTS client_message_id UUID"
+        "ALTER TABLE chat_messages " "ADD COLUMN IF NOT EXISTS client_message_id UUID"
     )
-    op.execute(
-        """
+    op.execute("""
         DELETE FROM chat_messages a
         USING chat_messages b
         WHERE a.ctid < b.ctid
@@ -77,8 +72,7 @@ def upgrade() -> None:
           AND a.client_message_id IS NOT NULL
           AND a.role = 'user'
           AND b.role = 'user';
-        """
-    )
+        """)
     # CONCURRENTLY cannot run inside the migration's transaction.
     with op.get_context().autocommit_block():
         op.execute(
