@@ -116,6 +116,7 @@ async def track_user_interaction(
             event_id=interaction_data["event_id"],
             interaction_type=interaction_data["interaction_type"],
             data=interaction_data.get("data", {}),
+            organization_id=str(current_user.organization_id),
         )
 
         if success:
@@ -174,9 +175,14 @@ async def get_user_behavior_analytics(
         # filters only by user_id, so the org boundary is enforced here.
         from src.models.user import User as UserModel
 
+        # Reject when the caller has no org, or the target is missing / in a
+        # different org. Guard against None==None: a null-org caller must not
+        # read other null-org users' behavior.
         target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
-        if not target_user or str(target_user.organization_id) != str(
-            current_user.organization_id
+        if (
+            not current_user.organization_id
+            or not target_user
+            or target_user.organization_id != current_user.organization_id
         ):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
 
@@ -208,9 +214,18 @@ async def get_session_analysis(
 ):
     """Get detailed analysis of a specific search session"""
     try:
-        analysis = await user_behavior_service.analyze_session(session_id)
+        # Org-scoped: analyze_session only resolves a session in the caller's
+        # own organization, so a foreign session_id raises not-found (404 below)
+        # rather than leaking another tenant's session — the admin role no
+        # longer crosses the org boundary.
+        try:
+            analysis = await user_behavior_service.analyze_session(
+                session_id, organization_id=str(current_user.organization_id)
+            )
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Session not found")
 
-        # Check if user has permission to view this session
+        # Within the caller's org, a non-admin may only read their own session.
         if (
             analysis.user_id
             and str(current_user.id) != analysis.user_id

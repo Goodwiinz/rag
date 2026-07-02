@@ -138,16 +138,25 @@ class UserBehaviorService:
         event_id: str,
         interaction_type: str,
         data: Dict[str, Any],
+        organization_id: str,
     ) -> bool:
-        """Track user interaction with search results"""
+        """Track user interaction with search results.
+
+        ``organization_id`` (the caller's own org) scopes the event lookup so a
+        client-supplied ``event_id`` can only mutate the caller's tenant's
+        events — never another org's analytics rows.
+        """
 
         db = next(get_db_sync())
 
         try:
-            # Get the search event
+            # Get the search event (scoped to the caller's organization)
             search_event = (
                 db.query(SearchEvent)
-                .filter(SearchEvent.id == uuid.UUID(event_id))
+                .filter(
+                    SearchEvent.id == uuid.UUID(event_id),
+                    SearchEvent.organization_id == organization_id,
+                )
                 .first()
             )
 
@@ -249,19 +258,31 @@ class UserBehaviorService:
         finally:
             db.close()
 
-    async def analyze_session(self, session_id: str) -> SessionAnalysis:
-        """Analyze a specific search session"""
+    async def analyze_session(
+        self, session_id: str, organization_id: str
+    ) -> SessionAnalysis:
+        """Analyze a specific search session.
 
-        if session_id in self.session_cache:
-            return self.session_cache[session_id]
+        ``organization_id`` (the caller's own org) scopes the lookup so a
+        client-supplied ``session_id`` can only resolve to the caller's own
+        tenant's session. The cache is keyed by (org, session_id) so a cached
+        analysis is never served across tenants.
+        """
+
+        cache_key = (str(organization_id), session_id)
+        if cache_key in self.session_cache:
+            return self.session_cache[cache_key]
 
         db = next(get_db_sync())
 
         try:
-            # Get session
+            # Get session (scoped to the caller's organization)
             session = (
                 db.query(SearchSession)
-                .filter(SearchSession.session_id == session_id)
+                .filter(
+                    SearchSession.session_id == session_id,
+                    SearchSession.organization_id == organization_id,
+                )
                 .first()
             )
 
@@ -279,8 +300,8 @@ class UserBehaviorService:
             # Analyze session
             analysis = self._analyze_session_details(session, events)
 
-            # Cache the result
-            self.session_cache[session_id] = analysis
+            # Cache the result (keyed by org + session to avoid cross-tenant reuse)
+            self.session_cache[cache_key] = analysis
 
             return analysis
 
