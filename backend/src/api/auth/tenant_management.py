@@ -138,6 +138,33 @@ def require_tenant_permission(required_permission: str):
     return dependency
 
 
+def require_org_access(required_permission: str):
+    """Permission check that ALSO binds the ``{organization_id}`` path param to
+    the caller's own tenant.
+
+    ``require_tenant_permission`` only checks the caller's *role* (and every
+    role, including ``user``, has ``organization_read``), never that the
+    requested organization is the caller's own. On these
+    ``/organizations/{organization_id}/...`` routes that is a cross-tenant IDOR:
+    any authenticated user could read/update another org by id. This dependency
+    reuses the same auth+permission check, then rejects a path org that differs
+    from the caller's tenant with 403.
+    """
+
+    _permission_check = require_tenant_permission(required_permission)
+
+    def dependency(organization_id: str):
+        tenant_id = _permission_check()
+        if str(organization_id) != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access another organization's resources",
+            )
+        return tenant_id
+
+    return dependency
+
+
 def get_current_user_role():
     """Get current user role from context"""
     from src.middleware.multi_tenancy import get_current_user_role as get_role
@@ -179,7 +206,7 @@ async def create_organization(
 async def get_organization(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read")),
+    _: str = Depends(require_org_access("organization_read")),
 ):
     """Get organization details"""
     try:
@@ -211,7 +238,7 @@ async def update_organization(
     organization_id: str,
     organization_data: OrganizationUpdate,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_update")),
+    _: str = Depends(require_org_access("organization_update")),
 ):
     """Update organization settings"""
     try:
@@ -245,7 +272,7 @@ async def upgrade_storage_tier(
     organization_id: str,
     upgrade_data: StorageTierUpgrade,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_update")),
+    _: str = Depends(require_org_access("organization_update")),
 ):
     """Upgrade organization storage tier"""
     try:
@@ -278,7 +305,7 @@ async def upgrade_storage_tier(
 async def get_storage_quota_status(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read")),
+    _: str = Depends(require_org_access("organization_read")),
 ):
     """Get detailed storage quota status"""
     try:
@@ -307,7 +334,7 @@ async def get_storage_quota_status(
 async def get_user_count(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_users_read")),
+    _: str = Depends(require_org_access("organization_users_read")),
 ):
     """Get number of users in organization"""
     try:
@@ -339,7 +366,7 @@ async def get_organization_analytics(
         default=30, ge=1, le=365, description="Number of days to analyze"
     ),
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_analytics")),
+    _: str = Depends(require_org_access("organization_analytics")),
 ):
     """Get organization analytics summary"""
     try:
@@ -366,7 +393,7 @@ async def get_organization_analytics(
 async def validate_organization_limits(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read")),
+    _: str = Depends(require_org_access("organization_read")),
 ):
     """Validate organization against various limits"""
     try:
@@ -429,7 +456,7 @@ async def get_current_tenant_info(
 async def test_tenant_isolation(
     organization_id: str,
     tenant_service: TenantService = Depends(get_tenant_service),
-    _: str = Depends(require_tenant_permission("organization_read")),
+    _: str = Depends(require_org_access("organization_read")),
 ):
     """Test tenant data isolation (for security validation)"""
     try:
