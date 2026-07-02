@@ -101,6 +101,46 @@ layer currently passes exactly one (XOR), so safe. `layout_algorithms.py` clean.
 
 ---
 
+## D. Knowledge Graph — 2026-07-02 re-audit (status pass)
+
+Verified every D1–D16 finding against current code. Net result: **all closed**.
+Ten were already fixed in the 51-issue wave; the remaining six (D9 partial + D10,
+D11, D14, D15, D16) are closed by the 2026-07-02 change set, plus one new
+finding (D17) from the relationship read-path.
+
+| ID | Status | Notes |
+|----|--------|-------|
+| D1 | ✅ Fixed (prior) | GDS 1.x→2.x migration; named Cypher projection + stream-by-name + drop. `graph_algorithms.py:114-141` |
+| D2 | ✅ Fixed (prior) | Analytics scope on `organization_id` everywhere; no `tenant_id` references remain. `graph_algorithms.py:76,81-82,346` |
+| D3 | ✅ Fixed (prior) | `_validate_organization_id` raises on missing/invalid; unscoped `1=1` path unreachable. `graph_algorithms.py:50-61` |
+| D4 | ✅ Fixed (prior) | `extract_entities_from_document` filters `Document.organization_id`. `api/search/knowledge_graph.py:783` |
+| D5 | ✅ Fixed (prior) | `AnomalyInsight`/`GrowthTrendInsight` imported. `graph_algorithms.py:16,22` |
+| D6 | ✅ Fixed (prior) | `get_all_relationships` two-endpoint org scope. `knowledge_graph_service.py:1000-1003` |
+| D7 | ✅ Fixed (prior) | `find_paths` typed `[:RELATED_TO*1..{safe_depth}]` + org guard. `knowledge_graph_service.py:1725,1733` |
+| D8 | ✅ Fixed (prior) | `nodeFilter` moved into Cypher projection `nodeQuery`. `graph_algorithms.py:75-86,118` |
+| D9 | ✅ Fixed (2026-07-02) | Plain-Cypher degree-centrality path now binds `entity_types` via `$entity_types`. The GDS Cypher-projection path still interpolates, by necessity — `gds.graph.project.cypher` takes a literal query string, not a parameterized template — and only enum-allowlisted values can reach it. `graph_algorithms.py:340-343` (bound), `72-74` (GDS, documented) |
+| D10 | ✅ Fixed (2026-07-02) | `get_relationship` (single) now directed `-[r:RELATED_TO {...}]->`; source/target no longer swapped. `knowledge_graph_service.py:1419` |
+| D11 | ✅ Fixed (2026-07-02) | merge-jobs resolves entities via `organization_id` (not the org-doc-id list); org-owned entities with NULL `source_document_id` no longer 404. `api/search/knowledge_graph.py:647-658` |
+| D12 | ✅ Fixed (prior) | `get_graph_analytics` scopes both endpoints via source-side `WHERE`; unscoped path logs a warning. `knowledge_graph_service.py:2163-2172,2197` |
+| D13 | ✅ Fixed (prior) | `organization_id` in `create_entity` MERGE identity; no first-writer-wins re-stamp. `knowledge_graph_service.py:498` |
+| D14 | ✅ Fixed (2026-07-02) | `get_relationships`/`get_relationship` route `created_at`/`updated_at` through `_convert_datetime` (was raw neo4j `DateTime` → pydantic reject). `knowledge_graph_service.py:1267-1272,1441-1446` |
+| D15 | ✅ Fixed (2026-07-02) | New `RelationshipScopeError` raised when a scope filter is active and `create_relationship`'s MATCH finds nothing; API maps it to 404 (not 500, not a revealing 403). `knowledge_graph_service.py:47,1168-1178`; `api/search/knowledge_graph.py:465-467` |
+| D16 | ✅ Fixed (2026-07-02) | Dead `r.get("source_paper")` fallback removed from `get_relationships` and `_record_to_relationship`. `knowledge_graph_service.py:1267,1305` |
+| **D17** | ✅ Fixed (2026-07-02) | **New finding.** `get_relationships_for_entities()` only matched `source.id IN $entity_ids`, silently dropping incoming edges from graph search. Now `source.id IN $entity_ids OR target.id IN $entity_ids`. `knowledge_graph_service.py:1366-1368` |
+
+**Regression coverage:** each 2026-07-02 fix has a unit test — D9/D10/D14/D16/D17 in
+`tests/services/knowledge_graph/test_relationship_org_scoping.py` and
+`tests/unit/services/test_graph_analytics_scoping.py`; D11 in
+`tests/unit/api/test_knowledge_graph_merge_jobs.py`; D15 in
+`tests/unit/api/test_knowledge_graph_create_relationship_scope.py`. Focused KG
+suite: 62 passed.
+
+**Out of scope:** legacy duplicate-edge data cleanup (noted in code comments);
+improving the `scripts/maintenance/kg_relationship_quality_loop.sh` cluster-log
+filter (operational, separate task).
+
+---
+
 ## Priorities
 
 **Fix first (correctness/security, low effort):**

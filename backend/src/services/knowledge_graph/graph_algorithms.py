@@ -66,8 +66,12 @@ def _org_projection_queries(
 ) -> tuple[str, str]:
     """Build the (nodeQuery, relationshipQuery) for a GDS 2.x Cypher projection
     scoped to one organization. The org is a validated UUID and entity types come
-    from the enum allowlist, so interpolation here is injection-safe (GDS Cypher
-    projection queries cannot take bound parameters)."""
+    from the enum allowlist (_validate_entity_types), so interpolation here is
+    injection-safe. Bound parameters CANNOT be used: GDS graph.project.cypher
+    takes the query as a literal string, not a parameterized Cypher template.
+    (Audit D9: the plain-Cypher degree-centrality path now binds entity_types
+    via $entity_types; only this GDS projection path still interpolates, and
+    only allowlisted values can reach it.)"""
     type_pred = ""
     if validated_types:
         tf = " OR ".join([f"e.type = '{t}'" for t in validated_types])
@@ -338,10 +342,8 @@ class GraphAlgorithms:
             where_clauses = []
             params: Dict[str, Any] = {"limit": limit}
             if validated_types:
-                type_filter = " OR ".join(
-                    [f"e.type = '{etype}'" for etype in validated_types]
-                )
-                where_clauses.append(f"({type_filter})")
+                where_clauses.append("e.type IN $entity_types")
+                params["entity_types"] = validated_types
             if validated_org:
                 where_clauses.append("e.organization_id = $organization_id")
                 params["organization_id"] = validated_org

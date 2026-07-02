@@ -41,7 +41,10 @@ from src.models.graph import (
 )
 from src.models.user import User, UserRole
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
-from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import (
+    RelationshipScopeError,
+    knowledge_graph_service,
+)
 from src.services.processing.entity_extraction_service import (
     EntityExtractionService,
     EntityType as ProcessingEntityType,
@@ -459,6 +462,10 @@ def create_relationship(
             request, source_document_ids=org_doc_ids
         )
         return relationship
+    except RelationshipScopeError:
+        # A scope filter was active and one/both endpoints were out of scope.
+        # 404 rather than 403 to avoid revealing existence (audit D15).
+        raise HTTPException(status_code=404, detail="Relationship not created")
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -640,15 +647,20 @@ def create_merge_job(
     if not entity_ids:
         raise HTTPException(status_code=400, detail="At least one entity ID is required")
 
-    # Scope the fetch to the caller's org documents. Previously get_entity was
-    # unscoped, so an entity with a NULL source_document_id (orphan) belonging
-    # to another org passed the cross-org check below (orphans are treated as
-    # "safe") and could be merged cross-tenant. A scoped miss now 404s.
-    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    # Scope the fetch to the caller's organization. Scope by organization_id
+    # (not the org-doc-id list) so an entity with a NULL source_document_id
+    # (orphan) is still resolved when it belongs to the caller's org. A scoped
+    # miss now 404s (audit D11: the previous doc-id scope 404'd legit org-owned
+    # orphans, blocking valid merges).
+    org_id = (
+        str(current_user.organization_id)
+        if current_user.organization_id
+        else None
+    )
     entity_source_docs: Dict[str, str] = {}
     for entity_id in entity_ids:
         entity = knowledge_graph_service.get_entity(
-            entity_id, source_document_ids=org_doc_ids
+            entity_id, organization_id=org_id
         )
         if not entity:
             raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")

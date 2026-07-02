@@ -174,3 +174,172 @@ def test_get_all_relationships_scopes_by_org() -> None:
     # org takes precedence over the doc-id filter.
     assert "r.source_document_id IN $source_document_ids" not in q
     assert captured["params"]["organization_id"] == "org-A"
+
+
+@pytest.mark.unit
+def test_get_relationships_for_entities_returns_incoming_and_outgoing_edges() -> None:
+    """Search calls this method for incident edges. It must include both
+    source-side and target-side matches, otherwise incoming relationships are
+    silently dropped from graph search results."""
+    import contextlib
+
+    captured: Dict[str, Any] = {}
+
+    class _EmptyResult:
+        def __iter__(self):
+            return iter([])
+
+    class _Session:
+        def run(self, query: str, params: Dict[str, Any]) -> "_EmptyResult":
+            captured["query"] = query
+            captured["params"] = params
+            return _EmptyResult()
+
+    svc = KnowledgeGraphService()
+
+    @contextlib.contextmanager
+    def _fake_get_session(database: str = "neo4j"):
+        yield _Session()
+
+    svc.get_session = _fake_get_session  # type: ignore[method-assign]
+
+    svc.get_relationships_for_entities(["entity-a"], organization_id="org-A")
+
+    q = captured["query"]
+    assert "(source.id IN $entity_ids OR target.id IN $entity_ids)" in q
+    assert "source.organization_id = $organization_id" in q
+    assert "target.organization_id = $organization_id" in q
+    assert captured["params"]["entity_ids"] == ["entity-a"]
+    assert captured["params"]["organization_id"] == "org-A"
+
+
+# --- Audit D10 / D14 / D16 re-audit (2026-07-02) -----------------------------
+
+import contextlib
+from datetime import datetime
+
+
+class _Neo4jDateTime:
+    """Stand-in for neo4j.time.DateTime: pydantic rejects the neo4j type, so the
+    service must call .to_native() before handing it to RelationshipResponse."""
+
+    def __init__(self, dt: datetime) -> None:
+        self._dt = dt
+
+    def to_native(self) -> datetime:
+        return self._dt
+
+
+class _SingleResult:
+    def __init__(self, record):
+        self._record = record
+
+    def single(self):
+        return self._record
+
+
+class _ListResult:
+    def __init__(self, records):
+        self._records = records
+
+    def __iter__(self):
+        return iter(self._records)
+
+
+def _capture_session(captured, records, *, list_result=True):
+    class _Session:
+        def run(self, query: str, params: Dict[str, Any]):
+            captured["query"] = query
+            captured["params"] = params
+            return _ListResult(records) if list_result else _SingleResult(records)
+
+    class _Svc(KnowledgeGraphService):
+        pass
+
+    @contextlib.contextmanager
+    def _fake_get_session(database: str = "neo4j"):
+        yield _Session()
+
+    svc = _Svc()
+    svc.get_session = _fake_get_session  # type: ignore[method-assign]
+    return svc
+
+
+@pytest.mark.unit
+def test_get_relationship_single_is_directed_match() -> None:
+    """D10: get_relationship (single) must use a directed -[r:RELATED_TO]-> match
+    so the returned source/target reflects the stored edge direction (no swap)."""
+    captured: Dict[str, Any] = {}
+    svc = _capture_session(
+        captured,
+        {
+            "r": {"id": "r1", "type": "RELATED_TO", "strength": 0.5,
+                  "confidence_score": 0.5},
+            "source_id": "a",
+            "target_id": "b",
+        },
+        list_result=False,
+    )
+
+    svc.get_relationship("r1", organization_id="org-A")
+
+    q = captured["query"]
+    assert ")-[r:RELATED_TO {id: $relationship_id}]->(" in q
+    # undirected form must NOT be present
+    assert "]-(" not in q.split("RELATED_TO", 1)[1]
+
+
+@pytest.mark.unit
+def test_get_relationship_single_converts_neo4j_datetime() -> None:
+    """D14: neo4j DateTime must be converted to native datetime before pydantic."""
+    captured: Dict[str, Any] = {}
+    ts = _Neo4jDateTime(datetime(2026, 7, 2, 12, 0, 0))
+    svc = _capture_session(
+        captured,
+        {
+            "r": {"id": "r1", "type": "RELATED_TO", "strength": 0.5,
+                  "confidence_score": 0.5, "created_at": ts, "updated_at": ts},
+            "source_id": "a",
+            "target_id": "b",
+        },
+        list_result=False,
+    )
+
+    rel = svc.get_relationship("r1", organization_id="org-A")
+    assert isinstance(rel.created_at, datetime)
+    assert not isinstance(rel.created_at, _Neo4jDateTime)
+    assert rel.created_at == datetime(2026, 7, 2, 12, 0, 0)
+    assert rel.updated_at == datetime(2026, 7, 2, 12, 0, 0)
+
+
+@pytest.mark.unit
+def test_get_relationships_converts_neo4j_datetime_and_drops_source_paper() -> None:
+    """D14 + D16: list path converts neo4j DateTime and no longer falls back to a
+    (dead) source_paper key that no write path ever sets."""
+    captured: Dict[str, Any] = {}
+    ts = _Neo4jDateTime(datetime(2026, 7, 2, 12, 0, 0))
+    record = {
+        "r": {
+            "id": "r1",
+            "type": "RELATED_TO",
+            "strength": 0.5,
+            "confidence_score": 0.5,
+            "created_at": ts,
+            # source_document_id absent; source_paper is a legacy key that the
+            # write path never sets — must NOT be used as a fallback (D16).
+            "source_paper": "ghost-doc",
+        },
+        "rel_label": "RELATED_TO",
+        "source_id": "a",
+        "target_id": "b",
+    }
+    svc = _capture_session(captured, [record], list_result=True)
+
+    rels = svc.get_relationships("a", organization_id="org-A")
+    assert len(rels) == 1
+    rel = rels[0]
+    # D14: native datetime
+    assert isinstance(rel.created_at, datetime)
+    assert not isinstance(rel.created_at, _Neo4jDateTime)
+    # D16: dead fallback removed — absent source_document_id yields None, not the ghost
+    assert rel.source_document_id is None

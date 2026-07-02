@@ -138,3 +138,43 @@ def test_create_merge_job_404_when_entity_outside_org_scope(
 
     assert response.status_code == 404
     mock_apply_async.assert_not_called()
+
+
+@patch("src.api.search.knowledge_graph.kg_merge_entities_job.apply_async")
+@patch("src.api.search.knowledge_graph.knowledge_graph_service.get_entity")
+def test_create_merge_job_scopes_get_entity_by_organization_id(
+    mock_get_entity,
+    mock_apply_async,
+    test_client,
+    mock_sync_db,
+    mock_user,
+):
+    """D11: merge-jobs must resolve entities via organization_id (not the
+    org-doc-id list) so org-owned entities with a NULL source_document_id no
+    longer 404. The doc-id scope missed those legitimate orphans."""
+    payload = {
+        "groups": [
+            {
+                "entities": [
+                    {"id": "entity-1", "name": "A"},
+                    {"id": "entity-2", "name": "B"},
+                ],
+                "suggested_primary": "entity-1",
+            }
+        ]
+    }
+    mock_get_entity.side_effect = [
+        MagicMock(source_document_id=None),  # orphan, but org-owned
+        MagicMock(source_document_id=None),
+    ]
+    _set_doc_query_results(mock_sync_db, [])
+    mock_apply_async.return_value = MagicMock(id="task-123")
+
+    response = test_client.post("/api/v1/knowledge-graph/merge-jobs", json=payload)
+
+    assert response.status_code == 202
+    # The critical assertion: get_entity was called with organization_id,
+    # NOT source_document_ids.
+    for call in mock_get_entity.call_args_list:
+        assert call.kwargs.get("organization_id") == str(mock_user.organization_id)
+        assert "source_document_ids" not in call.kwargs

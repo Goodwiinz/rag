@@ -64,6 +64,24 @@ class TestDegreeCentralityScoping:
         assert session.last_params["organization_id"] == org
 
     @pytest.mark.asyncio
+    async def test_entity_types_bound_as_param_not_interpolated(self):
+        """D9: entity_types must be bound via $entity_types (not f-string
+        interpolated into the Cypher). The enum allowlist blocks injection, but
+        binding is still the correct pattern in the plain-Cypher path."""
+        from src.services.models.knowledge_graph_models import EntityType
+        org = "123e4567-e89b-12d3-a456-426614174000"
+        session = _FakeSession()
+        types = [e.value for e in list(EntityType)[:2]]
+        await self._algo().compute_degree_centrality(
+            session, entity_types=types, organization_id=org
+        )
+        assert "e.type IN $entity_types" in session.last_query
+        assert session.last_params["entity_types"] == types
+        # the literal value must NOT be baked into the query string
+        for t in types:
+            assert f"'{t}'" not in session.last_query
+
+    @pytest.mark.asyncio
     async def test_unscoped_returns_empty_and_never_queries(self):
         """No organization_id → validator raises → empty result, no Cypher run
         (so analytics can never run over the whole cross-org graph)."""
