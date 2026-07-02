@@ -14,7 +14,7 @@ from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.models.organization import Organization
 from src.models.quality_metrics import SearchEvent, SearchSession
 from src.models.user import User
@@ -96,14 +96,14 @@ class UserBehaviorService:
     ) -> SearchEvent:
         """Track a search event for behavior analysis"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
 
         try:
             # Create search event
             search_event = SearchEvent(
-                session_id=uuid.UUID(session_id)
-                if isinstance(session_id, str)
-                else session_id,
+                session_id=(
+                    uuid.UUID(session_id) if isinstance(session_id, str) else session_id
+                ),
                 query=query,
                 search_type=search_type,
                 results_count=results_count,
@@ -138,16 +138,25 @@ class UserBehaviorService:
         event_id: str,
         interaction_type: str,
         data: Dict[str, Any],
+        organization_id: str,
     ) -> bool:
-        """Track user interaction with search results"""
+        """Track user interaction with search results.
 
-        db = next(get_db())
+        ``organization_id`` (the caller's own org) scopes the event lookup so a
+        client-supplied ``event_id`` can only mutate the caller's tenant's
+        events — never another org's analytics rows.
+        """
+
+        db = next(get_db_sync())
 
         try:
-            # Get the search event
+            # Get the search event (scoped to the caller's organization)
             search_event = (
                 db.query(SearchEvent)
-                .filter(SearchEvent.id == uuid.UUID(event_id))
+                .filter(
+                    SearchEvent.id == uuid.UUID(event_id),
+                    SearchEvent.organization_id == organization_id,
+                )
                 .first()
             )
 
@@ -206,7 +215,7 @@ class UserBehaviorService:
         if use_cache and cache_key in self.behavior_cache:
             return self.behavior_cache[cache_key]
 
-        db = next(get_db())
+        db = next(get_db_sync())
 
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_back)
@@ -249,19 +258,31 @@ class UserBehaviorService:
         finally:
             db.close()
 
-    async def analyze_session(self, session_id: str) -> SessionAnalysis:
-        """Analyze a specific search session"""
+    async def analyze_session(
+        self, session_id: str, organization_id: str
+    ) -> SessionAnalysis:
+        """Analyze a specific search session.
 
-        if session_id in self.session_cache:
-            return self.session_cache[session_id]
+        ``organization_id`` (the caller's own org) scopes the lookup so a
+        client-supplied ``session_id`` can only resolve to the caller's own
+        tenant's session. The cache is keyed by (org, session_id) so a cached
+        analysis is never served across tenants.
+        """
 
-        db = next(get_db())
+        cache_key = (str(organization_id), session_id)
+        if cache_key in self.session_cache:
+            return self.session_cache[cache_key]
+
+        db = next(get_db_sync())
 
         try:
-            # Get session
+            # Get session (scoped to the caller's organization)
             session = (
                 db.query(SearchSession)
-                .filter(SearchSession.session_id == session_id)
+                .filter(
+                    SearchSession.session_id == session_id,
+                    SearchSession.organization_id == organization_id,
+                )
                 .first()
             )
 
@@ -279,8 +300,8 @@ class UserBehaviorService:
             # Analyze session
             analysis = self._analyze_session_details(session, events)
 
-            # Cache the result
-            self.session_cache[session_id] = analysis
+            # Cache the result (keyed by org + session to avoid cross-tenant reuse)
+            self.session_cache[cache_key] = analysis
 
             return analysis
 
@@ -295,7 +316,7 @@ class UserBehaviorService:
     ) -> Dict[str, Any]:
         """Get behavior trends for organization"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
 
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_back)
@@ -310,8 +331,7 @@ class UserBehaviorService:
 
             # Query session trends
             session_trends = db.execute(
-                text(  # nosec: B608 - group_by constrained to enum-derived literal values
-                    f"""
+                text(f"""
                 SELECT
                     DATE_TRUNC('{group_by}', start_time) as period,
                     COUNT(*) as session_count,
@@ -322,15 +342,13 @@ class UserBehaviorService:
                     AND start_time >= :cutoff_date
                 GROUP BY period
                 ORDER BY period
-            """
-                ),
+            """),  # nosec: B608 - group_by constrained to enum-derived literal values
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
             # Query search event trends
             event_trends = db.execute(
-                text(  # nosec: B608 - group_by constrained to enum-derived literal values
-                    f"""
+                text(f"""
                 SELECT
                     DATE_TRUNC('{group_by}', created_at) as period,
                     COUNT(*) as search_count,
@@ -342,15 +360,13 @@ class UserBehaviorService:
                     AND created_at >= :cutoff_date
                 GROUP BY period
                 ORDER BY period
-            """
-                ),
+            """),  # nosec: B608 - group_by constrained to enum-derived literal values
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
             # Query user engagement trends
             engagement_trends = db.execute(
-                text(  # nosec: B608 - group_by constrained to enum-derived literal values
-                    f"""
+                text(f"""
                 SELECT
                     DATE_TRUNC('{group_by}', s.start_time) as period,
                     COUNT(DISTINCT s.user_id) as active_users,
@@ -362,8 +378,7 @@ class UserBehaviorService:
                     AND s.start_time >= :cutoff_date
                 GROUP BY period
                 ORDER BY period
-            """
-                ),
+            """),  # nosec: B608 - group_by constrained to enum-derived literal values
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
@@ -411,15 +426,14 @@ class UserBehaviorService:
     ) -> Dict[str, Any]:
         """Get comprehensive behavioral insights for the organization"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
 
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days_back)
 
             # Get user engagement metrics
             engagement_data = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     COUNT(DISTINCT s.user_id) as active_users,
                     COUNT(s.id) as total_sessions,
@@ -430,15 +444,13 @@ class UserBehaviorService:
                 LEFT JOIN search_events e ON s.id = e.session_id
                 WHERE s.organization_id = :org_id
                     AND s.start_time >= :cutoff_date
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchone()
 
             # Get top queries
             top_queries = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     e.query,
                     COUNT(*) as search_count,
@@ -451,15 +463,13 @@ class UserBehaviorService:
                 GROUP BY e.query
                 ORDER BY search_count DESC
                 LIMIT 10
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
             # Get search types distribution
             search_types = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     e.search_type,
                     COUNT(*) as count,
@@ -470,15 +480,13 @@ class UserBehaviorService:
                     AND e.created_at >= :cutoff_date
                 GROUP BY e.search_type
                 ORDER BY count DESC
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
             # Get peak usage hours
             peak_hours = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     EXTRACT(HOUR FROM e.created_at) as hour,
                     COUNT(*) as search_count
@@ -489,15 +497,13 @@ class UserBehaviorService:
                 GROUP BY hour
                 ORDER BY search_count DESC
                 LIMIT 5
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
             # Get most accessed documents
             top_documents = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     d.id,
                     d.title,
@@ -513,8 +519,7 @@ class UserBehaviorService:
                 GROUP BY d.id, d.title
                 ORDER BY unique_users DESC, access_count DESC
                 LIMIT 10
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchall()
 
@@ -523,14 +528,12 @@ class UserBehaviorService:
             current_engagement = engagement_data.active_users if engagement_data else 0
 
             prev_engagement = db.execute(
-                text(
-                    """
+                text("""
                 SELECT COUNT(DISTINCT s.user_id) as active_users
                 FROM search_sessions s
                 WHERE s.organization_id = :org_id
                     AND s.start_time BETWEEN :prev_cutoff AND :cutoff_date
-            """
-                ),
+            """),
                 {
                     "org_id": organization_id,
                     "prev_cutoff": prev_cutoff,
@@ -551,8 +554,7 @@ class UserBehaviorService:
 
             # Calculate retention rate (simplified)
             retention_data = db.execute(
-                text(
-                    """
+                text("""
                 WITH current_period_users AS (
                     SELECT DISTINCT s.user_id
                     FROM search_sessions s
@@ -570,8 +572,7 @@ class UserBehaviorService:
                     COUNT(DISTINCT pp.user_id) as previous_total_users
                 FROM previous_period_users pp
                 LEFT JOIN current_period_users cp ON pp.user_id = cp.user_id
-            """
-                ),
+            """),
                 {
                     "org_id": organization_id,
                     "prev_cutoff": prev_cutoff,
@@ -587,8 +588,7 @@ class UserBehaviorService:
 
             # Get user satisfaction metrics
             satisfaction = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     AVG(e.user_rating) as avg_rating,
                     COUNT(e.user_rating) as rating_count
@@ -597,15 +597,13 @@ class UserBehaviorService:
                 WHERE s.organization_id = :org_id
                     AND e.created_at >= :cutoff_date
                     AND e.user_rating IS NOT NULL
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchone()
 
             # Get task completion rate (simplified)
             task_completion = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     COUNT(CASE WHEN e.clicked_results > 0 THEN 1 END) as successful_searches,
                     COUNT(*) as total_searches
@@ -613,8 +611,7 @@ class UserBehaviorService:
                 JOIN search_sessions s ON e.session_id = s.id
                 WHERE s.organization_id = :org_id
                     AND e.created_at >= :cutoff_date
-            """
-                ),
+            """),
                 {"org_id": organization_id, "cutoff_date": cutoff_date},
             ).fetchone()
 
@@ -636,15 +633,17 @@ class UserBehaviorService:
                             "segment": pattern_name,
                             "count": len(users),
                             "percentage": (
-                                len(users)
-                                / sum(
-                                    len(segment_users)
-                                    for segment_users in patterns.values()
+                                (
+                                    len(users)
+                                    / sum(
+                                        len(segment_users)
+                                        for segment_users in patterns.values()
+                                    )
                                 )
-                            )
-                            * 100
-                            if patterns
-                            else 0,
+                                * 100
+                                if patterns
+                                else 0
+                            ),
                             "characteristics": self._get_pattern_characteristics(
                                 pattern_name
                             ),
@@ -662,12 +661,14 @@ class UserBehaviorService:
 
             return {
                 "active_users": engagement_data.active_users if engagement_data else 0,
-                "total_sessions": engagement_data.total_sessions
-                if engagement_data
-                else 0,
-                "avg_session_duration": float(engagement_data.avg_session_duration or 0)
-                if engagement_data
-                else 0,
+                "total_sessions": (
+                    engagement_data.total_sessions if engagement_data else 0
+                ),
+                "avg_session_duration": (
+                    float(engagement_data.avg_session_duration or 0)
+                    if engagement_data
+                    else 0
+                ),
                 "engagement_trend": engagement_trend,
                 "retention_rate": retention_rate,
                 "top_queries": [
@@ -696,17 +697,19 @@ class UserBehaviorService:
                     for doc in top_documents
                 ],
                 "click_through_rates": {
-                    "overall": float(engagement_data.success_rate or 0)
-                    if engagement_data
-                    else 0,
+                    "overall": (
+                        float(engagement_data.success_rate or 0)
+                        if engagement_data
+                        else 0
+                    ),
                     "by_search_type": {
                         st.search_type: float(st.avg_response_time or 0)  # Placeholder
                         for st in search_types
                     },
                 },
-                "user_satisfaction": float(satisfaction.avg_rating or 0)
-                if satisfaction
-                else 0,
+                "user_satisfaction": (
+                    float(satisfaction.avg_rating or 0) if satisfaction else 0
+                ),
                 "task_completion_rate": completion_rate,
                 "behavioral_segments": behavioral_segments,
                 "recommendations": recommendations,
@@ -831,13 +834,12 @@ class UserBehaviorService:
     ) -> Dict[str, Any]:
         """Identify user behavior patterns in the organization"""
 
-        db = next(get_db())
+        db = next(get_db_sync())
 
         try:
             # Get users with sufficient activity
             active_users = db.execute(
-                text(
-                    """
+                text("""
                 SELECT
                     u.id,
                     u.first_name,
@@ -855,8 +857,7 @@ class UserBehaviorService:
                 GROUP BY u.id, u.first_name, u.last_name
                 HAVING COUNT(s.id) >= :min_sessions
                 ORDER BY search_count DESC
-            """
-                ),
+            """),
                 {
                     "org_id": organization_id,
                     "cutoff_date": datetime.utcnow() - timedelta(days=30),
@@ -1040,9 +1041,11 @@ class UserBehaviorService:
             search_count=total_searches,
             avg_response_time=avg_response_time,
             click_rate=success_rate,
-            avg_rating=statistics.mean([e.user_rating for e in events if e.user_rating])
-            if any(e.user_rating for e in events)
-            else None,
+            avg_rating=(
+                statistics.mean([e.user_rating for e in events if e.user_rating])
+                if any(e.user_rating for e in events)
+                else None
+            ),
         )
 
         # Engagement score (0-100)
