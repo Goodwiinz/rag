@@ -174,9 +174,25 @@ async def lifespan(app: FastAPI):
     # require BOTH an explicit development ENVIRONMENT and the absence of
     # SUPABASE_DB_URL, so a managed cluster can never trigger create_all even if
     # ENVIRONMENT is misconfigured to "development".
+    # Third condition (audit M1): the engine host must be genuinely local (or
+    # SQLite, or explicitly forced via RUN_CREATE_ALL=1). Closes the residual
+    # gap where ENVIRONMENT is unset (defaults "development") and a managed
+    # non-Supabase DATABASE_URL is configured — that combination previously
+    # still ran create_all against the managed DB.
+    from src.core.database import should_run_create_all
+
     environment = os.environ.get("ENVIRONMENT", "development")
-    uses_managed_db = bool(os.environ.get("SUPABASE_DB_URL"))
-    if environment == "development" and not uses_managed_db:
+    supabase_db_url = os.environ.get("SUPABASE_DB_URL", "")
+    db_host = getattr(engine.url, "host", None)
+    is_sqlite = engine.url.get_backend_name().startswith("sqlite")
+    force_create_all = os.environ.get("RUN_CREATE_ALL", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if should_run_create_all(
+        environment, supabase_db_url, db_host, is_sqlite, force_create_all
+    ):
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -188,10 +204,12 @@ async def lifespan(app: FastAPI):
                 raise
     else:
         logger.info(
-            "Skipping create_all (environment=%s, managed_db=%s) — "
-            "Alembic migrations are authoritative",
+            "Skipping create_all (environment=%s, supabase_db_url_set=%s, "
+            "db_host=%s, forced=%s) — Alembic migrations are authoritative",
             environment,
-            uses_managed_db,
+            bool(supabase_db_url),
+            db_host,
+            force_create_all,
         )
 
     # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
