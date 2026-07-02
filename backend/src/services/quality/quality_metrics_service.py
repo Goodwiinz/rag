@@ -449,10 +449,15 @@ class QualityMetricsService:
         try:
             db = next(get_db_sync())
 
-            # Look for existing session
+            # Look for an existing session OWNED BY THE CALLER'S ORG. session_id
+            # is globally unique, so scoping the lookup prevents mutating another
+            # tenant's session.
             session = (
                 db.query(SearchSession)
-                .filter(SearchSession.session_id == session_id)
+                .filter(
+                    SearchSession.session_id == session_id,
+                    SearchSession.organization_id == organization_id,
+                )
                 .first()
             )
 
@@ -460,6 +465,20 @@ class QualityMetricsService:
                 # Update existing session
                 session.updated_at = datetime.utcnow()
             else:
+                # No session for this (session_id, org). Because session_id is
+                # globally unique, if a row exists under a DIFFERENT org the
+                # caller must neither adopt it (cross-tenant) nor INSERT (unique
+                # violation) — reject instead.
+                conflict = (
+                    db.query(SearchSession.id)
+                    .filter(SearchSession.session_id == session_id)
+                    .first()
+                )
+                if conflict is not None:
+                    raise ValueError(
+                        f"session_id {session_id} belongs to another organization"
+                    )
+
                 # Create new session
                 session = SearchSession(
                     session_id=session_id,
@@ -518,10 +537,14 @@ class QualityMetricsService:
 
             db.add(event)
 
-            # Update session statistics
+            # Update session statistics — scoped to the caller's org so a known
+            # foreign session_id cannot bump another tenant's counters.
             session = (
                 db.query(SearchSession)
-                .filter(SearchSession.session_id == session_id)
+                .filter(
+                    SearchSession.session_id == session_id,
+                    SearchSession.organization_id == organization_id,
+                )
                 .first()
             )
 
