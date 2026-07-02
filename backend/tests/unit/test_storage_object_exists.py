@@ -15,6 +15,8 @@ from unittest.mock import MagicMock
 import pytest
 from botocore.exceptions import ClientError
 
+pytestmark = pytest.mark.unit
+
 from src.core.s3_client import S3StorageHelper
 from src.core.supabase_client import StorageHelper
 

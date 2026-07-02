@@ -49,12 +49,10 @@ ORG_INDEX = "ix_stance_classifications_organization_id"
 
 def upgrade():
     # 1. Add the tenant column.
-    # Idempotent: the DOKS dev cluster runs create_all
-    # (ENVIRONMENT=development); if the model already carries organization_id the
-    # column may exist, and a plain add_column would crash-loop the init container.
-    op.execute(
-        f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS organization_id UUID"
-    )
+    # Idempotent: the DOKS dev cluster HISTORICALLY ran create_all at startup
+    # (before the SUPABASE_DB_URL gate landed in #925), so the column may already
+    # exist from the model — a plain add_column would crash-loop the init container.
+    op.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS organization_id UUID")
 
     # 2. Drop the legacy 3-tuple unique constraint if it exists (left behind by the
     #    standalone migration). IF EXISTS makes this safe whether or not it ran.

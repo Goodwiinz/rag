@@ -13,6 +13,10 @@ Pure-AST test: no app imports, runs without langgraph/libpq.
 import ast
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 FILES_PY = (
     Path(__file__).resolve().parents[2] / "src" / "api" / "documents" / "files.py"
 )

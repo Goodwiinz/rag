@@ -11,7 +11,6 @@ INSERT ... ON CONFLICT DO NOTHING by adding a partial unique index on
 
 from alembic import op
 
-
 revision = "v0a1b2c3d4e5"
 down_revision = "u9a0b1c2d3e4"
 branch_labels = None
@@ -19,13 +18,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Idempotent add: the DOKS dev cluster runs create_all
-    # (ENVIRONMENT=development) and may already have materialised this column
-    # from the model, so a plain op.add_column would raise "column already
-    # exists" and crash-loop the migration init container.
+    # Idempotent add: the DOKS dev cluster HISTORICALLY ran create_all at
+    # startup (before the SUPABASE_DB_URL gate in #925) and may already have
+    # materialised this column from the model, so a plain op.add_column would
+    # raise "column already exists" and crash-loop the migration init container.
     op.execute(
-        "ALTER TABLE chat_messages "
-        "ADD COLUMN IF NOT EXISTS client_message_id UUID"
+        "ALTER TABLE chat_messages " "ADD COLUMN IF NOT EXISTS client_message_id UUID"
     )
     with op.get_context().autocommit_block():
         op.execute(

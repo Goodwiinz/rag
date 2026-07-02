@@ -2,6 +2,7 @@
 File upload and management API endpoints
 """
 
+import logging
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -25,6 +26,12 @@ from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+# Module-level logger: the except handlers in list_files / get_file_statistics /
+# cancel_upload reference `logger`; before this it existed only as a local inside
+# upload_file, so those error paths raised NameError and masked the real error.
+logger = logging.getLogger(__name__)
 
 
 def _escape_like(value: str) -> str:
@@ -81,9 +88,6 @@ async def upload_file(
     """Upload a file to the system"""
 
     # Debug logging
-    import logging
-
-    logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
