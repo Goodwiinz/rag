@@ -32,7 +32,7 @@ def test_docids_query_is_scoped_to_project_collection():
     # must join the project's collection membership AND filter the id list
     assert "collection_documents" in sql
     assert "collection_id" in sql
-    assert "document.id in" in sql or "document.id in (" in sql or " in (" in sql
+    assert "documents.id in" in sql  # id-list intersection applied
 
 
 def test_no_docids_query_still_scoped_to_project_collection():
