@@ -15,7 +15,7 @@ from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import (
     AlertSeverity,
@@ -66,7 +66,7 @@ class QualityMetricsService:
         Collect quality metrics for a search query
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
             metrics = []
 
             # Calculate various quality metrics
@@ -364,7 +364,7 @@ class QualityMetricsService:
         Background processing for metrics (aggregation, analytics, etc.)
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             # Update aggregations for each metric
             for metric in metrics:
@@ -447,7 +447,7 @@ class QualityMetricsService:
         Create or update a search session
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             # Look for existing session
             session = (
@@ -499,7 +499,7 @@ class QualityMetricsService:
         Record a search event for analytics
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             # Create search event
             event = SearchEvent(
@@ -554,7 +554,7 @@ class QualityMetricsService:
         Get quality metrics for analytics
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             query = db.query(QualityMetric).filter(
                 QualityMetric.organization_id == organization_id
@@ -587,7 +587,7 @@ class QualityMetricsService:
         Get aggregated metrics for dashboard
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             query = db.query(MetricAggregation).filter(
                 and_(
@@ -624,7 +624,7 @@ class QualityMetricsService:
         Get active quality alerts
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             query = db.query(QualityAlert).filter(
                 and_(
@@ -642,14 +642,27 @@ class QualityMetricsService:
             logger.error(f"Error getting active alerts: {e}")
             return []
 
-    def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
+    def acknowledge_alert(
+        self, alert_id: str, acknowledged_by: str, organization_id: str
+    ) -> bool:
         """
-        Acknowledge a quality alert
+        Acknowledge a quality alert.
+
+        ``organization_id`` (the caller's own org) scopes the lookup so a
+        client-supplied ``alert_id`` can only acknowledge the caller's tenant's
+        alerts — never another org's.
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
-            alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
+            alert = (
+                db.query(QualityAlert)
+                .filter(
+                    QualityAlert.id == alert_id,
+                    QualityAlert.organization_id == organization_id,
+                )
+                .first()
+            )
 
             if alert:
                 alert.status = "acknowledged"
@@ -677,7 +690,7 @@ class QualityMetricsService:
         Get search analytics summary
         """
         try:
-            db = next(get_db())
+            db = next(get_db_sync())
 
             # Default to last 7 days if no time range specified
             if not end_time:

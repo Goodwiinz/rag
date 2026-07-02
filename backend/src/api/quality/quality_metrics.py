@@ -269,7 +269,9 @@ async def acknowledge_alert(
     """
     try:
         success = quality_metrics_service.acknowledge_alert(
-            alert_id=alert_id, acknowledged_by=str(current_user.id)
+            alert_id=alert_id,
+            acknowledged_by=str(current_user.id),
+            organization_id=str(current_user.organization_id),
         )
 
         if success:
