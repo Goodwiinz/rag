@@ -167,18 +167,18 @@ async def get_user_behavior_analytics(
 ):
     """Get behavior analytics for a specific user (admin/org manager only)"""
     try:
-        # Check permissions (admin or same organization)
-        from src.models.user import UserRole
+        # Tenant scope: the target user MUST belong to the caller's organization —
+        # for EVERY role. UserRole.ADMIN is a per-organization role (role and
+        # organization_id are independent columns; there is no global superuser),
+        # so an org-A admin must not read an org-B user's behavior. The service
+        # filters only by user_id, so the org boundary is enforced here.
+        from src.models.user import User as UserModel
 
-        if current_user.role not in [UserRole.ADMIN]:
-            # Must look up target user to compare orgs
-            from src.models.user import User as UserModel
-
-            target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
-            if not target_user or str(target_user.organization_id) != str(
-                current_user.organization_id
-            ):
-                raise HTTPException(status_code=403, detail="Insufficient permissions")
+        target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
+        if not target_user or str(target_user.organization_id) != str(
+            current_user.organization_id
+        ):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
 
         metrics = await user_behavior_service.analyze_user_behavior(
             user_id=user_id, days_back=days_back
