@@ -11,6 +11,7 @@ Provides REST API endpoints for:
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -161,6 +162,7 @@ async def ingest_arxiv_papers(
             _process_arxiv_ingestion,
             paper_ids=request.paper_ids,
             user_id=current_user.id,
+            organization_id=current_user.organization_id,
             download_pdfs=request.download_pdfs,
             extract_content=request.extract_content,
             batch_size=request.batch_size,
@@ -359,6 +361,7 @@ async def get_arxiv_statistics(
 async def _process_arxiv_ingestion(
     paper_ids: List[str],
     user_id: str,
+    organization_id: "str | UUID",
     download_pdfs: bool,
     extract_content: bool,
     batch_size: int,
@@ -389,27 +392,48 @@ async def _process_arxiv_ingestion(
                         batch_size=batch_size,
                     )
 
-                    # Save documents to database
+                    # Save documents to database. ingest_papers returns
+                    # SimpleDocument objects (attributes, NOT dicts) — the prior
+                    # doc.get(...) calls raised AttributeError, which the outer
+                    # except swallowed, so ingest silently persisted nothing.
+                    # organization_id MUST come from the authenticated user (never
+                    # a doc field / "" default) or the NOT NULL FK insert fails and
+                    # papers are un-scoped.
+                    persisted = 0
                     for doc in documents:
-                        # Create document instance
-                        document = Document(
-                            title=doc.get("title", ""),
-                            filename=doc.get("filename", ""),
-                            file_path=doc.get("file_path", ""),
-                            file_size_bytes=doc.get("file_size_bytes", 0),
-                            mime_type=doc.get("mime_type", "application/pdf"),
-                            document_type=DocumentType.PDF,
-                            content_text=doc.get("content_text"),
-                            content_summary=doc.get("content_summary"),
-                            document_metadata=doc.get("metadata", {}),
-                            processing_status=ProcessingStatus.COMPLETED,
-                            uploaded_by_user_id=user_id,
-                            organization_id=doc.get("organization_id", ""),
-                            is_public=doc.get("is_public", False),
-                        )
-                        db.add(document)
+                        try:
+                            metadata = getattr(doc, "document_metadata", {}) or {}
+                            document = Document(
+                                title=getattr(doc, "title", "") or "",
+                                filename=getattr(doc, "filename", "") or "",
+                                file_path=metadata.get("pdf_path", "") or "",
+                                file_size_bytes=getattr(doc, "file_size_bytes", 0) or 0,
+                                mime_type=getattr(doc, "mime_type", "application/pdf")
+                                or "application/pdf",
+                                document_type=getattr(
+                                    doc, "document_type", DocumentType.PDF
+                                ),
+                                content_text=getattr(doc, "content_text", None),
+                                document_metadata=metadata,
+                                processing_status=ProcessingStatus.COMPLETED,
+                                uploaded_by_user_id=user_id,
+                                organization_id=organization_id,
+                                is_public=False,
+                            )
+                            db.add(document)
+                            persisted += 1
+                        except Exception as doc_err:
+                            # One malformed paper must not abort the whole batch.
+                            logger.error(
+                                f"Skipping arXiv paper during persist: {doc_err}"
+                            )
 
-                    await db.commit()
+                    if persisted:
+                        await db.commit()
+                        logger.info(
+                            f"arXiv ingestion persisted {persisted}/{len(documents)} "
+                            f"documents for org {organization_id}"
+                        )
 
     except Exception as e:
         logger.error(f"Background arXiv ingestion failed: {e}")
