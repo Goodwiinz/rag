@@ -33,6 +33,7 @@ class _FakeDoc:
         self.content_text = content_text
         self.do_kb_data_source_uuid: str | None = None
         self.do_kb_indexed_at: datetime | None = None
+        self.do_kb_index_status: str | None = None
 
 
 class _FakeSession:
@@ -345,3 +346,73 @@ async def test_reuses_existing_data_source_for_same_item_path(stub_settings):
     assert result == "ds-existing"
     client.add_spaces_data_source.assert_not_called()
     assert doc.do_kb_data_source_uuid == "ds-existing"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_unsync_deletes_data_source_and_clears_columns(stub_settings):
+    """unsync_document_from_kb deletes the DS from DO KB and clears DB columns."""
+    from src.services.do_kb.ingest import unsync_document_from_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    doc.do_kb_data_source_uuid = "ds-old"
+    doc.do_kb_indexed_at = datetime.now(timezone.utc)
+    doc.do_kb_index_status = "indexed"
+
+    client = MagicMock()
+    client.delete_data_source = AsyncMock(return_value=None)
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ):
+        result = await unsync_document_from_kb(session, doc, client=client)
+
+    assert result is True
+    client.delete_data_source.assert_awaited_once_with(kb_uuid="kb-1", ds_uuid="ds-old")
+    assert doc.do_kb_data_source_uuid is None
+    assert doc.do_kb_indexed_at is None
+    assert doc.do_kb_index_status is None
+    assert session.commits == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_unsync_noop_when_no_data_source(stub_settings):
+    """No data source UUID → nothing to delete, no DO KB call, returns True."""
+    from src.services.do_kb.ingest import unsync_document_from_kb
+
+    doc = _FakeDoc()  # do_kb_data_source_uuid is None
+    client = MagicMock()
+    client.delete_data_source = AsyncMock()
+
+    result = await unsync_document_from_kb(_FakeSession(), doc, client=client)
+
+    assert result is True
+    client.delete_data_source.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
+    """A stale UUID must not linger: clear DB columns even if DO's DELETE errors
+    (the DS may already be gone on DO's side)."""
+    from src.services.do_kb.ingest import unsync_document_from_kb
+
+    session = _FakeSession()
+    doc = _FakeDoc()
+    doc.do_kb_data_source_uuid = "ds-old"
+
+    client = MagicMock()
+    client.delete_data_source = AsyncMock(side_effect=DOKnowledgeBaseError("gone"))
+
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ):
+        result = await unsync_document_from_kb(session, doc, client=client)
+
+    assert result is True
+    assert doc.do_kb_data_source_uuid is None
+    assert session.commits == 1
