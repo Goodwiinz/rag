@@ -70,3 +70,22 @@ def test_create_entity_tenantless_caller_gets_none(monkeypatch):
     req = SimpleNamespace(organization_id="org-B", source_document_id=None)
     kg.create_entity(request=req, current_user=_caller(None), db=MagicMock())
     assert captured["req"].organization_id is None
+
+
+def test_create_entity_with_real_model_instance(monkeypatch):
+    # Uses a real CreateEntityRequest (not SimpleNamespace) so the test also
+    # guards against a future frozen/validate_assignment config that would make
+    # the in-place org stamp raise at runtime.
+    from src.models.graph import CreateEntityRequest
+
+    captured = {}
+    monkeypatch.setattr(
+        kg.knowledge_graph_service,
+        "create_entity",
+        lambda req: captured.setdefault("req", req) or SimpleNamespace(),
+    )
+    req = CreateEntityRequest(
+        name="INJECTED", entity_type="PERSON", organization_id="org-B"
+    )
+    kg.create_entity(request=req, current_user=_caller("org-A"), db=MagicMock())
+    assert captured["req"].organization_id == "org-A"
