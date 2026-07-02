@@ -14,6 +14,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Task, current_app, group
 
+from sqlalchemy.exc import InterfaceError, OperationalError
+
 from src.core.config import settings
 from src.core.database import SessionLocal
 from src.models.thread import Thread, ThreadStatus
@@ -21,10 +23,24 @@ from src.models.thread import Thread, ThreadStatus
 logger = logging.getLogger(__name__)
 
 
+# Errors worth retrying: connection/timeout blips between worker and DB/redis.
+# Deliberately narrow — the old (Exception,) retried permanent failures (bad
+# UUID, integrity errors, code bugs) 3x with backoff, adding latency and log
+# noise for outcomes that can never change. LLM-call errors are intentionally
+# absent: ThreadSummarizationService catches them itself and degrades to a
+# fallback summary (they never propagate to this task).
+TRANSIENT_ERRORS = (
+    ConnectionError,
+    TimeoutError,
+    OperationalError,
+    InterfaceError,
+)
+
+
 class SummarizationTask(Task):
     """Base class for summarization tasks with error handling."""
 
-    autoretry_for = (Exception,)
+    autoretry_for = TRANSIENT_ERRORS
     retry_kwargs = {"max_retries": 3, "countdown": 5}
     retry_backoff = True
 
