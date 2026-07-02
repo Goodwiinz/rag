@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 pytestmark = pytest.mark.unit
 
@@ -28,7 +29,8 @@ def test_autoretry_is_exactly_the_transient_set():
 
 
 @pytest.mark.parametrize(
-    "exc_type", [ConnectionError, TimeoutError, OperationalError, InterfaceError]
+    "exc_type",
+    [ConnectionError, TimeoutError, OperationalError, InterfaceError, SATimeoutError],
 )
 def test_transient_classes_are_retried(exc_type):
     assert issubclass(exc_type, TRANSIENT_ERRORS)

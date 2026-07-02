@@ -15,6 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from celery import Task, current_app, group
 
 from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as SATimeoutError
 
 from src.core.config import settings
 from src.core.database import SessionLocal
@@ -34,6 +35,9 @@ TRANSIENT_ERRORS = (
     TimeoutError,
     OperationalError,
     InterfaceError,
+    # SQLAlchemy pool-checkout exhaustion is NOT a builtin TimeoutError
+    # subclass; it is transient (pool pressure) and worth a retry.
+    SATimeoutError,
 )
 
 
