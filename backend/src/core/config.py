@@ -199,6 +199,11 @@ class Settings(BaseSettings):
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
     DO_KB_RERANKING_ENABLED: Optional[bool] = True
     DO_KB_SEARCH_TYPE: Optional[str] = None
+    # Pre-flight guard: PDFs over EITHER threshold get text-extracted locally
+    # before DO KB sync, so the canonical .txt path is used instead of the raw
+    # PDF (DO's server-side parser times out on large/complex PDFs).
+    DO_KB_FORCE_TEXT_PDF_PAGES: int = 100
+    DO_KB_FORCE_TEXT_PDF_SIZE_MB: int = 5
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""

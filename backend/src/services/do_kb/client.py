@@ -240,6 +240,19 @@ class DOKnowledgeBaseClient:
         )
         return [s for s in raw if isinstance(s, dict)]
 
+    async def delete_data_source(self, *, kb_uuid: str, ds_uuid: str) -> None:
+        """Delete a data source from the KB.
+
+        Used to remove a file that consistently fails to index (e.g. a PDF
+        that exceeds DO's processing time limit). The DO API returns 204 on
+        success; the ``_request`` wrapper handles retries on 429/5xx and
+        returns ``{}`` on an empty body.
+        """
+        await self._request(
+            "DELETE",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources/{ds_uuid}",
+        )
+
     async def start_indexing(self, *, kb_uuid: str) -> IndexingJob:
         payload = await self._request(
             "POST",
