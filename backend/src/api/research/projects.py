@@ -486,6 +486,33 @@ async def add_document_to_project(
                     task_count=len(extraction_task_ids),
                 )
 
+        # Capture the response payload from the ORM objects now, while they are
+        # fresh. The KG-queue block below rolls back on failure, which expires
+        # collection_doc/document; reading their attributes after that rollback
+        # would trigger an async lazy-load (MissingGreenlet) and falsely 500 a
+        # doc-add that already succeeded (committed above at db.commit()).
+        response = {
+            "id": str(collection_doc.id),
+            "project_id": str(project_id),
+            "document_id": str(document_id),
+            "added_at": (
+                collection_doc.created_at.isoformat()
+                if collection_doc.created_at
+                else None
+            ),
+            "sort_order": sort_order,
+            "document": {
+                "id": str(document.id),
+                "title": document.title or document.filename,
+                "filename": document.filename,
+                "status": document.processing_status,
+                "created_at": (
+                    document.created_at.isoformat() if document.created_at else None
+                ),
+            },
+            "extraction_task_ids": extraction_task_ids,
+        }
+
         # Auto-populate the knowledge graph: queue an entity-extraction job so
         # the project's knowledge tree reflects this document.
         kg_job_id: Optional[str] = None
@@ -540,28 +567,8 @@ async def add_document_to_project(
                     error=str(kg_error),
                 )
 
-        return {
-            "id": str(collection_doc.id),
-            "project_id": str(project_id),
-            "document_id": str(document_id),
-            "added_at": (
-                collection_doc.created_at.isoformat()
-                if collection_doc.created_at
-                else None
-            ),
-            "sort_order": sort_order,
-            "document": {
-                "id": str(document.id),
-                "title": document.title or document.filename,
-                "filename": document.filename,
-                "status": document.processing_status,
-                "created_at": (
-                    document.created_at.isoformat() if document.created_at else None
-                ),
-            },
-            "extraction_task_ids": extraction_task_ids,
-            "kg_job_id": kg_job_id,
-        }
+        response["kg_job_id"] = kg_job_id
+        return response
 
     except HTTPException:
         raise
