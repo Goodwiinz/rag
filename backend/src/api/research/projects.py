@@ -506,8 +506,12 @@ async def add_document_to_project(
                     queue_name="entity_processing",
                 )
                 db.add(kg_job)
-                await db.commit()
-                await db.refresh(kg_job)
+                # Flush (not commit) so kg_job.id is populated for apply_async
+                # without persisting a PENDING row yet. If apply_async raises
+                # (e.g. broker down), the rollback below undoes this flush, so no
+                # orphaned PENDING/celery_task_id=NULL job is left behind. The
+                # single commit lands only once the task is actually enqueued.
+                await db.flush()
 
                 from src.tasks.processing_tasks import kg_extract_entities_job
 
