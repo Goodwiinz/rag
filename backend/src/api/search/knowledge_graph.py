@@ -745,8 +745,13 @@ def create_merge_job(
         queue_name="graph_processing",
     )
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    # Flush (not commit) so job.id is available for apply_async without
+    # persisting a PENDING/celery_task_id=NULL row yet. There is no try/except
+    # here, so if apply_async raises (e.g. broker down) the exception propagates
+    # and the request's session is closed uncommitted -> the flush is rolled
+    # back, leaving no orphaned PENDING job. The commit lands only after the
+    # task is actually enqueued.
+    db.flush()
 
     task = kg_merge_entities_job.apply_async(
         args=[str(job.id)],
@@ -802,8 +807,13 @@ def create_extraction_job(
         queue_name="entity_processing",
     )
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    # Flush (not commit) so job.id is available for apply_async without
+    # persisting a PENDING/celery_task_id=NULL row yet. There is no try/except
+    # here, so if apply_async raises (e.g. broker down) the exception propagates
+    # and the request's session is closed uncommitted -> the flush is rolled
+    # back, leaving no orphaned PENDING job. The commit lands only after the
+    # task is actually enqueued.
+    db.flush()
 
     task = kg_extract_entities_job.apply_async(
         args=[str(job.id)],
