@@ -459,3 +459,27 @@ async def test_honors_retry_after_header(monkeypatch):
 
     assert job.uuid == "job-1"
     assert 5 in sleeps
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_delete_data_source_sends_delete_request():
+    """delete_data_source sends DELETE to the correct data-source endpoint."""
+    cfg = _make_settings()
+    client = DOKnowledgeBaseClient(cfg=cfg)
+
+    with patch("httpx.AsyncClient") as mock_async_client:
+        request_mock = AsyncMock(return_value=_mock_response(204))
+        ctx = mock_async_client.return_value
+        ctx.request = request_mock
+
+        await client.delete_data_source(kb_uuid="kb-123", ds_uuid="ds-456")
+
+    request_mock.assert_awaited_once()
+    call_args = request_mock.call_args
+    method = call_args.args[0] if call_args.args else call_args[0][0]
+    url = call_args.args[1] if len(call_args.args) > 1 else call_args[0][1]
+    assert method == "DELETE"
+    assert "kb-123" in url
+    assert "data-sources" in url
+    assert "ds-456" in url
