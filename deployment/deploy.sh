@@ -90,7 +90,8 @@ apply_kubernetes_manifests() {
 
     # Apply configmaps
     kubectl apply -f kubernetes/configmaps/backend-config.yaml
-    kubectl apply -f kubernetes/secrets/secrets.yaml
+    # Secrets are materialized by Infisical or scripts/setup-secrets.sh.
+    # Do not apply static Secret manifests from git.
 
     # Apply monitoring if enabled
     if [ "$MONITORING_ENABLED" = "true" ]; then
