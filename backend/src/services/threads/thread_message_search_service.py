@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, desc, or_, text
 from sqlalchemy.orm import Session
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.citation import Citation
 from src.models.thread import Thread, ThreadStatus
@@ -262,7 +262,7 @@ class ThreadMessageSearchService:
 
         should_close_db = False
         if db is None:
-            db = next(get_db())
+            db = next(get_db_sync())
             should_close_db = True
 
         try:
@@ -374,7 +374,7 @@ class ThreadMessageSearchService:
 
         should_close_db = False
         if db is None:
-            db = next(get_db())
+            db = next(get_db_sync())
             should_close_db = True
 
         try:
@@ -490,7 +490,7 @@ class ThreadMessageSearchService:
 
         should_close_db = False
         if db is None:
-            db = next(get_db())
+            db = next(get_db_sync())
             should_close_db = True
 
         try:
