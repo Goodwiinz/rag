@@ -125,7 +125,10 @@ class QualityMetric(BaseModel):
     created_by_user = relationship("User")
 
     def __repr__(self):
-        return f"<QualityMetric(name={self.metric_name}, value={self.value}, scope={self.scope.value})>"
+        return (
+            f"<QualityMetric(name={self.metric_name}, value={self.value}, "
+            f"scope={self.scope.value if self.scope else None})>"
+        )
 
     @property
     def is_within_threshold(self) -> bool:

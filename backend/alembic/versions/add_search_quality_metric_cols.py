@@ -35,7 +35,6 @@ ADD_COLUMNS = [
     ("search_type", "varchar(50)"),
     ("search_query_id", "uuid"),
     ("user_id", "uuid"),
-    ("measured_at", "timestamptz"),
     ("is_threshold_violation", "boolean"),
 ]
 RELAX_NOT_NULL = ["metric_name", "value", "evaluation_type", "scope"]
@@ -44,16 +43,11 @@ RELAX_NOT_NULL = ["metric_name", "value", "evaluation_type", "scope"]
 def upgrade() -> None:
     for name, coltype in ADD_COLUMNS:
         op.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS {name} {coltype}")
-    op.execute(
-        f"CREATE INDEX IF NOT EXISTS ix_quality_metrics_measured_at "
-        f"ON {TABLE} (measured_at)"
-    )
     for col in RELAX_NOT_NULL:
         op.execute(f"ALTER TABLE {TABLE} ALTER COLUMN {col} DROP NOT NULL")
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS ix_quality_metrics_measured_at")
     for name, _ in ADD_COLUMNS:
         op.execute(f"ALTER TABLE {TABLE} DROP COLUMN IF EXISTS {name}")
     # NOT NULL is intentionally NOT re-added on downgrade — rows created while
