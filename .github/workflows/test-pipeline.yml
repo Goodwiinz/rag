@@ -43,7 +43,7 @@ env:
   # Anon JWT is signed with the same secret gotrue verifies with HS256 —
   # see docker-compose.ci.yml gotrue service for the matching env.
   NEXT_PUBLIC_SUPABASE_URL: "http://localhost:8999"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLWRlbW8iLCJpYXQiOjAsImV4cCI6OTk5OTk5OTk5OX0.ftr3vuorC5IkT1ThfxwJJx3aTqjK8Mz9UOYW_QmILyE"
+  SUPABASE_JWT_SECRET: "ci-test-supabase-jwt-secret-not-for-prod-use"
 defaults:
   run:
     shell: bash
@@ -562,6 +562,46 @@ jobs:
       # right layers). Distinct scopes keep the two images' caches separate.
       # The `docker system prune` above only clears the local daemon, not the
       # remote GHA store, so it does not defeat this.
+      - name: Generate CI Supabase JWTs
+        id: supabase-jwts
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import hmac
+          import json
+          import os
+
+          def b64url(data):
+              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+          def jwt_for(role):
+              header = {"alg": "HS256", "typ": "JWT"}
+              payload = {
+                  "role": role,
+                  "iss": "supabase-demo",
+                  "iat": 0,
+                  "exp": 9999999999,
+              }
+              header_part = b64url(json.dumps(header, separators=(",", ":")).encode())
+              payload_part = b64url(json.dumps(payload, separators=(",", ":")).encode())
+              signing_input = f"{header_part}.{payload_part}"
+              signature = hmac.new(
+                  os.environ["SUPABASE_JWT_SECRET"].encode(),
+                  signing_input.encode(),
+                  hashlib.sha256,
+              ).digest()
+              return f"{signing_input}.{b64url(signature)}"
+
+          anon = jwt_for("anon")
+          service_role = jwt_for("service_role")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"anon={anon}\n")
+              out.write(f"service_role={service_role}\n")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"NEXT_PUBLIC_SUPABASE_ANON_KEY={anon}\n")
+              env.write(f"SERVICE_ROLE_JWT={service_role}\n")
+          PY
       - name: Build backend image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
@@ -583,7 +623,7 @@ jobs:
           tags: rag-frontend:test
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.supabase-jwts.outputs.anon }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
             NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
           cache-from: type=gha,scope=frontend-e2e
@@ -714,7 +754,7 @@ jobs:
         run: |
           docker exec \
             -e PYTHONPATH=/app \
-            -e SERVICE_ROLE_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UtZGVtbyIsImlhdCI6MCwiZXhwIjo5OTk5OTk5OTk5fQ.h2fkqBtuKwhDivmz5vXwEGxQgcpFlMXhYlVNAH2TL6c \
+            -e SERVICE_ROLE_JWT=$SERVICE_ROLE_JWT \
             backend-e2e \
             python -c "
           import os, httpx

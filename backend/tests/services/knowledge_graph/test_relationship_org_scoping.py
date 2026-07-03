@@ -7,6 +7,7 @@ MERGE key is unchanged ((type, source_document_id)) to avoid the duplicate-edge
 regression fixed in #828.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 import pytest
@@ -14,6 +15,7 @@ import pytest
 from src.models.graph import CreateRelationshipRequest, RelationshipType
 from src.services.knowledge_graph.knowledge_graph_service import (
     KnowledgeGraphService,
+    RelationshipScopeError,
 )
 
 
@@ -88,6 +90,24 @@ def test_create_relationship_falls_back_to_doc_ids_without_org() -> None:
     q = captured["query"]
     assert "source.organization_id" not in q  # no org → no org filter
     assert "source.source_document_id IN $source_document_ids" in q
+
+
+@pytest.mark.unit
+def test_create_relationship_raises_scope_error_for_scoped_miss() -> None:
+    captured: Dict[str, Any] = {}
+    svc = _svc(None, captured)
+
+    with pytest.raises(RelationshipScopeError):
+        svc.create_relationship(_req(organization_id="org-A"))
+
+
+@pytest.mark.unit
+def test_create_relationship_keeps_generic_error_for_unscoped_miss() -> None:
+    captured: Dict[str, Any] = {}
+    svc = _svc(None, captured)
+
+    with pytest.raises(RuntimeError, match="Failed to create relationship"):
+        svc.create_relationship(_req())
 
 
 @pytest.mark.unit
@@ -209,3 +229,70 @@ def test_get_relationships_for_entities_returns_incoming_and_outgoing_edges() ->
     assert "target.organization_id = $organization_id" in q
     assert captured["params"]["entity_ids"] == ["entity-a"]
     assert captured["params"]["organization_id"] == "org-A"
+
+
+@pytest.mark.unit
+def test_record_to_relationship_does_not_fall_back_to_source_paper() -> None:
+    record = {
+        "r": {
+            "id": "rel-1",
+            "type": "RELATED_TO",
+            "strength": 0.5,
+            "confidence_score": 0.5,
+            "source_paper": "legacy-paper-id",
+        },
+        "rel_label": "RELATED_TO",
+        "source_id": "source",
+        "target_id": "target",
+    }
+
+    response = KnowledgeGraphService()._record_to_relationship(record)
+
+    assert response.source_document_id is None
+
+
+@pytest.mark.unit
+def test_get_relationship_uses_outgoing_direction_and_native_datetimes() -> None:
+    import contextlib
+
+    captured: Dict[str, Any] = {}
+    created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    class _Neo4jDateTime:
+        def to_native(self):
+            return created_at
+
+    class _Result:
+        def single(self):
+            return {
+                "r": {
+                    "id": "rel-1",
+                    "type": "RELATED_TO",
+                    "strength": 0.7,
+                    "confidence_score": 0.8,
+                    "created_at": _Neo4jDateTime(),
+                    "updated_at": None,
+                },
+                "source_id": "source",
+                "target_id": "target",
+            }
+
+    class _Session:
+        def run(self, query: str, params: Dict[str, Any]) -> "_Result":
+            captured["query"] = query
+            captured["params"] = params
+            return _Result()
+
+    svc = KnowledgeGraphService()
+
+    @contextlib.contextmanager
+    def _fake_get_session(database: str = "neo4j"):
+        yield _Session()
+
+    svc.get_session = _fake_get_session  # type: ignore[method-assign]
+
+    response = svc.get_relationship("rel-1")
+
+    assert "]->(target:Entity)" in captured["query"]
+    assert response is not None
+    assert response.created_at == created_at
