@@ -18,7 +18,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.evaluation import (
     EvaluationComparison,
@@ -124,7 +124,7 @@ async def create_evaluation_job(
     request: DatasetEvaluationRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Create a new evaluation job and start processing
@@ -208,7 +208,7 @@ async def create_batch_evaluation_job(
     request: BatchEvaluationRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Create a batch evaluation job for a list of queries
@@ -262,7 +262,7 @@ async def create_batch_evaluation_job(
 async def evaluate_real_time(
     request: RealTimeEvaluationRequest,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform real-time evaluation of a single query-answer pair
@@ -292,7 +292,7 @@ async def evaluate_real_time(
 
 @router.get("/jobs/{job_id}", response_model=Dict[str, Any])
 async def get_evaluation_job(
-    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
+    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Get details of an evaluation job
@@ -331,7 +331,7 @@ async def list_evaluation_jobs(
     status: Optional[str] = Query(None),
     evaluation_type: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     List evaluation jobs for the current user's organization
@@ -363,9 +363,9 @@ async def list_evaluation_jobs(
                 "evaluation_type": job.evaluation_type,
                 "created_at": job.created_at.isoformat(),
                 "started_at": job.started_at.isoformat() if job.started_at else None,
-                "completed_at": job.completed_at.isoformat()
-                if job.completed_at
-                else None,
+                "completed_at": (
+                    job.completed_at.isoformat() if job.completed_at else None
+                ),
                 "duration_seconds": job.duration_seconds,
                 "dataset_size": job.dataset_size,
                 "processed_count": job.processed_count,
@@ -387,7 +387,7 @@ async def get_evaluation_metrics(
     metric_types: Optional[List[str]] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Get metrics for a specific evaluation job
@@ -424,12 +424,14 @@ async def get_evaluation_metrics(
                 "threshold_max": metric.threshold_max,
                 "is_threshold_violation": metric.is_threshold_violation,
                 "query": metric.query,
-                "calculation_method": metric.metadata.get("calculation_method")
-                if metric.metadata
-                else None,
-                "model_used": metric.metadata.get("model_used")
-                if metric.metadata
-                else None,
+                "calculation_method": (
+                    metric.metadata.get("calculation_method")
+                    if metric.metadata
+                    else None
+                ),
+                "model_used": (
+                    metric.metadata.get("model_used") if metric.metadata else None
+                ),
                 "created_at": metric.created_at.isoformat(),
             }
             for metric in metrics
@@ -448,7 +450,7 @@ async def create_evaluation_comparison(
     request: ComparisonRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Create a comparison between two evaluation jobs
@@ -515,7 +517,7 @@ async def list_evaluation_comparisons(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     List evaluation comparisons for the current user's organization
@@ -560,7 +562,7 @@ async def generate_evaluation_report(
     report_type: str,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Generate a report for an evaluation job
@@ -609,7 +611,7 @@ async def list_evaluation_reports(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     List evaluation reports for the current user's organization
@@ -645,7 +647,9 @@ async def list_evaluation_reports(
 
 @router.get("/reports/{report_id}", response_model=Dict[str, Any])
 async def get_evaluation_report(
-    report_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
+    report_id: str,
+    current_user: User = Depends(get_current_user),
+    db=Depends(get_db_sync),
 ):
     """
     Get details of an evaluation report
@@ -691,7 +695,7 @@ async def get_evaluation_report(
 async def get_metrics_summary(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Get summary of evaluation metrics for the organization
@@ -768,7 +772,7 @@ async def get_metrics_summary(
 
 @router.delete("/jobs/{job_id}")
 async def delete_evaluation_job(
-    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db)
+    job_id: str, current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Delete an evaluation job (soft delete)
