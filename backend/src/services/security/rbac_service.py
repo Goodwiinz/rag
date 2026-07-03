@@ -11,7 +11,7 @@ from fastapi import Depends
 from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.exceptions.analytics_exceptions import (
     ConfigurationException,
     PermissionDeniedException,
@@ -705,8 +705,14 @@ class RBACService:
 # Utility functions
 
 
-def get_rbac_service(db: Session = Depends(get_db)) -> RBACService:
-    """Get RBAC service instance"""
+def get_rbac_service(db: Session = Depends(get_db_sync)) -> RBACService:
+    """Get RBAC service instance.
+
+    Injects the *sync* session: ``RBACService`` is entirely synchronous
+    (``self.db.query``/``.execute``/``.commit``). The async ``get_db`` would hand
+    it an ``AsyncSession``, whose sync ``.query`` raises ``AttributeError`` — so
+    every ``/api/v1/rbac`` endpoint that touches the DB 500'd.
+    """
     return RBACService(db)
 
 
