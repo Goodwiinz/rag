@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.main import app
-from src.core.database import get_db
+from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.evidence import StanceClassificationModel
 from src.api.evidence.router import stance_classifier
@@ -74,7 +74,7 @@ def set_active_user(user: MockUser) -> None:
     _active_user = user
 
 
-app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_db_sync] = override_get_db
 app.dependency_overrides[get_current_user] = override_get_current_user
 
 
