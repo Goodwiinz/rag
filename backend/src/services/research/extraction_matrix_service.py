@@ -11,9 +11,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
 from src.models.document import Document
-from src.models.extraction_matrix import ExtractionCell
+from src.models.collection import CollectionDocument
+from src.models.extraction_matrix import ExtractionCell, ExtractionMatrix
 
 logger = structlog.get_logger()
+
+
+def _scoped_document_query(doc_id, project_id):
+    """Document fetch constrained to a project's collection.
+
+    Returns the document only when it is a member of ``project_id``'s
+    collection_documents, so a document id outside the matrix's project is
+    never read (tenant/project isolation)."""
+    return (
+        select(Document)
+        .join(CollectionDocument, Document.id == CollectionDocument.document_id)
+        .where(
+            Document.id == doc_id,
+            CollectionDocument.collection_id == project_id,
+        )
+    )
+
 
 # In-memory store for background extraction status (same pattern as draft generation)
 _extraction_status: Dict[str, Dict[str, Any]] = {}
@@ -86,10 +104,23 @@ class ExtractionMatrixService:
             return
 
         async with AsyncSessionLocal() as db:
+            # Resolve the matrix's project so every document read stays scoped to
+            # it. Callers currently pass project-scoped ids, but scoping here
+            # (join collection_documents on the matrix's project) means a
+            # document_id outside the matrix's project can never be read into a
+            # cell — defense-in-depth mirroring the trigger_extraction endpoint.
+            project_id = (
+                await db.execute(
+                    select(ExtractionMatrix.project_id).where(
+                        ExtractionMatrix.id == matrix_id
+                    )
+                )
+            ).scalar_one_or_none()
+
             for doc_id in document_ids:
                 try:
                     doc_result = await db.execute(
-                        select(Document).where(Document.id == doc_id)
+                        _scoped_document_query(doc_id, project_id)
                     )
                     document = doc_result.scalar_one_or_none()
                     if not document or not document.content_text:
@@ -222,7 +253,7 @@ class ExtractionMatrixService:
             # Remove opening fence (```json or ```)
             first_newline = cleaned.find("\n")
             if first_newline != -1:
-                cleaned = cleaned[first_newline + 1:]
+                cleaned = cleaned[first_newline + 1 :]
             # Remove closing fence
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3].strip()
