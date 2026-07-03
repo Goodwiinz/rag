@@ -564,8 +564,21 @@ async def cleanup_old_audit_events(
     """Clean up old audit events based on retention policy"""
     try:
         # Scope to the caller's org — never wipe other tenants' audit trails.
+        # get_current_tenant_id() can be None (user with no tenant context);
+        # AuditService.cleanup_old_audit_events treats organization_id=None as a
+        # GLOBAL delete across every org, so a null-org caller (even a
+        # system_admin whose org was deleted -> SET NULL) must be rejected here
+        # rather than passed through. Mirrors the None-org 403 guard the sibling
+        # compliance endpoints already apply.
+        organization_id = get_current_tenant_id()
+        if not organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization context required",
+            )
+
         deleted_count = audit_service.cleanup_old_audit_events(
-            retention_days, organization_id=get_current_tenant_id()
+            retention_days, organization_id=organization_id
         )
 
         return {
@@ -574,6 +587,9 @@ async def cleanup_old_audit_events(
             "deleted_events": deleted_count,
         }
 
+    except HTTPException:
+        # Preserve the 403 (missing org context) instead of masking it as 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
