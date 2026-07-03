@@ -24,7 +24,7 @@ from src.api.research.chat import (
     build_context_prompt,
 )
 from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
-from src.core.database import get_db, get_db_sync
+from src.core.database import get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.search_schemas import (
     DeterministicTrace,
@@ -169,7 +169,7 @@ async def search_documents(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform search on documents with multiple search modalities
@@ -252,7 +252,7 @@ async def hybrid_search(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Perform hybrid search combining vector, full-text, and knowledge graph search
@@ -445,7 +445,7 @@ async def get_search_analytics(
 
 @router.post("/indexes/rebuild")
 async def rebuild_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Rebuild full-text search indexes (admin only)
@@ -496,7 +496,7 @@ async def rebuild_search_indexes(
 
 @router.get("/indexes", response_model=List[SearchIndex])
 async def get_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Get information about search indexes
@@ -544,7 +544,7 @@ async def get_search_indexes(
 async def reindex_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     Rebuild search vector for a specific document
@@ -665,7 +665,7 @@ async def submit_search_feedback(
 
 @router.get("/health")
 async def search_health_check(
-    current_user: User = Depends(get_current_user), db=Depends(get_db)
+    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
 ):
     """
     Health check for all search functionality including hybrid search
@@ -804,7 +804,7 @@ async def authenticated_hybrid_search(
     background_tasks: BackgroundTasks,
     request: Request,
     api_key_data: tuple = Depends(get_api_key_data),
-    db=Depends(get_db),
+    db=Depends(get_db_sync),
 ):
     """
     API Key authenticated hybrid search endpoint.
