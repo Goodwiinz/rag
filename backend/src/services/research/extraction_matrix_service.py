@@ -6,18 +6,18 @@ from uuid import UUID
 
 import openai
 import structlog
-from sqlalchemy import and_, select
+from sqlalchemy import Select, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
-from src.models.document import Document
 from src.models.collection import CollectionDocument
+from src.models.document import Document
 from src.models.extraction_matrix import ExtractionCell, ExtractionMatrix
 
 logger = structlog.get_logger()
 
 
-def _scoped_document_query(doc_id, project_id):
+def _scoped_document_query(doc_id: UUID, project_id: Optional[UUID]) -> Select:
     """Document fetch constrained to a project's collection.
 
     Returns the document only when it is a member of ``project_id``'s
