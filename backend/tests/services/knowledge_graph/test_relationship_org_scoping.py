@@ -174,3 +174,38 @@ def test_get_all_relationships_scopes_by_org() -> None:
     # org takes precedence over the doc-id filter.
     assert "r.source_document_id IN $source_document_ids" not in q
     assert captured["params"]["organization_id"] == "org-A"
+
+
+@pytest.mark.unit
+def test_get_relationships_for_entities_returns_incoming_and_outgoing_edges() -> None:
+    """Search callers need every incident edge, regardless of direction."""
+    import contextlib
+
+    captured: Dict[str, Any] = {}
+
+    class _EmptyResult:
+        def __iter__(self):
+            return iter([])
+
+    class _Session:
+        def run(self, query: str, params: Dict[str, Any]) -> "_EmptyResult":
+            captured["query"] = query
+            captured["params"] = params
+            return _EmptyResult()
+
+    svc = KnowledgeGraphService()
+
+    @contextlib.contextmanager
+    def _fake_get_session(database: str = "neo4j"):
+        yield _Session()
+
+    svc.get_session = _fake_get_session  # type: ignore[method-assign]
+
+    svc.get_relationships_for_entities(["entity-a"], organization_id="org-A")
+
+    q = captured["query"]
+    assert "(source.id IN $entity_ids OR target.id IN $entity_ids)" in q
+    assert "source.organization_id = $organization_id" in q
+    assert "target.organization_id = $organization_id" in q
+    assert captured["params"]["entity_ids"] == ["entity-a"]
+    assert captured["params"]["organization_id"] == "org-A"

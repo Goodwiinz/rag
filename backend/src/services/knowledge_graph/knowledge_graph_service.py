@@ -1363,7 +1363,9 @@ class KnowledgeGraphService:
             return []
         try:
             with self.get_session() as session:
-                conditions = ["source.id IN $entity_ids"]
+                conditions = [
+                    "(source.id IN $entity_ids OR target.id IN $entity_ids)"
+                ]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
                 if organization_id is not None:
                     conditions.append("source.organization_id = $organization_id")
