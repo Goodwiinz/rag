@@ -24,7 +24,7 @@ from src.api.research.chat import (
     build_context_prompt,
 )
 from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
-from src.core.database import get_db
+from src.core.database import get_db, get_db_sync
 from src.core.dependencies import get_current_user
 from src.models.search_schemas import (
     DeterministicTrace,
@@ -335,13 +335,29 @@ async def get_search_suggestions(
     ),
     limit: int = Query(default=5, ge=1, le=20, description="Number of suggestions"),
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db),
+    # Suggestions are built from a sync `db.execute(text(...))` in the service.
+    # Inject the sync session (not the async `get_db`) so that call actually
+    # runs — with the async session it returns a coroutine and silently fails.
+    db=Depends(get_db_sync),
 ):
     """
     Get search suggestions for auto-completion
     """
     try:
-        suggestions = fulltext_search_service._get_search_suggestions(q, db)
+        # `_get_search_suggestions` returns [] unless it is scoped to the
+        # caller's org (title suggestions would otherwise leak across tenants).
+        # This call site previously dropped organization_id entirely, so the
+        # endpoint always returned []. Pass the caller's org (None-safe: org-less
+        # users still get [] via the service's fail-closed guard).
+        suggestions = fulltext_search_service._get_search_suggestions(
+            q,
+            db,
+            organization_id=(
+                str(current_user.organization_id)
+                if current_user.organization_id
+                else None
+            ),
+        )
 
         # Convert to SearchSuggestion models
         search_suggestions = [
