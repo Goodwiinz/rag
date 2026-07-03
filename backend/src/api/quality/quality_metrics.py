@@ -99,9 +99,11 @@ async def record_search_metrics(
                 metric_unit=metric.metric_unit,
                 query=metric.query,
                 search_type=metric.search_type,
-                measured_at=metric.measured_at.isoformat(),
+                measured_at=(
+                    metric.measured_at.isoformat() if metric.measured_at else None
+                ),
                 is_threshold_violation=metric.is_threshold_violation,
-                metadata=metric.metadata,
+                metadata=metric.evaluation_metadata,
             )
             for metric in metrics
         ]
@@ -153,9 +155,11 @@ async def get_quality_metrics(
                 metric_unit=metric.metric_unit,
                 query=metric.query,
                 search_type=metric.search_type,
-                measured_at=metric.measured_at.isoformat(),
+                measured_at=(
+                    metric.measured_at.isoformat() if metric.measured_at else None
+                ),
                 is_threshold_violation=metric.is_threshold_violation,
-                metadata=metric.metadata,
+                metadata=metric.evaluation_metadata,
             )
             for metric in metrics
         ]

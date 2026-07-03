@@ -68,13 +68,13 @@ class QualityMetric(BaseModel):
 
     # Metric information
     metric_type = Column(Enum(MetricType), nullable=False, index=True)
-    metric_name = Column(String(255), nullable=False, index=True)
-    value = Column(Float, nullable=False)
+    metric_name = Column(String(255), nullable=True, index=True)
+    value = Column(Float, nullable=True)
     unit = Column(String(50), nullable=True)  # e.g., "ms", "percentage", "count"
 
     # Evaluation context
-    evaluation_type = Column(Enum(EvaluationType), nullable=False)
-    scope = Column(Enum(MetricScope), nullable=False, index=True)
+    evaluation_type = Column(Enum(EvaluationType), nullable=True)
+    scope = Column(Enum(MetricScope), nullable=True, index=True)
     scope_id = Column(GUID(), nullable=True, index=True)  # ID of scoped entity
 
     # Evaluation details
@@ -103,6 +103,22 @@ class QualityMetric(BaseModel):
     # Organization
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
     created_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
+
+    # Search-quality-metric fields (populated by
+    # QualityMetricsService.collect_search_metrics / read by the
+    # /analytics/quality endpoints). These duplicate value/unit/created_at with
+    # search-specific naming the API contract expects; the older
+    # evaluation-oriented columns above stay nullable so both row shapes coexist.
+    metric_value = Column(Float, nullable=True)
+    metric_unit = Column(String(50), nullable=True)
+    query = Column(Text, nullable=True)
+    search_type = Column(String(50), nullable=True)
+    search_query_id = Column(GUID(), nullable=True, index=True)
+    user_id = Column(GUID(), nullable=True, index=True)
+    measured_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=True, index=True
+    )
+    is_threshold_violation = Column(Boolean, nullable=True, default=False)
 
     # Relationships
     organization = relationship("Organization")

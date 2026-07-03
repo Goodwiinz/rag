@@ -90,7 +90,7 @@ class QualityMetricsService:
                     search_type=search_type,
                     user_id=user_id if user_id != "anonymous" else None,
                     organization_id=organization_id,
-                    metadata=calc.metadata,
+                    evaluation_metadata=calc.metadata,
                     threshold_min=threshold.threshold_min if threshold else None,
                     threshold_max=threshold.threshold_max if threshold else None,
                     measured_at=datetime.utcnow(),
