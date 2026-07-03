@@ -282,7 +282,9 @@ class QualityMetric(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data["metric_type"] = self.metric_type.value if self.metric_type else None
+        data["metric_type"] = getattr(
+            self.metric_type, "value", self.metric_type
+        )  # metric_type is a plain str column now; tolerate a legacy enum too
         data["evaluation_type"] = (
             self.evaluation_type.value if self.evaluation_type else None
         )
@@ -305,9 +307,9 @@ class QualityMetric(BaseModel):
         cls, metric_type: MetricType, organization_id: Optional[uuid.UUID] = None
     ) -> list:
         """Get metrics by type"""
-        query = cls.query.filter(
-            cls.metric_type == metric_type, cls.is_deleted == False
-        )
+        # metric_type is a plain str column; accept an enum arg for back-compat.
+        mt = getattr(metric_type, "value", metric_type)
+        query = cls.query.filter(cls.metric_type == mt, cls.is_deleted == False)
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
@@ -383,7 +385,7 @@ class QualityMetric(BaseModel):
         result = query.first()
 
         return {
-            "metric_type": metric_type.value,
+            "metric_type": getattr(metric_type, "value", metric_type),
             "period_days": period_days,
             "average": float(result.average) if result.average else 0.0,
             "minimum": float(result.minimum) if result.minimum else 0.0,
