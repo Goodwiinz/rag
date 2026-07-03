@@ -41,7 +41,10 @@ from src.models.graph import (
 )
 from src.models.user import User, UserRole
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
-from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
+from src.services.knowledge_graph.knowledge_graph_service import (
+    RelationshipScopeError,
+    knowledge_graph_service,
+)
 from src.services.processing.entity_extraction_service import (
     EntityExtractionService,
     EntityType as ProcessingEntityType,
@@ -476,6 +479,8 @@ def create_relationship(
             request, source_document_ids=org_doc_ids
         )
         return relationship
+    except RelationshipScopeError:
+        raise HTTPException(status_code=404, detail="Relationship not created")
     except Exception as e:
         logger.error(f"Error creating relationship: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -664,6 +669,12 @@ def create_merge_job(
     db=Depends(get_db_sync),
 ):
     """Queue a background merge job for selected duplicate groups."""
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Organization is required to merge knowledge graph entities",
+        )
+
     if not request.groups:
         raise HTTPException(
             status_code=400, detail="At least one merge group is required"
@@ -683,15 +694,14 @@ def create_merge_job(
             status_code=400, detail="At least one entity ID is required"
         )
 
-    # Scope the fetch to the caller's org documents. Previously get_entity was
-    # unscoped, so an entity with a NULL source_document_id (orphan) belonging
-    # to another org passed the cross-org check below (orphans are treated as
-    # "safe") and could be merged cross-tenant. A scoped miss now 404s.
-    org_doc_ids = _get_org_document_ids(db, current_user.organization_id)
+    # Scope by organization_id so org-owned entities with NULL source_document_id
+    # can still be merged, while a scoped miss never falls through to an
+    # unscoped cross-tenant lookup.
+    org_id = str(current_user.organization_id)
     entity_source_docs: Dict[str, str] = {}
     for entity_id in entity_ids:
         entity = knowledge_graph_service.get_entity(
-            entity_id, source_document_ids=org_doc_ids
+            entity_id, organization_id=org_id
         )
         if not entity:
             raise HTTPException(

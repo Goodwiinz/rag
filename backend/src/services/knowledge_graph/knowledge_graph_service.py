@@ -43,6 +43,10 @@ from src.models.graph import (
 logger = logging.getLogger(__name__)
 
 
+class RelationshipScopeError(RuntimeError):
+    """Raised when scoped relationship creation finds no endpoint pair."""
+
+
 def _parse_metadata(metadata_val) -> Dict[str, Any]:
     """Parse metadata from Neo4j (may be JSON string, Python repr, or dict)."""
     if not metadata_val or metadata_val == "{}":
@@ -1159,6 +1163,13 @@ class KnowledgeGraphService:
 
                 record = result.single()
                 if not record:
+                    scoped = bool(request.organization_id) or (
+                        source_document_ids is not None
+                    )
+                    if scoped:
+                        raise RelationshipScopeError(
+                            "create_relationship matched no in-scope endpoint pair"
+                        )
                     raise RuntimeError("Failed to create relationship")
 
                 # On MATCH the existing edge keeps its original id, so read it
@@ -1264,11 +1275,13 @@ class KnowledgeGraphService:
                             context=r.get("context"),
                             evidence=_parse_evidence(r.get("evidence", [])),
                             metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get(
-                                "source_document_id", r.get("source_paper")
+                            source_document_id=r.get("source_document_id"),
+                            created_at=_convert_datetime(r.get("created_at")),
+                            updated_at=(
+                                _convert_datetime(r.get("updated_at"))
+                                if r.get("updated_at") is not None
+                                else None
                             ),
-                            created_at=r.get("created_at", datetime.utcnow()),
-                            updated_at=r.get("updated_at"),
                         )
                     )
 
@@ -1302,7 +1315,7 @@ class KnowledgeGraphService:
             context=r.get("context"),
             evidence=_parse_evidence(r.get("evidence", [])),
             metadata=_parse_metadata(r.get("metadata", "{}")),
-            source_document_id=r.get("source_document_id", r.get("source_paper")),
+            source_document_id=r.get("source_document_id"),
             created_at=self._to_native_dt(r.get("created_at")) or datetime.utcnow(),
             updated_at=self._to_native_dt(r.get("updated_at")),
         )
@@ -1414,7 +1427,7 @@ class KnowledgeGraphService:
                     else ""
                 )
                 query = f"""
-                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity){where}
+                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]->(target:Entity){where}
                     RETURN r, source.id AS source_id, target.id AS target_id
                     """
 
@@ -1436,8 +1449,12 @@ class KnowledgeGraphService:
                     evidence=_parse_evidence(r.get("evidence", [])),
                     metadata=_parse_metadata(r.get("metadata", "{}")),
                     source_document_id=r.get("source_document_id"),
-                    created_at=r["created_at"],
-                    updated_at=r.get("updated_at"),
+                    created_at=_convert_datetime(r.get("created_at")),
+                    updated_at=(
+                        _convert_datetime(r.get("updated_at"))
+                        if r.get("updated_at") is not None
+                        else None
+                    ),
                 )
         except Exception as e:
             logger.error(f"Error retrieving relationship {relationship_id}: {e}")
