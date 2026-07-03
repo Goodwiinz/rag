@@ -67,7 +67,12 @@ class QualityMetric(BaseModel):
     __tablename__ = "quality_metrics"
 
     # Metric information
-    metric_type = Column(Enum(MetricType), nullable=False, index=True)
+    # String, not Enum(MetricType): the search-analytics writer stores
+    # free-form metric-type labels (response_time, result_count,
+    # result_diversity, avg_relevance_score, freshness) that aren't members
+    # of the MetricType enum, so a native PG enum column rejected them and
+    # 500'd POST /metrics/search. The API response already types this as str.
+    metric_type = Column(String(50), nullable=False, index=True)
     metric_name = Column(String(255), nullable=True, index=True)
     value = Column(Float, nullable=True)
     unit = Column(String(50), nullable=True)  # e.g., "ms", "percentage", "count"
