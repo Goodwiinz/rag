@@ -639,13 +639,20 @@ class RBACService:
             logger.error(f"Failed to get users for role {role_id}: {e}")
             return []
 
-    def cleanup_expired_assignments(self) -> int:
-        """Clean up expired role assignments"""
+    def cleanup_expired_assignments(self, organization_id: str) -> int:
+        """Clean up expired role assignments for a single organization.
+
+        Scoped to ``organization_id`` (tenant isolation): without it the UPDATE
+        deactivates every org's expired assignments, so one tenant's admin
+        mutates other tenants' rows. Callers pass the authenticated caller's org,
+        never client input.
+        """
         try:
             expired_count = (
                 self.db.query(UserRoleAssignment)
                 .filter(
                     and_(
+                        UserRoleAssignment.organization_id == organization_id,
                         UserRoleAssignment.is_active == True,
                         UserRoleAssignment.expires_at < datetime.utcnow(),
                     )
