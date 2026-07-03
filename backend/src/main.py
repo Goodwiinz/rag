@@ -20,6 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
@@ -106,6 +107,13 @@ from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
 from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
+from src.exceptions import RAGException
+from src.exceptions.analytics_exceptions import AnalyticsException
+from src.exceptions.error_handlers import (
+    analytics_exception_handler,
+    database_exception_handler,
+    rag_exception_handler,
+)
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -741,6 +749,21 @@ async def general_exception_handler(request: Request, exc: Exception):
             }
         },
     )
+
+
+# Wire the application's own exception hierarchies to their structured handlers.
+# Registered explicitly rather than via
+# src.exceptions.error_handlers.setup_error_handlers(), which would also
+# re-register HTTPException / RequestValidationError / Exception and clobber the
+# handlers defined above. Starlette resolves handlers by walking the exception's
+# MRO, so these more-specific handlers take precedence over the generic
+# Exception handler for their own types — e.g. an analytics
+# PermissionDeniedException now returns 403 instead of a generic 500, and a
+# SQLAlchemyError returns a sanitized 500 instead of leaking DB internals in
+# non-production environments.
+app.add_exception_handler(RAGException, rag_exception_handler)
+app.add_exception_handler(AnalyticsException, analytics_exception_handler)
+app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 
 
 # Development server info — requires admin auth even in DEBUG mode
