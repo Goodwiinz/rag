@@ -5,7 +5,7 @@ events across EVERY org (documented platform-only path). The endpoint derives
 org from get_current_tenant_id(), which can be None. Without a guard, a caller
 with the system_admin permission but no tenant context (e.g. a user whose org
 was deleted -> SET NULL) would trigger a GLOBAL cross-tenant wipe of audit
-trails. These tests pin: None org -> 403 + service never invoked; real org ->
+trails. These tests pin: None org -> 401 + service never invoked; real org ->
 scoped call.
 """
 
@@ -31,7 +31,7 @@ async def test_null_org_rejected_and_no_delete(monkeypatch):
         await comp.cleanup_old_audit_events(
             retention_days=365, audit_service=svc, _="ok"
         )
-    assert ei.value.status_code == 403
+    assert ei.value.status_code == 401
     svc.cleanup_old_audit_events.assert_not_called()
 
 

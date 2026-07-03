@@ -568,12 +568,13 @@ async def cleanup_old_audit_events(
         # AuditService.cleanup_old_audit_events treats organization_id=None as a
         # GLOBAL delete across every org, so a null-org caller (even a
         # system_admin whose org was deleted -> SET NULL) must be rejected here
-        # rather than passed through. Mirrors the None-org 403 guard the sibling
-        # compliance endpoints already apply.
+        # rather than passed through. 401 matches the null-org guard the sibling
+        # compliance endpoints (and require_permission_dep) already use for a
+        # missing tenant context — this is a defense-in-depth second barrier.
         organization_id = get_current_tenant_id()
         if not organization_id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Organization context required",
             )
 
@@ -588,7 +589,7 @@ async def cleanup_old_audit_events(
         }
 
     except HTTPException:
-        # Preserve the 403 (missing org context) instead of masking it as 500.
+        # Preserve the 401 (missing org context) instead of masking it as 500.
         raise
     except Exception as e:
         raise HTTPException(
