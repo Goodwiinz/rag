@@ -54,8 +54,18 @@ class ChatMessage(BaseModel):
             "thread_id",
             "client_message_id",
             unique=True,
+            postgresql_where=text("client_message_id IS NOT NULL AND role = 'user'"),
+        ),
+        # Assistant-role mirror (migration y7z8a9b0c1d2) backing the
+        # idempotent assistant insert in jobs._persist_assistant_message —
+        # same byte-identical-predicate rule as above.
+        Index(
+            "uq_chat_messages_thread_client_msg_assistant",
+            "thread_id",
+            "client_message_id",
+            unique=True,
             postgresql_where=text(
-                "client_message_id IS NOT NULL AND role = 'user'"
+                "client_message_id IS NOT NULL AND role = 'assistant'"
             ),
         ),
     )

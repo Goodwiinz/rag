@@ -640,15 +640,30 @@ async def _persist_assistant_message(
     model_name: Optional[str],
     tool_executions_out: Optional[list],
     retrieved_contexts: Optional[list] = None,
-) -> None:
+    latency_ms: Optional[int] = None,
+    stopped: bool = False,
+    client_message_id: Optional[str] = None,
+) -> Optional[str]:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
 
     Commits independently of ``_persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
     without its assistant counterpart — callers that depend on the old
     single-commit behavior must handle this.
+
+    When ``client_message_id`` is provided the insert is idempotent
+    against the assistant-role partial unique index (mirror of the
+    user-row index from v0a1b2c3d4e5) so an SSE retry/reconnect for the
+    same turn cannot duplicate the assistant row. On a dedup hit the
+    existing row id is returned and the thread stats are NOT re-bumped.
+
+    Returns the persisted (or pre-existing) message id, or ``None`` when
+    nothing was written.
     """
     from uuid import UUID
+
+    from sqlalchemy import select
+    from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
     from src.models.citation import Citation as CitationModel
@@ -670,22 +685,57 @@ async def _persist_assistant_message(
             for te in tool_executions_out
         ]
 
-    msg = ChatMessage(
+    values = dict(
         thread_id=UUID(thread_id),
         role=MessageRole.ASSISTANT,
         content=content,
         model_name=model_name,
         tool_executions=tool_exec_data,
+        latency_ms=latency_ms,
+        stopped=stopped,
+        client_message_id=client_message_id,
     )
-    db.add(msg)
-    await db.flush()
+
+    if client_message_id is not None:
+        stmt = (
+            insert(ChatMessage)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=["thread_id", "client_message_id"],
+                index_where=(
+                    ChatMessage.client_message_id.isnot(None)
+                    & (ChatMessage.role == MessageRole.ASSISTANT)
+                ),
+            )
+            .returning(ChatMessage.id)
+        )
+        inserted_id = (await db.execute(stmt)).scalar_one_or_none()
+        if inserted_id is None:
+            # Dedup hit: a retry of an already-persisted turn. Fetch the
+            # existing row id and leave thread stats/citations untouched.
+            existing = await db.execute(
+                select(ChatMessage.id).where(
+                    ChatMessage.thread_id == UUID(thread_id),
+                    ChatMessage.client_message_id == client_message_id,
+                    ChatMessage.role == MessageRole.ASSISTANT,
+                )
+            )
+            await db.commit()
+            existing_id = existing.scalar_one_or_none()
+            return str(existing_id) if existing_id is not None else None
+        msg_id = inserted_id
+    else:
+        msg = ChatMessage(**values)
+        db.add(msg)
+        await db.flush()
+        msg_id = msg.id
 
     if retrieved_contexts:
         for ctx in retrieved_contexts:
             doc_id = ctx.get("document_id")
             db.add(
                 CitationModel(
-                    message_id=msg.id,
+                    message_id=msg_id,
                     document_id=UUID(doc_id) if doc_id else None,
                     external_reference_id=ctx.get("external_reference_id"),
                     document_title=ctx.get("title"),
@@ -701,6 +751,22 @@ async def _persist_assistant_message(
         thread.last_message_at = datetime.now(timezone.utc)
     await db.commit()
 
+    # Mirror chat_service.create_message's summarization trigger so
+    # server-canonical /chat threads get titles/summaries too. Celery-only
+    # (the task drives the sync ThreadSummarizationService in the worker);
+    # never let a broker hiccup break persistence.
+    if thread is not None and (thread.message_count or 0) >= 3:
+        try:
+            from src.tasks.summarize_thread_task import summarize_thread_task
+
+            summarize_thread_task.delay(thread_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to queue summarization for thread %s: %s", thread_id, exc
+            )
+
+    return str(msg_id)
+
 
 async def _persist_assistant_message_safe(
     *,
@@ -709,7 +775,10 @@ async def _persist_assistant_message_safe(
     model_name: Optional[str],
     tool_executions_out: Optional[list],
     retrieved_contexts: Optional[list] = None,
-) -> None:
+    latency_ms: Optional[int] = None,
+    stopped: bool = False,
+    client_message_id: Optional[str] = None,
+) -> Optional[str]:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
     Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
@@ -722,13 +791,16 @@ async def _persist_assistant_message_safe(
     """
     try:
         async with AsyncSessionLocal() as db:
-            await _persist_assistant_message(
+            return await _persist_assistant_message(
                 db,
                 thread_id=thread_id,
                 content=content,
                 model_name=model_name,
                 tool_executions_out=tool_executions_out,
                 retrieved_contexts=retrieved_contexts,
+                latency_ms=latency_ms,
+                stopped=stopped,
+                client_message_id=client_message_id,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
