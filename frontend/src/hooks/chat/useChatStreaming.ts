@@ -25,6 +25,8 @@ import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
+import type { CitationCreate } from '@/types/workspace';
+import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -33,6 +35,33 @@ import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 
 // localStorage key for the workspace→agent thread map (see agentThreadMapRef).
 const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
+
+/**
+ * Map a raw rag_context SSE item ({document_id, title, content, score} from
+ * the agent's rag_node) onto the workspace CitationCreate schema so the
+ * turn's sources persist with the assistant message. Snippet capped at the
+ * backend Citation column limit.
+ */
+export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
+  const documentId =
+    (ctx.document_id as string | undefined) ??
+    (ctx.documentId as string | undefined);
+  const snippet =
+    (ctx.content as string | undefined) ??
+    (ctx.snippet as string | undefined) ??
+    '';
+  return {
+    ...(documentId ? { document_id: documentId } : {}),
+    ...(ctx.external_reference_id
+      ? { external_reference_id: ctx.external_reference_id as string }
+      : {}),
+    document_title:
+      (ctx.title as string | undefined) ??
+      (ctx.document_title as string | undefined),
+    snippet: snippet.slice(0, 2000),
+    ...(typeof ctx.score === 'number' ? { score: ctx.score } : {}),
+  };
+}
 
 // Agent tools that mutate project content shown in the Working folders rail
 // (sources/notes/drafts). A successful run of one of these must invalidate
@@ -606,10 +635,19 @@ export function useChatStreaming(
         const responseTimeMs = Date.now() - responseStart;
         const wasStopped = stoppedByUserRef.current;
         const finalTurnSteps = [...turnSteps];
+        // Capture the turn's RAG citations BEFORE the streaming state is
+        // cleared below — they are attached to the committed message (so
+        // inline [Doc N] refs keep resolving after the stream ends) and
+        // persisted with the assistant row (so they survive reload).
+        const turnCitations = useChatStore.getState().streamingCitations;
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
+          citations:
+            turnCitations.length > 0
+              ? turnCitations.map(normalizeCitation)
+              : undefined,
           toolExecutions:
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
           metadata: {
@@ -619,6 +657,9 @@ export function useChatStreaming(
               ? {
                   toolsUsed: finalTurnSteps.map((s) => s.label),
                 }
+              : {}),
+            ...(turnCitations.length > 0
+              ? { sourcesCount: turnCitations.length }
               : {}),
           },
         };
@@ -647,13 +688,18 @@ export function useChatStreaming(
             });
             addMessageToStore(currentThreadId, savedUserMessage);
 
-            // Save assistant message
+            // Save assistant message. Citations ride along so provenance
+            // survives thread reload — the backend Citation rows round-trip
+            // through GET messages (dbMsg.citations → normalizeCitation).
             const savedAssistantMessage = await workspaceService.createMessage({
               thread_id: currentThreadId,
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
               latency_ms: responseTimeMs,
               ...(wasStopped ? { stopped: true } : {}),
+              ...(turnCitations.length > 0
+                ? { citations: turnCitations.map(toCitationCreate) }
+                : {}),
             });
             addMessageToStore(currentThreadId, {
               ...savedAssistantMessage,
