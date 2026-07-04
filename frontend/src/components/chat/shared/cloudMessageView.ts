@@ -1,4 +1,8 @@
-import { MessageRole, type ChatMessage } from '@/types/workspace';
+import {
+  MessageRole,
+  type ChatMessage,
+  type DbToolExecution,
+} from '@/types/workspace';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 
@@ -8,6 +12,23 @@ export interface ActivityStep {
   label: string;
   status: 'running' | 'done' | 'error';
   durationMs?: number;
+}
+
+/**
+ * Map persisted chat_messages.tool_executions rows onto the activity-strip
+ * shape so a reloaded thread shows the same tool steps as the live turn.
+ * Persisted rows are always settled: anything not failed reads as done.
+ */
+export function mapDbToolExecutions(
+  execs: DbToolExecution[] | undefined
+): ActivityStep[] | undefined {
+  if (!execs || execs.length === 0) return undefined;
+  return execs.map((e) => ({
+    tool: e.tool_name,
+    label: e.tool_display_name || e.tool_name,
+    status: e.status === 'failed' || e.error ? 'error' : 'done',
+    ...(typeof e.duration_ms === 'number' ? { durationMs: e.duration_ms } : {}),
+  }));
 }
 
 export interface ChatPageMessage {
@@ -37,6 +58,7 @@ export function mapStoreMessagesToChatMessages(
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
+    toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
     metadata:
       dbMsg.latency_ms || dbMsg.stopped
         ? {

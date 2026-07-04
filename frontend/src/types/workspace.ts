@@ -258,10 +258,26 @@ export interface ChatMessage {
   tool_call_id?: string;
   feedback_rating?: number;
   feedback_text?: string;
+  /** Agent tool executions for this turn (JSONB passthrough from the
+   * backend: {id, tool_name, tool_display_name, args, status, result,
+   * error, duration_ms}[]). Absent for legacy and non-agent rows. */
+  tool_executions?: DbToolExecution[];
   citations: Citation[];
   attachments: MessageAttachment[];
   created_at: string;
   updated_at: string;
+}
+
+/** Persisted agent tool-execution record (chat_messages.tool_executions). */
+export interface DbToolExecution {
+  id?: string;
+  tool_name: string;
+  tool_display_name?: string;
+  args?: Record<string, unknown>;
+  status?: string;
+  result?: unknown;
+  error?: string | null;
+  duration_ms?: number | null;
 }
 
 export interface ChatMessageListResponse {
