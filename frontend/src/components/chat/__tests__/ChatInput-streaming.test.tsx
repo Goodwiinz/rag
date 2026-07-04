@@ -89,44 +89,15 @@ describe('ChatInput streaming behavior', () => {
     });
   });
 
-  describe('phase-aware status pill', () => {
-    it('shows no status pill when idle (and no legacy agent badge)', () => {
-      render(<ChatInput {...defaultProps} />);
+  describe('composer status pill (removed — message-area pill owns status)', () => {
+    it('never renders a composer status pill, idle or loading', () => {
+      const { rerender } = render(<ChatInput {...defaultProps} />);
       expect(screen.queryByText(/Nous is/)).not.toBeInTheDocument();
       expect(screen.queryByText('nous-agent')).not.toBeInTheDocument();
-    });
 
-    it('shows "reflecting" while loading before tokens arrive', () => {
-      render(
-        <ChatInput
-          {...defaultProps}
-          isLoading
-          isStreaming
-          streamingContent=""
-        />
-      );
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Nous is reflecting'
-      );
-    });
-
-    it('shows "writing" once tokens stream', () => {
-      render(
-        <ChatInput
-          {...defaultProps}
-          isLoading
-          isStreaming
-          streamingContent="partial answer"
-        />
-      );
-      expect(screen.getByRole('status')).toHaveTextContent('Nous is writing');
-    });
-
-    it('shows "reading sources" while RAG retrieval is in flight', () => {
-      render(<ChatInput {...defaultProps} isLoading isRAGLoading />);
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Nous is reading sources'
-      );
+      rerender(<ChatInput {...defaultProps} isLoading />);
+      expect(screen.queryByText(/Nous is/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
   });
 

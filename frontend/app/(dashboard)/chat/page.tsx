@@ -1111,9 +1111,6 @@ function ChatPageContent() {
           isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
           enableRAG={enableRAG}
           onRAGToggle={setEnableRAG}
-          isRAGLoading={storeIsRetrievingRag}
-          isStreaming={storeIsStreaming}
-          streamingContent={storeStreamingContent}
           inputRef={chatInputRef}
           onAttach={handleAttach}
           selectedModelId={selectedModel}

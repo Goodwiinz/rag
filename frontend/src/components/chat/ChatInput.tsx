@@ -9,7 +9,7 @@ import {
 } from './SlashCommandMenu';
 import { useSlashCommandMenu } from './useSlashCommandMenu';
 import type { SlashCommand, SlashCommandId } from './slashCommands';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowRight,
   Image as ImageIcon,
@@ -28,14 +28,11 @@ interface ChatInputProps {
   isLoading: boolean;
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
-  isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onAttach?: (files: FileList) => void;
   selectedModelId?: string;
   onModelChange?: (id: string) => void;
   // Phase-aware status pill (shown only while generating)
-  isStreaming?: boolean;
-  streamingContent?: string;
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
 }
@@ -72,13 +69,10 @@ export function ChatInput({
   isLoading,
   enableRAG,
   onRAGToggle,
-  isRAGLoading,
   inputRef,
   onAttach,
   selectedModelId,
   onModelChange,
-  isStreaming,
-  streamingContent,
   onCommand,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -87,7 +81,6 @@ export function ChatInput({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  const reduceMotion = useReducedMotion();
   const menu = useSlashCommandMenu(value);
 
   // Local attachment receipts — chips shown in the composer for files the user
@@ -241,21 +234,6 @@ export function ChatInput({
       ? menu.filtered[menu.highlightedIndex]
       : undefined;
 
-  // Phase-aware status: shown only while generating.
-  const statusPhase: 'retrieving' | 'writing' | 'reflecting' | null = !isLoading
-    ? null
-    : isRAGLoading
-      ? 'retrieving'
-      : isStreaming && (streamingContent?.length ?? 0) > 0
-        ? 'writing'
-        : 'reflecting';
-  const statusLabel =
-    statusPhase === 'retrieving'
-      ? 'Nous is reading sources…'
-      : statusPhase === 'writing'
-        ? 'Nous is writing…'
-        : 'Nous is reflecting…';
-
   return (
     <div
       className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-4 border-t"
@@ -297,44 +275,6 @@ export function ChatInput({
             }}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <AnimatePresence>
-                {statusPhase && (
-                  <motion.div
-                    key="nous-status"
-                    role="status"
-                    aria-live="polite"
-                    initial={reduceMotion ? false : { opacity: 0, y: 2 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
-                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="inline-flex items-center gap-2 rounded-full shrink-0"
-                    style={{
-                      padding: '4px 11px 4px 9px',
-                      background: 'var(--nous-bg-2)',
-                      border: '1px solid var(--nous-border-1)',
-                    }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{
-                        background: 'var(--nous-sol)',
-                        boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
-                        animation: 'nous-pulse 1.4s ease-in-out infinite',
-                      }}
-                    />
-                    <span
-                      className="font-nous-mono text-[10px] font-medium whitespace-nowrap"
-                      style={{
-                        color: 'var(--nous-fg-2)',
-                        letterSpacing: '0.02em',
-                      }}
-                    >
-                      {statusLabel}
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <button
                 type="button"
                 onClick={() => onRAGToggle(!enableRAG)}
