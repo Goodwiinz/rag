@@ -206,6 +206,37 @@ def _greeting_reply(
 # ---------------------------------------------------------------------------
 
 
+# Injected instead of a Retrieved-context block when retrieval came back
+# empty. Without it, the static "[Doc N]" citation rule plus a silently
+# absent context block leads the model to improvise a bibliography from
+# parametric memory (user-reproduced 2026-07-04: a fabricated "Cited
+# sources" list with unverifiable references). Provenance over assertion:
+# an honest "nothing retrieved" beats fake citations.
+NO_RETRIEVAL_GUIDANCE = (
+    "No documents were retrieved for this turn. If the question concerns "
+    "the user's documents, state plainly that nothing relevant was found "
+    "in their corpus. You may answer from general knowledge ONLY if you "
+    "label it as such — do NOT invent citations, paper references, or a "
+    "bibliography."
+)
+
+
+def _retrieval_context_part(retrieved: list) -> str:
+    """The system-prompt block for this turn's retrieval outcome.
+
+    Non-empty retrieval renders the numbered [Doc N] context block the
+    citation rule refers to; empty retrieval renders the explicit
+    anti-fabrication guidance instead of silently omitting the block.
+    """
+    if retrieved:
+        context_text = "\n\n".join(
+            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
+            for i, ctx in enumerate(retrieved)
+        )
+        return f"Retrieved context:\n{context_text}"
+    return NO_RETRIEVAL_GUIDANCE
+
+
 @track_node_execution("llm_node")
 async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Call the LLM with system prompt, RAG context, and bound tools."""
@@ -275,12 +306,7 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
                 f"project; honor them):\n{pm_text}"
             )
 
-    if retrieved:
-        context_text = "\n\n".join(
-            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
-            for i, ctx in enumerate(retrieved)
-        )
-        dynamic_parts.append(f"Retrieved context:\n{context_text}")
+    dynamic_parts.append(_retrieval_context_part(retrieved))
 
     # Close the plan→execute handoff (see planner.render_plan_directive). The
     # planner writes state["plan"] but the executor only ever read messages,
