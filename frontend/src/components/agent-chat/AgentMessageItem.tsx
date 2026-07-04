@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   User,
   Bot,
@@ -11,9 +11,12 @@ import {
   Copy,
   Check,
   RefreshCw,
+  ListChecks,
 } from 'lucide-react';
 import { ToolExecutionCard } from './ToolExecutionCard';
 import { AgentMarkdownRenderer } from './AgentMarkdownRenderer';
+import Plan, { type Task } from '@/components/ui/agent-plan';
+import { mapPlanToTasks } from './planMapping';
 import type { AgentMessage, ToolExecution } from '@/types/agent-chat';
 
 interface AgentMessageItemProps {
@@ -80,6 +83,15 @@ export const AgentMessageItem = React.memo(function AgentMessageItem({
         )}
       </div>
       <div className="flex-1 min-w-0">
+        {/* Execution plan snapshot */}
+        {!isUser && message.plan && message.plan.length > 0 && (
+          <InlinePlan
+            plan={message.plan}
+            toolExecutions={message.toolExecutions ?? []}
+            isStreaming={!!message.isStreaming}
+          />
+        )}
+
         {/* Message content */}
         {message.content && (
           <>
@@ -152,6 +164,58 @@ export const AgentMessageItem = React.memo(function AgentMessageItem({
 });
 
 AgentMessageItem.displayName = 'AgentMessageItem';
+
+/**
+ * Collapsible, read-only snapshot of the agent's execution plan for this turn.
+ * Expanded by default while streaming; collapsed once the turn finishes.
+ */
+function InlinePlan({
+  plan,
+  toolExecutions,
+  isStreaming,
+}: {
+  plan: NonNullable<AgentMessage['plan']>;
+  toolExecutions: ToolExecution[];
+  isStreaming: boolean;
+}): React.JSX.Element {
+  const [isExpanded, setIsExpanded] = useState(isStreaming);
+
+  const tasks = useMemo<Task[]>(
+    () => mapPlanToTasks(plan, toolExecutions),
+    [plan, toolExecutions]
+  );
+  const doneCount = tasks.filter((t) => t.status === 'completed').length;
+
+  return (
+    <div className="border border-border/50 rounded-lg bg-muted/20 my-2 overflow-hidden">
+      <button
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/40 transition-colors"
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} execution plan`}
+      >
+        <ListChecks className="h-3.5 w-3.5 text-sol shrink-0" />
+        <span className="text-xs font-medium text-foreground">
+          Execution plan
+        </span>
+        <span className="ml-auto flex items-center gap-2 shrink-0">
+          <span className="text-muted-foreground/70 tabular-nums text-[10px]">
+            {doneCount}/{tasks.length}
+          </span>
+          {isExpanded ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground/60" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
+          )}
+        </span>
+      </button>
+      {isExpanded && (
+        <div className="border-t border-border/30 max-h-[320px] overflow-y-auto">
+          <Plan tasks={tasks} readOnly />
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Grouped card for multiple identical tool calls (e.g., 3x add_document_to_project).
