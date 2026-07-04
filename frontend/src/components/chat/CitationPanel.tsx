@@ -340,7 +340,7 @@ export function CitationPanel({
             'bg-[var(--nous-bg-1)] border-l border-[var(--nous-border-1)]',
             className
           )}
-          style={{ boxShadow: '-20px 0 60px rgba(10, 10, 14, 0.18)' }}
+          style={{ boxShadow: '-20px 0 60px rgba(var(--nous-erebus-rgb), 0.18)' }}
         >
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-4 py-3">

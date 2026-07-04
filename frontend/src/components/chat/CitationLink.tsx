@@ -78,7 +78,7 @@ export function CitationLink({
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40',
         citation
           ? isActive
-            ? 'bg-[var(--nous-sol)] text-white shadow-[0_0_0_2px_rgba(212,160,57,0.18)]'
+            ? 'bg-[var(--nous-sol)] text-white shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.18)]'
             : canNavigate
               ? 'bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] hover:bg-[var(--nous-sol)] hover:text-white hover:-translate-y-px dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)] dark:hover:bg-[var(--nous-helios)] dark:hover:text-[var(--nous-nyx)]'
               : 'bg-transparent border border-[var(--nous-border-1)] text-[var(--nous-fg-3)] cursor-default'
@@ -118,7 +118,7 @@ export function CitationLink({
         className={cn(
           'w-[320px] p-0 overflow-hidden z-50',
           'bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]',
-          'shadow-[0_8px_24px_rgba(10,10,14,0.10)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
+          'shadow-[0_8px_24px_rgba(var(--nous-erebus-rgb),0.10)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]'
         )}
       >
         {/* Header */}
@@ -128,7 +128,7 @@ export function CitationLink({
               className={cn(
                 'flex items-center justify-center w-7 h-7 rounded shrink-0 mt-0.5',
                 canNavigate
-                  ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border border-[rgba(212,160,57,0.25)]'
+                  ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border border-[rgba(var(--nous-sol-rgb),0.25)]'
                   : 'bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]'
               )}
             >
