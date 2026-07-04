@@ -152,7 +152,7 @@ export function MessageBubble({
                   background:
                     'linear-gradient(135deg, var(--nous-sol), var(--nous-helios))',
                   boxShadow:
-                    '0 0 0 3px var(--nous-bg-1), 0 2px 6px rgba(212,160,57,0.18)',
+                    '0 0 0 3px var(--nous-bg-1), 0 2px 6px rgba(var(--nous-sol-rgb), 0.18)',
                 }
           }
         >

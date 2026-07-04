@@ -359,7 +359,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                     className={cn(
                       'sb-conv w-full text-left block p-[9px_11px] rounded-[7px] border transition-[background,border-color] duration-[180ms] mb-px relative',
                       isActive
-                        ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border-[rgba(212,160,57,0.2)] dark:border-[rgba(232,184,74,0.25)]'
+                        ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border-[rgba(var(--nous-sol-rgb),0.2)] dark:border-[rgba(var(--nous-helios-rgb),0.25)]'
                         : 'bg-transparent border-transparent hover:bg-[var(--nous-bg-2)] dark:hover:bg-[var(--nous-obsidian)]'
                     )}
                   >
@@ -385,7 +385,7 @@ export const ChatSidebar = memo(function ChatSidebar({
                         {conv.title}
                       </span>
                       {conv.unread && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)] shadow-[0_0_0_2px_rgba(212,160,57,0.15)] shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)] shadow-[0_0_0_2px_rgba(var(--nous-sol-rgb),0.15)] shrink-0" />
                       )}
                     </div>
 

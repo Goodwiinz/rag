@@ -426,7 +426,7 @@ function ThinkingPill({ label }: { label: string }) {
       <span
         className="w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
         style={{
-          boxShadow: '0 0 0 3px rgba(212, 160, 57, 0.18)',
+          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
           animation: 'nous-pulse 1.4s ease-in-out infinite',
         }}
       />
