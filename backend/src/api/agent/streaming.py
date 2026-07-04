@@ -36,6 +36,23 @@ from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
 
+
+def _canonical_persistence_enabled() -> bool:
+    """Server-canonical persistence rollout flag (PR 1 of the
+    dual-persistence consolidation). When on, the assistant row is
+    persisted synchronously before `done` and the done payload carries
+    the persisted ids so the client can reconcile instead of writing its
+    own copy. Read per-call (not at import) so tests and the dev cluster
+    can flip it without a process restart."""
+    import os
+
+    return os.getenv("AGENT_CANONICAL_PERSISTENCE", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
@@ -366,6 +383,22 @@ async def stream_event_generator(
         first_event_yielded = False
         streamed_token = False
         client_disconnected = False
+        persisted_assistant_id: Optional[str] = None
+        # Accumulated user-facing tokens, so a client abort can persist the
+        # partial answer server-side (stopped=True) instead of losing it.
+        streamed_parts: List[str] = []
+        # Deterministic assistant-side idempotency key derived from the user
+        # turn's client_message_id: an SSE retry of the same turn maps to the
+        # same key, so the assistant-role partial unique index dedupes it.
+        assistant_cmid: Optional[str] = None
+        _last_user_msg = next(
+            (m for m in reversed(request_body.messages) if m.role == "user"), None
+        )
+        _user_cmid = getattr(_last_user_msg, "client_message_id", None)
+        if _user_cmid is not None:
+            assistant_cmid = str(
+                _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{_user_cmid}")
+            )
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
@@ -396,6 +429,7 @@ async def stream_event_generator(
                             chunk = event.get("data", {}).get("chunk")
                             if chunk and hasattr(chunk, "content") and chunk.content:
                                 streamed_token = True
+                                streamed_parts.append(chunk.content)
                                 yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
 
                         elif kind == "on_chat_model_end":
@@ -469,8 +503,10 @@ async def stream_event_generator(
 
         # Client hung up mid-stream (hit Stop / closed the tab). Cancel the
         # agent run by closing the graph iterator instead of letting it finish
-        # generating into a dead socket, and skip the persist + `done` path —
-        # the client preserves and saves its own partial answer.
+        # generating into a dead socket. Persist the partial answer
+        # server-side with stopped=True — server-canonical clients no longer
+        # save their own copy, so without this an aborted turn would leave
+        # the thread with a user message and no assistant row at all.
         if client_disconnected:
             with contextlib.suppress(Exception):
                 await event_stream_iter.aclose()
@@ -478,6 +514,24 @@ async def stream_event_generator(
                 "SSE client disconnected; cancelled agent run for thread %s",
                 stream_thread_id,
             )
+            partial = "".join(streamed_parts)
+            if resolved_thread_id is not None and partial:
+                stop_kwargs = dict(
+                    thread_id=resolved_thread_id,
+                    content=partial,
+                    model_name=request_body.model,
+                    tool_executions_out=None,
+                    retrieved_contexts=None,
+                    latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                    stopped=True,
+                    client_message_id=assistant_cmid,
+                )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                    )
+                else:
+                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
             return
 
         # Check graph state after streaming completes
@@ -536,8 +590,20 @@ async def stream_event_generator(
                     model_name=request_body.model,
                     tool_executions_out=tool_executions_out,
                     retrieved_contexts=final_values.get("retrieved_contexts"),
+                    latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                    stopped=False,
+                    client_message_id=assistant_cmid,
                 )
-                if background_tasks is not None:
+                if _canonical_persistence_enabled():
+                    # Server-canonical mode: persist BEFORE `done` so the
+                    # event can carry the persisted ids and the client can
+                    # reconcile its optimistic message without a re-fetch.
+                    persisted_assistant_id = (
+                        await _jobs_mod._persist_assistant_message_safe(
+                            **persist_kwargs
+                        )
+                    )
+                elif background_tasks is not None:
                     background_tasks.add_task(
                         _jobs_mod._persist_assistant_message_safe,
                         **persist_kwargs,
@@ -567,7 +633,19 @@ async def stream_event_generator(
                 f"data: {_json.dumps({'input_tokens': turn_input_tokens, 'output_tokens': turn_output_tokens})}\n\n"
             )
 
-        yield f"event: done\ndata: {_json.dumps({'status': 'complete'})}\n\n"
+        done_payload: Dict[str, Any] = {"status": "complete"}
+        if _canonical_persistence_enabled():
+            # Ids let the client reconcile its optimistic bubbles with the
+            # server-persisted rows instead of double-saving (server-canonical
+            # mode: the frontend no longer writes messages itself).
+            done_payload.update(
+                {
+                    "thread_id": resolved_thread_id,
+                    "assistant_message_id": persisted_assistant_id,
+                    "client_message_id": assistant_cmid,
+                }
+            )
+        yield f"event: done\ndata: {_json.dumps(done_payload)}\n\n"
 
     except asyncio.CancelledError:
         raise
