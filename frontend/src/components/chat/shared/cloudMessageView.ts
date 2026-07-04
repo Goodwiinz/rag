@@ -8,6 +8,51 @@ export interface ActivityStep {
   label: string;
   status: 'running' | 'done' | 'error';
   durationMs?: number;
+  /** Compact one-line summary of the tool's arguments (e.g. the query). */
+  argsSummary?: string;
+  /** Compact one-line summary of the result, or the error text on failure. */
+  resultSummary?: string;
+}
+
+const SUMMARY_MAX = 140;
+
+function truncate(s: string): string {
+  return s.length > SUMMARY_MAX ? s.slice(0, SUMMARY_MAX - 1) + '…' : s;
+}
+
+/** One-line `key: value` summary of tool-call args for the activity strip. */
+export function summarizeToolArgs(
+  args: Record<string, unknown> | undefined
+): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+  const entries = Object.entries(args).filter(([, v]) => v != null);
+  if (entries.length === 0) return undefined;
+  const joined = entries
+    .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .join(' · ');
+  return truncate(joined);
+}
+
+/**
+ * One-line summary of a tool result for the activity strip. Result payloads
+ * are JSON strings; prefer their `message`/`error` field, fall back to the
+ * truncated raw text.
+ */
+export function summarizeToolResult(
+  result: string | undefined
+): string | undefined {
+  if (!result) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(result);
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      const msg = obj.error ?? obj.message ?? obj.summary;
+      if (typeof msg === 'string' && msg.length > 0) return truncate(msg);
+    }
+  } catch {
+    // not JSON — fall through to raw text
+  }
+  return truncate(result);
 }
 
 export interface ChatPageMessage {

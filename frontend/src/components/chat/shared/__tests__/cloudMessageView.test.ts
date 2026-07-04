@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
+  summarizeToolArgs,
+  summarizeToolResult,
   syncConversationMessagesWithStore,
 } from '../cloudMessageView';
 
@@ -199,5 +201,46 @@ describe('cloudMessageView', () => {
     );
 
     expect(result[0].messageCount).toBe(120);
+  });
+});
+
+describe('summarizeToolArgs', () => {
+  it('returns undefined for missing or empty args', () => {
+    expect(summarizeToolArgs(undefined)).toBeUndefined();
+    expect(summarizeToolArgs({})).toBeUndefined();
+  });
+
+  it('joins key/value pairs, skipping null values', () => {
+    expect(
+      summarizeToolArgs({ query: 'rag', max_results: 5, categories: null })
+    ).toBe('query: rag · max_results: 5');
+  });
+
+  it('truncates long summaries to one line', () => {
+    const long = summarizeToolArgs({ query: 'x'.repeat(300) });
+    expect(long!.length).toBeLessThanOrEqual(140);
+    expect(long!.endsWith('…')).toBe(true);
+  });
+});
+
+describe('summarizeToolResult', () => {
+  it('returns undefined for empty result', () => {
+    expect(summarizeToolResult(undefined)).toBeUndefined();
+    expect(summarizeToolResult('')).toBeUndefined();
+  });
+
+  it('prefers error over message field in JSON payloads', () => {
+    expect(
+      summarizeToolResult(JSON.stringify({ message: 'ok', error: 'boom' }))
+    ).toBe('boom');
+    expect(summarizeToolResult(JSON.stringify({ message: 'found 3' }))).toBe(
+      'found 3'
+    );
+  });
+
+  it('falls back to truncated raw text for non-JSON results', () => {
+    expect(summarizeToolResult('plain text')).toBe('plain text');
+    const long = summarizeToolResult('y'.repeat(300));
+    expect(long!.length).toBeLessThanOrEqual(140);
   });
 });

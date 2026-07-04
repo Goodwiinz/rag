@@ -4,6 +4,10 @@ import type {
   ActivityStep,
   ChatPageMessage,
 } from '@/components/chat/shared/cloudMessageView';
+import {
+  summarizeToolArgs,
+  summarizeToolResult,
+} from '@/components/chat/shared/cloudMessageView';
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
@@ -401,6 +405,7 @@ export function useChatStreaming(
                 tool,
                 label: toolLabel(tool),
                 status: 'running',
+                argsSummary: summarizeToolArgs(args),
               });
               useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
@@ -423,6 +428,7 @@ export function useChatStreaming(
                   ...turnSteps[idx],
                   status: isError ? 'error' : 'done',
                   durationMs,
+                  resultSummary: summarizeToolResult(result),
                 };
               }
               useChatStore.setState({ streamingSteps: [...turnSteps] });

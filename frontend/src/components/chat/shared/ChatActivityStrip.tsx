@@ -77,9 +77,12 @@ function StepRow({
   reduced: boolean;
   index: number;
 }) {
+  const detail = step.status === 'error' ? step.resultSummary : undefined;
+  const context = step.argsSummary;
+
   return (
     <div
-      className="flex items-center gap-2 min-w-0"
+      className="min-w-0"
       style={
         reduced
           ? undefined
@@ -89,43 +92,59 @@ function StepRow({
             }
       }
     >
-      {/* status icon */}
-      {step.status === 'running' ? (
-        reduced ? (
-          <span className="inline-block w-3.5 h-3.5 shrink-0 rounded-full border border-[var(--nous-sol)]/60 dark:border-[var(--nous-helios)]/60" />
-        ) : (
-          <Loader2
-            className="w-3.5 h-3.5 shrink-0 text-[var(--nous-sol)] dark:text-[var(--nous-helios)] animate-spin"
+      <div className="flex items-center gap-2 min-w-0">
+        {/* status icon */}
+        {step.status === 'running' ? (
+          reduced ? (
+            <span className="inline-block w-3.5 h-3.5 shrink-0 rounded-full border border-[var(--nous-sol)]/60 dark:border-[var(--nous-helios)]/60" />
+          ) : (
+            <Loader2
+              className="w-3.5 h-3.5 shrink-0 text-[var(--nous-sol)] dark:text-[var(--nous-helios)] animate-spin"
+              aria-hidden="true"
+            />
+          )
+        ) : step.status === 'done' ? (
+          <CheckCircle2
+            className="w-3.5 h-3.5 shrink-0 text-[var(--nous-terra)]"
             aria-hidden="true"
           />
-        )
-      ) : step.status === 'done' ? (
-        <CheckCircle2
-          className="w-3.5 h-3.5 shrink-0 text-[var(--nous-terra)]"
-          aria-hidden="true"
-        />
-      ) : (
-        <XCircle
-          className="w-3.5 h-3.5 shrink-0 text-[var(--nous-mars)]"
-          aria-hidden="true"
-        />
+        ) : (
+          <XCircle
+            className="w-3.5 h-3.5 shrink-0 text-[var(--nous-mars)]"
+            aria-hidden="true"
+          />
+        )}
+
+        {/* label */}
+        <span className="truncate text-[12px] text-[var(--nous-fg-1)] font-nous-ui">
+          {step.label}
+        </span>
+
+        {/* tool name (mono, subdued) */}
+        <span className="hidden sm:inline truncate text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
+          {step.tool}
+        </span>
+
+        {/* duration — right-aligned tabular */}
+        {step.durationMs !== undefined && (
+          <span className="ml-auto shrink-0 tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
+            {formatDuration(step.durationMs)}
+          </span>
+        )}
+      </div>
+
+      {/* args context — what the tool was asked (provenance) */}
+      {context && (
+        <div className="pl-[22px] truncate text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
+          {context}
+        </div>
       )}
 
-      {/* label */}
-      <span className="truncate text-[12px] text-[var(--nous-fg-1)] font-nous-ui">
-        {step.label}
-      </span>
-
-      {/* tool name (mono, subdued) */}
-      <span className="hidden sm:inline truncate text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
-        {step.tool}
-      </span>
-
-      {/* duration — right-aligned tabular */}
-      {step.durationMs !== undefined && (
-        <span className="ml-auto shrink-0 tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
-          {formatDuration(step.durationMs)}
-        </span>
+      {/* failure detail — the error text, not just a red icon */}
+      {detail && (
+        <div className="pl-[22px] truncate text-[10px] text-[var(--nous-mars)] font-nous-ui">
+          {detail}
+        </div>
       )}
     </div>
   );
