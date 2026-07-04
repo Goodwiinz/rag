@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.messages import HumanMessage
 
-from src.services.agent.planner import make_planner_node
+from src.services.agent.planner import AgentPlan, make_planner_node
 
 
 def _state(query: str) -> dict:
@@ -31,15 +31,15 @@ def _state(query: str) -> dict:
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_skip_for_short_query_under_12_words():
-    """11-word queries skip planner entirely (no complexity LLM call)."""
+    """11-word queries skip planner entirely (no planner LLM call)."""
     node = make_planner_node(tool_names=["search_arxiv"])
 
     query = "summarize this paper and add it to my project now"  # 10 words
     assert len(query.split()) < 12
 
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(side_effect=AssertionError("complexity should be skipped")),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(side_effect=AssertionError("planner LLM should be skipped")),
     ):
         result = await node(_state(query), config={})
 
@@ -54,7 +54,7 @@ async def test_skip_for_conversational_starter_under_18_words():
 
     query = "what would you do if you were me asked to find papers please"  # 14 words
     with patch(
-        "src.services.agent.planner.check_complexity",
+        "src.services.agent.planner.generate_plan",
         new=AsyncMock(side_effect=AssertionError("should be skipped")),
     ):
         result = await node(_state(query), config={})
@@ -64,9 +64,9 @@ async def test_skip_for_conversational_starter_under_18_words():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_long_substantive_query_invokes_complexity_check():
+async def test_long_substantive_query_invokes_planner_llm():
     """Long substantive queries (≥12 words, non-conversational starter)
-    proceed to the complexity check."""
+    proceed to the single planner LLM call."""
     node = make_planner_node(tool_names=["search_arxiv"])
 
     query = (
@@ -76,13 +76,13 @@ async def test_long_substantive_query_invokes_complexity_check():
     assert len(query.split()) >= 12
 
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(return_value=1),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(return_value=AgentPlan(steps=[])),
     ) as cc:
         result = await node(_state(query), config={})
 
     cc.assert_awaited_once()
-    # step_count < 3 → no plan generated, returns {}
+    # empty steps → model judged the query simple; no plan stored
     assert result == {}
 
 
@@ -90,34 +90,34 @@ async def test_long_substantive_query_invokes_complexity_check():
 @pytest.mark.asyncio
 async def test_skip_bypassed_for_actionable_verb_start():
     """Short imperatives starting with an actionable verb still reach the
-    complexity check when they are not a simple single-paper add flow."""
+    planner LLM when they are not a simple single-paper add flow."""
     node = make_planner_node(tool_names=["ingest_arxiv_papers"])
 
     query = "Add recent transformer papers to my library"  # 6 words, no arxiv id
     assert len(query.split()) < 12
 
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(return_value=1),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(return_value=AgentPlan(steps=[])),
     ) as cc:
         result = await node(_state(query), config={})
 
     cc.assert_awaited_once()
-    assert result == {}  # complexity returned 1 → no plan, but heuristic
-                         # did not short-circuit before the check ran.
+    assert result == {}  # empty plan → no plan stored, but heuristic
+                         # did not short-circuit before the LLM call ran.
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_skip_bypassed_for_arxiv_id():
-    """Queries containing an arxiv ID always reach the complexity check
+    """Queries containing an arxiv ID always reach the planner LLM
     regardless of length or starting word."""
     node = make_planner_node(tool_names=["ingest_arxiv_papers"])
 
     query = "1706.03762 please"
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(return_value=1),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(return_value=AgentPlan(steps=[])),
     ) as cc:
         result = await node(_state(query), config={})
 
@@ -129,26 +129,19 @@ async def test_skip_bypassed_for_arxiv_id():
 @pytest.mark.asyncio
 async def test_skip_planner_entirely_for_simple_add_to_project():
     """Trace 019e6a08/019e69f4: add-to-project imperatives skip the planner
-    entirely (no complexity or plan LLM calls) so the turn stays inside the
-    ~30s HTTP budget."""
+    entirely (no planner LLM call) so the turn stays inside the ~30s
+    HTTP budget."""
     node = make_planner_node(
         tool_names=["ingest_arxiv_papers", "list_projects", "add_document_to_project"]
     )
 
     query = "Add arXiv 2401.12345 to project My Project"
-    with (
-        patch(
-            "src.services.agent.planner.check_complexity",
-            new=AsyncMock(side_effect=AssertionError("complexity should be skipped")),
-        ) as cc,
-        patch(
-            "src.services.agent.planner.generate_plan",
-            new=AsyncMock(side_effect=AssertionError("plan should be skipped")),
-        ) as gp,
-    ):
+    with patch(
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(side_effect=AssertionError("plan should be skipped")),
+    ) as gp:
         result = await node(_state(query), config={})
 
-    cc.assert_not_awaited()
     gp.assert_not_awaited()
     assert result == {}
 
@@ -171,8 +164,8 @@ async def test_skip_preserved_for_conversational(query: str) -> None:
     node = make_planner_node(tool_names=["search_arxiv"])
 
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(side_effect=AssertionError("complexity should be skipped")),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(side_effect=AssertionError("planner LLM should be skipped")),
     ):
         result = await node(_state(query), config={})
 
@@ -186,7 +179,7 @@ async def test_skip_in_chat_mode_no_project():
 
     Plans only matter when the agent will execute a multi-step ingest +
     add-to-project flow. In chat mode the plan is never followed, so
-    generating one wastes a complexity LLM call.
+    generating one wastes a planner LLM call.
     """
     node = make_planner_node(tool_names=["search_arxiv"])
     chat_state = {
@@ -201,8 +194,8 @@ async def test_skip_in_chat_mode_no_project():
         "page_context": {"type": "chat", "project_id": None},
     }
     with patch(
-        "src.services.agent.planner.check_complexity",
-        new=AsyncMock(side_effect=AssertionError("complexity should be skipped")),
+        "src.services.agent.planner.generate_plan",
+        new=AsyncMock(side_effect=AssertionError("planner LLM should be skipped")),
     ):
         result = await node(chat_state, config={})
 
