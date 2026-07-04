@@ -229,6 +229,11 @@ export function useChatStreaming(
   // user abort finalizes the partial answer (tagged `stopped`) instead of
   // surfacing an error or an empty bubble. Reset once the turn is wrapped up.
   const stoppedByUserRef = useRef(false);
+  // Citations snapshot taken by handleStop the instant the user aborts —
+  // storeStopStreaming() clears streamingCitations synchronously, but the
+  // completion path still needs them to commit + persist the stopped answer's
+  // sources. Cleared once the turn is finalized.
+  const stopCitationsRef = useRef<Array<Record<string, unknown>>>([]);
   // Workspace thread id of the in-flight run, so Stop can close out the agent
   // activity indicator (the normal onDone never fires on abort).
   const activeRunThreadRef = useRef<string | null>(null);
@@ -639,7 +644,17 @@ export function useChatStreaming(
         // cleared below — they are attached to the committed message (so
         // inline [Doc N] refs keep resolving after the stream ends) and
         // persisted with the assistant row (so they survive reload).
-        const turnCitations = useChatStore.getState().streamingCitations;
+        // On a user Stop, storeStopStreaming() has ALREADY wiped
+        // streamingCitations out-of-band — handleStop snapshots them into
+        // stopCitationsRef first, so a stopped RAG answer keeps its sources.
+        const liveCitations = useChatStore.getState().streamingCitations;
+        const turnCitations =
+          liveCitations.length > 0
+            ? liveCitations
+            : wasStopped
+              ? stopCitationsRef.current
+              : liveCitations;
+        stopCitationsRef.current = [];
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
@@ -780,6 +795,11 @@ export function useChatStreaming(
     // the abort makes streamMessage resolve) keeps the partial answer and tags
     // it `stopped`, rather than wiping it here and racing the commit.
     stoppedByUserRef.current = true;
+    // Snapshot the turn's citations BEFORE storeStopStreaming() wipes
+    // streamingCitations — the completion path reads the store after the
+    // wipe and would otherwise commit + persist a stopped RAG answer with
+    // zero sources.
+    stopCitationsRef.current = useChatStore.getState().streamingCitations;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
 
@@ -888,6 +908,15 @@ export function useChatStreaming(
       } finally {
         setPendingConfirmation(null);
         setIsConfirming(false);
+        // The confirm stream shares streamingRafRef/pendingStreamContentRef
+        // with handleSubmit's onToken throttle. A token that lands just
+        // before completion schedules a rAF that would otherwise fire AFTER
+        // this reset and resurrect stale streamingContent into the store.
+        if (streamingRafRef.current !== null) {
+          cancelAnimationFrame(streamingRafRef.current);
+          streamingRafRef.current = null;
+        }
+        pendingStreamContentRef.current = null;
         useChatStore.setState({
           isStreaming: false,
           streamingContent: '',
