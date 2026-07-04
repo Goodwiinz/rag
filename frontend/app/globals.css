@@ -1531,3 +1531,29 @@ input:-webkit-autofill ~ button svg {
     scroll-behavior: auto !important;
   }
 }
+
+/* Shimmer for assistant-ui tool-fallback running state.
+   tw-shimmer (Tailwind v4 plugin) is incompatible with our v3 setup, so this
+   utility is provided as plain CSS clipped to the label text. Named
+   .tool-shimmer to avoid the pre-existing .shimmer skeleton loader. */
+@keyframes tool-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.tool-shimmer {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    transparent 42%,
+    hsl(var(--foreground)) 50%,
+    transparent 58%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: tool-shimmer 2.5s linear infinite;
+}
