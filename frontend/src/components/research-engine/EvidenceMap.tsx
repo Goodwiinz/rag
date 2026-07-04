@@ -224,7 +224,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
           </div>
         </div>
         {/* Canvas skeleton */}
-        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
           <div className="h-[60vh] bg-muted/40 animate-pulse" />
         </div>
       </div>
@@ -235,19 +235,19 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
     return (
       <div
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-5 shadow-sm"
+        className="flex flex-col items-start gap-3 rounded-xl border border-border bg-card p-5 shadow-xs"
       >
         <div className="flex items-center gap-2">
           <AlertCircle
             aria-hidden="true"
-            className="h-4 w-4 text-[var(--nous-mars)] shrink-0"
+            className="h-4 w-4 text-(--nous-mars) shrink-0"
           />
           <span className="text-sm font-medium text-foreground">{error}</span>
         </div>
         <button
           type="button"
           onClick={() => fetchGraph()}
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
         >
           Retry
         </button>
@@ -264,7 +264,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
         <button
           type="button"
           onClick={() => router.back()}
-          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Go back"
         >
           <ArrowLeft aria-hidden="true" className="h-5 w-5" />
@@ -303,7 +303,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
       </div>
 
       {!hasData ? (
-        <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card py-20 text-center shadow-sm">
+        <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-card py-20 text-center shadow-xs">
           <p className="text-sm font-medium text-foreground">No evidence yet</p>
           <p className="text-xs text-muted-foreground">
             Run a research blueprint to start building the evidence graph.
@@ -312,7 +312,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
       ) : (
         <div className="relative flex flex-col lg:flex-row gap-4">
           {/* SVG graph */}
-          <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+          <div className="flex-1 rounded-xl border border-border bg-card overflow-hidden shadow-xs">
             <svg
               viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
               className="w-full h-auto"
@@ -378,7 +378,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
 
           {/* Detail panel */}
           {selectedNode && (
-            <div className="w-full lg:w-80 lg:shrink-0 rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="w-full lg:w-80 lg:shrink-0 rounded-xl border border-border bg-card p-4 shadow-xs">
               <div className="flex items-start justify-between mb-3">
                 <span className="px-2 py-0.5 text-xs font-medium rounded-md border bg-muted text-foreground border-border">
                   {NODE_LABELS[selectedNode.type]}
@@ -386,7 +386,7 @@ export function EvidenceMap({ projectId }: EvidenceMapProps) {
                 <button
                   type="button"
                   onClick={() => setSelectedNode(null)}
-                  className="p-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="p-1 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label="Close detail panel"
                 >
                   <X aria-hidden="true" className="h-4 w-4" />

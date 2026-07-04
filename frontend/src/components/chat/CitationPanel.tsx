@@ -150,7 +150,7 @@ function SourceGroupRow({
         aria-expanded={expanded}
         aria-controls={`${headingId}-panel`}
         id={headingId}
-        className="flex w-full items-start gap-2.5 px-3 py-3 text-left transition-colors hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
+        className="flex w-full items-start gap-2.5 px-3 py-3 text-left transition-colors hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
         style={active ? { background: 'var(--nous-sol-subtle)' } : undefined}
       >
         <ChevronDown
@@ -233,7 +233,7 @@ function SourceGroupRow({
                   <button
                     type="button"
                     onClick={() => onOpen(group.chunks[0])}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
                     style={{
                       border: '1px solid var(--nous-border-1)',
                       color: 'var(--nous-fg-2)',
@@ -248,7 +248,7 @@ function SourceGroupRow({
                     href={meta.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
                     style={{
                       border: '1px solid var(--nous-border-1)',
                       color: 'var(--nous-fg-2)',
@@ -262,7 +262,7 @@ function SourceGroupRow({
                   <button
                     type="button"
                     onClick={() => onCite(group.chunks[0])}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-nous-mono text-[10px] transition-colors hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
                     style={{
                       border: '1px solid var(--nous-border-1)',
                       color: 'var(--nous-fg-2)',
@@ -353,15 +353,15 @@ export function CitationPanel({
           }
           transition={{ type: 'spring', damping: 26, stiffness: 300 }}
           className={cn(
-            'fixed z-50 flex flex-col bg-[var(--nous-bg-1)]',
+            'fixed z-50 flex flex-col bg-(--nous-bg-1)',
             // Desktop / tablet: right-docked full-height column.
             'sm:right-0 sm:top-0 sm:bottom-0 sm:w-[400px] sm:max-w-[90vw]',
-            'sm:border-l sm:border-[var(--nous-border-1)] sm:rounded-none',
+            'sm:border-l sm:border-(--nous-border-1) sm:rounded-none',
             // Mobile: bottom sheet — full width, capped height, rounded top —
             // so the transcript stays visible instead of being covered by a
             // fixed right-edge column.
             'max-sm:inset-x-0 max-sm:bottom-0 max-sm:h-[75dvh] max-sm:w-full',
-            'max-sm:rounded-t-[var(--nous-radius-xl)] max-sm:border-t max-sm:border-[var(--nous-border-1)]',
+            'max-sm:rounded-t-(--nous-radius-xl) max-sm:border-t max-sm:border-(--nous-border-1)',
             className
           )}
           style={{
@@ -371,7 +371,7 @@ export function CitationPanel({
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-4 py-3">
+          <div className="flex items-center justify-between gap-2 border-b border-(--nous-border-1) bg-(--nous-bg-2) px-4 py-3">
             <div className="flex items-center gap-2">
               <BookOpen
                 className="h-4 w-4"
@@ -398,14 +398,14 @@ export function CitationPanel({
               icon={<X className="h-4 w-4" />}
               label="Close sources panel"
               onClick={onClose}
-              className="h-8 w-8 text-[var(--nous-fg-3)] hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-fg-1)]"
+              className="h-8 w-8 text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)"
             />
           </div>
 
           {/* Search + sort */}
-          <div className="space-y-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-4 py-3">
+          <div className="space-y-3 border-b border-(--nous-border-1) bg-(--nous-bg-1) px-4 py-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--nous-fg-3)]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-(--nous-fg-3)" />
               <Input
                 type="text"
                 placeholder="Search sources…"
@@ -413,14 +413,14 @@ export function CitationPanel({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={cn(
                   'h-9 pl-9 font-nous-mono text-sm',
-                  'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]',
-                  'text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)]',
-                  'focus:border-[var(--nous-sol)]/30 focus:ring-[var(--nous-sol)]/10'
+                  'bg-(--nous-bg-2) border-(--nous-border-1)',
+                  'text-(--nous-fg-1) placeholder:text-(--nous-fg-3)',
+                  'focus:border-(--nous-sol)/30 focus:ring-(--nous-sol)/10'
                 )}
               />
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-nous-mono text-[10px] text-[var(--nous-fg-3)]">
+              <span className="font-nous-mono text-[10px] text-(--nous-fg-3)">
                 {groups.length} {groups.length === 1 ? 'document' : 'documents'}
               </span>
               <button
@@ -429,7 +429,7 @@ export function CitationPanel({
                   setSortBy((s) => (s === 'relevance' ? 'title' : 'relevance'))
                 }
                 aria-label={`Sorted ${sortBy === 'relevance' ? 'by relevance' : 'by title'} — switch to sort ${sortBy === 'relevance' ? 'by title' : 'by relevance'}`}
-                className="rounded-md px-2 py-1 font-nous-mono text-[10px] text-[var(--nous-fg-3)] transition-colors hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-fg-1)] dark:hover:bg-[var(--nous-ember)]"
+                className="rounded-md px-2 py-1 font-nous-mono text-[10px] text-(--nous-fg-3) transition-colors hover:bg-(--nous-aurum) hover:text-(--nous-fg-1) dark:hover:bg-(--nous-ember)"
               >
                 {sortBy === 'relevance' ? 'By relevance' : 'By title'}
               </button>
@@ -448,7 +448,7 @@ export function CitationPanel({
                   style={{ color: 'var(--nous-fg-3)' }}
                   aria-hidden
                 />
-                <p className="font-nous-mono text-xs text-[var(--nous-fg-3)]">
+                <p className="font-nous-mono text-xs text-(--nous-fg-3)">
                   {searchQuery
                     ? 'No sources match your search.'
                     : 'No sources for this answer.'}
@@ -473,17 +473,17 @@ export function CitationPanel({
           </div>
 
           {/* Footer: retrieval trace */}
-          <div className="border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-4 py-2.5">
+          <div className="border-t border-(--nous-border-1) bg-(--nous-bg-2) px-4 py-2.5">
             {diagnosticsTraceId ? (
               <a
                 href={`/diagnostics?trace=${encodeURIComponent(diagnosticsTraceId)}`}
-                className="flex items-center justify-center gap-1.5 font-nous-mono text-[10px] uppercase tracking-widest text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-fg-accent-safe)]"
+                className="flex items-center justify-center gap-1.5 font-nous-mono text-[10px] uppercase tracking-widest text-(--nous-fg-3) transition-colors hover:text-(--nous-fg-accent-safe)"
               >
                 <Activity className="h-3 w-3" />
                 View retrieval trace
               </a>
             ) : (
-              <p className="text-center font-nous-mono text-[9px] uppercase tracking-widest text-[var(--nous-fg-3)]">
+              <p className="text-center font-nous-mono text-[9px] uppercase tracking-widest text-(--nous-fg-3)">
                 Grounded in your sources
               </p>
             )}

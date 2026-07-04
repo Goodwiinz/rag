@@ -44,63 +44,63 @@ const PROCESSING_THEMES: Record<
   ProcessingCardTheme
 > = {
   queued: {
-    container: 'bg-[var(--nous-bg-2)] border-border',
-    selected: 'ring-[var(--nous-sol)] bg-[var(--nous-bg-3)]',
-    progress: 'bg-[var(--nous-border-1)]',
+    container: 'bg-(--nous-bg-2) border-border',
+    selected: 'ring-(--nous-sol) bg-(--nous-bg-3)',
+    progress: 'bg-(--nous-border-1)',
     error: '',
     success: '',
     warning: '',
     info: 'text-foreground',
   },
   uploading: {
-    container: 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30',
-    selected: 'ring-[var(--nous-sol)] bg-[var(--nous-sol)]/15',
-    progress: 'bg-[var(--nous-sol)]',
+    container: 'bg-(--nous-sol)/10 border-(--nous-sol)/30',
+    selected: 'ring-(--nous-sol) bg-(--nous-sol)/15',
+    progress: 'bg-(--nous-sol)',
     error: '',
     success: '',
     warning: '',
-    info: 'text-[var(--nous-fg-accent-safe)]',
+    info: 'text-(--nous-fg-accent-safe)',
   },
   processing: {
-    container: 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
-    selected: 'ring-[var(--nous-corona)] bg-[var(--nous-corona)]/15',
-    progress: 'bg-[var(--nous-corona)]',
+    container: 'bg-(--nous-corona)/10 border-(--nous-corona)/30',
+    selected: 'ring-(--nous-corona) bg-(--nous-corona)/15',
+    progress: 'bg-(--nous-corona)',
     error: '',
     success: '',
     warning: '',
-    info: 'text-[var(--nous-corona)]',
+    info: 'text-(--nous-corona)',
   },
   completed: {
-    container: 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30',
-    selected: 'ring-[var(--nous-terra)] bg-[var(--nous-terra)]/15',
-    progress: 'bg-[var(--nous-terra)]',
+    container: 'bg-(--nous-terra)/10 border-(--nous-terra)/30',
+    selected: 'ring-(--nous-terra) bg-(--nous-terra)/15',
+    progress: 'bg-(--nous-terra)',
     error: '',
-    success: 'text-[var(--nous-terra)]',
+    success: 'text-(--nous-terra)',
     warning: '',
     info: '',
   },
   failed: {
-    container: 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30',
-    selected: 'ring-[var(--nous-mars)] bg-[var(--nous-mars)]/15',
-    progress: 'bg-[var(--nous-mars)]',
-    error: 'text-[var(--nous-mars)]',
+    container: 'bg-(--nous-mars)/10 border-(--nous-mars)/30',
+    selected: 'ring-(--nous-mars) bg-(--nous-mars)/15',
+    progress: 'bg-(--nous-mars)',
+    error: 'text-(--nous-mars)',
     success: '',
     warning: '',
     info: '',
   },
   paused: {
-    container: 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30',
-    selected: 'ring-[var(--nous-corona)] bg-[var(--nous-corona)]/15',
-    progress: 'bg-[var(--nous-corona)]',
+    container: 'bg-(--nous-corona)/10 border-(--nous-corona)/30',
+    selected: 'ring-(--nous-corona) bg-(--nous-corona)/15',
+    progress: 'bg-(--nous-corona)',
     error: '',
     success: '',
-    warning: 'text-[var(--nous-corona)]',
+    warning: 'text-(--nous-corona)',
     info: '',
   },
   cancelled: {
-    container: 'bg-[var(--nous-bg-3)] border-border',
-    selected: 'ring-[var(--nous-border-1)] bg-[var(--nous-bg-3)]',
-    progress: 'bg-[var(--nous-border-1)]',
+    container: 'bg-(--nous-bg-3) border-border',
+    selected: 'ring-(--nous-border-1) bg-(--nous-bg-3)',
+    progress: 'bg-(--nous-border-1)',
     error: '',
     success: '',
     warning: '',
@@ -272,7 +272,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   type="checkbox"
                   checked={isSelected}
                   onChange={handleSelectionChange}
-                  className="h-4 w-4 text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] border-border rounded"
+                  className="h-4 w-4 text-(--nous-sol) focus:ring-(--nous-sol) border-border rounded"
                   aria-label={`Select ${document.filename}`}
                 />
               )}
@@ -326,7 +326,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
       return (
         <div
           className={cn(
-            'bg-background border rounded-lg p-4 cursor-pointer transition-all hover:shadow-lg focus:outline-none focus:ring-2',
+            'bg-background border rounded-lg p-4 cursor-pointer transition-all hover:shadow-lg focus:outline-hidden focus:ring-2',
             theme.container,
             isSelected && theme.selected,
             className
@@ -346,7 +346,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   type="checkbox"
                   checked={isSelected}
                   onChange={handleSelectionChange}
-                  className="h-4 w-4 text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] border-border rounded mt-1"
+                  className="h-4 w-4 text-(--nous-sol) focus:ring-(--nous-sol) border-border rounded mt-1"
                   aria-label={`Select ${document.filename}`}
                 />
               )}
@@ -471,7 +471,7 @@ export const DocumentProcessingCard: React.FC<DocumentProcessingCardProps> =
                   ).toLocaleTimeString()}
                 </span>
                 {document.retryCount > 0 && (
-                  <span className="text-[var(--nous-corona)]">
+                  <span className="text-(--nous-corona)">
                     Retry #{document.retryCount}
                   </span>
                 )}

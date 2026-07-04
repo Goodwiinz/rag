@@ -15,10 +15,10 @@ const DotBadge = React.forwardRef<HTMLDivElement, DotBadgeProps>(
       ref={ref}
       className={cn(
         'relative inline-flex items-center justify-center',
-        'h-8 w-8 rounded-[var(--nous-radius-md)]',
-        'bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)]',
-        'text-[var(--nous-fg-2)]',
-        'dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]',
+        'h-8 w-8 rounded-(--nous-radius-md)',
+        'bg-(--nous-bg-2) border border-(--nous-border-1)',
+        'text-(--nous-fg-2)',
+        'dark:bg-(--nous-obsidian) dark:border-(--nous-shade)',
         className
       )}
       {...props}
@@ -28,7 +28,7 @@ const DotBadge = React.forwardRef<HTMLDivElement, DotBadgeProps>(
         className={cn(
           'absolute top-1.5 right-1.5',
           'h-1.5 w-1.5 rounded-full',
-          'bg-[var(--nous-mars)]',
+          'bg-(--nous-mars)',
           'shadow-[0_0_0_2px_var(--nous-bg-2)]',
           'dark:shadow-[0_0_0_2px_var(--nous-obsidian)]'
         )}
@@ -51,10 +51,10 @@ const CountBadge = React.forwardRef<HTMLDivElement, CountBadgeProps>(
       ref={ref}
       className={cn(
         'relative inline-flex items-center justify-center',
-        'h-8 w-8 rounded-[var(--nous-radius-md)]',
-        'bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)]',
-        'text-[var(--nous-fg-2)]',
-        'dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]',
+        'h-8 w-8 rounded-(--nous-radius-md)',
+        'bg-(--nous-bg-2) border border-(--nous-border-1)',
+        'text-(--nous-fg-2)',
+        'dark:bg-(--nous-obsidian) dark:border-(--nous-shade)',
         className
       )}
       {...props}
@@ -62,12 +62,12 @@ const CountBadge = React.forwardRef<HTMLDivElement, CountBadgeProps>(
       {children}
       <span
         className={cn(
-          'absolute -top-[5px] -right-[5px]',
+          'absolute top-[-5px] right-[-5px]',
           'min-w-[18px] h-[18px] px-[5px]',
-          'bg-[var(--nous-sol)] text-[var(--nous-erebus)]',
-          'dark:bg-[var(--nous-helios)]',
+          'bg-(--nous-sol) text-(--nous-erebus)',
+          'dark:bg-(--nous-helios)',
           'rounded-full',
-          'font-[family-name:var(--nous-font-mono)] text-[10px] font-bold tracking-[0.02em]',
+          'font-(family-name:--nous-font-mono) text-[10px] font-bold tracking-[0.02em]',
           'inline-flex items-center justify-center',
           'shadow-[0_0_0_2px_var(--nous-bg-1)]',
           'dark:shadow-[0_0_0_2px_var(--nous-nyx)]'
@@ -86,19 +86,19 @@ const statusPillVariants = cva(
   [
     'inline-flex items-center gap-1.5',
     'px-2.5 py-[3px] rounded-full',
-    'font-[family-name:var(--nous-font-mono)] text-[10px] tracking-[0.12em] uppercase font-medium',
+    'font-(family-name:--nous-font-mono) text-[10px] tracking-[0.12em] uppercase font-medium',
   ].join(' '),
   {
     variants: {
       variant: {
         default:
-          'bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] border border-[rgba(212,160,57,0.28)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)] dark:border-[rgba(232,184,74,0.22)]',
+          'bg-(--nous-aurum) text-(--nous-sol-safe) border border-[rgba(212,160,57,0.28)] dark:bg-(--nous-ember) dark:text-(--nous-helios) dark:border-[rgba(232,184,74,0.22)]',
         success:
-          'bg-emerald-400/[0.12] text-[#1a8a5e] border border-emerald-400/30 dark:text-emerald-300',
+          'bg-emerald-400/12 text-[#1a8a5e] border border-emerald-400/30 dark:text-emerald-300',
         danger:
           'bg-red-500/10 text-[#c93434] border border-red-500/[0.28] dark:text-red-300',
         muted:
-          'bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] border border-[var(--nous-border-1)] dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]',
+          'bg-(--nous-bg-2) text-(--nous-fg-3) border border-(--nous-border-1) dark:bg-(--nous-obsidian) dark:border-(--nous-shade)',
       },
     },
     defaultVariants: { variant: 'default' },
@@ -154,9 +154,9 @@ const ChannelTag = React.forwardRef<HTMLSpanElement, ChannelTagProps>(
       className={cn(
         'inline-flex items-center gap-[5px]',
         'px-[7px] py-0.5',
-        'rounded-[var(--nous-radius-sm)]',
-        'font-[family-name:var(--nous-font-mono)] text-[9.5px] tracking-[0.1em] uppercase font-medium',
-        'bg-[var(--type-bg)] text-[var(--type-fg)] border border-[var(--type-border)]',
+        'rounded-(--nous-radius-sm)',
+        'font-(family-name:--nous-font-mono) text-[9.5px] tracking-widest uppercase font-medium',
+        'bg-(--type-bg) text-(--type-fg) border border-(--type-border)',
         className
       )}
       {...props}
@@ -182,7 +182,7 @@ const PresenceAvatar = React.forwardRef<HTMLDivElement, PresenceAvatarProps>(
       className={cn(
         'relative inline-flex items-center justify-center',
         'h-8 w-8 rounded-full text-white',
-        'font-[family-name:var(--nous-font-ui)] text-[11px] font-semibold',
+        'font-(family-name:--nous-font-ui) text-[11px] font-semibold',
         className
       )}
       style={{
@@ -197,7 +197,7 @@ const PresenceAvatar = React.forwardRef<HTMLDivElement, PresenceAvatarProps>(
         className={cn(
           'absolute -bottom-px -right-px',
           'h-2.5 w-2.5 rounded-full',
-          'bg-[var(--nous-terra)]',
+          'bg-(--nous-terra)',
           'shadow-[0_0_0_2px_var(--nous-bg-2)]',
           'dark:shadow-[0_0_0_2px_var(--nous-obsidian)]'
         )}

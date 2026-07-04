@@ -69,41 +69,41 @@ interface NetworkDiagnosticsProps {
 const statusConfigs = {
   connected: {
     icon: SignalIcon,
-    color: 'text-[var(--nous-terra)]',
-    bgColor: 'bg-[var(--nous-terra)]/10',
-    borderColor: 'border-[var(--nous-terra)]/20',
+    color: 'text-(--nous-terra)',
+    bgColor: 'bg-(--nous-terra)/10',
+    borderColor: 'border-(--nous-terra)/20',
     label: 'Connected',
     description: 'Real-time connection is active',
   },
   connecting: {
     icon: ArrowPathIcon,
-    color: 'text-[var(--nous-fg-accent-safe)]',
-    bgColor: 'bg-[var(--nous-sol)]/10',
-    borderColor: 'border-[var(--nous-sol)]/20',
+    color: 'text-(--nous-fg-accent-safe)',
+    bgColor: 'bg-(--nous-sol)/10',
+    borderColor: 'border-(--nous-sol)/20',
     label: 'Connecting',
     description: 'Establishing connection...',
   },
   disconnected: {
     icon: XCircleIcon,
     color: 'text-muted-foreground',
-    bgColor: 'bg-[var(--nous-bg-3)]',
+    bgColor: 'bg-(--nous-bg-3)',
     borderColor: 'border-border',
     label: 'Disconnected',
     description: 'No active connection',
   },
   reconnecting: {
     icon: ArrowPathIcon,
-    color: 'text-[var(--nous-corona)]',
-    bgColor: 'bg-[var(--nous-corona)]/10',
-    borderColor: 'border-[var(--nous-corona)]/20',
+    color: 'text-(--nous-corona)',
+    bgColor: 'bg-(--nous-corona)/10',
+    borderColor: 'border-(--nous-corona)/20',
     label: 'Reconnecting',
     description: 'Attempting to reconnect...',
   },
   error: {
     icon: ExclamationTriangleIcon,
-    color: 'text-[var(--nous-mars)]',
-    bgColor: 'bg-[var(--nous-mars)]/10',
-    borderColor: 'border-[var(--nous-mars)]/20',
+    color: 'text-(--nous-mars)',
+    bgColor: 'bg-(--nous-mars)/10',
+    borderColor: 'border-(--nous-mars)/20',
     label: 'Connection Error',
     description: 'Connection failed',
   },
@@ -130,7 +130,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         config.borderColor
       )}
     >
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         {status === 'connecting' || status === 'reconnecting' ? (
           <motion.div
             animate={{ rotate: 360 }}
@@ -151,7 +151,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             </h3>
             <p className="text-xs text-foreground mt-1">{config.description}</p>
             {lastError && (
-              <p className="text-xs text-[var(--nous-mars)] mt-1">
+              <p className="text-xs text-(--nous-mars) mt-1">
                 {lastError}
               </p>
             )}
@@ -169,7 +169,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             {!isConnected && onReconnect && (
               <button
                 onClick={onReconnect}
-                className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="px-3 py-1 text-xs font-medium text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 hover:bg-(--nous-sol)/20 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Reconnect
               </button>
@@ -178,7 +178,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             {isConnected && onDisconnect && (
               <button
                 onClick={onDisconnect}
-                className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 hover:bg-[var(--nous-mars)]/20 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="px-3 py-1 text-xs font-medium text-(--nous-mars) bg-(--nous-mars)/10 hover:bg-(--nous-mars)/20 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Disconnect
               </button>
@@ -189,9 +189,9 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         {/* Reconnection progress bar */}
         {(status === 'connecting' || status === 'reconnecting') && (
           <div className="mt-2">
-            <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-1">
+            <div className="w-full bg-(--nous-bg-3) rounded-full h-1">
               <motion.div
-                className="bg-[var(--nous-sol)] h-1 rounded-full"
+                className="bg-(--nous-sol) h-1 rounded-full"
                 initial={{ width: '0%' }}
                 animate={{ width: '100%' }}
                 transition={{ duration: 3, repeat: Infinity }}
@@ -230,7 +230,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
           <span>{formatRate(metrics.messageRate)}</span>
         </div>
         {metrics.errorRate > 0 && (
-          <div className="flex items-center space-x-1 text-[var(--nous-mars)]">
+          <div className="flex items-center space-x-1 text-(--nous-mars)">
             <ExclamationTriangleIcon className="w-3 h-3" />
             <span>{metrics.errorRate.toFixed(1)}%</span>
           </div>
@@ -243,7 +243,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div className="bg-card p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
-          <SignalIcon className="w-4 h-4 text-[var(--nous-fg-accent-safe)]" />
+          <SignalIcon className="w-4 h-4 text-(--nous-fg-accent-safe)" />
           <div>
             <p className="text-xs text-muted-foreground">Latency</p>
             <p className="text-sm font-semibold text-foreground">
@@ -255,7 +255,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
 
       <div className="bg-card p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
-          <ChartBarIcon className="w-4 h-4 text-[var(--nous-terra)]" />
+          <ChartBarIcon className="w-4 h-4 text-(--nous-terra)" />
           <div>
             <p className="text-xs text-muted-foreground">Message Rate</p>
             <p className="text-sm font-semibold text-foreground">
@@ -267,7 +267,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
 
       <div className="bg-card p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
-          <ExclamationTriangleIcon className="w-4 h-4 text-[var(--nous-mars)]" />
+          <ExclamationTriangleIcon className="w-4 h-4 text-(--nous-mars)" />
           <div>
             <p className="text-xs text-muted-foreground">Error Rate</p>
             <p className="text-sm font-semibold text-foreground">
@@ -279,7 +279,7 @@ const ConnectionMetrics: React.FC<ConnectionMetricsProps> = ({
 
       <div className="bg-card p-3 rounded-lg border border-border">
         <div className="flex items-center space-x-2">
-          <ClockIcon className="w-4 h-4 text-[var(--nous-fg-3)]" />
+          <ClockIcon className="w-4 h-4 text-(--nous-fg-3)" />
           <div>
             <p className="text-xs text-muted-foreground">Uptime</p>
             <p className="text-sm font-semibold text-foreground">
@@ -372,7 +372,7 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
             {connectionState.lastError && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Last Error:</dt>
-                <dd className="font-medium text-[var(--nous-mars)] truncate max-w-xs">
+                <dd className="font-medium text-(--nous-mars) truncate max-w-xs">
                   {connectionState.lastError}
                 </dd>
               </div>
@@ -397,7 +397,7 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
             <button
               onClick={handleTestConnection}
               disabled={isTestingConnection}
-              className="px-3 py-2 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-3 py-2 text-xs font-medium text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 hover:bg-(--nous-sol)/20 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isTestingConnection ? 'Testing...' : 'Test Connection'}
             </button>
@@ -407,8 +407,8 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
                 className={cn(
                   'p-2 rounded text-xs',
                   testResults.success
-                    ? 'bg-[var(--nous-terra)]/10 text-[var(--nous-terra)]'
-                    : 'bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
+                    ? 'bg-(--nous-terra)/10 text-(--nous-terra)'
+                    : 'bg-(--nous-mars)/10 text-(--nous-mars)'
                 )}
               >
                 {testResults.success ? (
@@ -433,7 +433,7 @@ const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
         <div className="flex space-x-2">
           <button
             onClick={onResetConnection}
-            className="px-3 py-2 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 hover:bg-[var(--nous-mars)]/20 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="px-3 py-2 text-xs font-medium text-(--nous-mars) bg-(--nous-mars)/10 hover:bg-(--nous-mars)/20 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reset Connection
           </button>
@@ -528,7 +528,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               {showDiagnostics && (
                 <button
                   onClick={() => setShowDiagnosticsModal(true)}
-                  className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   title="Connection Diagnostics"
                   aria-label="Open connection diagnostics"
                 >
@@ -538,7 +538,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
               {position === 'floating' && (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label={
                     isExpanded ? 'Collapse panel' : 'Expand network details'
                   }
@@ -599,7 +599,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       {!isConnected && (
                         <button
                           onClick={reconnect}
-                          className="px-3 py-2 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 hover:bg-[var(--nous-sol)]/20 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="px-3 py-2 text-xs font-medium text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 hover:bg-(--nous-sol)/20 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           Connect
                         </button>
@@ -607,14 +607,14 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                       {isConnected && (
                         <button
                           onClick={disconnect}
-                          className="px-3 py-2 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 hover:bg-[var(--nous-mars)]/20 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="px-3 py-2 text-xs font-medium text-(--nous-mars) bg-(--nous-mars)/10 hover:bg-(--nous-mars)/20 rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           Disconnect
                         </button>
                       )}
                       <button
                         onClick={handleResetConnection}
-                        className="px-3 py-2 text-xs font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="px-3 py-2 text-xs font-medium text-foreground bg-(--nous-bg-2) hover:bg-(--nous-bg-3) rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         Reset
                       </button>
@@ -624,13 +624,13 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
 
                 {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="bg-[var(--nous-bg-2)] p-2 rounded">
+                  <div className="bg-(--nous-bg-2) p-2 rounded">
                     <div className="text-muted-foreground">Documents</div>
                     <div className="font-semibold text-foreground">
                       {systemMetrics.activeJobs} active
                     </div>
                   </div>
-                  <div className="bg-[var(--nous-bg-2)] p-2 rounded">
+                  <div className="bg-(--nous-bg-2) p-2 rounded">
                     <div className="text-muted-foreground">System Load</div>
                     <div className="font-semibold text-foreground">
                       {systemMetrics.cpuUsage.toFixed(1)}% CPU
@@ -664,7 +664,7 @@ export const ConnectionManager: React.FC<ConnectionManagerProps> = ({
                   </h3>
                   <button
                     onClick={() => setShowDiagnosticsModal(false)}
-                    className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     aria-label="Close diagnostics"
                   >
                     <XMarkIcon className="w-5 h-5" />

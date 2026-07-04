@@ -8,7 +8,7 @@ export const SystemMonitoringPage: React.FC = () => {
           System Monitoring
         </h1>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-foreground">
           Monitor system health and performance metrics.
         </p>

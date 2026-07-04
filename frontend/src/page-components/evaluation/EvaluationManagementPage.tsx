@@ -15,7 +15,7 @@ export const EvaluationManagementPage: React.FC = () => {
           Create Evaluation
         </Link>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-foreground">
           Manage and view your RAG system evaluations.
         </p>

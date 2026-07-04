@@ -34,8 +34,8 @@ export function ChatMessage({
       <div
         className={`w-10 h-10 rounded-xl shrink-0 flex items-center justify-center border shadow-lg \${
         isUser
-          ? 'bg-[var(--nous-sol)] border-[var(--nous-helios)] text-[var(--nous-erebus)] shadow-[var(--nous-sol)]/30'
-          : 'bg-gradient-to-br from-[#1A1A1A] to-[#0E1015] border-[#27272A] text-muted-foreground shadow-black/20'
+          ? 'bg-(--nous-sol) border-(--nous-helios) text-(--nous-erebus) shadow-(--nous-sol)/30'
+          : 'bg-linear-to-br from-[#1A1A1A] to-[#0E1015] border-[#27272A] text-muted-foreground shadow-black/20'
       }`}
       >
         {isUser ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
@@ -47,7 +47,7 @@ export function ChatMessage({
         <div
           className={`inline-block rounded-2xl px-6 py-4 text-sm leading-relaxed shadow-lg \${
           isUser
-            ? 'bg-[var(--nous-sol)] text-[var(--nous-erebus)] shadow-[var(--nous-sol)]/20'
+            ? 'bg-(--nous-sol) text-(--nous-erebus) shadow-(--nous-sol)/20'
             : 'bg-[#1A1A1A] text-muted-foreground border border-[#27272A] shadow-black/20'
         }`}
         >

@@ -26,7 +26,7 @@ export function StatsTab({
             <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
             Corpus statistics
           </h2>
-          <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+          <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
             Counts and category breakdown for the papers in your tracked corpus.
           </p>
         </div>
@@ -34,7 +34,7 @@ export function StatsTab({
           type="button"
           onClick={onRefresh}
           disabled={isAnyOperationRunning || isStatsLoading}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
         >
           Refresh
         </button>
@@ -43,7 +43,7 @@ export function StatsTab({
       {statsError && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-3 text-sm text-[var(--nous-mars)]"
+          className="flex items-start gap-2 rounded-lg border border-(--nous-mars)/30 bg-(--nous-mars)/10 p-3 text-sm text-(--nous-mars)"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Could not refresh statistics. {statsError}</span>

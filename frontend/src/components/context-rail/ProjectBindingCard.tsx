@@ -30,23 +30,23 @@ export function ProjectBindingCard({
   return (
     <section
       className={
-        'relative overflow-hidden border bg-[var(--nous-bg-2)] dark:bg-[var(--nous-obsidian)] rounded-lg ' +
+        'relative overflow-hidden border bg-(--nous-bg-2) dark:bg-(--nous-obsidian) rounded-lg ' +
         (isBound
           ? 'border-[rgba(212,160,57,0.25)] dark:border-[rgba(232,184,74,0.3)]'
-          : 'border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]')
+          : 'border-(--nous-border-1) dark:border-(--nous-shade)')
       }
     >
       {isBound && (
         <span
           aria-hidden
-          className="absolute left-0 top-0 bottom-0 w-[2px] bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+          className="absolute left-0 top-0 bottom-0 w-[2px] bg-(--nous-sol) dark:bg-(--nous-helios)"
         />
       )}
 
       <div className="px-3.5 py-3">
         <div className="flex items-center justify-between mb-2">
           <span
-            className="text-[9px] uppercase text-[var(--nous-fg-3)]"
+            className="text-[9px] uppercase text-(--nous-fg-3)"
             style={{
               fontFamily: 'var(--nous-font-mono)',
               letterSpacing: '0.22em',
@@ -56,7 +56,7 @@ export function ProjectBindingCard({
           </span>
           {threadLabel && (
             <span
-              className="text-[9px] text-[var(--nous-fg-3)] tabular-nums"
+              className="text-[9px] text-(--nous-fg-3) tabular-nums"
               style={{
                 fontFamily: 'var(--nous-font-mono)',
                 letterSpacing: '0.06em',
@@ -72,8 +72,8 @@ export function ProjectBindingCard({
             className={
               'mt-[2px] grid place-items-center h-7 w-7 shrink-0 rounded-md ' +
               (isBound
-                ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)] border border-[rgba(212,160,57,0.25)]'
-                : 'bg-[var(--nous-bg-1)] dark:bg-[var(--nous-nyx)] text-[var(--nous-fg-3)] border border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]')
+                ? 'bg-(--nous-aurum) dark:bg-(--nous-ember) text-(--nous-sol-safe) dark:text-(--nous-helios) border border-[rgba(212,160,57,0.25)]'
+                : 'bg-(--nous-bg-1) dark:bg-(--nous-nyx) text-(--nous-fg-3) border border-(--nous-border-1) dark:border-(--nous-shade)')
             }
           >
             {isBound ? (
@@ -84,7 +84,7 @@ export function ProjectBindingCard({
           </span>
           <div className="flex-1 min-w-0">
             <p
-              className="text-[14px] font-semibold truncate text-[var(--nous-fg-1)]"
+              className="text-[14px] font-semibold truncate text-(--nous-fg-1)"
               style={{
                 fontFamily: 'var(--nous-font-ui)',
                 letterSpacing: '-0.005em',
@@ -95,7 +95,7 @@ export function ProjectBindingCard({
                 : 'No project attached'}
             </p>
             <p
-              className="text-[10px] mt-0.5 truncate text-[var(--nous-fg-3)]"
+              className="text-[10px] mt-0.5 truncate text-(--nous-fg-3)"
               style={{
                 fontFamily: 'var(--nous-font-mono)',
                 letterSpacing: '0.04em',
@@ -123,7 +123,7 @@ export function ProjectBindingCard({
         {isBound ? (
           <Link
             href={`/projects/${projectId}`}
-            className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)] hover:opacity-80 transition-opacity group"
+            className="mt-3 inline-flex items-center gap-1 text-[11px] font-medium text-(--nous-sol-safe) dark:text-(--nous-helios) hover:opacity-80 transition-opacity group"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             <GitBranch className="h-3 w-3" strokeWidth={1.7} />
@@ -137,7 +137,7 @@ export function ProjectBindingCard({
             onProjectBound={onProjectBound}
           >
             <button
-              className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-2.5 rounded-md bg-[var(--nous-erebus)] dark:bg-[var(--nous-umber)] dark:border dark:border-[var(--nous-shade)] text-white text-[11px] font-semibold hover:-translate-y-px hover:shadow-sm transition-all"
+              className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-2.5 rounded-md bg-(--nous-erebus) dark:bg-(--nous-umber) dark:border dark:border-(--nous-shade) text-white text-[11px] font-semibold hover:-translate-y-px hover:shadow-xs transition-all"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Attach to a project
@@ -147,7 +147,7 @@ export function ProjectBindingCard({
         ) : (
           <Link
             href="/projects"
-            className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-2.5 rounded-md bg-[var(--nous-erebus)] dark:bg-[var(--nous-umber)] dark:border dark:border-[var(--nous-shade)] text-white text-[11px] font-semibold hover:-translate-y-px hover:shadow-sm transition-all"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-2.5 rounded-md bg-(--nous-erebus) dark:bg-(--nous-umber) dark:border dark:border-(--nous-shade) text-white text-[11px] font-semibold hover:-translate-y-px hover:shadow-xs transition-all"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             Attach to a project

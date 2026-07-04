@@ -374,7 +374,7 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
     return (
       <div
         role="alert"
-        className="flex flex-col items-center justify-center h-full text-[var(--nous-mars)]"
+        className="flex flex-col items-center justify-center h-full text-(--nous-mars)"
       >
         <div className="text-lg font-semibold">Error loading documents</div>
         <div className="text-sm">{error?.message || 'Unknown error'}</div>
@@ -382,7 +382,7 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
           onClick={() =>
             queryClient.invalidateQueries(['documents', organizationId])
           }
-          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Retry
         </button>
@@ -411,7 +411,7 @@ export const OptimizedDocumentList: React.FC<OptimizedDocumentListProps> = ({
           type="text"
           placeholder="Search documents..."
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-2 border border-border rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
+          className="w-full px-4 py-2 border border-border rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent"
         />
       </div>
 

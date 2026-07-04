@@ -94,37 +94,37 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
     queued: {
       icon: ClockIcon,
       color: 'text-muted-foreground',
-      bgColor: 'bg-[var(--nous-bg-3)]',
+      bgColor: 'bg-(--nous-bg-3)',
     },
     uploading: {
       icon: ArrowPathIcon,
-      color: 'text-[var(--nous-fg-accent-safe)]',
-      bgColor: 'bg-[var(--nous-sol)]/15',
+      color: 'text-(--nous-fg-accent-safe)',
+      bgColor: 'bg-(--nous-sol)/15',
     },
     processing: {
       icon: ArrowPathIcon,
-      color: 'text-[var(--nous-fg-accent-safe)]',
-      bgColor: 'bg-[var(--nous-sol)]/15',
+      color: 'text-(--nous-fg-accent-safe)',
+      bgColor: 'bg-(--nous-sol)/15',
     },
     completed: {
       icon: CheckCircleIcon,
-      color: 'text-[var(--nous-terra)]',
-      bgColor: 'bg-[var(--nous-terra)]/15',
+      color: 'text-(--nous-terra)',
+      bgColor: 'bg-(--nous-terra)/15',
     },
     failed: {
       icon: XCircleIcon,
-      color: 'text-[var(--nous-mars)]',
-      bgColor: 'bg-[var(--nous-mars)]/15',
+      color: 'text-(--nous-mars)',
+      bgColor: 'bg-(--nous-mars)/15',
     },
     paused: {
       icon: PauseIcon,
-      color: 'text-[var(--nous-corona)]',
-      bgColor: 'bg-[var(--nous-corona)]/15',
+      color: 'text-(--nous-corona)',
+      bgColor: 'bg-(--nous-corona)/15',
     },
     cancelled: {
       icon: XMarkIcon,
       color: 'text-muted-foreground',
-      bgColor: 'bg-[var(--nous-bg-3)]',
+      bgColor: 'bg-(--nous-bg-3)',
     },
   };
 
@@ -174,7 +174,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
-          className="text-[var(--nous-fg-accent-safe)] transition-all duration-500 ease-out"
+          className="text-(--nous-fg-accent-safe) transition-all duration-500 ease-out"
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
@@ -203,12 +203,12 @@ const StageProgress: React.FC<StageProgressProps> = ({
               className={cn(
                 'flex-1 h-1 rounded-full transition-all duration-300',
                 isCompleted
-                  ? 'bg-[var(--nous-terra)]'
+                  ? 'bg-(--nous-terra)'
                   : hasError
-                    ? 'bg-[var(--nous-mars)]'
+                    ? 'bg-(--nous-mars)'
                     : isActive
-                      ? 'bg-[var(--nous-sol)]'
-                      : 'bg-[var(--nous-bg-3)]'
+                      ? 'bg-(--nous-sol)'
+                      : 'bg-(--nous-bg-3)'
               )}
               title={stage.name}
             />
@@ -231,11 +231,11 @@ const StageProgress: React.FC<StageProgressProps> = ({
               className={cn(
                 'w-4 h-4 rounded-full border-2 flex items-center justify-center',
                 isCompleted
-                  ? 'border-[var(--nous-terra)] bg-[var(--nous-terra)]'
+                  ? 'border-(--nous-terra) bg-(--nous-terra)'
                   : hasError
-                    ? 'border-[var(--nous-mars)] bg-[var(--nous-mars)]'
+                    ? 'border-(--nous-mars) bg-(--nous-mars)'
                     : isActive
-                      ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]'
+                      ? 'border-(--nous-sol) bg-(--nous-sol)'
                       : 'border-border'
               )}
             >
@@ -259,7 +259,7 @@ const StageProgress: React.FC<StageProgressProps> = ({
                   className={cn(
                     'text-sm font-medium',
                     isActive
-                      ? 'text-[var(--nous-fg-accent-safe)]'
+                      ? 'text-(--nous-fg-accent-safe)'
                       : 'text-foreground'
                   )}
                 >
@@ -272,9 +272,9 @@ const StageProgress: React.FC<StageProgressProps> = ({
                 </span>
               </div>
               {isActive && (
-                <div className="mt-1 w-full bg-[var(--nous-bg-3)] rounded-full h-1">
+                <div className="mt-1 w-full bg-(--nous-bg-3) rounded-full h-1">
                   <div
-                    className="bg-[var(--nous-sol)] h-1 rounded-full transition-all duration-300"
+                    className="bg-(--nous-sol) h-1 rounded-full transition-all duration-300"
                     style={{ width: `${stage.progress}%` }}
                   />
                 </div>
@@ -310,14 +310,14 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={cn(
-        'bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-all duration-200',
-        selected && 'ring-2 ring-[var(--nous-sol)] ring-offset-2',
+        'bg-card rounded-lg border border-border shadow-xs hover:shadow-md transition-all duration-200',
+        selected && 'ring-2 ring-(--nous-sol) ring-offset-2',
         compact ? 'p-3' : 'p-4'
       )}
     >
       <div className="flex items-start space-x-3">
         {/* Progress indicator */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <ProgressRing
             progress={document.overallProgress}
             size={compact ? 40 : 50}
@@ -342,7 +342,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 type="checkbox"
                 checked={selected}
                 onChange={() => onSelect(document.id)}
-                className="h-4 w-4 text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] border-border rounded"
+                className="h-4 w-4 text-(--nous-fg-accent-safe) focus:ring-(--nous-sol) border-border rounded"
               />
             </div>
           </div>
@@ -360,7 +360,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
               <span>{formatDuration(document.metadata.duration)}</span>
             )}
             {document.retryCount > 0 && (
-              <span className="text-[var(--nous-corona)]">
+              <span className="text-(--nous-corona)">
                 Retry {document.retryCount}
               </span>
             )}
@@ -387,7 +387,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
 
           {/* Error display */}
           {document.error && (
-            <div className="mt-2 p-2 bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/30 rounded text-xs text-[var(--nous-mars)]">
+            <div className="mt-2 p-2 bg-(--nous-mars)/10 border border-(--nous-mars)/30 rounded text-xs text-(--nous-mars)">
               {document.error}
             </div>
           )}
@@ -397,7 +397,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.pause && document.status === 'processing' && (
               <IconButton
                 onClick={() => handleAction(() => onPause(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-corona)] hover:bg-[var(--nous-corona)]/10 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-(--nous-corona) hover:bg-(--nous-corona)/10 rounded"
                 label="Pause"
                 icon={<PauseIcon className="h-4 w-4" />}
               />
@@ -405,7 +405,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.resume && document.status === 'paused' && (
               <IconButton
                 onClick={() => handleAction(() => onResume(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-terra)] hover:bg-[var(--nous-terra)]/10 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-(--nous-terra) hover:bg-(--nous-terra)/10 rounded"
                 label="Resume"
                 icon={<PlayIcon className="h-4 w-4" />}
               />
@@ -413,7 +413,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
             {document.actions.retry && document.status === 'failed' && (
               <IconButton
                 onClick={() => handleAction(() => onRetry(document.id))}
-                className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-fg-accent-safe)] hover:bg-[var(--nous-sol)]/10 rounded"
+                className="h-8 w-8 text-muted-foreground hover:text-(--nous-fg-accent-safe) hover:bg-(--nous-sol)/10 rounded"
                 label="Retry"
                 icon={<ArrowPathIcon className="h-4 w-4" />}
               />
@@ -423,7 +423,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({
                 document.status === 'processing') && (
                 <IconButton
                   onClick={() => handleAction(() => onCancel(document.id))}
-                  className="h-8 w-8 text-muted-foreground hover:text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/10 rounded"
+                  className="h-8 w-8 text-muted-foreground hover:text-(--nous-mars) hover:bg-(--nous-mars)/10 rounded"
                   label="Cancel"
                   icon={<XMarkIcon className="h-4 w-4" />}
                 />
@@ -562,8 +562,8 @@ export const RealtimeStatusDashboard: React.FC<
         className={cn(
           'flex items-center justify-between p-3 rounded-lg border',
           isConnected
-            ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30'
-            : 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30'
+            ? 'bg-(--nous-terra)/10 border-(--nous-terra)/30'
+            : 'bg-(--nous-mars)/10 border-(--nous-mars)/30'
         )}
       >
         <div className="flex items-center space-x-3">
@@ -571,8 +571,8 @@ export const RealtimeStatusDashboard: React.FC<
             className={cn(
               'h-5 w-5',
               isConnected
-                ? 'text-[var(--nous-terra)]'
-                : 'text-[var(--nous-mars)]'
+                ? 'text-(--nous-terra)'
+                : 'text-(--nous-mars)'
             )}
           />
           <div>
@@ -580,8 +580,8 @@ export const RealtimeStatusDashboard: React.FC<
               className={cn(
                 'text-sm font-medium',
                 isConnected
-                  ? 'text-[var(--nous-terra)]'
-                  : 'text-[var(--nous-mars)]'
+                  ? 'text-(--nous-terra)'
+                  : 'text-(--nous-mars)'
               )}
             >
               {connectionStatus.status === 'connected'
@@ -589,7 +589,7 @@ export const RealtimeStatusDashboard: React.FC<
                 : 'Disconnected'}
             </span>
             {connectionStatus.lastError && (
-              <p className="text-xs text-[var(--nous-mars)]">
+              <p className="text-xs text-(--nous-mars)">
                 {connectionStatus.lastError}
               </p>
             )}
@@ -598,7 +598,7 @@ export const RealtimeStatusDashboard: React.FC<
         {!isConnected && (
           <button
             onClick={reconnect}
-            className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="px-3 py-1 text-xs font-medium text-(--nous-mars) bg-(--nous-mars)/15 hover:bg-(--nous-mars)/25 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>
@@ -621,10 +621,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+            <ClockIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
             <div>
               <p className="text-xs text-muted-foreground">Queued</p>
-              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
+              <p className="text-lg font-semibold text-(--nous-fg-accent-safe)">
                 {queue.summary.queued}
               </p>
             </div>
@@ -633,10 +633,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <ArrowPathIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
+            <ArrowPathIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
             <div>
               <p className="text-xs text-muted-foreground">Processing</p>
-              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
+              <p className="text-lg font-semibold text-(--nous-fg-accent-safe)">
                 {queue.summary.processing}
               </p>
             </div>
@@ -645,10 +645,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />
+            <CheckCircleIcon className="h-5 w-5 text-(--nous-terra)" />
             <div>
               <p className="text-xs text-muted-foreground">Completed</p>
-              <p className="text-lg font-semibold text-[var(--nous-terra)]">
+              <p className="text-lg font-semibold text-(--nous-terra)">
                 {queue.summary.completed}
               </p>
             </div>
@@ -657,10 +657,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />
+            <XCircleIcon className="h-5 w-5 text-(--nous-mars)" />
             <div>
               <p className="text-xs text-muted-foreground">Failed</p>
-              <p className="text-lg font-semibold text-[var(--nous-mars)]">
+              <p className="text-lg font-semibold text-(--nous-mars)">
                 {queue.summary.failed}
               </p>
             </div>
@@ -669,10 +669,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <PauseIcon className="h-5 w-5 text-[var(--nous-corona)]" />
+            <PauseIcon className="h-5 w-5 text-(--nous-corona)" />
             <div>
               <p className="text-xs text-muted-foreground">Paused</p>
-              <p className="text-lg font-semibold text-[var(--nous-corona)]">
+              <p className="text-lg font-semibold text-(--nous-corona)">
                 {queue.summary.paused}
               </p>
             </div>
@@ -681,10 +681,10 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div className="bg-card p-3 rounded-lg border border-border">
           <div className="flex items-center space-x-2">
-            <div className="h-5 w-5 rounded-full bg-[var(--nous-sol)]" />
+            <div className="h-5 w-5 rounded-full bg-(--nous-sol)" />
             <div>
               <p className="text-xs text-muted-foreground">Success Rate</p>
-              <p className="text-lg font-semibold text-[var(--nous-fg-accent-safe)]">
+              <p className="text-lg font-semibold text-(--nous-fg-accent-safe)">
                 {queue.metrics.successRate.toFixed(1)}%
               </p>
             </div>
@@ -705,7 +705,7 @@ export const RealtimeStatusDashboard: React.FC<
                   placeholder="Search documents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-(--nous-sol) focus:border-transparent"
                 />
               </div>
             </div>
@@ -723,7 +723,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-(--nous-sol) focus:border-transparent"
               >
                 <option value="queued">Queued</option>
                 <option value="processing">Processing</option>
@@ -743,7 +743,7 @@ export const RealtimeStatusDashboard: React.FC<
                     )
                   )
                 }
-                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-transparent"
+                className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-(--nous-sol) focus:border-transparent"
               >
                 <option value="pdf">PDF</option>
                 <option value="txt">TXT</option>
@@ -761,7 +761,7 @@ export const RealtimeStatusDashboard: React.FC<
                 className={cn(
                   'h-8 w-8 rounded',
                   viewMode === 'list'
-                    ? 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]'
+                    ? 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="List view"
@@ -772,7 +772,7 @@ export const RealtimeStatusDashboard: React.FC<
                 className={cn(
                   'h-8 w-8 rounded',
                   viewMode === 'grid'
-                    ? 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]'
+                    ? 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
                 label="Grid view"
@@ -783,32 +783,32 @@ export const RealtimeStatusDashboard: React.FC<
 
           {/* Bulk actions */}
           {selectedDocuments.length > 0 && (
-            <div className="mt-4 flex items-center justify-between p-3 bg-[var(--nous-sol)]/10 rounded-lg">
-              <span className="text-sm text-[var(--nous-fg-accent-safe)]">
+            <div className="mt-4 flex items-center justify-between p-3 bg-(--nous-sol)/10 rounded-lg">
+              <span className="text-sm text-(--nous-fg-accent-safe)">
                 {selectedDocuments.length} documents selected
               </span>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={pauseSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-corona)] bg-[var(--nous-corona)]/15 hover:bg-[var(--nous-corona)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="px-3 py-1 text-xs font-medium text-(--nous-corona) bg-(--nous-corona)/15 hover:bg-(--nous-corona)/25 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Pause All
                 </button>
                 <button
                   onClick={resumeSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-terra)] bg-[var(--nous-terra)]/15 hover:bg-[var(--nous-terra)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="px-3 py-1 text-xs font-medium text-(--nous-terra) bg-(--nous-terra)/15 hover:bg-(--nous-terra)/25 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Resume All
                 </button>
                 <button
                   onClick={cancelSelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-mars)] bg-[var(--nous-mars)]/15 hover:bg-[var(--nous-mars)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="px-3 py-1 text-xs font-medium text-(--nous-mars) bg-(--nous-mars)/15 hover:bg-(--nous-mars)/25 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Cancel All
                 </button>
                 <button
                   onClick={retrySelectedDocuments}
-                  className="px-3 py-1 text-xs font-medium text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/15 hover:bg-[var(--nous-sol)]/25 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="px-3 py-1 text-xs font-medium text-(--nous-fg-accent-safe) bg-(--nous-sol)/15 hover:bg-(--nous-sol)/25 rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   Retry All
                 </button>
@@ -833,7 +833,7 @@ export const RealtimeStatusDashboard: React.FC<
                     filteredAndSearchedDocs.length > 0
                   }
                   onChange={handleSelectAll}
-                  className="h-4 w-4 text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] border-border rounded"
+                  className="h-4 w-4 text-(--nous-fg-accent-safe) focus:ring-(--nous-sol) border-border rounded"
                 />
                 <span className="text-sm text-foreground">Select All</span>
               </label>
@@ -847,7 +847,7 @@ export const RealtimeStatusDashboard: React.FC<
 
         <div
           className={cn(
-            'divide-y divide-[var(--nous-border-1)]',
+            'divide-y divide-(--nous-border-1)',
             viewMode === 'grid' &&
               'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4'
           )}

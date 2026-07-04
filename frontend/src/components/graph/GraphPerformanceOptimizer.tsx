@@ -305,7 +305,7 @@ export const GraphPerformanceOptimizer: React.FC<
 
       {/* Performance metrics for debugging */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-2 right-2 bg-[var(--nous-bg-2)] bg-opacity-75 text-[var(--nous-fg-1)] text-xs p-2 rounded">
+        <div className="absolute top-2 right-2 bg-(--nous-bg-2) bg-opacity-75 text-(--nous-fg-1) text-xs p-2 rounded">
           <div>
             Nodes: {renderMetrics.visibleNodes}/{renderMetrics.totalNodes}
           </div>
@@ -318,7 +318,7 @@ export const GraphPerformanceOptimizer: React.FC<
             </div>
           )}
           {renderMetrics.hasMoreNodes && (
-            <div className="text-[var(--nous-corona)]">
+            <div className="text-(--nous-corona)">
               More nodes available
             </div>
           )}

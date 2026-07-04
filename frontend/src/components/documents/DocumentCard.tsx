@@ -180,7 +180,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       {/* Document Info */}
       <div className="flex items-start space-x-4">
         {/* File Icon/Thumbnail */}
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           {document.thumbnail_url ? (
             <img
               src={document.thumbnail_url}

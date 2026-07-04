@@ -159,7 +159,7 @@ export default function RegisterPage() {
   }
 
   const inputClasses =
-    'w-full pl-11 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40';
+    'w-full pl-11 pr-4 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/70 outline-hidden transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40';
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -236,7 +236,7 @@ export default function RegisterPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-lg"
         >
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 shadow-xs">
             {/* Header */}
             <div className="mb-8">
               <h2 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -405,7 +405,7 @@ export default function RegisterPage() {
                       showPassword ? 'Hide password' : 'Show password'
                     }
                     aria-pressed={showPassword}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -475,7 +475,7 @@ export default function RegisterPage() {
                         : 'Show confirmation password'
                     }
                     aria-pressed={showConfirmPassword}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground hover:text-foreground rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -493,7 +493,7 @@ export default function RegisterPage() {
                 className={cn(
                   'group w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-medium',
                   'bg-primary text-primary-foreground',
-                  'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                  'hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                   'disabled:opacity-60 disabled:cursor-not-allowed transition-colors'
                 )}
               >
@@ -517,7 +517,7 @@ export default function RegisterPage() {
                 Already have an account?{' '}
                 <Link
                   href="/login"
-                  className="font-medium text-primary hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="font-medium text-primary hover:underline rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Sign in
                 </Link>

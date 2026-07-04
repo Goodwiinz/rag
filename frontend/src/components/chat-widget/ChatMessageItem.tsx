@@ -27,7 +27,7 @@ export function ChatMessageItem({ message }: ChatMessageItemProps) {
       >
         {/* Content rendered as plain text via React escaping (XSS-safe).
             If markdown rendering is added, sanitize with DOMPurify. */}
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
 
         {/* Citations */}
         {message.citations && message.citations.length > 0 && (

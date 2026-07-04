@@ -118,7 +118,7 @@ export function ColumnEditor({
                 value={col.name}
                 onChange={(e) => updateColumn(index, 'name', e.target.value)}
                 placeholder="Column name"
-                className="h-8 bg-background border-border text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 bg-background border-border text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Input
                 value={col.description ?? ''}
@@ -126,7 +126,7 @@ export function ColumnEditor({
                   updateColumn(index, 'description', e.target.value)
                 }
                 placeholder="Description (optional)"
-                className="h-8 bg-background border-border text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 bg-background border-border text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
 

@@ -53,7 +53,7 @@ export interface ErrorDisplayProps {
 }
 
 const getErrorIcon = (severity: ErrorSeverity) => {
-  const iconClass = "h-5 w-5 flex-shrink-0 mt-0.5";
+  const iconClass = "h-5 w-5 shrink-0 mt-0.5";
 
   switch (severity) {
     case 'error':
@@ -224,7 +224,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             </div>
 
             {/* Error message */}
-            <p className="text-sm mt-1 break-words">{errorMessage}</p>
+            <p className="text-sm mt-1 wrap-break-word">{errorMessage}</p>
 
             {/* Expandable details */}
             {errorDetails && showDetails && (

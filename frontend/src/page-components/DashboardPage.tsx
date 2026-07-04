@@ -24,7 +24,7 @@ export const DashboardPage: React.FC = () => {
 
         {/* Main Content */}
         <div className="text-center">
-          <div className="bg-white rounded-lg shadow p-8">
+          <div className="bg-white rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-semibold text-foreground mb-4">
               Document Upload
             </h2>
@@ -34,7 +34,7 @@ export const DashboardPage: React.FC = () => {
             </p>
             <Link
               href="/documents/upload"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-xs text-white bg-blue-600 hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Go to Document Upload
             </Link>

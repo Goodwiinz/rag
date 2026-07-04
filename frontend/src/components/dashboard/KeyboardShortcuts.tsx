@@ -58,7 +58,7 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40"
             onClick={onClose}
           />
           <motion.div
@@ -74,7 +74,7 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
               aria-labelledby="kbd-shortcuts-title"
               className="relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-xl border border-amber-200/20 shadow-2xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/30" />
+              <div className="absolute inset-0 bg-linear-to-br from-amber-50/50 to-orange-50/30" />
               <div className="relative p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
@@ -122,7 +122,7 @@ export const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
                             {keyIndex > 0 && (
                               <span className="text-gray-400 mx-1">+</span>
                             )}
-                            <kbd className="px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-gray-200 shadow-sm">
+                            <kbd className="px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-gray-200 shadow-xs">
                               {key}
                             </kbd>
                           </React.Fragment>

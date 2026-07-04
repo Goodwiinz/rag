@@ -72,35 +72,35 @@ const positionClasses = {
 const notificationConfigs = {
   success: {
     icon: CheckCircleIcon,
-    bgColor: 'bg-[var(--nous-terra)]/10',
-    borderColor: 'border-[var(--nous-terra)]/30',
-    iconColor: 'text-[var(--nous-terra)]',
-    titleColor: 'text-[var(--nous-fg-1)]',
-    messageColor: 'text-[var(--nous-fg-2)]',
+    bgColor: 'bg-(--nous-terra)/10',
+    borderColor: 'border-(--nous-terra)/30',
+    iconColor: 'text-(--nous-terra)',
+    titleColor: 'text-(--nous-fg-1)',
+    messageColor: 'text-(--nous-fg-2)',
   },
   error: {
     icon: ExclamationTriangleIcon,
-    bgColor: 'bg-[var(--nous-mars)]/10',
-    borderColor: 'border-[var(--nous-mars)]/30',
-    iconColor: 'text-[var(--nous-mars)]',
-    titleColor: 'text-[var(--nous-fg-1)]',
-    messageColor: 'text-[var(--nous-fg-2)]',
+    bgColor: 'bg-(--nous-mars)/10',
+    borderColor: 'border-(--nous-mars)/30',
+    iconColor: 'text-(--nous-mars)',
+    titleColor: 'text-(--nous-fg-1)',
+    messageColor: 'text-(--nous-fg-2)',
   },
   warning: {
     icon: ExclamationTriangleIcon,
-    bgColor: 'bg-[var(--nous-corona)]/10',
-    borderColor: 'border-[var(--nous-corona)]/30',
-    iconColor: 'text-[var(--nous-corona)]',
-    titleColor: 'text-[var(--nous-fg-1)]',
-    messageColor: 'text-[var(--nous-fg-2)]',
+    bgColor: 'bg-(--nous-corona)/10',
+    borderColor: 'border-(--nous-corona)/30',
+    iconColor: 'text-(--nous-corona)',
+    titleColor: 'text-(--nous-fg-1)',
+    messageColor: 'text-(--nous-fg-2)',
   },
   info: {
     icon: InformationCircleIcon,
-    bgColor: 'bg-[var(--nous-sol)]/10',
-    borderColor: 'border-[var(--nous-sol)]/30',
-    iconColor: 'text-[var(--nous-fg-accent-safe)]',
-    titleColor: 'text-[var(--nous-fg-1)]',
-    messageColor: 'text-[var(--nous-fg-2)]',
+    bgColor: 'bg-(--nous-sol)/10',
+    borderColor: 'border-(--nous-sol)/30',
+    iconColor: 'text-(--nous-fg-accent-safe)',
+    titleColor: 'text-(--nous-fg-1)',
+    messageColor: 'text-(--nous-fg-2)',
   },
 };
 
@@ -118,7 +118,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-[var(--nous-mars)] rounded-full min-w-[20px]',
+        'inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-(--nous-mars) rounded-full min-w-[20px]',
         count > 0 && 'animate-pulse',
         className
       )}
@@ -185,7 +185,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
           )}
         >
           <Icon
-            className={cn('flex-shrink-0 w-5 h-5 mt-0.5', config.iconColor)}
+            className={cn('shrink-0 w-5 h-5 mt-0.5', config.iconColor)}
           />
 
           <div className="flex-1 min-w-0">
@@ -215,7 +215,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
                       <button
                         key={index}
                         onClick={() => handleAction(action)}
-                        className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         {action.label}
                       </button>
@@ -227,7 +227,7 @@ const ToastNotification: React.FC<ToastNotificationProps> = ({
               <button
                 onClick={handleClose}
                 aria-label="Dismiss notification"
-                className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <XMarkIcon className="w-4 h-4" />
               </button>
@@ -268,7 +268,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
             {notifications.length > 0 && (
               <button
                 onClick={onClearAll}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 Clear All
               </button>
@@ -279,7 +279,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                 isExpanded ? 'Collapse notifications' : 'Expand notifications'
               }
               aria-expanded={isExpanded}
-              className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isExpanded ? (
                 <ChevronUpIcon className="w-4 h-4" />
@@ -301,7 +301,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--nous-border-1)]">
+          <div className="divide-y divide-(--nous-border-1)">
             {visibleNotifications.map((notification) => {
               const config = notificationConfigs[notification.type];
               const Icon = config.icon;
@@ -314,7 +314,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                   <div className="flex items-start space-x-3">
                     <Icon
                       className={cn(
-                        'flex-shrink-0 w-5 h-5 mt-0.5',
+                        'shrink-0 w-5 h-5 mt-0.5',
                         config.iconColor
                       )}
                     />
@@ -341,7 +341,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                         <button
                           onClick={() => onDismiss(notification.id)}
                           aria-label="Dismiss notification"
-                          className="flex-shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="shrink-0 ml-2 inline-flex items-center justify-center min-h-11 min-w-11 p-2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <XMarkIcon className="w-4 h-4" />
                         </button>
@@ -357,7 +357,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
                                 onClick={() =>
                                   onAction(notification.id, action)
                                 }
-                                className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                className="text-xs font-medium bg-background bg-opacity-70 hover:bg-opacity-100 px-2 py-1 rounded border border-border hover:border-border transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                               >
                                 {action.label}
                               </button>
@@ -378,7 +378,7 @@ const NotificationHistory: React.FC<NotificationHistoryProps> = ({
         <div className="px-4 py-2 border-t border-border">
           <button
             onClick={() => setIsExpanded(true)}
-            className="text-xs text-[var(--nous-fg-accent-safe)] hover:text-[var(--nous-sol)] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="text-xs text-(--nous-fg-accent-safe) hover:text-(--nous-sol) font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Show {notifications.length - 5} more
           </button>
@@ -590,7 +590,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               aria-expanded={isHistoryOpen}
               className={cn(
                 'relative p-2 rounded-lg bg-card border border-border shadow-md hover:shadow-lg transition-all duration-200',
-                'focus:outline-none focus:ring-2 focus:ring-[var(--nous-sol)] focus:border-[var(--nous-sol)]'
+                'focus:outline-hidden focus:ring-2 focus:ring-(--nous-sol) focus:border-(--nous-sol)'
               )}
             >
               <BellIcon className="w-5 h-5 text-foreground" />

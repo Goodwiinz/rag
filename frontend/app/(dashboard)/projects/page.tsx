@@ -41,7 +41,7 @@ function ProjectsLoadingSkeleton() {
       {Array.from({ length: 6 }).map((_, idx) => (
         <div
           key={idx}
-          className="rounded-xl border border-border bg-card p-5 shadow-sm"
+          className="rounded-xl border border-border bg-card p-5 shadow-xs"
         >
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -251,7 +251,7 @@ export default function ProjectsPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-sm hover:bg-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-xs hover:bg-(--nous-helios) transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Plus aria-hidden="true" className="h-4 w-4" />
           New project
@@ -270,7 +270,7 @@ export default function ProjectsPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search projects..."
             aria-label="Search projects"
-            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
+            className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
           />
         </div>
         <select
@@ -279,7 +279,7 @@ export default function ProjectsPage() {
             setStatusFilter(e.target.value as ProjectStatus | '')
           }
           aria-label="Filter by status"
-          className="px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
+          className="px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -291,7 +291,7 @@ export default function ProjectsPage() {
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ProjectType | '')}
           aria-label="Filter by type"
-          className="px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
+          className="px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors"
         >
           <option value="">All types</option>
           <option value="research">Research</option>
@@ -307,10 +307,10 @@ export default function ProjectsPage() {
           <button
             onClick={() => setTagFilter('')}
             aria-pressed={tagFilter === ''}
-            className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                 tagFilter === ''
                   ? 'bg-primary/10 border-primary/40 text-primary'
-                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)]'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-(--nous-helios)'
               }`}
           >
             All
@@ -320,10 +320,10 @@ export default function ProjectsPage() {
               key={tag}
               onClick={() => setTagFilter(tag)}
               aria-pressed={tagFilter === tag}
-              className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`px-3 py-2 min-h-[36px] border rounded-full text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                 tagFilter === tag
                   ? 'bg-primary/10 border-primary/40 text-primary'
-                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-[var(--nous-helios)]'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-(--nous-helios)'
               }`}
             >
               {tag}
@@ -335,12 +335,12 @@ export default function ProjectsPage() {
       {error && (
         <div
           role="alert"
-          className="mb-6 p-4 rounded-xl border border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/10"
+          className="mb-6 p-4 rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/10"
         >
           <p className="text-sm text-foreground">{error}</p>
           <button
             onClick={clearError}
-            className="mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            className="mt-2 text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
           >
             Dismiss
           </button>
@@ -359,7 +359,7 @@ export default function ProjectsPage() {
             tagFilter
           );
           return hasActiveFilters ? (
-            <div className="text-center py-16 px-6 rounded-xl border border-border bg-card shadow-sm">
+            <div className="text-center py-16 px-6 rounded-xl border border-border bg-card shadow-xs">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
                 <FolderOpen
                   aria-hidden="true"
@@ -374,7 +374,7 @@ export default function ProjectsPage() {
               </p>
             </div>
           ) : (
-            <div className="text-center py-16 px-6 rounded-xl border border-border bg-card shadow-sm">
+            <div className="text-center py-16 px-6 rounded-xl border border-border bg-card shadow-xs">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                 <FolderOpen
                   aria-hidden="true"
@@ -390,7 +390,7 @@ export default function ProjectsPage() {
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-sm hover:bg-[var(--nous-helios)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium shadow-xs hover:bg-(--nous-helios) transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Plus aria-hidden="true" className="h-4 w-4" />
                 New project

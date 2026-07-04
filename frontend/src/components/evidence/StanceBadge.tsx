@@ -10,7 +10,7 @@ import type { StanceBadgeProps, Stance } from '@/types/evidence';
  * Green for supporting, red for opposing, gray for neutral
  */
 const stanceBadgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       stance: {

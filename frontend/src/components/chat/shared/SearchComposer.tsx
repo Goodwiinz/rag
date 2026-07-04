@@ -50,11 +50,11 @@ export function SearchComposer({
   };
 
   return (
-    <div className="z-40 bg-gradient-to-t from-[var(--nous-bg-1)] via-[var(--nous-bg-1)] to-transparent px-4 pb-[72px] md:pb-4 pt-4">
+    <div className="z-40 bg-linear-to-t from-(--nous-bg-1) via-(--nous-bg-1) to-transparent px-4 pb-[72px] md:pb-4 pt-4">
       <div className="mx-auto max-w-5xl 2xl:max-w-6xl">
         <div
           className={cn(
-            'overflow-visible rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-[var(--nous-shadow-md)] transition-colors focus-within:border-[var(--nous-sol)]/40'
+            'overflow-visible rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2) shadow-(--nous-shadow-md) transition-colors focus-within:border-(--nous-sol)/40'
           )}
         >
           <div className="p-3 sm:p-4">
@@ -65,7 +65,7 @@ export function SearchComposer({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={1}
-              className="w-full resize-none bg-transparent text-sm text-[var(--nous-fg-1)] outline-none placeholder:text-[var(--nous-fg-3)]/50 selection:bg-[var(--nous-sol)]/20 selection:text-[var(--nous-sol)]"
+              className="w-full resize-none bg-transparent text-sm text-(--nous-fg-1) outline-hidden placeholder:text-(--nous-fg-3)/50 selection:bg-(--nous-sol)/20 selection:text-(--nous-sol)"
               style={{
                 fontFamily: 'var(--nous-font-body)',
                 minHeight: '44px',
@@ -95,8 +95,8 @@ export function SearchComposer({
                   className={cn(
                     'nous-send-pill flex items-center gap-2 rounded-full h-10 w-10 sm:h-9 sm:w-auto sm:px-5 justify-center text-xs font-semibold tracking-wide transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--nous-sol)] text-[var(--nous-erebus)] shadow-[0_0_18px_rgba(var(--nous-sol-rgb),0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(var(--nous-sol-rgb),0.35)] active:scale-95'
-                      : 'cursor-not-allowed border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)]/80'
+                      ? 'bg-(--nous-sol) text-(--nous-erebus) shadow-[0_0_18px_rgba(var(--nous-sol-rgb),0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(var(--nous-sol-rgb),0.35)] active:scale-95'
+                      : 'cursor-not-allowed border border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-3)/80'
                   )}
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
@@ -109,7 +109,7 @@ export function SearchComposer({
         </div>
 
         <div
-          className="mt-2 flex items-center justify-center gap-4 text-[9px] uppercase tracking-tighter text-[var(--nous-fg-3)]"
+          className="mt-2 flex items-center justify-center gap-4 text-[9px] uppercase tracking-tighter text-(--nous-fg-3)"
           style={{ fontFamily: 'var(--nous-font-mono)' }}
         >
           <span>[Enter] Send</span>

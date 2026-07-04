@@ -81,7 +81,7 @@ export function IngestTab({
           <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
           Search and import papers
         </h2>
-        <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+        <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
           Find papers by topic, select what is relevant, and import them into
           your workspace.
         </p>
@@ -97,14 +97,14 @@ export function IngestTab({
               <p className="text-sm font-medium text-foreground">
                 Public search stays open
               </p>
-              <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+              <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                 Search papers and review results without signing in. Sign in to
                 import papers, send IDs to extraction, and save work to your
                 workspace.
               </p>
               <a
                 href="/login"
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign in to import papers
@@ -138,7 +138,7 @@ export function IngestTab({
                   onKeyDown={(e) => e.key === 'Enter' && onSearchPapers()}
                   placeholder="transformer interpretability…"
                   autoComplete="off"
-                  className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="w-full rounded-lg border border-border bg-card py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                 />
               </div>
             </div>
@@ -172,7 +172,7 @@ export function IngestTab({
               )}
               {useCategoryFilterForSearch &&
                 selectedCategories.length === 0 && (
-                  <p className="pt-0.5 font-[family-name:var(--nous-font-body)] text-xs leading-relaxed text-muted-foreground">
+                  <p className="pt-0.5 font-(family-name:--nous-font-body) text-xs leading-relaxed text-muted-foreground">
                     No categories selected. Choose categories on the New papers
                     tab to narrow your search.
                   </p>
@@ -195,8 +195,8 @@ export function IngestTab({
                 onClick={onSearchPapers}
                 disabled={isAnyOperationRunning || !searchQuery.trim()}
                 className={cn(
-                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-[var(--nous-sol-safe)] transition-colors',
-                  'hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
+                  'inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5 text-sm font-medium text-(--nous-sol-safe) transition-colors',
+                  'hover:bg-primary/15 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
                 )}
               >
                 {isSearching ? (
@@ -213,7 +213,7 @@ export function IngestTab({
                 type="button"
                 onClick={onClearSearch}
                 disabled={isAnyOperationRunning}
-                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Clear search
               </button>
@@ -240,7 +240,7 @@ export function IngestTab({
               }
               className={cn(
                 'inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors',
-                'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
+                'hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isIngesting ? (
@@ -259,14 +259,14 @@ export function IngestTab({
                 isAnyOperationRunning ||
                 selectedPaperIds.length === 0
               }
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
             >
               <Brain className="h-4 w-4" aria-hidden="true" />
               Extract from selected
             </button>
 
             {!isAuthenticated && (
-              <p className="rounded-lg border border-border bg-card p-3 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+              <p className="rounded-lg border border-border bg-card p-3 font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                 Sign in to import papers and run extraction.
               </p>
             )}
@@ -291,7 +291,7 @@ export function IngestTab({
                     type="button"
                     onClick={onSelectAllSearchResults}
                     disabled={!canSelectAllResults || isAnyOperationRunning}
-                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
                   >
                     Select all
                   </button>
@@ -301,7 +301,7 @@ export function IngestTab({
                     disabled={
                       isAnyOperationRunning || selectedPaperIds.length === 0
                     }
-                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 disabled:cursor-not-allowed disabled:opacity-40 sm:px-2 sm:py-1 sm:text-xs"
                   >
                     Clear
                   </button>
@@ -326,7 +326,7 @@ export function IngestTab({
                         onClick={() => onTogglePaperSelection(paper.id)}
                         className={cn(
                           'w-full rounded-xl border p-4 text-left transition-colors touch-manipulation',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                          'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                           isSelected
                             ? 'border-primary/45 bg-primary/5'
                             : 'border-border bg-card hover:border-primary/40'
@@ -353,11 +353,11 @@ export function IngestTab({
                             <h4 className="line-clamp-2 text-sm font-medium text-foreground">
                               {paper.title}
                             </h4>
-                            <p className="line-clamp-2 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+                            <p className="line-clamp-2 font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                               {paper.abstract}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
-                              <span className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-foreground">
+                              <span className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-(family-name:--nous-font-mono) text-xs text-foreground">
                                 {paper.id}
                               </span>
                               {paper.categories.slice(0, 3).map((category) => (

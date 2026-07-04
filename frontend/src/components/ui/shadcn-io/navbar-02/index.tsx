@@ -179,12 +179,12 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
         ref={combinedRef}
         className={cn(
           'sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-lg transition-all duration-200',
-          'px-4 md:px-6 [&_*]:no-underline',
+          'px-4 md:px-6 **:no-underline',
           className
         )}
         {...props}
       >
-        <div className="container mx-auto flex h-14 md:h-16 max-w-screen-2xl items-center justify-between gap-4">
+        <div className="container mx-auto flex h-14 md:h-16 max-w-(--breakpoint-2xl) items-center justify-between gap-4">
           {/* Left side */}
           <div className="flex items-center gap-2">
             {/* Mobile menu trigger */}
@@ -304,7 +304,7 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                                   <NavigationMenuLink asChild>
                                     <Link
                                       href="/search"
-                                      className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors group"
+                                      className="flex h-full w-full select-none flex-col justify-end rounded-md bg-linear-to-b from-muted/50 to-muted p-6 no-underline outline-hidden focus:shadow-md cursor-pointer hover:bg-muted/80 transition-colors group"
                                     >
                                       <BookOpen
                                         className="h-6 w-6 mb-2 opacity-70 group-hover:opacity-100 transition-opacity"
@@ -413,7 +413,7 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
               </Button>
               <Button
                 size="sm"
-                className="text-sm font-medium px-5 h-9 rounded-md shadow-sm transition-all hover:shadow-md active:scale-95"
+                className="text-sm font-medium px-5 h-9 rounded-md shadow-xs transition-all hover:shadow-md active:scale-95"
                 onClick={(e) => {
                   e.preventDefault();
                   if (onCtaClick) onCtaClick();
@@ -475,7 +475,7 @@ const ListItem = React.forwardRef<
           ref={ref}
           href={href}
           className={cn(
-            'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer group',
+            'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-hidden transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground cursor-pointer group',
             className
           )}
           {...props}

@@ -796,8 +796,8 @@ const DetailedAnalyticsReports: React.FC<DetailedAnalyticsReportsProps> = ({
               </div>
               <div className="text-sm text-foreground">Unique Users</div>
             </div>
-            <div className="text-center p-4 bg-[var(--nous-sol)]/10 rounded-lg">
-              <div className="text-2xl font-bold text-[var(--nous-fg-accent)]">
+            <div className="text-center p-4 bg-(--nous-sol)/10 rounded-lg">
+              <div className="text-2xl font-bold text-(--nous-fg-accent)">
                 {analyticsData.overview.documentsProcessed}
               </div>
               <div className="text-sm text-foreground">Documents</div>

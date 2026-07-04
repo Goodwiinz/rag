@@ -79,36 +79,36 @@ const metricConfigs = {
   cpu: {
     title: 'CPU Usage',
     icon: CpuChipIcon,
-    color: 'text-[var(--nous-fg-accent-safe)]',
-    bgColor: 'bg-[var(--nous-bg-3)]',
-    borderColor: 'border-[var(--nous-border-1)]',
+    color: 'text-(--nous-fg-accent-safe)',
+    bgColor: 'bg-(--nous-bg-3)',
+    borderColor: 'border-(--nous-border-1)',
     threshold: { warning: 70, critical: 90 },
     format: (value: number) => `${value.toFixed(1)}%`,
   },
   memory: {
     title: 'Memory Usage',
     icon: CircleStackIcon,
-    color: 'text-[var(--nous-terra)]',
-    bgColor: 'bg-[var(--nous-bg-3)]',
-    borderColor: 'border-[var(--nous-border-1)]',
+    color: 'text-(--nous-terra)',
+    bgColor: 'bg-(--nous-bg-3)',
+    borderColor: 'border-(--nous-border-1)',
     threshold: { warning: 80, critical: 95 },
     format: (value: number) => formatBytes(value),
   },
   throughput: {
     title: 'Throughput',
     icon: ArrowTrendingUpIcon,
-    color: 'text-[var(--nous-fg-accent-safe)]',
-    bgColor: 'bg-[var(--nous-bg-3)]',
-    borderColor: 'border-[var(--nous-border-1)]',
+    color: 'text-(--nous-fg-accent-safe)',
+    bgColor: 'bg-(--nous-bg-3)',
+    borderColor: 'border-(--nous-border-1)',
     threshold: { warning: 50, critical: 25 },
     format: (value: number) => `${value.toFixed(1)}/min`,
   },
   latency: {
     title: 'Response Time',
     icon: ClockIcon,
-    color: 'text-[var(--nous-corona)]',
-    bgColor: 'bg-[var(--nous-bg-3)]',
-    borderColor: 'border-[var(--nous-border-1)]',
+    color: 'text-(--nous-corona)',
+    bgColor: 'bg-(--nous-bg-3)',
+    borderColor: 'border-(--nous-border-1)',
     threshold: { warning: 500, critical: 1000 },
     format: (value: number) => `${value.toFixed(0)}ms`,
   },
@@ -132,14 +132,14 @@ const MetricCard: React.FC<MetricCardProps> = ({
   let statusColor = 'text-foreground';
   if (threshold) {
     if (numericValue >= threshold.critical) {
-      statusColor = 'text-[var(--nous-mars)]';
+      statusColor = 'text-(--nous-mars)';
     } else if (numericValue >= threshold.warning) {
-      statusColor = 'text-[var(--nous-corona)]';
+      statusColor = 'text-(--nous-corona)';
     }
   }
 
   return (
-    <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
+    <div className="bg-card p-4 rounded-lg border border-border shadow-xs">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className={cn('p-2 rounded-lg', metricConfigs.cpu.bgColor)}>
@@ -161,16 +161,16 @@ const MetricCard: React.FC<MetricCardProps> = ({
         {trend && (
           <div className="flex items-center space-x-1">
             {trend.direction === 'up' ? (
-              <ArrowTrendingUpIcon className="w-4 h-4 text-[var(--nous-terra)]" />
+              <ArrowTrendingUpIcon className="w-4 h-4 text-(--nous-terra)" />
             ) : (
-              <ArrowTrendingDownIcon className="w-4 h-4 text-[var(--nous-mars)]" />
+              <ArrowTrendingDownIcon className="w-4 h-4 text-(--nous-mars)" />
             )}
             <span
               className={cn(
                 'text-xs font-medium',
                 trend.direction === 'up'
-                  ? 'text-[var(--nous-terra)]'
-                  : 'text-[var(--nous-mars)]'
+                  ? 'text-(--nous-terra)'
+                  : 'text-(--nous-mars)'
               )}
             >
               {Math.abs(trend.value).toFixed(1)}%
@@ -182,15 +182,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
       {/* Threshold indicator */}
       {threshold && (
         <div className="mt-3">
-          <div className="w-full bg-[var(--nous-bg-3)] rounded-full h-2">
+          <div className="w-full bg-(--nous-bg-3) rounded-full h-2">
             <div
               className={cn(
                 'h-2 rounded-full transition-all duration-300',
                 numericValue >= threshold.critical
-                  ? 'bg-[var(--nous-mars)]'
+                  ? 'bg-(--nous-mars)'
                   : numericValue >= threshold.warning
-                    ? 'bg-[var(--nous-corona)]'
-                    : 'bg-[var(--nous-terra)]'
+                    ? 'bg-(--nous-corona)'
+                    : 'bg-(--nous-terra)'
               )}
               style={{
                 width: `${Math.min(100, (numericValue / threshold.critical) * 100)}%`,
@@ -272,16 +272,16 @@ const Alert: React.FC<AlertProps> = ({
   const config =
     type === 'critical'
       ? {
-          bgColor: 'bg-[var(--nous-mars)]/10',
-          borderColor: 'border-[var(--nous-mars)]/30',
-          textColor: 'text-[var(--nous-mars)]',
-          iconColor: 'text-[var(--nous-mars)]',
+          bgColor: 'bg-(--nous-mars)/10',
+          borderColor: 'border-(--nous-mars)/30',
+          textColor: 'text-(--nous-mars)',
+          iconColor: 'text-(--nous-mars)',
         }
       : {
-          bgColor: 'bg-[var(--nous-corona)]/10',
-          borderColor: 'border-[var(--nous-corona)]/30',
-          textColor: 'text-[var(--nous-corona)]',
-          iconColor: 'text-[var(--nous-corona)]',
+          bgColor: 'bg-(--nous-corona)/10',
+          borderColor: 'border-(--nous-corona)/30',
+          textColor: 'text-(--nous-corona)',
+          iconColor: 'text-(--nous-corona)',
         };
 
   return (
@@ -307,7 +307,7 @@ const Alert: React.FC<AlertProps> = ({
         <button
           onClick={onDismiss}
           aria-label="Dismiss alert"
-          className="inline-flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex items-center justify-center min-h-11 min-w-11 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           ×
         </button>
@@ -397,7 +397,7 @@ const PerformanceHistory: React.FC<PerformanceHistoryProps> = ({
       <div className="flex justify-end">
         <button
           onClick={onClear}
-          className="px-3 py-2 text-xs font-medium text-foreground bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="px-3 py-2 text-xs font-medium text-foreground bg-(--nous-bg-2) hover:bg-(--nous-bg-3) rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Clear History
         </button>
@@ -590,7 +590,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="CPU"
           value={systemMetrics.cpuUsage}
           icon={CpuChipIcon}
-          color="text-[var(--nous-fg-accent-safe)]"
+          color="text-(--nous-fg-accent-safe)"
           trend={trends.cpu}
           threshold={metricConfigs.cpu.threshold}
           format={(v) => `${v.toFixed(1)}%`}
@@ -599,7 +599,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Memory"
           value={systemMetrics.memoryUsage}
           icon={CircleStackIcon}
-          color="text-[var(--nous-terra)]"
+          color="text-(--nous-terra)"
           trend={trends.memory}
           threshold={metricConfigs.memory.threshold}
           format={(v) => formatBytes(v)}
@@ -608,7 +608,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Latency"
           value={connectionLatency}
           icon={ClockIcon}
-          color="text-[var(--nous-corona)]"
+          color="text-(--nous-corona)"
           threshold={metricConfigs.latency.threshold}
           format={(v) => `${v.toFixed(0)}ms`}
         />
@@ -616,7 +616,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
           title="Messages"
           value={messageRate}
           icon={ArrowTrendingUpIcon}
-          color="text-[var(--nous-fg-accent-safe)]"
+          color="text-(--nous-fg-accent-safe)"
           format={(v) => `${v.toFixed(1)}/s`}
         />
       </div>
@@ -655,7 +655,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="CPU Usage"
             value={systemMetrics.cpuUsage}
             icon={CpuChipIcon}
-            color="text-[var(--nous-fg-accent-safe)]"
+            color="text-(--nous-fg-accent-safe)"
             trend={trends.cpu}
             threshold={metricConfigs.cpu.threshold}
             format={(v) => `${v.toFixed(1)}%`}
@@ -664,7 +664,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Memory Usage"
             value={systemMetrics.memoryUsage}
             icon={CircleStackIcon}
-            color="text-[var(--nous-terra)]"
+            color="text-(--nous-terra)"
             trend={trends.memory}
             threshold={metricConfigs.memory.threshold}
             format={(v) => formatBytes(v)}
@@ -673,14 +673,14 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Active Jobs"
             value={systemMetrics.activeJobs}
             icon={ServerIcon}
-            color="text-[var(--nous-fg-accent-safe)]"
+            color="text-(--nous-fg-accent-safe)"
             unit="jobs"
           />
           <MetricCard
             title="Avg Duration"
             value={systemMetrics.averageJobDuration}
             icon={ClockIcon}
-            color="text-[var(--nous-corona)]"
+            color="text-(--nous-corona)"
             format={(v) => formatDuration(v)}
           />
         </div>
@@ -696,7 +696,7 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Response Time"
             value={connectionLatency}
             icon={ClockIcon}
-            color="text-[var(--nous-corona)]"
+            color="text-(--nous-corona)"
             threshold={metricConfigs.latency.threshold}
             format={(v) => `${v.toFixed(0)}ms`}
           />
@@ -704,14 +704,14 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Message Rate"
             value={messageRate}
             icon={ArrowTrendingUpIcon}
-            color="text-[var(--nous-terra)]"
+            color="text-(--nous-terra)"
             format={(v) => `${v.toFixed(1)}/s`}
           />
           <MetricCard
             title="Error Rate"
             value={currentMetrics.errorRate}
             icon={ExclamationTriangleIcon}
-            color="text-[var(--nous-mars)]"
+            color="text-(--nous-mars)"
             threshold={{ warning: 5, critical: 10 }}
             format={(v) => `${v.toFixed(1)}%`}
           />
@@ -728,28 +728,28 @@ export const PerformanceMonitor: React.FC<PerformanceMonitorProps> = ({
             title="Success Rate"
             value={store.queue.metrics.successRate}
             icon={ArrowTrendingUpIcon}
-            color="text-[var(--nous-terra)]"
+            color="text-(--nous-terra)"
             format={(v) => `${v.toFixed(1)}%`}
           />
           <MetricCard
             title="Throughput"
             value={store.queue.metrics.throughput}
             icon={DocumentTextIcon}
-            color="text-[var(--nous-fg-accent-safe)]"
+            color="text-(--nous-fg-accent-safe)"
             format={(v) => `${v.toFixed(1)}/min`}
           />
           <MetricCard
             title="Avg Processing"
             value={store.queue.metrics.averageProcessingTime}
             icon={ClockIcon}
-            color="text-[var(--nous-fg-accent-safe)]"
+            color="text-(--nous-fg-accent-safe)"
             format={(v) => `${v.toFixed(1)}s`}
           />
           <MetricCard
             title="Queued Jobs"
             value={store.queue.summary.queued}
             icon={ArrowsUpDownIcon}
-            color="text-[var(--nous-corona)]"
+            color="text-(--nous-corona)"
             unit="jobs"
           />
         </div>

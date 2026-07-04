@@ -134,7 +134,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="What is your research question? (min 10 characters)"
               rows={3}
-              className="w-full resize-none rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full resize-none rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
@@ -149,7 +149,7 @@ export const OutlineDialog: React.FC<OutlineDialogProps> = ({
                   key={opt.value}
                   onClick={() => setStyle(opt.value)}
                   className={cn(
-                    'rounded border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'rounded border px-3 py-1.5 text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                     style === opt.value
                       ? 'border-primary/50 bg-primary/10 text-primary'
                       : 'border-border text-muted-foreground hover:border-primary/30'

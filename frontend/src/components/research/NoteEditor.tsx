@@ -209,7 +209,7 @@ export function NoteEditor({
             </div>
             <button
               onClick={() => setPreview((prev) => !prev)}
-              className="px-3 py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="px-3 py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             >
               {preview ? (
                 <span className="inline-flex items-center gap-1">
@@ -234,7 +234,7 @@ export function NoteEditor({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title"
-              className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
@@ -276,7 +276,7 @@ export function NoteEditor({
                   onKeyUp={handleTextSelect}
                   placeholder="Write note content in markdown..."
                   rows={12}
-                  className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  className="w-full px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
                 {rewriteResult && (
                   <div className="mt-3">
@@ -338,11 +338,11 @@ export function NoteEditor({
                   }
                 }}
                 placeholder="Add tag and press Enter"
-                className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               />
               <button
                 onClick={handleAddTag}
-                className="px-3 py-2 text-xs border border-primary/30 text-primary rounded hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="px-3 py-2 text-xs border border-primary/30 text-primary rounded hover:bg-primary/10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Add
               </button>

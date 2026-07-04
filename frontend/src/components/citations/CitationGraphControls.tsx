@@ -97,7 +97,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               onChange={handleYearMinChange}
               min={minYear}
               max={filters.yearRange[1]}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-hidden focus:border-sol"
             />
             <span className="text-muted-foreground">—</span>
             <input
@@ -106,7 +106,7 @@ export const CitationGraphControls: React.FC<CitationGraphControlsProps> = ({
               onChange={handleYearMaxChange}
               min={filters.yearRange[0]}
               max={maxYear}
-              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-none focus:border-sol"
+              className="w-20 px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded text-sm font-mono text-muted-foreground focus:outline-hidden focus:border-sol"
             />
           </div>
           <div className="mt-2">

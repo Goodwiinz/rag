@@ -96,7 +96,7 @@ export const AgentMessageItem = React.memo(function AgentMessageItem({
         {message.content && (
           <>
             {isUser ? (
-              <div className="text-sm text-foreground whitespace-pre-wrap break-words leading-relaxed">
+              <div className="text-sm text-foreground whitespace-pre-wrap wrap-break-word leading-relaxed">
                 {message.content}
               </div>
             ) : (

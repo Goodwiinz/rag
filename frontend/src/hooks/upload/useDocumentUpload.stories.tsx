@@ -75,7 +75,7 @@ const UploadDemo = ({ options }: { options?: any }) => {
         </div>
 
         {/* File Selection */}
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4">File Selection</h3>
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
@@ -127,7 +127,7 @@ const UploadDemo = ({ options }: { options?: any }) => {
         </div>
 
         {/* Statistics */}
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Upload Statistics</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
@@ -193,7 +193,7 @@ const UploadDemo = ({ options }: { options?: any }) => {
         </div>
 
         {/* Queue Management */}
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Queue Management</h3>
             <div className="flex items-center space-x-2">
@@ -234,7 +234,7 @@ const UploadDemo = ({ options }: { options?: any }) => {
 
         {/* Queue Items */}
         {queueItems.length > 0 && (
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow-sm">
             <h3 className="text-lg font-semibold mb-4">
               Queue Items ({queueItems.length})
             </h3>
@@ -298,7 +298,7 @@ const UploadDemo = ({ options }: { options?: any }) => {
 
         {/* Empty State */}
         {queueItems.length === 0 && (
-          <div className="bg-white p-12 rounded-lg shadow text-center">
+          <div className="bg-white p-12 rounded-lg shadow-sm text-center">
             <CloudArrowUpIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
               No files in queue

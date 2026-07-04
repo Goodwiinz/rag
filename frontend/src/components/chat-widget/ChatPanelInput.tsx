@@ -66,7 +66,7 @@ export function ChatPanelInput({
           disabled={disabled}
           rows={1}
           aria-label="Chat message input"
-          className="flex-1 resize-none bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50 disabled:opacity-50 transition-colors"
+          className="flex-1 resize-none bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden focus:border-primary/50 disabled:opacity-50 transition-colors"
         />
         <button
           onClick={handleSendClick}

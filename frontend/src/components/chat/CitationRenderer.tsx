@@ -12,7 +12,7 @@ const SyntaxHighlighter = dynamic(
     ),
   {
     loading: () => (
-      <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
+      <pre className="p-4 rounded-lg bg-(--nous-bg-1) text-xs font-mono overflow-x-auto">
         <code>Loading...</code>
       </pre>
     ),
@@ -119,7 +119,7 @@ export function CitationRenderer({
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className="rounded bg-[var(--nous-bg-2)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--nous-sol)]">
+                    <code className="rounded bg-(--nous-bg-2) px-1.5 py-0.5 text-[11px] font-mono text-(--nous-sol)">
                       {children}
                     </code>
                   );
@@ -135,7 +135,7 @@ export function CitationRenderer({
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[var(--nous-sol)] hover:text-[var(--nous-helios)] underline"
+                    className="text-(--nous-sol) hover:text-(--nous-helios) underline"
                   >
                     {children}
                   </a>

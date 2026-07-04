@@ -597,7 +597,7 @@ function EntityManagementContent() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-border bg-card p-6 shadow-sm"
+            className="rounded-xl border border-border bg-card p-6 shadow-xs"
           >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -693,7 +693,7 @@ function EntityManagementContent() {
           )}
 
           {/* Filters */}
-          <Card className="border-border bg-card shadow-sm">
+          <Card className="border-border bg-card shadow-xs">
             <CardContent className="p-4">
               <EntityFilters
                 searchQuery={searchQuery}
@@ -821,8 +821,8 @@ function EntityManagementContent() {
               </div>
             </div>
 
-            <TabsContent value="list" className="mt-0 outline-none">
-              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+            <TabsContent value="list" className="mt-0 outline-hidden">
+              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
                 <EntityList
                   entities={filteredEntities}
                   loading={loading}
@@ -847,8 +847,8 @@ function EntityManagementContent() {
               </div>
             </TabsContent>
 
-            <TabsContent value="graph" className="mt-0 outline-none">
-              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm p-4">
+            <TabsContent value="graph" className="mt-0 outline-hidden">
+              <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs p-4">
                 {relationshipsLoading ? (
                   <div
                     role="status"
@@ -880,7 +880,7 @@ function EntityManagementContent() {
 
             <TabsContent
               value="statistics"
-              className="mt-0 outline-none space-y-6"
+              className="mt-0 outline-hidden space-y-6"
             >
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -908,7 +908,7 @@ function EntityManagementContent() {
                 ].map((stat) => (
                   <Card
                     key={stat.label}
-                    className="border-border bg-card shadow-sm"
+                    className="border-border bg-card shadow-xs"
                   >
                     <CardHeader className="p-4 pb-1">
                       <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
@@ -929,7 +929,7 @@ function EntityManagementContent() {
               </div>
 
               {/* Type Distribution */}
-              <Card className="border-border bg-card shadow-sm">
+              <Card className="border-border bg-card shadow-xs">
                 <CardHeader className="border-b border-border py-3 bg-muted/30">
                   <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                     <BarChart3
@@ -984,7 +984,7 @@ function EntityManagementContent() {
             </TabsContent>
 
             {/* Path Finder Tab */}
-            <TabsContent value="pathfinder" className="mt-0 outline-none">
+            <TabsContent value="pathfinder" className="mt-0 outline-hidden">
               <PathFinder
                 entities={entities}
                 onEntityClick={(entityId) => {
@@ -998,7 +998,7 @@ function EntityManagementContent() {
             </TabsContent>
 
             {/* Enhanced Search Tab */}
-            <TabsContent value="search" className="mt-0 outline-none">
+            <TabsContent value="search" className="mt-0 outline-hidden">
               <EntitySearch
                 onEntityClick={(entityId) => {
                   const entity = entities.find((e) => e.id === entityId);
@@ -1011,7 +1011,7 @@ function EntityManagementContent() {
             </TabsContent>
 
             {/* Analytics Dashboard Tab */}
-            <TabsContent value="analytics" className="mt-0 outline-none">
+            <TabsContent value="analytics" className="mt-0 outline-hidden">
               <GraphAnalyticsDashboard
                 onTypeClick={(entityType) => {
                   // Filter by clicked entity type
@@ -1025,22 +1025,22 @@ function EntityManagementContent() {
             </TabsContent>
 
             {/* Bulk Operations Tab */}
-            <TabsContent value="bulk" className="mt-0 outline-none">
+            <TabsContent value="bulk" className="mt-0 outline-hidden">
               <BulkOperations />
             </TabsContent>
 
             {/* Document Entity Extractor Tab */}
-            <TabsContent value="extractor" className="mt-0 outline-none">
+            <TabsContent value="extractor" className="mt-0 outline-hidden">
               <DocumentEntityExtractor />
             </TabsContent>
 
             {/* Entity Merge Tool Tab */}
-            <TabsContent value="merge" className="mt-0 outline-none">
+            <TabsContent value="merge" className="mt-0 outline-hidden">
               <EntityMergeTool />
             </TabsContent>
 
             {/* Graph Health Monitor Tab */}
-            <TabsContent value="health" className="mt-0 outline-none">
+            <TabsContent value="health" className="mt-0 outline-hidden">
               <GraphHealthMonitor />
             </TabsContent>
           </Tabs>
@@ -1158,7 +1158,7 @@ function EntityPageLoading() {
       aria-label="Loading entities"
       className="min-h-screen bg-background p-6 space-y-4"
     >
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-lg bg-muted animate-pulse" />
           <div className="space-y-2">

@@ -59,7 +59,7 @@ export function NoteList({
           <select
             value={selectedTag || ''}
             onChange={(e) => onTagChange(e.target.value)}
-            className="px-3 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="px-3 py-1.5 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">All</option>
             {availableTags.map((tag) => (
@@ -91,7 +91,7 @@ export function NoteList({
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => onTogglePin(note.id)}
-                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
                   aria-label={note.is_pinned ? 'Unpin note' : 'Pin note'}
                 >
                   {note.is_pinned ? (
@@ -102,14 +102,14 @@ export function NoteList({
                 </button>
                 <button
                   onClick={() => onEdit(note)}
-                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  className="p-1.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
                   aria-label="Edit note"
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => onDelete(note.id)}
-                  className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
                   aria-label="Delete note"
                 >
                   <Trash2 className="h-4 w-4" />

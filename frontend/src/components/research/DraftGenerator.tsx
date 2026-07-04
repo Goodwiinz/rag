@@ -114,14 +114,14 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
               onChange={(e) => setThemeInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter a theme and press Enter…"
-              className="flex-1 px-3 py-2 bg-muted border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex-1 px-3 py-2 bg-muted border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
             <button
               type="button"
               onClick={handleAddTheme}
               disabled={!themeInput.trim()}
               aria-label="Add theme"
-              className="px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -137,7 +137,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
                   <button
                     onClick={() => handleRemoveTheme(theme)}
                     aria-label={`Remove theme ${theme}`}
-                    className="p-0.5 hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    className="p-0.5 hover:text-destructive transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -169,7 +169,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
                 tabIndex={style === s ? 0 : -1}
                 onClick={() => setStyle(s)}
                 onKeyDown={(e) => handleStyleKeyDown(e, idx)}
-                className={`flex-1 px-3 py-2 rounded text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                className={`flex-1 px-3 py-2 rounded text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   style === s
                     ? 'bg-primary/20 text-primary border border-primary/50'
                     : 'bg-muted text-muted-foreground border border-border hover:border-muted-foreground/50'
@@ -183,7 +183,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
 
         {/* Advanced Options */}
         <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+          <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded">
             <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
             Advanced options
           </CollapsibleTrigger>
@@ -243,7 +243,7 @@ export const DraftGenerator: React.FC<DraftGeneratorProps> = ({
         <button
           onClick={handleGenerate}
           disabled={themes.length === 0 || loading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 text-primary border border-primary/30 rounded text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary/10 text-primary border border-primary/30 rounded text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {loading ? (
             <>

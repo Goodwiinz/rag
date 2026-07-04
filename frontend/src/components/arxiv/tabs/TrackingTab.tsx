@@ -46,11 +46,11 @@ export function TrackingTab({
         <h2 className="text-base font-semibold text-foreground">
           Find new and updated papers
         </h2>
-        <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+        <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
           Checks your selected arXiv categories for papers added or updated
           within the lookback window.
         </p>
-        <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+        <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
           {selectedCategories.length} categories selected, {daysBack} day
           lookback.
         </p>
@@ -66,14 +66,14 @@ export function TrackingTab({
               <p className="text-sm font-medium text-foreground">
                 Sign in to check for new papers
               </p>
-              <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+              <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                 Checking for new papers updates the tracked corpus for your
                 workspace. Sign in to enable it, or keep using public search and
                 statistics.
               </p>
               <a
                 href="/login"
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign in
@@ -94,21 +94,21 @@ export function TrackingTab({
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('core')}
-                  className="rounded-md border border-primary/30 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
+                  className="rounded-md border border-primary/30 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Core AI
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('all')}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Select all
                 </button>
                 <button
                   type="button"
                   onClick={() => onApplyCategoryPreset('clear')}
-                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:px-2 sm:py-1 sm:text-xs"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   Clear
                 </button>
@@ -175,7 +175,7 @@ export function TrackingTab({
               }
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors touch-manipulation',
-                'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
+                'hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
               )}
             >
               {isTracking ? (
@@ -190,7 +190,7 @@ export function TrackingTab({
               type="button"
               onClick={onRefreshMetrics}
               disabled={isAnyOperationRunning || isStatsLoading}
-              className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
             >
               Refresh metrics
             </button>
@@ -238,7 +238,7 @@ export function TrackingTab({
                         className={cn(
                           'text-lg font-semibold tabular-nums',
                           item.isError
-                            ? 'text-[var(--nous-mars)]'
+                            ? 'text-(--nous-mars)'
                             : 'text-foreground'
                         )}
                       >

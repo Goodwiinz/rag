@@ -170,7 +170,7 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
               <select
                 value={draft.version}
                 onChange={(e) => onVersionChange(parseInt(e.target.value, 10))}
-                className="px-2 py-1 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="px-2 py-1 bg-muted border border-border rounded text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {versions.map((v) => (
                   <option key={v.version} value={v.version}>
@@ -186,14 +186,14 @@ export const DraftViewer: React.FC<DraftViewerProps> = ({
             <div className="flex items-center gap-1">
               <button
                 onClick={() => onExport('markdown')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Download className="h-3 w-3" />
                 MD
               </button>
               <button
                 onClick={() => onExport('latex')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted border border-border rounded text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Code className="h-3 w-3" />
                 TeX

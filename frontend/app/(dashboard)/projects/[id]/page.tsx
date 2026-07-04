@@ -556,14 +556,14 @@ export default function ProjectDetailPage() {
                   })
                   .finally(() => setInitialLoading(false));
               }}
-              className="inline-flex items-center rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex items-center rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Try again
             </button>
           )}
           <button
             onClick={() => router.push('/projects')}
-            className="inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Back to projects
           </button>
@@ -583,7 +583,7 @@ export default function ProjectDetailPage() {
         </p>
         <button
           onClick={() => router.push('/projects')}
-          className="mt-5 inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="mt-5 inline-flex items-center rounded-md border border-border bg-card px-3.5 py-2 text-sm text-foreground transition-colors hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Back to projects
         </button>
@@ -650,7 +650,7 @@ export default function ProjectDetailPage() {
           <p className="text-destructive text-sm">{error}</p>
           <button
             onClick={clearError}
-            className="mt-2 text-xs text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+            className="mt-2 text-xs text-destructive underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
           >
             Dismiss
           </button>
@@ -662,7 +662,7 @@ export default function ProjectDetailPage() {
         <div className="flex items-center gap-2 mb-2 sm:mb-0 sm:float-right">
           <button
             onClick={() => setShowUploadWizard(true)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Upload aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Upload
@@ -673,7 +673,7 @@ export default function ProjectDetailPage() {
             }}
             disabled={refreshing}
             aria-label={refreshing ? 'Refreshing project' : 'Refresh project'}
-            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <RefreshCw
               aria-hidden="true"
@@ -712,7 +712,7 @@ export default function ProjectDetailPage() {
                 role="tab"
                 aria-selected={activeTab === tab.id}
                 tabIndex={activeTab === tab.id ? 0 : -1}
-                className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   activeTab === tab.id
                     ? 'text-foreground bg-muted/60 border-b-2 border-primary'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
@@ -742,7 +742,7 @@ export default function ProjectDetailPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  className={`relative flex items-center gap-1 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 text-xs sm:text-sm rounded-t-md transition-colors shrink-0 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     isSecondaryTabActive
                       ? 'text-foreground bg-muted/60 border-b-2 border-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
@@ -794,7 +794,7 @@ export default function ProjectDetailPage() {
             <div className="flex justify-end mb-4">
               <button
                 onClick={handleCreateNote}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Plus aria-hidden="true" className="h-4 w-4" />
                 New note
@@ -850,7 +850,7 @@ export default function ProjectDetailPage() {
                     setBibFormat(format);
                     fetchBibliography(projectId, format);
                   }}
-                  className="px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="bibtex">BibTeX</option>
                   <option value="ieee">IEEE</option>
@@ -861,7 +861,7 @@ export default function ProjectDetailPage() {
               <button
                 onClick={handleExportBibliography}
                 disabled={!bibliography}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-sm font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Download aria-hidden="true" className="h-4 w-4" />
                 Download
@@ -895,7 +895,7 @@ export default function ProjectDetailPage() {
                     {new Date(bibliography.generated_at).toLocaleString()}
                   </span>
                 </div>
-                <pre className="text-sm text-foreground font-[var(--nous-font-mono)] overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto rounded-md bg-muted/40 p-3">
+                <pre className="text-sm text-foreground font-(--nous-font-mono) overflow-x-auto whitespace-pre-wrap max-h-[500px] overflow-y-auto rounded-md bg-muted/40 p-3">
                   {bibliography.content}
                 </pre>
               </div>
@@ -1020,7 +1020,7 @@ export default function ProjectDetailPage() {
                                   draftVersion.version
                                 );
                               }}
-                              className={`w-full text-left px-3 py-2 rounded-md border text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                              className={`w-full text-left px-3 py-2 rounded-md border text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                                 currentDraft?.version === draftVersion.version
                                   ? 'bg-primary/10 border-primary/40 text-primary'
                                   : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/30'
@@ -1062,7 +1062,7 @@ export default function ProjectDetailPage() {
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -1082,7 +1082,7 @@ export default function ProjectDetailPage() {
                               setComparisonDraftA(null);
                               setComparisonDraftB(null);
                             }}
-                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="px-3 py-2 bg-muted border border-border rounded-md text-xs tabular-nums text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
                             {draftVersions.map((draftVersion) => (
                               <option
@@ -1105,7 +1105,7 @@ export default function ProjectDetailPage() {
                             compareVersionA === compareVersionB
                           }
                           aria-busy={comparisonLoading}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary/10 text-primary border border-primary/30 rounded-md text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           {comparisonLoading && (
                             <Loader2

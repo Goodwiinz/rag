@@ -22,7 +22,7 @@ export const CitationGraphSkeleton: React.FC<CitationGraphSkeletonProps> = ({
       style={{ height }}
     >
       {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] animate-pulse" />
+      <div className="absolute inset-0 bg-linear-to-r from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] animate-pulse" />
 
       {/* Fake nodes */}
       <div className="absolute inset-0 p-8">

@@ -23,22 +23,22 @@ export function DocumentStats({ stats }: DocumentStatsProps) {
         icon={CheckCircle2}
         value={stats.visible_indexed}
         label="Indexed"
-        color="text-[var(--nous-terra)]"
-        bg="bg-[var(--nous-terra)]/10"
+        color="text-(--nous-terra)"
+        bg="bg-(--nous-terra)/10"
       />
       <StatPill
         icon={Loader}
         value={stats.visible_processing}
         label="Processing"
-        color="text-[var(--nous-helios)]"
-        bg="bg-[var(--nous-helios)]/10"
+        color="text-(--nous-helios)"
+        bg="bg-(--nous-helios)/10"
       />
       <StatPill
         icon={AlertTriangle}
         value={stats.visible_failed}
         label="Failed"
-        color="text-[var(--nous-mars)]"
-        bg="bg-[var(--nous-mars)]/10"
+        color="text-(--nous-mars)"
+        bg="bg-(--nous-mars)/10"
       />
     </div>
   );

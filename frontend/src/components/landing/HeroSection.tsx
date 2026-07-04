@@ -22,17 +22,17 @@ interface HeroSectionProps {
 export function HeroSection({ isAuthenticated }: HeroSectionProps) {
   return (
     <>
-      <nav className="fixed top-0 inset-x-0 z-50 h-16 border-b border-[var(--nous-shade)] bg-[var(--nous-nyx)]/85 backdrop-blur-md">
+      <nav className="fixed top-0 inset-x-0 z-50 h-16 border-b border-(--nous-shade) bg-(--nous-nyx)/85 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
           <Link href="/" className="flex flex-col leading-none">
             <span
-              className="text-[var(--nous-ivory)] text-base font-bold tracking-[0.18em]"
+              className="text-(--nous-ivory) text-base font-bold tracking-[0.18em]"
               style={{ fontFamily: 'var(--nous-font-heading)' }}
             >
               NOUS
             </span>
             <span
-              className="text-[11px] text-[var(--nous-parchment)] tracking-[0.12em] mt-1"
+              className="text-[11px] text-(--nous-parchment) tracking-[0.12em] mt-1"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Multimodal Intelligence
@@ -41,12 +41,12 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
 
           <div className="flex items-center gap-6">
             <div
-              className="hidden md:flex items-center gap-7 text-sm text-[var(--nous-parchment)]"
+              className="hidden md:flex items-center gap-7 text-sm text-(--nous-parchment)"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <a
                 href="#features"
-                className="hover:text-[var(--nous-ivory)] transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                className="hover:text-(--nous-ivory) transition-colors rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
               >
                 Features
               </a>
@@ -54,7 +54,7 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
             {isAuthenticated ? (
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 h-9 px-4 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-nyx)]"
+                className="inline-flex items-center gap-2 h-9 px-4 rounded-(--nous-radius-md) text-sm font-semibold bg-(--nous-sol) text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-nyx)"
                 style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 Open dashboard
@@ -66,13 +66,13 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
               >
                 <Link
                   href="/login"
-                  className="h-9 px-3 inline-flex items-center text-sm text-[var(--nous-parchment)] hover:text-[var(--nous-ivory)] transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="h-9 px-3 inline-flex items-center text-sm text-(--nous-parchment) hover:text-(--nous-ivory) transition-colors rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                 >
                   Sign in
                 </Link>
                 <Link
                   href="/register"
-                  className="inline-flex items-center gap-2 h-9 px-4 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-nyx)]"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-(--nous-radius-md) text-sm font-semibold bg-(--nous-sol) text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-nyx)"
                 >
                   Get started
                 </Link>
@@ -106,17 +106,17 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
             className="max-w-2xl"
           >
             <p
-              className="text-xs font-semibold tracking-[0.16em] uppercase text-[var(--nous-sol)] mb-8"
+              className="text-xs font-semibold tracking-[0.16em] uppercase text-(--nous-sol) mb-8"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Multimodal Intelligence Platform
             </p>
 
             <h1
-              className="text-[var(--nous-ivory)] mb-8"
+              className="text-(--nous-ivory) mb-8"
               style={{ fontFamily: 'var(--nous-font-heading)' }}
             >
-              <span className="block text-7xl sm:text-8xl md:text-[10rem] font-bold text-[var(--nous-sol)] leading-[0.9] tracking-tight">
+              <span className="block text-7xl sm:text-8xl md:text-[10rem] font-bold text-(--nous-sol) leading-[0.9] tracking-tight">
                 νοῦς
               </span>
               <span className="block text-3xl md:text-5xl font-bold tracking-tight leading-[1.05] mt-5 max-w-[18ch]">
@@ -125,7 +125,7 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
             </h1>
 
             <p
-              className="text-lg text-[var(--nous-parchment)] leading-relaxed max-w-[56ch] mb-10"
+              className="text-lg text-(--nous-parchment) leading-relaxed max-w-[56ch] mb-10"
               style={{ fontFamily: 'var(--nous-font-body)' }}
             >
               Semantic search, knowledge graph extraction, and AI research
@@ -140,7 +140,7 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
               {isAuthenticated ? (
                 <Link
                   href="/dashboard"
-                  className="group inline-flex items-center gap-2 h-12 px-6 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-nyx)]"
+                  className="group inline-flex items-center gap-2 h-12 px-6 rounded-(--nous-radius-md) text-sm font-semibold bg-(--nous-sol) text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-nyx)"
                 >
                   Open dashboard
                   <ArrowRight
@@ -151,7 +151,7 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
               ) : (
                 <Link
                   href="/register"
-                  className="group inline-flex items-center gap-2 h-12 px-6 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-nyx)]"
+                  className="group inline-flex items-center gap-2 h-12 px-6 rounded-(--nous-radius-md) text-sm font-semibold bg-(--nous-sol) text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-nyx)"
                 >
                   Get started
                   <ArrowRight
@@ -162,20 +162,20 @@ export function HeroSection({ isAuthenticated }: HeroSectionProps) {
               )}
               <a
                 href="#features"
-                className="inline-flex items-center gap-2 h-12 px-6 rounded-[var(--nous-radius-md)] text-sm font-semibold border border-[var(--nous-dusk)] text-[var(--nous-ivory)] transition-colors hover:border-[var(--nous-parchment)] hover:bg-[var(--nous-obsidian)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                className="inline-flex items-center gap-2 h-12 px-6 rounded-(--nous-radius-md) text-sm font-semibold border border-(--nous-dusk) text-(--nous-ivory) transition-colors hover:border-(--nous-parchment) hover:bg-(--nous-obsidian)/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
               >
                 Explore the platform
               </a>
             </div>
 
             <ul
-              className="mt-14 pt-7 border-t border-[var(--nous-shade)] flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-[var(--nous-parchment)]"
+              className="mt-14 pt-7 border-t border-(--nous-shade) flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-(--nous-parchment)"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {PROOF.map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-center gap-2">
                   <Icon
-                    className="w-4 h-4 text-[var(--nous-sol)]"
+                    className="w-4 h-4 text-(--nous-sol)"
                     aria-hidden="true"
                   />
                   {text}

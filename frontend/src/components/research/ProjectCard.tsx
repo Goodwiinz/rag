@@ -70,7 +70,7 @@ export function ProjectCard({
           onOpen(project.id);
         }
       }}
-      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-sm hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group bg-card border border-border rounded-lg p-4 cursor-pointer shadow-xs hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
@@ -101,7 +101,7 @@ export function ProjectCard({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                   aria-label="Project actions"
                 >
                   <MoreHorizontal aria-hidden="true" className="h-4 w-4" />

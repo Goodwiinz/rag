@@ -71,7 +71,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
           <button
             type="button"
             onClick={fetchTemplates}
-            className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+            className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
           >
             Retry
           </button>
@@ -94,7 +94,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
         <button
           type="button"
           onClick={() => onSelect(null)}
-          className="group rounded-xl border border-dashed border-border bg-card p-5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="group rounded-xl border border-dashed border-border bg-card p-5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <div className="flex items-center gap-2 mb-3">
             <FileText
@@ -117,7 +117,7 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
             type="button"
             key={tpl.slug}
             onClick={() => onSelect(tpl)}
-            className="group rounded-xl border border-border bg-card p-5 text-left hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="group rounded-xl border border-border bg-card p-5 text-left hover:border-primary/40 hover:shadow-md transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="flex items-center gap-2 mb-3">
               <Sparkles

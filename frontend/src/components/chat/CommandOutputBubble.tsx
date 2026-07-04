@@ -80,7 +80,7 @@ export function CommandOutputBubble({
                   className={
                     'flex w-full min-h-[44px] items-center gap-2.5 rounded-md px-2.5 text-left transition-colors' +
                     (interactive
-                      ? ' cursor-pointer hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]'
+                      ? ' cursor-pointer hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)'
                       : '')
                   }
                 >

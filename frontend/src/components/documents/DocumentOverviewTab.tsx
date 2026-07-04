@@ -16,7 +16,7 @@ export function DocumentOverviewTab({ document }: DocumentOverviewTabProps) {
 
   return (
     <div className="py-6">
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
         <h3 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
           <FileText
             aria-hidden="true"

@@ -46,7 +46,7 @@ export function DocumentFilters({
   return (
     <div className="space-y-4">
       {/* Search and filter row */}
-      <div className="flex flex-col md:flex-row gap-3 md:items-center rounded-xl border border-border bg-card p-2 shadow-sm">
+      <div className="flex flex-col md:flex-row gap-3 md:items-center rounded-xl border border-border bg-card p-2 shadow-xs">
         <div className="flex-1 relative group">
           <Search
             aria-hidden="true"

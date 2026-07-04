@@ -48,7 +48,7 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40"
             onClick={onClose}
           />
           <motion.div
@@ -62,7 +62,7 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
             className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl"
           >
             <div className="relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-xl border border-amber-200/20 shadow-2xl">
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-50/50 to-orange-50/30" />
+              <div className="absolute inset-0 bg-linear-to-br from-amber-50/50 to-orange-50/30" />
               <div className="relative">
                 <form
                   onSubmit={(e) => {
@@ -83,7 +83,7 @@ export const QuickSearch: React.FC<QuickSearchProps> = ({ isOpen, onClose }) => 
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search all documents…"
                       aria-label="Search query"
-                      className="w-full pl-10 pr-16 py-3 bg-white/50 border border-gray-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
+                      className="w-full pl-10 pr-16 py-3 bg-white/50 border border-gray-200/50 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition-all"
                     />
                     <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-mono rounded-md bg-gray-100 border border-gray-200">
                       ESC

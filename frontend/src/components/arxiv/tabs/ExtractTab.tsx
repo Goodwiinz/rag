@@ -69,7 +69,7 @@ export function ExtractTab({
           <Brain className="h-4 w-4 text-primary" aria-hidden="true" />
           Extract research signals
         </h2>
-        <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+        <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
           Extract entities, topics, keyphrases, citations, and summaries for
           specific papers, then optionally sync to the knowledge graph.
         </p>
@@ -85,13 +85,13 @@ export function ExtractTab({
               <p className="text-sm font-medium text-foreground">
                 Extraction is workspace-only
               </p>
-              <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+              <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                 Paste paper IDs to prep a run, then sign in to extract entities,
                 citations, summaries, and knowledge-graph updates.
               </p>
               <a
                 href="/login"
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign in to extract
@@ -118,7 +118,7 @@ export function ExtractTab({
                 onChange={(e) => onExtractPaperIdsChange(e.target.value)}
                 placeholder={'2501.12345\n2501.67890…'}
                 rows={7}
-                className="w-full rounded-lg border border-border bg-card p-3 font-[family-name:var(--nous-font-mono)] text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                className="w-full rounded-lg border border-border bg-card p-3 font-(family-name:--nous-font-mono) text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
               />
             </div>
 
@@ -198,7 +198,7 @@ export function ExtractTab({
                 }
                 className={cn(
                   'inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors',
-                  'hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
+                  'hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45'
                 )}
               >
                 {isExtracting ? (
@@ -216,7 +216,7 @@ export function ExtractTab({
                 type="button"
                 onClick={onClearExtract}
                 disabled={isAnyOperationRunning}
-                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
+                className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Clear
               </button>
@@ -232,7 +232,7 @@ export function ExtractTab({
                 parsedExtractIds.slice(0, 20).map((paperId) => (
                   <span
                     key={paperId}
-                    className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-muted-foreground"
+                    className="max-w-full break-all rounded border border-border bg-card px-2 py-0.5 font-(family-name:--nous-font-mono) text-xs text-muted-foreground"
                   >
                     {paperId}
                   </span>
@@ -252,9 +252,9 @@ export function ExtractTab({
             {invalidExtractIds.length > 0 && (
               <div
                 role="alert"
-                className="mt-3 rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-2.5"
+                className="mt-3 rounded-lg border border-(--nous-mars)/30 bg-(--nous-mars)/10 p-2.5"
               >
-                <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--nous-mars)]">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-(--nous-mars)">
                   <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
                   Invalid IDs ({invalidExtractIds.length})
                 </div>
@@ -262,7 +262,7 @@ export function ExtractTab({
                   {invalidExtractIds.slice(0, 12).map((paperId) => (
                     <span
                       key={paperId}
-                      className="max-w-full break-all rounded border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 px-2 py-0.5 font-[family-name:var(--nous-font-mono)] text-xs text-[var(--nous-mars)]"
+                      className="max-w-full break-all rounded border border-(--nous-mars)/30 bg-(--nous-mars)/10 px-2 py-0.5 font-(family-name:--nous-font-mono) text-xs text-(--nous-mars)"
                     >
                       {paperId}
                     </span>
@@ -324,7 +324,7 @@ export function ExtractTab({
                         className={cn(
                           'rounded-lg border p-3',
                           hasFailed
-                            ? 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10'
+                            ? 'border-(--nous-mars)/30 bg-(--nous-mars)/10'
                             : 'border-border bg-background'
                         )}
                       >
@@ -333,7 +333,7 @@ export function ExtractTab({
                             <div className="truncate text-sm font-medium text-foreground">
                               {result.title || result.paper_id}
                             </div>
-                            <div className="mt-1 font-[family-name:var(--nous-font-mono)] text-xs text-muted-foreground">
+                            <div className="mt-1 font-(family-name:--nous-font-mono) text-xs text-muted-foreground">
                               {result.paper_id}
                             </div>
                           </div>
@@ -341,7 +341,7 @@ export function ExtractTab({
                             className={cn(
                               'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium',
                               hasFailed
-                                ? 'border-[var(--nous-mars)]/30 text-[var(--nous-mars)]'
+                                ? 'border-(--nous-mars)/30 text-(--nous-mars)'
                                 : 'border-primary/30 text-primary'
                             )}
                           >
@@ -369,7 +369,7 @@ export function ExtractTab({
                         )}
 
                         {result.error && (
-                          <div className="mt-2 text-xs text-[var(--nous-mars)]">
+                          <div className="mt-2 text-xs text-(--nous-mars)">
                             {result.error}
                           </div>
                         )}
