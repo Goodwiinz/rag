@@ -908,6 +908,15 @@ export function useChatStreaming(
       } finally {
         setPendingConfirmation(null);
         setIsConfirming(false);
+        // The confirm stream shares streamingRafRef/pendingStreamContentRef
+        // with handleSubmit's onToken throttle. A token that lands just
+        // before completion schedules a rAF that would otherwise fire AFTER
+        // this reset and resurrect stale streamingContent into the store.
+        if (streamingRafRef.current !== null) {
+          cancelAnimationFrame(streamingRafRef.current);
+          streamingRafRef.current = null;
+        }
+        pendingStreamContentRef.current = null;
         useChatStore.setState({
           isStreaming: false,
           streamingContent: '',
