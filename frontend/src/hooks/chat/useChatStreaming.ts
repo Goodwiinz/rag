@@ -21,6 +21,7 @@ import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
@@ -28,6 +29,19 @@ import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 
 // localStorage key for the workspace→agent thread map (see agentThreadMapRef).
 const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
+
+// Agent tools that mutate project content shown in the Working folders rail
+// (sources/notes/drafts). A successful run of one of these must invalidate
+// the ['project', …] queries — useProjectWorkingFolders caches them for 5
+// minutes, so without this the rail misses documents/notes the agent just
+// created until a reload.
+const PROJECT_MUTATING_TOOLS = new Set([
+  'ingest_arxiv',
+  'add_document_to_project',
+  'create_project',
+  'create_project_note',
+  'create_draft',
+]);
 // Warn once per session when the map can't be persisted (quota/private mode).
 let warnedAgentMapWriteFailed = false;
 
@@ -200,6 +214,18 @@ export function useChatStreaming(
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Refetch the Working-folders queries once a project-mutating tool
+  // succeeds, so the rail shows agent-created sources/notes/drafts without
+  // waiting out the 5-minute staleTime.
+  const invalidateProjectDataForTool = useCallback(
+    (tool: string, isError: boolean) => {
+      if (isError || !PROJECT_MUTATING_TOOLS.has(tool)) return;
+      void queryClient.invalidateQueries({ queryKey: ['project'] });
+    },
+    [queryClient]
+  );
 
   // ---- Effects ----
 
@@ -411,6 +437,7 @@ export function useChatStreaming(
                   .getState()
                   .pushToolEnd(currentThreadId, tool, !isError);
               }
+              invalidateProjectDataForTool(tool, isError);
               // Update last matching running step for this tool
               const startTime = toolStartTimes.get(tool);
               const durationMs = startTime ? Date.now() - startTime : undefined;
@@ -436,21 +463,27 @@ export function useChatStreaming(
             },
             onPlan: (steps) => {
               if (!currentThreadId) return;
-              // Coerce each plan step into a single human-readable string.
-              // Backend emits `{steps: [...], reasoning: ...}` — step items may
-              // be plain strings or objects with `description`/`text`/`title`.
+              // Backend emits `{steps: [...], reasoning: ...}` — step items
+              // may be plain strings or planner dicts with `description` and
+              // a `tool` hint ("N/A" for reasoning/respond steps). Keep the
+              // tool hint: the activity store marks a plan item done when its
+              // tool actually completes, instead of bulk-completing the whole
+              // plan at stream end.
               const items = (steps ?? [])
                 .map((step) => {
-                  if (typeof step === 'string') return step;
+                  if (typeof step === 'string') return { text: step };
                   if (step && typeof step === 'object') {
                     const s = step as Record<string, unknown>;
-                    return String(
-                      s.description ?? s.text ?? s.title ?? s.step ?? ''
-                    );
+                    return {
+                      text: String(
+                        s.description ?? s.text ?? s.title ?? s.step ?? ''
+                      ),
+                      tool: typeof s.tool === 'string' ? s.tool : undefined,
+                    };
                   }
-                  return '';
+                  return { text: '' };
                 })
-                .filter((s) => s.length > 0);
+                .filter((item) => item.text.length > 0);
               if (items.length > 0) {
                 useAgentActivityStore
                   .getState()
@@ -686,6 +719,7 @@ export function useChatStreaming(
       boundProjectId,
       resolvedProjectName,
       rememberAgentThread,
+      invalidateProjectDataForTool,
     ]
   );
 
@@ -698,9 +732,11 @@ export function useChatStreaming(
     abortControllerRef.current = null;
 
     // Close out the agent activity indicator — onDone won't fire on abort.
+    // 'stopped', not 'done': a user abort must not strike through the
+    // remaining plan items as if they completed.
     const runThread = activeRunThreadRef.current;
     if (runThread) {
-      useAgentActivityStore.getState().finishRun(runThread, 'done');
+      useAgentActivityStore.getState().finishRun(runThread, 'stopped');
     }
 
     // The store-driven streaming path (used by the non-cloud chat) finalizes
@@ -755,6 +791,9 @@ export function useChatStreaming(
                   tool,
                   !isError
                 );
+              // HITL-confirmed tools are exactly the mutating ones (ingest,
+              // create_note, create_draft) — refresh the rail here too.
+              invalidateProjectDataForTool(tool, isError);
             },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
@@ -803,7 +842,7 @@ export function useChatStreaming(
         });
       }
     },
-    [pendingConfirmation, messages, setMessages]
+    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
   );
 
   return {
