@@ -3,7 +3,6 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -51,10 +50,22 @@ def test_sensitive_terraform_and_local_secret_artifacts_are_not_tracked() -> Non
         re.compile(r"(^|/)\.brv/"),
     ]
 
+    # Deliberately-tracked exceptions to the blanket rules above. Every entry
+    # must be an exact path, sanitized (no credentials, no user-specific
+    # paths), and carry its own narrow .gitignore negation. Anything else
+    # under these directories stays forbidden.
+    allowlisted_tracked = {
+        # /nous-loop self-improvement command — workflow doc only; restored
+        # after the #969 purge with a scoped !.claude/commands/nous-loop.md
+        # gitignore exception.
+        ".claude/commands/nous-loop.md",
+    }
+
     forbidden_tracked = [
         path
         for path in tracked_files
-        if any(pattern.search(path) for pattern in forbidden_patterns)
+        if path not in allowlisted_tracked
+        and any(pattern.search(path) for pattern in forbidden_patterns)
     ]
     assert forbidden_tracked == []
 
