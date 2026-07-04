@@ -90,6 +90,23 @@ const config: Config = {
         'nous-ui': ['var(--nous-font-ui)'],
         'nous-heading': ['var(--nous-font-heading)'],
       },
+      // Radix Collapsible height animation — used via `animate-collapsible-*`
+      // in the assistant-ui tool-fallback and ChatActivityStrip; without these
+      // keyframes the panels snap open/closed instead of animating.
+      keyframes: {
+        'collapsible-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-collapsible-content-height)' },
+        },
+        'collapsible-up': {
+          from: { height: 'var(--radix-collapsible-content-height)' },
+          to: { height: '0' },
+        },
+      },
+      animation: {
+        'collapsible-down': 'collapsible-down 0.2s ease-out',
+        'collapsible-up': 'collapsible-up 0.2s ease-out',
+      },
     },
   },
   plugins: [tailwindcssAnimate],
