@@ -235,7 +235,11 @@ _LLM_NODE_STATIC_PROMPT = (
     "chat' / 'clear history' / 'reset the screen', reply with one short "
     'sentence: "That\'s a CLI command — type /clear at the prompt."\n\n'
     "When answering questions, use retrieved document context when available.\n"
-    "Cite sources using [Doc N] format inline.\n"
+    "Cite sources using [Doc N] format inline — ONLY for documents that "
+    "appear in the Retrieved context block. Never fabricate citations, "
+    "references, paper titles, or bibliographies from memory: if no "
+    "documents were retrieved, say so plainly and clearly label any "
+    "general-knowledge answer as not sourced from the user's documents.\n"
     "Be concise and action-oriented."
 )
 
