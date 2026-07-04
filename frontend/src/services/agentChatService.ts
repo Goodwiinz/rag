@@ -30,7 +30,12 @@ async function getStreamAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export interface AgentExecuteRequest {
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{
+    role: string;
+    content: string;
+    /** Idempotency key for the user turn (server-canonical persistence). */
+    client_message_id?: string;
+  }>;
   page_context: {
     type: string;
     project_id?: string;
@@ -172,7 +177,11 @@ class AgentChatService {
         confirmation: Record<string, unknown>
       ) => void;
       onTrace?: (threadId: string) => void;
-      onDone?: () => void;
+      onDone?: (payload?: {
+        thread_id?: string;
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      }) => void;
       onError?: (error: string) => void;
     },
     signal?: AbortSignal
@@ -284,7 +293,11 @@ class AgentChatService {
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);
                   break;
                 case 'done':
-                  callbacks.onDone?.();
+                  // Server-canonical persistence: the done payload carries the
+                  // persisted ids so the client can reconcile its optimistic
+                  // bubbles instead of double-saving. Legacy servers send only
+                  // {status} — the payload fields are simply undefined then.
+                  callbacks.onDone?.(data);
                   break;
                 case 'error':
                   callbacks.onError?.(
@@ -326,7 +339,11 @@ class AgentChatService {
         threadId: string,
         confirmation: Record<string, unknown>
       ) => void;
-      onDone?: () => void;
+      onDone?: (payload?: {
+        thread_id?: string;
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      }) => void;
       onError?: (error: string) => void;
     },
     signal?: AbortSignal
@@ -427,7 +444,11 @@ class AgentChatService {
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);
                   break;
                 case 'done':
-                  callbacks.onDone?.();
+                  // Server-canonical persistence: the done payload carries the
+                  // persisted ids so the client can reconcile its optimistic
+                  // bubbles instead of double-saving. Legacy servers send only
+                  // {status} — the payload fields are simply undefined then.
+                  callbacks.onDone?.(data);
                   break;
                 case 'error':
                   callbacks.onError?.(

@@ -36,6 +36,15 @@ import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 // localStorage key for the workspace→agent thread map (see agentThreadMapRef).
 const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
 
+// Server-canonical persistence cutover (PR 3/4 of the dual-persistence
+// consolidation). When on: the workspace thread id is sent as the agent
+// stream's thread_id (one thread, no localStorage mapping), the backend is
+// the only message writer (AGENT_CANONICAL_PERSISTENCE must be on
+// server-side too), and the frontend reconciles its optimistic bubbles via
+// the ids in the `done` event instead of double-saving.
+const SERVER_CANONICAL_CHAT =
+  process.env.NEXT_PUBLIC_SERVER_CANONICAL_CHAT === 'true';
+
 /**
  * Map a raw rag_context SSE item ({document_id, title, content, score} from
  * the agent's rag_node) onto the workspace CitationCreate schema so the
@@ -175,6 +184,16 @@ export function useChatStreaming(
   // the backend mint a fresh unlinked one every session.
   const agentThreadMapRef = useRef<Record<string, string>>({});
   useEffect(() => {
+    if (SERVER_CANONICAL_CHAT) {
+      // One thread now — the mapping is obsolete. Clear the stale key once
+      // so old entries can't be misread if the flag is ever rolled back.
+      try {
+        window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
+      } catch {
+        // Storage unavailable — nothing to clear.
+      }
+      return;
+    }
     try {
       const stored = window.localStorage.getItem(AGENT_THREAD_MAP_KEY);
       if (stored) {
@@ -205,6 +224,7 @@ export function useChatStreaming(
   }, []);
   const rememberAgentThread = useCallback(
     (workspaceThreadId: string, agentThreadId: string) => {
+      if (SERVER_CANONICAL_CHAT) return; // one thread — nothing to map
       agentThreadMapRef.current[workspaceThreadId] = agentThreadId;
       try {
         window.localStorage.setItem(
@@ -366,9 +386,23 @@ export function useChatStreaming(
 
       try {
         // Stream via Agent (LangGraph) backend
-        const existingAgentThreadId = currentThreadId
-          ? agentThreadMapRef.current[currentThreadId]
+        // Server-canonical: the workspace thread IS the agent thread — the
+        // legacy localStorage mapping only applies with the flag off.
+        const existingAgentThreadId = SERVER_CANONICAL_CHAT
+          ? currentThreadId || undefined
+          : currentThreadId
+            ? agentThreadMapRef.current[currentThreadId]
+            : undefined;
+        // Idempotency key for this user turn; the backend derives the
+        // assistant row's key from it (uuid5), so an SSE retry can't
+        // duplicate either row.
+        const turnClientMessageId = SERVER_CANONICAL_CHAT
+          ? crypto.randomUUID()
           : undefined;
+        // Persisted ids from the done event (server-canonical only).
+        let doneIds: {
+          assistant_message_id?: string | null;
+        } = {};
 
         console.log(
           '[Chat] Starting agent stream, workspace thread:',
@@ -412,9 +446,16 @@ export function useChatStreaming(
 
         await agentChatService.streamMessage(
           {
-            messages: newMessages.map((m) => ({
+            messages: newMessages.map((m, i) => ({
               role: m.role,
               content: m.content,
+              // Idempotency key rides on the user turn being sent (the last
+              // message) — server-canonical only.
+              ...(turnClientMessageId &&
+              i === newMessages.length - 1 &&
+              m.role === 'user'
+                ? { client_message_id: turnClientMessageId }
+                : {}),
             })),
             page_context: {
               type: boundProjectId ? 'project' : 'chat',
@@ -556,8 +597,11 @@ export function useChatStreaming(
                 confirmation,
               });
             },
-            onDone: () => {
+            onDone: (payload) => {
               console.log('[Agent] Stream complete');
+              if (payload) {
+                doneIds = payload;
+              }
               if (currentThreadId) {
                 useAgentActivityStore
                   .getState()
@@ -692,8 +736,18 @@ export function useChatStreaming(
         const finalMessages = [...newMessages, finalAssistantMessage];
         setMessages(finalMessages);
 
-        // Save messages to workspace database for persistence
-        if (currentThreadId && isAuthenticated) {
+        // Save messages to workspace database for persistence.
+        // Server-canonical mode: the BACKEND already persisted both rows
+        // (user pre-stream, assistant before `done` — full fidelity incl.
+        // tool_executions), so the client only reconciles its optimistic
+        // bubble with the persisted id instead of double-writing a lower-
+        // fidelity copy.
+        if (SERVER_CANONICAL_CHAT) {
+          if (doneIds.assistant_message_id) {
+            finalAssistantMessage.id = doneIds.assistant_message_id;
+            setMessages([...newMessages, finalAssistantMessage]);
+          }
+        } else if (currentThreadId && isAuthenticated) {
           try {
             // Save user message
             const savedUserMessage = await workspaceService.createMessage({
