@@ -64,11 +64,10 @@ class TestRedactPII:
         assert redact_pii("415-555-0123") == "<phone>"
 
     def test_strips_jwt(self):
-        jwt = (
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-            ".eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ"
-            ".SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-        )
+        # Synthetic JWT-shaped token (eyJ + 20+ chars per segment), built
+        # from repeated filler so secret-scrubbing history rewrites never
+        # mistake it for a real credential and mangle the fixture.
+        jwt = ".".join(["eyJ" + "a" * 30, "eyJ" + "b" * 30, "c" * 30])
         assert redact_pii(f"Authorization: Bearer {jwt}") == (
             "Authorization: Bearer <token>"
         )
