@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  mapDbToolExecutions,
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
@@ -151,6 +152,7 @@ export function useChatSession(): UseChatSessionReturn {
         content: dbMsg.content,
         timestamp: new Date(dbMsg.created_at).getTime(),
         citations: dbMsg.citations?.map(normalizeCitation),
+        toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       };
     },
