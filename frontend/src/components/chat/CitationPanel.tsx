@@ -89,6 +89,9 @@ function groupByDocument(citations: Citation[]): SourceGroup[] {
 
 /** Thin relevance meter: a sol-filled bar plus the percentage. */
 function Relevance({ score, wide }: { score: number; wide?: boolean }) {
+  // Synthetic citations (e.g. ContextRail previews) carry score 0 — they are
+  // not retrieval hits, so showing a "0%" relevance meter would be misleading.
+  if (score <= 0) return null;
   const pct = Math.round(score * 100);
   return (
     <span className="inline-flex items-center gap-1.5 shrink-0">
