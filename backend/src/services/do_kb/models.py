@@ -27,7 +27,7 @@ class KnowledgeBase(_Permissive):
 
 
 class DataSource(_Permissive):
-    """Result of POST /v2/gen-ai/knowledge-bases/{kb_uuid}/data-sources."""
+    """Result of POST /v2/gen-ai/knowledge_bases/{kb_uuid}/data_sources."""
 
     uuid: str
     status: Optional[str] = None
@@ -35,7 +35,7 @@ class DataSource(_Permissive):
 
 
 class IndexingJob(_Permissive):
-    """Result of POST /v2/gen-ai/knowledge-bases/{kb_uuid}/indexing-jobs."""
+    """Result of POST /v2/gen-ai/indexing_jobs."""
 
     uuid: str
     status: Optional[str] = None
@@ -57,17 +57,10 @@ class Chunk(_Permissive):
 
     @classmethod
     def from_do_payload(cls, raw: dict[str, Any], rank: int = 0) -> "Chunk":
-        text = (
-            raw.get("text_content")
-            or raw.get("text")
-            or raw.get("content")
-            or ""
-        )
+        text = raw.get("text_content") or raw.get("text") or raw.get("content") or ""
         meta = raw.get("metadata") or {}
         doc_id = (
-            raw.get("document_id")
-            or meta.get("document_id")
-            or meta.get("item_name")
+            raw.get("document_id") or meta.get("document_id") or meta.get("item_name")
         )
         # DO retrieve Public Preview omits relevance scores in responses, so
         # we synthesize a monotonically-decreasing proxy from rank position
