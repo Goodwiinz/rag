@@ -302,3 +302,46 @@ describe('summarizeToolResult', () => {
     expect(long!.length).toBeLessThanOrEqual(140);
   });
 });
+
+describe('syncConversationMessagesWithStore — post-eviction unfreeze', () => {
+  const conv = (messages: any[]) => [
+    {
+      id: 'thread-1',
+      title: 'Thread 1',
+      messages,
+      updatedAt: 1,
+      messageCount: messages.length,
+    },
+  ];
+  const dbMsg = (id: string, iso: string) =>
+    ({
+      id,
+      role: 'assistant',
+      content: `m-${id}`,
+      created_at: iso,
+      citations: [],
+    }) as any;
+
+  it('still ignores a shorter, not-newer store page (partial load)', () => {
+    const cached = [
+      { id: 'a', role: 'user' as const, content: 'a', timestamp: 1000 },
+      { id: 'b', role: 'assistant' as const, content: 'b', timestamp: 2000 },
+    ];
+    const result = syncConversationMessagesWithStore(conv(cached), 'thread-1', [
+      dbMsg('a', '1970-01-01T00:00:01Z'),
+    ]);
+    expect(result[0].messages).toBe(cached);
+  });
+
+  it('accepts a shorter store page whose tail is newer (post-eviction reload)', () => {
+    const cached = [
+      { id: 'a', role: 'user' as const, content: 'a', timestamp: 1000 },
+      { id: 'b', role: 'assistant' as const, content: 'b', timestamp: 2000 },
+    ];
+    const result = syncConversationMessagesWithStore(conv(cached), 'thread-1', [
+      dbMsg('c', '2026-03-09T12:00:00Z'),
+    ]);
+    expect(result[0].messages.map((m) => m.id)).toEqual(['c']);
+    expect(result[0].messageCount).toBe(2); // count stays monotonic
+  });
+});

@@ -195,7 +195,20 @@ export function syncConversationMessagesWithStore<
       return conversation;
     }
 
-    if (mappedMessages.length < conversation.messages.length) {
+    // Don't clobber a fuller local cache with a partial store page — unless
+    // the store's tail is strictly NEWER than the cached tail. After FIFO
+    // eviction (chat-store MAX_CACHED_THREADS) a revisited thread reloads
+    // with only the latest page, which can be shorter than the stale cache;
+    // without the newer-tail escape this guard froze the sidebar cache on
+    // the pre-eviction copy forever.
+    const cachedTailTs =
+      conversation.messages[conversation.messages.length - 1]?.timestamp ?? 0;
+    const mappedTailTs =
+      mappedMessages[mappedMessages.length - 1]?.timestamp ?? 0;
+    if (
+      mappedMessages.length < conversation.messages.length &&
+      mappedTailTs <= cachedTailTs
+    ) {
       return conversation;
     }
 
