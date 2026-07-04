@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Citation, getCitationIdentifier } from '@/utils/citationParser';
@@ -296,6 +297,7 @@ export function CitationPanel({
   className,
 }: CitationPanelProps) {
   const reduce = useReducedMotion();
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('relevance');
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -334,16 +336,39 @@ export function CitationPanel({
       {isOpen && (
         <motion.aside
           aria-label="Sources"
-          initial={reduce ? { opacity: 0 } : { x: '100%', opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={reduce ? { opacity: 0 } : { x: '100%', opacity: 0 }}
+          initial={
+            reduce
+              ? { opacity: 0 }
+              : isMobile
+                ? { y: '100%', opacity: 0 }
+                : { x: '100%', opacity: 0 }
+          }
+          animate={{ x: 0, y: 0, opacity: 1 }}
+          exit={
+            reduce
+              ? { opacity: 0 }
+              : isMobile
+                ? { y: '100%', opacity: 0 }
+                : { x: '100%', opacity: 0 }
+          }
           transition={{ type: 'spring', damping: 26, stiffness: 300 }}
           className={cn(
-            'fixed right-0 top-0 bottom-0 z-50 flex w-[400px] max-w-[90vw] flex-col',
-            'bg-[var(--nous-bg-1)] border-l border-[var(--nous-border-1)]',
+            'fixed z-50 flex flex-col bg-[var(--nous-bg-1)]',
+            // Desktop / tablet: right-docked full-height column.
+            'sm:right-0 sm:top-0 sm:bottom-0 sm:w-[400px] sm:max-w-[90vw]',
+            'sm:border-l sm:border-[var(--nous-border-1)] sm:rounded-none',
+            // Mobile: bottom sheet — full width, capped height, rounded top —
+            // so the transcript stays visible instead of being covered by a
+            // fixed right-edge column.
+            'max-sm:inset-x-0 max-sm:bottom-0 max-sm:h-[75dvh] max-sm:w-full',
+            'max-sm:rounded-t-[var(--nous-radius-xl)] max-sm:border-t max-sm:border-[var(--nous-border-1)]',
             className
           )}
-          style={{ boxShadow: '-20px 0 60px rgba(var(--nous-erebus-rgb), 0.18)' }}
+          style={{
+            boxShadow: isMobile
+              ? '0 -12px 40px rgba(var(--nous-erebus-rgb), 0.18)'
+              : '-20px 0 60px rgba(var(--nous-erebus-rgb), 0.18)',
+          }}
         >
           {/* Header */}
           <div className="flex items-center justify-between gap-2 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-4 py-3">
@@ -403,6 +428,7 @@ export function CitationPanel({
                 onClick={() =>
                   setSortBy((s) => (s === 'relevance' ? 'title' : 'relevance'))
                 }
+                aria-label={`Sorted ${sortBy === 'relevance' ? 'by relevance' : 'by title'} — switch to sort ${sortBy === 'relevance' ? 'by title' : 'by relevance'}`}
                 className="rounded-md px-2 py-1 font-nous-mono text-[10px] text-[var(--nous-fg-3)] transition-colors hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-fg-1)] dark:hover:bg-[var(--nous-ember)]"
               >
                 {sortBy === 'relevance' ? 'By relevance' : 'By title'}
@@ -413,7 +439,10 @@ export function CitationPanel({
           {/* Grouped sources */}
           <div className="nous-scrollbar flex-1 overflow-y-auto">
             {groups.length === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center px-6 text-center">
+              <div
+                role="status"
+                className="flex h-40 flex-col items-center justify-center px-6 text-center"
+              >
                 <FileText
                   className="mb-2 h-9 w-9"
                   style={{ color: 'var(--nous-fg-3)' }}
