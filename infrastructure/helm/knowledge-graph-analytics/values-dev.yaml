@@ -130,6 +130,13 @@ backend:
       value: "rag-agent-dev"
     - name: LANGCHAIN_PROJECT
       value: "rag-agent-dev"
+    # Server-canonical persistence rollout (PR 4a, dev soak): the backend
+    # persists the assistant row synchronously before `done` and returns the
+    # persisted ids in the done payload (#986). Inert for legacy clients —
+    # mode is chosen by which thread_id the client sends. The frontend half
+    # is NEXT_PUBLIC_SERVER_CANONICAL_CHAT on the Vercel dev project (#993).
+    - name: AGENT_CANONICAL_PERSISTENCE
+      value: "true"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"
     - name: SENTRY_PROFILES_SAMPLE_RATE

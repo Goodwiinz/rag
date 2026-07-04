@@ -52,6 +52,15 @@ _WORKSPACE_ACCESS_PREDICATE = (
 # ============================================================================
 
 
+# Legacy shadow agent threads (pre server-canonical cutover) duplicate the
+# workspace copy of every /chat turn, so FTS returned two hits per match.
+# They are excluded from search; the rows stay readable via the agent API.
+_EXCLUDE_LEGACY_AGENT_THREADS = (
+    "    AND NOT (COALESCE(t.rag_document_scope, '{}'::jsonb) "
+    '@> \'{"source": "agent"}\'::jsonb)'
+)
+
+
 class ThreadSearchSortOrder(str, Enum):
     """Sort order options for thread search"""
 
@@ -734,6 +743,7 @@ class ThreadMessageSearchService:
             "JOIN workspaces w ON c.workspace_id = w.id",
             "WHERE",
             "    t.is_deleted = false",
+            _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
             "    AND (",
@@ -772,6 +782,7 @@ class ThreadMessageSearchService:
             "JOIN workspaces w ON c.workspace_id = w.id",
             "WHERE",
             "    t.is_deleted = false",
+            _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
             "    AND (",
@@ -811,6 +822,7 @@ class ThreadMessageSearchService:
             "WHERE",
             "    m.search_vector @@ plainto_tsquery(:query)",
             "    AND t.is_deleted = false",
+            _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
             _WORKSPACE_ACCESS_PREDICATE,
@@ -847,6 +859,7 @@ class ThreadMessageSearchService:
             "WHERE",
             "    m.search_vector @@ plainto_tsquery(:query)",
             "    AND t.is_deleted = false",
+            _EXCLUDE_LEGACY_AGENT_THREADS,
             "    AND c.is_deleted = false",
             "    AND w.is_deleted = false",
             _WORKSPACE_ACCESS_PREDICATE,
