@@ -539,9 +539,13 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # turn. The cached result is returned with a "[deduped...]" prefix so
     # the model sees both the data and a stop signal.
     from src.services.agent.tool_dedupe import (
+        FAILED_RETRY_THRESHOLD,
         build_deduped_execution_entry,
         build_deduped_tool_message,
+        build_failure_capped_execution_entry,
+        build_failure_capped_tool_message,
         find_cached_tool_results,
+        find_repeated_failures,
     )
 
     # Inject page_context project_id before computing dedupe keys so a repeat
@@ -551,7 +555,22 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         _with_injected_project_id(tc, page_context) for tc in last_message.tool_calls
     ]
     cached = find_cached_tool_results(deduped_calls, state["messages"], tool_executions)
-    fresh_calls = [tc for tc in last_message.tool_calls if tc["id"] not in cached]
+    # Circuit breaker: identical (tool, args) that already FAILED twice this
+    # turn is not executed again — the model gets an explicit stop-retrying
+    # error instead (traces 019f2a48-9083 / 019f2245-cf9d: 4x identical
+    # retries per turn until the loop cap).
+    capped = {
+        tc_id: prior
+        for tc_id, prior in find_repeated_failures(
+            deduped_calls, state["messages"], tool_executions
+        ).items()
+        if tc_id not in cached
+    }
+    fresh_calls = [
+        tc
+        for tc in last_message.tool_calls
+        if tc["id"] not in cached and tc["id"] not in capped
+    ]
 
     # Execute all NEW tool calls concurrently with semaphore limiting
     tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
@@ -568,6 +587,23 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             prior = cached[tc["id"]]
             tool_messages.append(build_deduped_tool_message(tc["id"], prior))
             tool_executions.append(build_deduped_execution_entry(tc["id"], tc, prior))
+            continue
+        if tc["id"] in capped:
+            prior = capped[tc["id"]]
+            # Counts toward the error ceiling: two identical failures mean
+            # the "transient" story is over for this turn.
+            error_count += 1
+            last_error = "repeated_failure: identical args already failed this turn"
+            any_failure = True
+            all_success = False
+            tool_messages.append(
+                build_failure_capped_tool_message(
+                    tc["id"], tc, prior, FAILED_RETRY_THRESHOLD
+                )
+            )
+            tool_executions.append(
+                build_failure_capped_execution_entry(tc["id"], tc, prior)
+            )
             continue
         r = fresh_by_id.get(tc["id"])
         if r is None:
