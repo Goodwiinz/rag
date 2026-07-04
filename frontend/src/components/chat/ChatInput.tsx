@@ -277,11 +277,11 @@ export function ChatInput({
           style={{
             background: 'var(--nous-bg-2)',
             border: `1px solid ${
-              isFocused ? 'rgba(212, 160, 57, 0.4)' : 'var(--nous-border-1)'
+              isFocused ? 'rgba(var(--nous-sol-rgb), 0.4)' : 'var(--nous-border-1)'
             }`,
             boxShadow: isFocused
-              ? '0 0 0 3px rgba(212, 160, 57, 0.10), 0 8px 24px rgba(10,10,14,0.06)'
-              : '0 1px 2px rgba(10,10,14,0.04)',
+              ? '0 0 0 3px rgba(var(--nous-sol-rgb), 0.10), 0 8px 24px rgba(var(--nous-erebus-rgb), 0.06)'
+              : '0 1px 2px rgba(var(--nous-erebus-rgb), 0.04)',
             transition:
               'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
           }}
@@ -318,7 +318,7 @@ export function ChatInput({
                       className="w-1.5 h-1.5 rounded-full"
                       style={{
                         background: 'var(--nous-sol)',
-                        boxShadow: '0 0 0 3px rgba(212, 160, 57, 0.18)',
+                        boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
                         animation: 'nous-pulse 1.4s ease-in-out infinite',
                       }}
                     />
@@ -356,7 +356,7 @@ export function ChatInput({
                   background: enableRAG ? 'var(--nous-aurum)' : 'transparent',
                   border: `1px solid ${
                     enableRAG
-                      ? 'rgba(212, 160, 57, 0.25)'
+                      ? 'rgba(var(--nous-sol-rgb), 0.25)'
                       : 'var(--nous-border-1)'
                   }`,
                 }}
@@ -368,7 +368,7 @@ export function ChatInput({
                       ? 'var(--nous-sol)'
                       : 'var(--nous-fg-3)',
                     boxShadow: enableRAG
-                      ? '0 0 5px rgba(212,160,57,0.5)'
+                      ? '0 0 5px rgba(var(--nous-sol-rgb), 0.5)'
                       : 'none',
                   }}
                 />
@@ -674,8 +674,8 @@ export function ChatInput({
                     padding: '8px 16px',
                     fontSize: '12px',
                     letterSpacing: '0.01em',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    background: 'rgba(var(--nous-mars-rgb), 0.1)',
+                    border: '1px solid rgba(var(--nous-mars-rgb), 0.4)',
                     color: 'var(--nous-mars)',
                   }}
                 >
@@ -698,17 +698,17 @@ export function ChatInput({
                     letterSpacing: '0.01em',
                     background: 'var(--nous-erebus)',
                     color: 'white',
-                    boxShadow: '0 1px 2px rgba(10,10,14,0.1)',
+                    boxShadow: '0 1px 2px rgba(var(--nous-erebus-rgb), 0.1)',
                   }}
                   onMouseEnter={(e) => {
                     if (!e.currentTarget.disabled) {
                       e.currentTarget.style.boxShadow =
-                        '0 4px 12px rgba(10,10,14,0.12)';
+                        '0 4px 12px rgba(var(--nous-erebus-rgb), 0.12)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.boxShadow =
-                      '0 1px 2px rgba(10,10,14,0.1)';
+                      '0 1px 2px rgba(var(--nous-erebus-rgb), 0.1)';
                   }}
                 >
                   Send

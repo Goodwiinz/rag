@@ -402,8 +402,6 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
             onSelect={(node) => {
               // Per design + Task 1 verification: note/draft detail routes don't
               // exist yet, so navigate to the project page as a stable fallback.
-              // Document previews (kind: 'document' | 'external') are still a
-              // follow-up wiring through the chat page's CitationPanel state.
               if (
                 (node.kind === 'note' || node.kind === 'draft') &&
                 projectId
@@ -411,9 +409,23 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
                 router.push(`/projects/${projectId}`);
                 return;
               }
-              // TODO(follow-up): open CitationPanel with a synthetic citation
-              // for kind === 'document' | 'external'.
-              console.log('[ContextRail] preview', node);
+              // Document/external previews open the chat page's CitationPanel
+              // with a synthetic citation. The panel state lives inside
+              // ChatPageContent (a child of this layout), so hand it over via
+              // a window event — same idiom as 'populate-chat-input'.
+              if (node.kind === 'document' || node.kind === 'external') {
+                window.dispatchEvent(
+                  new CustomEvent('open-citation-panel', {
+                    detail: {
+                      ...(node.kind === 'document'
+                        ? { documentId: node.id }
+                        : { externalReferenceId: node.id }),
+                      title: node.title,
+                      score: 0,
+                    },
+                  })
+                );
+              }
             }}
             className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
           />

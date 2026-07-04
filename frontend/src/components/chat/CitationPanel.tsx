@@ -90,6 +90,9 @@ function groupByDocument(citations: Citation[]): SourceGroup[] {
 
 /** Thin relevance meter: a sol-filled bar plus the percentage. */
 function Relevance({ score, wide }: { score: number; wide?: boolean }) {
+  // Synthetic citations (e.g. ContextRail previews) carry score 0 — they are
+  // not retrieval hits, so showing a "0%" relevance meter would be misleading.
+  if (score <= 0) return null;
   const pct = Math.round(score * 100);
   return (
     <span className="inline-flex items-center gap-1.5 shrink-0">
@@ -363,8 +366,8 @@ export function CitationPanel({
           )}
           style={{
             boxShadow: isMobile
-              ? '0 -12px 40px rgba(10, 10, 14, 0.18)'
-              : '-20px 0 60px rgba(10, 10, 14, 0.18)',
+              ? '0 -12px 40px rgba(var(--nous-erebus-rgb), 0.18)'
+              : '-20px 0 60px rgba(var(--nous-erebus-rgb), 0.18)',
           }}
         >
           {/* Header */}

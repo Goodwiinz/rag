@@ -95,7 +95,7 @@ export function SearchComposer({
                   className={cn(
                     'nous-send-pill flex items-center gap-2 rounded-full h-10 w-10 sm:h-9 sm:w-auto sm:px-5 justify-center text-xs font-semibold tracking-wide transition-all duration-300',
                     value.trim() && !isDisabled
-                      ? 'bg-[var(--nous-sol)] text-[var(--nous-erebus)] shadow-[0_0_18px_rgba(212,160,57,0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(212,160,57,0.35)] active:scale-95'
+                      ? 'bg-[var(--nous-sol)] text-[var(--nous-erebus)] shadow-[0_0_18px_rgba(var(--nous-sol-rgb),0.25)] hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(var(--nous-sol-rgb),0.35)] active:scale-95'
                       : 'cursor-not-allowed border border-[var(--nous-border-1)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)]/80'
                   )}
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
