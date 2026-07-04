@@ -283,7 +283,20 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 
 TOOL_TIMEOUT_SECONDS = 30
 _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
-_SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
+# search_arxiv is in the slow tier because its worst-case internal path
+# exceeds the 30s default: 3s rate gate + 20s httpx timeout + 2s sleep +
+# a second attempt inside arxiv_service._make_request (~45-50s aggregate).
+# Dev traces 019f2a48-9083 / 019f2245-cf9d show every search_arxiv call
+# dying with TimeoutError at exactly 30s and the agent re-issuing the
+# same query 4x (steps 3/6/9/12) until the loop cap kills the turn. The
+# wall clock stays bounded by the service's internal timeouts; the 120s
+# cap is only the backstop.
+_SLOW_TOOLS = {
+    "ingest_arxiv_papers",
+    "create_draft",
+    "compare_documents",
+    "search_arxiv",
+}
 
 # Tools that already handle their own retry/backoff internally. Outer
 # retry_transient stacks on top and amplifies wall-clock — trace 019e040b
