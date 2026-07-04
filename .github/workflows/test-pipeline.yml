@@ -796,43 +796,36 @@ jobs:
                       print(f'  app user id {u.id} -> {gid} (adopted gotrue id)')
               db.commit()
           "
+      - name: Set up pnpm for Playwright
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - name: Setup Node.js for Playwright
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '20'
-      - name: Cache e2e node_modules
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: tests/e2e/node_modules
-          # No lockfile in tests/e2e (package.json only) — key on it directly.
-          key: ${{ runner.os }}-e2e-node-${{ hashFiles('tests/e2e/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-e2e-node-
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          # Key on package.json (not the @playwright/test semver RANGE) so a
-          # patch bump invalidates the cached browser binary.
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('tests/e2e/package.json') }}
+          # Key on pnpm-lock.yaml so browser cache invalidates when the locked
+          # @playwright/test/playwright version changes.
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-chromium-
       - name: Install Playwright dependencies
-        working-directory: tests/e2e
         run: |
-          npm install
+          pnpm config set fetch-retries 5
+          pnpm config set fetch-retry-mintimeout 20000
+          pnpm config set fetch-retry-maxtimeout 120000
+          pnpm install --frozen-lockfile --filter ./tests/e2e
           # Always run `playwright install` — do NOT gate it on the cache-hit.
-          # The cache key hashes tests/e2e/package.json, which holds a semver
-          # RANGE, and there's no lockfile here, so `npm install` can resolve a
-          # newer @playwright/test patch (e.g. a bumped chrome-headless-shell
-          # build) WITHOUT changing package.json → exact cache-hit → the old
-          # gated logic skipped the install and left a stale browser binary,
-          # failing launch with "Executable doesn't exist". `playwright install`
-          # is a no-op when the cached browser already matches and re-downloads
-          # only on drift; --with-deps also installs the OS libs (libnss/libatk/
-          # libgbm) absent on a fresh runner.
-          npx playwright install --with-deps chromium
+          # The locked workspace install keeps @playwright/test and the browser
+          # cache in sync; this command is a no-op when the matching browser is
+          # cached and re-downloads only on drift. --with-deps also installs OS
+          # libs (libnss/libatk/libgbm) absent on a fresh runner.
+          pnpm --dir tests/e2e exec playwright install --with-deps chromium
       - name: Run E2E Tests
         env:
           CI: true
@@ -845,16 +838,15 @@ jobs:
           TEST_ORG_ADMIN_EMAIL: lab-admin@multimodal-rag.com
           TEST_ORG_ADMIN_PASSWORD: admin123
         run: |
-          cd tests/e2e
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "Running smoke tests for PR..."
-            npx playwright test --grep "@smoke" --project=chromium --reporter=html,github
+            pnpm --dir tests/e2e exec playwright test --grep "@smoke" --project=chromium --reporter=html,github
           else
             echo "Running full E2E tests..."
             # --max-failures: a systemic failure (stack misconfig, dead
             # selector everywhere) exits fast and REPORTS instead of burning
             # the whole job budget and getting killed as "cancelled".
-            npx playwright test --project=chromium --reporter=html,github --max-failures=15
+            pnpm --dir tests/e2e exec playwright test --project=chromium --reporter=html,github --max-failures=15
           fi
       - name: Upload E2E test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -58,6 +58,14 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Terraform and IaC secret material
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+**/.terraform/
+
 # Logs
 logs/
 *.log
@@ -184,9 +192,15 @@ actions-runner/
 
 # Auto Claude data directory
 .auto-claude/
+.claude/
+**/.claude/
 serena_repo/
+.serena/
+.opencode/
+.mcp.json
 
 # GoodFlows session files (contain local paths)
+.goodflows/
 .goodflows/context/sessions/*.json
 
 # Serena Docker config (local paths)
