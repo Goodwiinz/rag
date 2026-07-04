@@ -88,9 +88,9 @@ const transformFileTypeForChart = (stats: FileTypeStats[]) =>
 // label, so color is never the only signal.
 const transformProcessingStats = (stats: ProcessingStats[]) => {
   const statusConfig: Record<string, { icon: any; color: string }> = {
-    completed: { icon: CheckCircle, color: 'text-[var(--nous-terra)]' },
+    completed: { icon: CheckCircle, color: 'text-(--nous-terra)' },
     processing: { icon: Clock, color: 'text-primary' },
-    failed: { icon: XCircle, color: 'text-[var(--nous-mars)]' },
+    failed: { icon: XCircle, color: 'text-(--nous-mars)' },
     pending: { icon: Clock, color: 'text-muted-foreground' },
   };
 
@@ -399,7 +399,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="rounded-xl border border-border bg-card p-5 shadow-sm"
+              className="rounded-xl border border-border bg-card p-5 shadow-xs"
             >
               <div className="h-9 w-9 rounded-lg bg-muted animate-pulse" />
               <div className="mt-4 h-7 w-16 rounded-md bg-muted animate-pulse" />
@@ -413,7 +413,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           {[0, 1].map((i) => (
             <div
               key={i}
-              className="rounded-xl border border-border bg-card p-6 shadow-sm"
+              className="rounded-xl border border-border bg-card p-6 shadow-xs"
             >
               <div className="h-4 w-32 rounded-md bg-muted animate-pulse" />
               <div className="mt-4 h-[260px] rounded-lg bg-muted/40 animate-pulse" />
@@ -432,12 +432,12 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
       <div className={cn('w-full', className)}>
         <div
           role="alert"
-          className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center shadow-sm"
+          className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 text-center shadow-xs"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--nous-mars)]/10">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-(--nous-mars)/10">
             <AlertTriangle
               aria-hidden="true"
-              className="h-6 w-6 text-[var(--nous-mars)]"
+              className="h-6 w-6 text-(--nous-mars)"
             />
           </div>
           <div className="space-y-1">
@@ -515,7 +515,7 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
           {summaryStats.map((stat) => (
             <div
               key={stat.label}
-              className="rounded-xl border border-border bg-card p-5 shadow-sm"
+              className="rounded-xl border border-border bg-card p-5 shadow-xs"
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-primary">
                 <stat.icon aria-hidden="true" className="h-4 w-4" />
@@ -533,11 +533,11 @@ export function AnalyticsDashboard({ className }: AnalyticsDashboardProps) {
         {partialFailures.length > 0 && (
           <div
             role="status"
-            className="flex items-start gap-3 rounded-xl border border-[var(--nous-corona)]/30 bg-[var(--nous-corona)]/10 p-4"
+            className="flex items-start gap-3 rounded-xl border border-(--nous-corona)/30 bg-(--nous-corona)/10 p-4"
           >
             <Info
               aria-hidden="true"
-              className="mt-0.5 h-4 w-4 shrink-0 text-[var(--nous-corona)]"
+              className="mt-0.5 h-4 w-4 shrink-0 text-(--nous-corona)"
             />
             <p className="text-sm text-foreground">
               Some data couldn&apos;t be loaded ({partialFailures.join(', ')}).

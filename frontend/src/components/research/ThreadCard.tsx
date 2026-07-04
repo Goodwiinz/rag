@@ -97,7 +97,7 @@ export const ThreadCard: React.FC<ThreadCardProps> = ({
               tabIndex={0}
               onClick={handleTitleClick}
               onKeyDown={handleTitleKeyDown}
-              className="text-base font-semibold text-foreground cursor-pointer hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded truncate"
+              className="text-base font-semibold text-foreground cursor-pointer hover:text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded truncate"
             >
               {thread.thread_title}
             </h3>

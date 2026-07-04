@@ -402,7 +402,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             onKeyDown={handleKeyDown}
             onFocus={() => query.trim().length >= 2 && setShowSuggestions(true)}
             placeholder={placeholder}
-            className="pl-14 pr-32 h-14 text-lg bg-background/50 backdrop-blur-xl shadow-sm hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary border-muted-foreground/20 rounded-2xl transition-all duration-200 placeholder:text-muted-foreground/50"
+            className="pl-14 pr-32 h-14 text-lg bg-background/50 backdrop-blur-xl shadow-xs hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary border-muted-foreground/20 rounded-2xl transition-all duration-200 placeholder:text-muted-foreground/50"
             disabled={isSearching}
             autoFocus={autoFocus}
             aria-label="Search query"
@@ -473,7 +473,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
         {showSuggestions && suggestions && (
           <div
             ref={suggestionsRef}
-            className="absolute top-full left-0 right-0 z-50 mt-2 bg-popover/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl max-h-[32rem] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 ring-1 ring-black/5"
+            className="absolute top-full left-0 right-0 z-50 mt-2 bg-popover/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl max-h-128 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 ring-1 ring-black/5"
           >
             {/* Auto-complete suggestions */}
             {suggestions.auto_complete.length > 0 && (
@@ -487,7 +487,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                     type="button"
                     onClick={() => handleSuggestionClick(suggestion)}
                     className={cn(
-                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center space-x-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center space-x-3 group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
                       selectedSuggestionIndex === index
                         ? 'bg-accent text-accent-foreground'
                         : 'hover:bg-accent/50 text-foreground'
@@ -522,11 +522,11 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                     type="button"
                     onClick={() => handleSuggestionClick(related.query)}
                     className={cn(
-                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center justify-between group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+                      'w-full text-left px-3 py-2.5 text-sm rounded-xl transition-all duration-150 flex items-center justify-between group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
                       selectedSuggestionIndex ===
                         suggestions.auto_complete.length + index
                         ? 'bg-accent text-accent-foreground'
-                        : 'hover:bg-background hover:shadow-sm text-foreground'
+                        : 'hover:bg-background hover:shadow-xs text-foreground'
                     )}
                   >
                     <span className="font-medium">{related.query}</span>
@@ -557,7 +557,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('file_type', 'pdf')}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
               filters.file_types?.includes('pdf')
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -570,7 +570,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('date', 'week')}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
               filters.date_range
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -583,7 +583,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
             type="button"
             onClick={() => toggleQuickFilter('confidence', 0.8)}
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center space-x-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1',
               filters.min_confidence === 0.8
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-background border-border hover:border-primary/50 hover:bg-accent text-muted-foreground hover:text-foreground'
@@ -618,7 +618,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                         filters.modalities?.filter((i) => i !== m)
                       )
                     }
-                    className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
+                    className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                     aria-label={`Remove ${m} filter`}
                   >
                     ×
@@ -636,7 +636,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleQuickFilter('file_type', f)}
-                    className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
+                    className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                     aria-label={`Remove ${f} file type filter`}
                   >
                     ×
@@ -652,7 +652,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 <button
                   type="button"
                   onClick={() => toggleQuickFilter('date', 'week')}
-                  className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
+                  className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                   aria-label="Remove date range filter"
                 >
                   ×
@@ -668,7 +668,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                 <button
                   type="button"
                   onClick={() => toggleQuickFilter('confidence', 0.8)}
-                  className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
+                  className="ml-1.5 rounded-sm hover:text-destructive focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                   aria-label="Remove confidence filter"
                 >
                   ×
@@ -942,7 +942,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleHistoryClick(item)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -994,7 +994,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
                   key={saved.id}
                   type="button"
                   onClick={() => handleSavedSearchClick(saved)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                  className="w-full text-left p-3 rounded-lg hover:bg-muted transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   <div className="flex items-center justify-between">
                     <div>

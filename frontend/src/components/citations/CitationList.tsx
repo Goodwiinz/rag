@@ -55,17 +55,17 @@ const CitationItem = memo<{
 
   return (
     <div style={{ ...style, paddingBottom: '12px' }}>
-      <div className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] transition-all h-full overflow-hidden">
+      <div className="rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) hover:bg-(--nous-bg-3) transition-all h-full overflow-hidden">
         <div className="p-4 h-full overflow-y-auto">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {/* Title */}
-              <h3 className="text-sm font-mono font-bold text-[var(--nous-fg-1)] line-clamp-2 mb-2">
+              <h3 className="text-sm font-mono font-bold text-(--nous-fg-1) line-clamp-2 mb-2">
                 {citation.documentTitle || 'Untitled'}
               </h3>
 
               {/* Authors and Year */}
-              <p className="text-xs font-mono text-[var(--nous-fg-3)]">
+              <p className="text-xs font-mono text-(--nous-fg-3)">
                 {citation.authors && citation.authors.length > 0
                   ? citation.authors.slice(0, 3).join(', ') +
                     (citation.authors.length > 3 ? ', et al.' : '')
@@ -82,9 +82,9 @@ const CitationItem = memo<{
             </div>
 
             {/* Status Badges */}
-            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+            <div className="flex flex-col items-end gap-2 shrink-0">
               {citation.needsReview && (
-                <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border border-[var(--nous-helios)]/20 flex items-center gap-1">
+                <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-(--nous-helios)/10 text-(--nous-helios) border border-(--nous-helios)/20 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
                   Needs Review
                 </span>
@@ -95,7 +95,7 @@ const CitationItem = memo<{
                   variant="ghost"
                   size="sm"
                   onClick={() => data.onEdit?.(citation)}
-                  className="h-7 px-2 text-xs font-mono text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)]"
+                  className="h-7 px-2 text-xs font-mono text-(--nous-fg-3) hover:text-(--nous-sol)"
                 >
                   <Edit className="w-3.5 h-3.5 mr-1" />
                   Edit
@@ -106,13 +106,13 @@ const CitationItem = memo<{
 
           {/* Identifiers (ArXiv, DOI) */}
           {(citation.arxivId || citation.doi) && (
-            <div className="mt-3 pt-3 border-t border-[var(--nous-border-1)] flex flex-wrap gap-2">
+            <div className="mt-3 pt-3 border-t border-(--nous-border-1) flex flex-wrap gap-2">
               {citation.arxivId && (
                 <a
                   href={`https://arxiv.org/abs/${citation.arxivId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2 py-0.5 rounded text-[10px] font-mono bg-[var(--nous-sol)]/5 text-[var(--nous-sol)] border border-[var(--nous-sol)]/20 hover:bg-[var(--nous-sol)]/10 transition-all flex items-center gap-1"
+                  className="px-2 py-0.5 rounded text-[10px] font-mono bg-(--nous-sol)/5 text-(--nous-sol) border border-(--nous-sol)/20 hover:bg-(--nous-sol)/10 transition-all flex items-center gap-1"
                 >
                   ArXiv: {citation.arxivId}
                   <ExternalLink className="w-3 h-3" />
@@ -144,15 +144,15 @@ const CitationItem = memo<{
 
           {/* Abstract (Expandable) - Compact view in virtualized mode */}
           {hasAbstract && (
-            <div className="mt-3 pt-3 border-t border-[var(--nous-border-1)]">
+            <div className="mt-3 pt-3 border-t border-(--nous-border-1)">
               <button
                 onClick={() => data.onToggleExpand(citation.id)}
-                className="text-xs font-mono text-[var(--nous-sol)] hover:underline mb-2"
+                className="text-xs font-mono text-(--nous-sol) hover:underline mb-2"
               >
                 {isExpanded ? 'Hide' : 'Show'} Abstract
               </button>
               {isExpanded && (
-                <p className="text-xs font-mono text-[var(--nous-fg-3)] leading-relaxed line-clamp-4">
+                <p className="text-xs font-mono text-(--nous-fg-3) leading-relaxed line-clamp-4">
                   {citation.abstract}
                 </p>
               )}
@@ -226,12 +226,12 @@ export function CitationList({
     return (
       <div
         className={cn(
-          'text-center py-12 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]',
+          'text-center py-12 rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2)',
           className
         )}
       >
         <BookOpen className="w-12 h-12 text-foreground mx-auto mb-4" />
-        <p className="font-mono text-sm text-[var(--nous-fg-3)]">
+        <p className="font-mono text-sm text-(--nous-fg-3)">
           No citations found
         </p>
         <p className="font-mono text-xs text-foreground mt-2">
@@ -256,19 +256,19 @@ export function CitationList({
           return (
             <div
               key={citation.id}
-              className="rounded-lg border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] hover:bg-[var(--nous-bg-3)] transition-all"
+              className="rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2) hover:bg-(--nous-bg-3) transition-all"
             >
               {/* Main Citation Info */}
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     {/* Title */}
-                    <h3 className="text-sm font-mono font-bold text-[var(--nous-fg-1)] line-clamp-2 mb-2">
+                    <h3 className="text-sm font-mono font-bold text-(--nous-fg-1) line-clamp-2 mb-2">
                       {citation.documentTitle || 'Untitled'}
                     </h3>
 
                     {/* Authors and Year */}
-                    <p className="text-xs font-mono text-[var(--nous-fg-3)]">
+                    <p className="text-xs font-mono text-(--nous-fg-3)">
                       {citation.authors && citation.authors.length > 0
                         ? citation.authors.slice(0, 3).join(', ') +
                           (citation.authors.length > 3 ? ', et al.' : '')
@@ -285,9 +285,9 @@ export function CitationList({
                   </div>
 
                   {/* Status Badges */}
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     {citation.needsReview && (
-                      <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-[var(--nous-helios)]/10 text-[var(--nous-helios)] border border-[var(--nous-helios)]/20 flex items-center gap-1">
+                      <span className="px-2 py-1 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-(--nous-helios)/10 text-(--nous-helios) border border-(--nous-helios)/20 flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
                         Needs Review
                       </span>
@@ -298,7 +298,7 @@ export function CitationList({
                         variant="ghost"
                         size="sm"
                         onClick={() => onEdit(citation)}
-                        className="h-7 px-2 text-xs font-mono text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)]"
+                        className="h-7 px-2 text-xs font-mono text-(--nous-fg-3) hover:text-(--nous-sol)"
                       >
                         <Edit className="w-3.5 h-3.5 mr-1" />
                         Edit
@@ -309,13 +309,13 @@ export function CitationList({
 
                 {/* Identifiers (ArXiv, DOI) */}
                 {(citation.arxivId || citation.doi) && (
-                  <div className="mt-3 pt-3 border-t border-[var(--nous-border-1)] flex flex-wrap gap-2">
+                  <div className="mt-3 pt-3 border-t border-(--nous-border-1) flex flex-wrap gap-2">
                     {citation.arxivId && (
                       <a
                         href={`https://arxiv.org/abs/${citation.arxivId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-2 py-0.5 rounded text-[10px] font-mono bg-[var(--nous-sol)]/5 text-[var(--nous-sol)] border border-[var(--nous-sol)]/20 hover:bg-[var(--nous-sol)]/10 transition-all flex items-center gap-1"
+                        className="px-2 py-0.5 rounded text-[10px] font-mono bg-(--nous-sol)/5 text-(--nous-sol) border border-(--nous-sol)/20 hover:bg-(--nous-sol)/10 transition-all flex items-center gap-1"
                       >
                         ArXiv: {citation.arxivId}
                         <ExternalLink className="w-3 h-3" />
@@ -347,15 +347,15 @@ export function CitationList({
 
                 {/* Abstract (Expandable) */}
                 {hasAbstract && (
-                  <div className="mt-3 pt-3 border-t border-[var(--nous-border-1)]">
+                  <div className="mt-3 pt-3 border-t border-(--nous-border-1)">
                     <button
                       onClick={() => toggleExpand(citation.id)}
-                      className="text-xs font-mono text-[var(--nous-sol)] hover:underline mb-2"
+                      className="text-xs font-mono text-(--nous-sol) hover:underline mb-2"
                     >
                       {isExpanded ? 'Hide' : 'Show'} Abstract
                     </button>
                     {isExpanded && (
-                      <p className="text-xs font-mono text-[var(--nous-fg-3)] leading-relaxed">
+                      <p className="text-xs font-mono text-(--nous-fg-3) leading-relaxed">
                         {citation.abstract}
                       </p>
                     )}
@@ -373,13 +373,13 @@ export function CitationList({
   return (
     <div
       className={cn(
-        'rounded-lg border border-[var(--nous-border-1)]',
+        'rounded-lg border border-(--nous-border-1)',
         className
       )}
     >
       {/* List stats for large lists */}
-      <div className="px-4 py-2 bg-[var(--nous-bg-3)] border-b border-[var(--nous-border-1)] flex items-center justify-between">
-        <span className="text-xs font-mono text-[var(--nous-fg-3)]">
+      <div className="px-4 py-2 bg-(--nous-bg-3) border-b border-(--nous-border-1) flex items-center justify-between">
+        <span className="text-xs font-mono text-(--nous-fg-3)">
           {citations.length.toLocaleString()} citations
         </span>
         <span className="text-[10px] font-mono text-muted-foreground">
@@ -394,7 +394,7 @@ export function CitationList({
         itemSize={180} // Fixed height per item for virtualization
         itemData={itemData}
         overscanCount={5}
-        className="scrollbar-thin scrollbar-thumb-[var(--nous-border-1)] scrollbar-track-transparent"
+        className="scrollbar-thin scrollbar-thumb-(--nous-border-1) scrollbar-track-transparent"
       >
         {CitationItem}
       </List>

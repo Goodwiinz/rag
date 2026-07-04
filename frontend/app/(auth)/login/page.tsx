@@ -129,19 +129,19 @@ function LoginPageContent(): React.JSX.Element | null {
   };
 
   const inputClass =
-    'w-full rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-nyx)] py-3 text-sm text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] outline-none transition-colors focus-visible:border-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40';
+    'w-full rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-nyx) py-3 text-sm text-(--nous-fg-1) placeholder:text-(--nous-fg-3) outline-hidden transition-colors focus-visible:border-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40';
 
   const Brand = (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-obsidian)">
         <span
           aria-hidden="true"
-          className="text-base font-semibold text-[var(--nous-sol)]"
+          className="text-base font-semibold text-(--nous-sol)"
         >
           N
         </span>
       </div>
-      <span className="text-lg font-semibold tracking-[0.04em] text-[var(--nous-fg-1)]">
+      <span className="text-lg font-semibold tracking-[0.04em] text-(--nous-fg-1)">
         NOUS
       </span>
     </div>
@@ -150,14 +150,14 @@ function LoginPageContent(): React.JSX.Element | null {
   // SSR-friendly skeleton to keep LCP stable while hydrating.
   if (!mounted) {
     return (
-      <div className="flex min-h-screen bg-[var(--nous-nyx)] text-[var(--nous-fg-1)]">
-        <div className="hidden flex-col justify-center border-r border-[var(--nous-border-1)] px-16 lg:flex lg:w-1/2 lg:px-24">
+      <div className="flex min-h-screen bg-(--nous-nyx) text-(--nous-fg-1)">
+        <div className="hidden flex-col justify-center border-r border-(--nous-border-1) px-16 lg:flex lg:w-1/2 lg:px-24">
           <div className="mb-12">{Brand}</div>
-          <h1 className="mb-6 max-w-md text-4xl font-semibold leading-tight tracking-tight text-[var(--nous-fg-1)]">
+          <h1 className="mb-6 max-w-md text-4xl font-semibold leading-tight tracking-tight text-(--nous-fg-1)">
             Turn your sources into answers you can trust.
           </h1>
           <p
-            className="max-w-md text-base leading-relaxed text-[var(--nous-fg-2)]"
+            className="max-w-md text-base leading-relaxed text-(--nous-fg-2)"
             style={{ fontFamily: 'var(--nous-font-body)' }}
           >
             NOUS reads your documents the way a careful researcher would, and
@@ -166,14 +166,14 @@ function LoginPageContent(): React.JSX.Element | null {
         </div>
         <div className="flex flex-1 items-center justify-center px-6 lg:px-8">
           <div className="w-full max-w-md">
-            <div className="rounded-[var(--nous-radius-xl)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)] p-8">
-              <h2 className="mb-6 text-xl font-semibold text-[var(--nous-fg-1)]">
+            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-obsidian) p-8">
+              <h2 className="mb-6 text-xl font-semibold text-(--nous-fg-1)">
                 Sign in
               </h2>
               <div className="space-y-5">
-                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-nyx)]" />
-                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-nyx)]" />
-                <div className="h-12 rounded-[var(--nous-radius-md)] bg-[var(--nous-sol)]/20" />
+                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-nyx)" />
+                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-nyx)" />
+                <div className="h-12 rounded-(--nous-radius-md) bg-(--nous-sol)/20" />
               </div>
             </div>
           </div>
@@ -183,9 +183,9 @@ function LoginPageContent(): React.JSX.Element | null {
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--nous-nyx)] text-[var(--nous-fg-1)]">
+    <div className="flex min-h-screen bg-(--nous-nyx) text-(--nous-fg-1)">
       {/* Left panel — editorial */}
-      <div className="hidden flex-col justify-center border-r border-[var(--nous-border-1)] px-16 lg:flex lg:w-1/2 lg:px-24">
+      <div className="hidden flex-col justify-center border-r border-(--nous-border-1) px-16 lg:flex lg:w-1/2 lg:px-24">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -193,11 +193,11 @@ function LoginPageContent(): React.JSX.Element | null {
         >
           <div className="mb-12">{Brand}</div>
 
-          <h1 className="mb-6 max-w-lg text-4xl font-semibold leading-tight tracking-tight text-[var(--nous-fg-1)]">
+          <h1 className="mb-6 max-w-lg text-4xl font-semibold leading-tight tracking-tight text-(--nous-fg-1)">
             Turn your sources into answers you can trust.
           </h1>
           <p
-            className="mb-10 max-w-md text-base leading-relaxed text-[var(--nous-fg-2)]"
+            className="mb-10 max-w-md text-base leading-relaxed text-(--nous-fg-2)"
             style={{ fontFamily: 'var(--nous-font-body)' }}
           >
             NOUS reads your documents the way a careful researcher would, and
@@ -209,11 +209,11 @@ function LoginPageContent(): React.JSX.Element | null {
               <li key={i} className="flex items-center gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--nous-radius-sm)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)]"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-(--nous-radius-sm) border border-(--nous-border-1) bg-(--nous-obsidian)"
                 >
-                  <Database className="h-3.5 w-3.5 text-[var(--nous-sol)]" />
+                  <Database className="h-3.5 w-3.5 text-(--nous-sol)" />
                 </span>
-                <span className="text-sm text-[var(--nous-fg-2)]">{text}</span>
+                <span className="text-sm text-(--nous-fg-2)">{text}</span>
               </li>
             ))}
           </ul>
@@ -231,12 +231,12 @@ function LoginPageContent(): React.JSX.Element | null {
             {/* Mobile brand */}
             <div className="mb-8 flex justify-center lg:hidden">{Brand}</div>
 
-            <div className="rounded-[var(--nous-radius-xl)] border border-[var(--nous-border-1)] bg-[var(--nous-obsidian)] p-8 shadow-[var(--nous-shadow-xl)]">
+            <div className="rounded-(--nous-radius-xl) border border-(--nous-border-1) bg-(--nous-obsidian) p-8 shadow-(--nous-shadow-xl)">
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-[var(--nous-fg-1)]">
+                <h2 className="text-xl font-semibold text-(--nous-fg-1)">
                   Sign in
                 </h2>
-                <p className="mt-1 text-sm text-[var(--nous-fg-3)]">
+                <p className="mt-1 text-sm text-(--nous-fg-3)">
                   Welcome back to NOUS.
                 </p>
               </div>
@@ -245,9 +245,9 @@ function LoginPageContent(): React.JSX.Element | null {
                 {error && (
                   <div
                     role="alert"
-                    className="rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/10 p-3"
+                    className="rounded-(--nous-radius-md) border border-(--nous-mars)/40 bg-(--nous-mars)/10 p-3"
                   >
-                    <p className="text-sm text-[var(--nous-mars)]">{error}</p>
+                    <p className="text-sm text-(--nous-mars)">{error}</p>
                   </div>
                 )}
 
@@ -255,7 +255,7 @@ function LoginPageContent(): React.JSX.Element | null {
                 <div className="space-y-1.5">
                   <label
                     htmlFor="email"
-                    className="block text-sm font-medium text-[var(--nous-fg-2)]"
+                    className="block text-sm font-medium text-(--nous-fg-2)"
                   >
                     Email
                   </label>
@@ -263,7 +263,7 @@ function LoginPageContent(): React.JSX.Element | null {
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
                       <Mail
                         aria-hidden="true"
-                        className="h-4 w-4 text-[var(--nous-fg-3)]"
+                        className="h-4 w-4 text-(--nous-fg-3)"
                       />
                     </div>
                     <input
@@ -286,13 +286,13 @@ function LoginPageContent(): React.JSX.Element | null {
                   <div className="flex items-center justify-between">
                     <label
                       htmlFor="password"
-                      className="block text-sm font-medium text-[var(--nous-fg-2)]"
+                      className="block text-sm font-medium text-(--nous-fg-2)"
                     >
                       Password
                     </label>
                     <Link
                       href="/forgot-password"
-                      className="rounded-sm text-sm text-[var(--nous-sol)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                      className="rounded-sm text-sm text-(--nous-sol) underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                     >
                       Forgot password?
                     </Link>
@@ -301,7 +301,7 @@ function LoginPageContent(): React.JSX.Element | null {
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
                       <Lock
                         aria-hidden="true"
-                        className="h-4 w-4 text-[var(--nous-fg-3)]"
+                        className="h-4 w-4 text-(--nous-fg-3)"
                       />
                     </div>
                     <input
@@ -319,7 +319,7 @@ function LoginPageContent(): React.JSX.Element | null {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center rounded-sm pr-3.5 text-[var(--nous-fg-3)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                      className="absolute inset-y-0 right-0 flex items-center rounded-sm pr-3.5 text-(--nous-fg-3) transition-colors hover:text-(--nous-sol) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                       aria-label={
                         showPassword ? 'Hide password' : 'Show password'
                       }
@@ -336,7 +336,7 @@ function LoginPageContent(): React.JSX.Element | null {
                 {/* CLI auth export */}
                 <label
                   htmlFor="downloadCliAuth"
-                  className="flex cursor-pointer items-start gap-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)] bg-[var(--nous-nyx)] px-3.5 py-3"
+                  className="flex cursor-pointer items-start gap-3 rounded-(--nous-radius-md) border border-(--nous-border-1) bg-(--nous-nyx) px-3.5 py-3"
                 >
                   <input
                     id="downloadCliAuth"
@@ -344,11 +344,11 @@ function LoginPageContent(): React.JSX.Element | null {
                     type="checkbox"
                     checked={formData.downloadCliAuth}
                     onChange={handleChange}
-                    className="mt-0.5 h-4 w-4 rounded border-[var(--nous-border-1)] bg-[var(--nous-nyx)] accent-[var(--nous-sol)] focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                    className="mt-0.5 h-4 w-4 rounded border-(--nous-border-1) bg-(--nous-nyx) accent-(--nous-sol) focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                   />
-                  <span className="text-sm leading-snug text-[var(--nous-fg-2)]">
+                  <span className="text-sm leading-snug text-(--nous-fg-2)">
                     Download NOUS CLI credentials after signing in
-                    <span className="mt-0.5 block text-xs text-[var(--nous-fg-3)]">
+                    <span className="mt-0.5 block text-xs text-(--nous-fg-3)">
                       Optional
                     </span>
                   </span>
@@ -359,7 +359,7 @@ function LoginPageContent(): React.JSX.Element | null {
                   type="submit"
                   data-testid="login-button"
                   disabled={isSubmitting}
-                  className="group flex w-full items-center justify-center gap-2 rounded-[var(--nous-radius-md)] bg-[var(--nous-sol)] py-3 text-sm font-semibold text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-obsidian)] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="group flex w-full items-center justify-center gap-2 rounded-(--nous-radius-md) bg-(--nous-sol) py-3 text-sm font-semibold text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-obsidian) disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSubmitting ? (
                     <span>Signing in…</span>
@@ -375,11 +375,11 @@ function LoginPageContent(): React.JSX.Element | null {
                 </button>
               </form>
 
-              <div className="mt-6 border-t border-[var(--nous-border-1)] pt-5 text-center text-sm text-[var(--nous-fg-3)]">
+              <div className="mt-6 border-t border-(--nous-border-1) pt-5 text-center text-sm text-(--nous-fg-3)">
                 New to NOUS?{' '}
                 <Link
                   href="/register"
-                  className="rounded-sm font-medium text-[var(--nous-sol)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
+                  className="rounded-sm font-medium text-(--nous-sol) underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
                 >
                   Create an account
                 </Link>

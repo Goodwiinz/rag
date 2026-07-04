@@ -211,7 +211,7 @@ export const ResponsiveGraphControls: React.FC<{
     <>
       <IconButton
         onClick={onZoomIn}
-        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
+        className="p-2 bg-background border border-border rounded hover:bg-(--nous-bg-3)"
         label="Zoom in"
         icon={
           <svg
@@ -231,7 +231,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onZoomOut}
-        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
+        className="p-2 bg-background border border-border rounded hover:bg-(--nous-bg-3)"
         label="Zoom out"
         icon={
           <svg
@@ -251,7 +251,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onFit}
-        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
+        className="p-2 bg-background border border-border rounded hover:bg-(--nous-bg-3)"
         label="Fit to screen"
         icon={
           <svg
@@ -271,7 +271,7 @@ export const ResponsiveGraphControls: React.FC<{
       />
       <IconButton
         onClick={onReset}
-        className="p-2 bg-background border border-border rounded hover:bg-[var(--nous-bg-3)]"
+        className="p-2 bg-background border border-border rounded hover:bg-(--nous-bg-3)"
         label="Reset view"
         icon={
           <svg
@@ -297,10 +297,10 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint !== 'mobile' && (
         <button
           onClick={onToggleLabels}
-          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             showLabels
-              ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
-              : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
+              ? 'bg-(--nous-sol) text-white border-(--nous-sol)'
+              : 'bg-background border-border hover:bg-(--nous-bg-3)'
           }`}
           aria-label={showLabels ? 'Hide labels' : 'Show labels'}
         >
@@ -322,10 +322,10 @@ export const ResponsiveGraphControls: React.FC<{
       {breakpoint === 'desktop' && (
         <button
           onClick={onTogglePhysics}
-          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+          className={`p-2 min-h-11 min-w-11 border rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
             enablePhysics
-              ? 'bg-[var(--nous-sol)] text-white border-[var(--nous-sol)]'
-              : 'bg-background border-border hover:bg-[var(--nous-bg-3)]'
+              ? 'bg-(--nous-sol) text-white border-(--nous-sol)'
+              : 'bg-background border-border hover:bg-(--nous-bg-3)'
           }`}
           aria-label={enablePhysics ? 'Disable physics' : 'Enable physics'}
         >
@@ -413,7 +413,7 @@ export const ResponsiveFilterPanel: React.FC<{
           <h3 className="font-semibold">Filters</h3>
           <button
             onClick={() => setIsCollapsed(true)}
-            className="p-1 min-h-11 min-w-11 hover:bg-[var(--nous-bg-3)] rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="p-1 min-h-11 min-w-11 hover:bg-(--nous-bg-3) rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Collapse filters"
           >
             <svg
@@ -597,7 +597,7 @@ export const ResponsiveFilterPanel: React.FC<{
       <div className={`fixed bottom-4 left-4 z-10 ${className}`}>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="bg-[var(--nous-sol)] text-white p-3 rounded-full shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="bg-(--nous-sol) text-white p-3 rounded-full shadow-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Show filters"
         >
           <svg

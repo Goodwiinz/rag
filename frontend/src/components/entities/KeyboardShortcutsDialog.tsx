@@ -48,8 +48,8 @@ export const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = (
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)] font-mono">
-        <DialogHeader className="border-b border-[var(--nous-border-1)] pb-4">
+      <DialogContent className="max-w-2xl bg-(--nous-bg-2) border-(--nous-border-1) text-(--nous-fg-1) font-mono">
+        <DialogHeader className="border-b border-(--nous-border-1) pb-4">
           <DialogTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
             <Keyboard className="w-5 h-5" />
             KEYBOARD_SHORTCUTS
@@ -58,7 +58,7 @@ export const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = (
         <div className="py-4 space-y-6 max-h-[60vh] overflow-y-auto">
           {categories.map((category) => (
             <div key={category}>
-              <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--nous-sol)] mb-3">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-(--nous-sol) mb-3">
                 {category}
               </h3>
               <div className="space-y-2">
@@ -67,20 +67,20 @@ export const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = (
                   .map((shortcut, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-2 rounded-md bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]"
+                      className="flex items-center justify-between p-2 rounded-md bg-(--nous-bg-1) border border-(--nous-border-1)"
                     >
-                      <span className="text-sm text-[var(--nous-fg-1)]">
+                      <span className="text-sm text-(--nous-fg-1)">
                         {shortcut.description}
                       </span>
                       <div className="flex items-center gap-1">
                         {shortcut.keys.map((key, keyIndex) => (
                           <React.Fragment key={keyIndex}>
                             {keyIndex > 0 && (
-                              <span className="text-xs text-[var(--nous-fg-3)]">+</span>
+                              <span className="text-xs text-(--nous-fg-3)">+</span>
                             )}
                             <Badge
                               variant="outline"
-                              className="font-mono text-xs px-2 py-0.5 bg-[var(--nous-bg-3)] border-[var(--nous-border-1)]"
+                              className="font-mono text-xs px-2 py-0.5 bg-(--nous-bg-3) border-(--nous-border-1)"
                             >
                               {key}
                             </Badge>
@@ -93,8 +93,8 @@ export const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = (
             </div>
           ))}
         </div>
-        <div className="border-t border-[var(--nous-border-1)] pt-4">
-          <p className="text-xs font-mono text-[var(--nous-fg-3)]">
+        <div className="border-t border-(--nous-border-1) pt-4">
+          <p className="text-xs font-mono text-(--nous-fg-3)">
             💡 Tip: Press <Badge variant="outline" className="font-mono text-[10px] mx-1">?</Badge> anytime to see these shortcuts
           </p>
         </div>

@@ -381,7 +381,7 @@ export default function DocumentUploadPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-border bg-card shadow-sm"
+              className="rounded-xl border border-border bg-card shadow-xs"
             >
               <div className="p-6 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -404,15 +404,15 @@ export default function DocumentUploadPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-xl border border-border bg-card shadow-sm overflow-hidden"
+              className="rounded-xl border border-border bg-card shadow-xs overflow-hidden"
             >
               <div className="p-6">
                 <div
                   {...getRootProps()}
                   className={cn(
-                    'rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                    'rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-colors duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                     isDragActive
-                      ? 'border-[var(--nous-helios)] bg-primary/5'
+                      ? 'border-(--nous-helios) bg-primary/5'
                       : 'border-border hover:bg-muted/50',
                     isUploading && 'opacity-50 cursor-not-allowed'
                   )}
@@ -486,7 +486,7 @@ export default function DocumentUploadPage() {
                             type="button"
                             onClick={uploadAllFiles}
                             disabled={isUploading || !isAuthenticated}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                           >
                             <Upload aria-hidden="true" className="w-4 h-4" />
                             {isUploading
@@ -554,17 +554,17 @@ export default function DocumentUploadPage() {
                                   {file.status === 'completed' && (
                                     <CheckCircle2
                                       aria-label="Indexed"
-                                      className="w-4 h-4 text-[var(--nous-terra)]"
+                                      className="w-4 h-4 text-(--nous-terra)"
                                     />
                                   )}
                                   {file.status === 'failed' && (
                                     <AlertTriangle
                                       aria-label="Failed"
-                                      className="w-4 h-4 text-[var(--nous-mars)]"
+                                      className="w-4 h-4 text-(--nous-mars)"
                                     />
                                   )}
                                   {isActive(file.status) && (
-                                    <span className="text-xs font-medium tabular-nums text-[var(--nous-helios)]">
+                                    <span className="text-xs font-medium tabular-nums text-(--nous-helios)">
                                       {Math.round(file.progress)}%
                                     </span>
                                   )}
@@ -574,7 +574,7 @@ export default function DocumentUploadPage() {
                                       type="button"
                                       onClick={() => removeFile(file.id)}
                                       aria-label={`Remove ${file.file.name}`}
-                                      className="p-2 rounded-lg text-muted-foreground transition-colors hover:bg-[var(--nous-mars)]/10 hover:text-[var(--nous-mars)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                                      className="p-2 rounded-lg text-muted-foreground transition-colors hover:bg-(--nous-mars)/10 hover:text-(--nous-mars) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                                     >
                                       <Trash2
                                         aria-hidden="true"
@@ -608,7 +608,7 @@ export default function DocumentUploadPage() {
                               {file.status === 'failed' && file.error && (
                                 <p
                                   role="alert"
-                                  className="mt-3 text-xs text-[var(--nous-mars)]"
+                                  className="mt-3 text-xs text-(--nous-mars)"
                                 >
                                   {file.error}
                                 </p>
@@ -647,8 +647,8 @@ export default function DocumentUploadPage() {
                                         'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px]',
                                         file.securityScan.scan_status ===
                                           'passed'
-                                          ? 'bg-muted text-[var(--nous-terra)]'
-                                          : 'bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
+                                          ? 'bg-muted text-(--nous-terra)'
+                                          : 'bg-(--nous-mars)/10 text-(--nous-mars)'
                                       )}
                                     >
                                       <ShieldCheck

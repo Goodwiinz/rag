@@ -298,7 +298,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                   onChange={handleDescriptionChange}
                   placeholder="Document description"
                   rows={3}
-                  className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
+                  className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
                 />
               </div>
             </div>
@@ -389,7 +389,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                           type: e.target.value as CustomField['type'],
                         }))
                       }
-                      className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                     >
                       {FIELD_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
@@ -445,7 +445,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                   value: e.target.value,
                                 })
                               }
-                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
+                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                             >
                               <option value="true">True</option>
                               <option value="false">False</option>
@@ -459,7 +459,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                   value: e.target.value,
                                 })
                               }
-                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
+                              className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                             />
                           ) : (
                             <Input
@@ -482,7 +482,7 @@ export const DocumentMetadataEditor: React.FC<DocumentMetadataEditorProps> = ({
                                 type: e.target.value as CustomField['type'],
                               })
                             }
-                            className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
+                            className="w-full px-3 py-2 border border-border rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary text-sm"
                           >
                             {FIELD_TYPES.map((type) => (
                               <option key={type.value} value={type.value}>

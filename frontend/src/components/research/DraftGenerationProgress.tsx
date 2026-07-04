@@ -120,7 +120,7 @@ export const DraftGenerationProgress: React.FC<
                 ? 'bg-destructive'
                 : isCancelled
                   ? 'bg-muted-foreground'
-                  : 'bg-gradient-to-r from-primary to-primary/60'
+                  : 'bg-linear-to-r from-primary to-primary/60'
             }`}
             style={{ width: `${status.progress}%` }}
           />

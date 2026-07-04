@@ -25,8 +25,8 @@ const Slider = React.forwardRef<
       )}
       {...props}
     >
-      <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)]">
-        <SliderPrimitive.Range className="absolute h-full bg-[var(--nous-sol)]" />
+      <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-(--nous-bg-1) border border-(--nous-border-1)">
+        <SliderPrimitive.Range className="absolute h-full bg-(--nous-sol)" />
       </SliderPrimitive.Track>
       {Array.from({ length: thumbCount }).map((_, i) => (
         <SliderPrimitive.Thumb
@@ -40,7 +40,7 @@ const Slider = React.forwardRef<
                 : props['aria-label']
               : undefined
           }
-          className="block h-4 w-4 rounded-full border-2 border-[var(--nous-sol)] bg-[var(--nous-bg-2)] ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
+          className="block h-4 w-4 rounded-full border-2 border-(--nous-sol) bg-(--nous-bg-2) ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
         />
       ))}
     </SliderPrimitive.Root>

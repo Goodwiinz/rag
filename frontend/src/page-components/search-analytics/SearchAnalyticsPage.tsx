@@ -6,7 +6,7 @@ export const SearchAnalyticsPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Search Analytics</h1>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-foreground">
           Analyze search patterns and query performance.
         </p>

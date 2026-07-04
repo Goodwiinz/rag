@@ -52,7 +52,7 @@ export function NotificationList() {
             className={cn(
               'rounded-md px-2 py-1 text-sm font-medium text-primary',
               'underline-offset-4 transition-colors hover:underline',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
             )}
           >
             Mark all read
@@ -77,7 +77,7 @@ export function NotificationList() {
               className={cn(
                 'rounded-full border px-3 py-1 text-xs font-medium',
                 'transition-colors duration-150',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                 active
                   ? 'border-primary/40 bg-primary/10 text-primary'
                   : 'border-border bg-card text-muted-foreground hover:border-border hover:text-foreground hover:bg-muted'
@@ -91,7 +91,7 @@ export function NotificationList() {
 
       {/* Notification list */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center shadow-xs">
           <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-primary/10">
             <Bell aria-hidden="true" className="h-5 w-5 text-primary" />
           </div>
@@ -112,7 +112,7 @@ export function NotificationList() {
               className={cn(
                 'mt-4 rounded-md px-2 py-1 text-sm font-medium text-primary',
                 'underline-offset-4 transition-colors hover:underline',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
               )}
             >
               Show all notifications

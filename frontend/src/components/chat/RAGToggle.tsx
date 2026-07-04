@@ -51,12 +51,12 @@ export function RAGToggle({
       disabled={disabled || isLoading}
       className={cn(
         'relative flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-300',
-        'focus:outline-none focus:ring-2 focus:ring-[var(--nous-sol)]/30',
+        'focus:outline-hidden focus:ring-2 focus:ring-(--nous-sol)/30',
         disabled
-          ? 'bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] opacity-50 cursor-not-allowed'
+          ? 'bg-(--nous-bg-1) border-(--nous-border-1) opacity-50 cursor-not-allowed'
           : enabled
-            ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/40 hover:border-[var(--nous-sol)]/60'
-            : 'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] hover:border-[var(--nous-fg-3)]'
+            ? 'bg-(--nous-sol)/10 border-(--nous-sol)/40 hover:border-(--nous-sol)/60'
+            : 'bg-(--nous-bg-2) border-(--nous-border-1) hover:border-(--nous-fg-3)'
       )}
       style={{ fontFamily: 'var(--nous-font-mono)' }}
       title={disabled ? disabledReason : enabled ? 'Disable RAG context' : 'Enable RAG context'}
@@ -76,7 +76,7 @@ export function RAGToggle({
               <Loader2
                 className={cn(
                   'w-3.5 h-3.5 animate-spin',
-                  enabled ? 'text-[var(--nous-sol)]' : 'text-[var(--nous-fg-3)]'
+                  enabled ? 'text-(--nous-sol)' : 'text-(--nous-fg-3)'
                 )}
               />
             </motion.div>
@@ -91,7 +91,7 @@ export function RAGToggle({
               <Database
                 className={cn(
                   'w-3.5 h-3.5 transition-colors',
-                  enabled ? 'text-[var(--nous-sol)]' : 'text-[var(--nous-fg-3)]'
+                  enabled ? 'text-(--nous-sol)' : 'text-(--nous-fg-3)'
                 )}
               />
             </motion.div>
@@ -100,7 +100,7 @@ export function RAGToggle({
 
         {enabled && !isLoading && (
           <motion.div
-            className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-[var(--nous-sol)]"
+            className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--nous-sol)"
             animate={{
               scale: [1, 1.2, 1],
               opacity: [1, 0.7, 1],
@@ -118,7 +118,7 @@ export function RAGToggle({
         <span
           className={cn(
             'text-xs uppercase tracking-wider transition-colors hidden sm:inline',
-            enabled ? 'text-[var(--nous-sol)]' : 'text-[var(--nous-fg-3)]'
+            enabled ? 'text-(--nous-sol)' : 'text-(--nous-fg-3)'
           )}
         >
           RAG
@@ -128,13 +128,13 @@ export function RAGToggle({
       <div
         className={cn(
           'relative w-8 h-4 rounded-full transition-colors duration-300',
-          enabled ? 'bg-[var(--nous-sol)]/30' : 'bg-[var(--nous-border-1)]'
+          enabled ? 'bg-(--nous-sol)/30' : 'bg-(--nous-border-1)'
         )}
       >
         <motion.div
           className={cn(
-            'absolute top-0.5 w-3 h-3 rounded-full transition-colors shadow-sm',
-            enabled ? 'bg-[var(--nous-sol)]' : 'bg-[var(--nous-fg-3)]'
+            'absolute top-0.5 w-3 h-3 rounded-full transition-colors shadow-xs',
+            enabled ? 'bg-(--nous-sol)' : 'bg-(--nous-fg-3)'
           )}
           animate={{
             left: enabled ? '16px' : '2px',
@@ -153,10 +153,10 @@ export function RAGToggle({
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-lg bg-[var(--nous-bg-3)] border border-[var(--nous-border-1)] text-[10px] text-[var(--nous-fg-3)] whitespace-nowrap z-50"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-lg bg-(--nous-bg-3) border border-(--nous-border-1) text-[10px] text-(--nous-fg-3) whitespace-nowrap z-50"
           >
             {disabledReason}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-[var(--nous-border-1)]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-(--nous-border-1)" />
           </motion.div>
         )}
       </AnimatePresence>

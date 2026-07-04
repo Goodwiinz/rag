@@ -40,12 +40,12 @@ function StatusIcon({ live, hasRunning, hasError, reduced }: StatusIconProps) {
   if (live && hasRunning) {
     return reduced ? (
       <span
-        className="inline-block w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+        className="inline-block w-2 h-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
         aria-hidden="true"
       />
     ) : (
       <Loader2
-        className="w-3 h-3 shrink-0 text-[var(--nous-sol)] dark:text-[var(--nous-helios)] animate-spin"
+        className="w-3 h-3 shrink-0 text-(--nous-sol) dark:text-(--nous-helios) animate-spin"
         aria-hidden="true"
       />
     );
@@ -53,14 +53,14 @@ function StatusIcon({ live, hasRunning, hasError, reduced }: StatusIconProps) {
   if (hasError) {
     return (
       <XCircle
-        className="w-3 h-3 shrink-0 text-[var(--nous-mars)]"
+        className="w-3 h-3 shrink-0 text-(--nous-mars)"
         aria-hidden="true"
       />
     );
   }
   return (
     <CheckCircle2
-      className="w-3 h-3 shrink-0 text-[var(--nous-terra)]"
+      className="w-3 h-3 shrink-0 text-(--nous-terra)"
       aria-hidden="true"
     />
   );
@@ -96,38 +96,38 @@ function StepRow({
         {/* status icon */}
         {step.status === 'running' ? (
           reduced ? (
-            <span className="inline-block w-3.5 h-3.5 shrink-0 rounded-full border border-[var(--nous-sol)]/60 dark:border-[var(--nous-helios)]/60" />
+            <span className="inline-block w-3.5 h-3.5 shrink-0 rounded-full border border-(--nous-sol)/60 dark:border-(--nous-helios)/60" />
           ) : (
             <Loader2
-              className="w-3.5 h-3.5 shrink-0 text-[var(--nous-sol)] dark:text-[var(--nous-helios)] animate-spin"
+              className="w-3.5 h-3.5 shrink-0 text-(--nous-sol) dark:text-(--nous-helios) animate-spin"
               aria-hidden="true"
             />
           )
         ) : step.status === 'done' ? (
           <CheckCircle2
-            className="w-3.5 h-3.5 shrink-0 text-[var(--nous-terra)]"
+            className="w-3.5 h-3.5 shrink-0 text-(--nous-terra)"
             aria-hidden="true"
           />
         ) : (
           <XCircle
-            className="w-3.5 h-3.5 shrink-0 text-[var(--nous-mars)]"
+            className="w-3.5 h-3.5 shrink-0 text-(--nous-mars)"
             aria-hidden="true"
           />
         )}
 
         {/* label */}
-        <span className="truncate text-[12px] text-[var(--nous-fg-1)] font-nous-ui">
+        <span className="truncate text-[12px] text-(--nous-fg-1) font-nous-ui">
           {step.label}
         </span>
 
         {/* tool name (mono, subdued) */}
-        <span className="hidden sm:inline truncate text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
+        <span className="hidden sm:inline truncate text-[10px] text-(--nous-fg-3) font-nous-mono">
           {step.tool}
         </span>
 
         {/* duration — right-aligned tabular */}
         {step.durationMs !== undefined && (
-          <span className="ml-auto shrink-0 tabular-nums text-[10px] text-[var(--nous-fg-3)] font-nous-ui">
+          <span className="ml-auto shrink-0 tabular-nums text-[10px] text-(--nous-fg-3) font-nous-ui">
             {formatDuration(step.durationMs)}
           </span>
         )}
@@ -135,14 +135,14 @@ function StepRow({
 
       {/* args context — what the tool was asked (provenance) */}
       {context && (
-        <div className="pl-[22px] truncate text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
+        <div className="pl-[22px] truncate text-[10px] text-(--nous-fg-3) font-nous-mono">
           {context}
         </div>
       )}
 
       {/* failure detail — the error text, not just a red icon */}
       {detail && (
-        <div className="pl-[22px] truncate text-[10px] text-[var(--nous-mars)] font-nous-ui">
+        <div className="pl-[22px] truncate text-[10px] text-(--nous-mars) font-nous-ui">
           {detail}
         </div>
       )}
@@ -188,8 +188,8 @@ export function ChatActivityStrip({
       open={expanded}
       onOpenChange={setExpanded}
       className={cn(
-        'mb-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-border-1)]',
-        'bg-[var(--nous-bg-2)] overflow-hidden'
+        'mb-3 rounded-(--nous-radius-md) border border-(--nous-border-1)',
+        'bg-(--nous-bg-2) overflow-hidden'
       )}
       style={{
         transition: reduced
@@ -202,9 +202,9 @@ export function ChatActivityStrip({
         aria-label={triggerLabel}
         className={cn(
           'flex w-full items-center gap-2 px-3 py-2 text-left',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40',
-          'rounded-[var(--nous-radius-md)]',
-          'transition-colors hover:bg-[var(--nous-bg-3)]'
+          'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40',
+          'rounded-(--nous-radius-md)',
+          'transition-colors hover:bg-(--nous-bg-3)'
         )}
       >
         {/* leading status icon */}
@@ -216,7 +216,7 @@ export function ChatActivityStrip({
         />
 
         {/* summary text */}
-        <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--nous-fg-2)] font-nous-ui">
+        <span className="min-w-0 flex-1 truncate text-[12px] text-(--nous-fg-2) font-nous-ui">
           {summaryText}
         </span>
 
@@ -231,7 +231,7 @@ export function ChatActivityStrip({
         {/* single rotating chevron — CSS transform avoids icon swap jank */}
         <ChevronRight
           className={cn(
-            'w-3.5 h-3.5 shrink-0 text-[var(--nous-fg-3)]',
+            'w-3.5 h-3.5 shrink-0 text-(--nous-fg-3)',
             reduced
               ? expanded
                 ? 'rotate-90'
@@ -253,7 +253,7 @@ export function ChatActivityStrip({
       >
         <div className="flex flex-col gap-1.5 px-3 pb-3 pt-1 max-h-64 overflow-y-auto">
           <div
-            className="h-px w-full bg-[var(--nous-border-1)] mb-1"
+            className="h-px w-full bg-(--nous-border-1) mb-1"
             aria-hidden="true"
           />
           {steps.map((step, i) => (

@@ -48,19 +48,19 @@ export function ConfirmDialog({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
-      <AlertDialogContent className="rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] shadow-[var(--nous-shadow-lg)]">
+      <AlertDialogContent className="rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-1) shadow-(--nous-shadow-lg)">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[var(--nous-fg-1)] tracking-tight">
+          <AlertDialogTitle className="text-(--nous-fg-1) tracking-tight">
             {title}
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-[var(--nous-fg-3)] text-xs">
+          <AlertDialogDescription className="text-(--nous-fg-3) text-xs">
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2">
           <AlertDialogCancel
             onClick={handleCancel}
-            className="border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] text-[var(--nous-fg-3)] hover:bg-[var(--nous-bg-3)] hover:text-[var(--nous-fg-1)] text-xs"
+            className="border-(--nous-border-1) bg-(--nous-bg-2) text-(--nous-fg-3) hover:bg-(--nous-bg-3) hover:text-(--nous-fg-1) text-xs"
           >
             {cancelLabel}
           </AlertDialogCancel>
@@ -69,8 +69,8 @@ export function ConfirmDialog({
             className={cn(
               'text-xs border transition-all',
               variant === 'destructive'
-                ? 'bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 hover:border-[var(--nous-mars)]'
-                : 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/50 text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/20 hover:border-[var(--nous-sol)]'
+                ? 'bg-(--nous-mars)/10 border-(--nous-mars)/50 text-(--nous-mars) hover:bg-(--nous-mars)/20 hover:border-(--nous-mars)'
+                : 'bg-(--nous-sol)/10 border-(--nous-sol)/50 text-(--nous-sol) hover:bg-(--nous-sol)/20 hover:border-(--nous-sol)'
             )}
           >
             {confirmLabel}

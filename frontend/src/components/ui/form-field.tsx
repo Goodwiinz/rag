@@ -80,7 +80,7 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
               displayError &&
                 'border-destructive focus-visible:ring-destructive',
               isValid &&
-                'border-[var(--nous-terra)] focus-visible:ring-[var(--nous-terra)]',
+                'border-(--nous-terra) focus-visible:ring-(--nous-terra)',
               className
             )}
             onBlur={handleBlur}
@@ -94,7 +94,7 @@ export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
               {displayError ? (
                 <AlertCircle className="h-4 w-4 text-destructive" />
               ) : isValid ? (
-                <CheckCircle2 className="h-4 w-4 text-[var(--nous-terra)]" />
+                <CheckCircle2 className="h-4 w-4 text-(--nous-terra)" />
               ) : null}
             </div>
           )}

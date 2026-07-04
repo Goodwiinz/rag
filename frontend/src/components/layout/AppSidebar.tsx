@@ -147,11 +147,11 @@ export function AppSidebar() {
           isActive={active}
           tooltip={item.title}
           className={cn(
-            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-[var(--nous-radius-md)]',
-            'group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md',
+            'group/nav font-mono text-xs transition-all duration-200 h-10 rounded-(--nous-radius-md)',
+            'group-data-[collapsible=icon]:h-9! group-data-[collapsible=icon]:w-9! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:rounded-md',
             active
               ? 'bg-primary/10 text-sidebar-foreground group-data-[collapsible=icon]:bg-primary/15'
-              : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:hover:bg-sidebar-accent'
+              : 'text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent hover:group-data-[collapsible=icon]:bg-sidebar-accent'
           )}
         >
           <Link
@@ -163,7 +163,7 @@ export function AppSidebar() {
           >
             <Icon
               className={cn(
-                'w-4 h-4 flex-shrink-0 transition-colors duration-200',
+                'w-4 h-4 shrink-0 transition-colors duration-200',
                 active
                   ? 'text-primary'
                   : 'text-muted-foreground group-hover/nav:text-primary'
@@ -188,7 +188,7 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-sidebar-border !bg-sidebar z-50"
+      className="border-sidebar-border bg-sidebar! z-50"
     >
       {/* Header with Logo */}
       <SidebarHeader className="border-b border-sidebar-border px-5 py-4 group-data-[collapsible=icon]:px-1 group-data-[collapsible=icon]:py-2 bg-sidebar">
@@ -206,7 +206,7 @@ export function AppSidebar() {
             alt="NOUS"
             width={28}
             height={28}
-            className="flex-shrink-0 hidden group-data-[collapsible=icon]:block group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:h-7"
+            className="shrink-0 hidden group-data-[collapsible=icon]:block group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:h-7"
           />
           {/* Expanded: show full logo */}
           <Image
@@ -288,7 +288,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   MEMORY
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
+                <span className="font-mono text-[10px] font-medium text-(--nous-helios)">
                   {metrics.memory}
                 </span>
               </div>
@@ -296,7 +296,7 @@ export function AppSidebar() {
                 <span className="font-mono text-[10px] text-muted-foreground">
                   QUERIES
                 </span>
-                <span className="font-mono text-[10px] font-medium text-[var(--nous-helios)]">
+                <span className="font-mono text-[10px] font-medium text-(--nous-helios)">
                   {metrics.queries}
                 </span>
               </div>
@@ -334,10 +334,10 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     size="lg"
                     data-testid="user-menu"
-                    className="h-auto px-5 py-3 hover:bg-sidebar data-[state=open]:bg-sidebar rounded-none group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
+                    className="h-auto px-5 py-3 hover:bg-sidebar data-[state=open]:bg-sidebar rounded-none group-data-[collapsible=icon]:w-9! group-data-[collapsible=icon]:h-9! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:mx-auto"
                   >
                     {/* Avatar */}
-                    <div className="flex items-center justify-center w-8 h-8 border border-primary/30 rounded flex-shrink-0 bg-primary/10">
+                    <div className="flex items-center justify-center w-8 h-8 border border-primary/30 rounded shrink-0 bg-primary/10">
                       <span className="font-mono text-[10px] font-semibold text-primary">
                         {getInitials(user?.email)}
                       </span>
@@ -351,7 +351,7 @@ export function AppSidebar() {
                         Administrator
                       </span>
                     </div>
-                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground flex-shrink-0 group-data-[collapsible=icon]:hidden" />
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0 group-data-[collapsible=icon]:hidden" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -423,7 +423,7 @@ export function AppSidebar() {
                 asChild
                 size="lg"
                 tooltip="Sign In"
-                className="bg-sidebar text-sidebar-foreground border-t border-sidebar-border hover:bg-sidebar-accent rounded-none h-auto px-5 py-4 group-data-[collapsible=icon]:!w-9 group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-t-0"
+                className="bg-sidebar text-sidebar-foreground border-t border-sidebar-border hover:bg-sidebar-accent rounded-none h-auto px-5 py-4 group-data-[collapsible=icon]:w-9! group-data-[collapsible=icon]:h-9! group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:border-t-0"
               >
                 <Link
                   href="/login"

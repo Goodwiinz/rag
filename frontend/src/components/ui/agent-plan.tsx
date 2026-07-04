@@ -475,7 +475,7 @@ export default function Plan({
   return (
     <div className="bg-background text-foreground h-full overflow-auto p-2">
       <motion.div
-        className="bg-card border-border rounded-lg border shadow overflow-hidden"
+        className="bg-card border-border rounded-lg border shadow-sm overflow-hidden"
         initial={{ opacity: 0, y: 10 }}
         animate={{
           opacity: 1,
@@ -508,7 +508,7 @@ export default function Plan({
                     {/* Task row */}
                     <motion.div className="group flex items-center px-3 py-1.5 rounded-md hover:bg-muted/20">
                       <motion.div
-                        className={`mr-2 flex-shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
+                        className={`mr-2 shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
                         onClick={
                           readOnly
                             ? undefined
@@ -537,7 +537,7 @@ export default function Plan({
                       </motion.div>
 
                       <motion.div
-                        className="flex min-w-0 flex-grow cursor-pointer items-center justify-between"
+                        className="flex min-w-0 grow cursor-pointer items-center justify-between"
                         onClick={() => toggleTaskExpansion(task.id)}
                       >
                         <div className="mr-2 flex-1 truncate">
@@ -548,14 +548,14 @@ export default function Plan({
                           </span>
                         </div>
 
-                        <div className="flex flex-shrink-0 items-center space-x-2 text-xs">
+                        <div className="flex shrink-0 items-center space-x-2 text-xs">
                           {task.dependencies.length > 0 && (
                             <div className="flex items-center mr-2">
                               <div className="flex flex-wrap gap-1">
                                 {task.dependencies.map((dep, idx) => (
                                   <motion.span
                                     key={idx}
-                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
+                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-xs hover:bg-secondary/60"
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{
@@ -624,7 +624,7 @@ export default function Plan({
                                     layout
                                   >
                                     <motion.div
-                                      className={`mr-2 flex-shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
+                                      className={`mr-2 shrink-0 ${readOnly ? '' : 'cursor-pointer'}`}
                                       onClick={
                                         readOnly
                                           ? undefined
@@ -706,7 +706,7 @@ export default function Plan({
                                                   (tool, idx) => (
                                                     <motion.span
                                                       key={idx}
-                                                      className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
+                                                      className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-xs hover:bg-secondary/60"
                                                       initial={{
                                                         opacity: 0,
                                                         y: -5,
@@ -768,7 +768,7 @@ export default function Plan({
                                 {task.tools.map((tool, idx) => (
                                   <motion.span
                                     key={idx}
-                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm hover:bg-secondary/60"
+                                    className="bg-secondary/40 text-secondary-foreground rounded px-1.5 py-0.5 text-[10px] font-medium shadow-xs hover:bg-secondary/60"
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{
                                       opacity: 1,

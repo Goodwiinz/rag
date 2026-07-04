@@ -139,7 +139,7 @@ function CliAuthPageContent(): React.JSX.Element {
               'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl',
               'bg-primary px-5 text-sm font-semibold text-primary-foreground',
               'transition-colors hover:bg-primary/90',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
               'disabled:cursor-not-allowed disabled:opacity-60'
             )}
           >
@@ -152,7 +152,7 @@ function CliAuthPageContent(): React.JSX.Element {
               'inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-border',
               'bg-transparent px-5 text-sm font-semibold text-muted-foreground',
               'transition-colors hover:border-foreground/30 hover:text-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card'
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card'
             )}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />

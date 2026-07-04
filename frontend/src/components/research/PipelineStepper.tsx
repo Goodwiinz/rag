@@ -70,7 +70,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
         return (
           <React.Fragment key={step.index}>
             {/* Step circle + label */}
-            <div className="flex flex-col items-center flex-shrink-0">
+            <div className="flex flex-col items-center shrink-0">
               <button
                 onClick={() => isClickable && onStepClick(index)}
                 disabled={!isClickable}
@@ -85,7 +85,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                         : status === 'skipped'
                           ? 'bg-muted/50 border-2 border-dashed border-border text-muted-foreground cursor-pointer hover:border-muted-foreground/50 hover:scale-105'
                           : status === 'invalidated'
-                            ? 'bg-[var(--nous-helios)]/10 border-2 border-[var(--nous-helios)] text-[var(--nous-helios)] cursor-pointer hover:bg-[var(--nous-helios)]/20 hover:scale-105'
+                            ? 'bg-(--nous-helios)/10 border-2 border-(--nous-helios) text-(--nous-helios) cursor-pointer hover:bg-(--nous-helios)/20 hover:scale-105'
                             : 'bg-muted/30 border-2 border-border text-muted-foreground'
                   }
                 `}
@@ -110,7 +110,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                       : status === 'skipped'
                         ? 'text-muted-foreground'
                         : status === 'invalidated'
-                          ? 'text-[var(--nous-helios)]'
+                          ? 'text-(--nous-helios)'
                           : 'text-foreground'
                 }`}
               >
@@ -132,7 +132,7 @@ export const PipelineStepper: React.FC<PipelineStepperProps> = ({
                     : status === 'skipped'
                       ? 'border-t-2 border-dashed border-border bg-transparent'
                       : status === 'invalidated'
-                        ? 'bg-[var(--nous-helios)]/30'
+                        ? 'bg-(--nous-helios)/30'
                         : 'bg-muted'
                 }`}
               />

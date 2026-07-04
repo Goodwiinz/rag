@@ -17,7 +17,7 @@ export const CreateExperimentPage: React.FC = () => {
           Create New Experiment
         </h1>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6">
         <p className="text-foreground">
           Configure and create a new A/B testing experiment.
         </p>

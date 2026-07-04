@@ -90,7 +90,7 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
                       className={cn(
                         'h-6 w-6',
                         star <= rating
-                          ? 'text-[var(--nous-fg-accent-safe)] fill-[var(--nous-sol)]'
+                          ? 'text-(--nous-fg-accent-safe) fill-(--nous-sol)'
                           : 'text-foreground'
                       )}
                     />
@@ -115,21 +115,21 @@ const FeedbackDialog: React.FC<FeedbackDialogProps> = ({
               onChange={(e) => setComment(e.target.value)}
               placeholder="Tell us more..."
               rows={3}
-              className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-none border border-terminal-border"
+              className="w-full px-3 py-2 rounded-lg font-mono text-sm text-white bg-transparent outline-hidden border border-terminal-border"
             />
           </div>
           <div className="flex justify-end space-x-2 pt-2">
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm text-muted-foreground hover:text-white transition-colors border border-terminal-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-4 py-2 rounded-lg font-mono text-sm text-muted-foreground hover:text-white transition-colors border border-terminal-border focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={rating === 0 || isSubmitting}
-              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-[var(--nous-sol-muted)] border border-[var(--nous-helios)] text-sol focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-4 py-2 rounded-lg font-mono text-sm transition-all disabled:opacity-40 bg-(--nous-sol-muted) border border-(--nous-helios) text-sol focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
@@ -254,7 +254,7 @@ const TypewriterText: React.FC<TypewriterTextProps> = ({
   return (
     <span className={className}>
       {displayedText}
-      <span className="animate-pulse inline-block w-2 h-4 bg-[var(--nous-sol)] align-middle ml-1" />
+      <span className="animate-pulse inline-block w-2 h-4 bg-(--nous-sol) align-middle ml-1" />
     </span>
   );
 };
@@ -280,13 +280,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'pdf':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+            className={cn(iconClass, 'text-(--nous-fg-3)')}
           />
         );
       case 'txt':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+            className={cn(iconClass, 'text-(--nous-fg-3)')}
           />
         );
       case 'jpg':
@@ -295,7 +295,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'mp3':
         return (
           <MusicalNoteIcon
-            className={cn(iconClass, 'text-[var(--nous-fg-3)]')}
+            className={cn(iconClass, 'text-(--nous-fg-3)')}
           />
         );
       case 'mp4':
@@ -319,9 +319,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         };
       case 'reasoning':
         return {
-          colorClass: 'text-[var(--nous-fg-2)]',
-          bgClass: 'bg-[var(--nous-bg-3)]/10',
-          borderClass: 'border-[var(--nous-border-1)]/20',
+          colorClass: 'text-(--nous-fg-2)',
+          bgClass: 'bg-(--nous-bg-3)/10',
+          borderClass: 'border-(--nous-border-1)/20',
         };
       case 'summarization':
         return {
@@ -338,7 +338,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       default:
         return {
           colorClass: 'text-muted-foreground',
-          bgClass: 'bg-[var(--nous-bg-3)]/10',
+          bgClass: 'bg-(--nous-bg-3)/10',
           borderClass: 'border-border/20',
         };
     }
@@ -358,29 +358,29 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       case 'INSUFFICIENT_EVIDENCE':
         return {
           label: 'INSUFFICIENT EVIDENCE',
-          colorClass: 'text-[var(--nous-corona)]',
-          bgClass: 'bg-[var(--nous-corona)]/10',
-          borderClass: 'border-[var(--nous-corona)]/25',
+          colorClass: 'text-(--nous-corona)',
+          bgClass: 'bg-(--nous-corona)/10',
+          borderClass: 'border-(--nous-corona)/25',
         };
       case 'CONFLICTING_EVIDENCE':
         return {
           label: 'CONFLICTING EVIDENCE',
-          colorClass: 'text-[var(--nous-corona)]',
-          bgClass: 'bg-[var(--nous-corona)]/10',
-          borderClass: 'border-[var(--nous-corona)]/25',
+          colorClass: 'text-(--nous-corona)',
+          bgClass: 'bg-(--nous-corona)/10',
+          borderClass: 'border-(--nous-corona)/25',
         };
       case 'NO_MATCH':
         return {
           label: 'NO MATCH',
-          colorClass: 'text-[var(--nous-mars)]',
-          bgClass: 'bg-[var(--nous-mars)]/10',
-          borderClass: 'border-[var(--nous-mars)]/25',
+          colorClass: 'text-(--nous-mars)',
+          bgClass: 'bg-(--nous-mars)/10',
+          borderClass: 'border-(--nous-mars)/25',
         };
       default:
         return {
           label: 'UNKNOWN',
           colorClass: 'text-muted-foreground',
-          bgClass: 'bg-[var(--nous-bg-3)]/10',
+          bgClass: 'bg-(--nous-bg-3)/10',
           borderClass: 'border-border/20',
         };
     }
@@ -454,7 +454,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   if (error) {
     return (
       <div className={cn('text-center py-8', className)}>
-        <XCircleIcon className="h-12 w-12 text-[var(--nous-mars)] mx-auto mb-4" />
+        <XCircleIcon className="h-12 w-12 text-(--nous-mars) mx-auto mb-4" />
         <h3 className="text-lg font-mono font-medium text-white mb-2">
           Search failed
         </h3>
@@ -562,7 +562,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   <action.icon
                     className={cn(
                       'h-4 w-4',
-                      copiedAnswer && i === 0 && 'text-[var(--nous-terra)]'
+                      copiedAnswer && i === 0 && 'text-(--nous-terra)'
                     )}
                   />
                 }
@@ -616,7 +616,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           <h2 className="text-lg font-mono font-semibold text-muted-foreground">
             Sources
           </h2>
-          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-[var(--nous-sol-muted)] text-brand-cyan border border-[var(--nous-helios-muted)]">
+          <span className="rounded-full px-2 py-0.5 text-xs font-mono bg-(--nous-sol-muted) text-brand-cyan border border-(--nous-helios-muted)">
             {result.answer.sources.length}
           </span>
         </div>
@@ -627,7 +627,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               key={`${source.document_id}-${index}`}
               role="button"
               tabIndex={0}
-              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => handleSourceClick(source)}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--nous-helios)';

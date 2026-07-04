@@ -117,9 +117,9 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
   ) => {
     const good = type === 'higher' ? value >= 80 : value <= 5;
     const fair = type === 'higher' ? value >= 70 : value <= 15;
-    if (good) return { label: 'Good', dot: 'bg-[var(--nous-terra)]' };
-    if (fair) return { label: 'Fair', dot: 'bg-[var(--nous-helios)]' };
-    return { label: 'Low', dot: 'bg-[var(--nous-mars)]' };
+    if (good) return { label: 'Good', dot: 'bg-(--nous-terra)' };
+    if (fair) return { label: 'Fair', dot: 'bg-(--nous-helios)' };
+    return { label: 'Low', dot: 'bg-(--nous-mars)' };
   };
 
   const getTrendIcon = (current: number, previous: number) => {
@@ -186,7 +186,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
                   className={cn(
                     'inline-flex h-1.5 w-1.5 rounded-full',
                     isConnected
-                      ? 'bg-[var(--nous-terra)]'
+                      ? 'bg-(--nous-terra)'
                       : 'bg-muted-foreground'
                   )}
                 />
@@ -311,7 +311,7 @@ export const QualityMetricsCard: React.FC<QualityMetricsCardProps> = ({
               <span className="flex items-center gap-1.5">
                 <span
                   aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-[var(--nous-terra)]"
+                  className="h-1.5 w-1.5 rounded-full bg-(--nous-terra)"
                 />
                 <span>Connected</span>
               </span>

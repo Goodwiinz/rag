@@ -258,13 +258,13 @@ export function ChatInput({
 
   return (
     <div
-      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px_+_env(safe-area-inset-bottom))] md:pb-4 border-t"
+      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-4 border-t"
       style={{
         background: 'var(--nous-bg-1)',
         borderColor: 'var(--nous-border-1)',
       }}
     >
-      <div className="relative max-w-[var(--nous-chat-col)] mx-auto">
+      <div className="relative max-w-(--nous-chat-col) mx-auto">
         <SlashCommandMenu
           open={menu.isOpen}
           commands={menu.filtered}
@@ -482,7 +482,7 @@ export function ChatInput({
                       onClick={() => removeAttachment(att.id)}
                       aria-label={`Remove ${att.name}`}
                       title="Remove"
-                      className="grid place-items-center w-6 h-6 rounded transition-colors hover:bg-[var(--nous-aurum)]"
+                      className="grid place-items-center w-6 h-6 rounded transition-colors hover:bg-(--nous-aurum)"
                       style={{ color: 'var(--nous-fg-3)' }}
                     >
                       <X className="w-3 h-3" strokeWidth={2} />
@@ -510,7 +510,7 @@ export function ChatInput({
               aria-autocomplete="list"
               aria-invalid={isOverLimit || undefined}
               aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
-              className="w-full bg-transparent resize-none outline-none font-nous-body text-[16px]"
+              className="w-full bg-transparent resize-none outline-hidden font-nous-body text-[16px]"
               style={{
                 color: 'var(--nous-fg-1)',
                 lineHeight: '1.6',
@@ -640,7 +640,7 @@ export function ChatInput({
                     onChange('/');
                     textareaRef.current?.focus();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-[var(--nous-aurum)]"
+                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
                   style={{
                     padding: '4px 8px',
                     border: '1px solid var(--nous-border-1)',

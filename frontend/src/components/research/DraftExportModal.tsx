@@ -86,7 +86,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormat('markdown')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                   format === 'markdown'
                     ? 'bg-primary/10 border-primary/50 text-primary'
                     : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/50'
@@ -99,7 +99,7 @@ export const DraftExportModal: React.FC<DraftExportModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormat('latex')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                   format === 'latex'
                     ? 'bg-primary/10 border-primary/50 text-primary'
                     : 'bg-muted border-border text-muted-foreground hover:border-muted-foreground/50'

@@ -408,7 +408,7 @@ export default function ArxivManagement() {
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                   Search arXiv
                 </h1>
-                <p className="max-w-2xl font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+                <p className="max-w-2xl font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
                   Search the public arXiv corpus and import papers directly into
                   your workspace for reading, extraction, and knowledge graph
                   enrichment.
@@ -416,7 +416,7 @@ export default function ArxivManagement() {
               </div>
             </div>
 
-            <p className="font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+            <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
               {isGuest
                 ? 'Search and statistics stay open without signing in. Queueing ingestion, running extraction, and scanning categories need an authenticated workspace.'
                 : 'Tracking, ingestion, and extraction are all available in this workspace session.'}
@@ -429,7 +429,7 @@ export default function ArxivManagement() {
             <p className="text-sm font-medium text-foreground">
               {isGuest ? 'Discovery mode' : 'Workspace mode'}
             </p>
-            <p className="mt-2 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-2 font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
               {isGuest
                 ? 'Public search and statistics are available now. Sign in to import papers, run extraction, and check for new papers.'
                 : 'Search, import, extraction, and new-paper checks are all available in this session.'}
@@ -439,7 +439,7 @@ export default function ArxivManagement() {
               {isGuest ? (
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
                   Sign in to unlock workspace
@@ -449,7 +449,7 @@ export default function ArxivManagement() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('tracking')}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     Browse new papers
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -457,7 +457,7 @@ export default function ArxivManagement() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('stats')}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     View statistics
                   </button>
@@ -496,7 +496,7 @@ export default function ArxivManagement() {
                     onKeyDown={(e) => handleTabKeyDown(e, i)}
                     className={cn(
                       'relative flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors touch-manipulation sm:min-h-0',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                       isActive
                         ? 'border-primary text-foreground'
                         : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -536,7 +536,7 @@ export default function ArxivManagement() {
                   className={cn(
                     'flex items-start gap-2 rounded-md border px-3 py-2 text-sm leading-relaxed',
                     hasMessageError
-                      ? 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
+                      ? 'border-(--nous-mars)/30 bg-(--nous-mars)/10 text-(--nous-mars)'
                       : 'border-border bg-card text-muted-foreground'
                   )}
                 >

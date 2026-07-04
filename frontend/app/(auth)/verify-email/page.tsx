@@ -143,7 +143,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-xs">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-destructive/10 border border-destructive/30 mx-auto mb-6">
               <AlertTriangle
                 className="w-7 h-7 text-destructive"
@@ -163,13 +163,13 @@ function VerifyEmailContent(): React.JSX.Element | null {
             <div className="flex flex-col gap-4 items-center">
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 Request a new confirmation link
               </Link>
               <Link
                 href="/login"
-                className="text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
+                className="text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded"
               >
                 Back to sign in
               </Link>
@@ -189,7 +189,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="w-full max-w-md"
         >
-          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+          <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-xs">
             <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
               <Loader2
                 className="w-7 h-7 text-primary motion-safe:animate-spin"
@@ -220,7 +220,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-md"
       >
-        <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-sm">
+        <div className="rounded-2xl border border-border bg-card p-10 text-center shadow-xs">
           <div className="flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 border border-primary/30 mx-auto mb-6">
             <CheckCircle2 className="w-7 h-7 text-primary" aria-hidden="true" />
           </div>
@@ -244,7 +244,7 @@ function VerifyEmailContent(): React.JSX.Element | null {
           </div>
           <Link
             href={VERIFIED_REDIRECT_PATH}
-            className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="inline-flex items-center justify-center w-full rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Go to workspace
           </Link>

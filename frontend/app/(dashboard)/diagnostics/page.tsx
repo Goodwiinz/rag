@@ -14,7 +14,7 @@ export default function DiagnosticsPage() {
       >
         <div
           role="alert"
-          className="mx-auto flex max-w-md flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center shadow-sm"
+          className="mx-auto flex max-w-md flex-col items-center justify-center rounded-xl border border-border bg-card py-16 text-center shadow-xs"
         >
           <h1 className="text-lg font-semibold text-foreground">
             Access restricted

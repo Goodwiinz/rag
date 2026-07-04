@@ -48,7 +48,7 @@ export function DocumentTablesTab({
             <button
               type="button"
               onClick={() => onSetCropActive(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center gap-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Crop aria-hidden="true" className="w-3.5 h-3.5" />
               Crop extract
@@ -59,7 +59,7 @@ export function DocumentTablesTab({
               disabled={tablesLoading || !isIndexed}
               title={!isIndexed ? 'Tables can be extracted once the document is indexed' : undefined}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                'px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-2 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                 tablesLoading || !isIndexed
                   ? 'bg-muted text-muted-foreground cursor-not-allowed'
                   : 'bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20'

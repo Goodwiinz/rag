@@ -111,7 +111,7 @@ function ToolStrip({
       )}
       {stopped && (
         <span
-          className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--nous-fg-3)]"
+          className="inline-flex items-center gap-1 text-[10px] font-medium text-(--nous-fg-3)"
           title="You stopped this response; the text above is partial."
         >
           <Square className="w-2 h-2" strokeWidth={2.4} />
@@ -209,14 +209,14 @@ export const ChatBubble = React.memo(function ChatBubble({
           {!isUser && (
             <>
               <span
-                className="text-[12px] font-medium text-[var(--nous-fg-3)]"
+                className="text-[12px] font-medium text-(--nous-fg-3)"
                 style={{ fontFamily: 'var(--nous-font-ui)' }}
               >
                 Assistant
               </span>
               {modelName && (
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-[2px] rounded text-[10px] font-semibold bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)]"
+                  className="inline-flex items-center gap-1 px-2 py-[2px] rounded text-[10px] font-semibold bg-(--nous-aurum) text-(--nous-sol-safe) dark:bg-(--nous-ember) dark:text-(--nous-helios)"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <Sparkles className="w-2.5 h-2.5" strokeWidth={2} />
@@ -227,14 +227,14 @@ export const ChatBubble = React.memo(function ChatBubble({
           )}
           {isUser && (
             <span
-              className="text-[12px] font-medium text-[var(--nous-fg-3)]"
+              className="text-[12px] font-medium text-(--nous-fg-3)"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               You
             </span>
           )}
           <span
-            className="inline-flex items-center gap-1 text-[11px] text-[var(--nous-fg-3)]"
+            className="inline-flex items-center gap-1 text-[11px] text-(--nous-fg-3)"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             <Clock className="w-2.5 h-2.5" strokeWidth={2} />
@@ -291,7 +291,7 @@ export const ChatBubble = React.memo(function ChatBubble({
                   onCitationClick={() => {}}
                 />
                 <span
-                  className="ml-0.5 inline-block h-4 w-[3px] rounded-sm align-text-bottom animate-pulse bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+                  className="ml-0.5 inline-block h-4 w-[3px] rounded-sm align-text-bottom animate-pulse bg-(--nous-sol) dark:bg-(--nous-helios)"
                   data-testid="streaming-cursor"
                 />
               </div>
@@ -336,14 +336,14 @@ export const ChatBubble = React.memo(function ChatBubble({
                       );
                     }
                   }}
-                  className="group/citation flex items-center gap-2 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2.5 py-1.5 text-[10px] transition-all hover:border-[var(--nous-sol)]/40 hover:bg-[var(--nous-aurum)] dark:hover:bg-[var(--nous-ember)]"
+                  className="group/citation flex items-center gap-2 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2.5 py-1.5 text-[10px] transition-all hover:border-(--nous-sol)/40 hover:bg-(--nous-aurum) dark:hover:bg-(--nous-ember)"
                   style={{ fontFamily: 'var(--nous-font-mono)' }}
                 >
-                  <div className="h-1.5 w-1.5 rounded-full bg-[var(--nous-sol)]/40 transition-colors group-hover/citation:bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]/40 dark:group-hover/citation:bg-[var(--nous-helios)]" />
-                  <span className="max-w-[180px] truncate text-[var(--nous-fg-1)]">
+                  <div className="h-1.5 w-1.5 rounded-full bg-(--nous-sol)/40 transition-colors group-hover/citation:bg-(--nous-sol) dark:bg-(--nous-helios)/40 dark:group-hover/citation:bg-(--nous-helios)" />
+                  <span className="max-w-[180px] truncate text-(--nous-fg-1)">
                     {citation.title}
                   </span>
-                  <span className="border-l border-[var(--nous-border-1)] pl-2 text-[var(--nous-fg-3)] tabular-nums">
+                  <span className="border-l border-(--nous-border-1) pl-2 text-(--nous-fg-3) tabular-nums">
                     {Math.round(citation.score * 100)}%
                   </span>
                 </button>
@@ -351,7 +351,7 @@ export const ChatBubble = React.memo(function ChatBubble({
               {message.diagnosticsTraceId && (
                 <a
                   href={`/diagnostics?trace=${encodeURIComponent(message.diagnosticsTraceId)}`}
-                  className="ml-auto flex items-center gap-1 rounded-md border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] px-2 py-1 text-[9px] text-[var(--nous-fg-3)] transition-all hover:border-[var(--nous-sol)]/40 hover:text-[var(--nous-sol-safe)] dark:hover:text-[var(--nous-helios)]"
+                  className="ml-auto flex items-center gap-1 rounded-md border border-(--nous-border-1) bg-(--nous-bg-2) px-2 py-1 text-[9px] text-(--nous-fg-3) transition-all hover:border-(--nous-sol)/40 hover:text-(--nous-sol-safe) dark:hover:text-(--nous-helios)"
                   style={{ fontFamily: 'var(--nous-font-mono)' }}
                   title="View retrieval diagnostics"
                 >
@@ -372,7 +372,7 @@ export const ChatBubble = React.memo(function ChatBubble({
               title={copied ? 'Copied!' : 'Copy message'}
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-[var(--nous-terra)]" />
+                <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -400,7 +400,7 @@ export const ChatBubble = React.memo(function ChatBubble({
               title={copied ? 'Copied!' : 'Copy message'}
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-[var(--nous-terra)]" />
+                <Check className="h-3.5 w-3.5 text-(--nous-terra)" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -424,7 +424,7 @@ function ThinkingPill({ label }: { label: string }) {
       transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
       <span
-        className="w-2 h-2 rounded-full bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]"
+        className="w-2 h-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
         style={{
           boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
           animation: 'nous-pulse 1.4s ease-in-out infinite',

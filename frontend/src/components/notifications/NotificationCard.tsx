@@ -96,9 +96,9 @@ export function NotificationCard({
       tabIndex={n.read ? -1 : 0}
       className={cn(
         'group relative grid grid-cols-[auto_1fr_auto] items-start gap-3.5',
-        'rounded-xl border bg-card px-4 py-3.5 shadow-sm',
+        'rounded-xl border bg-card px-4 py-3.5 shadow-xs',
         'transition-colors duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         n.read
           ? 'border-border opacity-70'
           : 'border-border hover:border-primary/40',
@@ -154,7 +154,7 @@ export function NotificationCard({
           )}
         </div>
 
-        <p className="mt-1 font-[family-name:var(--nous-font-body)] text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-1 font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
           {n.snippet}
         </p>
 
@@ -174,7 +174,7 @@ export function NotificationCard({
           'grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground',
           'opacity-0 transition-all duration-200 group-hover:opacity-100 focus-visible:opacity-100',
           'hover:bg-muted hover:text-foreground',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+          'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
         )}
       >
         <X aria-hidden="true" className="h-4 w-4" />

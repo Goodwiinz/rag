@@ -131,7 +131,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
           className={cn(
             'font-mono text-sm text-muted-foreground',
             'rounded border border-border bg-muted px-2 py-1',
-            'bg-gradient-to-r from-primary/5 to-muted'
+            'bg-linear-to-r from-primary/5 to-muted'
           )}
         >
           {content}
@@ -145,7 +145,7 @@ export const MathDisplay: React.FC<MathDisplayProps> = ({
       className={cn(
         'font-mono text-sm text-muted-foreground',
         'rounded border border-border bg-muted px-2 py-1',
-        'bg-gradient-to-r from-primary/5 to-muted',
+        'bg-linear-to-r from-primary/5 to-muted',
         block && 'my-3 block text-center'
       )}
     >

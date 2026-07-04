@@ -285,7 +285,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
         <div className="flex justify-center py-2">
           <button
             onClick={onLoadOlder}
-            className="text-xs font-medium text-[var(--nous-fg-2)] hover:text-[var(--nous-sol)] transition-colors"
+            className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
           >
             Load older messages
           </button>
@@ -293,7 +293,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       )}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">
-          <span className="text-xs font-medium text-[var(--nous-fg-2)]">
+          <span className="text-xs font-medium text-(--nous-fg-2)">
             Loading older messages...
           </span>
         </div>

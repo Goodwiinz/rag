@@ -33,18 +33,18 @@ export function CapabilitiesSection() {
   return (
     <section
       id="features"
-      className="py-24 px-6 border-t border-[var(--nous-shade)]"
+      className="py-24 px-6 border-t border-(--nous-shade)"
     >
       <div className="max-w-7xl mx-auto">
         <header className="max-w-2xl mb-16">
           <h2
-            className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--nous-ivory)] mb-4"
+            className="text-3xl md:text-4xl font-bold tracking-tight text-(--nous-ivory) mb-4"
             style={{ fontFamily: 'var(--nous-font-heading)' }}
           >
             Everything you read, working together.
           </h2>
           <p
-            className="text-lg text-[var(--nous-parchment)] leading-relaxed"
+            className="text-lg text-(--nous-parchment) leading-relaxed"
             style={{ fontFamily: 'var(--nous-font-body)' }}
           >
             The components behind retrieval that stays fast, private, and
@@ -58,22 +58,22 @@ export function CapabilitiesSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, ease: EASE_OUT }}
-          className="border-t border-[var(--nous-shade)] pt-8 mb-8"
+          className="border-t border-(--nous-shade) pt-8 mb-8"
         >
           <div className="flex items-start gap-5 max-w-3xl">
             <LEAD.icon
-              className="w-7 h-7 text-[var(--nous-sol)] shrink-0 mt-1"
+              className="w-7 h-7 text-(--nous-sol) shrink-0 mt-1"
               aria-hidden="true"
             />
             <div>
               <h3
-                className="text-2xl font-bold tracking-tight text-[var(--nous-ivory)] mb-2"
+                className="text-2xl font-bold tracking-tight text-(--nous-ivory) mb-2"
                 style={{ fontFamily: 'var(--nous-font-heading)' }}
               >
                 {LEAD.title}
               </h3>
               <p
-                className="text-lg text-[var(--nous-parchment)] leading-relaxed"
+                className="text-lg text-(--nous-parchment) leading-relaxed"
                 style={{ fontFamily: 'var(--nous-font-body)' }}
               >
                 {LEAD.desc}
@@ -83,7 +83,7 @@ export function CapabilitiesSection() {
         </motion.div>
 
         {/* Supporting capabilities */}
-        <div className="grid gap-px bg-[var(--nous-shade)] border-y border-[var(--nous-shade)] sm:grid-cols-3">
+        <div className="grid gap-px bg-(--nous-shade) border-y border-(--nous-shade) sm:grid-cols-3">
           {SUPPORTING.map(({ icon: Icon, title, desc }, i) => (
             <motion.div
               key={title}
@@ -91,20 +91,20 @@ export function CapabilitiesSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, ease: EASE_OUT, delay: i * 0.08 }}
-              className="bg-[var(--nous-nyx)] p-8"
+              className="bg-(--nous-nyx) p-8"
             >
               <Icon
-                className="w-6 h-6 text-[var(--nous-sol)] mb-5"
+                className="w-6 h-6 text-(--nous-sol) mb-5"
                 aria-hidden="true"
               />
               <h3
-                className="text-lg font-semibold text-[var(--nous-ivory)] mb-2"
+                className="text-lg font-semibold text-(--nous-ivory) mb-2"
                 style={{ fontFamily: 'var(--nous-font-heading)' }}
               >
                 {title}
               </h3>
               <p
-                className="text-[var(--nous-parchment)] leading-relaxed"
+                className="text-(--nous-parchment) leading-relaxed"
                 style={{ fontFamily: 'var(--nous-font-body)' }}
               >
                 {desc}

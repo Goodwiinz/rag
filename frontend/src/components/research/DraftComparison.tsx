@@ -67,7 +67,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
     comparison.similarity_score > 0.8
       ? 'text-primary'
       : comparison.similarity_score > 0.5
-        ? 'text-[var(--nous-helios)]'
+        ? 'text-(--nous-helios)'
         : 'text-destructive';
 
   const lineClass = (type: 'added' | 'removed' | 'unchanged') => {
@@ -161,7 +161,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
             <span className="text-xs text-muted-foreground mb-2 block">
               Version {comparison.version_a.version}
             </span>
-            <div className="text-sm font-[var(--nous-font-mono)] whitespace-pre-wrap space-y-1">
+            <div className="text-sm font-(--nous-font-mono) whitespace-pre-wrap space-y-1">
               {diffView.versionA.map((line, idx) => (
                 <div
                   key={`a-${idx}`}
@@ -176,7 +176,7 @@ export const DraftComparison: React.FC<DraftComparisonProps> = ({
             <span className="text-xs text-muted-foreground mb-2 block">
               Version {comparison.version_b.version}
             </span>
-            <div className="text-sm font-[var(--nous-font-mono)] whitespace-pre-wrap space-y-1">
+            <div className="text-sm font-(--nous-font-mono) whitespace-pre-wrap space-y-1">
               {diffView.versionB.map((line, idx) => (
                 <div
                   key={`b-${idx}`}

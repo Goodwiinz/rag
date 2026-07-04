@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('FormField', () => {
-  it('shows the green valid icon when value is numeric 0 after blur', () => {
+  it('shows the green valid icon when value is numeric 0 after blur-sm', () => {
     const { container } = render(
       <FormField
         label="Count"
@@ -44,7 +44,7 @@ describe('FormField', () => {
     expect(validIcon).toBeNull();
   });
 
-  it('shows the valid icon for a non-empty string value after blur', () => {
+  it('shows the valid icon for a non-empty string value after blur-sm', () => {
     const { container } = render(
       <FormField
         label="Name"

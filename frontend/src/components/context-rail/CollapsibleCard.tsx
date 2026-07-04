@@ -26,28 +26,28 @@ export function CollapsibleCard({
   return (
     <section
       className={cn(
-        'border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] rounded-lg',
-        'dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]',
+        'border border-(--nous-border-1) bg-(--nous-bg-2) rounded-lg',
+        'dark:bg-(--nous-obsidian) dark:border-(--nous-shade)',
         className
       )}
     >
       <button
         type="button"
         onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 group hover:bg-[var(--nous-aurum)]/30 dark:hover:bg-[var(--nous-ember)]/30 rounded-t-lg transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 group hover:bg-(--nous-aurum)/30 dark:hover:bg-(--nous-ember)/30 rounded-t-lg transition-colors"
         aria-expanded={!collapsed}
       >
         <div className="flex items-center gap-2 min-w-0">
           {icon && (
             <span
-              className="grid place-items-center w-4 h-4 shrink-0 text-[var(--nous-fg-3)]"
+              className="grid place-items-center w-4 h-4 shrink-0 text-(--nous-fg-3)"
               aria-hidden
             >
               {icon}
             </span>
           )}
           <span
-            className="text-[10px] font-bold uppercase truncate text-[var(--nous-fg-3)] group-hover:text-[var(--nous-fg-2)] transition-colors"
+            className="text-[10px] font-bold uppercase truncate text-(--nous-fg-3) group-hover:text-(--nous-fg-2) transition-colors"
             style={{
               fontFamily: 'var(--nous-font-mono)',
               letterSpacing: '0.18em',
@@ -59,7 +59,7 @@ export function CollapsibleCard({
         <div className="flex items-center gap-2 shrink-0">
           {badge != null && (
             <span
-              className="px-1.5 py-[1px] rounded text-[9px] tabular-nums bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[var(--nous-fg-2)] dark:bg-[var(--nous-nyx)] dark:border-[var(--nous-shade)]"
+              className="px-1.5 py-px rounded text-[9px] tabular-nums bg-(--nous-bg-1) border border-(--nous-border-1) text-(--nous-fg-2) dark:bg-(--nous-nyx) dark:border-(--nous-shade)"
               style={{
                 fontFamily: 'var(--nous-font-mono)',
                 letterSpacing: '0.04em',
@@ -70,14 +70,14 @@ export function CollapsibleCard({
           )}
           <ChevronDown
             className={cn(
-              'h-3.5 w-3.5 shrink-0 transition-transform text-[var(--nous-fg-3)]',
+              'h-3.5 w-3.5 shrink-0 transition-transform text-(--nous-fg-3)',
               collapsed && '-rotate-90'
             )}
           />
         </div>
       </button>
       {!collapsed && (
-        <div className="px-3 pb-3 pt-1 border-t border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]">
+        <div className="px-3 pb-3 pt-1 border-t border-(--nous-border-1) dark:border-(--nous-shade)">
           {children}
         </div>
       )}

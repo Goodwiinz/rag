@@ -105,17 +105,17 @@ export function ProjectPickerPopover({
         side="bottom"
         align="start"
         sideOffset={6}
-        className="w-72 p-0 bg-[var(--nous-bg-2)] border-[var(--nous-border-1)] dark:bg-[var(--nous-obsidian)] dark:border-[var(--nous-shade)]"
+        className="w-72 p-0 bg-(--nous-bg-2) border-(--nous-border-1) dark:bg-(--nous-obsidian) dark:border-(--nous-shade)"
       >
-        <div className="flex items-center gap-2 px-2.5 py-2 border-b border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]">
-          <Search className="h-3 w-3 shrink-0 text-[var(--nous-fg-3)]" />
+        <div className="flex items-center gap-2 px-2.5 py-2 border-b border-(--nous-border-1) dark:border-(--nous-shade)">
+          <Search className="h-3 w-3 shrink-0 text-(--nous-fg-3)" />
           <input
             type="text"
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search projects…"
             autoFocus
-            className="flex-1 bg-transparent text-[11px] text-[var(--nous-fg-1)] placeholder:text-[var(--nous-fg-3)] outline-none"
+            className="flex-1 bg-transparent text-[11px] text-(--nous-fg-1) placeholder:text-(--nous-fg-3) outline-hidden"
             style={{
               fontFamily: 'var(--nous-font-mono)',
               letterSpacing: '0.04em',
@@ -124,18 +124,18 @@ export function ProjectPickerPopover({
         </div>
 
         {error && (
-          <div className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]">
+          <div className="px-2.5 py-1.5 text-[11px] text-red-500 border-b border-(--nous-border-1) dark:border-(--nous-shade)">
             {error}
           </div>
         )}
         <div className="max-h-[200px] overflow-y-auto p-1">
           {loading && projects.length === 0 ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-4 w-4 animate-spin text-[var(--nous-fg-3)]" />
+              <Loader2 className="h-4 w-4 animate-spin text-(--nous-fg-3)" />
             </div>
           ) : projects.length === 0 ? (
             <p
-              className="py-4 text-center text-[11px] text-[var(--nous-fg-3)]"
+              className="py-4 text-center text-[11px] text-(--nous-fg-3)"
               style={{ fontFamily: 'var(--nous-font-mono)' }}
             >
               No projects found
@@ -147,11 +147,11 @@ export function ProjectPickerPopover({
                 type="button"
                 disabled={binding}
                 onClick={() => handleSelect(project.id, project.name)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors hover:bg-[var(--nous-aurum)]/30 dark:hover:bg-[var(--nous-ember)]/30 disabled:opacity-50"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-colors hover:bg-(--nous-aurum)/30 dark:hover:bg-(--nous-ember)/30 disabled:opacity-50"
               >
                 <div className="flex-1 min-w-0">
                   <p
-                    className="text-[12px] font-medium truncate text-[var(--nous-fg-1)]"
+                    className="text-[12px] font-medium truncate text-(--nous-fg-1)"
                     style={{ fontFamily: 'var(--nous-font-ui)' }}
                   >
                     {project.name}
@@ -159,7 +159,7 @@ export function ProjectPickerPopover({
                 </div>
                 {project.project_type && (
                   <span
-                    className="shrink-0 px-1.5 py-[1px] rounded text-[9px] bg-[var(--nous-bg-1)] border border-[var(--nous-border-1)] text-[var(--nous-fg-3)] dark:bg-[var(--nous-nyx)] dark:border-[var(--nous-shade)]"
+                    className="shrink-0 px-1.5 py-px rounded text-[9px] bg-(--nous-bg-1) border border-(--nous-border-1) text-(--nous-fg-3) dark:bg-(--nous-nyx) dark:border-(--nous-shade)"
                     style={{
                       fontFamily: 'var(--nous-font-mono)',
                       letterSpacing: '0.04em',

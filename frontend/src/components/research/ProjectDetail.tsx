@@ -64,9 +64,9 @@ export function ProjectDetail({
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 text-sm border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm border-b-2 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                 selected
-                  ? 'text-[var(--nous-sol-safe)] border-[var(--nous-sol-safe)]'
+                  ? 'text-(--nous-sol-safe) border-(--nous-sol-safe)'
                   : 'text-muted-foreground border-transparent hover:text-foreground'
               }`}
             >

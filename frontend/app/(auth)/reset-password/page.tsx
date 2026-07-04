@@ -144,7 +144,7 @@ export default function ResetPasswordPage() {
             </p>
             <Link
               href="/forgot-password"
-              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-2 py-2.5 px-5 rounded-lg text-sm font-medium transition-colors duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2"
               style={{
                 background: 'var(--nous-sol)',
                 color: 'var(--nous-erebus)',
@@ -344,7 +344,7 @@ export default function ResetPasswordPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  className="w-full pl-11 pr-12 py-2.5 rounded-lg text-sm outline-hidden transition-colors duration-200 focus-visible:ring-2"
                   style={{
                     background: 'var(--nous-nyx)',
                     border: '1px solid var(--nous-shade)',
@@ -358,7 +358,7 @@ export default function ResetPasswordPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   aria-pressed={showPassword}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-none focus-visible:ring-2"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 transition-colors duration-200 rounded-r-lg focus-visible:outline-hidden focus-visible:ring-2"
                   style={{
                     color: 'var(--nous-dust)',
                     ['--tw-ring-color' as string]: 'var(--nous-sol)',
@@ -395,7 +395,7 @@ export default function ResetPasswordPage() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-none transition-colors duration-200 focus-visible:ring-2"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-lg text-sm outline-hidden transition-colors duration-200 focus-visible:ring-2"
                   style={{
                     background: 'var(--nous-nyx)',
                     border: '1px solid var(--nous-shade)',
@@ -412,7 +412,7 @@ export default function ResetPasswordPage() {
               disabled={isSubmitting}
               className={cn(
                 'w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium',
-                'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                'transition-colors duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
               style={{
@@ -439,7 +439,7 @@ export default function ResetPasswordPage() {
           >
             <Link
               href="/login"
-              className="text-sm transition-colors duration-200 rounded focus-visible:outline-none focus-visible:ring-2"
+              className="text-sm transition-colors duration-200 rounded focus-visible:outline-hidden focus-visible:ring-2"
               style={{
                 color: 'var(--nous-sol)',
                 ['--tw-ring-color' as string]: 'var(--nous-sol)',

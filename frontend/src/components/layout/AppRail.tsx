@@ -46,21 +46,21 @@ function RailButton({
       className={cn(
         'rail-btn relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors duration-150',
         active
-          ? 'bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)] dark:bg-[var(--nous-ember)] dark:text-[var(--nous-helios)]'
-          : 'text-[var(--nous-fg-3)] hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-sol-safe)] dark:hover:bg-[var(--nous-ember)] dark:hover:text-[var(--nous-helios)]'
+          ? 'bg-(--nous-aurum) text-(--nous-sol-safe) dark:bg-(--nous-ember) dark:text-(--nous-helios)'
+          : 'text-(--nous-fg-3) hover:bg-(--nous-aurum) hover:text-(--nous-sol-safe) dark:hover:bg-(--nous-ember) dark:hover:text-(--nous-helios)'
       )}
     >
       {active && (
-        <span className="absolute -left-[10px] top-2 bottom-2 w-0.5 rounded-r bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]" />
+        <span className="absolute left-[-10px] top-2 bottom-2 w-0.5 rounded-r bg-(--nous-sol) dark:bg-(--nous-helios)" />
       )}
       <Icon className="w-4 h-4 rail-icon" />
       {badge != null && badge > 0 && (
-        <span className="absolute top-[3px] right-[2px] min-w-[14px] h-[14px] px-[3px] flex items-center justify-center rounded-full bg-[var(--nous-sol)] text-white text-[9px] font-bold font-[var(--nous-font-mono)] shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]">
+        <span className="absolute top-[3px] right-[2px] min-w-[14px] h-[14px] px-[3px] flex items-center justify-center rounded-full bg-(--nous-sol) text-white text-[9px] font-bold font-(--nous-font-mono) shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]">
           {badge}
         </span>
       )}
       {dot && (
-        <span className="absolute top-[7px] right-[7px] w-1.5 h-1.5 rounded-full bg-[var(--nous-sol)] shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]" />
+        <span className="absolute top-[7px] right-[7px] w-1.5 h-1.5 rounded-full bg-(--nous-sol) shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]" />
       )}
     </Link>
   );
@@ -89,16 +89,16 @@ export function AppRail() {
   return (
     <aside
       aria-label="Primary"
-      className="flex flex-col items-center w-14 h-full shrink-0 py-3 gap-1 border-r border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] dark:bg-[var(--nous-nyx)] dark:border-[var(--nous-shade)]"
+      className="flex flex-col items-center w-14 h-full shrink-0 py-3 gap-1 border-r border-(--nous-border-1) bg-(--nous-bg-2) dark:bg-(--nous-nyx) dark:border-(--nous-shade)"
     >
       {/* Brand mark */}
       <Link
         href="/dashboard"
         aria-label="NOUS home"
-        className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--nous-erebus)] dark:bg-[var(--nous-sol)] shadow-sm mb-1"
+        className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-(--nous-erebus) dark:bg-(--nous-sol) shadow-xs mb-1"
       >
         <span
-          className="text-white dark:text-[var(--nous-nyx)] text-[15px] font-bold leading-none"
+          className="text-white dark:text-(--nous-nyx) text-[15px] font-bold leading-none"
           style={{
             fontFamily: 'var(--nous-font-body)',
             letterSpacing: '-0.02em',
@@ -106,11 +106,11 @@ export function AppRail() {
         >
           N
         </span>
-        <span className="absolute inset-[-2px] rounded-[10px] border border-[var(--nous-aurum)] dark:border-[var(--nous-ember)] opacity-55 pointer-events-none" />
+        <span className="absolute inset-[-2px] rounded-[10px] border border-(--nous-aurum) dark:border-(--nous-ember) opacity-55 pointer-events-none" />
       </Link>
 
       {/* Divider */}
-      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+      <div className="w-[22px] h-px bg-(--nous-border-1) dark:bg-(--nous-shade) my-1.5" />
 
       {/* Navigation — hub */}
       <RailButton
@@ -139,7 +139,7 @@ export function AppRail() {
       />
 
       {/* Divider — knowledge */}
-      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+      <div className="w-[22px] h-px bg-(--nous-border-1) dark:bg-(--nous-shade) my-1.5" />
 
       <RailButton
         icon={BookOpen}
@@ -167,7 +167,7 @@ export function AppRail() {
       />
 
       {/* Divider — system */}
-      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+      <div className="w-[22px] h-px bg-(--nous-border-1) dark:bg-(--nous-shade) my-1.5" />
 
       <RailButton
         icon={BarChart3}
@@ -177,7 +177,7 @@ export function AppRail() {
       />
 
       {/* Divider */}
-      <div className="w-[22px] h-px bg-[var(--nous-border-1)] dark:bg-[var(--nous-shade)] my-1.5" />
+      <div className="w-[22px] h-px bg-(--nous-border-1) dark:bg-(--nous-shade) my-1.5" />
 
       <BellPopover active={isActive('/notifications')} />
       <RailButton
@@ -197,7 +197,7 @@ export function AppRail() {
         onClick={handleLogout}
         className={cn(
           'rail-btn relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors duration-150',
-          'text-red-400 hover:text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-bg-2)] dark:focus-visible:ring-offset-[var(--nous-nyx)]'
+          'text-red-400 hover:text-red-300 hover:bg-red-500/10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-red-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-bg-2) dark:focus-visible:ring-offset-(--nous-nyx)'
         )}
       >
         <LogOut className="w-4 h-4 rail-icon" />
@@ -207,7 +207,7 @@ export function AppRail() {
       <Link
         href="/settings"
         aria-label="Account"
-        className="relative flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-[var(--nous-sol)] to-[var(--nous-helios)] shadow-[0_0_0_2px_var(--nous-bg-2),0_2px_4px_rgba(212,160,57,0.2)] dark:shadow-[0_0_0_2px_var(--nous-nyx),0_2px_4px_rgba(212,160,57,0.2)]"
+        className="relative flex items-center justify-center w-8 h-8 rounded-full bg-linear-to-br from-(--nous-sol) to-(--nous-helios) shadow-[0_0_0_2px_var(--nous-bg-2),0_2px_4px_rgba(212,160,57,0.2)] dark:shadow-[0_0_0_2px_var(--nous-nyx),0_2px_4px_rgba(212,160,57,0.2)]"
       >
         <span
           className="text-white text-[11px] font-semibold leading-none"
@@ -215,7 +215,7 @@ export function AppRail() {
         >
           {getInitials(user?.email)}
         </span>
-        <span className="absolute -bottom-[1px] -right-[1px] w-[9px] h-[9px] rounded-full bg-[var(--nous-terra)] shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]" />
+        <span className="absolute -bottom-px -right-px w-[9px] h-[9px] rounded-full bg-(--nous-terra) shadow-[0_0_0_2px_var(--nous-bg-2)] dark:shadow-[0_0_0_2px_var(--nous-nyx)]" />
       </Link>
     </aside>
   );

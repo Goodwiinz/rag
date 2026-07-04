@@ -271,7 +271,7 @@ export const DocumentProgressVisualizer: React.FC<
             <div className="flex items-start gap-4">
               {/* Stage icon and status */}
               <div
-                className={`w-10 h-10 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${getStageStatusColor(stage)}`}
+                className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shrink-0 ${getStageStatusColor(stage)}`}
               >
                 {getStageIcon(stage)}
               </div>

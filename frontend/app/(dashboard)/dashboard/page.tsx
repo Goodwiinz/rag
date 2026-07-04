@@ -243,7 +243,7 @@ export default function DashboardPage() {
             data-testid="dashboard-header"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-border bg-card shadow-sm"
+            className="rounded-xl border border-border bg-card shadow-xs"
           >
             <div className="p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -295,11 +295,11 @@ export default function DashboardPage() {
               <Link
                 key={action.label}
                 href={action.href}
-                className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <motion.div
                   whileHover={{ y: -2 }}
-                  className="group p-4 rounded-xl border border-border bg-card shadow-sm hover:border-[var(--nous-helios)] hover:shadow-md transition-all duration-300 cursor-pointer"
+                  className="group p-4 rounded-xl border border-border bg-card shadow-xs hover:border-(--nous-helios) hover:shadow-md transition-all duration-300 cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -331,7 +331,7 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 + idx * 0.05 }}
-                className="rounded-xl border border-border bg-card p-5 shadow-sm"
+                className="rounded-xl border border-border bg-card p-5 shadow-xs"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="p-2 rounded-lg bg-muted text-primary">
@@ -355,7 +355,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden shadow-sm"
+              className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden shadow-xs"
             >
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
                 <Activity aria-hidden="true" className="w-4 h-4 text-primary" />
@@ -379,7 +379,7 @@ export default function DashboardPage() {
                         setServicesState('loading');
                         fetchDashboardData();
                       }}
-                      className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                      className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                     >
                       Retry
                     </button>
@@ -401,7 +401,7 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={service.name}
-                          className="p-4 rounded-xl border border-border bg-muted/20 hover:border-[var(--nous-helios)] hover:shadow-md transition-all group"
+                          className="p-4 rounded-xl border border-border bg-muted/20 hover:border-(--nous-helios) hover:shadow-md transition-all group"
                         >
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
@@ -413,8 +413,8 @@ export default function DashboardPage() {
                                 className={cn(
                                   'w-1.5 h-1.5 rounded-full',
                                   online
-                                    ? 'bg-[var(--nous-terra)]'
-                                    : 'bg-[var(--nous-mars)]'
+                                    ? 'bg-(--nous-terra)'
+                                    : 'bg-(--nous-mars)'
                                 )}
                               />
                               <span className="text-[11px] text-muted-foreground">
@@ -445,11 +445,11 @@ export default function DashboardPage() {
                               transition={{ duration: 1, delay: 0.5 }}
                               className={cn(
                                 'h-full rounded-full',
-                                service.load < 50 && 'bg-[var(--nous-terra)]',
+                                service.load < 50 && 'bg-(--nous-terra)',
                                 service.load >= 50 &&
                                   service.load < 75 &&
-                                  'bg-[var(--nous-helios)]',
-                                service.load >= 75 && 'bg-[var(--nous-mars)]'
+                                  'bg-(--nous-helios)',
+                                service.load >= 75 && 'bg-(--nous-mars)'
                               )}
                             />
                           </div>
@@ -469,7 +469,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
-              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-xs"
             >
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
                 <Clock
@@ -523,7 +523,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-xs"
             >
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
                 <BarChart3
@@ -596,7 +596,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="rounded-xl border border-border bg-card overflow-hidden shadow-sm"
+              className="rounded-xl border border-border bg-card overflow-hidden shadow-xs"
             >
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
                 <Brain aria-hidden="true" className="w-4 h-4 text-primary" />
@@ -625,7 +625,7 @@ export default function DashboardPage() {
 
                 <Link
                   href="/chat"
-                  className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="block rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <div className="flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-primary/5 hover:border-primary/40 transition-all group">
                     <div className="flex items-center gap-3">

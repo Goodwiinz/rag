@@ -112,13 +112,13 @@ const EnhancedAssistantCard = React.forwardRef<
           aria-pressed={isSelected}
           aria-label={`Select ${assistant.name}`}
           className={cn(
-            'w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50',
+            'w-full text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-orange-400/50',
             'relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 border-2',
             'backdrop-blur-md bg-white/10 dark:bg-black/10',
             'hover:bg-white/20 dark:hover:bg-black/20',
             'hover:shadow-xl hover:shadow-orange-500/20',
             isSelected && [
-              'border-orange-400/50 bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-transparent',
+              'border-orange-400/50 bg-linear-to-br from-orange-500/10 via-amber-500/5 to-transparent',
               'shadow-2xl shadow-orange-500/30',
               'ring-4 ring-orange-400/20 ring-offset-2 ring-offset-background',
             ],
@@ -132,7 +132,7 @@ const EnhancedAssistantCard = React.forwardRef<
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
-                className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/5"
+                className="absolute inset-0 bg-linear-to-br from-orange-500/10 to-amber-500/5"
               />
             )}
           </AnimatePresence>
@@ -151,7 +151,7 @@ const EnhancedAssistantCard = React.forwardRef<
               >
                 <motion.div
                   className={cn(
-                    'absolute inset-0 rounded-full bg-gradient-to-br opacity-0',
+                    'absolute inset-0 rounded-full bg-linear-to-br opacity-0',
                     isSelected
                       ? 'from-orange-400 to-amber-500 opacity-30'
                       : `${assistant.color} opacity-20`
@@ -162,7 +162,7 @@ const EnhancedAssistantCard = React.forwardRef<
                 <Avatar className="h-14 w-14 ring-2 ring-background/50 relative">
                   <AvatarImage src={assistant.avatar} alt={assistant.name} />
                   <AvatarFallback
-                    className={`bg-gradient-to-br ${assistant.color} text-white font-bold text-lg`}
+                    className={`bg-linear-to-br ${assistant.color} text-white font-bold text-lg`}
                   >
                     {assistant.name.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
@@ -170,7 +170,7 @@ const EnhancedAssistantCard = React.forwardRef<
 
                 {/* Category badge */}
                 <motion.div
-                  className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center"
+                  className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-linear-to-br from-orange-400 to-amber-500 flex items-center justify-center"
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ delay: 0.2, type: 'spring', stiffness: 500 }}
@@ -188,7 +188,7 @@ const EnhancedAssistantCard = React.forwardRef<
                   {assistant.isPremium && (
                     <Badge
                       variant="secondary"
-                      className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white border-0"
+                      className="bg-linear-to-r from-yellow-400 to-amber-500 text-white border-0"
                     >
                       <Zap className="h-3 w-3 mr-1" />
                       PRO
@@ -282,7 +282,7 @@ const EnhancedAssistantCard = React.forwardRef<
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-amber-500/5 pointer-events-none"
+                className="absolute inset-0 bg-linear-to-br from-orange-500/5 to-amber-500/5 pointer-events-none"
               />
             )}
           </AnimatePresence>
@@ -388,7 +388,7 @@ export function EnhancedNewChatDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <motion.div variants={glassVariants} animate={controls} initial="hidden">
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-background/95 via-background/90 to-background/95 backdrop-blur-2xl border-border/20">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden bg-linear-to-br from-background/95 via-background/90 to-background/95 backdrop-blur-2xl border-border/20">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -401,7 +401,7 @@ export function EnhancedNewChatDialog({
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: 'spring', stiffness: 500 }}
-                className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 text-white mb-4 mx-auto shadow-lg shadow-orange-500/25"
+                className="inline-flex items-center justify-center p-3 rounded-2xl bg-linear-to-br from-orange-400 to-amber-500 text-white mb-4 mx-auto shadow-lg shadow-orange-500/25"
               >
                 <Sparkles className="h-8 w-8" />
               </motion.div>
@@ -445,7 +445,7 @@ export function EnhancedNewChatDialog({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   aria-label="Search assistants"
-                  className="h-12 pl-12 pr-12 text-base bg-background/50 backdrop-blur-sm border-border/50 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all duration-300"
+                  className="h-12 pl-12 pr-12 text-base bg-background/50 backdrop-blur-xs border-border/50 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 transition-all duration-300"
                 />
                 {searchQuery && (
                   <Button
@@ -582,7 +582,7 @@ export function EnhancedNewChatDialog({
                 onClick={handleStartChat}
                 disabled={!selectedAssistant || isLoading}
                 size="lg"
-                className="w-full h-14 text-base font-semibold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="w-full h-14 text-base font-semibold bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
               >
                 {isLoading ? (
                   <>

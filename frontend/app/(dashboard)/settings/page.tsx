@@ -166,54 +166,54 @@ export default function SettingsPage(): ReactElement {
     <div className="space-y-8 px-6 pb-20 pt-6 md:space-y-10 md:px-10 md:pb-24 md:pt-8 lg:px-12">
       <header className="space-y-5">
         <div className="space-y-3">
-          <h1 className="text-3xl font-semibold text-[var(--nous-fg-1)]">
+          <h1 className="text-3xl font-semibold text-(--nous-fg-1)">
             Settings
           </h1>
-          <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
+          <p className="max-w-3xl text-sm text-(--nous-fg-3)">
             Manage your account, workspace governance, model access, and
             platform controls.
           </p>
         </div>
 
-        <Card className="overflow-hidden rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
+        <Card className="overflow-hidden rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none">
           <CardContent className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
             <div className="flex items-start gap-3">
               <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-sol-glow)] text-lg font-semibold text-[var(--nous-fg-1)]"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-(--nous-border-1) bg-(--nous-sol-glow) text-lg font-semibold text-(--nous-fg-1)"
                 aria-hidden="true"
               >
                 {accountInitial}
               </div>
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
+                  <p className="text-lg font-semibold text-(--nous-fg-1)">
                     {accountName}
                   </p>
                   {roleLabel ? (
-                    <span className="inline-flex items-center rounded-full border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] px-2.5 py-1 text-xs font-medium text-[var(--nous-fg-1)]">
+                    <span className="inline-flex items-center rounded-full border border-(--nous-border-1) bg-(--nous-bg-1) px-2.5 py-1 text-xs font-medium text-(--nous-fg-1)">
                       {roleLabel}
                     </span>
                   ) : null}
                 </div>
                 {showEmailLine ? (
-                  <p className="text-sm text-[var(--nous-fg-3)]">
+                  <p className="text-sm text-(--nous-fg-3)">
                     {primaryEmail}
                   </p>
                 ) : !primaryEmail ? (
-                  <p className="text-sm text-[var(--nous-fg-3)]">
+                  <p className="text-sm text-(--nous-fg-3)">
                     No email on file
                   </p>
                 ) : null}
               </div>
             </div>
 
-            <div className="grid gap-2 rounded-2xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-1)] p-3.5 sm:p-4">
-              <p className="text-xs font-medium text-[var(--nous-fg-3)]">
+            <div className="grid gap-2 rounded-2xl border border-(--nous-border-1) bg-(--nous-bg-1) p-3.5 sm:p-4">
+              <p className="text-xs font-medium text-(--nous-fg-3)">
                 Last sign-in
               </p>
-              <div className="flex items-center gap-2 text-sm text-[var(--nous-fg-1)]">
+              <div className="flex items-center gap-2 text-sm text-(--nous-fg-1)">
                 <Clock3
-                  className="h-4 w-4 text-[var(--nous-sol)]"
+                  className="h-4 w-4 text-(--nous-sol)"
                   aria-hidden="true"
                 />
                 {lastSignIn || 'Not recorded yet'}
@@ -226,7 +226,7 @@ export default function SettingsPage(): ReactElement {
       <section className="space-y-4" aria-labelledby="settings-status-title">
         <h2
           id="settings-status-title"
-          className="text-base font-semibold text-[var(--nous-fg-1)]"
+          className="text-base font-semibold text-(--nous-fg-1)"
         >
           Account overview
         </h2>
@@ -237,30 +237,30 @@ export default function SettingsPage(): ReactElement {
             return (
               <Card
                 key={item.label}
-                className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
+                className="rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none"
               >
                 <CardContent className="space-y-2 p-4">
                   <div className="flex items-center gap-2">
                     <div
-                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--nous-sol-glow) text-(--nous-sol)"
                       aria-hidden="true"
                     >
                       <Icon className="h-4 w-4" />
                     </div>
-                    <p className="text-sm font-medium text-[var(--nous-fg-2)]">
+                    <p className="text-sm font-medium text-(--nous-fg-2)">
                       {item.label}
                     </p>
                   </div>
                   <p
                     className={`text-lg font-semibold leading-tight ${
                       item.connected
-                        ? 'text-[var(--nous-fg-1)]'
-                        : 'text-[var(--nous-fg-3)]'
+                        ? 'text-(--nous-fg-1)'
+                        : 'text-(--nous-fg-3)'
                     }`}
                   >
                     {item.value}
                   </p>
-                  <p className="text-sm text-[var(--nous-fg-3)]">{item.hint}</p>
+                  <p className="text-sm text-(--nous-fg-3)">{item.hint}</p>
                 </CardContent>
               </Card>
             );
@@ -271,25 +271,25 @@ export default function SettingsPage(): ReactElement {
       <section className="space-y-4" aria-labelledby="settings-areas-title">
         <h2
           id="settings-areas-title"
-          className="text-base font-semibold text-[var(--nous-fg-1)]"
+          className="text-base font-semibold text-(--nous-fg-1)"
         >
           Settings areas
         </h2>
         <div className="grid gap-3 lg:grid-cols-2">
-          <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none lg:col-span-2">
+          <Card className="rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none lg:col-span-2">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--nous-sol-glow) text-(--nous-sol)"
                   aria-hidden="true"
                 >
                   <UserCircle2 className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-lg font-semibold text-[var(--nous-fg-1)]">
+                  <p className="text-lg font-semibold text-(--nous-fg-1)">
                     Profile and preferences
                   </p>
-                  <p className="text-sm leading-6 text-[var(--nous-fg-3)]">
+                  <p className="text-sm leading-6 text-(--nous-fg-3)">
                     Identity, display defaults, and notification preferences for
                     your account.
                   </p>
@@ -297,7 +297,7 @@ export default function SettingsPage(): ReactElement {
               </div>
               <a
                 href="#personal-preferences"
-                className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded-md"
+                className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-(--nous-fg-1) transition-colors hover:text-(--nous-sol) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 rounded-md"
               >
                 Jump to personal controls
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -311,29 +311,29 @@ export default function SettingsPage(): ReactElement {
             return (
               <Card
                 key={item.title}
-                className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none"
+                className="rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none"
               >
                 <CardHeader className="space-y-3 p-5 pb-2">
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--nous-sol-glow)] text-[var(--nous-sol)]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-(--nous-sol-glow) text-(--nous-sol)"
                     aria-hidden="true"
                   >
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="space-y-2">
-                    <CardTitle className="text-xl text-[var(--nous-fg-1)]">
+                    <CardTitle className="text-xl text-(--nous-fg-1)">
                       {item.title}
                     </CardTitle>
-                    <p className="text-sm leading-6 text-[var(--nous-fg-3)]">
+                    <p className="text-sm leading-6 text-(--nous-fg-3)">
                       {item.description}
                     </p>
                   </div>
                 </CardHeader>
                 <CardContent className="p-5 pt-0">
-                  <div className="border-t border-[var(--nous-border-1)] pt-3">
+                  <div className="border-t border-(--nous-border-1) pt-3">
                     <Link
                       href={item.href}
-                      className="inline-flex items-center gap-2 text-sm font-medium text-[var(--nous-fg-1)] transition-colors hover:text-[var(--nous-sol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 rounded-md"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-(--nous-fg-1) transition-colors hover:text-(--nous-sol) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 rounded-md"
                     >
                       {item.cta}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -351,21 +351,21 @@ export default function SettingsPage(): ReactElement {
         className="scroll-mt-24"
         aria-labelledby="personal-preferences-title"
       >
-        <Card className="rounded-2xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-none">
+        <Card className="rounded-2xl border-(--nous-border-1) bg-(--nous-bg-2) shadow-none">
           <CardHeader className="space-y-2 p-5 pb-2">
             <div className="flex items-center gap-2">
               <Bell
-                className="h-4 w-4 text-[var(--nous-sol)]"
+                className="h-4 w-4 text-(--nous-sol)"
                 aria-hidden="true"
               />
               <CardTitle
                 id="personal-preferences-title"
-                className="text-2xl text-[var(--nous-fg-1)]"
+                className="text-2xl text-(--nous-fg-1)"
               >
                 Personal preferences
               </CardTitle>
             </div>
-            <p className="max-w-3xl text-sm text-[var(--nous-fg-3)]">
+            <p className="max-w-3xl text-sm text-(--nous-fg-3)">
               Quick personal defaults for this overview. These controls stay
               local in this pass and do not write to backend settings yet.
             </p>
@@ -374,17 +374,17 @@ export default function SettingsPage(): ReactElement {
             {PREFERENCE_ITEMS.map((item, index) => (
               <div key={item.key} className="space-y-4">
                 {index > 0 && (
-                  <Separator className="bg-[var(--nous-border-1)]" />
+                  <Separator className="bg-(--nous-border-1)" />
                 )}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <Label
                       htmlFor={item.key}
-                      className="text-sm font-medium text-[var(--nous-fg-1)]"
+                      className="text-sm font-medium text-(--nous-fg-1)"
                     >
                       {item.label}
                     </Label>
-                    <p className="text-sm text-[var(--nous-fg-3)]">
+                    <p className="text-sm text-(--nous-fg-3)">
                       {item.description}
                     </p>
                   </div>
