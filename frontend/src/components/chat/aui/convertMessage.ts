@@ -1,6 +1,9 @@
 import type { ThreadMessageLike } from '@assistant-ui/react';
 
-import type { ActivityStep, ChatPageMessage } from '../shared/cloudMessageView';
+import type {
+  ActivityStep,
+  ChatPageMessage,
+} from '@/components/chat/shared/cloudMessageView';
 
 type ToolCallPart = {
   type: 'tool-call';
@@ -45,7 +48,12 @@ export function toToolCallParts(
 
 export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
   const toolParts = message.toolExecutions?.length
-    ? toToolCallParts(message.id ?? 'local', message.toolExecutions)
+    ? // Deterministic per-message fallback: a shared constant like 'local'
+      // would collide across multiple id-less messages (duplicate toolCallIds).
+      toToolCallParts(
+        message.id ?? String(message.timestamp),
+        message.toolExecutions
+      )
     : [];
   return {
     id: message.id,

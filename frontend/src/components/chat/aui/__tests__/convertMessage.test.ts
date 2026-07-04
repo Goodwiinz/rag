@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ActivityStep, ChatPageMessage } from '../../shared/cloudMessageView';
+import type {
+  ActivityStep,
+  ChatPageMessage,
+} from '@/components/chat/shared/cloudMessageView';
 import { convertMessage, toToolCallParts } from '../convertMessage';
 
 function makeMessage(overrides: Partial<ChatPageMessage> = {}): ChatPageMessage {
@@ -82,6 +85,18 @@ describe('convertMessage', () => {
 
     expect(part.args).toEqual({});
     expect(part.argsText).toBe('');
+  });
+
+  it('falls back to the timestamp for toolCallIds when the message has no id', () => {
+    const steps: ActivityStep[] = [
+      { tool: 'search_documents', label: 'Searching', status: 'running' },
+    ];
+    const result = convertMessage(
+      makeMessage({ id: undefined, toolExecutions: steps })
+    );
+    const content = result.content as Array<Record<string, unknown>>;
+
+    expect(content[0].toolCallId).toBe('1720000000000-tool-0');
   });
 
   it('returns referentially stable parts for the same steps array reference', () => {
