@@ -167,7 +167,9 @@ AgentMessageItem.displayName = 'AgentMessageItem';
 
 /**
  * Collapsible, read-only snapshot of the agent's execution plan for this turn.
- * Expanded by default while streaming; collapsed once the turn finishes.
+ * Follows the streaming state (expanded while streaming, collapses when the
+ * turn finishes) until the user toggles it manually — after that the manual
+ * choice wins.
  */
 function InlinePlan({
   plan,
@@ -178,7 +180,8 @@ function InlinePlan({
   toolExecutions: ToolExecution[];
   isStreaming: boolean;
 }): React.JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(isStreaming);
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
+  const isExpanded = manualExpanded ?? isStreaming;
 
   const tasks = useMemo<Task[]>(
     () => mapPlanToTasks(plan, toolExecutions),
@@ -189,7 +192,7 @@ function InlinePlan({
   return (
     <div className="border border-border/50 rounded-lg bg-muted/20 my-2 overflow-hidden">
       <button
-        onClick={() => setIsExpanded((v) => !v)}
+        onClick={() => setManualExpanded(!isExpanded)}
         className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/40 transition-colors"
         aria-label={`${isExpanded ? 'Collapse' : 'Expand'} execution plan`}
       >

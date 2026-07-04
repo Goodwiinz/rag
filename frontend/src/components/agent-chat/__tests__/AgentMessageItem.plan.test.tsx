@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { AgentMessageItem } from '../AgentMessageItem';
 import type { AgentMessage, PlanStep } from '@/types/agent-chat';
 
@@ -48,6 +48,40 @@ describe('AgentMessageItem inline plan', () => {
     expect(screen.getByText('Execution plan')).toBeInTheDocument();
     expect(screen.getByLabelText('Expand execution plan')).toBeInTheDocument();
     expect(screen.queryByText('Search arXiv')).not.toBeInTheDocument();
+  });
+
+  it('auto-collapses on the same instance when streaming ends', () => {
+    const { rerender } = render(
+      <AgentMessageItem
+        message={makeMessage({ plan, isStreaming: true, content: '' })}
+      />
+    );
+    expect(screen.getByLabelText('Collapse execution plan')).toBeInTheDocument();
+
+    rerender(
+      <AgentMessageItem message={makeMessage({ plan, isStreaming: false })} />
+    );
+    expect(screen.getByLabelText('Expand execution plan')).toBeInTheDocument();
+    expect(screen.queryByText('Search arXiv')).not.toBeInTheDocument();
+  });
+
+  it('manual toggle overrides the streaming-driven state', () => {
+    const { rerender } = render(
+      <AgentMessageItem
+        message={makeMessage({ plan, isStreaming: true, content: '' })}
+      />
+    );
+    // User expands... nothing to do, already expanded; user collapses instead.
+    fireEvent.click(screen.getByLabelText('Collapse execution plan'));
+    expect(screen.getByLabelText('Expand execution plan')).toBeInTheDocument();
+
+    // User re-expands; when streaming later ends, the manual choice wins.
+    fireEvent.click(screen.getByLabelText('Expand execution plan'));
+    rerender(
+      <AgentMessageItem message={makeMessage({ plan, isStreaming: false })} />
+    );
+    expect(screen.getByLabelText('Collapse execution plan')).toBeInTheDocument();
+    expect(screen.getByText('Search arXiv')).toBeInTheDocument();
   });
 
   it('does not render a plan for user messages', () => {
