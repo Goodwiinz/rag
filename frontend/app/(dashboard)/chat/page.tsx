@@ -254,6 +254,34 @@ function ChatPageContent() {
     };
   }, [setInput, chatInputRef]);
 
+  // Open the citation panel for a synthetic citation handed over from the
+  // layout's ContextRail (document/external preview clicks). The rail lives
+  // in the layout component, so it cannot reach this page's panel state
+  // directly — same window-event idiom as 'populate-chat-input'.
+  useEffect(() => {
+    const handleOpenCitationPanel = (event: CustomEvent<Citation>) => {
+      const citation = event.detail;
+      if (!citation?.title) return;
+      setCitationPanelCitations([citation]);
+      setActiveCitationId(
+        citation.documentId || citation.externalReferenceId
+      );
+      setCitationTraceId(undefined);
+      setIsCitationPanelOpen(true);
+    };
+
+    window.addEventListener(
+      'open-citation-panel',
+      handleOpenCitationPanel as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        'open-citation-panel',
+        handleOpenCitationPanel as EventListener
+      );
+    };
+  }, []);
+
   const handleCitationClick = useCallback(
     (citations: Citation[], clickedCitation: Citation, traceId?: string) => {
       setCitationPanelCitations(citations);
