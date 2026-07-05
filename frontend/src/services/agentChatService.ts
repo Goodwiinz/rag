@@ -329,6 +329,11 @@ class AgentChatService {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
       onToolEnd?: (tool: string, result: string, isError: boolean) => void;
+      onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
+      onPlan?: (
+        steps: Array<Record<string, unknown>>,
+        reasoning: string
+      ) => void;
       onReflection?: (
         passed: boolean,
         issues: string[],
@@ -429,6 +434,14 @@ class AgentChatService {
                     data.result,
                     Boolean(data.is_error)
                   );
+                  break;
+                case 'rag_context':
+                  // Post-confirm retrieval — without this the resumed turn's
+                  // sources were silently dropped (sync-audit gap 2).
+                  callbacks.onRagContext?.(data.contexts);
+                  break;
+                case 'plan':
+                  callbacks.onPlan?.(data.steps, data.reasoning ?? '');
                   break;
                 case 'trace':
                   break;

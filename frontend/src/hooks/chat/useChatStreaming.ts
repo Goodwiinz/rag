@@ -879,6 +879,10 @@ export function useChatStreaming(
       useChatStore.setState({ isStreaming: true, streamingContent: '' });
 
       let confirmContent = '';
+      // Post-confirm retrieval contexts (the resumed turn can run RAG); the
+      // confirm parser previously dropped rag_context entirely, so a
+      // confirmed action's sources never reached the UI (sync-audit gap 2).
+      let confirmCitations: Array<Record<string, unknown>> = [];
       const confirmMessages = [...messages];
 
       const confirmAbort = new AbortController();
@@ -921,6 +925,13 @@ export function useChatStreaming(
               // create_note, create_draft) — refresh the rail here too.
               invalidateProjectDataForTool(tool, isError);
             },
+            onRagContext: (contexts) => {
+              confirmCitations = contexts;
+              useChatStore.setState({
+                streamingCitations: contexts,
+                isRetrievingRag: false,
+              });
+            },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
               confirmContent = '';
@@ -933,6 +944,9 @@ export function useChatStreaming(
                   role: 'assistant',
                   content: confirmContent,
                   timestamp: Date.now(),
+                  ...(confirmCitations.length > 0
+                    ? { citations: confirmCitations.map(normalizeCitation) }
+                    : {}),
                 };
                 setMessages([...confirmMessages, msg]);
               }
