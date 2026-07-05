@@ -29,6 +29,39 @@ describe('AuiToolParts', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('running step while streaming shows running status (spinner icon)', () => {
+    const running: ActivityStep = {
+      tool: 'search_arxiv',
+      label: 'Searching arXiv',
+      status: 'running',
+    };
+    render(<AuiToolParts messageId="m1" steps={[running]} isStreaming />);
+    // running status spins the trigger icon
+    expect(
+      document.querySelector(
+        '[data-slot="tool-fallback-trigger-icon"].animate-spin'
+      )
+    ).toBeTruthy();
+  });
+
+  it('running step on a non-streaming message reads as cancelled (incomplete)', () => {
+    const stale: ActivityStep = {
+      tool: 'search_arxiv',
+      label: 'Searching arXiv',
+      status: 'running',
+    };
+    render(
+      <AuiToolParts messageId="m1" steps={[stale]} isStreaming={false} />
+    );
+    // cancelled renders the "Cancelled tool" label, not a spinner
+    expect(screen.getByText(/Cancelled tool/)).toBeInTheDocument();
+    expect(
+      document.querySelector(
+        '[data-slot="tool-fallback-trigger-icon"].animate-spin'
+      )
+    ).toBeNull();
+  });
+
   it('renders one row per step', () => {
     const steps: ActivityStep[] = [
       doneStep,
