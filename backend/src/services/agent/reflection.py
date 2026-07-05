@@ -370,6 +370,39 @@ _DOC_SEARCH_FABRICATION_CLAIM_RE = re.compile(
 )
 
 
+def _prior_turn_read_happened(state: dict, read_tools: frozenset[str]) -> bool:
+    """True when any AIMessage BEFORE the last one carries a tool_call whose
+    name is in ``read_tools`` — i.e. retrieval genuinely happened earlier in
+    the thread.
+
+    ``tool_executions`` / ``retrieved_contexts`` are per-turn channels, reset
+    to [] on every request (streaming.py / jobs.py initial_state), so the
+    fabrication guards only see the current turn. But the claim regexes also
+    match truthful past-turn references ("Earlier I searched your documents
+    and found …"), which force-revised legit multi-turn follow-ups. Prior
+    tool_calls in ``state["messages"]`` are the durable record that a read
+    actually ran, so their presence makes such references truthful.
+    """
+    messages = state.get("messages", [])
+    # Exclude the last AIMessage: its own tool_calls are this turn's, already
+    # covered (more strictly, with completion status) by tool_executions.
+    last_ai_seen = False
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage):
+            if not last_ai_seen:
+                last_ai_seen = True
+                continue
+            for tc in getattr(msg, "tool_calls", None) or []:
+                name = (
+                    tc.get("name")
+                    if isinstance(tc, dict)
+                    else getattr(tc, "name", None)
+                )
+                if name in read_tools:
+                    return True
+    return False
+
+
 def _detect_fabricated_doc_search(state: dict) -> Optional[str]:
     """Return an issue string when the AI claims it searched the documents /
     library / arXiv (or presents retrieved results) but no document READ tool
@@ -409,6 +442,12 @@ def _detect_fabricated_doc_search(state: dict) -> Optional[str]:
         for te in tool_executions
     )
     if executed_search:
+        return None
+
+    # Retrieval genuinely happened earlier in the thread — a follow-up that
+    # references it ("Earlier I searched your documents …") is truthful.
+    # Threads with zero retrieval ever keep the strict guard.
+    if _prior_turn_read_happened(state, _DOC_READ_TOOLS):
         return None
 
     last_ai = _last_ai_message(state)
@@ -474,6 +513,11 @@ def _detect_fabricated_kg_search(state: dict) -> Optional[str]:
         for te in tool_executions
     )
     if executed_search:
+        return None
+
+    # Same multi-turn relaxation as the doc guard: a prior-turn KG read makes
+    # a past-tense reference truthful even though tool_executions reset.
+    if _prior_turn_read_happened(state, _KG_READ_TOOLS):
         return None
 
     last_ai = _last_ai_message(state)
