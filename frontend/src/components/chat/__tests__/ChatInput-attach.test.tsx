@@ -6,7 +6,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
+import { renderWithChatRuntime } from './renderWithChatRuntime';
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -23,6 +24,25 @@ vi.mock('framer-motion', () => ({
   useTransform: () => ({ set: vi.fn(), get: () => 0 }),
   useReducedMotion: () => false,
 }));
+
+vi.mock('@assistant-ui/react', async () => {
+  const React = await import('react');
+  return {
+    AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
+    useExternalStoreRuntime: () => ({}),
+    ComposerPrimitive: {
+      Root: React.forwardRef<HTMLFormElement, any>(
+        ({ children, asChild: _asChild, ...props }, ref) => (
+          <form ref={ref} {...props}>
+            {children}
+          </form>
+        )
+      ),
+      Input: ({ children, asChild: _asChild, ...props }: any) =>
+        React.cloneElement(React.Children.only(children), props),
+    },
+  };
+});
 
 import { ChatInput } from '../ChatInput';
 
@@ -42,7 +62,7 @@ describe('ChatInput file attach', () => {
   });
 
   it('renders a hidden file input wired into the Paperclip control', () => {
-    const { container } = render(<ChatInput {...baseProps} />);
+    const { container } = renderWithChatRuntime(<ChatInput {...baseProps} />);
     const input = container.querySelector(
       'input[type="file"]'
     ) as HTMLInputElement | null;
@@ -52,7 +72,7 @@ describe('ChatInput file attach', () => {
 
   it('calls onAttach with selected files', () => {
     const onAttach = vi.fn();
-    const { container } = render(
+    const { container } = renderWithChatRuntime(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(
@@ -73,7 +93,7 @@ describe('ChatInput file attach', () => {
 
   it('does not call onAttach when no files selected', () => {
     const onAttach = vi.fn();
-    const { container } = render(
+    const { container } = renderWithChatRuntime(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(
@@ -89,7 +109,7 @@ describe('ChatInput file attach', () => {
 
   it('resets the input value so selecting the same file twice re-fires onAttach', () => {
     const onAttach = vi.fn();
-    const { container } = render(
+    const { container } = renderWithChatRuntime(
       <ChatInput {...baseProps} onAttach={onAttach} />
     );
     const input = container.querySelector(

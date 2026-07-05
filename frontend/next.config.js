@@ -65,6 +65,24 @@ const nextConfig = {
 
   // Webpack configuration for file uploads
   webpack: (config, { isServer }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react/jsx-runtime': path.resolve(
+        __dirname,
+        'node_modules/react/jsx-runtime.js'
+      ),
+      'react/jsx-dev-runtime': path.resolve(
+        __dirname,
+        'node_modules/react/jsx-dev-runtime.js'
+      ),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-dom/client': path.resolve(
+        __dirname,
+        'node_modules/react-dom/client.js'
+      ),
+    };
+
     if (!isServer) {
       config.optimization = {
         ...config.optimization,

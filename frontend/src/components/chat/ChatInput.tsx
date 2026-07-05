@@ -1,5 +1,6 @@
 'use client';
 
+import { ComposerPrimitive } from '@assistant-ui/react';
 import { cn } from '@/lib/utils';
 import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import {
@@ -9,7 +10,6 @@ import {
 } from './SlashCommandMenu';
 import { useSlashCommandMenu } from './useSlashCommandMenu';
 import type { SlashCommand, SlashCommandId } from './slashCommands';
-import { motion } from 'framer-motion';
 import {
   ArrowRight,
   Image as ImageIcon,
@@ -222,6 +222,13 @@ export function ChatInput({
     }
   };
 
+  const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+    e.preventDefault();
+    if (!isLoading && value.trim() && !isOverLimit) {
+      onSubmit();
+    }
+  };
+
   const isDisabled = isLoading;
   const charCount = value.length;
   const maxChars = 4000;
@@ -250,12 +257,15 @@ export function ChatInput({
           onHighlight={menu.setHighlightedIndex}
           onRun={runCommand}
         />
-        <motion.div
+        <ComposerPrimitive.Root
+          onSubmit={handleComposerSubmit}
           className="rounded-[14px] overflow-hidden"
           style={{
             background: 'var(--nous-bg-2)',
             border: `1px solid ${
-              isFocused ? 'rgba(var(--nous-sol-rgb), 0.4)' : 'var(--nous-border-1)'
+              isFocused
+                ? 'rgba(var(--nous-sol-rgb), 0.4)'
+                : 'var(--nous-border-1)'
             }`,
             boxShadow: isFocused
               ? '0 0 0 3px rgba(var(--nous-sol-rgb), 0.10), 0 8px 24px rgba(var(--nous-erebus-rgb), 0.06)'
@@ -263,8 +273,6 @@ export function ChatInput({
             transition:
               'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
           }}
-          animate={isFocused ? { y: -1 } : { y: 0 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
           {/* Top strip — live status, Ultra Thinking, model, counter */}
           <div
@@ -432,32 +440,34 @@ export function ChatInput({
               </ul>
             )}
 
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder="Ask anything, or paste a passage to discuss…"
-              rows={1}
-              disabled={isDisabled}
-              aria-expanded={menu.isOpen}
-              aria-controls={menu.isOpen ? SLASH_LISTBOX_ID : undefined}
-              aria-activedescendant={
-                activeCommand ? slashOptionId(activeCommand.id) : undefined
-              }
-              aria-autocomplete="list"
-              aria-invalid={isOverLimit || undefined}
-              aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
-              className="w-full bg-transparent resize-none outline-hidden font-nous-body text-[16px]"
-              style={{
-                color: 'var(--nous-fg-1)',
-                lineHeight: '1.6',
-                minHeight: '48px',
-                maxHeight: '200px',
-              }}
-            />
+            <ComposerPrimitive.Input asChild>
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder="Ask anything, or paste a passage to discuss…"
+                rows={1}
+                disabled={isDisabled}
+                aria-expanded={menu.isOpen}
+                aria-controls={menu.isOpen ? SLASH_LISTBOX_ID : undefined}
+                aria-activedescendant={
+                  activeCommand ? slashOptionId(activeCommand.id) : undefined
+                }
+                aria-autocomplete="list"
+                aria-invalid={isOverLimit || undefined}
+                aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
+                className="w-full bg-transparent resize-none outline-hidden font-nous-body text-[16px]"
+                style={{
+                  color: 'var(--nous-fg-1)',
+                  lineHeight: '1.6',
+                  minHeight: '48px',
+                  maxHeight: '200px',
+                }}
+              />
+            </ComposerPrimitive.Input>
 
             {isOverLimit && (
               <p
@@ -608,6 +618,7 @@ export function ChatInput({
 
               {isLoading ? (
                 <button
+                  type="button"
                   onClick={onStop}
                   className="inline-flex items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
                   style={{
@@ -624,7 +635,7 @@ export function ChatInput({
                 </button>
               ) : (
                 <button
-                  onClick={onSubmit}
+                  type="submit"
                   disabled={!value.trim() || isDisabled || isOverLimit}
                   title={
                     isOverLimit
@@ -660,7 +671,7 @@ export function ChatInput({
               )}
             </div>
           </div>
-        </motion.div>
+        </ComposerPrimitive.Root>
 
         <div
           className="font-nous-mono text-[10px] text-center mt-2 opacity-60 hidden sm:block"
