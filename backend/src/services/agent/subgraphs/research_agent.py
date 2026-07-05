@@ -7,8 +7,10 @@ Tools: search_arxiv, ingest_arxiv_papers, search_documents,
 
 import asyncio
 import logging
+import re
+from uuid import uuid4
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
@@ -50,6 +52,61 @@ RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
 # refine → ingest → list → confirm sequence; anything more is the agent
 # refining queries the user did not ask for.
 MAX_RESEARCH_TOOL_LOOPS = 5
+
+_DIRECT_ARXIV_SEARCH_RE = re.compile(
+    r"\b(?:search|find|look\s+up|lookup|discover|list|show)\b.*\barxiv\b"
+    r"|\barxiv\b.*\b(?:search|find|look\s+up|lookup|discover|list|show)\b",
+    re.IGNORECASE,
+)
+
+
+def _direct_arxiv_search_query(content: str) -> str | None:
+    """Return a search query when the user explicitly asks to search arXiv."""
+    if not content or not content.strip():
+        return None
+    if not _DIRECT_ARXIV_SEARCH_RE.search(content):
+        return None
+
+    query = re.sub(
+        r"\b(?:search|find|look\s+up|lookup|discover|list|show)\b",
+        " ",
+        content,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    query = re.sub(r"\barxiv(?:\.org)?\b", " ", query, flags=re.IGNORECASE)
+    query = query.strip()
+    query = re.sub(
+        r"^(?:for|on|about|regarding|related\s+to)\s+",
+        "",
+        query,
+        flags=re.IGNORECASE,
+    )
+    query = " ".join(query.split())
+    return query or content.strip()
+
+
+def _direct_arxiv_search_message(messages: list) -> AIMessage | None:
+    """Build a deterministic search_arxiv call for clear direct-search turns."""
+    if not messages or not isinstance(messages[-1], HumanMessage):
+        return None
+
+    raw_content = messages[-1].content
+    content = raw_content if isinstance(raw_content, str) else str(raw_content)
+    query = _direct_arxiv_search_query(content)
+    if query is None:
+        return None
+
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": f"direct_search_arxiv_{uuid4().hex}",
+                "name": "search_arxiv",
+                "args": {"query": query, "max_results": 5},
+            }
+        ],
+    )
 
 
 def _build_research_system_prompt() -> str:
@@ -96,6 +153,10 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.core.config import get_settings
 
     sanitized = _sanitize_messages(state["messages"])
+    direct_search = _direct_arxiv_search_message(sanitized)
+    if direct_search is not None:
+        return {"messages": [direct_search]}
+
     messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
 
     settings = get_settings()
