@@ -4,6 +4,7 @@ import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
 import { ChatDialogs } from '@/components/chat/ChatDialogs';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessageList } from '@/components/chat/ChatMessageList';
+import { MaybeChatRuntimeProvider } from '@/components/chat/aui/MaybeChatRuntimeProvider';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -979,6 +980,12 @@ function ChatPageContent() {
             </div>
           </div>
         ) : (
+          <MaybeChatRuntimeProvider
+            messages={displayedMessages}
+            isRunning={storeIsStreaming}
+            onSend={handleSubmit}
+            onCancel={handleStop}
+          >
           <ChatMessageList
             messages={displayedMessages}
             activeThreadId={activeThreadId}
@@ -1007,6 +1014,7 @@ function ChatPageContent() {
                 : false
             }
           />
+          </MaybeChatRuntimeProvider>
         )}
 
         {/* HITL Confirmation Banner */}
