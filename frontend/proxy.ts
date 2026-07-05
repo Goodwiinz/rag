@@ -21,7 +21,11 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // React dev mode needs eval() for debugging features (callstack
+    // reconstruction); never emitted in production builds.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${
+      process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
+    }`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
