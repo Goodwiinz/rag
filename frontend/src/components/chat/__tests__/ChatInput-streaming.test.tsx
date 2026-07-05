@@ -7,7 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -25,7 +25,29 @@ vi.mock('framer-motion', () => ({
   useReducedMotion: () => false,
 }));
 
+// Mock @assistant-ui/react primitives at the DOM boundary so ChatInput
+// can render under test without a real runtime provider.
+vi.mock('@assistant-ui/react', async () => {
+  const React = await import('react');
+  return {
+    AssistantRuntimeProvider: ({ children }: any) => <>{children}</>,
+    useExternalStoreRuntime: () => ({}),
+    ComposerPrimitive: {
+      Root: React.forwardRef<HTMLFormElement, any>(
+        ({ children, asChild: _asChild, ...props }, ref) => (
+          <form ref={ref} {...props}>
+            {children}
+          </form>
+        )
+      ),
+      Input: ({ children, asChild: _asChild, ...props }: any) =>
+        React.cloneElement(React.Children.only(children), props),
+    },
+  };
+});
+
 import { ChatInput } from '../ChatInput';
+import { renderWithChatRuntime } from './renderWithChatRuntime';
 
 // Default props for all tests
 const defaultProps = {
@@ -45,7 +67,7 @@ describe('ChatInput streaming behavior', () => {
 
   describe('when isLoading is true', () => {
     it('shows a Stop button', () => {
-      render(<ChatInput {...defaultProps} isLoading={true} />);
+      renderWithChatRuntime(<ChatInput {...defaultProps} isLoading={true} />);
 
       const stopButton = screen.getByText('Stop');
       expect(stopButton).toBeInTheDocument();
@@ -54,7 +76,9 @@ describe('ChatInput streaming behavior', () => {
     it('calls onStop when Stop button is clicked', () => {
       const onStop = vi.fn();
 
-      render(<ChatInput {...defaultProps} onStop={onStop} isLoading={true} />);
+      renderWithChatRuntime(
+        <ChatInput {...defaultProps} onStop={onStop} isLoading={true} />
+      );
 
       const stopButton = screen.getByText('Stop');
       fireEvent.click(stopButton);
@@ -63,7 +87,7 @@ describe('ChatInput streaming behavior', () => {
     });
 
     it('does not show the Send button', () => {
-      render(<ChatInput {...defaultProps} isLoading={true} />);
+      renderWithChatRuntime(<ChatInput {...defaultProps} isLoading={true} />);
 
       const sendButton = screen.queryByText('Send');
       expect(sendButton).not.toBeInTheDocument();
@@ -71,8 +95,34 @@ describe('ChatInput streaming behavior', () => {
   });
 
   describe('when isLoading is false', () => {
+    it('renders the styled composer as a form', () => {
+      const { container } = renderWithChatRuntime(
+        <ChatInput {...defaultProps} isLoading={false} value="Hello" />
+      );
+      const composer = container.querySelector('form');
+      expect(composer).toBeInTheDocument();
+      expect(composer).toContainElement(screen.getByRole('textbox'));
+      expect(composer).toContainElement(screen.getByText('Send'));
+    });
+
+    it('submits once when the Send button is clicked', () => {
+      const onSubmit = vi.fn();
+      renderWithChatRuntime(
+        <ChatInput
+          {...defaultProps}
+          isLoading={false}
+          value="Hello"
+          onSubmit={onSubmit}
+        />
+      );
+      fireEvent.click(screen.getByText('Send'));
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
     it('shows the Send button (not Stop)', () => {
-      render(<ChatInput {...defaultProps} isLoading={false} value="Hello" />);
+      renderWithChatRuntime(
+        <ChatInput {...defaultProps} isLoading={false} value="Hello" />
+      );
 
       const sendButton = screen.getByText('Send');
       expect(sendButton).toBeInTheDocument();
@@ -82,7 +132,7 @@ describe('ChatInput streaming behavior', () => {
     });
 
     it('does not disable the textarea', () => {
-      render(<ChatInput {...defaultProps} isLoading={false} />);
+      renderWithChatRuntime(<ChatInput {...defaultProps} isLoading={false} />);
 
       const textarea = screen.getByRole('textbox');
       expect(textarea).not.toBeDisabled();
@@ -91,7 +141,9 @@ describe('ChatInput streaming behavior', () => {
 
   describe('composer status pill (removed — message-area pill owns status)', () => {
     it('never renders a composer status pill, idle or loading', () => {
-      const { rerender } = render(<ChatInput {...defaultProps} />);
+      const { rerender } = renderWithChatRuntime(
+        <ChatInput {...defaultProps} />
+      );
       expect(screen.queryByText(/Nous is/)).not.toBeInTheDocument();
       expect(screen.queryByText('nous-agent')).not.toBeInTheDocument();
 
@@ -104,7 +156,7 @@ describe('ChatInput streaming behavior', () => {
   describe('Ultra Thinking toggle', () => {
     it('renders the Ultra Thinking label and toggles RAG', () => {
       const onRAGToggle = vi.fn();
-      render(
+      renderWithChatRuntime(
         <ChatInput
           {...defaultProps}
           enableRAG={false}
@@ -120,21 +172,21 @@ describe('ChatInput streaming behavior', () => {
 
   describe('slash command menu', () => {
     it('opens a listbox of commands when the value is "/"', () => {
-      render(<ChatInput {...defaultProps} value="/" />);
+      renderWithChatRuntime(<ChatInput {...defaultProps} value="/" />);
       expect(screen.getByRole('listbox')).toBeInTheDocument();
       expect(screen.getByText('/new')).toBeInTheDocument();
       expect(screen.getByText('/projects')).toBeInTheDocument();
     });
 
     it('does not show the menu for normal text', () => {
-      render(<ChatInput {...defaultProps} value="hello" />);
+      renderWithChatRuntime(<ChatInput {...defaultProps} value="hello" />);
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
 
     it('runs the highlighted command on Enter (and does not submit)', () => {
       const onCommand = vi.fn();
       const onSubmit = vi.fn();
-      render(
+      renderWithChatRuntime(
         <ChatInput
           {...defaultProps}
           value="/new"
@@ -149,14 +201,18 @@ describe('ChatInput streaming behavior', () => {
 
     it('runs a command when its row is clicked', () => {
       const onCommand = vi.fn();
-      render(<ChatInput {...defaultProps} value="/" onCommand={onCommand} />);
+      renderWithChatRuntime(
+        <ChatInput {...defaultProps} value="/" onCommand={onCommand} />
+      );
       fireEvent.click(screen.getByText('/clear'));
       expect(onCommand).toHaveBeenCalledWith('clear');
     });
 
     it('Escape dismisses the menu without clearing the input', () => {
       const onChange = vi.fn();
-      render(<ChatInput {...defaultProps} value="/new" onChange={onChange} />);
+      renderWithChatRuntime(
+        <ChatInput {...defaultProps} value="/new" onChange={onChange} />
+      );
       expect(screen.getByRole('listbox')).toBeInTheDocument();
       fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
       expect(onChange).not.toHaveBeenCalled();

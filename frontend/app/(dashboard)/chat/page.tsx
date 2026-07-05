@@ -1,6 +1,7 @@
 'use client';
 
 import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
+import { ChatAssistantRuntimeProvider } from '@/components/chat/ChatAssistantRuntimeProvider';
 import { ChatDialogs } from '@/components/chat/ChatDialogs';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessageList } from '@/components/chat/ChatMessageList';
@@ -68,12 +69,10 @@ function extractToolCall(
   if (!confirmation) return null;
   const flatName = confirmation.tool_name as string | undefined;
   const flatArgs = (confirmation.tool_args ?? confirmation.args) as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   if (flatName) return { name: flatName, args: flatArgs ?? {} };
   const tools = confirmation.tools as
-    | Array<{ name?: string; args?: Record<string, unknown> }>
-    | undefined;
+    Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
   const first = tools?.[0];
   if (first?.name) return { name: first.name, args: first.args ?? {} };
   return null;
@@ -265,9 +264,7 @@ function ChatPageContent() {
       const citation = event.detail;
       if (!citation?.title) return;
       setCitationPanelCitations([citation]);
-      setActiveCitationId(
-        citation.documentId || citation.externalReferenceId
-      );
+      setActiveCitationId(citation.documentId || citation.externalReferenceId);
       setCitationTraceId(undefined);
       setIsCitationPanelOpen(true);
     };
@@ -986,34 +983,34 @@ function ChatPageContent() {
             onSend={handleSubmit}
             onCancel={handleStop}
           >
-          <ChatMessageList
-            messages={displayedMessages}
-            activeThreadId={activeThreadId}
-            isLoading={isLoading}
-            storeIsStreaming={storeIsStreaming}
-            storeStreamingContent={storeStreamingContent}
-            streamingTimestamp={streamingTimestampRef.current}
-            onRegenerate={handleRegenerate}
-            onCitationClick={handleCitationClick}
-            commandOutputs={commandOutputs}
-            onCommandItemAction={handleCommandItemAction}
-            isRetrievingRag={storeIsRetrievingRag}
-            onLoadOlder={
-              activeThreadId
-                ? () => loadOlderMessages(activeThreadId)
-                : undefined
-            }
-            hasMore={
-              activeThreadId
-                ? (messagePagination?.[activeThreadId]?.hasMore ?? false)
-                : false
-            }
-            isLoadingOlder={
-              activeThreadId
-                ? (messagePagination?.[activeThreadId]?.loadingOlder ?? false)
-                : false
-            }
-          />
+            <ChatMessageList
+              messages={displayedMessages}
+              activeThreadId={activeThreadId}
+              isLoading={isLoading}
+              storeIsStreaming={storeIsStreaming}
+              storeStreamingContent={storeStreamingContent}
+              streamingTimestamp={streamingTimestampRef.current}
+              onRegenerate={handleRegenerate}
+              onCitationClick={handleCitationClick}
+              commandOutputs={commandOutputs}
+              onCommandItemAction={handleCommandItemAction}
+              isRetrievingRag={storeIsRetrievingRag}
+              onLoadOlder={
+                activeThreadId
+                  ? () => loadOlderMessages(activeThreadId)
+                  : undefined
+              }
+              hasMore={
+                activeThreadId
+                  ? (messagePagination?.[activeThreadId]?.hasMore ?? false)
+                  : false
+              }
+              isLoadingOlder={
+                activeThreadId
+                  ? (messagePagination?.[activeThreadId]?.loadingOlder ?? false)
+                  : false
+              }
+            />
           </MaybeChatRuntimeProvider>
         )}
 
@@ -1111,20 +1108,27 @@ function ChatPageContent() {
         )}
 
         {/* Input Area */}
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSubmit={submitMessage}
-          onStop={handleStop}
-          isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
-          enableRAG={enableRAG}
-          onRAGToggle={setEnableRAG}
-          inputRef={chatInputRef}
-          onAttach={handleAttach}
-          selectedModelId={selectedModel}
-          onModelChange={setSelectedModel}
-          onCommand={handleSlashCommand}
-        />
+        <ChatAssistantRuntimeProvider
+          messages={displayedMessages}
+          isRunning={isLoading || storeIsStreaming || !!pendingConfirmation}
+          isSendDisabled={!!pendingConfirmation}
+          onNew={handleSubmit}
+        >
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={submitMessage}
+            onStop={handleStop}
+            isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
+            enableRAG={enableRAG}
+            onRAGToggle={setEnableRAG}
+            inputRef={chatInputRef}
+            onAttach={handleAttach}
+            selectedModelId={selectedModel}
+            onModelChange={setSelectedModel}
+            onCommand={handleSlashCommand}
+          />
+        </ChatAssistantRuntimeProvider>
 
         {/* Citation Panel Sidebar */}
         <CitationPanel
