@@ -17,8 +17,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 import { ChatActivityStrip } from './ChatActivityStrip';
+import { ChatInlinePlan } from './ChatInlinePlan';
 import { useChatStore } from '@/store/chat-store';
 import type { ActivityStep } from './cloudMessageView';
+import type { PlanStep } from '@/types/agent-chat';
 
 export interface ChatBubbleMessage {
   id?: string;
@@ -29,6 +31,8 @@ export interface ChatBubbleMessage {
   diagnosticsTraceId?: string;
   /** Tool executions recorded during the turn that produced this message. */
   toolExecutions?: ActivityStep[];
+  /** Structured execution plan emitted by the agent planner for this turn. */
+  plan?: PlanStep[];
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
@@ -241,6 +245,17 @@ export const ChatBubble = React.memo(function ChatBubble({
             {timestamp}
           </span>
         </div>
+
+        {/* Execution plan — committed provenance for agent turns */}
+        {!isUser &&
+          !isStreaming &&
+          message.plan &&
+          message.plan.length > 0 && (
+            <ChatInlinePlan
+              plan={message.plan}
+              toolExecutions={message.toolExecutions}
+            />
+          )}
 
         {/* Tool strip — only when we have something to show */}
         {!isUser && !isStreaming && !isTyping && (

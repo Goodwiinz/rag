@@ -5,6 +5,7 @@ import {
 } from '@/types/workspace';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
+import type { PlanStep } from '@/types/agent-chat';
 
 /** A single agent tool execution captured during a streaming turn. */
 export interface ActivityStep {
@@ -97,6 +98,8 @@ export interface ChatPageMessage {
   diagnosticsTraceId?: string;
   /** Tool executions recorded during the turn that produced this message. */
   toolExecutions?: ActivityStep[];
+  /** Structured execution plan emitted by the agent planner for this turn. */
+  plan?: PlanStep[];
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;

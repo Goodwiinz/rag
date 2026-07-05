@@ -26,6 +26,7 @@ import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
 import type { CitationCreate } from '@/types/workspace';
+import type { PlanStep } from '@/types/agent-chat';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -419,6 +420,9 @@ export function useChatStreaming(
 
         // Per-turn step tracking — reset each send
         const turnSteps: ActivityStep[] = [];
+        // Structured plan snapshot for the committed message (the activity
+        // store only keeps flattened strings for the ContextRail).
+        let turnPlan: PlanStep[] = [];
         const toolStartTimes = new Map<string, number>();
 
         // Set streaming state in store for UI
@@ -543,6 +547,28 @@ export function useChatStreaming(
               });
             },
             onPlan: (steps) => {
+              // Structured copy for the inline transcript plan — keeps
+              // tool/depends_on so status derivation works after commit.
+              turnPlan = (steps ?? [])
+                .filter(
+                  (st): st is Record<string, unknown> =>
+                    !!st && typeof st === 'object'
+                )
+                .map((st, i) => ({
+                  step: typeof st.step === 'number' ? st.step : i + 1,
+                  description: String(
+                    st.description ?? st.text ?? st.title ?? ''
+                  ),
+                  tool: typeof st.tool === 'string' ? st.tool : '',
+                  args_hint:
+                    st.args_hint && typeof st.args_hint === 'object'
+                      ? (st.args_hint as Record<string, unknown>)
+                      : {},
+                  depends_on: Array.isArray(st.depends_on)
+                    ? (st.depends_on as number[])
+                    : [],
+                }))
+                .filter((p) => p.description.length > 0);
               if (!currentThreadId) return;
               // Backend emits `{steps: [...], reasoning: ...}` — step items
               // may be plain strings or planner dicts with `description` and
@@ -709,6 +735,7 @@ export function useChatStreaming(
               : undefined,
           toolExecutions:
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
+          plan: turnPlan.length > 0 ? turnPlan : undefined,
           metadata: {
             responseTimeMs,
             ...(wasStopped ? { stopped: true } : {}),
