@@ -17,6 +17,8 @@ import { motion, useReducedMotion } from 'framer-motion';
 import React, { useMemo, useState } from 'react';
 import { CitationRenderer } from '../CitationRenderer';
 import { ChatActivityStrip } from './ChatActivityStrip';
+import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
+import { AUI_TOOL_UI_ENABLED } from '@/components/chat/aui/flag';
 import { useChatStore } from '@/store/chat-store';
 import type { ActivityStep } from './cloudMessageView';
 
@@ -273,9 +275,16 @@ export const ChatBubble = React.memo(function ChatBubble({
         ) : (
           <div className="relative">
             {/* Inline agent activity strip — above body, quiet */}
-            {activitySteps.length > 0 && (
-              <ChatActivityStrip steps={activitySteps} live={isStreaming} />
-            )}
+            {activitySteps.length > 0 &&
+              (AUI_TOOL_UI_ENABLED ? (
+                <AuiToolParts
+                  messageId={message.id ?? `idx-${_index}`}
+                  steps={activitySteps}
+                  isStreaming={Boolean(isStreaming)}
+                />
+              ) : (
+                <ChatActivityStrip steps={activitySteps} live={isStreaming} />
+              ))}
 
             {isStreaming && !streamingContent ? (
               <ThinkingPill label={thinkingLabel} />
