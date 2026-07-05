@@ -6,7 +6,9 @@ import type {
 } from '@/components/chat/shared/cloudMessageView';
 import { convertMessage, toToolCallParts } from '../convertMessage';
 
-function makeMessage(overrides: Partial<ChatPageMessage> = {}): ChatPageMessage {
+function makeMessage(
+  overrides: Partial<ChatPageMessage> = {}
+): ChatPageMessage {
   return {
     id: 'm1',
     role: 'assistant',
@@ -23,6 +25,13 @@ describe('convertMessage', () => {
     expect(result.id).toBe('m1');
     expect(result.role).toBe('assistant');
     expect(result.createdAt).toEqual(new Date(1720000000000));
+    expect(result.content).toEqual([{ type: 'text', text: 'Hello there' }]);
+  });
+
+  it('omits createdAt when the message has no timestamp (optimistic local insert)', () => {
+    const result = convertMessage(makeMessage({ timestamp: 0 }));
+
+    expect(result.createdAt).toBeUndefined();
     expect(result.content).toEqual([{ type: 'text', text: 'Hello there' }]);
   });
 

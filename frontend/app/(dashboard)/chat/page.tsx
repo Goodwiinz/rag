@@ -1,11 +1,10 @@
 'use client';
 
 import { ChatInput, CitationPanel, WelcomeState } from '@/components/chat';
-import { ChatAssistantRuntimeProvider } from '@/components/chat/ChatAssistantRuntimeProvider';
 import { ChatDialogs } from '@/components/chat/ChatDialogs';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessageList } from '@/components/chat/ChatMessageList';
-import { MaybeChatRuntimeProvider } from '@/components/chat/aui/MaybeChatRuntimeProvider';
+import { ChatRuntimeProvider } from '@/components/chat/aui/ChatRuntimeProvider';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -882,107 +881,108 @@ function ChatPageContent() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
-        <ChatHeader
+        <ChatRuntimeProvider
           messages={displayedMessages}
-          chatTitle={
-            conversations.find((c) => c.id === activeConversationId)?.title ||
-            'Chat'
-          }
-          onCopyAll={() => {
-            const text = displayedMessages
-              .map((m) => `[${m.role}] ${m.content}`)
-              .join('\n\n');
-            navigator.clipboard.writeText(text).catch(() => {});
-          }}
-          onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
-        />
+          isRunning={isLoading || storeIsStreaming || !!pendingConfirmation}
+          isSendDisabled={!!pendingConfirmation}
+          onSend={handleSubmit}
+          onCancel={handleStop}
+        >
+          <ChatHeader
+            messages={displayedMessages}
+            chatTitle={
+              conversations.find((c) => c.id === activeConversationId)?.title ||
+              'Chat'
+            }
+            onCopyAll={() => {
+              const text = displayedMessages
+                .map((m) => `[${m.role}] ${m.content}`)
+                .join('\n\n');
+              navigator.clipboard.writeText(text).catch(() => {});
+            }}
+            onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
+          />
 
-        {/* Messages Area */}
-        {!isAuthenticated ? (
-          <div className="flex-1 relative min-h-0">
-            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div className="h-full flex flex-col items-center justify-center p-8">
-                <div className="text-center" role="status">
-                  <Loader2 className="w-10 h-10 text-(--nous-sol) animate-spin mx-auto mb-4" />
-                  <p
-                    className="text-sm text-(--nous-fg-3) mt-2"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    Authentication required. Redirecting...
-                  </p>
+          {/* Messages Area */}
+          {!isAuthenticated ? (
+            <div className="flex-1 relative min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+                <div className="h-full flex flex-col items-center justify-center p-8">
+                  <div className="text-center" role="status">
+                    <Loader2 className="w-10 h-10 text-(--nous-sol) animate-spin mx-auto mb-4" />
+                    <p
+                      className="text-sm text-(--nous-fg-3) mt-2"
+                      style={{ fontFamily: 'var(--nous-font-ui)' }}
+                    >
+                      Authentication required. Redirecting...
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : isInitializing ? (
-          <div className="flex-1 relative min-h-0">
-            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <TranscriptSkeleton />
-            </div>
-          </div>
-        ) : initError ? (
-          <div className="flex-1 relative min-h-0">
-            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <div className="h-full flex flex-col items-center justify-center p-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-center max-w-md"
-                >
-                  <div className="relative w-16 h-16 mx-auto mb-6">
-                    <div className="absolute inset-0 rounded-full bg-(--nous-mars)/10" />
-                    <div className="absolute inset-2 rounded-full border border-(--nous-mars)/30 flex items-center justify-center">
-                      <Activity className="w-6 h-6 text-(--nous-mars)" />
-                    </div>
-                  </div>
-                  <h2
-                    className="text-lg font-semibold text-(--nous-mars) mb-3"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    Connection error
-                  </h2>
-                  <p
-                    className="text-xs text-(--nous-fg-3) mb-6 p-3 rounded-lg bg-(--nous-mars)/5 border border-(--nous-mars)/10"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    {initError}
-                  </p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-(--nous-bg-2) border border-(--nous-border-1) text-(--nous-fg-1) text-xs font-medium hover:border-(--nous-sol)/30 transition-all"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    <Activity className="w-3.5 h-3.5" />
-                    Retry connection
-                  </button>
-                </motion.div>
+          ) : isInitializing ? (
+            <div className="flex-1 relative min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+                <TranscriptSkeleton />
               </div>
             </div>
-          </div>
-        ) : isLoadingMessages ? (
-          <div className="flex-1 relative min-h-0">
-            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <TranscriptSkeleton />
+          ) : initError ? (
+            <div className="flex-1 relative min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+                <div className="h-full flex flex-col items-center justify-center p-8">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center max-w-md"
+                  >
+                    <div className="relative w-16 h-16 mx-auto mb-6">
+                      <div className="absolute inset-0 rounded-full bg-(--nous-mars)/10" />
+                      <div className="absolute inset-2 rounded-full border border-(--nous-mars)/30 flex items-center justify-center">
+                        <Activity className="w-6 h-6 text-(--nous-mars)" />
+                      </div>
+                    </div>
+                    <h2
+                      className="text-lg font-semibold text-(--nous-mars) mb-3"
+                      style={{ fontFamily: 'var(--nous-font-ui)' }}
+                    >
+                      Connection error
+                    </h2>
+                    <p
+                      className="text-xs text-(--nous-fg-3) mb-6 p-3 rounded-lg bg-(--nous-mars)/5 border border-(--nous-mars)/10"
+                      style={{ fontFamily: 'var(--nous-font-ui)' }}
+                    >
+                      {initError}
+                    </p>
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-(--nous-bg-2) border border-(--nous-border-1) text-(--nous-fg-1) text-xs font-medium hover:border-(--nous-sol)/30 transition-all"
+                      style={{ fontFamily: 'var(--nous-font-ui)' }}
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      Retry connection
+                    </button>
+                  </motion.div>
+                </div>
+              </div>
             </div>
-          </div>
-        ) : displayedMessages.length === 0 &&
-          commandOutputs.length === 0 &&
-          !storeIsStreaming ? (
-          <div className="flex-1 relative min-h-0">
-            <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-              <WelcomeState
-                onPromptSelect={handlePromptSelect}
-                selectedModel="nous-agent"
-              />
+          ) : isLoadingMessages ? (
+            <div className="flex-1 relative min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+                <TranscriptSkeleton />
+              </div>
             </div>
-          </div>
-        ) : (
-          <MaybeChatRuntimeProvider
-            messages={displayedMessages}
-            isRunning={storeIsStreaming}
-            onSend={handleSubmit}
-            onCancel={handleStop}
-          >
+          ) : displayedMessages.length === 0 &&
+            commandOutputs.length === 0 &&
+            !storeIsStreaming ? (
+            <div className="flex-1 relative min-h-0">
+              <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
+                <WelcomeState
+                  onPromptSelect={handlePromptSelect}
+                  selectedModel="nous-agent"
+                />
+              </div>
+            </div>
+          ) : (
             <ChatMessageList
               messages={displayedMessages}
               activeThreadId={activeThreadId}
@@ -1011,109 +1011,102 @@ function ChatPageContent() {
                   : false
               }
             />
-          </MaybeChatRuntimeProvider>
-        )}
+          )}
 
-        {/* HITL Confirmation Banner */}
-        {pendingConfirmation && (
-          <div
-            role="alertdialog"
-            aria-label="Approval needed"
-            aria-describedby="hitl-desc"
-            tabIndex={-1}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && !isConfirming)
-                handleConfirmation(false);
-            }}
-            className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-(--nous-sol)/30 bg-(--nous-sol)/5 outline-hidden"
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <ShieldCheck
-                aria-hidden
-                className="h-4 w-4 text-(--nous-sol)"
-                strokeWidth={1.8}
-              />
-              <p
-                className="text-sm font-medium text-(--nous-fg-2)"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
-              >
-                Approval needed
-              </p>
-            </div>
-            {(() => {
-              const call = extractToolCall(pendingConfirmation.confirmation);
-              const argEntries = call ? Object.entries(call.args) : [];
-              return (
-                <>
-                  <p
-                    id="hitl-desc"
-                    className="text-sm leading-relaxed text-(--nous-fg-1) mb-3"
-                    style={{ fontFamily: 'var(--nous-font-ui)' }}
-                  >
-                    The agent wants to run{' '}
-                    <span
-                      className="rounded bg-(--nous-sol-subtle) px-1.5 py-0.5 text-(--nous-fg-accent)"
-                      style={{ fontFamily: 'var(--nous-font-mono)' }}
+          {/* HITL Confirmation Banner */}
+          {pendingConfirmation && (
+            <div
+              role="alertdialog"
+              aria-label="Approval needed"
+              aria-describedby="hitl-desc"
+              tabIndex={-1}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && !isConfirming)
+                  handleConfirmation(false);
+              }}
+              className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-(--nous-sol)/30 bg-(--nous-sol)/5 outline-hidden"
+            >
+              <div className="mb-2 flex items-center gap-2">
+                <ShieldCheck
+                  aria-hidden
+                  className="h-4 w-4 text-(--nous-sol)"
+                  strokeWidth={1.8}
+                />
+                <p
+                  className="text-sm font-medium text-(--nous-fg-2)"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  Approval needed
+                </p>
+              </div>
+              {(() => {
+                const call = extractToolCall(pendingConfirmation.confirmation);
+                const argEntries = call ? Object.entries(call.args) : [];
+                return (
+                  <>
+                    <p
+                      id="hitl-desc"
+                      className="text-sm leading-relaxed text-(--nous-fg-1) mb-3"
+                      style={{ fontFamily: 'var(--nous-font-ui)' }}
                     >
-                      {call?.name ?? 'this action'}
-                    </span>
-                    . Approve to let it continue, or Deny to stop.
-                  </p>
-                  {argEntries.length > 0 && (
-                    <dl
-                      className="mb-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2)/60 p-3 text-xs"
-                      aria-label="Tool arguments"
-                    >
-                      {argEntries.map(([key, value]) => (
-                        <Fragment key={key}>
-                          <dt
-                            className="whitespace-nowrap text-(--nous-fg-3)"
-                            style={{ fontFamily: 'var(--nous-font-mono)' }}
-                          >
-                            {key}
-                          </dt>
-                          <dd
-                            className="break-all text-(--nous-fg-2)"
-                            style={{ fontFamily: 'var(--nous-font-mono)' }}
-                          >
-                            {formatArgValue(value)}
-                          </dd>
-                        </Fragment>
-                      ))}
-                    </dl>
-                  )}
-                </>
-              );
-            })()}
-            <div className="flex items-center gap-3">
-              <button
-                ref={approveRef}
-                onClick={() => handleConfirmation(true)}
-                disabled={isConfirming}
-                className="px-4 py-2 rounded-xl bg-(--nous-sol) text-(--nous-erebus) text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
-              >
-                {isConfirming ? 'Processing…' : 'Approve'}
-              </button>
-              <button
-                onClick={() => handleConfirmation(false)}
-                disabled={isConfirming}
-                className="px-4 py-2 rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 text-(--nous-mars) text-xs font-semibold hover:bg-(--nous-mars)/10 disabled:opacity-50 transition-all"
-                style={{ fontFamily: 'var(--nous-font-ui)' }}
-              >
-                Deny
-              </button>
+                      The agent wants to run{' '}
+                      <span
+                        className="rounded bg-(--nous-sol-subtle) px-1.5 py-0.5 text-(--nous-fg-accent)"
+                        style={{ fontFamily: 'var(--nous-font-mono)' }}
+                      >
+                        {call?.name ?? 'this action'}
+                      </span>
+                      . Approve to let it continue, or Deny to stop.
+                    </p>
+                    {argEntries.length > 0 && (
+                      <dl
+                        className="mb-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2)/60 p-3 text-xs"
+                        aria-label="Tool arguments"
+                      >
+                        {argEntries.map(([key, value]) => (
+                          <Fragment key={key}>
+                            <dt
+                              className="whitespace-nowrap text-(--nous-fg-3)"
+                              style={{ fontFamily: 'var(--nous-font-mono)' }}
+                            >
+                              {key}
+                            </dt>
+                            <dd
+                              className="break-all text-(--nous-fg-2)"
+                              style={{ fontFamily: 'var(--nous-font-mono)' }}
+                            >
+                              {formatArgValue(value)}
+                            </dd>
+                          </Fragment>
+                        ))}
+                      </dl>
+                    )}
+                  </>
+                );
+              })()}
+              <div className="flex items-center gap-3">
+                <button
+                  ref={approveRef}
+                  onClick={() => handleConfirmation(true)}
+                  disabled={isConfirming}
+                  className="px-4 py-2 rounded-xl bg-(--nous-sol) text-(--nous-erebus) text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  {isConfirming ? 'Processing…' : 'Approve'}
+                </button>
+                <button
+                  onClick={() => handleConfirmation(false)}
+                  disabled={isConfirming}
+                  className="px-4 py-2 rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 text-(--nous-mars) text-xs font-semibold hover:bg-(--nous-mars)/10 disabled:opacity-50 transition-all"
+                  style={{ fontFamily: 'var(--nous-font-ui)' }}
+                >
+                  Deny
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Input Area */}
-        <ChatAssistantRuntimeProvider
-          messages={displayedMessages}
-          isRunning={isLoading || storeIsStreaming || !!pendingConfirmation}
-          isSendDisabled={!!pendingConfirmation}
-          onNew={handleSubmit}
-        >
+          {/* Input Area */}
           <ChatInput
             value={input}
             onChange={setInput}
@@ -1128,7 +1121,7 @@ function ChatPageContent() {
             onModelChange={setSelectedModel}
             onCommand={handleSlashCommand}
           />
-        </ChatAssistantRuntimeProvider>
+        </ChatRuntimeProvider>
 
         {/* Citation Panel Sidebar */}
         <CitationPanel

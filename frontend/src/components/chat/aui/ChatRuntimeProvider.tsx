@@ -14,6 +14,9 @@ import { convertMessage } from './convertMessage';
 export interface ChatRuntimeProviderProps {
   messages: ChatPageMessage[];
   isRunning: boolean;
+  /** When true, the composer refuses to send (e.g. a HITL confirmation
+   * is pending). Passed through to the runtime's compose disabled state. */
+  isSendDisabled?: boolean;
   /** Delegates to the existing useChatStreaming send. Required by the
    * external-store API even though the composer stays custom in stage 1. */
   onSend: (text: string) => void;
@@ -30,6 +33,7 @@ export interface ChatRuntimeProviderProps {
 export function ChatRuntimeProvider({
   messages,
   isRunning,
+  isSendDisabled,
   onSend,
   onCancel,
   children,
@@ -37,11 +41,13 @@ export function ChatRuntimeProvider({
   const onNew = useCallback(
     async (message: AppendMessage) => {
       const text = message.content
-        .filter(
-          (p): p is { type: 'text'; text: string } => p.type === 'text'
-        )
+        .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
         .map((p) => p.text)
         .join('\n');
+      // Guard against empty sends (whitespace-only / no text parts) — the
+      // composer should never emit these, but the runtime is a pure
+      // projection and should not call onSend with an empty string.
+      if (!text) return;
       onSend(text);
     },
     [onSend]
@@ -54,6 +60,7 @@ export function ChatRuntimeProvider({
   const runtime = useExternalStoreRuntime({
     messages,
     isRunning,
+    isSendDisabled,
     convertMessage,
     onNew,
     onCancel: handleCancel,

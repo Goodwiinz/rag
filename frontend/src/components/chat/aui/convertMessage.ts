@@ -58,7 +58,10 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
   return {
     id: message.id,
     role: message.role,
-    createdAt: new Date(message.timestamp),
+    // Null-safe: a message may not have a timestamp yet (e.g. an optimistic
+    // local insert before the server round-trip). `new Date(0)` would be a
+    // misleading 1970 date, so omit createdAt instead.
+    ...(message.timestamp ? { createdAt: new Date(message.timestamp) } : {}),
     content: [...toolParts, { type: 'text', text: message.content }],
   };
 }
