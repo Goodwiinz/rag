@@ -11,7 +11,7 @@ import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView'
 
 import { convertMessage } from './convertMessage';
 
-interface ChatRuntimeProviderProps {
+export interface ChatRuntimeProviderProps {
   messages: ChatPageMessage[];
   isRunning: boolean;
   /** Delegates to the existing useChatStreaming send. Required by the
