@@ -120,17 +120,19 @@ def _get_tools_for_intent(intent: str) -> list:
 def _tools_for_turn(intent: str, *, last_user_msg: str, retrieved: list) -> list:
     """Return the tool subset to bind for THIS turn.
 
-    A conversational general turn ("hi", "thanks", "ok") with no retrieved
-    context calls no tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas
-    only inflates the prompt (~thousands of input tokens) and slows
-    time-to-first-token. Bind nothing for those turns. Every retrieval or
-    specialised-intent turn keeps its full intent subset. Shares the
-    ``is_conversational`` predicate with ``rag_node`` / ``memory_retrieval_node``
-    so all three hot-path nodes agree on what counts as small talk.
-    """
-    from src.services.agent._nodes_rag import is_conversational
+    A bare-greeting general turn ("hi") with no retrieved context calls no
+    tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas only inflates the
+    prompt (~thousands of input tokens) and slows time-to-first-token. Bind
+    nothing for those turns; everything else keeps its full intent subset.
 
-    if intent == "general" and not retrieved and is_conversational(last_user_msg):
+    Deliberately uses the NARROW ``_is_greeting`` predicate, not
+    ``is_conversational``: an ack like "yes"/"ok"/"proceed" routinely accepts
+    an action the assistant just proposed, and with ``tools=[]`` the model
+    cannot call the tool — it fabricates a narrated tool call instead
+    (LangSmith trace 019f33ca-fc58-7102-b3da-bb36370b1957). A greeting cannot
+    be answering a question, so only greetings are safe to strip.
+    """
+    if intent == "general" and not retrieved and _is_greeting(last_user_msg):
         return []
     return _get_tools_for_intent(intent)
 
