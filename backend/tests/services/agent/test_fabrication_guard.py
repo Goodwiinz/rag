@@ -9,7 +9,7 @@ when the model is being honest.
 import pytest
 from unittest.mock import patch
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from src.services.agent.reflection import (
     ReflectionResult,
@@ -1096,3 +1096,152 @@ class TestFabricatedDocSearchGuard:
         assert result.severity == "major"
         assert any("search_documents" in issue for issue in result.issues)
         assert updates["reflection_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: multi-turn false positives — tool_executions / retrieved_contexts are
+# reset [] each turn (streaming.py / jobs.py initial_state), so the guards only
+# see the current turn. A follow-up answer that truthfully REFERENCES a prior
+# turn's retrieval ("Earlier I searched your documents ...") must not be
+# flagged when a prior AIMessage in the thread carries a read tool_call.
+# ---------------------------------------------------------------------------
+
+
+_PAST_TURN_DOC_CLAIMS = (
+    "Earlier I searched your documents and found three passages on RAG "
+    "evaluation; the strongest evidence was in the 2024 survey.",
+    "As I mentioned, I looked through the documents last turn and found the "
+    "ablation results you asked about.",
+    "Based on what I retrieved from your library earlier, the answer is that "
+    "chunk overlap of 15% performed best.",
+)
+
+
+def _make_multiturn_doc_state(
+    *,
+    final_ai_content: str,
+    prior_tool_name: str | None,
+) -> dict:
+    """Two-turn thread. Turn 1 optionally ran a doc read tool (visible only as
+    an AIMessage.tool_calls + ToolMessage in history); turn 2 is a follow-up
+    with per-turn channels reset, mirroring streaming.py/jobs.py initial_state."""
+    messages: list = [
+        HumanMessage(content="Search my documents for RAG evaluation results"),
+    ]
+    if prior_tool_name is not None:
+        messages.extend(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[{"name": prior_tool_name, "args": {}, "id": "call_1"}],
+                ),
+                ToolMessage(
+                    content='{"results": [{"id": "doc-1"}]}', tool_call_id="call_1"
+                ),
+            ]
+        )
+    messages.extend(
+        [
+            AIMessage(content="I searched your documents and found three passages."),
+            HumanMessage(content="Can you expand on that?"),
+            AIMessage(content=final_ai_content),
+        ]
+    )
+    return {
+        "messages": messages,
+        "tool_executions": [],  # reset each turn
+        "retrieved_contexts": [],  # reset each turn
+        "intent": "research",
+        "reflection_count": 0,
+    }
+
+
+class TestFabricatedDocSearchMultiTurn:
+    def test_silent_when_prior_turn_ran_doc_read_tool(self):
+        """Past-turn references over a thread where retrieval genuinely
+        happened (prior AIMessage carries a _DOC_READ_TOOLS tool_call) must
+        pass, even though this turn's tool_executions is empty."""
+        for text in _PAST_TURN_DOC_CLAIMS:
+            issue = _detect_fabricated_doc_search(
+                _make_multiturn_doc_state(
+                    final_ai_content=text, prior_tool_name="search_documents"
+                )
+            )
+            assert issue is None, text
+
+    def test_silent_for_any_prior_doc_read_tool(self):
+        for tool_name in ("search_arxiv", "do_kb_retrieve", "summarize_document"):
+            issue = _detect_fabricated_doc_search(
+                _make_multiturn_doc_state(
+                    final_ai_content=_PAST_TURN_DOC_CLAIMS[0],
+                    prior_tool_name=tool_name,
+                )
+            )
+            assert issue is None, tool_name
+
+    def test_still_fires_when_thread_has_zero_retrieval(self):
+        """Same phrasings in a thread where NO retrieval ever happened stay
+        flagged — the relaxation is scoped to threads with real prior reads."""
+        for text in _PAST_TURN_DOC_CLAIMS:
+            issue = _detect_fabricated_doc_search(
+                _make_multiturn_doc_state(final_ai_content=text, prior_tool_name=None)
+            )
+            assert issue is not None, text
+
+    def test_prior_non_doc_tool_call_does_not_suppress(self):
+        """A prior tool_call that is NOT a doc read (e.g. create_project) must
+        not suppress the guard."""
+        issue = _detect_fabricated_doc_search(
+            _make_multiturn_doc_state(
+                final_ai_content=_PAST_TURN_DOC_CLAIMS[0],
+                prior_tool_name="create_project",
+            )
+        )
+        assert issue is not None
+
+
+class TestFabricatedKgSearchMultiTurn:
+    def _state(self, prior_tool_name: str | None) -> dict:
+        messages: list = [HumanMessage(content="Search the knowledge graph for RAG")]
+        if prior_tool_name is not None:
+            messages.extend(
+                [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {"name": prior_tool_name, "args": {}, "id": "call_1"}
+                        ],
+                    ),
+                    ToolMessage(content='{"entities": []}', tool_call_id="call_1"),
+                ]
+            )
+        messages.extend(
+            [
+                AIMessage(content="I searched the knowledge graph and found RAG."),
+                HumanMessage(content="Tell me more?"),
+                AIMessage(
+                    content=(
+                        "Earlier I searched the knowledge graph and found the "
+                        "entity Retrieval-Augmented Generation; it links to "
+                        "vector databases."
+                    )
+                ),
+            ]
+        )
+        return {
+            "messages": messages,
+            "tool_executions": [],
+            "intent": "research",
+            "reflection_count": 0,
+        }
+
+    def test_silent_when_prior_turn_ran_kg_read_tool(self):
+        assert (
+            _detect_fabricated_kg_search(self._state("search_knowledge_graph")) is None
+        )
+
+    def test_still_fires_when_thread_has_zero_kg_reads(self):
+        assert _detect_fabricated_kg_search(self._state(None)) is not None
+
+    def test_prior_non_kg_tool_call_does_not_suppress(self):
+        assert _detect_fabricated_kg_search(self._state("create_project")) is not None
