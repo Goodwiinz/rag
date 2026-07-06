@@ -364,14 +364,24 @@ async def classify_intent_with_fallback(
         )
         return keyword_result
 
-    # Zero-evidence shortcut: no keywords matched AND short query AND no prior-tool
-    # context → provably "general" without an LLM round-trip. A 1-word "hi" has
-    # zero signal for any specialised intent; skipping the LLM saves ~1 s.
-    # Guard on ``prior_tool`` because retry phrases ("try again", 2 words, 0 keywords)
-    # inherit intent from the prior tool call — the LLM needs that context.
-    if keyword_result.confidence == 0.0 and len(query.split()) < 8 and not prior_tool:
+    # Zero-evidence shortcut: no keywords matched AND short query AND no
+    # conversational context → provably "general" without an LLM round-trip.
+    # A 1-word "hi" opening a thread has zero signal for any specialised
+    # intent; skipping the LLM saves ~1 s.
+    # Guard on ``prior_tool`` because retry phrases ("try again", 2 words,
+    # 0 keywords) inherit intent from the prior tool call, and on
+    # ``previous_turn`` because bare acks ("yes") routinely answer a proposal
+    # in the previous assistant message ("Shall I run the arXiv search?") —
+    # in both cases the LLM needs that context to route correctly
+    # (LangSmith trace 019f33ca-fc58-7102-b3da-bb36370b1957).
+    if (
+        keyword_result.confidence == 0.0
+        and len(query.split()) < 8
+        and not prior_tool
+        and not previous_turn.strip()
+    ):
         logger.debug(
-            "Short zero-confidence query (%d words, no prior tool) — skipping LLM classifier",
+            "Short zero-confidence query (%d words, no prior context) — skipping LLM classifier",
             len(query.split()),
         )
         # Confidence 0.5, not 0.9 — this is a no-signal guess, not a

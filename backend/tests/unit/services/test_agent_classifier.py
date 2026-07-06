@@ -362,6 +362,55 @@ class TestFallbackClassifier:
         mock_llm.assert_called_once()
         assert result.intent == "research"
 
+    async def test_shortcut_does_not_fire_with_previous_turn(self):
+        """Bare acks ("yes") answering an assistant proposal must reach the LLM.
+
+        Regression (LangSmith trace 019f33ca-fc58-7102-b3da-bb36370b1957):
+        "yes" after "Shall I run the arXiv search?" was shortcut-guessed as
+        general/0.5 without the LLM ever seeing the previous turn, so the
+        conversation lost its research routing mid-flow.
+        """
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="research",
+            confidence=0.9,
+            reasoning="Ack accepting the proposed arXiv search.",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "yes",
+                {"type": "unknown"},
+                previous_turn="Shall I proceed with the arXiv search for RAG papers?",
+            )
+
+        mock_llm.assert_called_once()
+        assert result.intent == "research"
+
+    async def test_shortcut_still_fires_on_first_message(self):
+        """No previous turn, no prior tool → shortcut stays (saves the LLM call)."""
+        from src.services.agent.classifier import classify_intent_with_fallback
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm:
+            result = await classify_intent_with_fallback(
+                "hi", {"type": "unknown"}, previous_turn=""
+            )
+
+        mock_llm.assert_not_called()
+        assert result.source == "shortcut"
+
 
 # ---------------------------------------------------------------------------
 # Prior tool context (retry-routing fix)
