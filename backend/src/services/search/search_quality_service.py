@@ -25,7 +25,6 @@ from src.models.search_schemas import (
 
 from .fulltext_search_service import fulltext_search_service
 from .hybrid_search_service import hybrid_search_service
-from .vector_search_service import vector_search_service
 
 logger = logging.getLogger(__name__)
 
@@ -479,13 +478,8 @@ class SearchQualityService:
                             user_id="benchmark_user",
                             organization_id=organization_id,
                         )
-                    elif search_type == SearchType.VECTOR:
-                        search_response = vector_search_service.search(
-                            search_request=search_query,
-                            user_id="benchmark_user",
-                            organization_id=organization_id,
-                        )
                     else:
+                        # VECTOR benchmarking removed with the Qdrant arm.
                         continue
 
                     # Evaluate search quality

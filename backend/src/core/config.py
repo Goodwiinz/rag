@@ -172,16 +172,10 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
-    # Qdrant — DEPRECATED. Retained as optional settings so legacy services
-    # in src/services/search/* still import; no runtime cluster expected.
-    QDRANT_URL: Optional[str] = None
-    QDRANT_API_KEY: Optional[str] = None
-
     # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
     # Public Preview — API may churn. One KB per organization.
     DO_KB_ENABLED: bool = False
-    DO_KB_SHADOW_READ: bool = False  # Phase 4a: dual-read for eval, no user impact
-    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads, Qdrant fallback
+    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads
     DO_API_TOKEN: Optional[str] = None
     DO_KB_REGION: Optional[str] = None  # e.g. "tor1", "nyc3"
     DO_KB_PROJECT_ID: Optional[str] = None
@@ -483,23 +477,6 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("QDRANT_API_KEY")
-    @classmethod
-    def validate_qdrant_api_key(cls, v):
-        # Allow None or empty string for local development, but validate format if provided
-        if v is not None and v != "" and len(v) < 10:
-            raise ValueError("Qdrant API key must be at least 10 characters long")
-        return v
-
-    @field_validator("QDRANT_URL")
-    @classmethod
-    def validate_qdrant_url(cls, v):
-        if v is None or v == "":
-            return v
-        if not v.startswith(("http://", "https://")):
-            raise ValueError("Qdrant URL must start with http:// or https://")
-        return v
-
     @field_validator("MAX_FILE_SIZE_MB")
     @classmethod
     def validate_max_file_size(cls, v):
@@ -581,8 +558,6 @@ class Settings(BaseSettings):
             )
         if self.DO_KB_PRIMARY_READ and not self.DO_KB_ENABLED:
             raise ValueError("DO_KB_PRIMARY_READ requires DO_KB_ENABLED=True")
-        if self.DO_KB_SHADOW_READ and not self.DO_KB_ENABLED:
-            raise ValueError("DO_KB_SHADOW_READ requires DO_KB_ENABLED=True")
         return self
 
     class Config:

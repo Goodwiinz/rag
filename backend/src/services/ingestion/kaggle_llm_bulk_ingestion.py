@@ -101,7 +101,6 @@ class KaggleLLMBulkIngestionService:
         self._neo4j_driver = None
         self._azure_service = None
         self._embedding_service = None
-        self._vector_service = None
 
     async def _get_neo4j_driver(self):
         """Lazy load Neo4j driver"""
@@ -138,14 +137,6 @@ class KaggleLLMBulkIngestionService:
 
             self._embedding_service = embedding_service
         return self._embedding_service
-
-    async def _get_vector_service(self):
-        """Lazy load vector service"""
-        if self._vector_service is None:
-            from src.services.search.vector_service import vector_service
-
-            self._vector_service = vector_service
-        return self._vector_service
 
     def _load_state(self) -> Dict[str, Any]:
         """Load ingestion state from file"""
@@ -321,53 +312,6 @@ Response (JSON array only):"""
             logger.warning(f"Embedding generation failed: {e}")
             return []
 
-    async def _store_in_qdrant(
-        self, paper_id: str, text: str, embedding: List[float], metadata: Dict[str, Any]
-    ):
-        """Store embedding in Qdrant vector database"""
-        vector_service = await self._get_vector_service()
-
-        try:
-            import uuid
-
-            from src.models.vector import (
-                VectorCollectionType,
-                VectorEntry,
-                VectorMetadata,
-            )
-
-            # Create vector metadata
-            vector_metadata = VectorMetadata(
-                document_id=paper_id,
-                organization_id="arxiv_bulk",
-                content_type="text",
-                source_type="arxiv_paper",
-                timestamp=datetime.utcnow(),
-                additional_data=metadata,
-            )
-
-            # Create vector entry
-            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, paper_id))
-            vector_entry = VectorEntry(
-                id=point_id,
-                vector=embedding,
-                text=text[:1000],  # Truncate for storage
-                metadata=vector_metadata,
-                collection=VectorCollectionType.DOCUMENT_CHUNKS,
-            )
-
-            # Insert into Qdrant
-            result = vector_service.insert_vectors(
-                collection_type=VectorCollectionType.DOCUMENT_CHUNKS,
-                vectors=[vector_entry],
-            )
-
-            return result.success
-
-        except Exception as e:
-            logger.warning(f"Qdrant storage failed for {paper_id}: {e}")
-            return False
-
     async def _process_paper_with_llm(
         self, session, paper: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -475,21 +419,10 @@ Response (JSON array only):"""
                             },
                         )
 
-            # 4. Generate and store embedding
+            # 4. Generate embedding (Qdrant vector store retired; nothing to
+            # persist to, but the embedding count is still surfaced in stats).
             if self.enable_embeddings and text:
-                embeddings = await self._generate_embeddings([text])
-                if embeddings and embeddings[0]:
-                    stored = await self._store_in_qdrant(
-                        paper_id=paper_id,
-                        text=text,
-                        embedding=embeddings[0],
-                        metadata={
-                            "title": title,
-                            "category": categories.split()[0] if categories else "",
-                            "source": "arxiv_kaggle",
-                        },
-                    )
-                    result["embedding_stored"] = stored
+                await self._generate_embeddings([text])
 
             result["success"] = True
             return result
