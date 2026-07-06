@@ -323,27 +323,6 @@ neo4j:
         - apoc
         - graph-data-science
 
-# Qdrant Configuration
-qdrant:
-  enabled: true
-  replicaCount: 1
-  persistence:
-    enabled: true
-    size: 100Gi
-    storageClass: "gp2"
-  resources:
-    limits:
-      cpu: 1000m
-      memory: 2Gi
-    requests:
-      cpu: 500m
-      memory: 1Gi
-  config:
-    service:
-      api_key: ""
-      http_port: 6333
-      grpc_port: 6334
-
 # Prometheus Configuration
 prometheus:
   enabled: true
@@ -380,9 +359,6 @@ prometheus:
         - job_name: 'neo4j'
           static_configs:
             - targets: ['neo4j:2004']
-        - job_name: 'qdrant'
-          static_configs:
-            - targets: ['qdrant:6333']
 
 # Grafana Configuration
 grafana:
