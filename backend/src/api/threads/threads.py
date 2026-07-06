@@ -1046,6 +1046,8 @@ def _format_message_response(message) -> ChatMessageResponse:
         latency_ms=message.latency_ms,
         stopped=message.stopped,
         tool_executions=message.tool_executions,
+        plan=message.plan,
+        token_usage=message.token_usage,
         model_name=message.model_name,
         model_version=message.model_version,
         tool_name=message.tool_name,

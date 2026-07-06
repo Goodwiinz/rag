@@ -16,9 +16,12 @@ from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
+from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent._pii_redact import redact_pii
+from src.services.agent.observability import record_token_usage
 
-from ._errors import client_safe_error, extract_interrupt_confirmation
 from . import jobs as _jobs_mod
+from ._errors import client_safe_error, extract_interrupt_confirmation
 from .jobs import (
     _clear_stale_pending_confirmation,
     _get_latest_user_content,
@@ -29,9 +32,6 @@ from .jobs import (
     _resolve_and_bind_project,
     _resolve_thread,
 )
-from src.services.agent._builders import RECURSION_LIMIT
-from src.services.agent._pii_redact import redact_pii
-from src.services.agent.observability import record_token_usage
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)
@@ -525,6 +525,17 @@ async def stream_event_generator(
                     latency_ms=int((time.monotonic() - stream_started_at) * 1000),
                     stopped=True,
                     client_message_id=assistant_cmid,
+                    # Tokens accumulated up to the abort; no plan here — it
+                    # would need a checkpoint read on a path that must stay
+                    # cheap (client already hung up).
+                    token_usage=(
+                        {
+                            "input_tokens": turn_input_tokens,
+                            "output_tokens": turn_output_tokens,
+                        }
+                        if (turn_input_tokens or turn_output_tokens)
+                        else None
+                    ),
                 )
                 if background_tasks is not None:
                     background_tasks.add_task(
@@ -593,6 +604,15 @@ async def stream_event_generator(
                     latency_ms=int((time.monotonic() - stream_started_at) * 1000),
                     stopped=False,
                     client_message_id=assistant_cmid,
+                    plan=final_values.get("plan") or None,
+                    token_usage=(
+                        {
+                            "input_tokens": turn_input_tokens,
+                            "output_tokens": turn_output_tokens,
+                        }
+                        if (turn_input_tokens or turn_output_tokens)
+                        else None
+                    ),
                 )
                 if _canonical_persistence_enabled():
                     # Server-canonical mode: persist BEFORE `done` so the
@@ -930,6 +950,15 @@ async def stream_confirm_event_generator(
                 tool_executions_out,
                 retrieved_contexts=final_values.get("retrieved_contexts"),
                 create_if_missing=False,
+                plan=final_values.get("plan") or None,
+                token_usage=(
+                    {
+                        "input_tokens": turn_input_tokens,
+                        "output_tokens": turn_output_tokens,
+                    }
+                    if (turn_input_tokens or turn_output_tokens)
+                    else None
+                ),
             )
         except Exception as e:
             logger.warning(
