@@ -393,6 +393,19 @@ export function useChatStreaming(
         }
       }
 
+      // The thread this turn belongs to, snapshotted after thread creation.
+      // Every local setMessages below must be gated on the user still viewing
+      // this thread: setMessages writes to whatever thread is CURRENTLY
+      // displayed, and the sidebar switches threads without aborting the
+      // stream. Store/back-end persistence is thread-scoped already, so a
+      // skipped local write is not lost — it reappears when the user returns.
+      // ponytail: the global streaming bubble/flags still render on whatever
+      // thread is displayed while a background turn streams — per-thread
+      // streaming state is the upgrade path if that becomes noticeable.
+      const turnThreadId = activeConversationIdRef.current;
+      const isTurnDisplayed = () =>
+        activeConversationIdRef.current === turnThreadId;
+
       try {
         // Stream via Agent (LangGraph) backend
         // Server-canonical: the workspace thread IS the agent thread — the
@@ -662,7 +675,7 @@ export function useChatStreaming(
                 content: `Stream error: ${error}`,
                 timestamp: Date.now(),
               };
-              setMessages([...newMessages, errorMsg]);
+              if (isTurnDisplayed()) setMessages([...newMessages, errorMsg]);
             },
           },
           streamAbort.signal
@@ -702,7 +715,8 @@ export function useChatStreaming(
                 '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
               timestamp: Date.now(),
             };
-            setMessages([...newMessages, emptyResponseMessage]);
+            if (isTurnDisplayed())
+              setMessages([...newMessages, emptyResponseMessage]);
           }
           useChatStore.setState({
             isStreaming: false,
@@ -776,7 +790,7 @@ export function useChatStreaming(
         lastStreamedContentRef.current = '';
 
         const finalMessages = [...newMessages, finalAssistantMessage];
-        setMessages(finalMessages);
+        if (isTurnDisplayed()) setMessages(finalMessages);
 
         // Save messages to workspace database for persistence.
         // Server-canonical mode: the BACKEND already persisted both rows
@@ -787,7 +801,8 @@ export function useChatStreaming(
         if (SERVER_CANONICAL_CHAT) {
           if (doneIds.assistant_message_id) {
             finalAssistantMessage.id = doneIds.assistant_message_id;
-            setMessages([...newMessages, finalAssistantMessage]);
+            if (isTurnDisplayed())
+              setMessages([...newMessages, finalAssistantMessage]);
           }
         } else if (currentThreadId && isAuthenticated) {
           try {
@@ -840,14 +855,15 @@ export function useChatStreaming(
             'Error: ' +
             (err instanceof Error ? err.message : 'Failed to get response');
 
-          setMessages([
-            ...newMessages,
-            {
-              role: 'assistant',
-              content: errorMessage,
-              timestamp: Date.now(),
-            },
-          ]);
+          if (isTurnDisplayed())
+            setMessages([
+              ...newMessages,
+              {
+                role: 'assistant',
+                content: errorMessage,
+                timestamp: Date.now(),
+              },
+            ]);
         }
       } finally {
         submitLockRef.current = false;
