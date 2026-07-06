@@ -141,8 +141,8 @@ async def test_agent_stream_path_sets_tenant_context():
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
-        # querystring must not break the prefix match
-        "/api/v1/auth/refresh?foo=bar",
+        # a sub-path of a skipped route still skips (startswith match)
+        "/api/v1/auth/refresh/callback",
         "/health",
         "/docs",
         "/redoc",
