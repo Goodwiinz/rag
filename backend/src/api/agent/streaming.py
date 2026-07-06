@@ -24,7 +24,7 @@ from . import jobs as _jobs_mod
 from ._errors import client_safe_error, extract_interrupt_confirmation
 from .jobs import (
     _clear_stale_pending_confirmation,
-    _get_latest_user_content,
+    _latest_user_client_message_id,
     _page_context_to_dict,
     _persist_assistant_message,
     _persist_thread_messages,
@@ -719,6 +719,8 @@ async def stream_confirm_event_generator(
     request_body: Any,  # StreamConfirmRequest
     request: Any,  # FastAPI Request
     current_user: User,
+    *,
+    background_tasks: Any = None,  # fastapi.BackgroundTasks (optional for tests)
 ):
     """SSE event generator for the /stream/confirm endpoint.
 
@@ -924,42 +926,77 @@ async def stream_confirm_event_generator(
                 assistant_content = msg.content
                 break
 
+        # Persist ONLY the assistant row for the resumed turn. The user row
+        # that started this turn was already written up-front by the original
+        # /stream request (stream_event_generator → _persist_user_message),
+        # so re-running _persist_thread_messages here inserted a SECOND bare
+        # user row every confirm (no client_message_id → no dedup), inflated
+        # thread.message_count, and confused context assembly.
+        #
+        # The resumed turn carries no fresh idempotency key (the frontend only
+        # sends {thread_id, confirmed}), so derive the assistant-side key from
+        # the original user row's client_message_id — a double-confirm then
+        # hits the assistant partial unique index and dedupes instead of
+        # leaving a duplicate assistant row.
+        assistant_cmid: Optional[str] = None
         try:
-            latest_user_content = _get_latest_user_content(
-                final_values.get("messages", [])
+            user_cmid = await _latest_user_client_message_id(
+                db, request_body.thread_id
             )
-            resumed_request = AgentExecuteRequest(
-                messages=(
-                    [AgentMessage(role="user", content=latest_user_content)]
-                    if latest_user_content
-                    else []
-                ),
-                page_context=PageContextRequest(
-                    **_page_context_to_dict(
-                        final_values.get("page_context", page_context)
+            if user_cmid is not None:
+                assistant_cmid = str(
+                    _uuid.uuid5(
+                        _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
                     )
-                ),
-                model=getattr(request_body, "model", "") or "",
+                )
+        except Exception:
+            logger.warning(
+                "Failed to derive assistant client_message_id for resumed "
+                "thread %s; assistant row will not be idempotent",
+                request_body.thread_id,
+                exc_info=True,
+            )
+
+        token_usage_payload = (
+            {
+                "input_tokens": turn_input_tokens,
+                "output_tokens": turn_output_tokens,
+            }
+            if (turn_input_tokens or turn_output_tokens)
+            else None
+        )
+        persisted_assistant_id: Optional[str] = None
+        try:
+            persist_kwargs = dict(
                 thread_id=request_body.thread_id,
-            )
-            await _persist_thread_messages(
-                db,
-                current_user,
-                resumed_request,
-                assistant_content,
-                tool_executions_out,
+                content=assistant_content,
+                model_name=getattr(request_body, "model", "") or None,
+                tool_executions_out=tool_executions_out,
                 retrieved_contexts=final_values.get("retrieved_contexts"),
-                create_if_missing=False,
                 plan=final_values.get("plan") or None,
-                token_usage=(
-                    {
-                        "input_tokens": turn_input_tokens,
-                        "output_tokens": turn_output_tokens,
-                    }
-                    if (turn_input_tokens or turn_output_tokens)
-                    else None
-                ),
+                token_usage=token_usage_payload,
+                client_message_id=assistant_cmid,
             )
+            # _persist_assistant_message_safe opens its own session so this
+            # request session can be closed immediately after `done`. Run it
+            # inline (not as a background task) in canonical mode so the id
+            # is available for the done payload; otherwise fall back to a
+            # background task to release the SSE without waiting on the write.
+            if _canonical_persistence_enabled():
+                persisted_assistant_id = (
+                    await _jobs_mod._persist_assistant_message_safe(
+                        **persist_kwargs
+                    )
+                )
+            elif background_tasks is not None:
+                background_tasks.add_task(
+                    _jobs_mod._persist_assistant_message_safe,
+                    **persist_kwargs,
+                )
+            else:
+                await _jobs_mod._persist_assistant_message_safe(
+                    **persist_kwargs
+                )
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",
@@ -995,7 +1032,26 @@ async def stream_confirm_event_generator(
             )
             yield f"event: token\ndata: {_json.dumps({'content': f'Done — completed: {names}.'})}\n\n"
 
-        yield f"event: done\ndata: {_json.dumps({'status': 'complete', 'tool_executions': [te.model_dump() for te in tool_executions_out] if tool_executions_out else []})}\n\n"
+        # Canonical mode carries the persisted ids so the client can reconcile
+        # its optimistic bubble with the server row (mirrors the main /stream
+        # done payload). tool_executions stays for legacy CLI clients.
+        done_payload: Dict[str, Any] = {
+            "status": "complete",
+            "tool_executions": (
+                [te.model_dump() for te in tool_executions_out]
+                if tool_executions_out
+                else []
+            ),
+        }
+        if _canonical_persistence_enabled():
+            done_payload.update(
+                {
+                    "thread_id": request_body.thread_id,
+                    "assistant_message_id": persisted_assistant_id,
+                    "client_message_id": assistant_cmid,
+                }
+            )
+        yield f"event: done\ndata: {_json.dumps(done_payload)}\n\n"
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
