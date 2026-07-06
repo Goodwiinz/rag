@@ -49,6 +49,47 @@ describe('cloudMessageView', () => {
     expect(plain.metadata).toBeUndefined();
   });
 
+  it('maps persisted plan and token usage into the chat page message', () => {
+    const [msg] = mapStoreMessagesToChatMessages([
+      {
+        id: 'm-1',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        plan: [
+          {
+            step: 1,
+            description: 'Search documents',
+            tool: 'search_documents',
+            args_hint: { query: 'transformers' },
+            depends_on: [],
+          },
+        ],
+        token_usage: { input_tokens: 1200, output_tokens: 340 },
+      } as any,
+    ]);
+
+    expect(msg.plan).toHaveLength(1);
+    expect(msg.plan?.[0].tool).toBe('search_documents');
+    expect(msg.metadata?.tokenUsage).toEqual({ input: 1200, output: 340 });
+  });
+
+  it('leaves plan and tokenUsage absent for rows persisted without them', () => {
+    const [msg] = mapStoreMessagesToChatMessages([
+      {
+        id: 'm-2',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+      } as any,
+    ]);
+
+    expect(msg.plan).toBeUndefined();
+    expect(msg.metadata).toBeUndefined();
+  });
+
   it('uses store-backed messages for cloud chat once persisted messages are available', () => {
     const localMessages = [
       {

@@ -60,7 +60,6 @@ export interface ChatBubbleProps {
   thinkingLabel?: string;
 }
 
-
 export const ChatBubble = React.memo(function ChatBubble({
   message,
   index: _index,

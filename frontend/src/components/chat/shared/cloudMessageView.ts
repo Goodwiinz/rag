@@ -108,7 +108,7 @@ export interface ChatPageMessage {
     sourcesCount?: number;
     /** The user stopped this response mid-stream; the text is partial. */
     stopped?: boolean;
-    /** Per-turn LLM token usage (in-memory only; not persisted to the DB). */
+    /** Per-turn LLM token usage (persisted in chat_messages.token_usage). */
     tokenUsage?: { input: number; output: number };
   };
 }
@@ -116,22 +116,36 @@ export interface ChatPageMessage {
 export function mapStoreMessagesToChatMessages(
   messages: ChatMessage[]
 ): ChatPageMessage[] {
-  return messages.map((dbMsg) => ({
-    id: dbMsg.id,
-    role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
-    content: dbMsg.content,
-    timestamp: new Date(dbMsg.created_at).getTime(),
-    citations: dbMsg.citations?.map(normalizeCitation),
-    attachments: dbMsg.attachments,
-    toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
-    metadata:
-      dbMsg.latency_ms || dbMsg.stopped
+  return messages.map((dbMsg) => {
+    const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
+    return {
+      id: dbMsg.id,
+      role:
+        dbMsg.role === MessageRole.USER
+          ? ('user' as const)
+          : ('assistant' as const),
+      content: dbMsg.content,
+      timestamp: new Date(dbMsg.created_at).getTime(),
+      citations: dbMsg.citations?.map(normalizeCitation),
+      attachments: dbMsg.attachments,
+      toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
+      ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
+      metadata: hasMetadata
         ? {
             ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
             ...(dbMsg.stopped ? { stopped: true } : {}),
+            ...(dbMsg.token_usage
+              ? {
+                  tokenUsage: {
+                    input: dbMsg.token_usage.input_tokens,
+                    output: dbMsg.token_usage.output_tokens,
+                  },
+                }
+              : {}),
           }
         : undefined,
-  }));
+    };
+  });
 }
 
 interface SelectDisplayedMessagesParams {
@@ -149,11 +163,12 @@ function shouldUseStoreMessages(
 }
 
 /**
- * Carry in-memory-only turn provenance over to the server-mapped message.
- * The DB row has no plan / tokenUsage / toolsUsed columns, so when the
- * displayed list flips from local to store messages after `done`, the plan
- * and token badge would silently vanish from the just-finished turn.
- * Server values stay canonical where both exist (e.g. latency_ms).
+ * Carry in-memory turn provenance over to the server-mapped message.
+ * plan / token_usage are persisted now, but the store page may have been
+ * fetched BEFORE the assistant row landed (or the row predates the columns),
+ * so when the displayed list flips from local to store messages after
+ * `done`, the plan and token badge would silently vanish from the
+ * just-finished turn. Server values stay canonical where both exist.
  */
 function mergeLocalProvenance(
   mapped: ChatPageMessage[],
