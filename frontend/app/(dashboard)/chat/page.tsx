@@ -24,9 +24,13 @@ import {
   useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
-import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import {
+  useChatStreaming,
+  type PendingConfirmation,
+} from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 import {
   SLASH_COMMANDS,
@@ -804,11 +808,44 @@ function ChatPageContent() {
     drawerOpenerRef.current?.focus?.();
   }, [mobileSidebarOpen]);
 
-  // HITL banner: move focus to Approve when it appears.
+  // Trap Tab focus inside the open mobile drawer (role=dialog aria-modal) so
+  // keyboard focus can't wander behind it. Wraps at the focusable boundaries.
+  // ponytail: Tab-wrap alone satisfies WCAG 2.4.3/4.1.2; the fuller fix is
+  // `inert` on the main content for screen-reader virtual-cursor escape — add
+  // that only if SR escape is reported.
+  const handleDrawerKeyDown = useCallback((e: ReactKeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const root = drawerRef.current;
+    if (!root) return;
+    const focusables = root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, []);
+
+  // HITL banner: move focus to Approve when it appears, and return focus to
+  // the composer when it resolves (the Approve/Deny button just unmounted —
+  // without this, focus drops to <body>).
   const approveRef = useRef<HTMLButtonElement>(null);
+  const prevPendingConfirmationRef = useRef<PendingConfirmation | null>(null);
   useEffect(() => {
-    if (pendingConfirmation) approveRef.current?.focus();
-  }, [pendingConfirmation]);
+    const had = prevPendingConfirmationRef.current;
+    if (pendingConfirmation) {
+      approveRef.current?.focus();
+    } else if (had) {
+      chatInputRef.current?.focus();
+    }
+    prevPendingConfirmationRef.current = pendingConfirmation;
+  }, [pendingConfirmation, chatInputRef]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">
@@ -830,6 +867,7 @@ function ChatPageContent() {
               role="dialog"
               aria-modal="true"
               aria-label="Chat history"
+              onKeyDown={handleDrawerKeyDown}
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
