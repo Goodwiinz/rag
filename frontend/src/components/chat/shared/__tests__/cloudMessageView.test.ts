@@ -49,6 +49,47 @@ describe('cloudMessageView', () => {
     expect(plain.metadata).toBeUndefined();
   });
 
+  it('maps persisted plan and token usage into the chat page message', () => {
+    const [msg] = mapStoreMessagesToChatMessages([
+      {
+        id: 'm-1',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        plan: [
+          {
+            step: 1,
+            description: 'Search documents',
+            tool: 'search_documents',
+            args_hint: { query: 'transformers' },
+            depends_on: [],
+          },
+        ],
+        token_usage: { input_tokens: 1200, output_tokens: 340 },
+      } as any,
+    ]);
+
+    expect(msg.plan).toHaveLength(1);
+    expect(msg.plan?.[0].tool).toBe('search_documents');
+    expect(msg.metadata?.tokenUsage).toEqual({ input: 1200, output: 340 });
+  });
+
+  it('leaves plan and tokenUsage absent for rows persisted without them', () => {
+    const [msg] = mapStoreMessagesToChatMessages([
+      {
+        id: 'm-2',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+      } as any,
+    ]);
+
+    expect(msg.plan).toBeUndefined();
+    expect(msg.metadata).toBeUndefined();
+  });
+
   it('uses store-backed messages for cloud chat once persisted messages are available', () => {
     const localMessages = [
       {
@@ -343,5 +384,87 @@ describe('syncConversationMessagesWithStore — post-eviction unfreeze', () => {
     ]);
     expect(result[0].messages.map((m) => m.id)).toEqual(['c']);
     expect(result[0].messageCount).toBe(2); // count stays monotonic
+  });
+});
+
+describe('selectDisplayedMessages local-provenance merge', () => {
+  const storeMsg = (id: string, content: string) =>
+    ({
+      id,
+      role: 'assistant',
+      content,
+      created_at: '2026-03-09T12:00:00Z',
+      citations: [],
+      latency_ms: 2000,
+    }) as any;
+
+  it('keeps plan and tokenUsage when the store swap drops in-memory fields', () => {
+    const plan = [
+      {
+        step: 1,
+        description: 'Search arXiv',
+        tool: 'search_arxiv',
+        args_hint: {},
+        depends_on: [],
+      },
+    ];
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          id: 'm-1',
+          role: 'assistant',
+          content: 'Answer',
+          timestamp: 1,
+          plan,
+          metadata: {
+            responseTimeMs: 1800,
+            tokenUsage: { input: 1200, output: 300 },
+            toolsUsed: ['Searching arXiv'],
+          },
+        },
+      ],
+      storeMessages: [storeMsg('m-1', 'Answer')],
+    });
+
+    expect(result[0].plan).toEqual(plan);
+    expect(result[0].metadata?.tokenUsage).toEqual({ input: 1200, output: 300 });
+    expect(result[0].metadata?.toolsUsed).toEqual(['Searching arXiv']);
+    // Server latency stays canonical over the local estimate.
+    expect(result[0].metadata?.responseTimeMs).toBe(2000);
+  });
+
+  it('falls back to role+content matching for optimistic messages without ids', () => {
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          role: 'assistant',
+          content: 'Answer',
+          timestamp: 1,
+          metadata: { tokenUsage: { input: 10, output: 5 } },
+        },
+      ],
+      storeMessages: [storeMsg('m-9', 'Answer')],
+    });
+
+    expect(result[0].metadata?.tokenUsage).toEqual({ input: 10, output: 5 });
+  });
+
+  it('leaves unmatched store messages untouched', () => {
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          id: 'other',
+          role: 'assistant',
+          content: 'Different turn',
+          timestamp: 1,
+          plan: [] as never,
+          metadata: { tokenUsage: { input: 1, output: 1 } },
+        },
+      ],
+      storeMessages: [storeMsg('m-1', 'Answer')],
+    });
+
+    expect(result[0].plan).toBeUndefined();
+    expect(result[0].metadata?.tokenUsage).toBeUndefined();
   });
 });
