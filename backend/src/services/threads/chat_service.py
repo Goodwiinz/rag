@@ -1028,6 +1028,13 @@ class ChatService:
         if not message:
             return None
 
+        # A soft-deleted thread must revoke access to its individual messages —
+        # every other read path filters Thread.is_deleted; get_message did not,
+        # leaving GET/PATCH/DELETE on the message id reachable after the parent
+        # thread was soft-deleted. selectinload already loaded thread.is_deleted.
+        if message.thread.is_deleted:
+            return None
+
         # Check workspace access
         if not self._user_can_access_workspace(
             message.thread.conversation.workspace, user_id
