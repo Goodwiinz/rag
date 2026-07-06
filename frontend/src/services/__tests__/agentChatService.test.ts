@@ -142,6 +142,23 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     });
     expect(tokens).toEqual(['after']);
   });
+
+  it('flushes a trailing frame that ended without a final newline', async () => {
+    // The server's last chunk ends mid-frame (no trailing \n). Without
+    // the defensive buffer flush, the final done event is silently dropped.
+    global.fetch = fetchWith([
+      'event: token\ndata: {"content":"hello"}\n\n',
+      'event: done\ndata: {"status":"complete"}',
+    ]);
+    const tokens: string[] = [];
+    const done = vi.fn();
+    await agentChatService.streamMessage(request, {
+      onToken: (c) => tokens.push(c),
+      onDone: done,
+    });
+    expect(tokens).toEqual(['hello']);
+    expect(done).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('agentChatService.streamConfirm SSE parsing', () => {
