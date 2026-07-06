@@ -27,74 +27,77 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import cast, desc, func, select
+from sqlalchemy import cast, select, desc, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, require_admin
-from src.core.rate_limit import create_rate_limiter
 from src.models.chat_message import ChatMessage, MessageRole
 from src.models.conversation import Conversation
 from src.models.document import Document
 from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
 from src.models.workspace import Workspace
-from src.services.agent._sanitize import _sanitize_prompt_field
-
-from .jobs import (  # noqa: F401
-    MAX_JOBS,
-    _cleanup_jobs,
-    _get_job,
-    _get_latest_user_content,
-    _jobs,
-    _jobs_lock,
-    _page_context_to_dict,
-    _persist_thread_messages,
-    _resume_agent_graph,
-    _run_agent_graph,
-    _set_job,
-)
-from .streaming import (  # noqa: F401
-    _SSE_HEADERS,
-    stream_confirm_event_generator,
-    stream_event_generator,
-)
-from .tool_helpers import (  # noqa: F401
-    _resolve_document_id,
-    _resolve_project_id,
-    _sanitize_metadata,
-    _verify_project_ownership,
-)
 
 # Re-export from new modules so existing imports keep working.
 # Every `from src.api.agent.execute import <name>` must resolve.
 from .tools_impl import (  # noqa: F401
     AGENT_TOOLS,
+    execute_tool,
+    _tool_search_arxiv,
+    _tool_ingest_arxiv,
+    _tool_search_documents,
+    _tool_do_kb_retrieve,
     _tool_add_document_to_project,
-    _tool_compare_documents,
-    _tool_create_draft,
     _tool_create_project,
     _tool_create_project_note,
-    _tool_do_kb_retrieve,
-    _tool_execute_code,
-    _tool_explore_entity_neighborhood,
-    _tool_export_bibliography,
-    _tool_extract_entities,
-    _tool_find_entity_paths,
-    _tool_get_graph_stats,
-    _tool_ingest_arxiv,
-    _tool_list_external_databases,
     _tool_list_project_documents,
     _tool_list_projects,
-    _tool_search_arxiv,
-    _tool_search_documents,
-    _tool_search_external_database,
-    _tool_search_knowledge_graph,
     _tool_summarize_document,
-    execute_tool,
+    _tool_compare_documents,
+    _tool_extract_entities,
+    _tool_search_knowledge_graph,
+    _tool_explore_entity_neighborhood,
+    _tool_find_entity_paths,
+    _tool_get_graph_stats,
+    _tool_create_draft,
+    _tool_export_bibliography,
+    _tool_execute_code,
+    _tool_search_external_database,
+    _tool_list_external_databases,
 )
+
+from .tool_helpers import (  # noqa: F401
+    _sanitize_metadata,
+    _resolve_document_id,
+    _resolve_project_id,
+    _verify_project_ownership,
+)
+
+from .jobs import (  # noqa: F401
+    _jobs,
+    _jobs_lock,
+    _cleanup_jobs,
+    _set_job,
+    _get_job,
+    _page_context_to_dict,
+    _get_latest_user_content,
+    _persist_thread_messages,
+    _run_agent_graph,
+    _resume_agent_graph,
+    MAX_JOBS,
+)
+
+from .streaming import (  # noqa: F401
+    _SSE_HEADERS,
+    stream_event_generator,
+    stream_confirm_event_generator,
+)
+
+from src.services.agent._sanitize import _sanitize_prompt_field
+from src.core.rate_limit import create_rate_limiter
 
 # Per-user rate limiter for agent execute/stream endpoints.
 # 30 requests per minute — adjust MAX_AGENT_RPM / AGENT_RATE_WINDOW_MINUTES via
@@ -557,9 +560,6 @@ class MessageResponse(BaseModel):
     tool_call_id: Optional[str] = None
     citations: Optional[List[Dict[str, Any]]] = None
     tool_executions: Optional[List[Dict[str, Any]]] = None
-    # Per-turn agent provenance (assistant rows only; None for legacy rows).
-    plan: Optional[List[Dict[str, Any]]] = None
-    token_usage: Optional[Dict[str, int]] = None
 
 
 class ThreadMessagesResponse(BaseModel):
@@ -717,8 +717,6 @@ async def get_thread_messages(
                 tool_call_id=msg.tool_call_id,
                 citations=citations_data,
                 tool_executions=msg.tool_executions,
-                plan=msg.plan,
-                token_usage=msg.token_usage,
             )
         )
 

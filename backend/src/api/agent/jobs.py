@@ -39,10 +39,10 @@ logger = logging.getLogger(__name__)
 from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
-from src.services.agent.job_store import _write_to_redis_only
-from src.services.agent.job_store import delete_job as _delete_job_async
-from src.services.agent.job_store import get_job as _get_job_async
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.job_store import get_job as _get_job_async
+from src.services.agent.job_store import delete_job as _delete_job_async
+from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
 
@@ -310,7 +310,6 @@ async def _resolve_project_for_thread(
         return None, None
 
     from sqlalchemy import select
-
     from src.models import Collection, ProjectThread
 
     scalar = getattr(thread_obj, "source_project_id", None)
@@ -503,11 +502,11 @@ async def _resolve_thread(
     from uuid import UUID
 
     from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
 
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
+    from sqlalchemy.orm import selectinload
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
@@ -644,15 +643,8 @@ async def _persist_assistant_message(
     latency_ms: Optional[int] = None,
     stopped: bool = False,
     client_message_id: Optional[str] = None,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
 ) -> Optional[str]:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
-
-    ``plan`` (planner steps) and ``token_usage``
-    ({input_tokens, output_tokens}) are per-turn provenance persisted as
-    JSONB so a page reload can rehydrate them; pass ``None`` when the turn
-    produced neither (they stay NULL, not empty containers).
 
     Commits independently of ``_persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
@@ -702,8 +694,6 @@ async def _persist_assistant_message(
         latency_ms=latency_ms,
         stopped=stopped,
         client_message_id=client_message_id,
-        plan=plan,
-        token_usage=token_usage,
     )
 
     if client_message_id is not None:
@@ -788,8 +778,6 @@ async def _persist_assistant_message_safe(
     latency_ms: Optional[int] = None,
     stopped: bool = False,
     client_message_id: Optional[str] = None,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
 ) -> Optional[str]:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
@@ -813,8 +801,6 @@ async def _persist_assistant_message_safe(
                 latency_ms=latency_ms,
                 stopped=stopped,
                 client_message_id=client_message_id,
-                plan=plan,
-                token_usage=token_usage,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -848,8 +834,6 @@ async def _persist_thread_messages(
     tool_executions_out: Optional[list] = None,
     retrieved_contexts: Optional[list] = None,
     create_if_missing: bool = True,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
 ) -> tuple[str, str]:
     """Persist thread & messages to the database (deprecated shim).
 
@@ -890,8 +874,6 @@ async def _persist_thread_messages(
         model_name=request.model,
         tool_executions_out=tool_executions_out,
         retrieved_contexts=retrieved_contexts,
-        plan=plan,
-        token_usage=token_usage,
     )
 
     return thread_id, conversation_id
@@ -930,8 +912,8 @@ async def _run_agent_graph(
     current_user: User,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
-    from langchain_core.messages import HumanMessage
     from langgraph.errors import GraphInterrupt
+    from langchain_core.messages import HumanMessage
 
     from src.services.agent.checkpointer import get_checkpointer
     from src.services.agent.graph import compile_agent_graph
@@ -1123,24 +1105,12 @@ async def _run_agent_graph(
                     # worker paths share the failure-metric bump on a
                     # bad commit — Task 5 of
                     # docs/plans/2026-05-13-agent-persist-perf.md.
-                    _job_in_tok, _job_out_tok = _sum_message_usage(
-                        final_state.get("messages")
-                    )
                     await _persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
                         tool_executions_out=tool_executions_out,
                         retrieved_contexts=final_state.get("retrieved_contexts"),
-                        plan=final_state.get("plan") or None,
-                        token_usage=(
-                            {
-                                "input_tokens": _job_in_tok,
-                                "output_tokens": _job_out_tok,
-                            }
-                            if (_job_in_tok or _job_out_tok)
-                            else None
-                        ),
                     )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
