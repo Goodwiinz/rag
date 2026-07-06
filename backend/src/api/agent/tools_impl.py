@@ -836,7 +836,19 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                         "pdf_url": p.get("pdf_url", ""),
                     }
                 )
-            payload = {"papers": results, "total": len(results), "query": query}
+            payload = {
+                "papers": results,
+                "total": len(results),
+                "query": query,
+            }
+            if not results:
+                payload["warning"] = (
+                    "No arXiv papers matched the query within the "
+                    "recency window. Tell the user the search returned no "
+                    "results — do not claim a search was performed without "
+                    "naming that it was empty. Suggest broadening the "
+                    "query, widening recency_days, or removing categories."
+                )
             _arxiv_cache_set(cache_key, payload)
             return payload
     except Exception as e:

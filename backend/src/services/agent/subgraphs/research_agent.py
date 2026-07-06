@@ -340,8 +340,10 @@ async def research_force_synthesis_node(
         )
         response = AIMessage(
             content=(
-                "I gathered some results but ran out of time composing a "
-                "final summary. Please ask me to summarize the papers above."
+                "I ran my searches but the final summary step timed out "
+                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
+                "The search results are still in context — please ask me again "
+                "and I'll synthesize them directly, rather than re-searching."
             ),
         )
 

@@ -491,10 +491,23 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
             "force_synthesis_node: LLM exceeded %ds; emitting fallback",
             AGENT_LLM_TIMEOUT_SECONDS,
         )
+        # Honest fallback: do not claim "I gathered results" — the tool
+        # results may have been empty or the synthesis may have produced
+        # nothing usable. Surface the timeout plainly and tell the user what
+        # to do; this must not read as a successful-but-empty completion
+        # (the phantom-search failure mode).
+        tool_count = state.get("tool_loop_count", 0)
         response = AIMessage(
             content=(
-                "I gathered results but ran out of time composing a final "
-                "summary. Please ask me to summarize."
+                "I ran my tool calls but the final summary step timed out "
+                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
+                "Please ask me again — the tool results are still in context "
+                "so a retry can synthesize them directly." if tool_count
+                else (
+                    "The final response step timed out "
+                    f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an "
+                    "answer. Please send your request again."
+                )
             ),
         )
 
