@@ -125,4 +125,41 @@ describe('ChatInput file attach', () => {
     fireEvent.change(input);
     expect(input.value).toBe('');
   });
+
+  it('clears attachment chips and revokes blob URLs on send', () => {
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:mock'),
+      revokeObjectURL,
+    });
+
+    // A non-empty value is required for the submit guard to fire onSubmit.
+    const onSubmit = vi.fn();
+    const { container } = renderWithChatRuntime(
+      <ChatInput {...baseProps} value="hi" onSubmit={onSubmit} />
+    );
+    const imageInput = container.querySelector(
+      'input[accept="image/*"]'
+    ) as HTMLInputElement;
+    const image = new File(['x'], 'pic.png', { type: 'image/png' });
+    Object.defineProperty(imageInput, 'files', {
+      value: [image] as unknown as FileList,
+      configurable: true,
+    });
+    fireEvent.change(imageInput);
+
+    // Chip is present before send.
+    expect(container.querySelector('ul[aria-label="Attached files"]')).not.toBeNull();
+
+    const form = container.querySelector('form') as HTMLFormElement;
+    fireEvent.submit(form);
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    // Chips list is gone (attachments emptied).
+    expect(container.querySelector('ul[aria-label="Attached files"]')).toBeNull();
+
+    vi.unstubAllGlobals();
+  });
 });
