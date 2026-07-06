@@ -34,11 +34,13 @@ class BackfillReport:
     skipped: int
     last_document_id: Optional[str]
     finished: bool
+    # True only when the final start_indexing kick actually succeeded. False
+    # means data sources were uploaded but the docs are NOT queryable yet —
+    # the old code always reported success even when the kick 400'd.
+    indexing_started: bool = False
 
 
-async def _load_progress(
-    session: AsyncSession, org_id: str
-) -> DOKBBackfillProgress:
+async def _load_progress(session: AsyncSession, org_id: str) -> DOKBBackfillProgress:
     progress = await session.get(DOKBBackfillProgress, org_id)
     if progress is None:
         progress = DOKBBackfillProgress(
@@ -108,10 +110,13 @@ async def backfill_org(
             completed=progress.completed_count,
             failed=progress.failed_count,
             skipped=0,
-            last_document_id=str(progress.last_document_id)
-            if progress.last_document_id
-            else None,
+            last_document_id=(
+                str(progress.last_document_id) if progress.last_document_id else None
+            ),
             finished=True,
+            # This run kicked no indexing (short-circuit); we don't persist the
+            # prior kick's outcome, so report the honest "not started this run".
+            indexing_started=False,
         )
 
     if not dry_run:
@@ -154,9 +159,7 @@ async def backfill_org(
             progress.completed_count = (progress.completed_count or 0) + (
                 1 if ds_uuid else 0
             )
-            progress.failed_count = (progress.failed_count or 0) + (
-                0 if ds_uuid else 1
-            )
+            progress.failed_count = (progress.failed_count or 0) + (0 if ds_uuid else 1)
 
         if dry_run:
             # In dry-run we still iterate every batch but never commit indexing.
@@ -168,13 +171,26 @@ async def backfill_org(
         # data-source uuid). Avoids N round-trips per batch (audit A2).
         await session.commit()
 
+    # A dry-run never kicks indexing; treat it as "not started" (there's nothing
+    # to index). Only flip to True when the kick actually returns without raising.
+    indexing_started = False
     if not dry_run and org.do_kb_uuid:
         try:
             await api.start_indexing(kb_uuid=org.do_kb_uuid)
+            indexing_started = True
         except Exception as exc:  # noqa: BLE001
+            # Do NOT flip status to a failure — resumability depends on
+            # "completed" so a re-run skips already-uploaded docs. The report
+            # tells the truth instead: uploaded N, indexing_started=False.
             logger.warning(
-                "do_kb final indexing kick failed",
-                extra={"kb_uuid": org.do_kb_uuid, "error": str(exc)},
+                "do_kb final indexing kick failed — data sources uploaded but "
+                "docs are NOT queryable yet (indexing_started=False)",
+                extra={
+                    "kb_uuid": org.do_kb_uuid,
+                    "org_id": str(org_id),
+                    "completed": completed,
+                    "error": str(exc),
+                },
             )
 
     progress.status = "completed" if not dry_run else "dry_run_done"
@@ -188,6 +204,7 @@ async def backfill_org(
         skipped=skipped,
         last_document_id=cursor,
         finished=True,
+        indexing_started=indexing_started,
     )
 
 
