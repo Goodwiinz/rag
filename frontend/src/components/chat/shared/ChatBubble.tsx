@@ -45,10 +45,11 @@ export interface ChatBubbleMessage {
 
 const EMPTY_STEPS: ActivityStep[] = [];
 
-/** Compact token count: 1234 → "1.2k", <1000 shown verbatim. */
+/** Compact token count: 1234 → "1.2k", 2_500_000 → "2.5M", <1000 verbatim. */
 function formatTokenCount(n: number): string {
   if (n < 1000) return String(n);
-  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`;
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
 export interface ChatBubbleProps {
@@ -128,7 +129,7 @@ function ToolStrip({
       )}
       {hasTokens && tokenUsage && (
         <span
-          className="nous-tool-strip-time inline-flex items-center gap-1"
+          className="nous-tool-strip-tokens inline-flex items-center gap-1"
           title={`${tokenUsage.input.toLocaleString()} input tokens · ${tokenUsage.output.toLocaleString()} output tokens (this turn)`}
         >
           <Coins className="w-2.5 h-2.5" strokeWidth={2} />
