@@ -148,12 +148,57 @@ function shouldUseStoreMessages(
   );
 }
 
+/**
+ * Carry in-memory-only turn provenance over to the server-mapped message.
+ * The DB row has no plan / tokenUsage / toolsUsed columns, so when the
+ * displayed list flips from local to store messages after `done`, the plan
+ * and token badge would silently vanish from the just-finished turn.
+ * Server values stay canonical where both exist (e.g. latency_ms).
+ */
+function mergeLocalProvenance(
+  mapped: ChatPageMessage[],
+  localMessages: ChatPageMessage[]
+): ChatPageMessage[] {
+  if (localMessages.length === 0) return mapped;
+
+  const localById = new Map(
+    localMessages.filter((m) => m.id).map((m) => [m.id as string, m])
+  );
+
+  return mapped.map((message) => {
+    // Prefer id reconciliation (the done payload backfills the persisted
+    // id); fall back to role+content for optimistic messages without one.
+    const local =
+      (message.id ? localById.get(message.id) : undefined) ??
+      localMessages.find(
+        (l) => !l.id && l.role === message.role && l.content === message.content
+      );
+    if (!local) return message;
+
+    const mergedMetadata =
+      local.metadata || message.metadata
+        ? { ...local.metadata, ...message.metadata }
+        : undefined;
+
+    return {
+      ...message,
+      ...((message.plan ?? local.plan)
+        ? { plan: message.plan ?? local.plan }
+        : {}),
+      ...(mergedMetadata ? { metadata: mergedMetadata } : {}),
+    };
+  });
+}
+
 export function selectDisplayedMessages({
   localMessages,
   storeMessages = [],
 }: SelectDisplayedMessagesParams): ChatPageMessage[] {
   if (shouldUseStoreMessages(localMessages, storeMessages)) {
-    return mapStoreMessagesToChatMessages(storeMessages);
+    return mergeLocalProvenance(
+      mapStoreMessagesToChatMessages(storeMessages),
+      localMessages
+    );
   }
 
   return localMessages;
