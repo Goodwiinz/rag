@@ -2,11 +2,11 @@ import {
   MessageRole,
   type ChatMessage,
   type DbToolExecution,
+  type MessageAttachment,
 } from '@/types/workspace';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 import type { PlanStep } from '@/types/agent-chat';
-import type { MessageAttachment } from '@/types/workspace';
 
 /** A single agent tool execution captured during a streaming turn. */
 export interface ActivityStep {
@@ -96,8 +96,8 @@ export interface ChatPageMessage {
   content: string;
   timestamp: number;
   citations?: Citation[];
-  attachments?: MessageAttachment[];
   diagnosticsTraceId?: string;
+  attachments?: MessageAttachment[];
   /** Tool executions recorded during the turn that produced this message. */
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
@@ -113,39 +113,50 @@ export interface ChatPageMessage {
   };
 }
 
+/**
+ * Canonical single-message mapper from a persisted `ChatMessage` row to the
+ * UI `ChatPageMessage` shape. Every code path that turns a DB/server message
+ * into something the chat list renders MUST go through this — there used to
+ * be two parallel mappers (`mapStoreMessagesToChatMessages` here and
+ * `mapDbMessageToUiMessage` in `useChatSession`) that drifted, and the
+ * lazy-load path silently dropped `plan` + `token_usage` because only this
+ * one carried them.
+ */
+export function mapDbMessageToChatPageMessage(
+  dbMsg: ChatMessage
+): ChatPageMessage {
+  const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
+  return {
+    id: dbMsg.id,
+    role:
+      dbMsg.role === MessageRole.USER ? ('user' as const) : ('assistant' as const),
+    content: dbMsg.content,
+    timestamp: new Date(dbMsg.created_at).getTime(),
+    citations: dbMsg.citations?.map(normalizeCitation),
+    attachments: dbMsg.attachments,
+    toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
+    ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
+    metadata: hasMetadata
+      ? {
+          ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
+          ...(dbMsg.stopped ? { stopped: true } : {}),
+          ...(dbMsg.token_usage
+            ? {
+                tokenUsage: {
+                  input: dbMsg.token_usage.input_tokens,
+                  output: dbMsg.token_usage.output_tokens,
+                },
+              }
+            : {}),
+        }
+      : undefined,
+  };
+}
+
 export function mapStoreMessagesToChatMessages(
   messages: ChatMessage[]
 ): ChatPageMessage[] {
-  return messages.map((dbMsg) => {
-    const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
-    return {
-      id: dbMsg.id,
-      role:
-        dbMsg.role === MessageRole.USER
-          ? ('user' as const)
-          : ('assistant' as const),
-      content: dbMsg.content,
-      timestamp: new Date(dbMsg.created_at).getTime(),
-      citations: dbMsg.citations?.map(normalizeCitation),
-      attachments: dbMsg.attachments,
-      toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
-      ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
-      metadata: hasMetadata
-        ? {
-            ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
-            ...(dbMsg.stopped ? { stopped: true } : {}),
-            ...(dbMsg.token_usage
-              ? {
-                  tokenUsage: {
-                    input: dbMsg.token_usage.input_tokens,
-                    output: dbMsg.token_usage.output_tokens,
-                  },
-                }
-              : {}),
-          }
-        : undefined,
-    };
-  });
+  return messages.map(mapDbMessageToChatPageMessage);
 }
 
 interface SelectDisplayedMessagesParams {

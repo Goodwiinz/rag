@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  mapDbToolExecutions,
+  mapDbMessageToChatPageMessage,
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
@@ -14,10 +14,8 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
-  MessageRole,
   Workspace,
 } from '@/types/workspace';
-import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -136,26 +134,12 @@ export function useChatSession(): UseChatSessionReturn {
 
   // ---- Callbacks ----
 
-  // Map DB messages to UI messages
+  // Map a DB/server message to the UI shape. Thin wrapper over the canonical
+  // mapper so the lazy-load path (here) and the store path can't drift — a
+  // prior second copy silently dropped plan + token_usage on thread reload.
   const mapDbMessageToUiMessage = useCallback(
-    (dbMsg: DBChatMessage): ChatPageMessage => {
-      // Rebuild display metadata from the persisted row so a reloaded thread
-      // keeps the response time and the "Stopped" marker (both were otherwise
-      // session-only).
-      const metadata: ChatPageMessage['metadata'] = {};
-      if (dbMsg.latency_ms) metadata.responseTimeMs = dbMsg.latency_ms;
-      if (dbMsg.stopped) metadata.stopped = true;
-
-      return {
-        id: dbMsg.id,
-        role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
-        content: dbMsg.content,
-        timestamp: new Date(dbMsg.created_at).getTime(),
-        citations: dbMsg.citations?.map(normalizeCitation),
-        toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
-        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
-      };
-    },
+    (dbMsg: DBChatMessage): ChatPageMessage =>
+      mapDbMessageToChatPageMessage(dbMsg),
     []
   );
 
