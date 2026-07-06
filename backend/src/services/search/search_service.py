@@ -110,12 +110,10 @@ health_checker = HealthChecker(SEARCH_SERVICE_CONFIG["service_name"])
 metrics = MetricsCollector(SEARCH_SERVICE_CONFIG["service_name"])
 cache = AsyncCache(settings.REDIS_URL, SEARCH_SERVICE_CONFIG["cache_ttl_seconds"])
 
-# Initialize external service clients
-qdrant_client = (
-    QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY)
-    if QdrantClient is not None
-    else None
-)
+# Initialize external service clients.
+# Qdrant was retired (no vector backend is deployed); this standalone search
+# microservice keeps its None-guarded code paths but no longer builds a client.
+qdrant_client = None
 neo4j_driver = GraphDatabase.driver(
     settings.NEO4J_URI, auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
 )
