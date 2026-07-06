@@ -159,6 +159,23 @@ def _get_job(job_id: str) -> dict | None:
         return _jobs.get(job_id)
 
 
+def _coerce_citation_document_id(document_id: Any) -> Optional[_uuid.UUID]:
+    """Return a UUID for database-backed citations, else ``None``.
+
+    Some retrieval providers expose opaque storage keys as document IDs. Those
+    are useful as external references, but must not abort the assistant-message
+    transaction by being parsed as UUID foreign keys.
+    """
+    if not document_id:
+        return None
+    if isinstance(document_id, _uuid.UUID):
+        return document_id
+    try:
+        return _uuid.UUID(str(document_id))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Schemas used by job runner (imported from execute for consistency)
 # ---------------------------------------------------------------------------
@@ -785,7 +802,7 @@ async def _persist_assistant_message(
             db.add(
                 CitationModel(
                     message_id=msg_id,
-                    document_id=UUID(doc_id) if doc_id else None,
+                    document_id=_coerce_citation_document_id(doc_id),
                     external_reference_id=ctx.get("external_reference_id"),
                     document_title=ctx.get("title"),
                     snippet=ctx.get("content", "")[:2000],
@@ -794,7 +811,7 @@ async def _persist_assistant_message(
                 )
             )
 
-    thread = await db.get(Thread, UUID(thread_id))
+    thread = await db.get(Thread, _uuid.UUID(thread_id))
     if thread is not None:
         thread.message_count = (thread.message_count or 0) + 1
         thread.last_message_at = datetime.now(timezone.utc)
