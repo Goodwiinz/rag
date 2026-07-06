@@ -127,3 +127,32 @@ async def test_tool_search_arxiv_chronological_uses_date_sort() -> None:
 
     _call = service.search_papers.call_args
     assert _call.kwargs.get("sort_by") == "submittedDate"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_tool_search_arxiv_empty_results_include_honest_warning() -> None:
+    """Empty arXiv searches must surface a warning instead of silent success."""
+    service = AsyncMock()
+    service.search_papers = AsyncMock(return_value=[])
+
+    with (
+        patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
+        patch(
+            "src.api.agent.tools_impl._arxiv_cache_get",
+            return_value=None,
+        ),
+        patch("src.api.agent.tools_impl._arxiv_cache_set") as cache_set,
+    ):
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        result = await _tool_search_arxiv({"query": "nonexistent topic"})
+
+    assert result["papers"] == []
+    assert result["total"] == 0
+    assert "warning" in result
+    assert "No arXiv papers matched" in result["warning"]
+    assert "do not claim" in result["warning"]
+    cached_payload = cache_set.call_args.args[1]
+    assert cached_payload["warning"] == result["warning"]
