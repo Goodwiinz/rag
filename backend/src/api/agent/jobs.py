@@ -633,6 +633,45 @@ async def _persist_user_message(
     return inserted
 
 
+async def _latest_user_client_message_id(
+    db: AsyncSession,
+    thread_id: str,
+) -> Optional[str]:
+    """Return the ``client_message_id`` of the thread's latest user row.
+
+    The HITL confirm/resume path can't carry a fresh idempotency key (the
+    frontend only sends ``{thread_id, confirmed}``), so the resumed turn's
+    assistant row derives its key from the user row that started the turn —
+    a double-confirm then hits the assistant partial unique index and dedupes
+    instead of leaving a duplicate. Returns ``None`` when the user row
+    predates the idempotency column (legacy) or has no cmid.
+    """
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from src.models.chat_message import ChatMessage, MessageRole
+
+    try:
+        tid = UUID(thread_id)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+    stmt = (
+        select(ChatMessage.client_message_id)
+        .where(
+            ChatMessage.thread_id == tid,
+            ChatMessage.role == MessageRole.USER,
+            ChatMessage.client_message_id.isnot(None),
+        )
+        .order_by(ChatMessage.created_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    cmid = result.scalar_one_or_none()
+    return str(cmid) if cmid is not None else None
+
+
 async def _persist_assistant_message(
     db: AsyncSession,
     *,

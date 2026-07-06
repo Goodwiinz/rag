@@ -463,11 +463,17 @@ async def stream_agent(
 async def stream_confirm_agent(
     request_body: StreamConfirmRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """Resume a graph interrupted by HITL via SSE streaming."""
     return StreamingResponse(
-        stream_confirm_event_generator(request_body, request, current_user),
+        stream_confirm_event_generator(
+            request_body,
+            request,
+            current_user,
+            background_tasks=background_tasks,
+        ),
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
