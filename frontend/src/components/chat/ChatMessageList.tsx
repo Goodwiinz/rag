@@ -203,11 +203,13 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             ) : (
               <AuiMessageByIndex
                 index={index}
+                message={message}
                 onRetry={
                   message.role === 'assistant'
                     ? () => onRegenerate(index)
                     : undefined
                 }
+                onCitationClick={onCitationClick}
               />
             )}
           </>

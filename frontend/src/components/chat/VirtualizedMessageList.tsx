@@ -122,9 +122,11 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
       ) : (
         <AuiMessageByIndex
           index={index}
+          message={message}
           onRetry={
             message.role === 'assistant' ? () => onRegenerate(index) : undefined
           }
+          onCitationClick={onCitationClick}
         />
       )}
     </>

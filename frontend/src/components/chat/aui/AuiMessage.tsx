@@ -1,6 +1,6 @@
 'use client';
 
-import React, { type ReactElement, type ReactNode } from 'react';
+import React, { useMemo, type ReactElement, type ReactNode } from 'react';
 import {
   ActionBarPrimitive,
   ErrorPrimitive,
@@ -11,7 +11,22 @@ import {
 import { Copy, FileText, Image as ImageIcon, RotateCcw } from 'lucide-react';
 
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
+import { CitationRenderer } from '@/components/chat/CitationRenderer';
+import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
+import { CitationChips } from '@/components/chat/shared/CitationChips';
+import {
+  ToolStrip,
+  getToolStripProps,
+} from '@/components/chat/shared/ToolStrip';
+import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { cn } from '@/lib/utils';
+import { getReferencedCitations, type Citation } from '@/utils/citationParser';
+
+export type OnCitationClick = (
+  citations: Citation[],
+  clickedCitation: Citation,
+  traceId?: string
+) => void;
 
 function TextPart({ className }: { className?: string }) {
   return (
@@ -42,12 +57,24 @@ function FilePart({ filename }: { filename?: string }) {
   );
 }
 
-function MessageParts({ assistant }: { assistant?: boolean }) {
+function MessageParts({
+  assistant,
+  assistantText,
+}: {
+  assistant?: boolean;
+  /** When provided, replaces the plain text part for assistant messages —
+   * used to route committed content through CitationRenderer (markdown +
+   * clickable inline citations) instead of raw MessagePartPrimitive.Text. */
+  assistantText?: ReactNode;
+}) {
   return (
     <MessagePrimitive.Parts>
       {({ part }) => {
         switch (part.type) {
           case 'text':
+            if (assistant && assistantText !== undefined) {
+              return <>{assistantText}</>;
+            }
             return <TextPart className={assistant ? 'font-serif' : undefined} />;
           case 'image':
             return <ImagePart />;
@@ -186,21 +213,76 @@ export function AuiUserMessage(): ReactElement {
 }
 
 export function AuiAssistantMessage({
+  message,
   onRetry,
+  onCitationClick,
 }: {
+  /** Source ChatPageMessage for the committed turn. Drives the provenance
+   * chrome the legacy ChatBubble rendered: plan, tool strip (incl. token
+   * usage), markdown + inline citations, and citation footer chips. When
+   * absent (e.g. plain AuiMessages usage), falls back to primitive text. */
+  message?: ChatPageMessage;
   onRetry?: () => void;
+  onCitationClick?: OnCitationClick;
 }): ReactElement {
+  const allCitations = useMemo(
+    () => message?.citations ?? [],
+    [message?.citations]
+  );
+
+  const inlineCitations = useMemo(
+    () => getReferencedCitations(message?.content ?? '', allCitations),
+    [message?.content, allCitations]
+  );
+
+  // Inline-referenced citations when available, else all attached ones —
+  // footer chips + tool strip must render whenever the backend attached
+  // sources, even if the AI didn't use [Doc N] markers.
+  const visibleCitations =
+    inlineCitations.length > 0 ? inlineCitations : allCitations;
+
+  const assistantText = message ? (
+    <CitationRenderer
+      content={message.content}
+      citations={allCitations}
+      onCitationClick={(citation) => {
+        if (onCitationClick) {
+          onCitationClick(visibleCitations, citation, message.diagnosticsTraceId);
+        }
+      }}
+    />
+  ) : undefined;
+
   return (
     <MessagePrimitive.Root
       data-role="assistant"
       className="group relative mb-7 flex justify-start sm:mb-8"
     >
-      <div className="min-w-0 text-left">
+      <div className="min-w-0 flex-1 text-left">
+        {/* Execution plan — committed provenance for agent turns */}
+        {message?.plan && message.plan.length > 0 && (
+          <ChatInlinePlan
+            plan={message.plan}
+            toolExecutions={message.toolExecutions}
+          />
+        )}
+        {/* Tool strip — tools/sources/time/tokens/stopped */}
+        {message && (
+          <ToolStrip {...getToolStripProps(message, visibleCitations.length)} />
+        )}
         <MessageAttachments />
         <div className="nous-chat-body space-y-2">
-          <MessageParts assistant />
+          <MessageParts assistant assistantText={assistantText} />
         </div>
         <MessageError />
+        {/* Citations footer chips — provenance over assertion */}
+        {visibleCitations.length > 0 && (
+          <CitationChips
+            citations={visibleCitations}
+            diagnosticsTraceId={message?.diagnosticsTraceId}
+            onCitationClick={onCitationClick}
+          />
+        )}
         <MessageActions assistant onRetry={onRetry} />
       </div>
     </MessagePrimitive.Root>
@@ -209,17 +291,29 @@ export function AuiAssistantMessage({
 
 export function AuiMessageByIndex({
   index,
+  message,
   onRetry,
+  onCitationClick,
 }: {
   index: number;
+  /** Source message for this index — threaded through so the assistant
+   * renderer can show plan/strip/citations from the committed data. */
+  message?: ChatPageMessage;
   onRetry?: () => void;
+  onCitationClick?: OnCitationClick;
 }): ReactElement {
   return (
     <ThreadPrimitive.MessageByIndex
       index={index}
       components={{
         UserMessage: AuiUserMessage,
-        AssistantMessage: () => <AuiAssistantMessage onRetry={onRetry} />,
+        AssistantMessage: () => (
+          <AuiAssistantMessage
+            message={message}
+            onRetry={onRetry}
+            onCitationClick={onCitationClick}
+          />
+        ),
       }}
     />
   );

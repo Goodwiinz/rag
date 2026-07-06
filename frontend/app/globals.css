@@ -353,6 +353,19 @@
     color: var(--nous-fg-3);
     font-size: 9px;
   }
+  /* Token usage sits in the same right-aligned group as the timing entry.
+     Only the group's first element may carry margin-left: auto — two auto
+     margins would split the flex free space and strand the timing mid-strip. */
+  .nous-tool-strip-tokens {
+    margin-left: auto;
+    padding-left: 10px;
+    color: var(--nous-fg-3);
+    font-size: 9px;
+  }
+  .nous-tool-strip-time + .nous-tool-strip-tokens {
+    margin-left: 0;
+    padding-left: 0;
+  }
 
   /* Streaming pill — gold dots with label */
   .nous-streaming-pill {

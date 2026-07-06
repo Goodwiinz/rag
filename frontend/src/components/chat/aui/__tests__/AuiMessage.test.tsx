@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { ChatRuntimeProvider } from '../ChatRuntimeProvider';
-import { AuiMessages } from '../AuiMessage';
+import { AuiMessages, AuiMessageByIndex } from '../AuiMessage';
 
 const noop = vi.fn();
 
@@ -109,5 +109,116 @@ describe('AuiMessage', () => {
     expect(
       screen.getByRole('button', { name: /copy assistant message/i })
     ).toBeInTheDocument();
+  });
+});
+
+describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => {
+  function renderByIndex(
+    messages: ChatPageMessage[],
+    opts: {
+      index?: number;
+      onCitationClick?: (
+        citations: unknown[],
+        clicked: unknown,
+        traceId?: string
+      ) => void;
+    } = {}
+  ) {
+    const index = opts.index ?? messages.length - 1;
+    return render(
+      <ChatRuntimeProvider
+        messages={messages}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessageByIndex
+          index={index}
+          message={messages[index]}
+          onCitationClick={opts.onCitationClick as never}
+        />
+      </ChatRuntimeProvider>
+    );
+  }
+
+  it('renders assistant markdown (bold), not raw asterisks', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'This is **important** context.',
+        timestamp: 2,
+      },
+    ]);
+
+    const strong = document.querySelector('strong');
+    expect(strong).toBeTruthy();
+    expect(strong?.textContent).toBe('important');
+    expect(screen.queryByText(/\*\*important\*\*/)).not.toBeInTheDocument();
+  });
+
+  it('renders the tool strip with per-turn token usage and response time', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'Answer.',
+        timestamp: 2,
+        metadata: {
+          responseTimeMs: 2300,
+          tokenUsage: { input: 1234, output: 340 },
+        },
+      },
+    ]);
+
+    expect(screen.getByText('2.3s')).toBeInTheDocument();
+    expect(screen.getByText(/1\.2k in/)).toBeInTheDocument();
+    expect(screen.getByText(/340 out/)).toBeInTheDocument();
+  });
+
+  it('renders citation footer chips and forwards clicks', () => {
+    const onCitationClick = vi.fn();
+    renderByIndex(
+      [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: 'Cited answer.',
+          timestamp: 2,
+          citations: [
+            { documentId: 'd1', title: 'Attention Is All You Need', score: 0.92 },
+          ],
+        },
+      ],
+      { onCitationClick }
+    );
+
+    const chip = screen.getByText('Attention Is All You Need');
+    expect(chip).toBeInTheDocument();
+    expect(screen.getByText('92%')).toBeInTheDocument();
+    fireEvent.click(chip.closest('button') as HTMLButtonElement);
+    expect(onCitationClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the committed execution plan', () => {
+    renderByIndex([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'Planned answer.',
+        timestamp: 2,
+        plan: [
+          {
+            step: 1,
+            description: 'Search arXiv',
+            tool: 'search_arxiv',
+            args_hint: {},
+            depends_on: [],
+          },
+        ],
+      },
+    ]);
+
+    expect(screen.getByText('Execution plan')).toBeInTheDocument();
   });
 });
