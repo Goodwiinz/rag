@@ -98,6 +98,21 @@ export interface PendingConfirmation {
   confirmation: Record<string, unknown>;
 }
 
+/**
+ * A pending HITL confirmation may only be rendered/actioned on the thread it
+ * belongs to — actioning it elsewhere injects the resumed turn's messages
+ * into whatever thread happens to be displayed. workspaceThreadId is '' when
+ * the turn started before any thread existed (new chat), which matches a
+ * null displayed-thread id.
+ */
+export function confirmationBelongsToThread(
+  pending: PendingConfirmation | null,
+  displayedThreadId: string | null
+): boolean {
+  if (!pending) return false;
+  return pending.workspaceThreadId === (displayedThreadId ?? '');
+}
+
 export interface UseChatStreamingParams {
   messages: ChatPageMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
@@ -933,6 +948,16 @@ export function useChatStreaming(
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
       if (!pendingConfirmation) return;
+      // Defense in depth — the page hides the banner on foreign threads, but
+      // a stale click must never resume a confirmation against the wrong
+      // thread's transcript.
+      if (
+        !confirmationBelongsToThread(
+          pendingConfirmation,
+          activeConversationIdRef.current
+        )
+      )
+        return;
       setIsConfirming(true);
       useChatStore.setState({ isStreaming: true, streamingContent: '' });
 
@@ -1069,7 +1094,13 @@ export function useChatStreaming(
         });
       }
     },
-    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
+    [
+      pendingConfirmation,
+      messages,
+      setMessages,
+      invalidateProjectDataForTool,
+      activeConversationIdRef,
+    ]
   );
 
   return {

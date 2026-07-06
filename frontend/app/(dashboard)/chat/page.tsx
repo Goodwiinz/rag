@@ -26,7 +26,10 @@ import {
   useState,
 } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
-import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import {
+  useChatStreaming,
+  confirmationBelongsToThread,
+} from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 import {
   SLASH_COMMANDS,
@@ -190,6 +193,16 @@ function ChatPageContent() {
     addMessageToStore,
     enableRAG,
   });
+
+  // Only the thread that owns the pending confirmation shows the banner or
+  // has its input locked — pendingConfirmation itself survives navigation so
+  // returning to the owning thread re-shows it.
+  const activeConfirmation = confirmationBelongsToThread(
+    pendingConfirmation,
+    activeConversationId
+  )
+    ? pendingConfirmation
+    : null;
 
   // Rename/delete/bulk-delete thread action handlers and dialog state
   const {
@@ -807,8 +820,8 @@ function ChatPageContent() {
   // HITL banner: move focus to Approve when it appears.
   const approveRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (pendingConfirmation) approveRef.current?.focus();
-  }, [pendingConfirmation]);
+    if (activeConfirmation) approveRef.current?.focus();
+  }, [activeConfirmation]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">
@@ -883,8 +896,8 @@ function ChatPageContent() {
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
           messages={displayedMessages}
-          isRunning={isLoading || storeIsStreaming || !!pendingConfirmation}
-          isSendDisabled={!!pendingConfirmation}
+          isRunning={isLoading || storeIsStreaming || !!activeConfirmation}
+          isSendDisabled={!!activeConfirmation}
           onSend={handleSubmit}
           onCancel={handleStop}
         >
@@ -1014,7 +1027,7 @@ function ChatPageContent() {
           )}
 
           {/* HITL Confirmation Banner */}
-          {pendingConfirmation && (
+          {activeConfirmation && (
             <div
               role="alertdialog"
               aria-label="Approval needed"
@@ -1040,7 +1053,7 @@ function ChatPageContent() {
                 </p>
               </div>
               {(() => {
-                const call = extractToolCall(pendingConfirmation.confirmation);
+                const call = extractToolCall(activeConfirmation.confirmation);
                 const argEntries = call ? Object.entries(call.args) : [];
                 return (
                   <>
@@ -1112,7 +1125,7 @@ function ChatPageContent() {
             onChange={setInput}
             onSubmit={submitMessage}
             onStop={handleStop}
-            isLoading={isLoading || storeIsStreaming || !!pendingConfirmation}
+            isLoading={isLoading || storeIsStreaming || !!activeConfirmation}
             enableRAG={enableRAG}
             onRAGToggle={setEnableRAG}
             inputRef={chatInputRef}
