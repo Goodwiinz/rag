@@ -108,7 +108,7 @@ export interface ChatPageMessage {
     sourcesCount?: number;
     /** The user stopped this response mid-stream; the text is partial. */
     stopped?: boolean;
-    /** Per-turn LLM token usage (persisted in chat_messages.token_usage). */
+    /** Per-turn LLM token usage (in-memory only; not persisted to the DB). */
     tokenUsage?: { input: number; output: number };
   };
 }
@@ -116,36 +116,22 @@ export interface ChatPageMessage {
 export function mapStoreMessagesToChatMessages(
   messages: ChatMessage[]
 ): ChatPageMessage[] {
-  return messages.map((dbMsg) => {
-    const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
-    return {
-      id: dbMsg.id,
-      role:
-        dbMsg.role === MessageRole.USER
-          ? ('user' as const)
-          : ('assistant' as const),
-      content: dbMsg.content,
-      timestamp: new Date(dbMsg.created_at).getTime(),
-      citations: dbMsg.citations?.map(normalizeCitation),
-      attachments: dbMsg.attachments,
-      toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
-      ...(dbMsg.plan && dbMsg.plan.length > 0 ? { plan: dbMsg.plan } : {}),
-      metadata: hasMetadata
+  return messages.map((dbMsg) => ({
+    id: dbMsg.id,
+    role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
+    content: dbMsg.content,
+    timestamp: new Date(dbMsg.created_at).getTime(),
+    citations: dbMsg.citations?.map(normalizeCitation),
+    attachments: dbMsg.attachments,
+    toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
+    metadata:
+      dbMsg.latency_ms || dbMsg.stopped
         ? {
             ...(dbMsg.latency_ms ? { responseTimeMs: dbMsg.latency_ms } : {}),
             ...(dbMsg.stopped ? { stopped: true } : {}),
-            ...(dbMsg.token_usage
-              ? {
-                  tokenUsage: {
-                    input: dbMsg.token_usage.input_tokens,
-                    output: dbMsg.token_usage.output_tokens,
-                  },
-                }
-              : {}),
           }
         : undefined,
-    };
-  });
+  }));
 }
 
 interface SelectDisplayedMessagesParams {
@@ -162,58 +148,12 @@ function shouldUseStoreMessages(
   );
 }
 
-/**
- * Carry in-memory turn provenance over to the server-mapped message.
- * plan / token_usage are persisted now, but the store page may have been
- * fetched BEFORE the assistant row landed (or the row predates the columns),
- * so when the displayed list flips from local to store messages after
- * `done`, the plan and token badge would silently vanish from the
- * just-finished turn. Server values stay canonical where both exist.
- */
-function mergeLocalProvenance(
-  mapped: ChatPageMessage[],
-  localMessages: ChatPageMessage[]
-): ChatPageMessage[] {
-  if (localMessages.length === 0) return mapped;
-
-  const localById = new Map(
-    localMessages.filter((m) => m.id).map((m) => [m.id as string, m])
-  );
-
-  return mapped.map((message) => {
-    // Prefer id reconciliation (the done payload backfills the persisted
-    // id); fall back to role+content for optimistic messages without one.
-    const local =
-      (message.id ? localById.get(message.id) : undefined) ??
-      localMessages.find(
-        (l) => !l.id && l.role === message.role && l.content === message.content
-      );
-    if (!local) return message;
-
-    const mergedMetadata =
-      local.metadata || message.metadata
-        ? { ...local.metadata, ...message.metadata }
-        : undefined;
-
-    return {
-      ...message,
-      ...((message.plan ?? local.plan)
-        ? { plan: message.plan ?? local.plan }
-        : {}),
-      ...(mergedMetadata ? { metadata: mergedMetadata } : {}),
-    };
-  });
-}
-
 export function selectDisplayedMessages({
   localMessages,
   storeMessages = [],
 }: SelectDisplayedMessagesParams): ChatPageMessage[] {
   if (shouldUseStoreMessages(localMessages, storeMessages)) {
-    return mergeLocalProvenance(
-      mapStoreMessagesToChatMessages(storeMessages),
-      localMessages
-    );
+    return mapStoreMessagesToChatMessages(storeMessages);
   }
 
   return localMessages;

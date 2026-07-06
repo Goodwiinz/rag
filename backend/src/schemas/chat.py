@@ -383,11 +383,6 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
     # [{id, tool_name, tool_display_name, args, status, result, error,
     # duration_ms}, ...]). Null for legacy rows and non-agent messages.
     tool_executions: Optional[List[dict]] = None
-    # Per-turn agent provenance (JSONB passthrough). plan: planner steps
-    # [{step, description, tool, args_hint, depends_on}]; token_usage:
-    # {input_tokens, output_tokens}. Null for legacy/non-agent rows.
-    plan: Optional[List[dict]] = None
-    token_usage: Optional[dict] = None
 
     # Nested data
     citations: List[CitationResponse] = []

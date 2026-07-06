@@ -3,8 +3,6 @@
  * Based on backend/src/schemas/chat.py
  */
 
-import type { PlanStep } from './agent-chat';
-
 // ============================================================================
 // Enums
 // ============================================================================
@@ -264,12 +262,6 @@ export interface ChatMessage {
    * backend: {id, tool_name, tool_display_name, args, status, result,
    * error, duration_ms}[]). Absent for legacy and non-agent rows. */
   tool_executions?: DbToolExecution[];
-  /** Planner steps persisted for this turn (chat_messages.plan JSONB).
-   * Absent for legacy rows, user rows, and turns without a plan. */
-  plan?: PlanStep[];
-  /** Aggregated per-turn LLM token usage (chat_messages.token_usage JSONB).
-   * Absent when the turn reported no usage. */
-  token_usage?: { input_tokens: number; output_tokens: number };
   citations: Citation[];
   attachments: MessageAttachment[];
   created_at: string;
