@@ -111,6 +111,13 @@ class ChatMessage(BaseModel):
     )
     tool_executions = Column(JSONB, nullable=True)  # Agent tool execution details
 
+    # Per-turn agent provenance (assistant rows only) — survives page reload.
+    # plan: [{step, description, tool, args_hint, depends_on}] from the planner.
+    # token_usage: {input_tokens, output_tokens} aggregated across the turn's
+    # chat-model calls.
+    plan = Column(JSONB, nullable=True)
+    token_usage = Column(JSONB, nullable=True)
+
     # Feedback
     feedback_rating = Column(Integer, nullable=True)  # 1-5 rating
     feedback_text = Column(Text, nullable=True)
