@@ -917,6 +917,10 @@ export function useChatStreaming(
       // confirm parser previously dropped rag_context entirely, so a
       // confirmed action's sources never reached the UI (sync-audit gap 2).
       let confirmCitations: Array<Record<string, unknown>> = [];
+      // Token usage emitted by the confirm path (backend fires event: usage
+      // before done). Without capturing this, confirmed turns showed no token
+      // cost — inconsistent with the main stream.
+      let confirmTokenUsage: { input: number; output: number } | null = null;
       const confirmMessages = [...messages];
 
       const confirmAbort = new AbortController();
@@ -966,6 +970,9 @@ export function useChatStreaming(
                 isRetrievingRag: false,
               });
             },
+            onUsage: (inputTokens, outputTokens) => {
+              confirmTokenUsage = { input: inputTokens, output: outputTokens };
+            },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
               confirmContent = '';
@@ -980,6 +987,13 @@ export function useChatStreaming(
                   timestamp: Date.now(),
                   ...(confirmCitations.length > 0
                     ? { citations: confirmCitations.map(normalizeCitation) }
+                    : {}),
+                  ...(confirmTokenUsage
+                    ? {
+                        metadata: {
+                          tokenUsage: confirmTokenUsage,
+                        },
+                      }
                     : {}),
                 };
                 // Server-canonical: stamp the persisted id onto the
