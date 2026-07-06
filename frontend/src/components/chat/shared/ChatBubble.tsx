@@ -7,6 +7,7 @@ import {
   Activity,
   Check,
   Clock,
+  Coins,
   Copy,
   RefreshCw,
   Search,
@@ -38,10 +39,17 @@ export interface ChatBubbleMessage {
     responseTimeMs?: number;
     sourcesCount?: number;
     stopped?: boolean;
+    tokenUsage?: { input: number; output: number };
   };
 }
 
 const EMPTY_STEPS: ActivityStep[] = [];
+
+/** Compact token count: 1234 → "1.2k", <1000 shown verbatim. */
+function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n);
+  return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}k`;
+}
 
 export interface ChatBubbleProps {
   message: ChatBubbleMessage;
@@ -65,16 +73,21 @@ function ToolStrip({
   sourcesCount,
   responseTimeMs,
   stopped,
+  tokenUsage,
 }: {
   toolsUsed?: string[];
   sourcesCount?: number;
   responseTimeMs?: number;
   stopped?: boolean;
+  tokenUsage?: { input: number; output: number };
 }) {
+  const hasTokens =
+    !!tokenUsage && (tokenUsage.input > 0 || tokenUsage.output > 0);
   const hasAny =
     (toolsUsed && toolsUsed.length > 0) ||
     (sourcesCount && sourcesCount > 0) ||
     (responseTimeMs && responseTimeMs > 0) ||
+    hasTokens ||
     stopped;
   if (!hasAny) return null;
 
@@ -111,6 +124,16 @@ function ToolStrip({
         <span className="nous-tool-strip-time inline-flex items-center gap-1">
           <Clock className="w-2.5 h-2.5" strokeWidth={2} />
           {(responseTimeMs / 1000).toFixed(1)}s
+        </span>
+      )}
+      {hasTokens && tokenUsage && (
+        <span
+          className="nous-tool-strip-time inline-flex items-center gap-1"
+          title={`${tokenUsage.input.toLocaleString()} input tokens · ${tokenUsage.output.toLocaleString()} output tokens (this turn)`}
+        >
+          <Coins className="w-2.5 h-2.5" strokeWidth={2} />
+          {formatTokenCount(tokenUsage.input)} in ·{' '}
+          {formatTokenCount(tokenUsage.output)} out
         </span>
       )}
       {stopped && (
@@ -261,6 +284,7 @@ export const ChatBubble = React.memo(function ChatBubble({
             sourcesCount={stripSourcesCount}
             responseTimeMs={stripResponseMs}
             stopped={message.metadata?.stopped}
+            tokenUsage={message.metadata?.tokenUsage}
           />
         )}
 

@@ -424,6 +424,9 @@ export function useChatStreaming(
         // store only keeps flattened strings for the ContextRail).
         let turnPlan: PlanStep[] = [];
         const toolStartTimes = new Map<string, number>();
+        // Per-turn LLM token usage, captured from the `usage` SSE event that
+        // fires just before `done`. Null until (and unless) it arrives.
+        let turnTokenUsage: { input: number; output: number } | null = null;
 
         // Set streaming state in store for UI
         useChatStore.setState({
@@ -603,6 +606,9 @@ export function useChatStreaming(
                 rememberAgentThread(currentThreadId, threadId);
               }
             },
+            onUsage: (inputTokens, outputTokens) => {
+              turnTokenUsage = { input: inputTokens, output: outputTokens };
+            },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
               assistantContent = '';
@@ -747,6 +753,7 @@ export function useChatStreaming(
             ...(turnCitations.length > 0
               ? { sourcesCount: turnCitations.length }
               : {}),
+            ...(turnTokenUsage ? { tokenUsage: turnTokenUsage } : {}),
           },
         };
         stoppedByUserRef.current = false;

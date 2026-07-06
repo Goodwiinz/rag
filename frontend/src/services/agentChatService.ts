@@ -177,6 +177,7 @@ class AgentChatService {
         confirmation: Record<string, unknown>
       ) => void;
       onTrace?: (threadId: string) => void;
+      onUsage?: (inputTokens: number, outputTokens: number) => void;
       onDone?: (payload?: {
         thread_id?: string;
         assistant_message_id?: string | null;
@@ -291,6 +292,12 @@ class AgentChatService {
                   break;
                 case 'confirmation':
                   callbacks.onConfirmation?.(data.thread_id, data.confirmation);
+                  break;
+                case 'usage':
+                  callbacks.onUsage?.(
+                    Number(data.input_tokens) || 0,
+                    Number(data.output_tokens) || 0
+                  );
                   break;
                 case 'done':
                   // Server-canonical persistence: the done payload carries the

@@ -106,6 +106,8 @@ export interface ChatPageMessage {
     sourcesCount?: number;
     /** The user stopped this response mid-stream; the text is partial. */
     stopped?: boolean;
+    /** Per-turn LLM token usage (in-memory only; not persisted to the DB). */
+    tokenUsage?: { input: number; output: number };
   };
 }
 

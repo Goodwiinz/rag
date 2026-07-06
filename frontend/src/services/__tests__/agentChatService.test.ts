@@ -114,6 +114,23 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onToolEnd).toHaveBeenCalledWith('search', 'ok', false);
   });
 
+  it('forwards per-turn token usage to onUsage', async () => {
+    global.fetch = fetchWith([
+      'event: usage\ndata: {"input_tokens":1234,"output_tokens":340}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const onUsage = vi.fn();
+    await agentChatService.streamMessage(request, { onUsage });
+    expect(onUsage).toHaveBeenCalledWith(1234, 340);
+  });
+
+  it('defaults missing token counts to zero on the usage event', async () => {
+    global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
+    const onUsage = vi.fn();
+    await agentChatService.streamMessage(request, { onUsage });
+    expect(onUsage).toHaveBeenCalledWith(0, 0);
+  });
+
   it('skips malformed JSON data lines without aborting the stream', async () => {
     global.fetch = fetchWith([
       'event: token\ndata: {not json}\n\n',
