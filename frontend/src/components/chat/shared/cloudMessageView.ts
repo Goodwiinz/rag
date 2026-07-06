@@ -40,16 +40,17 @@ export function summarizeToolArgs(
 }
 
 /**
- * One-line summary of a tool result for the activity strip. Result payloads
- * are JSON strings; prefer their `message`/`error` field, fall back to the
- * truncated raw text.
+ * One-line summary of a tool result for the activity strip. Live-stream
+ * results arrive as JSON strings, but the backend PERSISTS them as parsed
+ * objects — so accept both: prefer a `message`/`error`/`summary` field, fall
+ * back to the truncated raw text (stringifying objects).
  */
-export function summarizeToolResult(
-  result: string | undefined
-): string | undefined {
-  if (!result) return undefined;
+export function summarizeToolResult(result: unknown): string | undefined {
+  if (result == null || result === '') return undefined;
+  const raw = typeof result === 'string' ? result : JSON.stringify(result);
   try {
-    const parsed: unknown = JSON.parse(result);
+    const parsed: unknown =
+      typeof result === 'string' ? JSON.parse(raw) : result;
     if (parsed && typeof parsed === 'object') {
       const obj = parsed as Record<string, unknown>;
       const msg = obj.error ?? obj.message ?? obj.summary;
@@ -58,7 +59,7 @@ export function summarizeToolResult(
   } catch {
     // not JSON — fall through to raw text
   }
-  return truncate(result);
+  return truncate(raw);
 }
 
 /**
@@ -74,9 +75,7 @@ export function mapDbToolExecutions(
     const argsSummary = summarizeToolArgs(e.args);
     const resultSummary = e.error
       ? summarizeToolResult(e.error)
-      : summarizeToolResult(
-          typeof e.result === 'string' ? e.result : undefined
-        );
+      : summarizeToolResult(e.result);
     return {
       tool: e.tool_name,
       label: e.tool_display_name || e.tool_name,
