@@ -141,9 +141,7 @@ async def sync_document_to_kb(
     api = client or get_do_kb_client()
 
     try:
-        kb_uuid = await ensure_kb_for_org(
-            session, document.organization_id, client=api
-        )
+        kb_uuid = await ensure_kb_for_org(session, document.organization_id, client=api)
     except DOKnowledgeBaseError as exc:
         logger.warning(
             "do_kb provisioning skipped",
@@ -205,7 +203,13 @@ async def sync_document_to_kb(
 
     document.do_kb_data_source_uuid = ds_uuid
     document.do_kb_indexed_at = datetime.now(timezone.utc)
-    document.do_kb_index_status = "indexed"
+    # "registered": the data source is added but indexing has NOT been confirmed
+    # (start_indexing below is fire-and-forget and may fail). The old code wrote
+    # "indexed" here, before the kick, which lied whenever the kick 400'd.
+    # ponytail: a reconciliation poller (client.get_indexing_job — already exists,
+    # called nowhere) would flip this to "indexed" once DO confirms. Not built
+    # now; the honest "registered" is the smallest fix that stops the lie.
+    document.do_kb_index_status = "registered"
 
     try:
         await session.commit()
@@ -297,9 +301,7 @@ async def unsync_document_from_kb(
     api = client or get_do_kb_client()
 
     try:
-        kb_uuid = await ensure_kb_for_org(
-            session, document.organization_id, client=api
-        )
+        kb_uuid = await ensure_kb_for_org(session, document.organization_id, client=api)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "do_kb unsync — provisioning failed",

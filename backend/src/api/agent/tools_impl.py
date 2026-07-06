@@ -1257,10 +1257,36 @@ async def _tool_do_kb_retrieve(
         }
 
     try:
-        from src.services.do_kb import get_do_kb_client
+        from src.services.do_kb import DOKnowledgeBaseError, get_do_kb_client
 
         client = get_do_kb_client()
         result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
+    except DOKnowledgeBaseError as exc:
+        # A 404 means the KB was deleted on DO's side (permanent — needs a human
+        # to re-provision). Log distinctly at ERROR with org_id so it doesn't
+        # blend into ordinary transient failures; other codes stay at WARNING.
+        # Still return an empty result so the agent falls back cleanly.
+        if exc.status_code == 404:
+            logger.error(
+                "do_kb_retrieve 404 — knowledge base deleted/missing on DO's "
+                "side; retrieval permanently degraded until re-provisioned "
+                "(org_id=%s, kb_uuid=%s)",
+                current_user.organization_id,
+                kb_uuid,
+            )
+        else:
+            logger.warning(
+                "do_kb_retrieve failed (status=%s, org_id=%s): %s",
+                exc.status_code,
+                current_user.organization_id,
+                exc,
+            )
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "error": f"Retrieval failed: {exc}",
+        }
     except Exception as exc:
         logger.warning("do_kb_retrieve failed: %s", exc)
         return {
