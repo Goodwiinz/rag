@@ -9,17 +9,13 @@ import React, {
   useState,
 } from 'react';
 import { VariableSizeList as List } from 'react-window';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
+import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
-import type {
-  CommandAction,
-  CommandOutput,
-} from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 
-const VIRTUALIZATION_THRESHOLD = 75;
 const OVERSCAN_COUNT = 5;
 const DEFAULT_ROW_HEIGHT = 120;
 const MEASURE_PADDING = 8;
@@ -110,22 +106,27 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
       {message.role === 'assistant' && isLast && !storeIsStreaming && (
         <InlineAgentSummary threadId={activeThreadId} />
       )}
-      <ChatBubble
-        message={message}
-        index={index}
-        modelName={message.role === 'assistant' ? 'NOUS' : undefined}
-        isTyping={
-          isLast &&
-          isLoading &&
-          !storeIsStreaming &&
-          message.role === 'assistant'
-        }
-        onRetry={
-          message.role === 'assistant' ? () => onRegenerate(index) : undefined
-        }
-        onCitationClick={onCitationClick}
-        thinkingLabel={thinkingLabel}
-      />
+      {isLast &&
+      isLoading &&
+      !storeIsStreaming &&
+      message.role === 'assistant' ? (
+        <ChatBubble
+          message={message}
+          index={index}
+          modelName="NOUS"
+          isTyping
+          onRetry={() => onRegenerate(index)}
+          onCitationClick={onCitationClick}
+          thinkingLabel={thinkingLabel}
+        />
+      ) : (
+        <AuiMessageByIndex
+          index={index}
+          onRetry={
+            message.role === 'assistant' ? () => onRegenerate(index) : undefined
+          }
+        />
+      )}
     </>
   );
 

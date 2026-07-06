@@ -4,6 +4,7 @@ import type {
   ActivityStep,
   ChatPageMessage,
 } from '@/components/chat/shared/cloudMessageView';
+import type { MessageAttachment } from '@/types/workspace';
 
 type ToolCallPart = {
   type: 'tool-call';
@@ -21,6 +22,55 @@ type ToolCallPart = {
 // the in-flight message: streamingSteps only changes reference on
 // tool_start/tool_end, so a WeakMap keyed on the steps array is exact.
 const partsCache = new WeakMap<ActivityStep[], ToolCallPart[]>();
+
+function getAttachmentName(attachment: MessageAttachment): string {
+  return (
+    attachment.display_name ??
+    attachment.document_title ??
+    attachment.document_id ??
+    'Attachment'
+  );
+}
+
+function getAttachmentType(
+  attachment: MessageAttachment
+): 'image' | 'document' | 'file' {
+  if (attachment.mime_type?.startsWith('image/') || attachment.thumbnail_url) {
+    return 'image';
+  }
+  if (attachment.document_type || attachment.mime_type?.includes('pdf')) {
+    return 'document';
+  }
+  return 'file';
+}
+
+function toRuntimeAttachments(
+  attachments: MessageAttachment[] | undefined
+): ThreadMessageLike['attachments'] {
+  if (!attachments || attachments.length === 0) return undefined;
+
+  return attachments.map((attachment) => {
+    const name = getAttachmentName(attachment);
+    const type = getAttachmentType(attachment);
+    return {
+      id: attachment.id,
+      type,
+      name,
+      ...(attachment.mime_type ? { contentType: attachment.mime_type } : {}),
+      status: { type: 'complete' as const },
+      content:
+        type === 'image' && attachment.thumbnail_url
+          ? [
+              {
+                type: 'image' as const,
+                image: attachment.thumbnail_url,
+                filename: name,
+              },
+            ]
+          : [],
+    };
+  });
+}
 
 export function toToolCallParts(
   messageId: string,
@@ -62,6 +112,12 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
     // local insert before the server round-trip). `new Date(0)` would be a
     // misleading 1970 date, so omit createdAt instead.
     ...(message.timestamp ? { createdAt: new Date(message.timestamp) } : {}),
+    ...(message.role === 'assistant' && message.content
+      ? { status: { type: 'complete' as const, reason: 'stop' as const } }
+      : {}),
+    ...(message.attachments?.length
+      ? { attachments: toRuntimeAttachments(message.attachments) }
+      : {}),
     content: [...toolParts, { type: 'text', text: message.content }],
   };
 }
