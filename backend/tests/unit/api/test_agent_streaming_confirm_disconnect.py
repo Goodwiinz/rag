@@ -99,3 +99,68 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
         e.startswith("event: done") or e.startswith("event: confirmation")
         for e in events
     )
+
+
+@pytest.mark.asyncio
+async def test_confirm_stream_persists_partial_on_disconnect():
+    """A destructive HITL tool may have already committed; the partial
+    assistant answer streamed before the disconnect must be persisted
+    (stopped=True), mirroring the main stream's disconnect branch.
+
+    NOTE: unlike the aclose-only test above, ``is_disconnected`` returns
+    False on the first poll (so the "x" token is streamed + accumulated),
+    then True — modelling the real scenario (a token was delivered, THEN
+    the client hung up). A permanently-disconnected client never receives a
+    token to persist, so this ordering is required to exercise the persist
+    path.
+    """
+    from src.api.agent.streaming import stream_confirm_event_generator
+
+    graph = _DisconnectGraph()
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, True, True])
+    )
+    body = SimpleNamespace(thread_id="thread-789", confirmed=True, model="")
+    current_user = Mock(id="user-1", organization_id="org-1")
+
+    persist = AsyncMock(return_value="assistant-row-1")
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.memory.get_memory_store",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=graph,
+        ),
+        patch(
+            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            new=persist,
+        ),
+        patch(
+            "src.api.agent.streaming._latest_user_client_message_id",
+            new=AsyncMock(return_value="user-cmid-1"),
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+    ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
+            pass
+
+    persist.assert_awaited_once()
+    kwargs = persist.await_args.kwargs
+    assert kwargs["content"] == "x"
+    assert kwargs["stopped"] is True
+    assert kwargs["thread_id"] == "thread-789"
+    # idempotency key derived from the original user turn's client_message_id
+    assert kwargs["client_message_id"] is not None

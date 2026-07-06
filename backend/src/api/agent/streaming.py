@@ -824,6 +824,12 @@ async def stream_confirm_event_generator(
         turn_output_tokens = 0
         tokens_emitted = False
 
+        # Accumulate user-facing tokens so a mid-resume disconnect can persist
+        # the partial answer server-side (a resumed turn may have already
+        # committed a destructive tool — losing the assistant row entirely
+        # leaves the thread with a confirm action and no record of the result).
+        streamed_parts: list[str] = []
+
         # Named iterator so a mid-stream client disconnect can aclose() it and
         # cancel the resumed graph run, instead of leaving it executing into a
         # dead socket (a resumed turn may run destructive tools).
@@ -831,11 +837,24 @@ async def stream_confirm_event_generator(
             resume_input, config=config, version="v2"
         ).__aiter__()
         client_disconnected = False
+        # Route through the keepalive helper (mirrors the main /stream loop) so
+        # a long silent resume phase emits `heartbeat` frames instead of going
+        # quiet until a proxy idle-timeout cuts the connection with no
+        # done/error. The helper also owns the disconnect check + sentinel.
+        stream_started_at = time.monotonic()
         async with asyncio.timeout(300):
-            async for event in confirm_event_iter:
-                if await request.is_disconnected():
+            async for item in _graph_events_with_keepalive(confirm_event_iter, request):
+                if item["type"] == "disconnect":
                     client_disconnected = True
                     break
+                if item["type"] == "keepalive":
+                    elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
+                    yield (
+                        "event: heartbeat\n"
+                        f"data: {_json.dumps({'elapsed_ms': elapsed_ms})}\n\n"
+                    )
+                    continue
+                event = item["event"]
 
                 kind = event.get("event", "")
                 name = event.get("name", "")
@@ -845,6 +864,7 @@ async def stream_confirm_event_generator(
                         continue
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
+                        streamed_parts.append(chunk.content)
                         yield f"event: token\ndata: {_json.dumps({'content': chunk.content})}\n\n"
                         tokens_emitted = True
 
@@ -887,8 +907,11 @@ async def stream_confirm_event_generator(
                             yield f"event: reflection\ndata: {_json.dumps({'passed': passed, 'issues': issues, 'round': round_num, 'revising': revising})}\n\n"
 
         # Client hung up mid-resume — cancel the run by closing the graph
-        # iterator instead of letting it finish into a dead socket, and skip the
-        # snapshot + emit path (mirrors stream_event_generator).
+        # iterator instead of letting it finish into a dead socket, then persist
+        # the partial answer server-side with stopped=True (mirrors
+        # stream_event_generator's disconnect branch). A resumed turn may have
+        # already committed a destructive tool; without this the thread is left
+        # with the confirm action and no assistant row recording the result.
         if client_disconnected:
             with contextlib.suppress(Exception):
                 await confirm_event_iter.aclose()
@@ -896,6 +919,59 @@ async def stream_confirm_event_generator(
                 "SSE confirm client disconnected; cancelled resumed run for thread %s",
                 request_body.thread_id,
             )
+            partial = "".join(streamed_parts)
+            if partial:
+                # Derive the assistant-side idempotency key the same way the
+                # normal post-loop path does — from the original user turn's
+                # client_message_id — so a retried/duplicated confirm dedupes on
+                # the assistant partial unique index instead of leaving a
+                # duplicate row.
+                disconnect_cmid: Optional[str] = None
+                try:
+                    user_cmid = await _latest_user_client_message_id(
+                        db, request_body.thread_id
+                    )
+                    if user_cmid is not None:
+                        disconnect_cmid = str(
+                            _uuid.uuid5(
+                                _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
+                            )
+                        )
+                except Exception:
+                    logger.warning(
+                        "Failed to derive assistant client_message_id for "
+                        "disconnected resume of thread %s; assistant row will "
+                        "not be idempotent",
+                        request_body.thread_id,
+                        exc_info=True,
+                    )
+                stop_kwargs = dict(
+                    thread_id=request_body.thread_id,
+                    content=partial,
+                    model_name=getattr(request_body, "model", "") or None,
+                    # ponytail: tool_executions/plan omitted — reading them needs
+                    # a checkpoint fetch on a path that must stay cheap (client
+                    # already hung up), same tradeoff as the main stream.
+                    tool_executions_out=None,
+                    retrieved_contexts=None,
+                    latency_ms=None,
+                    stopped=True,
+                    client_message_id=disconnect_cmid,
+                    token_usage=(
+                        {
+                            "input_tokens": turn_input_tokens,
+                            "output_tokens": turn_output_tokens,
+                        }
+                        if (turn_input_tokens or turn_output_tokens)
+                        else None
+                    ),
+                )
+                if background_tasks is not None:
+                    background_tasks.add_task(
+                        _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                    )
+                else:
+                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
             return
 
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)

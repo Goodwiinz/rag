@@ -80,7 +80,10 @@ async def test_confirm_retries_on_first_aget_state_miss():
         graph_instances.append(g)
         return g
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client — the confirm loop's keepalive wrapper checks
+    # is_disconnected() before each event, so True would (correctly) cancel
+    # the resumed run instead of letting it complete normally.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(thread_id="thread-abc", confirmed=True, model="")
     current_user = Mock(id="user-1", organization_id="org-1")
 
