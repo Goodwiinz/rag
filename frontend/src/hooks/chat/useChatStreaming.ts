@@ -281,9 +281,17 @@ export function useChatStreaming(
   const invalidateProjectDataForTool = useCallback(
     (tool: string, isError: boolean) => {
       if (isError || !PROJECT_MUTATING_TOOLS.has(tool)) return;
-      void queryClient.invalidateQueries({ queryKey: ['project'] });
+      // Scope to the bound project so we don't invalidate every
+      // ['project', …] query (project list, unrelated project details,
+      // metadata). Fall back to broad invalidation when no project is
+      // bound (global chat has no narrower key to target).
+      void queryClient.invalidateQueries({
+        queryKey: boundProjectId
+          ? ['project', boundProjectId]
+          : ['project'],
+      });
     },
-    [queryClient]
+    [queryClient, boundProjectId]
   );
 
   // ---- Effects ----
