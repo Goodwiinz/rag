@@ -143,3 +143,29 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(tokens).toEqual(['after']);
   });
 });
+
+describe('agentChatService.streamConfirm SSE parsing', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  const confirmRequest = { thread_id: 'thread-1', confirmed: true };
+
+  it('forwards per-turn token usage to onUsage on the confirm path', async () => {
+    global.fetch = fetchWith([
+      'event: usage\ndata: {"input_tokens":1234,"output_tokens":340}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const onUsage = vi.fn();
+    await agentChatService.streamConfirm(confirmRequest, { onUsage });
+    expect(onUsage).toHaveBeenCalledWith(1234, 340);
+  });
+
+  it('defaults missing token counts to zero on the confirm usage event', async () => {
+    global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
+    const onUsage = vi.fn();
+    await agentChatService.streamConfirm(confirmRequest, { onUsage });
+    expect(onUsage).toHaveBeenCalledWith(0, 0);
+  });
+});
