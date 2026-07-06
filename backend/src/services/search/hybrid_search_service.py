@@ -446,12 +446,24 @@ class HybridSearchService:
         """
         sources = []
 
+        # Vector search needs a reachable Qdrant. When QDRANT_URL is unset the
+        # arm can only fail — but not before wasting a local sentence-transformers
+        # embedding per query (CPU + OOM risk). Skip the arm entirely so fulltext
+        # (+KG) still run. ponytail: full removal of vector_search_service.py +
+        # the Qdrant subchart is the upgrade path (deferred D2).
+        from src.core.config import settings as _search_settings
+
+        vector_enabled = bool(getattr(_search_settings, "QDRANT_URL", None))
+
         # Always include full-text search for text queries
         if search_request.search_type in [SearchType.FULLTEXT, SearchType.HYBRID]:
             sources.append(SearchSourceType.FULLTEXT)
 
         # Include vector search for semantic similarity
-        if search_request.search_type in [SearchType.SEMANTIC, SearchType.HYBRID]:
+        if vector_enabled and search_request.search_type in [
+            SearchType.SEMANTIC,
+            SearchType.HYBRID,
+        ]:
             sources.append(SearchSourceType.VECTOR)
 
         # Include knowledge graph search for entity-based queries
@@ -472,11 +484,9 @@ class HybridSearchService:
 
         # Default to all sources for hybrid search
         if search_request.search_type == SearchType.HYBRID and not sources:
-            sources = [
-                SearchSourceType.FULLTEXT,
-                SearchSourceType.VECTOR,
-                SearchSourceType.KNOWLEDGE_GRAPH,
-            ]
+            sources = [SearchSourceType.FULLTEXT, SearchSourceType.KNOWLEDGE_GRAPH]
+            if vector_enabled:
+                sources.insert(1, SearchSourceType.VECTOR)
 
         return sources
 

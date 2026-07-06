@@ -38,6 +38,24 @@ from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
 
+# Counter name is registered in src.observability.metrics.initialize_default_metrics.
+_DO_KB_READ_METRIC = "rag_do_kb_read_total"
+
+
+def _record_do_kb_read(outcome: str) -> None:
+    """Emit an outcome-labeled counter for the DO KB primary-read path.
+
+    Best-effort: metrics are optional infra, so a missing/unconfigured meter
+    must never break retrieval. Reuses the existing increment_counter helper —
+    no new observability module.
+    """
+    try:
+        from src.observability.metrics import increment_counter
+
+        increment_counter(_DO_KB_READ_METRIC, attributes={"outcome": outcome})
+    except Exception:  # pragma: no cover - observability is optional
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Conversational fast-path heuristics
@@ -232,7 +250,10 @@ def _shape_do_kb_context(chunk, title_by_key: dict[str, tuple[str, str]]) -> dic
     resolved_id, title = title_by_key.get(storage_key, (None, None))
     return {
         "document_id": resolved_id,
-        "title": title or (chunk.metadata or {}).get("title") or storage_key or "Untitled",
+        "title": title
+        or (chunk.metadata or {}).get("title")
+        or storage_key
+        or "Untitled",
         "content": chunk.text[:3000],
         "score": float(chunk.score),
     }
@@ -290,6 +311,8 @@ async def _try_primary_do_kb_read(
             if not kb_uuid:
                 return None
 
+            from src.services.do_kb import DOKnowledgeBaseError
+
             client = get_do_kb_client()
             try:
                 result = await asyncio.wait_for(
@@ -301,8 +324,35 @@ async def _try_primary_do_kb_read(
                     "do_kb retrieve timed out after %.1fs — falling back to hybrid search",
                     _kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
                 )
+                _record_do_kb_read("do_kb_timeout")
+                return None
+            except DOKnowledgeBaseError as exc:
+                # A 404 means the KB was deleted on DO's side (permanent — needs
+                # a human to re-provision). Log it at ERROR with the org_id so it
+                # surfaces distinctly from ordinary transient failures, which stay
+                # at WARNING. Still return None so the user gets a fallback answer.
+                if exc.status_code == 404:
+                    logger.error(
+                        "do_kb retrieve 404 — knowledge base deleted/missing on "
+                        "DO's side; retrieval permanently degraded to fallback "
+                        "until re-provisioned (org_id=%s, kb_uuid=%s)",
+                        org_id,
+                        kb_uuid,
+                    )
+                    _record_do_kb_read("do_kb_error_404")
+                else:
+                    logger.warning(
+                        "do_kb retrieve failed (status=%s) — falling back to "
+                        "hybrid search (org_id=%s)",
+                        exc.status_code,
+                        org_id,
+                    )
+                    _record_do_kb_read("do_kb_error_other")
                 return None
             if not result.chunks:
+                # KB is up and reachable, it just had no matches — a healthy
+                # outcome, distinct from an error. Fall back to hybrid search.
+                _record_do_kb_read("do_kb_empty")
                 return None
 
             from src.services.do_kb.resolve import resolve_and_filter_chunks
@@ -336,6 +386,7 @@ async def _try_primary_do_kb_read(
                     len(result.chunks),
                     scoped_project_id,
                 )
+                _record_do_kb_read("project_scope_empty")
                 return None
             if scoped_project_id and title_by_key and not chunks_to_emit:
                 logger.info(
@@ -343,13 +394,16 @@ async def _try_primary_do_kb_read(
                     len(result.chunks),
                     scoped_project_id,
                 )
+                _record_do_kb_read("project_scope_empty")
                 return None
 
+        _record_do_kb_read("success")
         return [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]
     except Exception:  # noqa: BLE001
         # exc_info keeps the traceback for operators; the raw exception string
         # stays out of the indexed message (can carry the user query / chunks).
         logger.warning("do_kb primary read failed, falling back", exc_info=True)
+        _record_do_kb_read("do_kb_error_other")
         return None
 
 
@@ -585,6 +639,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     if primary_contexts:
         return {"retrieved_contexts": primary_contexts, **state_update}
 
+    _record_do_kb_read("fallback_used")
     contexts = await _legacy_hybrid_search_fallback(search_query, current_user)
     return {"retrieved_contexts": contexts, **state_update}
 

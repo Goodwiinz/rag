@@ -93,9 +93,7 @@ async def test_happy_path_uses_s3_source(stub_settings):
     doc = _FakeDoc()
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(
-        return_value=DataSource(uuid="ds-fresh")
-    )
+    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-fresh"))
     client.start_indexing = AsyncMock(
         return_value=IndexingJob(uuid="job-1", status="PENDING")
     )
@@ -126,22 +124,19 @@ async def test_falls_back_to_text_upload_when_no_storage_path(stub_settings):
     doc = _FakeDoc(storage_backend="local", storage_path=None, content_text="hello")
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(
-        return_value=DataSource(uuid="ds-text")
-    )
-    client.start_indexing = AsyncMock(
-        return_value=IndexingJob(uuid="job-1")
-    )
+    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-text"))
+    client.start_indexing = AsyncMock(return_value=IndexingJob(uuid="job-1"))
 
     helper = MagicMock()
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with patch(
-        "src.services.do_kb.ingest.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    ), patch(
-        "src.core.s3_client.S3StorageHelper", return_value=helper
+    with (
+        patch(
+            "src.services.do_kb.ingest.ensure_kb_for_org",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
     ):
         result = await sync_document_to_kb(session, doc, client=client)
 
@@ -235,9 +230,7 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     doc = _FakeDoc()
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(
-        return_value=DataSource(uuid="ds-1")
-    )
+    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-1"))
     client.start_indexing = AsyncMock(side_effect=DOKnowledgeBaseError("queue full"))
 
     with patch(
@@ -250,6 +243,10 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     assert result == "ds-1"
     assert doc.do_kb_data_source_uuid == "ds-1"
     assert session.commits == 1
+    # FIX C2: never claim "indexed" — the kick failed, so the docs are NOT
+    # queryable. The truthful status is "registered" (data source added only).
+    assert doc.do_kb_index_status != "indexed"
+    assert doc.do_kb_index_status == "registered"
 
 
 @pytest.mark.unit
@@ -274,10 +271,13 @@ async def test_canonical_text_preferred_over_s3_when_text_present(stub_settings)
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with patch(
-        "src.services.do_kb.ingest.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
+    with (
+        patch(
+            "src.services.do_kb.ingest.ensure_kb_for_org",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
+    ):
         result = await sync_document_to_kb(session, doc, client=client)
 
     assert result == "ds-x"
@@ -337,10 +337,13 @@ async def test_reuses_existing_data_source_for_same_item_path(stub_settings):
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with patch(
-        "src.services.do_kb.ingest.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
+    with (
+        patch(
+            "src.services.do_kb.ingest.ensure_kb_for_org",
+            AsyncMock(return_value="kb-1"),
+        ),
+        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
+    ):
         result = await sync_document_to_kb(session, doc, client=client)
 
     assert result == "ds-existing"

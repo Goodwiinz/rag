@@ -31,8 +31,16 @@ def _print_report(report: BackfillReport) -> None:
     print(
         f"[org {report.organization_id}] completed={report.completed} "
         f"failed={report.failed} skipped={report.skipped} "
-        f"last_doc={report.last_document_id} finished={report.finished}"
+        f"last_doc={report.last_document_id} finished={report.finished} "
+        f"indexing_started={report.indexing_started}"
     )
+    if report.completed > 0 and not report.indexing_started:
+        print(
+            f"  WARNING: uploaded {report.completed} data sources but "
+            "indexing_started=False — docs are NOT queryable yet. "
+            "Re-run to retry the indexing kick.",
+            file=sys.stderr,
+        )
 
 
 async def _run(args: argparse.Namespace) -> int:
@@ -93,7 +101,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     sys.exit(asyncio.run(_run(args)))
 
 
