@@ -97,7 +97,7 @@ def test_route_accepts_since_query_param_and_forwards_to_service(test_app, monke
     received: dict = {}
 
     async def fake_list_messages(thread_id, user_id, limit=100, offset=0,
-                                 before_id=None, since=None):
+                                 before_id=None, since=None, order="asc"):
         received["thread_id"] = thread_id
         received["since"] = since
         return [], 0
