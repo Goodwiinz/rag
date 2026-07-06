@@ -98,6 +98,21 @@ export interface PendingConfirmation {
   confirmation: Record<string, unknown>;
 }
 
+/**
+ * A pending HITL confirmation may only be rendered/actioned on the thread it
+ * belongs to — actioning it elsewhere injects the resumed turn's messages
+ * into whatever thread happens to be displayed. workspaceThreadId is '' when
+ * the turn started before any thread existed (new chat), which matches a
+ * null displayed-thread id.
+ */
+export function confirmationBelongsToThread(
+  pending: PendingConfirmation | null,
+  displayedThreadId: string | null
+): boolean {
+  if (!pending) return false;
+  return pending.workspaceThreadId === (displayedThreadId ?? '');
+}
+
 export interface UseChatStreamingParams {
   messages: ChatPageMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
@@ -393,6 +408,19 @@ export function useChatStreaming(
         }
       }
 
+      // The thread this turn belongs to, snapshotted after thread creation.
+      // Every local setMessages below must be gated on the user still viewing
+      // this thread: setMessages writes to whatever thread is CURRENTLY
+      // displayed, and the sidebar switches threads without aborting the
+      // stream. Store/back-end persistence is thread-scoped already, so a
+      // skipped local write is not lost — it reappears when the user returns.
+      // ponytail: the global streaming bubble/flags still render on whatever
+      // thread is displayed while a background turn streams — per-thread
+      // streaming state is the upgrade path if that becomes noticeable.
+      const turnThreadId = activeConversationIdRef.current;
+      const isTurnDisplayed = () =>
+        activeConversationIdRef.current === turnThreadId;
+
       try {
         // Stream via Agent (LangGraph) backend
         // Server-canonical: the workspace thread IS the agent thread — the
@@ -662,7 +690,7 @@ export function useChatStreaming(
                 content: `Stream error: ${error}`,
                 timestamp: Date.now(),
               };
-              setMessages([...newMessages, errorMsg]);
+              if (isTurnDisplayed()) setMessages([...newMessages, errorMsg]);
             },
           },
           streamAbort.signal
@@ -702,7 +730,8 @@ export function useChatStreaming(
                 '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
               timestamp: Date.now(),
             };
-            setMessages([...newMessages, emptyResponseMessage]);
+            if (isTurnDisplayed())
+              setMessages([...newMessages, emptyResponseMessage]);
           }
           useChatStore.setState({
             isStreaming: false,
@@ -776,7 +805,7 @@ export function useChatStreaming(
         lastStreamedContentRef.current = '';
 
         const finalMessages = [...newMessages, finalAssistantMessage];
-        setMessages(finalMessages);
+        if (isTurnDisplayed()) setMessages(finalMessages);
 
         // Save messages to workspace database for persistence.
         // Server-canonical mode: the BACKEND already persisted both rows
@@ -787,7 +816,8 @@ export function useChatStreaming(
         if (SERVER_CANONICAL_CHAT) {
           if (doneIds.assistant_message_id) {
             finalAssistantMessage.id = doneIds.assistant_message_id;
-            setMessages([...newMessages, finalAssistantMessage]);
+            if (isTurnDisplayed())
+              setMessages([...newMessages, finalAssistantMessage]);
           }
         } else if (currentThreadId && isAuthenticated) {
           try {
@@ -840,14 +870,15 @@ export function useChatStreaming(
             'Error: ' +
             (err instanceof Error ? err.message : 'Failed to get response');
 
-          setMessages([
-            ...newMessages,
-            {
-              role: 'assistant',
-              content: errorMessage,
-              timestamp: Date.now(),
-            },
-          ]);
+          if (isTurnDisplayed())
+            setMessages([
+              ...newMessages,
+              {
+                role: 'assistant',
+                content: errorMessage,
+                timestamp: Date.now(),
+              },
+            ]);
         }
       } finally {
         submitLockRef.current = false;
@@ -917,6 +948,26 @@ export function useChatStreaming(
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
       if (!pendingConfirmation) return;
+      // Defense in depth — the page hides the banner on foreign threads, but
+      // a stale click must never resume a confirmation against the wrong
+      // thread's transcript.
+      if (
+        !confirmationBelongsToThread(
+          pendingConfirmation,
+          activeConversationIdRef.current
+        )
+      )
+        return;
+      // The confirm resume is async; the user can still switch threads while it
+      // streams. Gate every local setMessages below on the confirmation's
+      // thread still being displayed — the resumed answer is persisted
+      // server-side regardless, so a skipped local write is not lost (mirrors
+      // handleSubmit's isTurnDisplayed guard).
+      const isConfirmDisplayed = () =>
+        confirmationBelongsToThread(
+          pendingConfirmation,
+          activeConversationIdRef.current
+        );
       setIsConfirming(true);
       useChatStore.setState({ isStreaming: true, streamingContent: '' });
 
@@ -1010,7 +1061,7 @@ export function useChatStreaming(
                 if (payload?.assistant_message_id) {
                   msg.id = payload.assistant_message_id;
                 }
-                setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {
@@ -1019,7 +1070,7 @@ export function useChatStreaming(
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
               };
-              setMessages([...confirmMessages, msg]);
+              if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
             },
           },
           confirmAbort.signal
@@ -1034,7 +1085,7 @@ export function useChatStreaming(
           content: `Confirmation failed: ${errorMessage}`,
           timestamp: Date.now(),
         };
-        setMessages([...confirmMessages, msg]);
+        if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
       } finally {
         setPendingConfirmation(null);
         setIsConfirming(false);
@@ -1053,7 +1104,13 @@ export function useChatStreaming(
         });
       }
     },
-    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
+    [
+      pendingConfirmation,
+      messages,
+      setMessages,
+      invalidateProjectDataForTool,
+      activeConversationIdRef,
+    ]
   );
 
   return {
