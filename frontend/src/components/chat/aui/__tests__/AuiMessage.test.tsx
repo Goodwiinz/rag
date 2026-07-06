@@ -222,3 +222,32 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
     expect(screen.getByText('Execution plan')).toBeInTheDocument();
   });
 });
+
+describe('AuiMessageByIndex runtime-sync race', () => {
+  it('renders nothing instead of throwing when the runtime thread is behind the list', () => {
+    // The external-store runtime syncs post-commit (useEffect), so the list
+    // can render an index the runtime doesn't have yet — e.g. thread switch
+    // or first send. Regression: useClientLookup "Index 0 out of bounds".
+    const staleMessage: ChatPageMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: 'Not yet in runtime.',
+      timestamp: 2,
+    };
+
+    expect(() =>
+      render(
+        <ChatRuntimeProvider
+          messages={[]}
+          isRunning={false}
+          onSend={noop}
+          onCancel={noop}
+        >
+          <AuiMessageByIndex index={0} message={staleMessage} />
+        </ChatRuntimeProvider>
+      )
+    ).not.toThrow();
+
+    expect(screen.queryByText('Not yet in runtime.')).not.toBeInTheDocument();
+  });
+});

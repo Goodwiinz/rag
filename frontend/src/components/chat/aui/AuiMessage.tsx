@@ -7,6 +7,7 @@ import {
   MessagePartPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useThread,
 } from '@assistant-ui/react';
 import { Copy, FileText, Image as ImageIcon, RotateCcw } from 'lucide-react';
 
@@ -301,7 +302,14 @@ export function AuiMessageByIndex({
   message?: ChatPageMessage;
   onRetry?: () => void;
   onCitationClick?: OnCitationClick;
-}): ReactElement {
+}): ReactElement | null {
+  // The external-store runtime syncs in a useEffect (post-commit), so on
+  // the render where the page's message list grows (thread load/switch,
+  // first send) the runtime can still hold the previous — possibly empty —
+  // thread. MessageByIndex throws on out-of-bounds, so skip the stale
+  // frame; the effect fires immediately after commit and re-renders us.
+  const runtimeMessageCount = useThread((t) => t.messages.length);
+
   // Memoize the components map: a fresh AssistantMessage function identity
   // per render would make React treat it as a new component type and
   // unmount/remount the whole assistant subtree (resetting action-bar and
@@ -321,6 +329,8 @@ export function AuiMessageByIndex({
     }),
     [message, onRetry, onCitationClick]
   );
+
+  if (index >= runtimeMessageCount) return null;
 
   return <ThreadPrimitive.MessageByIndex index={index} components={components} />;
 }
