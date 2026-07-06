@@ -302,21 +302,27 @@ export function AuiMessageByIndex({
   onRetry?: () => void;
   onCitationClick?: OnCitationClick;
 }): ReactElement {
-  return (
-    <ThreadPrimitive.MessageByIndex
-      index={index}
-      components={{
-        UserMessage: AuiUserMessage,
-        AssistantMessage: () => (
+  // Memoize the components map: a fresh AssistantMessage function identity
+  // per render would make React treat it as a new component type and
+  // unmount/remount the whole assistant subtree (resetting action-bar and
+  // tool-card state, re-parsing markdown) instead of updating it.
+  const components = useMemo(
+    () => ({
+      UserMessage: AuiUserMessage,
+      AssistantMessage: function BoundAssistantMessage(): ReactElement {
+        return (
           <AuiAssistantMessage
             message={message}
             onRetry={onRetry}
             onCitationClick={onCitationClick}
           />
-        ),
-      }}
-    />
+        );
+      },
+    }),
+    [message, onRetry, onCitationClick]
   );
+
+  return <ThreadPrimitive.MessageByIndex index={index} components={components} />;
 }
 
 export function AuiMessages(): ReactElement {
