@@ -1075,8 +1075,14 @@ class ChatService:
         ]
 
         if before_id:
-            # Get messages before a specific message (for pagination)
-            before_stmt = select(ChatMessage).where(ChatMessage.id == before_id)
+            # Scope the cursor lookup to THIS thread — an unscoped id lookup let
+            # a foreign message's timestamp drive pagination (cross-tenant
+            # timestamp oracle + silently-wrong paging). A before_id that isn't
+            # in this thread is simply ignored.
+            before_stmt = select(ChatMessage).where(
+                ChatMessage.id == before_id,
+                ChatMessage.thread_id == thread_id,
+            )
             before_result = await self.db.execute(before_stmt)
             before_msg = before_result.scalars().first()
             if before_msg:
