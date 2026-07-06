@@ -597,6 +597,23 @@ export function useChatSession(): UseChatSessionReturn {
       return;
     }
 
+    // Skip the redundant getThread fetch when the store already loaded (or is
+    // loading) this thread's messages — selecting a thread also fires the
+    // store's setCurrentThread -> loadMessages, so without this guard the first
+    // visit double-fetches the same thread. displayedMessages merges both
+    // caches, so the store copy still surfaces via selectDisplayedMessages.
+    // ponytail: the fuller fix is to feed displayedMessages solely from the
+    // store and delete the local conversations[].messages cache; do that if
+    // the two-cache merge keeps causing drift.
+    const store = useChatStore.getState();
+    if (
+      (store.messages[activeConversationId]?.length ?? 0) > 0 ||
+      store.isLoadingMessages
+    ) {
+      setIsLoadingMessages(false);
+      return;
+    }
+
     // Lazy-load messages for this thread using the thread detail endpoint
     let cancelled = false;
     setIsLoadingMessages(true);

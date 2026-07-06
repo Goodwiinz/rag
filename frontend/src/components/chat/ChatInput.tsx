@@ -120,6 +120,16 @@ export function ChatInput({
     });
   };
 
+  // Clear composer chips + revoke their blob URLs once a message is sent —
+  // otherwise stale chips linger into the next turn and every image object URL
+  // leaks until unmount.
+  const clearAttachments = (): void => {
+    setAttachments((prev) => {
+      prev.forEach((a) => a.url && URL.revokeObjectURL(a.url));
+      return [];
+    });
+  };
+
   useEffect(() => {
     setVoiceSupported(getSpeechRecognition() !== null);
   }, []);
@@ -218,6 +228,7 @@ export function ChatInput({
       e.preventDefault();
       if (!isLoading && value.trim() && !isOverLimit) {
         onSubmit();
+        clearAttachments();
       }
     }
   };
@@ -226,6 +237,7 @@ export function ChatInput({
     e.preventDefault();
     if (!isLoading && value.trim() && !isOverLimit) {
       onSubmit();
+      clearAttachments();
     }
   };
 
