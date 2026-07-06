@@ -130,7 +130,10 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         assert configured, "configure_langsmith must run before graph compilation"
         return _FakeGraph(current_snapshot)
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client — the confirm loop now routes through
+    # _graph_events_with_keepalive (checks is_disconnected() before each
+    # event), so True would cancel the resumed run before the `done` frame.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(thread_id="thread-1", confirmed=True)
     current_user = Mock(id="user-1", organization_id="org-1")
 

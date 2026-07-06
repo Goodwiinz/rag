@@ -69,7 +69,11 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
     fake_db = AsyncMock()
     fake_db.close = AsyncMock()
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client — the confirm loop now routes events through
+    # _graph_events_with_keepalive, which checks is_disconnected() before
+    # pulling each event. A True here would (correctly) trigger the
+    # cancel/persist-partial branch instead of a normal completion.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(
         thread_id="11111111-1111-1111-1111-111111111111",
         confirmed=True,
@@ -147,7 +151,11 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
     fake_db = AsyncMock()
     fake_db.close = AsyncMock()
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client — the confirm loop now routes events through
+    # _graph_events_with_keepalive, which checks is_disconnected() before
+    # pulling each event. A True here would (correctly) trigger the
+    # cancel/persist-partial branch instead of a normal completion.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(
         thread_id="11111111-1111-1111-1111-111111111111",
         confirmed=True,
@@ -210,7 +218,11 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
     fake_db = AsyncMock()
     fake_db.close = AsyncMock()
 
-    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=True))
+    # Connected client — the confirm loop now routes events through
+    # _graph_events_with_keepalive, which checks is_disconnected() before
+    # pulling each event. A True here would (correctly) trigger the
+    # cancel/persist-partial branch instead of a normal completion.
+    request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
     body = SimpleNamespace(
         thread_id="11111111-1111-1111-1111-111111111111",
         confirmed=True,
