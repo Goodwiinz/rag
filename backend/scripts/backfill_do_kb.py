@@ -5,6 +5,15 @@ Examples:
   python -m scripts.backfill_do_kb --all --dry-run
   python -m scripts.backfill_do_kb --org-id 11111111-... --resume
 
+Recovery (DO KB deleted on DO's side):
+  python -m scripts.backfill_do_kb --org-id 11111111-... --reprovision
+
+  Nulls the org's dead do_kb_uuid + every doc's dead do_kb_data_source_uuid +
+  resets the backfill progress row, THEN backfills — which provisions a FRESH
+  KB and re-adds every data source + kicks indexing. Without --reprovision a
+  backfill of a deleted-KB org is a no-op (ensure_kb_for_org only null-checks
+  the uuid; sync skips docs whose data-source uuid is already set).
+
 Resumable: progress is committed per document so re-runs continue from
 last_document_id without re-uploading already synced docs.
 """
@@ -20,11 +29,21 @@ from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.services.do_kb import (
     BackfillReport,
+    ReprovisionResult,
     backfill_org,
     iter_organizations_to_backfill,
+    reprovision_org,
 )
 
 logger = logging.getLogger("do_kb_backfill")
+
+
+def _print_reprovision(result: ReprovisionResult) -> None:
+    print(
+        f"[org {result.organization_id}] reprovision reset: "
+        f"old_kb={result.old_kb_uuid or '(none)'} cleared → will provision fresh; "
+        f"docs_reset={result.docs_reset}"
+    )
 
 
 def _print_report(report: BackfillReport) -> None:
@@ -48,8 +67,29 @@ async def _run(args: argparse.Namespace) -> int:
         print("ERROR: DO_KB_ENABLED is false. Set it in .env first.", file=sys.stderr)
         return 2
 
+    if args.reprovision and args.dry_run:
+        print(
+            "ERROR: --reprovision cannot be combined with --dry-run "
+            "(it mutates DB state to force a fresh KB).",
+            file=sys.stderr,
+        )
+        return 2
+
+    # Reprovisioning nulls the org's cached KB uuid + every doc's data-source
+    # uuid so backfill provisions a fresh KB. Doing that for EVERY org at once is
+    # destructive — require an explicit --yes.
+    if args.reprovision and not args.org_id and not args.yes:
+        print(
+            "ERROR: --reprovision --all reprovisions EVERY org's KB (destructive). "
+            "Re-run with --yes to confirm, or pass --org-id for a single org.",
+            file=sys.stderr,
+        )
+        return 2
+
     async with AsyncSessionLocal() as session:
         if args.org_id:
+            if args.reprovision:
+                _print_reprovision(await reprovision_org(session, args.org_id))
             report = await backfill_org(
                 session,
                 args.org_id,
@@ -66,6 +106,8 @@ async def _run(args: argparse.Namespace) -> int:
 
         for org in orgs:
             try:
+                if args.reprovision:
+                    _print_reprovision(await reprovision_org(session, str(org.id)))
                 report = await backfill_org(
                     session,
                     str(org.id),
@@ -98,6 +140,21 @@ def main() -> None:
         "--resume",
         action="store_true",
         help="No-op flag for clarity; backfill is always resumable from progress row",
+    )
+    parser.add_argument(
+        "--reprovision",
+        action="store_true",
+        help=(
+            "Recovery: the org's DO KB was deleted on DO's side. BEFORE backfill, "
+            "null the org's cached do_kb_uuid + every doc's do_kb_data_source_uuid "
+            "+ reset progress, so backfill provisions a FRESH KB and re-indexes "
+            "everything. Requires --org-id (use --all --yes to reprovision every org)."
+        ),
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm a destructive --reprovision --all (reprovisions every org).",
     )
     args = parser.parse_args()
 
