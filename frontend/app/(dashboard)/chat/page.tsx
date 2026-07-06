@@ -27,10 +27,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
-import {
-  useChatStreaming,
-  type PendingConfirmation,
-} from '@/hooks/chat/useChatStreaming';
+import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 import {
   SLASH_COMMANDS,
@@ -832,20 +829,11 @@ function ChatPageContent() {
     }
   }, []);
 
-  // HITL banner: move focus to Approve when it appears, and return focus to
-  // the composer when it resolves (the Approve/Deny button just unmounted —
-  // without this, focus drops to <body>).
+  // HITL banner: move focus to Approve when it appears.
   const approveRef = useRef<HTMLButtonElement>(null);
-  const prevPendingConfirmationRef = useRef<PendingConfirmation | null>(null);
   useEffect(() => {
-    const had = prevPendingConfirmationRef.current;
-    if (pendingConfirmation) {
-      approveRef.current?.focus();
-    } else if (had) {
-      chatInputRef.current?.focus();
-    }
-    prevPendingConfirmationRef.current = pendingConfirmation;
-  }, [pendingConfirmation, chatInputRef]);
+    if (pendingConfirmation) approveRef.current?.focus();
+  }, [pendingConfirmation]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">
