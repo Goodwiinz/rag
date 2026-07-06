@@ -972,7 +972,7 @@ export function useChatStreaming(
               pendingStreamContentRef.current = '';
               useChatStore.setState({ streamingContent: '' });
             },
-            onDone: () => {
+            onDone: (payload) => {
               if (confirmContent.trim()) {
                 const msg: ChatPageMessage = {
                   role: 'assistant',
@@ -982,6 +982,12 @@ export function useChatStreaming(
                     ? { citations: confirmCitations.map(normalizeCitation) }
                     : {}),
                 };
+                // Server-canonical: stamp the persisted id onto the
+                // optimistic bubble so a reload reconciles with the row
+                // instead of re-fetching a duplicate. Mirrors handleSubmit.
+                if (payload?.assistant_message_id) {
+                  msg.id = payload.assistant_message_id;
+                }
                 setMessages([...confirmMessages, msg]);
               }
             },

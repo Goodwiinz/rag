@@ -6,6 +6,7 @@ import {
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import type { Citation } from '@/utils/citationParser';
 import type { PlanStep } from '@/types/agent-chat';
+import type { MessageAttachment } from '@/types/workspace';
 
 /** A single agent tool execution captured during a streaming turn. */
 export interface ActivityStep {
@@ -95,6 +96,7 @@ export interface ChatPageMessage {
   content: string;
   timestamp: number;
   citations?: Citation[];
+  attachments?: MessageAttachment[];
   diagnosticsTraceId?: string;
   /** Tool executions recorded during the turn that produced this message. */
   toolExecutions?: ActivityStep[];
@@ -120,6 +122,7 @@ export function mapStoreMessagesToChatMessages(
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
+    attachments: dbMsg.attachments,
     toolExecutions: mapDbToolExecutions(dbMsg.tool_executions),
     metadata:
       dbMsg.latency_ms || dbMsg.stopped
