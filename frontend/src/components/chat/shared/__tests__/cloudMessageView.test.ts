@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mapDbMessageToChatPageMessage,
   mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
   summarizeToolArgs,
@@ -88,6 +89,60 @@ describe('cloudMessageView', () => {
 
     expect(msg.plan).toBeUndefined();
     expect(msg.metadata).toBeUndefined();
+  });
+
+  // Regression: the lazy-load path (`useChatSession.mapDbMessageToUiMessage`)
+  // previously had a second mapper copy that silently dropped plan +
+  // token_usage on thread switch / warm start. It now delegates to
+  // mapDbMessageToChatPageMessage, so both paths must agree.
+  describe('mapDbMessageToChatPageMessage (canonical single-message mapper)', () => {
+    it('carries plan + token_usage so the lazy-load path matches the store path', () => {
+      const db = {
+        id: 'm-1',
+        role: 'assistant',
+        content: 'Answer',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+        latency_ms: 900,
+        plan: [
+          {
+            step: 1,
+            description: 'Search',
+            tool: 'search_documents',
+            args_hint: {},
+            depends_on: [],
+          },
+        ],
+        token_usage: { input_tokens: 42, output_tokens: 7 },
+      } as any;
+
+      const fromSingle = mapDbMessageToChatPageMessage(db);
+      const [fromArray] = mapStoreMessagesToChatMessages([db]);
+
+      expect(fromSingle.plan).toEqual(fromArray.plan);
+      expect(fromSingle.metadata?.tokenUsage).toEqual(
+        fromArray.metadata?.tokenUsage
+      );
+      expect(fromSingle.metadata?.tokenUsage).toEqual({
+        input: 42,
+        output: 7,
+      });
+      expect(fromSingle.metadata?.responseTimeMs).toBe(900);
+      expect(fromSingle).toEqual(fromArray);
+    });
+
+    it('omits plan/metadata when the row carries no provenance', () => {
+      const msg = mapDbMessageToChatPageMessage({
+        id: 'm-2',
+        role: 'user',
+        content: 'hi',
+        created_at: '2026-03-09T12:00:00Z',
+        citations: [],
+      } as any);
+
+      expect(msg.plan).toBeUndefined();
+      expect(msg.metadata).toBeUndefined();
+    });
   });
 
   it('uses store-backed messages for cloud chat once persisted messages are available', () => {
