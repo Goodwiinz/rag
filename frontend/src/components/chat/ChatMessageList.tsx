@@ -3,6 +3,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -78,6 +79,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const prevLastIdRef = useRef<string | undefined>(
     messages[messages.length - 1]?.id
   );
+  const prevFirstIdRef = useRef<string | undefined>(messages[0]?.id);
+  const prevScrollHeightRef = useRef(0);
 
   // Track which messages are "new" for entrance animation. Computed before the
   // auto-scroll effect so that effect can distinguish an appended message (snap
@@ -88,6 +91,27 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const isNewMessage =
     messages.length > prevMessageCountRef.current &&
     currentLastId !== prevLastIdRef.current;
+
+  // Prepending an older page grows the content above the viewport; without
+  // compensation the messages the user is reading jump down by the added
+  // height. Detect prepend (length grew, tail id unchanged, head id changed)
+  // and restore the visual anchor by the scrollHeight delta. Layout effect so
+  // the correction lands before paint — no flicker.
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const firstId = messages[0]?.id;
+    const isPrepend =
+      messages.length > prevMessageCountRef.current &&
+      currentLastId === prevLastIdRef.current &&
+      firstId !== prevFirstIdRef.current;
+    if (isPrepend) {
+      container.scrollTop +=
+        container.scrollHeight - prevScrollHeightRef.current;
+    }
+    prevScrollHeightRef.current = container.scrollHeight;
+    prevFirstIdRef.current = firstId;
+  }, [messages, currentLastId]);
 
   // Throttled auto-scroll: at most one scrollIntoView per animation frame.
   // `storeStreamingContent` is in the deps so the view follows tokens as the

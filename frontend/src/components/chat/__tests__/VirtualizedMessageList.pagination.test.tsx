@@ -17,6 +17,7 @@ import React from 'react';
 
 const scrollToItem = vi.fn();
 const resetAfterIndex = vi.fn();
+const scrollTo = vi.fn();
 
 // Mock react-window: render every row via the children render-prop and expose
 // the imperative handle the component drives (scrollToItem / resetAfterIndex).
@@ -34,7 +35,11 @@ vi.mock('react-window', () => {
     },
     ref: React.Ref<unknown>
   ) {
-    React.useImperativeHandle(ref, () => ({ scrollToItem, resetAfterIndex }));
+    React.useImperativeHandle(ref, () => ({
+      scrollToItem,
+      resetAfterIndex,
+      scrollTo,
+    }));
     const Row = props.children;
     const rows = [];
     for (let i = 0; i < props.itemCount; i++) {
@@ -80,6 +85,7 @@ afterEach(() => {
   cleanup();
   scrollToItem.mockClear();
   resetAfterIndex.mockClear();
+  scrollTo.mockClear();
 });
 
 describe('VirtualizedMessageList auto-scroll', () => {
@@ -136,6 +142,10 @@ describe('VirtualizedMessageList auto-scroll', () => {
     );
 
     expect(scrollToItem).not.toHaveBeenCalled();
+    // Prepend compensation: reset the stale offset cache and shift the scroll
+    // position by the added rows' height (2 unmeasured rows × 120px default).
+    expect(resetAfterIndex).toHaveBeenCalledWith(0);
+    expect(scrollTo).toHaveBeenCalledWith(240);
   });
 });
 
