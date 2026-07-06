@@ -55,6 +55,32 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+async def _cleanup_do_kb_data_source(db: AsyncSession, document: Document) -> None:
+    """Best-effort removal of a deleted document's DO KB data source.
+
+    A soft-deleted document's chunks stay live in the DO KB index and still
+    resolve back to a title in ``resolve_and_filter_chunks`` (which does not
+    filter ``is_deleted``), so retrieval would keep surfacing them — and the
+    underlying data source leaks storage on DO's side. Unsync removes it.
+
+    Failure-isolated: ``unsync_document_from_kb`` never raises and no-ops when
+    ``DO_KB_ENABLED`` is off or the document has no ``do_kb_data_source_uuid``,
+    so a KB outage during delete must not block the user's delete.
+    """
+    if not document.do_kb_data_source_uuid:
+        return
+    try:
+        from src.services.do_kb import unsync_document_from_kb
+
+        await unsync_document_from_kb(db, document)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "do_kb cleanup on delete failed",
+            extra={"document_id": str(document.id)},
+            exc_info=True,
+        )
+
+
 # Request/Response Models
 class DocumentResponse(BaseModel):
     id: str
@@ -543,6 +569,10 @@ async def delete_document(
 
         await db.commit()
 
+        # Remove the DO KB data source so the deleted doc stops surfacing in
+        # retrieval and no longer leaks storage (best-effort, never blocks).
+        await _cleanup_do_kb_data_source(db, document)
+
         # Invalidate search cache so stale results don't include deleted document
         try:
             from src.services.search.search_service import cache
@@ -1010,6 +1040,7 @@ async def bulk_delete_documents(
 
     successful = []
     failed = []
+    deleted_docs: List[Document] = []
 
     from sqlalchemy import update
 
@@ -1063,6 +1094,7 @@ async def bulk_delete_documents(
             org.update_storage_usage(-document.file_size_bytes)
 
             successful.append(document_id)
+            deleted_docs.append(document)
 
         except Exception as e:
             failed.append({"document_id": document_id, "error": str(e)})
@@ -1075,6 +1107,10 @@ async def bulk_delete_documents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to commit bulk delete: {str(e)}",
         )
+
+    # Remove DO KB data sources for the deleted docs (best-effort, per doc).
+    for document in deleted_docs:
+        await _cleanup_do_kb_data_source(db, document)
 
     return BulkDocumentResponse(
         successful=successful,
