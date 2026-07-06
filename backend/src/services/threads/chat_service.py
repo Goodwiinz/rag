@@ -20,6 +20,7 @@ from src.models import (
     Collection,
     CollectionDocument,
     Conversation,
+    Document,
     MessageAttachment,
     MessageRole,
     Thread,
@@ -826,9 +827,16 @@ class ChatService:
         self.db.add(message)
         await self.db.flush()  # Flush to get message.id for citations/attachments
 
-        # Handle attachments
+        # Handle attachments — only documents the caller's org owns may be
+        # attached. An unscoped attach let a guessed foreign document UUID leak
+        # its title/mime into this thread via the attachment response (IDOR).
+        # Non-owned / deleted ids are silently dropped (logged), mirroring the
+        # documents service's org-scoping convention.
         if data.attachment_ids:
-            for doc_id in data.attachment_ids:
+            owned_ids = await self._filter_owned_document_ids(
+                data.attachment_ids, user_id
+            )
+            for doc_id in owned_ids:
                 attachment = MessageAttachment(
                     message_id=message.id, document_id=doc_id
                 )
@@ -864,6 +872,51 @@ class ChatService:
         await self.db.refresh(message)
 
         return message
+
+    async def _filter_owned_document_ids(
+        self, document_ids: List[UUID], user_id: UUID
+    ) -> List[UUID]:
+        """Return only the document ids the caller's organization owns.
+
+        Mirrors the documents-service access convention
+        (``Document.organization_id == <caller org>`` + ``is_deleted == False``).
+        The caller's org is resolved from ``user_id``. Ids that don't survive
+        the filter (foreign-org, deleted, or nonexistent) are dropped and logged
+        rather than raised, so a mixed batch still attaches the owned ones.
+        """
+        if not document_ids:
+            return []
+
+        org_result = await self.db.execute(
+            select(User.organization_id).where(User.id == user_id)
+        )
+        organization_id = org_result.scalar_one_or_none()
+        if organization_id is None:
+            logger.warning(
+                "User %s has no organization; dropping %d attachment id(s)",
+                user_id,
+                len(document_ids),
+            )
+            return []
+
+        owned_result = await self.db.execute(
+            select(Document.id).where(
+                Document.id.in_(document_ids),
+                Document.organization_id == organization_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
+        )
+        owned_ids = list(owned_result.scalars().all())
+
+        dropped = set(document_ids) - set(owned_ids)
+        if dropped:
+            logger.warning(
+                "Dropped %d attachment id(s) not owned by org %s: %s",
+                len(dropped),
+                organization_id,
+                sorted(str(d) for d in dropped),
+            )
+        return owned_ids
 
     async def create_assistant_message(
         self,
@@ -975,6 +1028,13 @@ class ChatService:
         if not message:
             return None
 
+        # A soft-deleted thread must revoke access to its individual messages —
+        # every other read path filters Thread.is_deleted; get_message did not,
+        # leaving GET/PATCH/DELETE on the message id reachable after the parent
+        # thread was soft-deleted. selectinload already loaded thread.is_deleted.
+        if message.thread.is_deleted:
+            return None
+
         # Check workspace access
         if not self._user_can_access_workspace(
             message.thread.conversation.workspace, user_id
@@ -1015,8 +1075,14 @@ class ChatService:
         ]
 
         if before_id:
-            # Get messages before a specific message (for pagination)
-            before_stmt = select(ChatMessage).where(ChatMessage.id == before_id)
+            # Scope the cursor lookup to THIS thread — an unscoped id lookup let
+            # a foreign message's timestamp drive pagination (cross-tenant
+            # timestamp oracle + silently-wrong paging). A before_id that isn't
+            # in this thread is simply ignored.
+            before_stmt = select(ChatMessage).where(
+                ChatMessage.id == before_id,
+                ChatMessage.thread_id == thread_id,
+            )
             before_result = await self.db.execute(before_stmt)
             before_msg = before_result.scalars().first()
             if before_msg:
