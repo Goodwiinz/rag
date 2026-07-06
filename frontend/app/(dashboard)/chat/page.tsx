@@ -29,6 +29,7 @@ import { useChatSession } from '@/hooks/chat/useChatSession';
 import {
   useChatStreaming,
   confirmationBelongsToThread,
+  type PendingConfirmation,
 } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
 import {
@@ -817,11 +818,20 @@ function ChatPageContent() {
     drawerOpenerRef.current?.focus?.();
   }, [mobileSidebarOpen]);
 
-  // HITL banner: move focus to Approve when it appears.
+  // HITL banner: move focus to Approve when it appears (scoped to the owning
+  // thread), and return focus to the composer when it resolves — the
+  // Approve/Deny button just unmounted, so without this focus drops to <body>.
   const approveRef = useRef<HTMLButtonElement>(null);
+  const prevActiveConfirmationRef = useRef<PendingConfirmation | null>(null);
   useEffect(() => {
-    if (activeConfirmation) approveRef.current?.focus();
-  }, [activeConfirmation]);
+    const had = prevActiveConfirmationRef.current;
+    if (activeConfirmation) {
+      approveRef.current?.focus();
+    } else if (had) {
+      chatInputRef.current?.focus();
+    }
+    prevActiveConfirmationRef.current = activeConfirmation;
+  }, [activeConfirmation, chatInputRef]);
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">

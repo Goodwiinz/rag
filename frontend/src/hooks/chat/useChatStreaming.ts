@@ -958,6 +958,16 @@ export function useChatStreaming(
         )
       )
         return;
+      // The confirm resume is async; the user can still switch threads while it
+      // streams. Gate every local setMessages below on the confirmation's
+      // thread still being displayed — the resumed answer is persisted
+      // server-side regardless, so a skipped local write is not lost (mirrors
+      // handleSubmit's isTurnDisplayed guard).
+      const isConfirmDisplayed = () =>
+        confirmationBelongsToThread(
+          pendingConfirmation,
+          activeConversationIdRef.current
+        );
       setIsConfirming(true);
       useChatStore.setState({ isStreaming: true, streamingContent: '' });
 
@@ -1051,7 +1061,7 @@ export function useChatStreaming(
                 if (payload?.assistant_message_id) {
                   msg.id = payload.assistant_message_id;
                 }
-                setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {
@@ -1060,7 +1070,7 @@ export function useChatStreaming(
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
               };
-              setMessages([...confirmMessages, msg]);
+              if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
             },
           },
           confirmAbort.signal
@@ -1075,7 +1085,7 @@ export function useChatStreaming(
           content: `Confirmation failed: ${errorMessage}`,
           timestamp: Date.now(),
         };
-        setMessages([...confirmMessages, msg]);
+        if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
       } finally {
         setPendingConfirmation(null);
         setIsConfirming(false);
