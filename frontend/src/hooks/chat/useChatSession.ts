@@ -2,6 +2,7 @@
 
 import {
   mapDbMessageToChatPageMessage,
+  mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
@@ -599,22 +600,24 @@ export function useChatSession(): UseChatSessionReturn {
       return;
     }
 
-    // Skip the redundant getThread fetch when the store already loaded (or is
-    // loading) this thread's messages — selecting a thread also fires the
-    // store's setCurrentThread -> loadMessages, so without this guard the first
-    // visit double-fetches the same thread. displayedMessages merges both
-    // caches, so the store copy still surfaces via selectDisplayedMessages.
-    // ponytail: the fuller fix is to feed displayedMessages solely from the
-    // store and delete the local conversations[].messages cache; do that if
-    // the two-cache merge keeps causing drift.
+    // The store is the per-thread source of truth. When it already holds THIS
+    // thread's messages, adopt them into local state — do NOT early-return
+    // leaving the PREVIOUS thread's transcript in `messages` (that stale copy
+    // both rendered here via the length-based display merge AND got streamed as
+    // the wrong thread's history by handleSubmit — the I1 bleed).
     const store = useChatStore.getState();
-    if (
-      (store.messages[activeConversationId]?.length ?? 0) > 0 ||
-      store.isLoadingMessages
-    ) {
+    const storeMsgs = store.messages[activeConversationId];
+    if (storeMsgs && storeMsgs.length > 0) {
+      setMessages(mapStoreMessagesToChatMessages(storeMsgs));
       setIsLoadingMessages(false);
       return;
     }
+    // ponytail: the fuller fix is to feed displayedMessages solely from the
+    // store and delete the local conversations[].messages cache. Until then we
+    // fall through to the getThread fetch below (which sets `messages`
+    // correctly) rather than skipping on the GLOBAL store.isLoadingMessages
+    // flag — that skip left local stale and is what caused the bleed; the rare
+    // redundant fetch it avoided is not worth the correctness bug.
 
     // Lazy-load messages for this thread using the thread detail endpoint
     let cancelled = false;
