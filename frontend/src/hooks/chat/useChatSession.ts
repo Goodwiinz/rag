@@ -399,6 +399,11 @@ export function useChatSession(): UseChatSessionReturn {
 
       setIsInitializing(true);
       setInitError(null);
+      // The watchdog (above) may set a provisional "taking too long" error at
+      // 15s while init is still running. If init then SUCCEEDS past that point,
+      // `finally` must clear it — otherwise a slow-but-successful load is stuck
+      // on the error screen forever. Only a genuine failure keeps the error.
+      let didFail = false;
       console.log('[Chat] Initializing from database...');
 
       // Warm-start: read IDs cached on prior visits and fire sidebar + message
@@ -551,6 +556,7 @@ export function useChatSession(): UseChatSessionReturn {
             return;
           } catch (retryError) {
             console.error('[Chat] Retry failed:', retryError);
+            didFail = true;
             setInitError(
               'Failed to create new chat session. Please refresh the page.'
             );
@@ -559,6 +565,7 @@ export function useChatSession(): UseChatSessionReturn {
           }
         }
 
+        didFail = true;
         setInitError(
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
@@ -569,6 +576,11 @@ export function useChatSession(): UseChatSessionReturn {
           settled = true;
           clearTimeout(watchdog);
           setIsInitializing(false);
+        }
+        // Clear the provisional watchdog error if init ultimately succeeded —
+        // the 15s timeout may have fired before a slow load completed.
+        if (!didFail) {
+          setInitError(null);
         }
       }
     };
@@ -618,6 +630,13 @@ export function useChatSession(): UseChatSessionReturn {
     // correctly) rather than skipping on the GLOBAL store.isLoadingMessages
     // flag — that skip left local stale and is what caused the bleed; the rare
     // redundant fetch it avoided is not worth the correctness bug.
+
+    // Neither the conversation cache nor the store has this thread: clear the
+    // PREVIOUS thread's transcript NOW, before the async fetch below. Leaving
+    // it in `messages` during the fetch window rendered thread A under thread
+    // B (length-based display merge) and let a send stream A's history as B's
+    // context — the remaining I1 bleed vector.
+    setMessages([]);
 
     // Lazy-load messages for this thread using the thread detail endpoint
     let cancelled = false;

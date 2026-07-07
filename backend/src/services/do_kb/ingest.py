@@ -63,14 +63,21 @@ async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[st
     return None
 
 
-def _record_metric(status: str) -> None:
-    """Best-effort Prometheus counter; tolerate missing prometheus_client."""
-    try:
-        from src.observability import metrics  # type: ignore[attr-defined]
+_DO_KB_INGEST_METRIC = "do_kb_ingest_total"
 
-        counter = getattr(metrics, "agent_do_kb_ingest_total", None)
-        if counter is not None:
-            counter.labels(status=status).inc()
+
+def _record_metric(status: str) -> None:
+    """Best-effort ingest-outcome counter; observability must never break ingest.
+
+    Was a dead no-op: it looked up ``metrics.agent_do_kb_ingest_total``, a
+    module attribute that is defined nowhere, so every call silently did
+    nothing. Route through the registered ``increment_counter`` instead —
+    the same wiring the RAG read path (`_record_do_kb_read`) uses.
+    """
+    try:
+        from src.observability.metrics import increment_counter
+
+        increment_counter(_DO_KB_INGEST_METRIC, attributes={"status": status})
     except Exception:  # pragma: no cover - observability is optional
         pass
 

@@ -1,11 +1,12 @@
-"""tool_start args preview must be PII-redacted on BOTH the main and confirm
-streams. The confirm/resume path previously used a raw ``str(tool_input)``,
-leaking emails/phones from doc content over the browser-visible SSE payload.
-Both paths now route through ``_tool_args_preview``.
+"""``_tool_args_preview`` shapes the SSE ``tool_start.args`` field.
 
-Contract (round-3 M2): the preview is a JSON OBJECT — the frontend consumes
-``args`` via ``Object.entries``, so a repr string meant the live args preview
-never rendered. Values are redact-first-then-cap strings.
+Two properties it must hold:
+1. **Object shape (M2):** a dict tool input returns a dict, NOT a Python-repr
+   string. The frontend's args summarizer ignores non-object args, so the old
+   ``str(tool_input)`` rendered nothing live while the persisted object
+   rendered on reload — the live preview never worked.
+2. **PII redaction (#1046):** values are redacted before the payload leaves the
+   server (browser-visible SSE), on both the main and confirm/resume streams.
 """
 
 from __future__ import annotations
@@ -17,25 +18,64 @@ from src.api.agent.streaming import _tool_args_preview
 pytestmark = pytest.mark.unit
 
 
-def test_preview_redacts_email():
+def test_dict_input_returns_object_not_repr_string():
+    # M2 regression: a Python-repr string would make the frontend render no
+    # live args preview (summarizeToolArgs ignores non-objects).
+    preview = _tool_args_preview({"query": "transformers", "max_results": 5})
+    assert isinstance(preview, dict)
+    assert preview["query"] == "transformers"
+
+
+def test_non_string_scalars_preserved():
+    preview = _tool_args_preview({"max_results": 5, "rerank": True, "x": None})
+    assert preview == {"max_results": 5, "rerank": True, "x": None}
+
+
+def test_dict_values_are_pii_redacted():
     tool_input = {"query": "email jane@example.com about the paper"}
     preview = _tool_args_preview(tool_input)
-    assert preview == {"query": "email <email> about the paper"}
-    # Guard against a revert to a raw ``str(v)`` render (the old confirm-path
-    # bug): the unredacted input still contains the email.
+    assert "jane@example.com" not in preview["query"]
+    assert "<email>" in preview["query"]
+    # Guard against a revert to raw args: the unredacted render would leak it.
     assert "jane@example.com" in str(tool_input)
 
 
-def test_preview_empty_input_is_empty_object():
+def test_nested_values_are_redacted():
+    preview = _tool_args_preview(
+        {"filter": {"author": "jane@example.com"}, "tags": ["call 555-123-4567"]}
+    )
+    assert "jane@example.com" not in preview["filter"]["author"]
+    assert "555-123-4567" not in preview["tags"][0]
+
+
+def test_non_dict_input_falls_back_to_redacted_string():
+    preview = _tool_args_preview("email jane@example.com")
+    assert isinstance(preview, str)
+    assert "jane@example.com" not in preview
+
+
+def test_empty_inputs():
     assert _tool_args_preview({}) == {}
-    assert _tool_args_preview(None) == {}
+    assert _tool_args_preview(None) == ""
 
 
-def test_preview_caps_values_after_redaction():
-    long_clean = {"q": "a" * 1000}
-    assert len(_tool_args_preview(long_clean)["q"]) == 500
+def test_long_string_value_capped_after_redaction():
+    preview = _tool_args_preview({"q": "a" * 1000})
+    assert len(preview["q"]) == 500
 
 
-def test_preview_non_dict_input_wraps_as_object():
-    preview = _tool_args_preview("call jane@example.com")
-    assert preview == {"input": "call <email>"}
+def test_non_json_scalar_is_stringified_so_payload_stays_serializable():
+    # A non-JSON-safe value (datetime here) must not pass through raw — the
+    # emit-site json.dumps would otherwise raise and break the SSE stream.
+    import datetime as _dt
+    import json
+
+    from src.api.agent.streaming import _redact_tool_args
+
+    preview = _tool_args_preview({"since": _dt.datetime(2026, 1, 1)})
+    assert isinstance(preview["since"], str)
+    json.dumps(preview)  # must not raise
+
+    # Non-string scalars that ARE JSON-safe keep their type.
+    assert _redact_tool_args(5) == 5
+    assert _redact_tool_args(True) is True
