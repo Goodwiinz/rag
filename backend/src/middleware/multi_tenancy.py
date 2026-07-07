@@ -81,12 +81,20 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return error_response(500, "Internal server error during tenant validation", "internal_error")
 
     def _should_skip_tenant_validation(self, request: Request) -> bool:
-        """Check if tenant validation should be skipped for this endpoint"""
+        """Check if tenant validation should be skipped for this endpoint.
+
+        Paths must match the *mounted* route, not the bare router prefix.
+        The auth router is ``APIRouter(prefix="/auth")`` (api/auth/auth.py)
+        included with ``prefix="/api/v1"`` (main.py), so its real path is
+        ``/api/v1/auth/...``. Matching ``/auth/login`` here never fired and
+        forced every login/register/refresh request through tenant
+        resolution (issue #1003).
+        """
         skip_paths = [
             "/health",
-            "/auth/login",
-            "/auth/register",
-            "/auth/refresh",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/refresh",
             "/docs",
             "/redoc",
             "/openapi.json",
