@@ -168,15 +168,6 @@ groups:
           summary: "Neo4j database is down"
           description: "Neo4j database has been down for more than 1 minute."
 
-      - alert: QdrantDown
-        expr: up{job="qdrant-exporter"} == 0
-        for: 1m
-        labels:
-          severity: critical
-          service: infrastructure
-        annotations:
-          summary: "Qdrant vector database is down"
-          description: "Qdrant vector database has been down for more than 1 minute."
 
       - alert: RedisDown
         expr: up{job="redis-exporter"} == 0

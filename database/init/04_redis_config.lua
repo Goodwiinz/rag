@@ -311,13 +311,6 @@ redis.call('HMSET', 'health:neo4j',
     'active_connections', '3'
 )
 
-redis.call('HMSET', 'health:qdrant',
-    'status', 'healthy',
-    'last_check', tostring(ARGV[1]),
-    'response_time_ms', '10',
-    'collections_count', '3'
-)
-
 -- =================================================================
 -- UTILITY FUNCTIONS
 -- =================================================================

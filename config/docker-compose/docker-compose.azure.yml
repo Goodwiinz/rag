@@ -17,8 +17,6 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
       # Vector Database Configuration (Cloud only)
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
@@ -184,8 +182,6 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
       # Vector Database Configuration (Cloud)
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
 
       # Application Configuration
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}

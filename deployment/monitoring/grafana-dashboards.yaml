@@ -222,7 +222,7 @@ data:
       "dashboard": {
         "id": null,
         "title": "Database Overview",
-        "tags": ["database", "neo4j", "qdrant", "redis"],
+        "tags": ["database", "neo4j", "redis"],
         "style": "dark",
         "timezone": "browser",
         "panels": [
@@ -234,34 +234,6 @@ data:
               {
                 "expr": "up{job='neo4j'}",
                 "legendFormat": "Neo4j Status"
-              }
-            ],
-            "fieldConfig": {
-              "defaults": {
-                "thresholds": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": 1
-                    },
-                    {
-                      "color": "red",
-                      "value": 0
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "id": 2,
-            "title": "Qdrant Database Status",
-            "type": "stat",
-            "targets": [
-              {
-                "expr": "up{job='qdrant'}",
-                "legendFormat": "Qdrant Status"
               }
             ],
             "fieldConfig": {

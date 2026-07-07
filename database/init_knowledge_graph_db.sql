@@ -562,7 +562,6 @@ SELECT * FROM initialization_summary;
 \echo ''
 \echo 'Next steps:'
 \echo '  1. Verify Neo4j initialization (http://localhost:7474)'
-\echo '  2. Setup Qdrant collections (curl http://localhost:6333/collections)'
 \echo '  3. Configure Redis caching (redis-cli -h localhost -p 6380)'
 \echo '  4. Start graph services (./scripts/deploy-graph-services.sh deploy)'
 \echo '  5. Run integration tests (./scripts/test-integration.sh)'
