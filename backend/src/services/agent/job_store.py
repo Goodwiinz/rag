@@ -113,6 +113,11 @@ async def _get_redis() -> Optional[Any]:  # noqa: ANN401
     return _redis
 
 
+async def get_redis() -> Optional[Any]:  # noqa: ANN401
+    """Public alias for the shared lazy Redis client (used by stream_buffer)."""
+    return await _get_redis()
+
+
 async def close_redis() -> None:
     """Close the Redis connection (called during shutdown)."""
     global _redis
