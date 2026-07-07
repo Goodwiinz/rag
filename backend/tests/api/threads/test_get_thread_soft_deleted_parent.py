@@ -96,6 +96,31 @@ async def test_get_conversation_none_when_workspace_soft_deleted(
     assert (await service.get_conversation(conversation.id, user.id)) is None
 
 
+async def test_get_collection_none_when_workspace_soft_deleted(
+    db_session, thread_factory, user_factory
+):
+    """get_collection had no workspace is_deleted check — the funnel guard in
+    _user_can_access_workspace must revoke it (and any future caller)."""
+    from src.models.collection import Collection
+
+    user = await user_factory()
+    thread = await thread_factory(user=user)
+    _, workspace = await _parents(db_session, thread)
+
+    collection = Collection(workspace_id=workspace.id, name="c1")
+    db_session.add(collection)
+    await db_session.commit()
+    await db_session.refresh(collection)
+
+    service = ChatService(db_session)
+    assert (await service.get_collection(collection.id, user.id)) is not None
+
+    workspace.is_deleted = True
+    await db_session.commit()
+
+    assert (await service.get_collection(collection.id, user.id)) is None
+
+
 async def test_get_message_none_when_parent_conversation_soft_deleted(
     db_session, thread_factory, user_factory
 ):
