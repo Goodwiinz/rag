@@ -64,13 +64,18 @@ async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[st
 
 
 def _record_metric(status: str) -> None:
-    """Best-effort Prometheus counter; tolerate missing prometheus_client."""
-    try:
-        from src.observability import metrics  # type: ignore[attr-defined]
+    """Emit a status-labeled counter for DO KB ingest outcomes.
 
-        counter = getattr(metrics, "agent_do_kb_ingest_total", None)
-        if counter is not None:
-            counter.labels(status=status).inc()
+    Best-effort: metrics are optional infra, so a missing/unconfigured meter
+    must never break ingest. The old implementation read a module attribute
+    (``metrics.agent_do_kb_ingest_total``) that was never defined anywhere,
+    so every ingest metric silently no-oped; this uses the registered-counter
+    helper like the retrieval path's ``_record_do_kb_read``.
+    """
+    try:
+        from src.observability.metrics import increment_counter
+
+        increment_counter("agent_do_kb_ingest_total", attributes={"status": status})
     except Exception:  # pragma: no cover - observability is optional
         pass
 
