@@ -40,11 +40,9 @@ jobs:
     name: Update Dev Image Tags
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'develop') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.event.inputs.action == 'update-staging')
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop'
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -102,19 +100,18 @@ jobs:
           git push origin develop
 
   # ─────────────────────────────────────────────
-  # Auto-update staging image tags on develop
+  # Update staging image tags — MANUAL ONLY.
+  # The nous-staging ArgoCD app was retired in #442 (2026-04-29), so the
+  # per-merge auto-bump wrote values nothing consumes (one dead [skip ci]
+  # commit per merge). Re-add the workflow_run condition when staging is
+  # actually redeployed.
   # ─────────────────────────────────────────────
   update-staging:
     name: Update Staging Image Tags
     runs-on: ubuntu-latest
-    needs: [update-dev]
     if: |
-      always() &&
-      ((github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'develop') ||
-       (github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'update-staging'))
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.action == 'update-staging'
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
