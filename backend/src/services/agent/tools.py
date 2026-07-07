@@ -115,6 +115,19 @@ def _get_context(
     )
 
 
+def _fresh_session():
+    """Short-lived DB session for one tool invocation.
+
+    Tools used to share the request/stream session via configurable["db"],
+    which kept one pooled connection checked out for the whole graph run
+    (minutes). Each DB-touching tool now opens its own session for just its
+    own duration; the connection is only checked out on first query.
+    """
+    from src.core.database import AsyncSessionLocal
+
+    return AsyncSessionLocal()
+
+
 def _resolve_project_id(
     explicit_project_id: Optional[str],
     page_context: dict,
@@ -198,18 +211,19 @@ async def ingest_arxiv_papers(
     config = config or {}
     from src.api.agent.execute import _tool_ingest_arxiv
 
-    db, current_user, page_ctx = _get_context(config)
+    _, current_user, page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""
     # Cap batch size — ingestion is heavy and a hallucinated 100-paper
     # batch will saturate the worker pool and trip downstream timeouts.
     capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
     resolved_project_id = _resolve_project_id(project_id, page_ctx)
-    return await _tool_ingest_arxiv(
-        {"paper_ids": capped_ids, "project_id": resolved_project_id},
-        user_id,
-        db,
-        current_user,
-    )
+    async with _fresh_session() as db:
+        return await _tool_ingest_arxiv(
+            {"paper_ids": capped_ids, "project_id": resolved_project_id},
+            user_id,
+            db,
+            current_user,
+        )
 
 
 @tool
@@ -222,15 +236,16 @@ async def search_documents(
     config = config or {}
     from src.api.agent.execute import _tool_search_documents
 
-    db, current_user, _page_ctx = _get_context(config)
-    return await _tool_search_documents(
-        {
-            "query": query,
-            "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
-        },
-        db,
-        current_user,
-    )
+    _, current_user, _page_ctx = _get_context(config)
+    async with _fresh_session() as db:
+        return await _tool_search_documents(
+            {
+                "query": query,
+                "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+            },
+            db,
+            current_user,
+        )
 
 
 @tool
@@ -243,7 +258,7 @@ async def do_kb_retrieve(
     config = config or {}
     from src.api.agent.execute import _tool_do_kb_retrieve
 
-    db, current_user, page_ctx = _get_context(config)
+    _, current_user, page_ctx = _get_context(config)
     # Forward active project_id so the retrieval result is scoped to the
     # current project and does not leak sibling-project documents.
     project_id = _resolve_project_id(None, page_ctx)
@@ -253,7 +268,8 @@ async def do_kb_retrieve(
     }
     if project_id:
         args["project_id"] = project_id
-    return await _tool_do_kb_retrieve(args, db, current_user)
+    async with _fresh_session() as db:
+        return await _tool_do_kb_retrieve(args, db, current_user)
 
 
 @tool
@@ -270,15 +286,16 @@ async def add_document_to_project(
     config = config or {}
     from src.api.agent.execute import _tool_add_document_to_project
 
-    db, current_user, page_ctx = _get_context(config)
+    _, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
     if not resolved_pid:
         return _missing_project_error("add_document_to_project")
-    return await _tool_add_document_to_project(
-        {"document_id": document_id, "project_id": resolved_pid},
-        db,
-        current_user,
-    )
+    async with _fresh_session() as db:
+        return await _tool_add_document_to_project(
+            {"document_id": document_id, "project_id": resolved_pid},
+            db,
+            current_user,
+        )
 
 
 @tool
@@ -297,7 +314,7 @@ async def create_project(
     config = config or {}
     from src.api.agent.execute import _tool_create_project
 
-    db, current_user, _ = _get_context(config)
+    _, current_user, _ = _get_context(config)
     args: Dict[str, Any] = {"name": name}
     if description:
         args["description"] = description
@@ -307,7 +324,8 @@ async def create_project(
         args["tags"] = tags
     if workspace_id:
         args["workspace_id"] = workspace_id
-    return await _tool_create_project(args, db, current_user)
+    async with _fresh_session() as db:
+        return await _tool_create_project(args, db, current_user)
 
 
 @tool
@@ -326,7 +344,7 @@ async def create_project_note(
     config = config or {}
     from src.api.agent.execute import _tool_create_project_note
 
-    db, current_user, page_ctx = _get_context(config)
+    _, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
     if not resolved_pid:
         return _missing_project_error("create_project_note")
@@ -337,7 +355,8 @@ async def create_project_note(
     }
     if tags:
         args["tags"] = tags
-    return await _tool_create_project_note(args, db, current_user)
+    async with _fresh_session() as db:
+        return await _tool_create_project_note(args, db, current_user)
 
 
 @tool
@@ -357,7 +376,7 @@ async def list_projects(
     config = config or {}
     from src.api.agent.execute import _tool_list_projects
 
-    db, current_user, _page_ctx = _get_context(config)
+    _, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {
         "limit": _clamp_int(limit, lo=1, hi=_MAX_PROJECT_LIMIT),
     }
@@ -367,7 +386,8 @@ async def list_projects(
         args["tag"] = tag
     if search:
         args["search"] = search
-    return await _tool_list_projects(args, db, current_user)
+    async with _fresh_session() as db:
+        return await _tool_list_projects(args, db, current_user)
 
 
 @tool
@@ -391,19 +411,20 @@ async def list_project_documents(
     config = config or {}
     from src.api.agent.execute import _tool_list_project_documents
 
-    db, current_user, page_ctx = _get_context(config)
+    _, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
     if not resolved_pid:
         return _missing_project_error("list_project_documents")
-    return await _tool_list_project_documents(
-        {
-            "project_id": resolved_pid,
-            "limit": _clamp_int(limit, lo=1, hi=500),
-            "offset": _clamp_int(offset, lo=0, hi=2**31 - 1),
-        },
-        db,
-        current_user,
-    )
+    async with _fresh_session() as db:
+        return await _tool_list_project_documents(
+            {
+                "project_id": resolved_pid,
+                "limit": _clamp_int(limit, lo=1, hi=500),
+                "offset": _clamp_int(offset, lo=0, hi=2**31 - 1),
+            },
+            db,
+            current_user,
+        )
 
 
 @tool
@@ -418,10 +439,11 @@ async def summarize_document(
     config = config or {}
     from src.api.agent.execute import _tool_summarize_document
 
-    db, current_user, _page_ctx = _get_context(config)
-    return await _tool_summarize_document(
-        {"document_id": document_id}, db, current_user
-    )
+    _, current_user, _page_ctx = _get_context(config)
+    async with _fresh_session() as db:
+        return await _tool_summarize_document(
+            {"document_id": document_id}, db, current_user
+        )
 
 
 @tool
@@ -440,11 +462,12 @@ async def compare_documents(
 
     _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
     safe_type = type if type in _COMPARISON_TYPES else "general"
-    db, current_user, _page_ctx = _get_context(config)
+    _, current_user, _page_ctx = _get_context(config)
     capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
-    return await _tool_compare_documents(
-        {"document_ids": capped_ids, "type": safe_type}, db, current_user
-    )
+    async with _fresh_session() as db:
+        return await _tool_compare_documents(
+            {"document_ids": capped_ids, "type": safe_type}, db, current_user
+        )
 
 
 @tool
@@ -460,8 +483,11 @@ async def extract_entities(
     config = config or {}
     from src.api.agent.execute import _tool_extract_entities
 
-    db, current_user, _page_ctx = _get_context(config)
-    return await _tool_extract_entities({"document_id": document_id}, db, current_user)
+    _, current_user, _page_ctx = _get_context(config)
+    async with _fresh_session() as db:
+        return await _tool_extract_entities(
+            {"document_id": document_id}, db, current_user
+        )
 
 
 @tool

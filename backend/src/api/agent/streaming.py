@@ -254,7 +254,6 @@ async def stream_event_generator(
     config: Dict[str, Any] = (
         {}
     )  # Initialize before try block for safe access in except handlers
-    db = AsyncSessionLocal()
     graph = None  # type: ignore[assignment]
     resolved_thread_id: Optional[str] = None
     stream_started_at = time.monotonic()
@@ -263,21 +262,48 @@ async def stream_event_generator(
         # disconnect (or any failure inside ``astream_events``) still leaves
         # the user row durable. The assistant row is written after the
         # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
+        #
+        # The session is scoped to these pre-run steps only. It used to stay
+        # open (and injected into configurable["db"]) for the whole graph run —
+        # holding one pooled connection through minutes of LLM/tool time, which
+        # saturated the pool at ~25 concurrent streams. Tool nodes now open
+        # their own short-lived sessions.
         thread_obj = None
-        try:
-            thread_obj, _conversation_id = await _resolve_thread(
-                db, current_user, request_body
+        page_context = _page_context_to_dict(request_body.page_context)
+        project_memories: list = []
+        async with AsyncSessionLocal() as db:
+            try:
+                thread_obj, _conversation_id = await _resolve_thread(
+                    db, current_user, request_body
+                )
+                if thread_obj is not None:
+                    resolved_thread_id = str(thread_obj.id)
+                    if request_body.thread_id != resolved_thread_id:
+                        request_body.thread_id = resolved_thread_id
+                    await _persist_user_message(db, current_user, request_body)
+            except Exception:
+                logger.warning(
+                    "Failed to persist user turn before LLM call",
+                    exc_info=True,
+                )
+
+            await _resolve_and_bind_project(
+                db, current_user, thread_obj, page_context
             )
-            if thread_obj is not None:
-                resolved_thread_id = str(thread_obj.id)
-                if request_body.thread_id != resolved_thread_id:
-                    request_body.thread_id = resolved_thread_id
-                await _persist_user_message(db, current_user, request_body)
-        except Exception:
-            logger.warning(
-                "Failed to persist user turn before LLM call",
-                exc_info=True,
-            )
+
+            # Project-scoped memory recall (best-effort; never blocks a turn).
+            _pm_project_id = page_context.get("project_id")
+            if _pm_project_id:
+                try:
+                    from src.services.research.project_memory_service import (
+                        load_project_memories,
+                    )
+
+                    project_memories = await load_project_memories(
+                        db, str(_pm_project_id)
+                    )
+                except Exception:
+                    logger.warning("project memory load failed", exc_info=True)
 
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -289,22 +315,6 @@ async def stream_event_generator(
             for m in request_body.messages
             if m.role == "user"
         ]
-
-        page_context = _page_context_to_dict(request_body.page_context)
-        await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
-
-        # Project-scoped memory recall (best-effort; never blocks a turn).
-        project_memories: list = []
-        _pm_project_id = page_context.get("project_id")
-        if _pm_project_id:
-            try:
-                from src.services.research.project_memory_service import (
-                    load_project_memories,
-                )
-
-                project_memories = await load_project_memories(db, str(_pm_project_id))
-            except Exception:
-                logger.warning("project memory load failed", exc_info=True)
 
         initial_state = {
             "messages": messages,
@@ -334,7 +344,6 @@ async def stream_event_generator(
             "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": stream_thread_id,
-                "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
             },
@@ -711,7 +720,6 @@ async def stream_event_generator(
         yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
-        await db.close()
         logger.info("SSE stream ended for thread %s", stream_thread_id)
 
 
@@ -740,17 +748,19 @@ async def stream_confirm_event_generator(
         ToolExecutionResponse,
     )
 
-    db = AsyncSessionLocal()
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
+        # No long-lived session here: the checkpointer has its own psycopg
+        # pool and tool nodes open their own sessions (see
+        # stream_event_generator). The two post-run queries below open
+        # short-lived sessions at the point of use.
         snapshot_config = {
             "configurable": {
                 "thread_id": request_body.thread_id,
-                "db": db,
                 "current_user": current_user,
             }
         }
@@ -770,7 +780,6 @@ async def stream_confirm_event_generator(
             snapshot_config = {
                 "configurable": {
                     "thread_id": request_body.thread_id,
-                    "db": db,
                     "current_user": current_user,
                 }
             }
@@ -802,7 +811,6 @@ async def stream_confirm_event_generator(
             "recursion_limit": RECURSION_LIMIT,
             "configurable": {
                 "thread_id": request_body.thread_id,
-                "db": db,
                 "current_user": current_user,
                 "page_context": page_context,
             },
@@ -928,9 +936,10 @@ async def stream_confirm_event_generator(
                 # duplicate row.
                 disconnect_cmid: Optional[str] = None
                 try:
-                    user_cmid = await _latest_user_client_message_id(
-                        db, request_body.thread_id
-                    )
+                    async with AsyncSessionLocal() as q_db:
+                        user_cmid = await _latest_user_client_message_id(
+                            q_db, request_body.thread_id
+                        )
                     if user_cmid is not None:
                         disconnect_cmid = str(
                             _uuid.uuid5(
@@ -1016,9 +1025,10 @@ async def stream_confirm_event_generator(
         # leaving a duplicate assistant row.
         assistant_cmid: Optional[str] = None
         try:
-            user_cmid = await _latest_user_client_message_id(
-                db, request_body.thread_id
-            )
+            async with AsyncSessionLocal() as q_db:
+                user_cmid = await _latest_user_client_message_id(
+                    q_db, request_body.thread_id
+                )
             if user_cmid is not None:
                 assistant_cmid = str(
                     _uuid.uuid5(
@@ -1134,5 +1144,4 @@ async def stream_confirm_event_generator(
         yield f"event: error\ndata: {_json.dumps({'error': client_safe_error(e)})}\n\n"
 
     finally:
-        await db.close()
         logger.info("SSE confirm stream ended for thread %s", request_body.thread_id)

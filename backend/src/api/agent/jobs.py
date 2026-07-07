@@ -1083,11 +1083,16 @@ async def _run_agent_graph(
                 "model": request.model,
             }
 
+            # End the pre-run read transaction so the pooled connection is
+            # released for the duration of the graph run (minutes of LLM/tool
+            # time). Tool nodes open their own short-lived sessions now —
+            # configurable no longer carries this session.
+            await db.rollback()
+
             config = {
                 "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": request.thread_id or job_id,
-                    "db": db,
                     "current_user": current_user,
                     "page_context": page_context,
                 },
@@ -1323,7 +1328,6 @@ async def _resume_agent_graph(
                 "recursion_limit": RECURSION_LIMIT,
                 "configurable": {
                     "thread_id": resume_thread_id,
-                    "db": db,
                     "current_user": current_user,
                     "page_context": (
                         _page_context_to_dict(original_request.page_context)

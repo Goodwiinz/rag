@@ -430,17 +430,26 @@ async def _execute_single_tool(
             current_user = configurable.get("current_user")
 
             async def _call_tool(args: dict):
-                return await asyncio.wait_for(
-                    tool_executor(
-                        tool_name=tool_name,
-                        args=args,
-                        user_id=str(current_user.id) if current_user else "",
-                        db=configurable.get("db"),
-                        current_user=current_user,
-                        thread_id=configurable.get("thread_id") or "",
-                    ),
-                    timeout=timeout,
-                )
+                # Fresh session per tool call instead of the request/stream
+                # session threaded through configurable["db"]: the graph runs
+                # for up to 5 minutes (LLM + tools), and holding one pooled
+                # connection that whole time starved the pool (~25 concurrent
+                # streams = full saturation). The session lives only for this
+                # tool's duration.
+                from src.core.database import AsyncSessionLocal
+
+                async with AsyncSessionLocal() as tool_db:
+                    return await asyncio.wait_for(
+                        tool_executor(
+                            tool_name=tool_name,
+                            args=args,
+                            user_id=str(current_user.id) if current_user else "",
+                            db=tool_db,
+                            current_user=current_user,
+                            thread_id=configurable.get("thread_id") or "",
+                        ),
+                        timeout=timeout,
+                    )
 
             # Wrap with langsmith.traceable so per-tool spans land in LangSmith
             # as run_type="tool". Previously zero tool spans existed because
