@@ -380,15 +380,6 @@ async def upload_single_document(
 
         await upload_manager.update_progress(upload_id, 100.0, "Upload completed")
 
-        # Invalidate search cache so new document appears in results
-        try:
-            from src.services.search.search_service import cache
-
-            await cache.delete_pattern("search:*")
-            await cache.delete_pattern("suggestions:*")
-        except Exception:
-            pass  # Cache invalidation is best-effort
-
         # Send completion notification
         await upload_manager.send_completion(
             upload_id,
@@ -438,7 +429,11 @@ async def upload_single_document(
                 await db.rollback()
                 file_service._best_effort_delete_object(document)
                 document.soft_delete()
-                organization.update_storage_usage(-(document.file_size_bytes or 0))
+                await db.execute(
+                    Organization.storage_usage_update(
+                        organization.id, -(document.file_size_bytes or 0)
+                    )
+                )
                 await db.commit()
             except Exception:  # noqa: BLE001
                 await db.rollback()

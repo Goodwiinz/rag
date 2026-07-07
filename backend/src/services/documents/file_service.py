@@ -448,8 +448,12 @@ class FileService:
             await self.db.commit()
             await self.db.refresh(document)
 
-            # Update organization storage usage
-            organization.update_storage_usage(validation_result["file_size"])
+            # Atomically update organization storage usage
+            await self.db.execute(
+                Organization.storage_usage_update(
+                    organization.id, validation_result["file_size"]
+                )
+            )
             await self.db.commit()
 
             # Create processing job for document ingestion
@@ -700,8 +704,11 @@ class FileService:
         # whose backing file is gone.
         try:
             document.soft_delete()
-            organization = document.organization
-            organization.update_storage_usage(-document.file_size_bytes)
+            await self.db.execute(
+                Organization.storage_usage_update(
+                    document.organization_id, -document.file_size_bytes
+                )
+            )
             await self.db.commit()
         except Exception as e:
             await self.db.rollback()

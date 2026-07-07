@@ -54,7 +54,12 @@ def test_delete_document_unsyncs_do_kb_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -90,7 +95,12 @@ def test_delete_document_skips_unsync_when_no_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -123,7 +133,12 @@ def test_delete_document_do_kb_failure_does_not_block_delete():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -168,9 +183,11 @@ def test_bulk_delete_unsyncs_each_deleted_document():
             _result(doc_a),  # select doc_a
             MagicMock(),  # entity update
             MagicMock(),  # job update
+            MagicMock(),  # atomic quota update
             _result(doc_b),  # select doc_b
             MagicMock(),  # entity update
             MagicMock(),  # job update
+            MagicMock(),  # atomic quota update
         ]
     )
     db.commit = AsyncMock()

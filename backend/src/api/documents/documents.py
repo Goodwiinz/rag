@@ -557,30 +557,34 @@ async def delete_document(
             )
             await db.execute(job_update_stmt)
 
-        # Delete physical file (local or Supabase)
-        file_service.delete_physical_file(document)
-
         # Soft delete document
         document.soft_delete()
 
-        # Update organization storage usage
-        organization = document.organization
-        organization.update_storage_usage(-document.file_size_bytes)
+        # Atomically revert organization storage usage
+        await db.execute(
+            Organization.storage_usage_update(
+                document.organization_id, -document.file_size_bytes
+            )
+        )
 
         await db.commit()
+
+        # Best-effort physical delete AFTER the commit — deleting first meant a
+        # commit failure rolled back the row while the object was already gone
+        # (live row pointing at a missing file). A failure here leaves at worst
+        # a sweepable orphan object.
+        try:
+            file_service.delete_physical_file(document)
+        except Exception:
+            logger.warning(
+                "Soft-deleted document %s but failed to remove its storage object",
+                document.id,
+                exc_info=True,
+            )
 
         # Remove the DO KB data source so the deleted doc stops surfacing in
         # retrieval and no longer leaks storage (best-effort, never blocks).
         await _cleanup_do_kb_data_source(db, document)
-
-        # Invalidate search cache so stale results don't include deleted document
-        try:
-            from src.services.search.search_service import cache
-
-            await cache.delete_pattern("search:*")
-            await cache.delete_pattern("suggestions:*")
-        except Exception:
-            pass  # Cache invalidation is best-effort
 
         return {
             "message": "Document deleted successfully",
@@ -1083,15 +1087,15 @@ async def bulk_delete_documents(
                 )
                 await db.execute(job_update_stmt)
 
-            # Delete physical file (local or Supabase)
-            file_service.delete_physical_file(document)
-
             # Soft delete document
             document.soft_delete()
 
-            # Update organization storage usage
-            org = document.organization
-            org.update_storage_usage(-document.file_size_bytes)
+            # Atomically revert organization storage usage
+            await db.execute(
+                Organization.storage_usage_update(
+                    document.organization_id, -document.file_size_bytes
+                )
+            )
 
             successful.append(document_id)
             deleted_docs.append(document)
@@ -1107,6 +1111,20 @@ async def bulk_delete_documents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to commit bulk delete: {str(e)}",
         )
+
+    # Best-effort physical deletes AFTER the commit (see delete_document): only
+    # documents whose soft-delete actually committed lose their objects, and a
+    # storage failure leaves a sweepable orphan instead of a live row with a
+    # missing file.
+    for document in deleted_docs:
+        try:
+            file_service.delete_physical_file(document)
+        except Exception:
+            logger.warning(
+                "Soft-deleted document %s but failed to remove its storage object",
+                document.id,
+                exc_info=True,
+            )
 
     # Remove DO KB data sources for the deleted docs (best-effort, per doc).
     for document in deleted_docs:
