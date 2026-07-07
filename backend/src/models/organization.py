@@ -135,10 +135,26 @@ class Organization(BaseModel):
         """Get maximum file size in MB"""
         return self.max_file_size_bytes / (1024 * 1024)
 
-    def update_storage_usage(self, size_change_bytes: int):
-        """Update storage usage by adding/subtracting bytes"""
-        new_usage = self.storage_used_bytes + size_change_bytes
-        self.storage_used_bytes = max(0, new_usage)
+    @staticmethod
+    def storage_usage_update(organization_id, size_change_bytes: int):
+        """Atomic UPDATE statement adjusting the storage counter in the DB.
+
+        The old in-Python read-modify-write lost updates under concurrent
+        uploads/deletes; this pushes the arithmetic into a single UPDATE so
+        concurrent deltas can't clobber each other. Caller executes + commits
+        (works on both sync and async sessions).
+        """
+        from sqlalchemy import func, update
+
+        return (
+            update(Organization)
+            .where(Organization.id == organization_id)
+            .values(
+                storage_used_bytes=func.greatest(
+                    0, Organization.storage_used_bytes + size_change_bytes
+                )
+            )
+        )
 
     def check_storage_quota(self) -> dict:
         """Check storage quota status"""

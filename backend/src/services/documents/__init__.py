@@ -30,8 +30,6 @@ __all__ = [
     "DocumentRealtimeService",
     "ProcessingEventType",
     "ProcessingEvent",
-    # Document upload
-    "DocumentUploadService",
 ]
 
 _EXPORTS: Dict[str, Tuple[str, str]] = {
@@ -60,8 +58,6 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
     "DocumentRealtimeService": ("src.services.documents.document_realtime_service", "DocumentRealtimeService"),
     "ProcessingEventType": ("src.services.documents.document_realtime_service", "ProcessingEventType"),
     "ProcessingEvent": ("src.services.documents.document_realtime_service", "ProcessingEvent"),
-    # Document upload
-    "DocumentUploadService": ("src.services.documents.document_upload_service", "DocumentUploadService"),
 }
 
 

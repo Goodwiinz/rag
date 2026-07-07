@@ -94,14 +94,22 @@ class ChatService:
         return workspace
 
     async def get_workspace(
-        self, workspace_id: UUID, user_id: UUID
+        self, workspace_id: UUID, user_id: UUID, load_conversations: bool = False
     ) -> Optional[Workspace]:
-        """Get workspace by ID if user has access"""
+        """Get workspace by ID if user has access.
+
+        This is the access gate for every conversation/collection CRUD op, so
+        by default it loads only what the check needs (owner/public/members).
+        Eager-loading the unbounded conversations collection on every gate call
+        grew linearly with workspace age; pass load_conversations=True only
+        where the response actually renders conversation_count.
+        """
+        options = [selectinload(Workspace.members)]
+        if load_conversations:
+            options.append(selectinload(Workspace.conversations))
         stmt = (
             select(Workspace)
-            .options(
-                selectinload(Workspace.members), selectinload(Workspace.conversations)
-            )
+            .options(*options)
             .where(Workspace.id == workspace_id, Workspace.is_deleted == False)
         )
         result = await self.db.execute(stmt)
@@ -159,7 +167,10 @@ class ChatService:
         self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
         """Update workspace"""
-        workspace = await self.get_workspace(workspace_id, user_id)
+        # load_conversations: the PATCH response renders conversation_count.
+        workspace = await self.get_workspace(
+            workspace_id, user_id, load_conversations=True
+        )
         if not workspace:
             return None
 

@@ -589,30 +589,34 @@ async def delete_document(
             )
             await db.execute(job_update_stmt)
 
-        # Delete physical file (local or Supabase)
-        file_service.delete_physical_file(document)
-
         # Soft delete document
         document.soft_delete()
 
-        # Update organization storage usage
-        organization = document.organization
-        organization.update_storage_usage(-document.file_size_bytes)
+        # Atomically revert organization storage usage
+        await db.execute(
+            Organization.storage_usage_update(
+                document.organization_id, -document.file_size_bytes
+            )
+        )
 
         await db.commit()
+
+        # Best-effort physical delete AFTER the commit — deleting first meant a
+        # commit failure rolled back the row while the object was already gone
+        # (live row pointing at a missing file). A failure here leaves at worst
+        # a sweepable orphan object.
+        try:
+            file_service.delete_physical_file(document)
+        except Exception:
+            logger.warning(
+                "Soft-deleted document %s but failed to remove its storage object",
+                document.id,
+                exc_info=True,
+            )
 
         # Remove the DO KB data source so the deleted doc stops surfacing in
         # retrieval and no longer leaks storage (best-effort, never blocks).
         await _cleanup_do_kb_data_source(db, document)
-
-        # Invalidate search cache so stale results don't include deleted document
-        try:
-            from src.services.search.search_service import cache
-
-            await cache.delete_pattern("search:*")
-            await cache.delete_pattern("suggestions:*")
-        except Exception:
-            pass  # Cache invalidation is best-effort
 
         return {
             "message": "Document deleted successfully",
@@ -1076,60 +1080,60 @@ async def bulk_delete_documents(
 
     from sqlalchemy import update
 
-    for document_id in request.document_ids:
-        try:
-            doc_stmt = select(Document).where(
-                Document.id == document_id,
-                Document.organization_id == organization.id,
-                Document.is_deleted == False,
-            )
-            doc_result = await db.execute(doc_stmt)
-            document = doc_result.scalars().first()
+    try:
+        # Set-based instead of per-id: the old loop issued 3 queries per
+        # document (up to 300 round trips per request) inside one open
+        # transaction.
+        doc_stmt = select(Document).where(
+            Document.id.in_(request.document_ids),
+            Document.organization_id == organization.id,
+            Document.is_deleted == False,
+        )
+        doc_result = await db.execute(doc_stmt)
+        deleted_docs = list(doc_result.scalars().all())
+        found_ids = {str(d.id) for d in deleted_docs}
+        successful = [i for i in request.document_ids if i in found_ids]
+        failed = [
+            {"document_id": i, "error": "Document not found"}
+            for i in request.document_ids
+            if i not in found_ids
+        ]
 
-            if not document:
-                failed.append(
-                    {"document_id": document_id, "error": "Document not found"}
-                )
-                continue
-
-            # Perform deletion
+        if deleted_docs:
             if cascade:
-                # Delete related entities
-                entity_update_stmt = (
+                await db.execute(
                     update(Entity)
                     .where(
-                        Entity.document_id == document_id, Entity.is_deleted == False
+                        Entity.document_id.in_(found_ids),
+                        Entity.is_deleted == False,
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
-                await db.execute(entity_update_stmt)
-
-                # Delete related processing jobs
-                job_update_stmt = (
+                await db.execute(
                     update(ProcessingJob)
                     .where(
-                        ProcessingJob.document_id == document_id,
+                        ProcessingJob.document_id.in_(found_ids),
                         ProcessingJob.is_deleted == False,
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
-                await db.execute(job_update_stmt)
 
-            # Delete physical file (local or Supabase)
-            file_service.delete_physical_file(document)
+            for document in deleted_docs:
+                document.soft_delete()
 
-            # Soft delete document
-            document.soft_delete()
-
-            # Update organization storage usage
-            org = document.organization
-            org.update_storage_usage(-document.file_size_bytes)
-
-            successful.append(document_id)
-            deleted_docs.append(document)
-
-        except Exception as e:
-            failed.append({"document_id": document_id, "error": str(e)})
+            # One atomic quota revert for the whole batch (same org for all).
+            await db.execute(
+                Organization.storage_usage_update(
+                    organization.id,
+                    -sum(d.file_size_bytes or 0 for d in deleted_docs),
+                )
+            )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk delete documents: {str(e)}",
+        )
 
     try:
         await db.commit()
@@ -1139,6 +1143,20 @@ async def bulk_delete_documents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to commit bulk delete: {str(e)}",
         )
+
+    # Best-effort physical deletes AFTER the commit (see delete_document): only
+    # documents whose soft-delete actually committed lose their objects, and a
+    # storage failure leaves a sweepable orphan instead of a live row with a
+    # missing file.
+    for document in deleted_docs:
+        try:
+            file_service.delete_physical_file(document)
+        except Exception:
+            logger.warning(
+                "Soft-deleted document %s but failed to remove its storage object",
+                document.id,
+                exc_info=True,
+            )
 
     # Defer DO KB cleanup off the request path: up to 100 docs × one DO HTTP
     # call each (with retries/backoff) could block this response for minutes

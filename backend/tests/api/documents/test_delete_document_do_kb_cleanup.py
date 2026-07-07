@@ -54,7 +54,12 @@ def test_delete_document_unsyncs_do_kb_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -90,7 +95,12 @@ def test_delete_document_skips_unsync_when_no_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -123,7 +133,12 @@ def test_delete_document_do_kb_failure_does_not_block_delete():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -174,16 +189,16 @@ def test_bulk_delete_defers_do_kb_cleanup_to_background_task():
     request.document_ids = [str(doc_a.id), str(doc_b.id)]
 
     db = MagicMock()
-    # Per-doc: entity update, job update are execute() too; only the initial
-    # doc-select returns a scalar we read. Use a mapping by call to stay robust.
+    # Set-based bulk delete: one select returning all docs, then batch entity
+    # update, batch job update, one atomic quota update.
+    select_result = MagicMock()
+    select_result.scalars.return_value.all.return_value = [doc_a, doc_b]
     db.execute = AsyncMock(
         side_effect=[
-            _result(doc_a),  # select doc_a
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
-            _result(doc_b),  # select doc_b
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
+            select_result,  # select all docs
+            MagicMock(),  # batch entity update
+            MagicMock(),  # batch job update
+            MagicMock(),  # atomic quota update
         ]
     )
     db.commit = AsyncMock()

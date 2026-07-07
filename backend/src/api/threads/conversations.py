@@ -119,7 +119,9 @@ async def get_workspace(
     Get workspace details by ID.
     """
     service = get_chat_service(db)
-    workspace = await service.get_workspace(workspace_id, current_user.id)
+    workspace = await service.get_workspace(
+        workspace_id, current_user.id, load_conversations=True
+    )
 
     if not workspace:
         raise HTTPException(
