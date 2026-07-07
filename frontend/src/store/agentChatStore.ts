@@ -478,6 +478,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
       if (!pendingConfirmation) return;
 
       const jobId = pendingConfirmation.jobId;
+      // Capture the durable wait token NOW: the set() below nulls
+      // pendingConfirmation, so re-reading it from the store in the fallback
+      // branch (after streamConfirm fails) would always be undefined —
+      // silently skipping completeDurableConfirmation and mis-routing a
+      // durable-run approval to the legacy /confirm endpoint, which fails and
+      // leaves the run waiting on its token forever.
+      const waitTokenId = pendingConfirmation.waitTokenId;
 
       set((state) => {
         state.isConfirming = true;
@@ -722,10 +729,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
           // SSE confirm failed — fall back to polling
         }
 
-        // Durable run or legacy polling fallback
-        const savedConfirmation = get().pendingConfirmation;
-        const waitTokenId = savedConfirmation?.waitTokenId;
-
+        // Durable run or legacy polling fallback. waitTokenId was captured
+        // up-front (before pendingConfirmation was nulled) so this branch is
+        // actually reachable for durable runs.
         if (waitTokenId) {
           await agentChatService.completeDurableConfirmation(
             jobId,
