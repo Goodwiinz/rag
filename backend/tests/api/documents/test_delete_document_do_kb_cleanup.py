@@ -176,17 +176,15 @@ def test_bulk_delete_unsyncs_each_deleted_document():
     request.document_ids = [str(doc_a.id), str(doc_b.id)]
 
     db = MagicMock()
-    # Per-doc: entity update, job update are execute() too; only the initial
-    # doc-select returns a scalar we read. Use a mapping by call to stay robust.
+    # Set-based bulk delete: one select returning all docs, then batch entity
+    # update, batch job update, one atomic quota update.
+    select_result = MagicMock()
+    select_result.scalars.return_value.all.return_value = [doc_a, doc_b]
     db.execute = AsyncMock(
         side_effect=[
-            _result(doc_a),  # select doc_a
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
-            MagicMock(),  # atomic quota update
-            _result(doc_b),  # select doc_b
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
+            select_result,  # select all docs
+            MagicMock(),  # batch entity update
+            MagicMock(),  # batch job update
             MagicMock(),  # atomic quota update
         ]
     )
