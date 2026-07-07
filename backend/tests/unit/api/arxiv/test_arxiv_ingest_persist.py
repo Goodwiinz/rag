@@ -20,6 +20,11 @@ pytestmark = pytest.mark.unit
 
 from src.api.arxiv import core
 
+# Import before any test stubs out `src.core.database` (via monkeypatch): the
+# ingest path lazily imports this module, whose top-level needs get_db_sync
+# from the real database module. Caching it here keeps the stub harmless.
+from src.services.search.fulltext_search_service import fulltext_search_service
+
 
 class _FakeDoc:
     """Mirrors SimpleDocument: attributes only, no .get()."""
@@ -39,6 +44,8 @@ def _patch_pipeline(monkeypatch, documents):
     db = MagicMock()
     db.add = MagicMock()
     db.commit = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock()  # search_vector UPDATE runs through here
 
     async def _fake_get_db_session():
         yield db
@@ -55,11 +62,14 @@ def _patch_pipeline(monkeypatch, documents):
     cm.__aexit__ = AsyncMock(return_value=False)
     monkeypatch.setattr(core, "ArXivIngestionService", MagicMock(return_value=cm))
 
-    # capture Document kwargs
+    # capture Document kwargs; give each a fake id so post-flush id access works
     captured = []
-    monkeypatch.setattr(
-        core, "Document", lambda **kw: captured.append(kw) or SimpleNamespace(**kw)
-    )
+
+    def _make_doc(**kw):
+        captured.append(kw)
+        return SimpleNamespace(id=f"doc-{len(captured)}", **kw)
+
+    monkeypatch.setattr(core, "Document", _make_doc)
     return db, captured
 
 
@@ -117,4 +127,38 @@ async def test_one_bad_paper_does_not_abort_batch(monkeypatch):
     )
     # good one still persisted + committed despite the bad one
     assert any(k["title"] == "A Paper" for k in captured)
+    db.commit.assert_awaited_once()
+
+
+async def test_builds_search_vector_before_commit(monkeypatch):
+    """Persisted arXiv docs land COMPLETED, so search_vector must be built or
+    they are permanently invisible to fulltext/RAG (NULL tsvector never
+    matches). The updater runs on the same session before commit."""
+    db, captured = _patch_pipeline(monkeypatch, [_FakeDoc(), _FakeDoc()])
+
+    called = {}
+
+    async def _fake_update(document_ids, session):
+        called["ids"] = list(document_ids)
+        called["session"] = session
+
+    from src.services.search.fulltext_search_service import fulltext_search_service
+
+    monkeypatch.setattr(
+        fulltext_search_service,
+        "async_update_document_search_vectors",
+        _fake_update,
+    )
+
+    await core._process_arxiv_ingestion(
+        paper_ids=["a", "b"],
+        user_id="u",
+        organization_id="org-A",
+        download_pdfs=False,
+        extract_content=True,
+        batch_size=2,
+    )
+
+    assert called.get("ids") == ["doc-1", "doc-2"]
+    assert called.get("session") is db
     db.commit.assert_awaited_once()
