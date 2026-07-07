@@ -293,9 +293,7 @@ class AgentChatService {
             callbacks.onError?.(
               typeof data.error === 'string'
                 ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
+                : String(data.error?.message || JSON.stringify(data.error))
             );
             break;
         }
@@ -349,7 +347,11 @@ class AgentChatService {
   }
 
   async streamConfirm(
-    request: { thread_id: string; confirmed: boolean },
+    request: {
+      thread_id: string;
+      confirmed: boolean;
+      client_message_id?: string;
+    },
     callbacks: {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
@@ -485,9 +487,7 @@ class AgentChatService {
             callbacks.onError?.(
               typeof data.error === 'string'
                 ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
+                : String(data.error?.message || JSON.stringify(data.error))
             );
             break;
         }

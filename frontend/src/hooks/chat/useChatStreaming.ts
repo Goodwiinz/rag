@@ -108,10 +108,17 @@ export interface PendingConfirmation {
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
+  /** This turn's own user client_message_id (canonical mode). Carried through
+   * the confirm request so the resumed assistant row is keyed to THIS turn,
+   * not the latest user row — which may be a concurrent turn the user sent
+   * while the confirmation was pending. */
+  clientMessageId?: string;
 }
 
 /** Map raw planner SSE steps onto the structured inline-plan shape. */
-function toTurnPlan(steps: Array<Record<string, unknown>> | undefined): PlanStep[] {
+function toTurnPlan(
+  steps: Array<Record<string, unknown>> | undefined
+): PlanStep[] {
   return (steps ?? [])
     .filter(
       (st): st is Record<string, unknown> => !!st && typeof st === 'object'
@@ -691,6 +698,9 @@ export function useChatStreaming(
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
+                // Carry this turn's own cmid so the resumed assistant row is
+                // keyed to it, not the latest user row (concurrent-send safe).
+                clientMessageId: turnClientMessageId,
               });
             },
             onDone: (payload) => {
@@ -1070,7 +1080,13 @@ export function useChatStreaming(
 
       try {
         await agentChatService.streamConfirm(
-          { thread_id: pendingConfirmation.threadId, confirmed },
+          {
+            thread_id: pendingConfirmation.threadId,
+            confirmed,
+            ...(pendingConfirmation.clientMessageId
+              ? { client_message_id: pendingConfirmation.clientMessageId }
+              : {}),
+          },
           {
             onToken: (content) => {
               confirmContent += content;
@@ -1187,7 +1203,8 @@ export function useChatStreaming(
                   };
                 }
                 confirmCommitted = true;
-                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed())
+                  setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {

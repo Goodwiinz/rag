@@ -300,6 +300,10 @@ class ConfirmationRequest(BaseModel):
 class StreamConfirmRequest(BaseModel):
     thread_id: str
     confirmed: bool
+    # The interrupted turn's own user client_message_id. Carried so the resumed
+    # assistant row is keyed to THIS turn (not the latest user row, which may be
+    # a concurrent turn the user sent while the confirmation was pending).
+    client_message_id: Optional[str] = None
 
 
 @router.post("/execute", response_model=JobStartResponse)

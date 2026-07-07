@@ -201,6 +201,25 @@ def _tool_args_preview(tool_input: Any) -> Any:
     return redact_pii(str(tool_input))[:500] if tool_input else ""
 
 
+async def _resolve_confirm_user_cmid(request_body: Any, db: Any) -> Optional[str]:
+    """User client_message_id of the turn a confirm/resume is completing.
+
+    Prefer the id the frontend carried through the confirm request — the
+    interrupted turn's OWN key. Fall back to the most recent user row only when
+    absent (legacy clients that send just {thread_id, confirmed}).
+
+    Using "latest" unconditionally is unsafe: the composer is unlocked during a
+    pending confirmation, so if the user sends a NEW turn before confirming, its
+    user row becomes the latest. The resumed assistant would then be keyed to
+    that new turn's cmid and collide with the new turn's own assistant row on
+    the partial unique index — silently dropping one answer.
+    """
+    cmid = getattr(request_body, "client_message_id", None)
+    if cmid:
+        return str(cmid)
+    return await _latest_user_client_message_id(db, request_body.thread_id)
+
+
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     """Format a single SSE event frame."""
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
@@ -963,9 +982,7 @@ async def stream_confirm_event_generator(
                 # duplicate row.
                 disconnect_cmid: Optional[str] = None
                 try:
-                    user_cmid = await _latest_user_client_message_id(
-                        db, request_body.thread_id
-                    )
+                    user_cmid = await _resolve_confirm_user_cmid(request_body, db)
                     if user_cmid is not None:
                         disconnect_cmid = str(
                             _uuid.uuid5(
@@ -1051,7 +1068,7 @@ async def stream_confirm_event_generator(
         # leaving a duplicate assistant row.
         assistant_cmid: Optional[str] = None
         try:
-            user_cmid = await _latest_user_client_message_id(db, request_body.thread_id)
+            user_cmid = await _resolve_confirm_user_cmid(request_body, db)
             if user_cmid is not None:
                 assistant_cmid = str(
                     _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
