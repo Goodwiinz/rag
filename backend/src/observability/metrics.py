@@ -243,6 +243,17 @@ def initialize_default_metrics():
                 unit="reads",
             ),
             MetricConfig(
+                name="do_kb_ingest_total",
+                description=(
+                    "DO KB document ingest/sync outcomes, labeled by `status` "
+                    "(ok, provision_failed, provision_error, skipped_no_source, "
+                    "add_data_source_failed, persist_failed, "
+                    "indexing_kick_failed). Rising non-ok statuses mean "
+                    "documents are silently not reaching the org's KB."
+                ),
+                unit="documents",
+            ),
+            MetricConfig(
                 name="rag_answer_relevancy_score",
                 description="RAG answer relevancy score",
                 unit="score",
