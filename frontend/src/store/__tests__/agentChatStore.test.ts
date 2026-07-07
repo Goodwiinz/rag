@@ -10,6 +10,7 @@ vi.mock('@/services/agentChatService', () => ({
     listThreads: vi.fn(async () => ({ threads: [] })),
     getThreadMessages: vi.fn(async () => ({ messages: [] })),
     streamMessage: vi.fn(async () => {}),
+    streamConfirm: vi.fn(async () => {}),
     startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
   },
 }));
@@ -264,6 +265,71 @@ describe('agentChatStore', () => {
       const messages = useAgentChatStore.getState().messages;
       const assistant = messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('A');
+    });
+  });
+
+  describe('confirmAction resume stream', () => {
+    // The confirm (post-HITL) stream emits the same plan / rag_context
+    // events as the main stream; the store must not drop them.
+    it('attaches plan and citations from the resumed stream to the assistant message', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onPlan?.(
+            [{ step: 1, description: 'ingest paper', tool: 'ingest_arxiv' }],
+            ''
+          );
+          callbacks.onRagContext?.([
+            {
+              document_id: 'doc-1',
+              title: 'Attention Is All You Need',
+              content: 'snippet',
+              score: 0.9,
+            },
+          ]);
+          callbacks.onToken?.('done!');
+          callbacks.onDone?.();
+        }
+      );
+
+      useAgentChatStore.setState({
+        messages: [
+          {
+            id: 'a-1',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmation: {
+          jobId: 'job-1',
+          tools: [{ name: 'ingest_arxiv', args: {} }],
+          message: 'Confirm?',
+        },
+      });
+      await useAgentChatStore.getState().confirmAction(true);
+
+      const assistant = useAgentChatStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant');
+      expect(assistant?.plan).toEqual([
+        {
+          step: 1,
+          description: 'ingest paper',
+          tool: 'ingest_arxiv',
+          args_hint: {},
+          depends_on: [],
+        },
+      ]);
+      expect(assistant?.citations).toEqual([
+        {
+          documentId: 'doc-1',
+          documentTitle: 'Attention Is All You Need',
+          snippet: 'snippet',
+          score: 0.9,
+        },
+      ]);
+      expect(assistant?.content).toBe('done!');
     });
   });
 
