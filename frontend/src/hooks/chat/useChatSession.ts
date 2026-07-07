@@ -399,6 +399,11 @@ export function useChatSession(): UseChatSessionReturn {
 
       setIsInitializing(true);
       setInitError(null);
+      // The 15s watchdog may set a provisional "taking too long" error while
+      // init is still running. If init then succeeds past that point, `finally`
+      // must clear it — otherwise a slow-but-successful load is stuck on the
+      // error screen forever. Only a genuine failure (catch below) keeps it.
+      let didFail = false;
       console.log('[Chat] Initializing from database...');
 
       // Warm-start: read IDs cached on prior visits and fire sidebar + message
@@ -551,6 +556,7 @@ export function useChatSession(): UseChatSessionReturn {
             return;
           } catch (retryError) {
             console.error('[Chat] Retry failed:', retryError);
+            didFail = true;
             setInitError(
               'Failed to create new chat session. Please refresh the page.'
             );
@@ -559,6 +565,7 @@ export function useChatSession(): UseChatSessionReturn {
           }
         }
 
+        didFail = true;
         setInitError(
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
@@ -569,6 +576,11 @@ export function useChatSession(): UseChatSessionReturn {
           settled = true;
           clearTimeout(watchdog);
           setIsInitializing(false);
+        }
+        // If init ultimately succeeded, clear any provisional error the 15s
+        // watchdog planted while the slow load was still in flight.
+        if (!didFail) {
+          setInitError(null);
         }
       }
     };
