@@ -8,6 +8,8 @@ import {
   summarizeToolArgs,
   summarizeToolResult,
 } from '@/components/chat/shared/cloudMessageView';
+import toast from 'react-hot-toast';
+
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
@@ -301,9 +303,7 @@ export function useChatStreaming(
       // metadata). Fall back to broad invalidation when no project is
       // bound (global chat has no narrower key to target).
       void queryClient.invalidateQueries({
-        queryKey: boundProjectId
-          ? ['project', boundProjectId]
-          : ['project'],
+        queryKey: boundProjectId ? ['project', boundProjectId] : ['project'],
       });
     },
     [queryClient, boundProjectId]
@@ -402,6 +402,13 @@ export function useChatStreaming(
           console.log('[Chat] Created new thread:', newThread.id);
         } catch (error) {
           console.error('[Chat] Failed to create thread:', error);
+          // Roll back the optimistic turn: the user message was appended and
+          // the composer cleared before this call. Without this the bubble
+          // ghosts (never sent, gone on reload) and the typed text is lost.
+          // Restore both and tell the user, so they can retry.
+          setMessages(messages);
+          setInput(content);
+          toast.error('Could not start the conversation. Please try again.');
           submitLockRef.current = false;
           setIsLoading(false);
           return;
@@ -1061,7 +1068,8 @@ export function useChatStreaming(
                 if (payload?.assistant_message_id) {
                   msg.id = payload.assistant_message_id;
                 }
-                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed())
+                  setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {

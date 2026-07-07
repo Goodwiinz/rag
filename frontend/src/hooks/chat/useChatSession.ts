@@ -5,6 +5,8 @@ import {
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
+import toast from 'react-hot-toast';
+
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
@@ -633,6 +635,11 @@ export function useChatSession(): UseChatSessionReturn {
       } catch (err) {
         if (!cancelled) {
           console.error('[Chat] Failed to load messages:', err);
+          // Without a signal the thread renders as the empty "start a
+          // conversation" welcome state — indistinguishable from a genuinely
+          // empty thread — so a transient 500 / expired session looks like
+          // data loss. Tell the user it failed so they can retry.
+          toast.error('Could not load this conversation. Please try again.');
         }
       } finally {
         if (!cancelled) {
