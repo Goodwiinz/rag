@@ -299,3 +299,28 @@ def test_resume_excludes_frames_at_or_below_after(monkeypatch):
     resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}?after=2")
     assert "id: 1" not in resp.text and "id: 2\n" not in resp.text
     assert "event: done" in resp.text
+
+
+def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch):
+    # LLM token text is unconstrained: a token frame whose data contains the
+    # literal string "event: done" must not terminate the replay early.
+    monkeypatch.setattr(
+        execute_mod._stream_buffer, "active_stream_id", AsyncMock(return_value="sid-1")
+    )
+    frames = [
+        BufferedFrame(
+            seq=1,
+            frame='id: 1\nevent: token\ndata: {"c": "the SSE frame is event: done"}\n\n',
+        ),
+        BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "more"}\n\n'),
+        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+    ]
+
+    async def read_after(sid, after_seq):
+        return [f for f in frames if f.seq > after_seq]
+
+    monkeypatch.setattr(execute_mod._stream_buffer, "read_after", read_after)
+    resp = _client().get(f"/api/v1/agent/stream/resume/{THREAD_ID}")
+    body = resp.text
+    assert "id: 2\n" in body  # replay continued past the decoy token frame
+    assert body.rstrip().endswith("event: done\ndata: {}")

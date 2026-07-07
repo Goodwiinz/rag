@@ -571,11 +571,21 @@ async def resume_stream(
             for buffered in frames:
                 yield buffered.frame
                 last_seq = buffered.seq
-                if (
-                    "event: done" in buffered.frame
-                    or "event: error" in buffered.frame
-                    or "event: confirmation" in buffered.frame
-                ):
+                # Anchor to the actual event line: LLM token text in the
+                # data line can contain the literal string "event: done".
+                event_line = next(
+                    (
+                        line
+                        for line in buffered.frame.split("\n")
+                        if line.startswith("event: ")
+                    ),
+                    "",
+                )
+                if event_line in {
+                    "event: done",
+                    "event: error",
+                    "event: confirmation",
+                }:
                     return
             if await request.is_disconnected():
                 return
