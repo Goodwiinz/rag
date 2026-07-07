@@ -619,6 +619,13 @@ export function useChatSession(): UseChatSessionReturn {
     // flag — that skip left local stale and is what caused the bleed; the rare
     // redundant fetch it avoided is not worth the correctness bug.
 
+    // Neither the conversation cache nor the store has this thread: clear the
+    // PREVIOUS thread's transcript NOW, before the async fetch below. Leaving
+    // it in `messages` during the fetch window rendered thread A under thread
+    // B (length-based display merge) and let a send stream A's history as B's
+    // context — the remaining I1 bleed vector.
+    setMessages([]);
+
     // Lazy-load messages for this thread using the thread detail endpoint
     let cancelled = false;
     setIsLoadingMessages(true);
