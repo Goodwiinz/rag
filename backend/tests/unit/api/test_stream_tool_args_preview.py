@@ -62,3 +62,20 @@ def test_empty_inputs():
 def test_long_string_value_capped_after_redaction():
     preview = _tool_args_preview({"q": "a" * 1000})
     assert len(preview["q"]) == 500
+
+
+def test_non_json_scalar_is_stringified_so_payload_stays_serializable():
+    # A non-JSON-safe value (datetime here) must not pass through raw — the
+    # emit-site json.dumps would otherwise raise and break the SSE stream.
+    import datetime as _dt
+    import json
+
+    from src.api.agent.streaming import _redact_tool_args
+
+    preview = _tool_args_preview({"since": _dt.datetime(2026, 1, 1)})
+    assert isinstance(preview["since"], str)
+    json.dumps(preview)  # must not raise
+
+    # Non-string scalars that ARE JSON-safe keep their type.
+    assert _redact_tool_args(5) == 5
+    assert _redact_tool_args(True) is True

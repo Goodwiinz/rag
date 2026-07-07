@@ -164,9 +164,12 @@ def _encode_tool_result(output: Any) -> str:
 def _redact_tool_args(value: Any) -> Any:
     """Recursively redact PII in a tool-args value while preserving structure.
 
-    Strings are redacted and capped; dicts/lists recurse; other scalars
-    (numbers, bools, None) carry no PII and pass through unchanged. Keeping the
-    JSON shape is what lets the frontend's args summarizer render it.
+    Strings are redacted and capped; dicts/lists recurse; JSON-safe scalars
+    (int/float/bool/None) carry no PII and pass through unchanged. Anything
+    else (datetime, Decimal, a custom object, …) is stringified and redacted —
+    ``str(tool_input)`` used to tolerate those, so a bare passthrough here would
+    make the emit-site ``json.dumps`` raise and break the SSE stream. Keeping
+    the JSON shape is what lets the frontend's args summarizer render it.
     """
     if isinstance(value, str):
         return redact_pii(value)[:500]
@@ -174,7 +177,9 @@ def _redact_tool_args(value: Any) -> Any:
         return {k: _redact_tool_args(v) for k, v in value.items()}
     if isinstance(value, list):
         return [_redact_tool_args(v) for v in value]
-    return value
+    if value is None or isinstance(value, (int, float)):  # bool is an int
+        return value
+    return redact_pii(str(value))[:500]
 
 
 def _tool_args_preview(tool_input: Any) -> Any:
