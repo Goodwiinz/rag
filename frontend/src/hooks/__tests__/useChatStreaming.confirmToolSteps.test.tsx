@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { useChatStore } from '@/store/chat-store';
+import { useAgentActivityStore } from '@/stores/agentActivityStore';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -167,7 +168,16 @@ describe('useChatStreaming HITL confirm tool steps', () => {
   it('carries pre-interrupt plan + citations into the committed confirm message', async () => {
     streamMessageMock.mockImplementation(
       (_req: unknown, cb: StreamCallbacks) => {
-        cb.onPlan([{ step: 1, description: 'Ingest the papers', tool: 'ingest_arxiv_papers' }], '');
+        cb.onPlan(
+          [
+            {
+              step: 1,
+              description: 'Ingest the papers',
+              tool: 'ingest_arxiv_papers',
+            },
+          ],
+          ''
+        );
         cb.onRagContext([{ document_id: 'doc-1', content: 'ctx' }]);
         cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
         cb.onDone({});
@@ -205,6 +215,46 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       plan: [{ description: 'Ingest the papers' }],
       citations: [expect.any(Object)],
     });
+  });
+
+  it('finishes the agent activity run after a confirmed action completes', async () => {
+    // Realistic flow: the backend emits `confirmation` then RETURNS without a
+    // `done` event, so the main stream's onDone/finishRun never fires — the run
+    // is deliberately left 'running' for the confirm path to continue.
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
+        return Promise.resolve();
+      }
+    );
+    streamConfirmMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onToken('done ingesting');
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('ingest these');
+    });
+    // Interrupt leaves the run running (the main stream never sent done).
+    expect(useAgentActivityStore.getState().runs['thread-A']?.state).toBe(
+      'running'
+    );
+
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+
+    // The confirm path must finalize it — otherwise InlineAgentSummary shows
+    // "in progress" forever after the confirmed action completes.
+    expect(useAgentActivityStore.getState().runs['thread-A']?.state).toBe(
+      'done'
+    );
   });
 
   it('re-arms pendingConfirmation on a nested interrupt instead of dropping it', async () => {
