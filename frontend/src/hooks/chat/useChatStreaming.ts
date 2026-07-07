@@ -111,7 +111,9 @@ export interface PendingConfirmation {
 }
 
 /** Map raw planner SSE steps onto the structured inline-plan shape. */
-function toTurnPlan(steps: Array<Record<string, unknown>> | undefined): PlanStep[] {
+function toTurnPlan(
+  steps: Array<Record<string, unknown>> | undefined
+): PlanStep[] {
   return (steps ?? [])
     .filter(
       (st): st is Record<string, unknown> => !!st && typeof st === 'object'
@@ -1036,6 +1038,9 @@ export function useChatStreaming(
       // Set when onDone/onError committed a bubble — the post-stream abort
       // path below must not double-commit.
       let confirmCommitted = false;
+      // Set on an error/failed exit so the finally can finalize the agent
+      // activity run with the right terminal state.
+      let confirmErrored = false;
       const confirmMessages = [...messages];
 
       const buildConfirmMessage = (
@@ -1187,7 +1192,8 @@ export function useChatStreaming(
                   };
                 }
                 confirmCommitted = true;
-                if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+                if (isConfirmDisplayed())
+                  setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {
@@ -1197,6 +1203,7 @@ export function useChatStreaming(
                 timestamp: Date.now(),
               };
               confirmCommitted = true;
+              confirmErrored = true;
               if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
             },
           },
@@ -1229,12 +1236,31 @@ export function useChatStreaming(
           content: `Confirmation failed: ${errorMessage}`,
           timestamp: Date.now(),
         };
+        confirmErrored = true;
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
       } finally {
         // A nested interrupt re-arms the banner with the new confirmation
         // (carrying the turn's accumulated provenance); otherwise clear it.
         setPendingConfirmation(nestedConfirmation);
         setIsConfirming(false);
+        // Finalize the agent-activity run started in handleSubmit — the main
+        // stream deliberately leaves it 'running' when it interrupts for
+        // confirmation, so without this the strip shows "in progress" forever
+        // after a confirmed action completes. A nested interrupt legitimately
+        // continues the run, so skip it there. Read stoppedByUserRef before the
+        // reset below.
+        if (!nestedConfirmation) {
+          useAgentActivityStore
+            .getState()
+            .finishRun(
+              pendingConfirmation.workspaceThreadId,
+              stoppedByUserRef.current
+                ? 'stopped'
+                : confirmErrored
+                  ? 'error'
+                  : 'done'
+            );
+        }
         stoppedByUserRef.current = false;
         // The confirm stream shares streamingRafRef/pendingStreamContentRef
         // with handleSubmit's onToken throttle. A token that lands just

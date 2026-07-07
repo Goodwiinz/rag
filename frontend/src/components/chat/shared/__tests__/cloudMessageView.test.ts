@@ -248,22 +248,26 @@ describe('cloudMessageView', () => {
       },
     ];
 
-    const result = syncConversationMessagesWithStore(conversations, 'thread-1', [
-      {
-        id: 'm-1',
-        role: 'user',
-        content: 'persisted user',
-        created_at: '2026-03-09T12:00:00Z',
-        citations: [],
-      } as any,
-      {
-        id: 'm-2',
-        role: 'assistant',
-        content: 'persisted assistant',
-        created_at: '2026-03-09T12:00:01Z',
-        citations: [],
-      } as any,
-    ]);
+    const result = syncConversationMessagesWithStore(
+      conversations,
+      'thread-1',
+      [
+        {
+          id: 'm-1',
+          role: 'user',
+          content: 'persisted user',
+          created_at: '2026-03-09T12:00:00Z',
+          citations: [],
+        } as any,
+        {
+          id: 'm-2',
+          role: 'assistant',
+          content: 'persisted assistant',
+          created_at: '2026-03-09T12:00:01Z',
+          citations: [],
+        } as any,
+      ]
+    );
 
     expect(result[0].messages.map((message) => message.content)).toEqual([
       'persisted user',
@@ -482,10 +486,42 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     });
 
     expect(result[0].plan).toEqual(plan);
-    expect(result[0].metadata?.tokenUsage).toEqual({ input: 1200, output: 300 });
+    expect(result[0].metadata?.tokenUsage).toEqual({
+      input: 1200,
+      output: 300,
+    });
     expect(result[0].metadata?.toolsUsed).toEqual(['Searching arXiv']);
     // Server latency stays canonical over the local estimate.
     expect(result[0].metadata?.responseTimeMs).toBe(2000);
+  });
+
+  it('keeps the tool-activity strip when the store copy has no tool_executions (legacy)', () => {
+    // Legacy mode: workspaceService.createMessage persists no tool_executions,
+    // so the store copy lacks them — without carry-over the just-finished
+    // turn's activity strip vanishes ~1s after the local→store flip.
+    const toolExecutions = [
+      {
+        tool: 'search_arxiv',
+        label: 'Searching arXiv',
+        status: 'done' as const,
+        durationMs: 900,
+        argsSummary: 'query: transformers',
+      },
+    ];
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          id: 'm-1',
+          role: 'assistant',
+          content: 'Answer',
+          timestamp: 1,
+          toolExecutions,
+        },
+      ],
+      storeMessages: [storeMsg('m-1', 'Answer')], // no tool_executions
+    });
+
+    expect(result[0].toolExecutions).toEqual(toolExecutions);
   });
 
   it('falls back to role+content matching for optimistic messages without ids', () => {

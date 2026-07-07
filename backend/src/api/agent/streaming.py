@@ -161,15 +161,31 @@ def _encode_tool_result(output: Any) -> str:
     return str(output)[:500]
 
 
-def _tool_args_preview(tool_input: Any) -> str:
+def _tool_args_preview(tool_input: Any) -> Any:
     """Render a tool's input args for the SSE ``tool_start.args`` field.
 
-    Redact PII before the preview leaves the server (browser-visible SSE
-    payload). Redact first, then cap — so a token straddling the cut still
-    matches. Shared by the main and confirm/resume streams so they can never
-    drift (the confirm path previously skipped redaction).
+    Emit a JSON **object** (not a Python-repr string) so the frontend activity
+    strip can render a live "key: value" preview — ``summarizeToolArgs`` rejects
+    non-objects, so the old repr-string showed no preview until the thread was
+    reloaded (where persisted args round-trip as objects). Redact PII from each
+    string value before it leaves the server and cap each value's length.
+    Shared by the main and confirm/resume streams so they can't drift.
     """
-    return redact_pii(str(tool_input))[:500] if tool_input else ""
+    if not tool_input:
+        return {}
+    if not isinstance(tool_input, dict):
+        # Rare non-dict tool input: fall back to a redacted, capped string.
+        return redact_pii(str(tool_input))[:500]
+    preview: Dict[str, Any] = {}
+    for key, value in tool_input.items():
+        if isinstance(value, str):
+            preview[str(key)] = redact_pii(value)[:500]
+        elif isinstance(value, (int, float, bool)) or value is None:
+            preview[str(key)] = value
+        else:
+            # Nested/complex value (list/dict/object): redact its repr, capped.
+            preview[str(key)] = redact_pii(str(value))[:500]
+    return preview
 
 
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
@@ -1022,14 +1038,10 @@ async def stream_confirm_event_generator(
         # leaving a duplicate assistant row.
         assistant_cmid: Optional[str] = None
         try:
-            user_cmid = await _latest_user_client_message_id(
-                db, request_body.thread_id
-            )
+            user_cmid = await _latest_user_client_message_id(db, request_body.thread_id)
             if user_cmid is not None:
                 assistant_cmid = str(
-                    _uuid.uuid5(
-                        _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                    )
+                    _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
                 )
         except Exception:
             logger.warning(
@@ -1067,9 +1079,7 @@ async def stream_confirm_event_generator(
             # background task to release the SSE without waiting on the write.
             if _canonical_persistence_enabled():
                 persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs
-                    )
+                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
                 )
             elif background_tasks is not None:
                 background_tasks.add_task(
@@ -1077,9 +1087,7 @@ async def stream_confirm_event_generator(
                     **persist_kwargs,
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(
-                    **persist_kwargs
-                )
+                await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",

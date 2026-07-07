@@ -128,7 +128,9 @@ export function mapDbMessageToChatPageMessage(
   return {
     id: dbMsg.id,
     role:
-      dbMsg.role === MessageRole.USER ? ('user' as const) : ('assistant' as const),
+      dbMsg.role === MessageRole.USER
+        ? ('user' as const)
+        : ('assistant' as const),
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),
@@ -209,6 +211,14 @@ function mergeLocalProvenance(
       ...message,
       ...((message.plan ?? local.plan)
         ? { plan: message.plan ?? local.plan }
+        : {}),
+      // In legacy mode the store copy (workspaceService.createMessage) carries
+      // no tool_executions, so when the displayed list flips from the local to
+      // the store message the just-finished turn's activity strip would vanish.
+      // Carry the local executions over; the server value stays canonical where
+      // it exists (server-canonical mode persists them).
+      ...((message.toolExecutions ?? local.toolExecutions)
+        ? { toolExecutions: message.toolExecutions ?? local.toolExecutions }
         : {}),
       ...(mergedMetadata ? { metadata: mergedMetadata } : {}),
     };
