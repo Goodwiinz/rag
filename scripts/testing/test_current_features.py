@@ -148,7 +148,6 @@ class CurrentFeaturesTester:
         services = {
             "PostgreSQL": self.base_url,
             "Redis": self.base_url,
-            "Qdrant": self.base_url,
             "Neo4j": self.base_url
         }
 

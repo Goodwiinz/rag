@@ -23,7 +23,6 @@ This guide provides a complete database schema design for production monitoring 
 ### Multi-Database Architecture
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   PostgreSQL    │    │     Neo4j       │    │     Qdrant      │
 │   (Primary DB)  │    │  (Knowledge     │    │  (Vector Store) │
 │                 │    │   Graph)        │    │                 │
 │ • User Data     │    │ • Entities      │    │ • Embeddings    │

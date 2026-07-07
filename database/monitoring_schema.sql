@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS database_performance_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Database identification
-    database_type VARCHAR(50) NOT NULL, -- 'postgresql', 'neo4j', 'qdrant', 'redis'
+    database_type VARCHAR(50) NOT NULL, -- 'postgresql', 'neo4j', 'redis'
     database_instance VARCHAR(255) NOT NULL,
     organization_id UUID REFERENCES organizations(id),
 

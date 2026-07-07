@@ -65,11 +65,6 @@ scrape_configs:
     static_configs:
       - targets: ['neo4j-exporter:2004']
 
-  # Qdrant Vector Database Metrics
-  - job_name: 'qdrant-exporter'
-    static_configs:
-      - targets: ['qdrant:6333']
-    metrics_path: '/metrics'
 
   # Redis Metrics
   - job_name: 'redis-exporter'

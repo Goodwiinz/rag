@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        database: [neo4j, qdrant, redis, elasticsearch]
+        database: [neo4j, redis, elasticsearch]
 
     steps:
     - name: Checkout code
@@ -86,16 +86,6 @@ jobs:
         aws s3 cp ./backups/neo4j-backup-$(date +%Y%m%d-%H%M%S).tar.gz s3://${{ env.BACKUP_BUCKET }}/neo4j/neo4j-backup-$(date +%Y%m%d-%H%M%S).tar.gz
         aws s3 cp ./backups/neo4j-backup-$(date +%Y%m%d-%H%M%S).tar.gz s3://${{ env.DR_BUCKET }}/neo4j/neo4j-backup-$(date +%Y%m%d-%H%M%S).tar.gz
 
-    - name: Backup Qdrant
-      if: matrix.database == 'qdrant'
-      run: |
-        kubectl exec -it deployment/qdrant -n rag-system -- /bin/bash -c "
-          qdrant backup /backups
-          tar -czf /backups/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz -C /backups .
-        "
-        kubectl cp rag-system/qdrant:/backups/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz ./backups/
-        aws s3 cp ./backups/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz s3://${{ env.BACKUP_BUCKET }}/qdrant/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz
-        aws s3 cp ./backups/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz s3://${{ env.DR_BUCKET }}/qdrant/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz
 
     - name: Backup Redis
       if: matrix.database == 'redis'
@@ -347,7 +337,6 @@ jobs:
         # This is a simulation of the restore process
         echo "Testing database restoration..."
         echo "Would restore from: s3://${{ env.BACKUP_BUCKET }}/neo4j/neo4j-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
-        echo "Would restore from: s3://${{ env.BACKUP_BUCKET }}/qdrant/qdrant-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
         echo "Would restore from: s3://${{ env.BACKUP_BUCKET }}/redis/redis-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
         echo "Would restore from: s3://${{ env.BACKUP_BUCKET }}/elasticsearch/elasticsearch-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
 
@@ -395,7 +384,6 @@ jobs:
         echo "Simulating backup restore to test environment..."
         # Download backups
         aws s3 cp s3://${{ env.BACKUP_BUCKET }}/neo4j/ ./test-backups/neo4j/ --recursive
-        aws s3 cp s3://${{ env.BACKUP_BUCKET }}/qdrant/ ./test-backups/qdrant/ --recursive
         aws s3 cp s3://${{ env.BACKUP_BUCKET }}/redis/ ./test-backups/redis/ --recursive
         aws s3 cp s3://${{ env.BACKUP_BUCKET }}/elasticsearch/ ./test-backups/elasticsearch/ --recursive
         aws s3 cp s3://${{ env.BACKUP_BUCKET }}/configurations/ ./test-backups/configurations/ --recursive
@@ -461,7 +449,7 @@ jobs:
           "backup_type": "${{ github.event.inputs.backup_type || 'full' }}",
           "backup_region": "${{ github.event.inputs.backup_region || 'us-west-2' }}",
           "retention_days": "${{ github.event.inputs.retention_days || '30' }}",
-          "databases_backed_up": ["neo4j", "qdrant", "redis", "elasticsearch"],
+          "databases_backed_up": ["neo4j", "redis", "elasticsearch"],
           "configurations_backed_up": ["kubernetes", "helm", "terraform"],
           "applications_backed_up": ["rag-backend", "rag-ui", "rag-api-server", "rag-ingestion-service"],
           "backup_size": "$(du -sh ./backups/ | cut -f1)",

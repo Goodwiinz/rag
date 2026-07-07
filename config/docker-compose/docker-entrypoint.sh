@@ -44,59 +44,6 @@ print('Database tables created successfully')
     fi
 }
 
-# Function to initialize Qdrant collections
-init_qdrant_collections() {
-    echo "Initializing Qdrant collections..."
-    python -c "
-import asyncio
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, CreateCollection
-import os
-
-async def init_collections():
-    try:
-        client = QdrantClient(url=os.getenv('QDRANT_URL', 'http://qdrant:6333'))
-
-        # Create documents collection
-        try:
-            client.create_collection(
-                collection_name='documents',
-                vectors_config=VectorParams(
-                    size=768,
-                    distance=Distance.COSINE
-                )
-            )
-            print('Created documents collection')
-        except Exception as e:
-            if 'already exists' in str(e):
-                print('Documents collection already exists')
-            else:
-                raise e
-
-        # Create entities collection
-        try:
-            client.create_collection(
-                collection_name='entities',
-                vectors_config=VectorParams(
-                    size=768,
-                    distance=Distance.COSINE
-                )
-            )
-            print('Created entities collection')
-        except Exception as e:
-            if 'already exists' in str(e):
-                print('Entities collection already exists')
-            else:
-                raise e
-
-        print('Qdrant collections initialized successfully')
-    except Exception as e:
-        print(f'Error initializing Qdrant collections: {e}')
-
-asyncio.run(init_collections())
-"
-}
-
 # Function to initialize Neo4j constraints
 init_neo4j_constraints() {
     echo "Initializing Neo4j constraints..."
@@ -171,8 +118,6 @@ case ${SERVICE_NAME:-unknown} in
         wait_for_service postgres 5432 PostgreSQL
         wait_for_service redis 6379 Redis
         wait_for_service neo4j 7687 Neo4j
-        wait_for_service qdrant 6333 Qdrant
-        init_qdrant_collections
         init_neo4j_constraints
         ;;
     "knowledge-graph-service")
@@ -191,8 +136,6 @@ case ${SERVICE_NAME:-unknown} in
         wait_for_service postgres 5432 PostgreSQL
         wait_for_service redis 6379 Redis
         wait_for_service neo4j 7687 Neo4j
-        wait_for_service qdrant 6333 Qdrant
-        init_qdrant_collections
         init_neo4j_constraints
         ;;
     "analytics-service")
