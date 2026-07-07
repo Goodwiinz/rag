@@ -9,11 +9,60 @@ import pytest
 from src.services.agent import stream_buffer
 
 
+class _FakePipeline:
+    """WATCH/MULTI stub: snapshots watched keys, raises WatchError on drift."""
+
+    def __init__(self, redis):
+        self.redis = redis
+        self.watched: dict = {}
+        self.queued_deletes: list = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def watch(self, key):
+        self.watched[key] = self.redis.store.get(key)
+
+    async def get(self, key):
+        return self.redis.store.get(key)
+
+    def multi(self):
+        if self.redis.on_multi is not None:
+            self.redis.on_multi()
+
+    def delete(self, key):
+        self.queued_deletes.append(key)
+
+    async def execute(self):
+        from redis.exceptions import WatchError
+
+        for key, snapshot in self.watched.items():
+            if self.redis.store.get(key) != snapshot:
+                raise WatchError("watched key changed")
+        for key in self.queued_deletes:
+            self.redis.store.pop(key, None)
+
+    async def reset(self):
+        self.watched.clear()
+        self.queued_deletes.clear()
+
+
 class _FakeRedis:
     """Minimal async Redis stub: strings + lists, TTL ignored."""
 
     def __init__(self):
         self.store: dict = {}
+        self.on_multi = None  # test hook: interleave a write mid-transaction
+
+    def pipeline(self, transaction=True):
+        return _FakePipeline(self)
+
+    async def ltrim(self, key, start, stop):
+        if key in self.store:
+            self.store[key] = self.store[key][start:]
 
     async def set(self, key, value, ex=None):
         self.store[key] = value
@@ -75,6 +124,36 @@ async def test_finish_stream_with_stale_sid_keeps_newer_pointer(fake_redis):
 
     await stream_buffer.finish_stream("thread-1", old_sid)
     assert await stream_buffer.active_stream_id("thread-1") == new_sid
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_finish_stream_race_mid_transaction_keeps_new_pointer(fake_redis):
+    """A start_stream landing between WATCH/GET and EXEC must survive."""
+    sid = await stream_buffer.start_stream("thread-1")
+    key = "agent:stream:active:thread-1"
+
+    def interleave():
+        fake_redis.store[key] = "newer-sid"  # concurrent start_stream
+
+    fake_redis.on_multi = interleave
+    await stream_buffer.finish_stream("thread-1", sid)
+    assert fake_redis.store[key] == "newer-sid"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_append_caps_buffer_at_5000(fake_redis):
+    sid = await stream_buffer.start_stream("thread-1")
+    key = f"agent:stream:{sid}"
+    fake_redis.store[key] = [
+        json.dumps({"seq": i, "frame": "x"}) for i in range(5000)
+    ]
+    await stream_buffer.append(sid, 5000, "last")
+    frames = await stream_buffer.read_after(sid, -1)
+    assert len(frames) == 5000
+    assert frames[0].seq == 1  # oldest frame dropped
+    assert frames[-1].frame == "last"
 
 
 @pytest.mark.unit

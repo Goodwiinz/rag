@@ -49,6 +49,9 @@ async def append(stream_id: str, seq: int, frame: str) -> None:
         return
     key = _buffer_key(stream_id)
     await redis.rpush(key, json.dumps({"seq": seq, "frame": frame}))
+    # ponytail: cap at 5000 frames; resume past that loses oldest frames —
+    # bump or index by seq if real turns exceed it.
+    await redis.ltrim(key, -5000, -1)
     await redis.expire(key, _TTL_SECONDS)
 
 
@@ -71,9 +74,29 @@ async def active_stream_id(thread_id: str) -> str | None:
 
 
 async def finish_stream(thread_id: str, stream_id: str) -> None:
-    """Clear the active pointer only if it still belongs to this run."""
+    """Clear the active pointer only if it still belongs to this run.
+
+    WATCH/MULTI optimistic transaction (same pattern as
+    job_store.compare_and_set_status) so a start_stream landing between the
+    GET and the DELETE can't have its new pointer clobbered. Single attempt,
+    no retry: losing the race means a newer run owns the pointer — give up.
+    """
     redis = await get_redis()
     if redis is None:
         return
-    if await redis.get(_active_key(thread_id)) == stream_id:
-        await redis.delete(_active_key(thread_id))
+    from redis.exceptions import WatchError
+
+    key = _active_key(thread_id)
+    async with redis.pipeline(transaction=True) as pipe:
+        try:
+            await pipe.watch(key)
+            current = await pipe.get(key)  # immediate mode after WATCH
+            if current != stream_id:
+                await pipe.reset()
+                return
+            pipe.multi()
+            pipe.delete(key)
+            await pipe.execute()  # raises WatchError if key changed
+        except WatchError:
+            # A newer run re-set the pointer mid-transaction; it owns it.
+            await pipe.reset()
