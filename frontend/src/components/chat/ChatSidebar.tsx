@@ -202,7 +202,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             exitSelectMode();
             onNew();
           }}
-          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-erebus) dark:bg-(--nous-umber) dark:border dark:border-(--nous-shade) text-white shadow-xs hover:shadow-md transition-shadow"
+          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-sol) text-(--nous-erebus) shadow-xs hover:shadow-md hover:brightness-105 transition-all"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           <Plus className="w-[13px] h-[13px]" />
@@ -213,7 +213,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             New chat
           </span>
           <kbd
-            className="ml-auto px-[5px] py-px rounded-[3px] bg-white/12 text-white/70 text-[9px] font-semibold"
+            className="ml-auto px-[5px] py-px rounded-[3px] bg-(--nous-erebus)/10 text-(--nous-erebus)/70 text-[9px] font-semibold"
             style={{ fontFamily: 'var(--nous-font-mono)' }}
           >
             ⌘N
@@ -258,7 +258,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             className={cn(
               'inline-flex items-center px-[9px] py-[3px] rounded-full border text-[10px] whitespace-nowrap transition-all',
               activeFilter === f.key
-                ? 'bg-(--nous-erebus) dark:bg-(--nous-helios) text-white dark:text-(--nous-nyx) border-(--nous-erebus) dark:border-(--nous-helios)'
+                ? 'bg-(--nous-sol) text-(--nous-erebus) border-(--nous-sol) dark:bg-(--nous-helios) dark:text-(--nous-nyx) dark:border-(--nous-helios)'
                 : 'bg-transparent border-(--nous-border-1) dark:border-(--nous-shade) text-(--nous-fg-2) hover:border-(--nous-sol) hover:text-(--nous-sol-safe)'
             )}
             style={{ fontFamily: 'var(--nous-font-ui)' }}

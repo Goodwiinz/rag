@@ -654,24 +654,26 @@ export function ChatInput({
                       ? `Message is over the ${maxChars}-character limit`
                       : 'Send (Enter)'
                   }
-                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                   style={{
                     padding: '8px 16px',
                     fontSize: '12px',
                     letterSpacing: '0.01em',
-                    background: 'var(--nous-erebus)',
-                    color: 'white',
-                    boxShadow: '0 1px 2px rgba(var(--nous-erebus-rgb), 0.1)',
+                    background: 'var(--nous-sol)',
+                    color: 'var(--nous-erebus)',
+                    boxShadow: '0 1px 2px rgba(var(--nous-sol-rgb), 0.2)',
                   }}
                   onMouseEnter={(e) => {
                     if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.background = 'var(--nous-helios)';
                       e.currentTarget.style.boxShadow =
-                        '0 4px 12px rgba(var(--nous-erebus-rgb), 0.12)';
+                        '0 4px 12px rgba(var(--nous-sol-rgb), 0.3)';
                     }
                   }}
                   onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--nous-sol)';
                     e.currentTarget.style.boxShadow =
-                      '0 1px 2px rgba(var(--nous-erebus-rgb), 0.1)';
+                      '0 1px 2px rgba(var(--nous-sol-rgb), 0.2)';
                   }}
                 >
                   Send
