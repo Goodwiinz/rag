@@ -136,7 +136,7 @@ def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
         return GraphRelationshipType.RELATED_TO
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="process_document_ingestion")
 def process_document_ingestion(self, job_id: str):
     """Process complete document ingestion pipeline"""
     db = SessionLocal()
@@ -364,7 +364,7 @@ def process_document_ingestion(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="extract_text_content")
 def extract_text_content(self, job_id: str):
     """Extract text content from document"""
     db = SessionLocal()
@@ -423,7 +423,7 @@ def extract_text_content(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="extract_entities")
 def extract_entities(self, job_id: str):
     """Extract entities from document text"""
     db = SessionLocal()
@@ -520,7 +520,7 @@ def extract_entities(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="generate_embeddings")
 def generate_embeddings(self, job_id: str):
     """Generate embeddings for document"""
     db = SessionLocal()
@@ -582,7 +582,7 @@ def generate_embeddings(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="index_in_graph")
 def index_in_graph(self, job_id: str):
     """Index document and entities in knowledge graph"""
     db = SessionLocal()
