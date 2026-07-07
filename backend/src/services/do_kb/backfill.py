@@ -38,6 +38,10 @@ class BackfillReport:
     # means data sources were uploaded but the docs are NOT queryable yet —
     # the old code always reported success even when the kick 400'd.
     indexing_started: bool = False
+    # True when THIS run actually reached the start_indexing kick (regardless
+    # of outcome). False on the already-complete short-circuit and on dry-run,
+    # so callers (the CLI warning) don't false-alarm on idempotent re-runs.
+    indexing_attempted: bool = False
 
 
 @dataclass(frozen=True)
@@ -257,7 +261,9 @@ async def backfill_org(
     # A dry-run never kicks indexing; treat it as "not started" (there's nothing
     # to index). Only flip to True when the kick actually returns without raising.
     indexing_started = False
+    indexing_attempted = False
     if not dry_run and org.do_kb_uuid:
+        indexing_attempted = True
         try:
             await api.start_indexing(kb_uuid=org.do_kb_uuid)
             indexing_started = True
@@ -288,6 +294,7 @@ async def backfill_org(
         last_document_id=cursor,
         finished=True,
         indexing_started=indexing_started,
+        indexing_attempted=indexing_attempted,
     )
 
 
