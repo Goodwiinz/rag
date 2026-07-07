@@ -81,6 +81,38 @@ async def _cleanup_do_kb_data_source(db: AsyncSession, document: Document) -> No
         )
 
 
+async def _cleanup_do_kb_data_sources_background(document_ids: List[str]) -> None:
+    """Bulk-delete DO KB cleanup, run as a FastAPI background task.
+
+    Runs after the response, so it must NOT touch the request's session (closed
+    by then, and AsyncSession is not concurrency-safe anyway) — it opens its
+    own ``AsyncSessionLocal`` per doc, same pattern as
+    ``_persist_assistant_message_safe`` in agent/jobs.py. Sequential is fine
+    here: nobody is waiting. Failure-isolated per doc: swallow + log so one
+    bad doc (or a DO outage) never crashes the worker or skips the rest.
+
+    Note: a crash between the delete commit and this task leaves a soft-deleted
+    doc with a stale do_kb_data_source_uuid — known sub-threshold drift window,
+    tracked separately (do not fix here).
+    """
+    from src.core.database import AsyncSessionLocal
+    from src.services.do_kb import unsync_document_from_kb
+
+    for document_id in document_ids:
+        try:
+            async with AsyncSessionLocal() as db:
+                document = await db.get(Document, document_id)
+                if document is None or not document.do_kb_data_source_uuid:
+                    continue
+                await unsync_document_from_kb(db, document)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "do_kb bulk-delete background cleanup failed",
+                extra={"document_id": str(document_id)},
+                exc_info=True,
+            )
+
+
 # Request/Response Models
 class DocumentResponse(BaseModel):
     id: str
@@ -1108,9 +1140,16 @@ async def bulk_delete_documents(
             detail=f"Failed to commit bulk delete: {str(e)}",
         )
 
-    # Remove DO KB data sources for the deleted docs (best-effort, per doc).
-    for document in deleted_docs:
-        await _cleanup_do_kb_data_source(db, document)
+    # Defer DO KB cleanup off the request path: up to 100 docs × one DO HTTP
+    # call each (with retries/backoff) could block this response for minutes
+    # when DO KB is degraded. Not asyncio.gather here — the request's single
+    # AsyncSession is not concurrency-safe (and unsync commits on it). The
+    # background task opens its own session; sequential there is fine.
+    kb_cleanup_ids = [str(d.id) for d in deleted_docs if d.do_kb_data_source_uuid]
+    if kb_cleanup_ids:
+        background_tasks.add_task(
+            _cleanup_do_kb_data_sources_background, kb_cleanup_ids
+        )
 
     return BulkDocumentResponse(
         successful=successful,

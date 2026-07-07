@@ -53,7 +53,11 @@ def _print_report(report: BackfillReport) -> None:
         f"last_doc={report.last_document_id} finished={report.finished} "
         f"indexing_started={report.indexing_started}"
     )
-    if report.completed > 0 and not report.indexing_started:
+    # Warn only when THIS run attempted the indexing kick and it failed —
+    # `completed > 0` alone false-alarmed on idempotent re-runs of an
+    # already-finished org (early return reports cumulative completed with
+    # indexing_started=False even though the original kick succeeded).
+    if report.indexing_attempted and not report.indexing_started:
         print(
             f"  WARNING: uploaded {report.completed} data sources but "
             "indexing_started=False — docs are NOT queryable yet. "

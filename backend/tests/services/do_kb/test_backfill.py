@@ -158,6 +158,8 @@ async def test_backfill_dry_run_skips_external_calls(stub_settings, monkeypatch)
     ensure.assert_not_called()
     api.start_indexing.assert_not_called()
     assert session._progress.status == "dry_run_done"
+    # Dry-run never attempts the kick → CLI warning must not fire.
+    assert report.indexing_attempted is False
 
 
 @pytest.mark.unit
@@ -186,6 +188,10 @@ async def test_backfill_short_circuits_when_already_complete(
     assert report.finished is True
     sync.assert_not_called()
     api.start_indexing.assert_not_called()
+    # Idempotent re-run: no kick attempted this run, so the CLI must NOT emit
+    # the "not queryable" warning despite completed>0 + indexing_started=False.
+    assert report.indexing_attempted is False
+    assert report.indexing_started is False
 
 
 @pytest.mark.unit
@@ -274,6 +280,8 @@ async def test_backfill_reports_indexing_not_started_when_kick_fails(
     assert report.completed == 2
     assert report.failed == 0
     assert report.indexing_started is False
+    # The kick was attempted and failed — this IS the case the CLI warns on.
+    assert report.indexing_attempted is True
     # Resumability preserved: status is still 'completed', not a failure state.
     assert session._progress.status == "completed"
 
