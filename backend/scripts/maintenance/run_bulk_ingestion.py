@@ -26,7 +26,7 @@ logger = logging.getLogger("bulk_ingestion")
 
 
 async def run_full_ingestion():
-    from src.services.kaggle_bulk_ingestion import KaggleBulkIngestionService
+    from src.services.ingestion.kaggle_bulk_ingestion import KaggleBulkIngestionService
 
     logger.info("=" * 60)
     logger.info("STARTING FULL 500K PAPER INGESTION")
