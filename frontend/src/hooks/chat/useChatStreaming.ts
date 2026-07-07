@@ -1094,7 +1094,9 @@ export function useChatStreaming(
         }
       },
     });
-  }, [activeConversationId, isLoading, messages, runStreamTurn]);
+    // storeIsStreaming is a dep so a thread with a stale run gets re-checked
+    // once another thread's live stream ends (the guard above reads fresh).
+  }, [activeConversationId, isLoading, messages, runStreamTurn, storeIsStreaming]);
 
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
