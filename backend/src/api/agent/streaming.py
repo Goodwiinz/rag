@@ -161,6 +161,17 @@ def _encode_tool_result(output: Any) -> str:
     return str(output)[:500]
 
 
+def _tool_args_preview(tool_input: Any) -> str:
+    """Render a tool's input args for the SSE ``tool_start.args`` field.
+
+    Redact PII before the preview leaves the server (browser-visible SSE
+    payload). Redact first, then cap — so a token straddling the cut still
+    matches. Shared by the main and confirm/resume streams so they can never
+    drift (the confirm path previously skipped redaction).
+    """
+    return redact_pii(str(tool_input))[:500] if tool_input else ""
+
+
 def _format_sse_event(event_type: str, data: Dict[str, Any]) -> str:
     """Format a single SSE event frame."""
     return f"event: {event_type}\ndata: {_json.dumps(data)}\n\n"
@@ -439,12 +450,7 @@ async def stream_event_generator(
 
                         elif kind == "on_tool_start":
                             tool_input = event.get("data", {}).get("input", {})
-                            # Redact PII before the args preview leaves the
-                            # server (browser-visible SSE payload). Redact first,
-                            # then cap — so a token straddling the cut still matches.
-                            args_preview = (
-                                redact_pii(str(tool_input))[:500] if tool_input else ""
-                            )
+                            args_preview = _tool_args_preview(tool_input)
                             yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                         elif kind == "on_tool_end":
@@ -875,7 +881,7 @@ async def stream_confirm_event_generator(
 
                 elif kind == "on_tool_start":
                     tool_input = event.get("data", {}).get("input", {})
-                    args_preview = str(tool_input)[:500] if tool_input else ""
+                    args_preview = _tool_args_preview(tool_input)
                     yield f"event: tool_start\ndata: {_json.dumps({'tool': name, 'args': args_preview})}\n\n"
 
                 elif kind == "on_tool_end":

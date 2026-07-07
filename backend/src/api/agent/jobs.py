@@ -537,6 +537,14 @@ async def _resolve_thread(
             .options(selectinload(Thread.source_project))
             .where(Thread.id == UUID(request.thread_id))
             .where(Workspace.owner_id == current_user.id)
+            # Never resolve a soft-deleted thread (or one under a soft-deleted
+            # conversation/workspace): a stale tab / SSE retry would otherwise
+            # persist a new turn into a deleted thread. On the create-if-missing
+            # path a miss falls through to a fresh thread; on confirm/resume
+            # (create_if_missing=False) it returns (None, "") — never recreated.
+            .where(Thread.is_deleted == False)  # noqa: E712
+            .where(Conversation.is_deleted == False)  # noqa: E712
+            .where(Workspace.is_deleted == False)  # noqa: E712
         )
         result = await db.execute(stmt)
         thread = result.scalar_one_or_none()
