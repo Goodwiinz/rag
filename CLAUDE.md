@@ -106,7 +106,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 | Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                                                                                                           |
 | Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)                                                                                               |
 
-> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
+> **Qdrant:** removed. Retrieval migrated Qdrant → DO KB; the app sets no `QDRANT_URL` and never queries Qdrant. The `knowledge-graph-analytics` chart never actually had a Qdrant subchart or pod template — only dead `qdrant.*` values, a never-called `qdrantUrl` helper, and networkpolicy residue, all dropped in #1043. Legacy non-ArgoCD charts/manifests (`deployment/helm/rag-system`, `infrastructure/kubernetes/manifests/databases.yaml`, monitoring/terraform/backup/CI/docker-compose) still carry Qdrant refs; not deployed, cleanup pending.
 
 ## Branch Strategy
 
