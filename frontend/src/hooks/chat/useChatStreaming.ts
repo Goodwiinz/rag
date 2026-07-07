@@ -1231,6 +1231,18 @@ export function useChatStreaming(
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
       } finally {
+        // Close out the agent activity rail — the interrupt left the run
+        // "running" and neither onDone (confirm path) nor handleStop
+        // (activeRunThreadRef is null here) ever finished it (round-3 M1).
+        // A nested interrupt keeps the run open: the turn isn't over.
+        if (!nestedConfirmation && pendingConfirmation.workspaceThreadId) {
+          useAgentActivityStore
+            .getState()
+            .finishRun(
+              pendingConfirmation.workspaceThreadId,
+              stoppedByUserRef.current ? 'stopped' : 'done'
+            );
+        }
         // A nested interrupt re-arms the banner with the new confirmation
         // (carrying the turn's accumulated provenance); otherwise clear it.
         setPendingConfirmation(nestedConfirmation);

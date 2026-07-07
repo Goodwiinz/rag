@@ -833,6 +833,49 @@ async def stream_confirm_event_generator(
             current_snapshot.values.get("page_context", {})
         )
 
+        # Resume idempotency key anchored to the interrupt CHECKPOINT — not
+        # the thread's latest user client_message_id. A user can send a new
+        # turn in the same thread while the resume streams; the latest-cmid
+        # derivation then re-pointed the key at the NEW turn and the dedup
+        # index silently dropped that turn's real answer (round-3 M6).
+        # Concurrent double-confirms read the same pre-resume snapshot →
+        # same key → still dedupe.
+        try:
+            resume_ckpt_id = (current_snapshot.config or {})["configurable"][
+                "checkpoint_id"
+            ]
+        except Exception:
+            resume_ckpt_id = None
+
+        async def _resume_assistant_cmid() -> Optional[str]:
+            if resume_ckpt_id:
+                return str(
+                    _uuid.uuid5(
+                        _uuid.NAMESPACE_URL,
+                        f"nous-assistant-resume:{request_body.thread_id}:{resume_ckpt_id}",
+                    )
+                )
+            # Fallback (checkpoint id missing): the original latest-user-cmid
+            # derivation — imperfect but better than a non-idempotent row.
+            try:
+                user_cmid = await _latest_user_client_message_id(
+                    db, request_body.thread_id
+                )
+                if user_cmid is not None:
+                    return str(
+                        _uuid.uuid5(
+                            _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
+                        )
+                    )
+            except Exception:
+                logger.warning(
+                    "Failed to derive assistant client_message_id for resumed "
+                    "thread %s; assistant row will not be idempotent",
+                    request_body.thread_id,
+                    exc_info=True,
+                )
+            return None
+
         config = {
             "recursion_limit": RECURSION_LIMIT,
             "configurable": {
@@ -956,30 +999,11 @@ async def stream_confirm_event_generator(
             )
             partial = "".join(streamed_parts)
             if partial:
-                # Derive the assistant-side idempotency key the same way the
-                # normal post-loop path does — from the original user turn's
-                # client_message_id — so a retried/duplicated confirm dedupes on
-                # the assistant partial unique index instead of leaving a
-                # duplicate row.
-                disconnect_cmid: Optional[str] = None
-                try:
-                    user_cmid = await _latest_user_client_message_id(
-                        db, request_body.thread_id
-                    )
-                    if user_cmid is not None:
-                        disconnect_cmid = str(
-                            _uuid.uuid5(
-                                _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                            )
-                        )
-                except Exception:
-                    logger.warning(
-                        "Failed to derive assistant client_message_id for "
-                        "disconnected resume of thread %s; assistant row will "
-                        "not be idempotent",
-                        request_body.thread_id,
-                        exc_info=True,
-                    )
+                # Checkpoint-anchored idempotency key (see
+                # _resume_assistant_cmid) so a retried/duplicated confirm
+                # dedupes on the assistant partial unique index instead of
+                # leaving a duplicate row.
+                disconnect_cmid = await _resume_assistant_cmid()
                 stop_kwargs = dict(
                     thread_id=request_body.thread_id,
                     content=partial,
@@ -1045,24 +1069,10 @@ async def stream_confirm_event_generator(
         # thread.message_count, and confused context assembly.
         #
         # The resumed turn carries no fresh idempotency key (the frontend only
-        # sends {thread_id, confirmed}), so derive the assistant-side key from
-        # the original user row's client_message_id — a double-confirm then
-        # hits the assistant partial unique index and dedupes instead of
-        # leaving a duplicate assistant row.
-        assistant_cmid: Optional[str] = None
-        try:
-            user_cmid = await _latest_user_client_message_id(db, request_body.thread_id)
-            if user_cmid is not None:
-                assistant_cmid = str(
-                    _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
-                )
-        except Exception:
-            logger.warning(
-                "Failed to derive assistant client_message_id for resumed "
-                "thread %s; assistant row will not be idempotent",
-                request_body.thread_id,
-                exc_info=True,
-            )
+        # sends {thread_id, confirmed}) — use the checkpoint-anchored key so a
+        # double-confirm dedupes without colliding with a concurrent new turn
+        # (see _resume_assistant_cmid).
+        assistant_cmid = await _resume_assistant_cmid()
 
         token_usage_payload = (
             {
