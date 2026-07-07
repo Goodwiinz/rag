@@ -1058,6 +1058,7 @@ async def stream_confirm_event_generator(
                 plan=final_values.get("plan") or None,
                 token_usage=token_usage_payload,
                 client_message_id=assistant_cmid,
+                latency_ms=int((time.monotonic() - stream_started_at) * 1000),
             )
             # _persist_assistant_message_safe opens its own session so this
             # request session can be closed immediately after `done`. Run it

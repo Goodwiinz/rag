@@ -374,6 +374,9 @@ class AgentChatService {
         thread_id?: string;
         assistant_message_id?: string | null;
         client_message_id?: string | null;
+        /** Full-fidelity tool executions from the graph state (parsed
+         * results, real durations) — richer than the live SSE summaries. */
+        tool_executions?: Array<Record<string, unknown>>;
       }) => void;
       onError?: (error: string) => void;
     },

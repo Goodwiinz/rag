@@ -5,6 +5,7 @@ import type {
   ChatPageMessage,
 } from '@/components/chat/shared/cloudMessageView';
 import {
+  mapDbToolExecutions,
   summarizeToolArgs,
   summarizeToolResult,
 } from '@/components/chat/shared/cloudMessageView';
@@ -27,7 +28,7 @@ import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
-import type { CitationCreate } from '@/types/workspace';
+import type { CitationCreate, DbToolExecution } from '@/types/workspace';
 import type { PlanStep } from '@/types/agent-chat';
 import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useQueryClient } from '@tanstack/react-query';
@@ -996,6 +997,7 @@ export function useChatStreaming(
           activeConversationIdRef.current
         );
       setIsConfirming(true);
+      const confirmStart = Date.now();
       // Track tool steps for the resumed turn exactly like handleSubmit —
       // seed with the pre-interrupt steps so the live bubble and the
       // committed message both show the whole turn's tools, not just the
@@ -1052,19 +1054,14 @@ export function useChatStreaming(
             ? { toolExecutions: [...confirmSteps] }
             : {}),
           ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
-          ...(confirmTokenUsage || confirmSteps.length > 0 || stopped
-            ? {
-                metadata: {
-                  ...(stopped ? { stopped: true } : {}),
-                  ...(confirmTokenUsage
-                    ? { tokenUsage: confirmTokenUsage }
-                    : {}),
-                  ...(confirmSteps.length > 0
-                    ? { toolsUsed: confirmSteps.map((s) => s.label) }
-                    : {}),
-                },
-              }
-            : {}),
+          metadata: {
+            responseTimeMs: Date.now() - confirmStart,
+            ...(stopped ? { stopped: true } : {}),
+            ...(confirmTokenUsage ? { tokenUsage: confirmTokenUsage } : {}),
+            ...(confirmSteps.length > 0
+              ? { toolsUsed: confirmSteps.map((s) => s.label) }
+              : {}),
+          },
         };
       };
 
@@ -1174,6 +1171,20 @@ export function useChatStreaming(
                 // instead of re-fetching a duplicate. Mirrors handleSubmit.
                 if (payload?.assistant_message_id) {
                   msg.id = payload.assistant_message_id;
+                }
+                // The done payload carries the graph state's tool executions
+                // (parsed results, real durations) for the WHOLE turn —
+                // richer than the live SSE summaries, and identical to what
+                // a reload would show. Prefer them when present.
+                const serverSteps = mapDbToolExecutions(
+                  payload?.tool_executions as DbToolExecution[] | undefined
+                );
+                if (serverSteps && serverSteps.length > 0) {
+                  msg.toolExecutions = serverSteps;
+                  msg.metadata = {
+                    ...msg.metadata,
+                    toolsUsed: serverSteps.map((s) => s.label),
+                  };
                 }
                 confirmCommitted = true;
                 if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);

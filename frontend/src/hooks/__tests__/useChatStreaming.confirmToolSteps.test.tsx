@@ -93,7 +93,28 @@ describe('useChatStreaming HITL confirm tool steps', () => {
         ]);
         cb.onToolEnd('ingest_arxiv_papers', 'ingested', false);
         cb.onToken('done ingesting');
-        cb.onDone({});
+        cb.onDone({
+          tool_executions: [
+            {
+              id: 't1',
+              tool_name: 'summarize_document',
+              tool_display_name: 'Summarize Document',
+              args: { document_id: 'doc-1' },
+              status: 'completed',
+              result: { message: 'summary text' },
+              duration_ms: 1234,
+            },
+            {
+              id: 't2',
+              tool_name: 'ingest_arxiv_papers',
+              tool_display_name: 'Ingest Arxiv Papers',
+              args: { paper_ids: ['2605.1'] },
+              status: 'completed',
+              result: { message: 'ingested' },
+              duration_ms: 5678,
+            },
+          ],
+        });
         return Promise.resolve();
       }
     );
@@ -120,7 +141,9 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       { tool: 'ingest_arxiv_papers', status: 'running' },
     ]);
 
-    // Committed: the assistant message carries the full turn's tools.
+    // Committed: the assistant message carries the full turn's tools,
+    // reconciled from the done payload's full-fidelity executions (real
+    // durations from the graph state, not the live summaries).
     const calls = params.setMessages.mock.calls;
     const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
     const committed = lastArg[lastArg.length - 1];
@@ -128,10 +151,13 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       role: 'assistant',
       content: 'done ingesting',
       toolExecutions: [
-        { tool: 'summarize_document', status: 'done' },
-        { tool: 'ingest_arxiv_papers', status: 'done' },
+        { tool: 'summarize_document', status: 'done', durationMs: 1234 },
+        { tool: 'ingest_arxiv_papers', status: 'done', durationMs: 5678 },
       ],
-      metadata: { toolsUsed: expect.any(Array) },
+      metadata: {
+        toolsUsed: ['Summarize Document', 'Ingest Arxiv Papers'],
+        responseTimeMs: expect.any(Number),
+      },
     });
 
     // Streaming state fully unwound.
