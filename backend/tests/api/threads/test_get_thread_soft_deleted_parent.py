@@ -75,6 +75,27 @@ async def test_get_thread_returns_thread_when_parents_live(
     assert (await service.get_thread(thread.id, user.id)) is not None
 
 
+async def test_get_conversation_none_when_workspace_soft_deleted(
+    db_session, thread_factory, user_factory
+):
+    """``get_conversation`` filters its own ``is_deleted`` but must ALSO reject
+    a live conversation whose parent workspace was soft-deleted (delete_workspace
+    flags only its own row)."""
+    user = await user_factory()
+    thread = await thread_factory(user=user)
+    conversation, workspace = await _parents(db_session, thread)
+    service = ChatService(db_session)
+
+    # Live workspace: resolves.
+    assert (await service.get_conversation(conversation.id, user.id)) is not None
+
+    # Conversation itself is NOT deleted — only the parent workspace.
+    workspace.is_deleted = True
+    await db_session.commit()
+
+    assert (await service.get_conversation(conversation.id, user.id)) is None
+
+
 async def test_get_message_none_when_parent_conversation_soft_deleted(
     db_session, thread_factory, user_factory
 ):
