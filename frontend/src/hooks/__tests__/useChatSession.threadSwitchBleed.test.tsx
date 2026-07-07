@@ -128,4 +128,46 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     // Store already had B => we must NOT have re-fetched via getThread.
     expect(getThreadMock).not.toHaveBeenCalled();
   });
+
+  it('clears thread A locally while thread C fetches (store+cache miss window)', async () => {
+    // thread-C: not in the local cache, not in the store → the lazy getThread
+    // fetch runs. Pre-fix, local `messages` kept A's transcript for the whole
+    // fetch window — rendered as C, and streamed as C's history on a send.
+    let resolveFetch!: (v: unknown) => void;
+    getThreadMock.mockImplementation(
+      () => new Promise((resolve) => (resolveFetch = resolve))
+    );
+
+    const { result } = renderHook(() => useChatSession());
+
+    act(() => {
+      result.current.setConversations([
+        { id: 'thread-A', title: 'A', messages: threadAlocal } as never,
+        { id: 'thread-C', title: 'C', messages: [] } as never,
+      ]);
+    });
+    act(() => {
+      result.current.setActiveConversationId('thread-A');
+    });
+    await waitFor(() => expect(result.current.messages).toHaveLength(5));
+
+    act(() => {
+      result.current.setActiveConversationId('thread-C');
+    });
+
+    // The fetch is in flight — A's transcript must ALREADY be gone.
+    expect(getThreadMock).toHaveBeenCalledWith('thread-C');
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.displayedMessages).toEqual([]);
+
+    await act(async () => {
+      resolveFetch({
+        id: 'thread-C',
+        messages: [storeMsg('thread-C', 'c1', 'C one')],
+      });
+    });
+    await waitFor(() =>
+      expect(result.current.messages.map((m) => m.content)).toEqual(['C one'])
+    );
+  });
 });
