@@ -161,14 +161,43 @@ def _encode_tool_result(output: Any) -> str:
     return str(output)[:500]
 
 
-def _tool_args_preview(tool_input: Any) -> str:
+def _redact_tool_args(value: Any) -> Any:
+    """Recursively redact PII in a tool-args value while preserving structure.
+
+    Strings are redacted and capped; dicts/lists recurse; JSON-safe scalars
+    (int/float/bool/None) carry no PII and pass through unchanged. Anything
+    else (datetime, Decimal, a custom object, …) is stringified and redacted —
+    ``str(tool_input)`` used to tolerate those, so a bare passthrough here would
+    make the emit-site ``json.dumps`` raise and break the SSE stream. Keeping
+    the JSON shape is what lets the frontend's args summarizer render it.
+    """
+    if isinstance(value, str):
+        return redact_pii(value)[:500]
+    if isinstance(value, dict):
+        return {k: _redact_tool_args(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_tool_args(v) for v in value]
+    if value is None or isinstance(value, (int, float)):  # bool is an int
+        return value
+    return redact_pii(str(value))[:500]
+
+
+def _tool_args_preview(tool_input: Any) -> Any:
     """Render a tool's input args for the SSE ``tool_start.args`` field.
 
-    Redact PII before the preview leaves the server (browser-visible SSE
-    payload). Redact first, then cap — so a token straddling the cut still
-    matches. Shared by the main and confirm/resume streams so they can never
-    drift (the confirm path previously skipped redaction).
+    Returns a JSON-safe **object** when the tool input is a dict, so the
+    frontend's args summarizer (which ignores non-object args) renders the
+    live preview. Previously this emitted a Python-repr string
+    (``str({'query': 'x'})``) which rendered nothing live while the persisted
+    object rendered on reload — the designed live preview never worked. PII is
+    redacted per value before the payload leaves the server (browser-visible
+    SSE). Non-dict inputs fall back to a redacted, capped string.
+
+    Shared by the main and confirm/resume streams so they can never drift
+    (the confirm path previously skipped redaction entirely).
     """
+    if isinstance(tool_input, dict):
+        return _redact_tool_args(tool_input)
     return redact_pii(str(tool_input))[:500] if tool_input else ""
 
 
@@ -1022,14 +1051,10 @@ async def stream_confirm_event_generator(
         # leaving a duplicate assistant row.
         assistant_cmid: Optional[str] = None
         try:
-            user_cmid = await _latest_user_client_message_id(
-                db, request_body.thread_id
-            )
+            user_cmid = await _latest_user_client_message_id(db, request_body.thread_id)
             if user_cmid is not None:
                 assistant_cmid = str(
-                    _uuid.uuid5(
-                        _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                    )
+                    _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
                 )
         except Exception:
             logger.warning(
@@ -1067,9 +1092,7 @@ async def stream_confirm_event_generator(
             # background task to release the SSE without waiting on the write.
             if _canonical_persistence_enabled():
                 persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(
-                        **persist_kwargs
-                    )
+                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
                 )
             elif background_tasks is not None:
                 background_tasks.add_task(
@@ -1077,9 +1100,7 @@ async def stream_confirm_event_generator(
                     **persist_kwargs,
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(
-                    **persist_kwargs
-                )
+                await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",
