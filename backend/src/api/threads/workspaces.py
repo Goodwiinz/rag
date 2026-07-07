@@ -738,6 +738,9 @@ async def create_message(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new message in a thread"""
+    # Validate the path hierarchy (workspace/conversation/thread + soft-delete
+    # filters) before delegating; the 403 for non-editors is this route's
+    # documented behavior.
     thread = await _get_thread_or_404(
         db, workspace_id, conversation_id, thread_id, current_user
     )
@@ -745,41 +748,21 @@ async def create_message(
     if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    message = ChatMessage(
-        thread_id=thread_id,
-        user_id=current_user.id if request.role.value == "user" else None,
-        role=MessageRole(request.role.value),
-        content=request.content,
-    )
-    db.add(message)
-    await db.flush()  # Flush to get message.id for citations
+    # Delegate to the canonical ChatService.create_message. This route used to
+    # reimplement it and drifted (same as the v2 standalone route, fixed in
+    # #1051): it accepted but silently discarded latency_ms, stopped, and
+    # attachment_ids, skipped token accounting, and lacked the org-ownership
+    # guard on attachments. The path thread_id is authoritative — this route
+    # always wrote to it and ignored any body thread_id.
+    from src.services.threads.chat_service import get_chat_service
 
-    # Handle citations (for assistant messages with RAG sources)
-    if request.citations:
-        for cit in request.citations:
-            citation = Citation(
-                message_id=message.id,
-                document_id=cit.document_id,  # May be None for external refs
-                external_reference_id=cit.external_reference_id,
-                document_title=cit.document_title,
-                document_type=cit.document_type,
-                chunk_index=cit.chunk_index,
-                chunk_id=cit.chunk_id,
-                snippet=cit.snippet,
-                page_number=cit.page_number,
-                score=cit.score,
-                rerank_score=cit.rerank_score,
-            )
-            db.add(citation)
-
-    # Update thread stats
-    thread.message_count = (thread.message_count or 0) + 1
-    thread.last_message_at = datetime.utcnow()
-
-    # Update conversation activity
-    thread.conversation.last_activity_at = datetime.utcnow()
-
-    await db.commit()
+    request.thread_id = thread_id
+    service = get_chat_service(db)
+    message = await service.create_message(request, current_user.id)
+    if not message:
+        raise HTTPException(
+            status_code=404, detail="Thread not found or insufficient permissions"
+        )
 
     # Re-query with eager loading to get citations with document info
     stmt = (
