@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-07-07 - Interactive Div Keyboard Accessibility
+**Learning:** Interactive non-button elements (like `div` with `role="button"` and `tabIndex={0}`) require explicit `onKeyDown` handlers to be usable via keyboard, as they don't natively map 'Enter' or 'Space' to `onClick` like `<button>` elements do.
+**Action:** When implementing interactive cards or list items using `div`, always add an `onKeyDown` listener that checks for 'Enter' and 'Space', calls `e.preventDefault()` (to stop page scrolling on Space), and triggers the primary action.

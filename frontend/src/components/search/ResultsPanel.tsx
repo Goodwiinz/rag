@@ -629,6 +629,12 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               tabIndex={0}
               className="group rounded-xl p-4 cursor-pointer transition-all duration-200 hover:scale-[1.02] bg-terminal-surface border border-terminal-border focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => handleSourceClick(source)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleSourceClick(source);
+                }
+              }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = 'var(--nous-helios)';
                 e.currentTarget.style.boxShadow =
