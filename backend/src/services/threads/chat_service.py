@@ -267,6 +267,13 @@ class ChatService:
         if not conversation:
             return None
 
+        # A soft-deleted parent workspace must revoke access to its
+        # conversations: delete_workspace flags only its OWN row and never
+        # cascades to child conversations/threads, so this read path must
+        # reject a conversation whose workspace is soft-deleted.
+        if conversation.workspace.is_deleted:
+            return None
+
         # Check workspace access
         if not self._user_can_access_workspace(conversation.workspace, user_id):
             return None

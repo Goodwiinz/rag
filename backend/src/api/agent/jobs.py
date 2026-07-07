@@ -553,8 +553,16 @@ async def _resolve_thread(
         return None, ""
 
     if thread is None:
+        # Never create a new Conversation+Thread under a soft-deleted
+        # workspace: delete_workspace flags only its own row, so a live-owner
+        # pick must exclude it.
         ws_stmt = (
-            select(Workspace).where(Workspace.owner_id == current_user.id).limit(1)
+            select(Workspace)
+            .where(
+                Workspace.owner_id == current_user.id,
+                Workspace.is_deleted == False,  # noqa: E712
+            )
+            .limit(1)
         )
         ws_result = await db.execute(ws_stmt)
         workspace = ws_result.scalar_one_or_none()

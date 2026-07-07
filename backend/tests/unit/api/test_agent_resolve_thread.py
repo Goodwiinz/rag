@@ -146,3 +146,36 @@ class TestResolveThreadFiltersSoftDeleted:
         sql = captured["stmt"].lower()
         # Thread, Conversation, and Workspace must each be filtered on is_deleted.
         assert sql.count("is_deleted = false") >= 3, sql
+
+    async def test_create_if_missing_workspace_pick_excludes_soft_deleted(self):
+        """The create-on-miss workspace pick must exclude soft-deleted
+        workspaces, so a fresh Conversation+Thread is never parented under a
+        deleted workspace. With only a soft-deleted workspace present the pick
+        finds nothing → thread stays None → returns (None, "")."""
+        from src.api.agent.jobs import _resolve_thread
+
+        captured = []
+
+        def _capture(stmt, *a, **kw):
+            captured.append(str(stmt.compile(compile_kwargs={"literal_binds": False})))
+            # Thread lookup misses; workspace pick also misses (only a
+            # soft-deleted workspace exists, which the filter excludes).
+            return MagicMock(scalar_one_or_none=Mock(return_value=None))
+
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=_capture)
+        db.add = Mock()
+        db.commit = AsyncMock()
+
+        thread, conversation_id = await _resolve_thread(
+            db, _mock_user(), _request(), create_if_missing=True
+        )
+
+        assert thread is None
+        assert conversation_id == ""
+        db.add.assert_not_called()  # no workspace → nothing created
+        db.commit.assert_not_awaited()
+        # Second execute() is the workspace pick; it must filter is_deleted.
+        assert len(captured) == 2, captured
+        ws_sql = captured[1].lower()
+        assert "is_deleted = false" in ws_sql, ws_sql
