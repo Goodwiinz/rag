@@ -212,6 +212,11 @@ class ChatService:
 
     def _user_can_access_workspace(self, workspace: Workspace, user_id: UUID) -> bool:
         """Check if user can access workspace"""
+        # A soft-deleted workspace revokes access to everything under it —
+        # callers reach here via relationship loads (conversation.workspace,
+        # thread.conversation.workspace) that carry no is_deleted filter.
+        if workspace.is_deleted:
+            return False
         if workspace.is_public:
             return True
         if str(workspace.owner_id) == str(user_id):

@@ -63,19 +63,21 @@ async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[st
     return None
 
 
-def _record_metric(status: str) -> None:
-    """Emit a status-labeled counter for DO KB ingest outcomes.
+_DO_KB_INGEST_METRIC = "do_kb_ingest_total"
 
-    Best-effort: metrics are optional infra, so a missing/unconfigured meter
-    must never break ingest. The old implementation read a module attribute
-    (``metrics.agent_do_kb_ingest_total``) that was never defined anywhere,
-    so every ingest metric silently no-oped; this uses the registered-counter
-    helper like the retrieval path's ``_record_do_kb_read``.
+
+def _record_metric(status: str) -> None:
+    """Best-effort ingest-outcome counter; observability must never break ingest.
+
+    Was a dead no-op: it looked up ``metrics.agent_do_kb_ingest_total``, a
+    module attribute that is defined nowhere, so every call silently did
+    nothing. Route through the registered ``increment_counter`` instead —
+    the same wiring the RAG read path (`_record_do_kb_read`) uses.
     """
     try:
         from src.observability.metrics import increment_counter
 
-        increment_counter("agent_do_kb_ingest_total", attributes={"status": status})
+        increment_counter(_DO_KB_INGEST_METRIC, attributes={"status": status})
     except Exception:  # pragma: no cover - observability is optional
         pass
 
