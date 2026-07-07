@@ -116,3 +116,33 @@ class TestPersistThreadMessagesCreateIfMissing:
         assert thread_id == ""
         assert conversation_id == ""
         assert any("persist skipped" in r.message.lower() for r in caplog.records)
+
+
+class TestResolveThreadFiltersSoftDeleted:
+    """The thread lookup must never resolve a soft-deleted thread (or one under
+    a soft-deleted conversation/workspace) — a stale tab / SSE retry would
+    otherwise persist a new turn into a deleted thread."""
+
+    async def test_lookup_filters_out_soft_deleted_rows(self):
+        from src.api.agent.jobs import _resolve_thread
+
+        captured = {}
+
+        def _capture(stmt, *a, **kw):
+            captured["stmt"] = str(
+                stmt.compile(compile_kwargs={"literal_binds": False})
+            )
+            return MagicMock(scalar_one_or_none=Mock(return_value=None))
+
+        db = AsyncMock()
+        db.execute = AsyncMock(side_effect=_capture)
+
+        thread, conversation_id = await _resolve_thread(
+            db, _mock_user(), _request(), create_if_missing=False
+        )
+
+        assert thread is None
+        assert conversation_id == ""
+        sql = captured["stmt"].lower()
+        # Thread, Conversation, and Workspace must each be filtered on is_deleted.
+        assert sql.count("is_deleted = false") >= 3, sql

@@ -441,6 +441,14 @@ class ChatService:
         if not thread:
             return None
 
+        # A soft-deleted parent conversation/workspace must revoke access to
+        # its threads: delete_conversation / delete_workspace flag only their
+        # OWN row and never cascade to child threads, so this shared funnel
+        # (create_message / list_messages / thread update+delete) is the one
+        # guard that keeps a deleted parent's threads unreachable.
+        if thread.conversation.is_deleted or thread.conversation.workspace.is_deleted:
+            return None
+
         # Check workspace access
         if not self._user_can_access_workspace(thread.conversation.workspace, user_id):
             return None
@@ -1033,6 +1041,14 @@ class ChatService:
         # leaving GET/PATCH/DELETE on the message id reachable after the parent
         # thread was soft-deleted. selectinload already loaded thread.is_deleted.
         if message.thread.is_deleted:
+            return None
+
+        # ...and a soft-deleted parent conversation/workspace must too (the
+        # flag is not cascaded to threads), matching get_thread's guard.
+        if (
+            message.thread.conversation.is_deleted
+            or message.thread.conversation.workspace.is_deleted
+        ):
             return None
 
         # Check workspace access
