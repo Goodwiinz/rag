@@ -1048,60 +1048,60 @@ async def bulk_delete_documents(
 
     from sqlalchemy import update
 
-    for document_id in request.document_ids:
-        try:
-            doc_stmt = select(Document).where(
-                Document.id == document_id,
-                Document.organization_id == organization.id,
-                Document.is_deleted == False,
-            )
-            doc_result = await db.execute(doc_stmt)
-            document = doc_result.scalars().first()
+    try:
+        # Set-based instead of per-id: the old loop issued 3 queries per
+        # document (up to 300 round trips per request) inside one open
+        # transaction.
+        doc_stmt = select(Document).where(
+            Document.id.in_(request.document_ids),
+            Document.organization_id == organization.id,
+            Document.is_deleted == False,
+        )
+        doc_result = await db.execute(doc_stmt)
+        deleted_docs = list(doc_result.scalars().all())
+        found_ids = {str(d.id) for d in deleted_docs}
+        successful = [i for i in request.document_ids if i in found_ids]
+        failed = [
+            {"document_id": i, "error": "Document not found"}
+            for i in request.document_ids
+            if i not in found_ids
+        ]
 
-            if not document:
-                failed.append(
-                    {"document_id": document_id, "error": "Document not found"}
-                )
-                continue
-
-            # Perform deletion
+        if deleted_docs:
             if cascade:
-                # Delete related entities
-                entity_update_stmt = (
+                await db.execute(
                     update(Entity)
                     .where(
-                        Entity.document_id == document_id, Entity.is_deleted == False
+                        Entity.document_id.in_(found_ids),
+                        Entity.is_deleted == False,
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
-                await db.execute(entity_update_stmt)
-
-                # Delete related processing jobs
-                job_update_stmt = (
+                await db.execute(
                     update(ProcessingJob)
                     .where(
-                        ProcessingJob.document_id == document_id,
+                        ProcessingJob.document_id.in_(found_ids),
                         ProcessingJob.is_deleted == False,
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
-                await db.execute(job_update_stmt)
 
-            # Soft delete document
-            document.soft_delete()
+            for document in deleted_docs:
+                document.soft_delete()
 
-            # Atomically revert organization storage usage
+            # One atomic quota revert for the whole batch (same org for all).
             await db.execute(
                 Organization.storage_usage_update(
-                    document.organization_id, -document.file_size_bytes
+                    organization.id,
+                    -sum(d.file_size_bytes or 0 for d in deleted_docs),
                 )
             )
-
-            successful.append(document_id)
-            deleted_docs.append(document)
-
-        except Exception as e:
-            failed.append({"document_id": document_id, "error": str(e)})
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk delete documents: {str(e)}",
+        )
 
     try:
         await db.commit()
