@@ -274,7 +274,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ):
             events.append(event)
 
-    done_events = [e for e in events if e.startswith("event: done")]
+    done_events = [e for e in events if "event: done" in e]
     assert len(done_events) == 1
     assert "assistant_message_id" in done_events[0]
     assert "assistant-msg-1" in done_events[0]

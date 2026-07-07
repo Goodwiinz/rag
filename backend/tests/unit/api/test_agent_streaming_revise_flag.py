@@ -127,7 +127,7 @@ def _collect_patches(graph):
 
 def _extract_reflection_payload(events: list[str]) -> dict:
     """Find the first ``event: reflection`` SSE frame and parse its JSON payload."""
-    reflection_events = [e for e in events if e.startswith("event: reflection\n")]
+    reflection_events = [e for e in events if "event: reflection\n" in e]
     assert reflection_events, f"No reflection event in: {events}"
     return json.loads(reflection_events[0].split("data: ", 1)[1].strip())
 

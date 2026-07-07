@@ -107,7 +107,7 @@ async def test_user_message_persists_before_llm_call(
             events.append(event)
 
     # The simulated failure must have surfaced as an SSE error event.
-    assert any(e.startswith("event: error") for e in events), events
+    assert any("event: error" in e for e in events), events
 
     # Use the test-fixture session (separate connection / transaction) to
     # verify the row landed in the DB.

@@ -52,7 +52,7 @@ class _SilentThenDoneGraph:
 async def test_confirm_stream_emits_heartbeat_from_keepalive():
     import src.api.agent.streaming as st
 
-    async def fake_keepalive(event_iter, request):
+    async def fake_keepalive(event_iter, request, **kwargs):
         # One keepalive, then forward the real event, then stop.
         yield {"type": "keepalive", "elapsed_ms": 123}
         async for e in event_iter:
@@ -101,4 +101,4 @@ async def test_confirm_stream_emits_heartbeat_from_keepalive():
             )
         ]
 
-    assert any(e.startswith("event: heartbeat") for e in events)
+    assert any("event: heartbeat" in e for e in events)

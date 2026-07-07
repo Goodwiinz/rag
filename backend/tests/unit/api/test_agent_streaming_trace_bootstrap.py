@@ -38,6 +38,12 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
+        # Force the legacy (no stream buffer) path: these tests cover the
+        # Redis-down disconnect behavior.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith",
             side_effect=fake_configure_langsmith,
@@ -64,7 +70,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             events.append(event)
 
     assert configured is True
-    assert events[-1].startswith("event: done")
+    assert "event: done" in events[-1]
 
 
 @pytest.mark.asyncio
@@ -85,6 +91,12 @@ async def test_stream_event_generator_cancels_on_disconnect():
     persist = AsyncMock(return_value=None)
 
     with (
+        # Force the legacy (no stream buffer) path: these tests cover the
+        # Redis-down disconnect behavior.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith",
             side_effect=lambda: None,
@@ -112,7 +124,7 @@ async def test_stream_event_generator_cancels_on_disconnect():
             events.append(event)
 
     # No completion frame, and no assistant row persisted into a dead socket.
-    assert not any(e.startswith("event: done") for e in events)
+    assert not any("event: done" in e for e in events)
     persist.assert_not_awaited()
 
 
@@ -143,6 +155,12 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
     )
 
     with (
+        # Force the legacy (no stream buffer) path: these tests cover the
+        # Redis-down disconnect behavior.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith",
             side_effect=fake_configure_langsmith,
@@ -171,4 +189,4 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
             events.append(event)
 
     assert configured is True
-    assert events[-1].startswith("event: done")
+    assert "event: done" in events[-1]

@@ -116,7 +116,7 @@ async def test_done_event_does_not_wait_on_commit(
         async for event in streaming_mod.stream_event_generator(
             body, fastapi_request, user, background_tasks=bg
         ):
-            if event.startswith("event: done"):
+            if "event: done" in event:
                 done_seen_at = time.perf_counter() - t0
                 break
 
