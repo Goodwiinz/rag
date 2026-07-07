@@ -121,3 +121,92 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
     # done is the terminal frame and finish_stream was called after it.
     assert "event: done\n" in events[-1]
     assert buf.finished == [("thread-123", "sid-thread-123")]
+
+
+class _DisconnectThenHangGraph:
+    """One token, then (post-disconnect, mid-drain) a timeout."""
+
+    async def astream_events(self, *args, **kwargs):
+        yield {
+            "event": "on_chat_model_stream",
+            "name": "llm_node",
+            "metadata": {"langgraph_node": "llm_node"},
+            "data": {"chunk": SimpleNamespace(content="partial answer")},
+        }
+        raise TimeoutError("graph hung during drain")
+
+    async def aget_state(self, config):  # pragma: no cover - not reached
+        return SimpleNamespace(values={}, tasks=())
+
+
+@pytest.mark.asyncio
+async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
+    """Regression: a graph death mid-drain (client already gone, buffer
+    active) must persist the accumulated partial with stopped=True instead of
+    silently losing it in the generic error handler."""
+    buf = _RecordingBuffer()
+    buf.install(monkeypatch)
+
+    # Connected for the first event, gone afterwards -> drain mode.
+    request = SimpleNamespace(
+        is_disconnected=AsyncMock(side_effect=[False, True, True, True])
+    )
+    body = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="hi")],
+        page_context={"type": "general"},
+        thread_id="thread-timeout",
+        model=None,
+    )
+    current_user = Mock(id="user-1", organization_id="org-1")
+    persist = AsyncMock(return_value="row-1")
+    thread_obj = SimpleNamespace(id="thread-timeout")
+
+    with (
+        patch(
+            "src.services.agent.observability.configure_langsmith",
+            return_value=None,
+        ),
+        patch(
+            "src.services.agent.checkpointer.get_checkpointer",
+            new=AsyncMock(return_value=object()),
+        ),
+        patch(
+            "src.services.agent.graph.compile_agent_graph",
+            return_value=_DisconnectThenHangGraph(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(return_value=(thread_obj, None)),
+        ),
+        patch(
+            "src.api.agent.streaming._persist_user_message",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            new=persist,
+        ),
+        patch(
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+    ):
+        events = []
+        async for event in streaming.stream_event_generator(
+            body, request, current_user
+        ):
+            events.append(event)
+
+    # Partial persisted with stopped=True, exactly once.
+    persist.assert_awaited_once()
+    kwargs = persist.await_args.kwargs
+    assert kwargs["content"] == "partial answer"
+    assert kwargs["stopped"] is True
+    assert kwargs["thread_id"] == "thread-timeout"
+    # Error frame buffered but not yielded to the dead client.
+    assert not any("event: error" in e for e in events)
+    assert any("event: error" in frame for _, _, frame in buf.appends)

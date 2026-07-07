@@ -341,6 +341,10 @@ async def stream_event_generator(
     stream_started_at = time.monotonic()
     emitter = _SeqEmitter()
     client_disconnected = False
+    # Set once an assistant row for this turn has been persisted/scheduled —
+    # the error-path partial persist must never double-write the turn.
+    assistant_persisted = False
+    persist_partial_stop = None  # bound inside try once its inputs exist
     try:
         # Persist the user turn BEFORE the LLM call so a mid-stream client
         # disconnect (or any failure inside ``astream_events``) still leaves
@@ -483,6 +487,47 @@ async def stream_event_generator(
             assistant_cmid = str(
                 _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{_user_cmid}")
             )
+
+        async def persist_partial_stop() -> None:
+            """Persist the accumulated partial answer with stopped=True.
+
+            Shared by the legacy (no stream buffer) disconnect branch and the
+            error path when a disconnected drain dies mid-run (e.g. the 300s
+            timeout) — without it that partial would be silently lost.
+            """
+            nonlocal assistant_persisted
+            partial = "".join(streamed_parts)
+            if assistant_persisted or resolved_thread_id is None or not partial:
+                return
+            assistant_persisted = True
+            stop_kwargs = dict(
+                thread_id=resolved_thread_id,
+                content=partial,
+                model_name=request_body.model,
+                tool_executions_out=None,
+                retrieved_contexts=None,
+                latency_ms=int((time.monotonic() - stream_started_at) * 1000),
+                stopped=True,
+                client_message_id=assistant_cmid,
+                # Tokens accumulated up to the abort; no plan here — it
+                # would need a checkpoint read on a path that must stay
+                # cheap (client already hung up).
+                token_usage=(
+                    {
+                        "input_tokens": turn_input_tokens,
+                        "output_tokens": turn_output_tokens,
+                    }
+                    if (turn_input_tokens or turn_output_tokens)
+                    else None
+                ),
+            )
+            if background_tasks is not None:
+                background_tasks.add_task(
+                    _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                )
+            else:
+                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+
         async with asyncio.timeout(300):  # 5 minutes
             while True:
                 try:
@@ -644,35 +689,7 @@ async def stream_event_generator(
                 "SSE client disconnected; cancelled agent run for thread %s",
                 stream_thread_id,
             )
-            partial = "".join(streamed_parts)
-            if resolved_thread_id is not None and partial:
-                stop_kwargs = dict(
-                    thread_id=resolved_thread_id,
-                    content=partial,
-                    model_name=request_body.model,
-                    tool_executions_out=None,
-                    retrieved_contexts=None,
-                    latency_ms=int((time.monotonic() - stream_started_at) * 1000),
-                    stopped=True,
-                    client_message_id=assistant_cmid,
-                    # Tokens accumulated up to the abort; no plan here — it
-                    # would need a checkpoint read on a path that must stay
-                    # cheap (client already hung up).
-                    token_usage=(
-                        {
-                            "input_tokens": turn_input_tokens,
-                            "output_tokens": turn_output_tokens,
-                        }
-                        if (turn_input_tokens or turn_output_tokens)
-                        else None
-                    ),
-                )
-                if background_tasks is not None:
-                    background_tasks.add_task(
-                        _jobs_mod._persist_assistant_message_safe, **stop_kwargs
-                    )
-                else:
-                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+            await persist_partial_stop()
             return
 
         # Check graph state after streaming completes
@@ -772,6 +789,7 @@ async def stream_event_generator(
                     # passing one). Run inline through the safe wrapper
                     # so the failure-metric path is still exercised.
                     await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                assistant_persisted = True
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
 
@@ -865,6 +883,12 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
+        # A disconnected client can't retry from an error frame it never sees;
+        # persist the partial (stopped=True) so the drained turn isn't lost
+        # when the drain itself dies (e.g. hits the 300s timeout).
+        if client_disconnected and persist_partial_stop is not None:
+            with contextlib.suppress(Exception):
+                await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
         if not client_disconnected:
             yield frame
@@ -903,6 +927,10 @@ async def stream_confirm_event_generator(
     db = AsyncSessionLocal()
     emitter = _SeqEmitter()
     client_disconnected = False
+    # Set once an assistant row for this turn has been persisted/scheduled —
+    # the error-path partial persist must never double-write the turn.
+    assistant_persisted = False
+    persist_partial_stop = None  # bound inside try once its inputs exist
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -993,6 +1021,70 @@ async def stream_confirm_event_generator(
         # committed a destructive tool — losing the assistant row entirely
         # leaves the thread with a confirm action and no record of the result).
         streamed_parts: list[str] = []
+
+        async def persist_partial_stop() -> None:
+            """Persist the accumulated partial answer with stopped=True.
+
+            Shared by the legacy (no stream buffer) disconnect branch and the
+            error path when a disconnected drain dies mid-run (e.g. the 300s
+            timeout) — without it that partial would be silently lost.
+            """
+            nonlocal assistant_persisted
+            partial = "".join(streamed_parts)
+            if assistant_persisted or not partial:
+                return
+            assistant_persisted = True
+            # Derive the assistant-side idempotency key the same way the
+            # normal post-loop path does — from the original user turn's
+            # client_message_id — so a retried/duplicated confirm dedupes on
+            # the assistant partial unique index instead of leaving a
+            # duplicate row.
+            disconnect_cmid: Optional[str] = None
+            try:
+                user_cmid = await _latest_user_client_message_id(
+                    db, request_body.thread_id
+                )
+                if user_cmid is not None:
+                    disconnect_cmid = str(
+                        _uuid.uuid5(
+                            _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
+                        )
+                    )
+            except Exception:
+                logger.warning(
+                    "Failed to derive assistant client_message_id for "
+                    "disconnected resume of thread %s; assistant row will "
+                    "not be idempotent",
+                    request_body.thread_id,
+                    exc_info=True,
+                )
+            stop_kwargs = dict(
+                thread_id=request_body.thread_id,
+                content=partial,
+                model_name=getattr(request_body, "model", "") or None,
+                # ponytail: tool_executions/plan omitted — reading them needs
+                # a checkpoint fetch on a path that must stay cheap (client
+                # already hung up), same tradeoff as the main stream.
+                tool_executions_out=None,
+                retrieved_contexts=None,
+                latency_ms=None,
+                stopped=True,
+                client_message_id=disconnect_cmid,
+                token_usage=(
+                    {
+                        "input_tokens": turn_input_tokens,
+                        "output_tokens": turn_output_tokens,
+                    }
+                    if (turn_input_tokens or turn_output_tokens)
+                    else None
+                ),
+            )
+            if background_tasks is not None:
+                background_tasks.add_task(
+                    _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                )
+            else:
+                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
 
         # Named iterator so a mid-stream client disconnect can aclose() it and
         # cancel the resumed graph run, instead of leaving it executing into a
@@ -1126,59 +1218,7 @@ async def stream_confirm_event_generator(
                 "SSE confirm client disconnected; cancelled resumed run for thread %s",
                 request_body.thread_id,
             )
-            partial = "".join(streamed_parts)
-            if partial:
-                # Derive the assistant-side idempotency key the same way the
-                # normal post-loop path does — from the original user turn's
-                # client_message_id — so a retried/duplicated confirm dedupes on
-                # the assistant partial unique index instead of leaving a
-                # duplicate row.
-                disconnect_cmid: Optional[str] = None
-                try:
-                    user_cmid = await _latest_user_client_message_id(
-                        db, request_body.thread_id
-                    )
-                    if user_cmid is not None:
-                        disconnect_cmid = str(
-                            _uuid.uuid5(
-                                _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                            )
-                        )
-                except Exception:
-                    logger.warning(
-                        "Failed to derive assistant client_message_id for "
-                        "disconnected resume of thread %s; assistant row will "
-                        "not be idempotent",
-                        request_body.thread_id,
-                        exc_info=True,
-                    )
-                stop_kwargs = dict(
-                    thread_id=request_body.thread_id,
-                    content=partial,
-                    model_name=getattr(request_body, "model", "") or None,
-                    # ponytail: tool_executions/plan omitted — reading them needs
-                    # a checkpoint fetch on a path that must stay cheap (client
-                    # already hung up), same tradeoff as the main stream.
-                    tool_executions_out=None,
-                    retrieved_contexts=None,
-                    latency_ms=None,
-                    stopped=True,
-                    client_message_id=disconnect_cmid,
-                    token_usage=(
-                        {
-                            "input_tokens": turn_input_tokens,
-                            "output_tokens": turn_output_tokens,
-                        }
-                        if (turn_input_tokens or turn_output_tokens)
-                        else None
-                    ),
-                )
-                if background_tasks is not None:
-                    background_tasks.add_task(
-                        _jobs_mod._persist_assistant_message_safe, **stop_kwargs
-                    )
-                else:
-                    await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+            await persist_partial_stop()
             return
 
         # Check for nested interrupts (e.g. ingest confirmed -> add needs confirm)
@@ -1292,6 +1332,7 @@ async def stream_confirm_event_generator(
                 await _jobs_mod._persist_assistant_message_safe(
                     **persist_kwargs
                 )
+            assistant_persisted = True
         except Exception as e:
             logger.warning(
                 "Failed to persist SSE confirmation thread messages",
@@ -1364,6 +1405,12 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
+        # A disconnected client can't retry from an error frame it never sees;
+        # persist the partial (stopped=True) so the drained turn isn't lost
+        # when the drain itself dies (e.g. hits the 300s timeout).
+        if client_disconnected and persist_partial_stop is not None:
+            with contextlib.suppress(Exception):
+                await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
         if not client_disconnected:
             yield frame
