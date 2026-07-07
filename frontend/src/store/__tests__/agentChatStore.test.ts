@@ -10,7 +10,11 @@ vi.mock('@/services/agentChatService', () => ({
     listThreads: vi.fn(async () => ({ threads: [] })),
     getThreadMessages: vi.fn(async () => ({ messages: [] })),
     streamMessage: vi.fn(async () => {}),
+    streamConfirm: vi.fn(async () => {}),
     startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
+    completeDurableConfirmation: vi.fn(async () => {}),
+    getDurableRunStatus: vi.fn(async () => ({ status: 'PENDING' })),
+    confirmAction: vi.fn(async () => {}),
   },
 }));
 
@@ -264,6 +268,120 @@ describe('agentChatStore', () => {
       const messages = useAgentChatStore.getState().messages;
       const assistant = messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('A');
+    });
+  });
+
+  describe('confirmAction resume stream', () => {
+    // The confirm (post-HITL) stream emits the same plan / rag_context
+    // events as the main stream; the store must not drop them.
+    it('attaches plan and citations from the resumed stream to the assistant message', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onPlan?.(
+            [{ step: 1, description: 'ingest paper', tool: 'ingest_arxiv' }],
+            ''
+          );
+          callbacks.onRagContext?.([
+            {
+              document_id: 'doc-1',
+              title: 'Attention Is All You Need',
+              content: 'snippet',
+              score: 0.9,
+            },
+          ]);
+          callbacks.onToken?.('done!');
+          callbacks.onDone?.();
+        }
+      );
+
+      useAgentChatStore.setState({
+        messages: [
+          {
+            id: 'a-1',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmation: {
+          jobId: 'job-1',
+          tools: [{ name: 'ingest_arxiv', args: {} }],
+          message: 'Confirm?',
+        },
+      });
+      await useAgentChatStore.getState().confirmAction(true);
+
+      const assistant = useAgentChatStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant');
+      expect(assistant?.plan).toEqual([
+        {
+          step: 1,
+          description: 'ingest paper',
+          tool: 'ingest_arxiv',
+          args_hint: {},
+          depends_on: [],
+        },
+      ]);
+      expect(assistant?.citations).toEqual([
+        {
+          documentId: 'doc-1',
+          documentTitle: 'Attention Is All You Need',
+          snippet: 'snippet',
+          score: 0.9,
+        },
+      ]);
+      expect(assistant?.content).toBe('done!');
+    });
+
+    // When SSE confirm fails, a durable (Trigger.dev) run must complete via its
+    // wait token — not the legacy /confirm endpoint. The token was captured
+    // before pendingConfirmation was nulled; re-reading it from the store here
+    // used to yield undefined, silently dropping the approval.
+    it('completes the durable wait token on SSE failure instead of the legacy confirm', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamConfirm).mockRejectedValueOnce(
+        new Error('sse down')
+      );
+      vi.mocked(agentChatService.getDurableRunStatus).mockResolvedValue({
+        status: 'COMPLETED',
+        output: { result: { message: 'ingested' } },
+      } as never);
+
+      useAgentChatStore.setState({
+        messages: [
+          {
+            id: 'a-1',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmation: {
+          jobId: 'run-42',
+          waitTokenId: 'wait-7',
+          tools: [{ name: 'ingest_arxiv', args: {} }],
+          message: 'Confirm?',
+        },
+      });
+
+      vi.useFakeTimers();
+      try {
+        const p = useAgentChatStore.getState().confirmAction(true);
+        // The poll loop waits 3s before its first status check.
+        await vi.advanceTimersByTimeAsync(3000);
+        await p;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(agentChatService.completeDurableConfirmation).toHaveBeenCalledWith(
+        'run-42',
+        'wait-7',
+        true
+      );
+      expect(agentChatService.confirmAction).not.toHaveBeenCalled();
     });
   });
 

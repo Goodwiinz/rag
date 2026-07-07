@@ -8,6 +8,8 @@ import {
   summarizeToolArgs,
   summarizeToolResult,
 } from '@/components/chat/shared/cloudMessageView';
+import toast from 'react-hot-toast';
+
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
@@ -96,6 +98,57 @@ export interface PendingConfirmation {
   threadId: string;
   workspaceThreadId: string;
   confirmation: Record<string, unknown>;
+  /** Settled tool steps recorded before the interrupt, carried into the
+   * resumed turn so the confirmed answer keeps its full provenance. */
+  steps?: ActivityStep[];
+  /** Structured plan emitted before the interrupt — carried so the
+   * confirmed turn commits with its inline plan. */
+  plan?: PlanStep[];
+  /** RAG citations retrieved before the interrupt — the interrupt exit
+   * clears streamingCitations, so they must ride the confirmation. */
+  citations?: Array<Record<string, unknown>>;
+}
+
+/** Map raw planner SSE steps onto the structured inline-plan shape. */
+function toTurnPlan(steps: Array<Record<string, unknown>> | undefined): PlanStep[] {
+  return (steps ?? [])
+    .filter(
+      (st): st is Record<string, unknown> => !!st && typeof st === 'object'
+    )
+    .map((st, i) => ({
+      step: typeof st.step === 'number' ? st.step : i + 1,
+      description: String(st.description ?? st.text ?? st.title ?? ''),
+      tool: typeof st.tool === 'string' ? st.tool : '',
+      args_hint:
+        st.args_hint && typeof st.args_hint === 'object'
+          ? (st.args_hint as Record<string, unknown>)
+          : {},
+      depends_on: Array.isArray(st.depends_on)
+        ? (st.depends_on as number[])
+        : [],
+    }))
+    .filter((p) => p.description.length > 0);
+}
+
+/** Map raw planner SSE steps onto activity-rail plan items (text + tool
+ * hint, so the rail marks items done when their tool completes). Step items
+ * may be plain strings or planner dicts. */
+function toActivityPlanItems(
+  steps: Array<Record<string, unknown> | string> | undefined
+): Array<{ text: string; tool?: string }> {
+  return (steps ?? [])
+    .map((step) => {
+      if (typeof step === 'string') return { text: step };
+      if (step && typeof step === 'object') {
+        const s = step as Record<string, unknown>;
+        return {
+          text: String(s.description ?? s.text ?? s.title ?? s.step ?? ''),
+          tool: typeof s.tool === 'string' ? s.tool : undefined,
+        };
+      }
+      return { text: '' };
+    })
+    .filter((item) => item.text.length > 0);
 }
 
 /**
@@ -301,9 +354,7 @@ export function useChatStreaming(
       // metadata). Fall back to broad invalidation when no project is
       // bound (global chat has no narrower key to target).
       void queryClient.invalidateQueries({
-        queryKey: boundProjectId
-          ? ['project', boundProjectId]
-          : ['project'],
+        queryKey: boundProjectId ? ['project', boundProjectId] : ['project'],
       });
     },
     [queryClient, boundProjectId]
@@ -402,6 +453,13 @@ export function useChatStreaming(
           console.log('[Chat] Created new thread:', newThread.id);
         } catch (error) {
           console.error('[Chat] Failed to create thread:', error);
+          // Roll back the optimistic turn: the user message was appended and
+          // the composer cleared before this call. Without this the bubble
+          // ghosts (never sent, gone on reload) and the typed text is lost.
+          // Restore both and tell the user, so they can retry.
+          setMessages(messages);
+          setInput(content);
+          toast.error('Could not start the conversation. Please try again.');
           submitLockRef.current = false;
           setIsLoading(false);
           return;
@@ -588,48 +646,9 @@ export function useChatStreaming(
             onPlan: (steps) => {
               // Structured copy for the inline transcript plan — keeps
               // tool/depends_on so status derivation works after commit.
-              turnPlan = (steps ?? [])
-                .filter(
-                  (st): st is Record<string, unknown> =>
-                    !!st && typeof st === 'object'
-                )
-                .map((st, i) => ({
-                  step: typeof st.step === 'number' ? st.step : i + 1,
-                  description: String(
-                    st.description ?? st.text ?? st.title ?? ''
-                  ),
-                  tool: typeof st.tool === 'string' ? st.tool : '',
-                  args_hint:
-                    st.args_hint && typeof st.args_hint === 'object'
-                      ? (st.args_hint as Record<string, unknown>)
-                      : {},
-                  depends_on: Array.isArray(st.depends_on)
-                    ? (st.depends_on as number[])
-                    : [],
-                }))
-                .filter((p) => p.description.length > 0);
+              turnPlan = toTurnPlan(steps);
               if (!currentThreadId) return;
-              // Backend emits `{steps: [...], reasoning: ...}` — step items
-              // may be plain strings or planner dicts with `description` and
-              // a `tool` hint ("N/A" for reasoning/respond steps). Keep the
-              // tool hint: the activity store marks a plan item done when its
-              // tool actually completes, instead of bulk-completing the whole
-              // plan at stream end.
-              const items = (steps ?? [])
-                .map((step) => {
-                  if (typeof step === 'string') return { text: step };
-                  if (step && typeof step === 'object') {
-                    const s = step as Record<string, unknown>;
-                    return {
-                      text: String(
-                        s.description ?? s.text ?? s.title ?? s.step ?? ''
-                      ),
-                      tool: typeof s.tool === 'string' ? s.tool : undefined,
-                    };
-                  }
-                  return { text: '' };
-                })
-                .filter((item) => item.text.length > 0);
+              const items = toActivityPlanItems(steps);
               if (items.length > 0) {
                 useAgentActivityStore
                   .getState()
@@ -663,6 +682,14 @@ export function useChatStreaming(
                 threadId,
                 workspaceThreadId: currentThreadId || '',
                 confirmation,
+                // Only settled steps: the interrupted tool re-emits its own
+                // tool_start on resume, so a carried 'running' step would
+                // duplicate it.
+                steps: turnSteps.filter((s) => s.status !== 'running'),
+                plan: [...turnPlan],
+                // Snapshot NOW — the streamHadConfirmation exit below clears
+                // streamingCitations before the confirm stream starts.
+                citations: useChatStore.getState().streamingCitations,
               });
             },
             onDone: (payload) => {
@@ -969,18 +996,77 @@ export function useChatStreaming(
           activeConversationIdRef.current
         );
       setIsConfirming(true);
-      useChatStore.setState({ isStreaming: true, streamingContent: '' });
+      // Track tool steps for the resumed turn exactly like handleSubmit —
+      // seed with the pre-interrupt steps so the live bubble and the
+      // committed message both show the whole turn's tools, not just the
+      // post-confirm ones (previously none rendered until a page reload).
+      const confirmSteps: ActivityStep[] = [
+        ...(pendingConfirmation.steps ?? []),
+      ];
+      const confirmToolStartTimes = new Map<string, number>();
+      // Pre-interrupt provenance carried on the confirmation — the interrupt
+      // exit cleared the live streaming state, so restore it here.
+      const carriedCitations = pendingConfirmation.citations ?? [];
+      let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+      useChatStore.setState({
+        isStreaming: true,
+        streamingContent: '',
+        streamingSteps: [...confirmSteps],
+        streamingCitations: carriedCitations,
+      });
 
       let confirmContent = '';
       // Post-confirm retrieval contexts (the resumed turn can run RAG); the
       // confirm parser previously dropped rag_context entirely, so a
       // confirmed action's sources never reached the UI (sync-audit gap 2).
-      let confirmCitations: Array<Record<string, unknown>> = [];
+      // Committed alongside the carried pre-interrupt citations.
+      let resumeCitations: Array<Record<string, unknown>> = [];
       // Token usage emitted by the confirm path (backend fires event: usage
       // before done). Without capturing this, confirmed turns showed no token
       // cost — inconsistent with the main stream.
       let confirmTokenUsage: { input: number; output: number } | null = null;
+      // A resumed turn can hit ANOTHER destructive tool (nested interrupt):
+      // the backend emits a fresh `confirmation` and ends the stream without
+      // `done`. Captured here so `finally` re-arms the banner instead of
+      // clearing it — previously the event was dropped and the graph was
+      // left interrupted with no way to resume from the UI.
+      let nestedConfirmation: PendingConfirmation | null = null;
+      // Set when onDone/onError committed a bubble — the post-stream abort
+      // path below must not double-commit.
+      let confirmCommitted = false;
       const confirmMessages = [...messages];
+
+      const buildConfirmMessage = (
+        content: string,
+        stopped: boolean
+      ): ChatPageMessage => {
+        const allCitations = [...carriedCitations, ...resumeCitations];
+        return {
+          role: 'assistant',
+          content,
+          timestamp: Date.now(),
+          ...(allCitations.length > 0
+            ? { citations: allCitations.map(normalizeCitation) }
+            : {}),
+          ...(confirmSteps.length > 0
+            ? { toolExecutions: [...confirmSteps] }
+            : {}),
+          ...(confirmPlan.length > 0 ? { plan: [...confirmPlan] } : {}),
+          ...(confirmTokenUsage || confirmSteps.length > 0 || stopped
+            ? {
+                metadata: {
+                  ...(stopped ? { stopped: true } : {}),
+                  ...(confirmTokenUsage
+                    ? { tokenUsage: confirmTokenUsage }
+                    : {}),
+                  ...(confirmSteps.length > 0
+                    ? { toolsUsed: confirmSteps.map((s) => s.label) }
+                    : {}),
+                },
+              }
+            : {}),
+        };
+      };
 
       const confirmAbort = new AbortController();
       abortControllerRef.current = confirmAbort;
@@ -1005,12 +1091,20 @@ export function useChatStreaming(
                 });
               }
             },
-            onToolStart: (tool) => {
+            onToolStart: (tool, args) => {
               useAgentActivityStore
                 .getState()
                 .pushToolStart(pendingConfirmation.workspaceThreadId, tool);
+              confirmToolStartTimes.set(tool, Date.now());
+              confirmSteps.push({
+                tool,
+                label: toolLabel(tool),
+                status: 'running',
+                argsSummary: summarizeToolArgs(args),
+              });
+              useChatStore.setState({ streamingSteps: [...confirmSteps] });
             },
-            onToolEnd: (tool, _result, isError) => {
+            onToolEnd: (tool, result, isError) => {
               useAgentActivityStore
                 .getState()
                 .pushToolEnd(
@@ -1021,13 +1115,47 @@ export function useChatStreaming(
               // HITL-confirmed tools are exactly the mutating ones (ingest,
               // create_note, create_draft) — refresh the rail here too.
               invalidateProjectDataForTool(tool, isError);
+              const startTime = confirmToolStartTimes.get(tool);
+              const durationMs = startTime ? Date.now() - startTime : undefined;
+              const idx = [...confirmSteps]
+                .map((s, i) => ({ s, i }))
+                .reverse()
+                .find(({ s }) => s.tool === tool && s.status === 'running')?.i;
+              if (idx !== undefined) {
+                confirmSteps[idx] = {
+                  ...confirmSteps[idx],
+                  status: isError ? 'error' : 'done',
+                  durationMs,
+                  resultSummary: summarizeToolResult(result),
+                };
+              }
+              useChatStore.setState({ streamingSteps: [...confirmSteps] });
             },
             onRagContext: (contexts) => {
-              confirmCitations = contexts;
+              resumeCitations = contexts;
               useChatStore.setState({
-                streamingCitations: contexts,
+                streamingCitations: [...carriedCitations, ...contexts],
                 isRetrievingRag: false,
               });
+            },
+            onPlan: (steps) => {
+              confirmPlan = toTurnPlan(steps);
+              const items = toActivityPlanItems(steps);
+              if (pendingConfirmation.workspaceThreadId && items.length > 0) {
+                useAgentActivityStore
+                  .getState()
+                  .setPlan(pendingConfirmation.workspaceThreadId, items);
+              }
+            },
+            onConfirmation: (threadId, confirmation) => {
+              nestedConfirmation = {
+                threadId,
+                workspaceThreadId: pendingConfirmation.workspaceThreadId,
+                confirmation,
+                steps: confirmSteps.filter((s) => s.status !== 'running'),
+                plan: [...confirmPlan],
+                citations: [...carriedCitations, ...resumeCitations],
+              };
             },
             onUsage: (inputTokens, outputTokens) => {
               confirmTokenUsage = { input: inputTokens, output: outputTokens };
@@ -1040,27 +1168,14 @@ export function useChatStreaming(
             },
             onDone: (payload) => {
               if (confirmContent.trim()) {
-                const msg: ChatPageMessage = {
-                  role: 'assistant',
-                  content: confirmContent,
-                  timestamp: Date.now(),
-                  ...(confirmCitations.length > 0
-                    ? { citations: confirmCitations.map(normalizeCitation) }
-                    : {}),
-                  ...(confirmTokenUsage
-                    ? {
-                        metadata: {
-                          tokenUsage: confirmTokenUsage,
-                        },
-                      }
-                    : {}),
-                };
+                const msg = buildConfirmMessage(confirmContent, false);
                 // Server-canonical: stamp the persisted id onto the
                 // optimistic bubble so a reload reconciles with the row
                 // instead of re-fetching a duplicate. Mirrors handleSubmit.
                 if (payload?.assistant_message_id) {
                   msg.id = payload.assistant_message_id;
                 }
+                confirmCommitted = true;
                 if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
               }
             },
@@ -1070,11 +1185,29 @@ export function useChatStreaming(
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
               };
+              confirmCommitted = true;
               if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
             },
           },
           confirmAbort.signal
         );
+
+        // User hit Stop mid-resume: the abort swallows the stream so onDone
+        // never fires — commit the partial answer tagged `stopped`, like
+        // handleSubmit does. The backend's disconnect branch persists the
+        // same partial server-side, so reload reconciles.
+        if (
+          !confirmCommitted &&
+          stoppedByUserRef.current &&
+          confirmContent.trim()
+        ) {
+          confirmCommitted = true;
+          if (isConfirmDisplayed())
+            setMessages([
+              ...confirmMessages,
+              buildConfirmMessage(confirmContent, true),
+            ]);
+        }
       } catch (err) {
         const errorMessage =
           err instanceof Error
@@ -1087,8 +1220,11 @@ export function useChatStreaming(
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
       } finally {
-        setPendingConfirmation(null);
+        // A nested interrupt re-arms the banner with the new confirmation
+        // (carrying the turn's accumulated provenance); otherwise clear it.
+        setPendingConfirmation(nestedConfirmation);
         setIsConfirming(false);
+        stoppedByUserRef.current = false;
         // The confirm stream shares streamingRafRef/pendingStreamContentRef
         // with handleSubmit's onToken throttle. A token that lands just
         // before completion schedules a rAF that would otherwise fire AFTER
@@ -1101,6 +1237,8 @@ export function useChatStreaming(
         useChatStore.setState({
           isStreaming: false,
           streamingContent: '',
+          streamingSteps: [],
+          streamingCitations: [],
         });
       }
     },

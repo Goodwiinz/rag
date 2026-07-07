@@ -77,9 +77,8 @@ async def create_workspace(
 ):
     """Create a new workspace"""
     user_org_id = getattr(current_user, "organization_id", None)
-    if (
-        request.organization_id is not None
-        and str(request.organization_id) != str(user_org_id)
+    if request.organization_id is not None and str(request.organization_id) != str(
+        user_org_id
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -787,7 +786,9 @@ async def create_message(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments).selectinload(
+                MessageAttachment.document
+            ),
         )
         .where(ChatMessage.id == message.id)
     )
@@ -828,7 +829,9 @@ async def list_messages(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments).selectinload(
+                MessageAttachment.document
+            ),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
         .order_by(ChatMessage.created_at.asc())
@@ -1294,9 +1297,9 @@ def _workspace_to_response(workspace: Workspace) -> WorkspaceResponse:
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations)
-        if workspace.conversations
-        else 0,
+        conversation_count=(
+            len(workspace.conversations) if workspace.conversations else 0
+        ),
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
@@ -1314,9 +1317,9 @@ def _workspace_to_detail_response(workspace: Workspace) -> WorkspaceDetailRespon
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations)
-        if workspace.conversations
-        else 0,
+        conversation_count=(
+            len(workspace.conversations) if workspace.conversations else 0
+        ),
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
@@ -1352,9 +1355,11 @@ def _conversation_to_response(conversation: Conversation) -> ConversationRespons
         last_activity_at=conversation.last_activity_at,
         created_by_id=conversation.created_by_id,
         thread_count=conversation.thread_count,
-        message_count=sum(t.message_count or 0 for t in conversation.threads)
-        if conversation.threads
-        else 0,
+        message_count=(
+            sum(t.message_count or 0 for t in conversation.threads)
+            if conversation.threads
+            else 0
+        ),
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
@@ -1421,12 +1426,16 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
         tool_call_id=message.tool_call_id,
         feedback_rating=message.feedback_rating,
         feedback_text=message.feedback_text,
-        citations=[_citation_to_response(c) for c in message.citations]
-        if message.citations
-        else [],
-        attachments=[_attachment_to_response(a) for a in message.attachments]
-        if message.attachments
-        else [],
+        citations=(
+            [_citation_to_response(c) for c in message.citations]
+            if message.citations
+            else []
+        ),
+        attachments=(
+            [_attachment_to_response(a) for a in message.attachments]
+            if message.attachments
+            else []
+        ),
         created_at=message.created_at,
         updated_at=message.updated_at,
     )
@@ -1441,9 +1450,11 @@ def _citation_to_response(citation: Citation) -> CitationResponse:
         chunk_index=citation.chunk_index,
         chunk_id=citation.chunk_id,
         snippet=citation.snippet,
-        snippet_preview=citation.snippet[:200] + "..."
-        if citation.snippet and len(citation.snippet) > 200
-        else citation.snippet,
+        snippet_preview=(
+            citation.snippet[:200] + "..."
+            if citation.snippet and len(citation.snippet) > 200
+            else citation.snippet
+        ),
         page_number=citation.page_number,
         score=citation.score,
         rerank_score=citation.rerank_score,
@@ -1467,9 +1478,11 @@ def _attachment_to_response(attachment) -> MessageAttachmentResponse:
         display_name=attachment.display_name,
         thumbnail_url=attachment.thumbnail_url,
         document_title=attachment.document.title if attachment.document else None,
-        document_type=attachment.document.document_type.value
-        if attachment.document and attachment.document.document_type
-        else None,
+        document_type=(
+            attachment.document.document_type.value
+            if attachment.document and attachment.document.document_type
+            else None
+        ),
         mime_type=attachment.document.mime_type if attachment.document else None,
     )
 
@@ -1499,9 +1512,11 @@ def _collection_to_detail_response(collection: Collection) -> CollectionDetailRe
                     {
                         "id": str(cd.document.id),
                         "title": cd.document.title,
-                        "document_type": cd.document.document_type.value
-                        if cd.document.document_type
-                        else None,
+                        "document_type": (
+                            cd.document.document_type.value
+                            if cd.document.document_type
+                            else None
+                        ),
                         "sort_order": cd.sort_order,
                     }
                 )
@@ -1836,7 +1851,9 @@ async def list_messages_standalone(
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments).selectinload(
+                MessageAttachment.document
+            ),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
         .order_by(ChatMessage.created_at.asc())
@@ -1864,71 +1881,28 @@ async def create_message_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new message (standalone route - uses thread_id from request body)"""
-    thread_stmt = select(Thread).where(
-        Thread.id == request.thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
+    # Delegate to the canonical ChatService.create_message. This route used to
+    # reimplement it and drifted: it accepted but silently discarded
+    # latency_ms, stopped, and attachment_ids (so legacy-mode clients lost the
+    # stopped badge / response time on reload), skipped token accounting, and
+    # lacked the org-ownership guard on attachments.
+    from src.services.threads.chat_service import get_chat_service
 
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    message = ChatMessage(
-        thread_id=request.thread_id,
-        user_id=current_user.id if request.role.value == "user" else None,
-        role=MessageRole(request.role.value),
-        content=request.content,
-    )
-    db.add(message)
-    await db.flush()  # Flush to get message.id for citations
-
-    # Handle citations (for assistant messages with RAG sources)
-    if request.citations:
-        for cit in request.citations:
-            citation = Citation(
-                message_id=message.id,
-                document_id=cit.document_id,  # May be None for external refs
-                external_reference_id=cit.external_reference_id,
-                document_title=cit.document_title,
-                document_type=cit.document_type,
-                chunk_index=cit.chunk_index,
-                chunk_id=cit.chunk_id,
-                snippet=cit.snippet,
-                page_number=cit.page_number,
-                score=cit.score,
-                rerank_score=cit.rerank_score,
-            )
-            db.add(citation)
-
-    # Update thread stats
-    thread.message_count = (thread.message_count or 0) + 1
-    thread.last_message_at = datetime.utcnow()
-
-    # Update conversation activity
-    conversation.last_activity_at = datetime.utcnow()
-
-    await db.commit()
+    service = get_chat_service(db)
+    message = await service.create_message(request, current_user.id)
+    if not message:
+        raise HTTPException(
+            status_code=404, detail="Thread not found or insufficient permissions"
+        )
 
     # Re-query with eager loading to get citations with document info
     stmt = (
         select(ChatMessage)
         .options(
             selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+            selectinload(ChatMessage.attachments).selectinload(
+                MessageAttachment.document
+            ),
         )
         .where(ChatMessage.id == message.id)
     )
