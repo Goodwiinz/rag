@@ -488,6 +488,26 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     expect(result[0].metadata?.responseTimeMs).toBe(2000);
   });
 
+  it('keeps toolExecutions when the store row has none (legacy mode, M3)', () => {
+    const toolExecutions = [
+      { tool: 'search_arxiv', label: 'Searching arXiv', status: 'done' as const },
+    ];
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          id: 'm-1',
+          role: 'assistant',
+          content: 'Answer',
+          timestamp: 1,
+          toolExecutions,
+        },
+      ],
+      storeMessages: [storeMsg('m-1', 'Answer')],
+    });
+
+    expect(result[0].toolExecutions).toEqual(toolExecutions);
+  });
+
   it('falls back to role+content matching for optimistic messages without ids', () => {
     const result = selectDisplayedMessages({
       localMessages: [

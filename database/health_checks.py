@@ -5,7 +5,6 @@ Comprehensive Database Health Check System for Multimodal Enterprise RAG System
 This script provides detailed health monitoring for all four databases:
 - PostgreSQL
 - Neo4j
-- Qdrant
 - Redis
 """
 
@@ -28,13 +27,6 @@ try:
 except ImportError:
     NEO4J_AVAILABLE = False
     print("Warning: Neo4j driver not available. Install with: pip install neo4j")
-
-try:
-    from qdrant_client import QdrantClient
-    QDRANT_AVAILABLE = True
-except ImportError:
-    QDRANT_AVAILABLE = False
-    print("Warning: Qdrant client not available. Install with: pip install qdrant-client")
 
 try:
     import redis.asyncio as redis
@@ -63,11 +55,6 @@ NEO4J_CONFIG = {
     'uri': 'bolt://localhost:7687',
     'user': 'neo4j',
     'password': 'neo4j_password_123'
-}
-
-QDRANT_CONFIG = {
-    'url': 'http://localhost:6333',
-    'api_key': 'qdrant_api_key_123'
 }
 
 REDIS_CONFIG = {
@@ -124,15 +111,6 @@ class DatabaseHealthChecker:
         else:
             self.results.append(HealthCheckResult(
                 "Neo4j", "error", "Neo4j driver not available"
-            ))
-
-        # Qdrant health check
-        if QDRANT_AVAILABLE:
-            qdrant_result = await self._check_qdrant()
-            self.results.append(qdrant_result)
-        else:
-            self.results.append(HealthCheckResult(
-                "Qdrant", "error", "Qdrant client not available"
             ))
 
         # Redis health check
@@ -288,59 +266,6 @@ class DatabaseHealthChecker:
         except Exception as e:
             response_time = time.time() - start_time
             return HealthCheckResult("Neo4j", "error", str(e), {}, response_time)
-
-    async def _check_qdrant(self) -> HealthCheckResult:
-        """Check Qdrant vector database health"""
-        start_time = time.time()
-
-        try:
-            client = QdrantClient(**QDRANT_CONFIG)
-
-            # Basic health check
-            health_response = client.http.models.api.http.Health()
-
-            # Get cluster information
-            metrics = {}
-
-            # Collection information
-            collections = client.get_collections()
-            collection_names = []
-            collection_sizes = []
-
-            for collection in collections.collections:
-                collection_names.append(collection.name)
-                try:
-                    collection_info = client.get_collection(collection.name)
-                    collection_sizes.append(collection_info.points_count)
-                except:
-                    collection_sizes.append(0)
-
-            metrics['collections'] = len(collection_names)
-            metrics['collection_names'] = collection_names
-            metrics['total_vectors'] = sum(collection_sizes)
-
-            # Performance metrics if available
-            try:
-                cluster_info = client.get_cluster_info()
-                metrics['cluster_status'] = 'healthy'
-            except:
-                metrics['cluster_status'] = 'standalone'
-
-            response_time = time.time() - start_time
-
-            # Determine health status
-            if metrics['total_vectors'] == 0:
-                status = "warning"
-                message = "Vector database healthy but no vectors found"
-            else:
-                status = "healthy"
-                message = f"Vector database healthy with {metrics['total_vectors']} vectors across {metrics['collections']} collections"
-
-            return HealthCheckResult("Qdrant", status, message, metrics, response_time)
-
-        except Exception as e:
-            response_time = time.time() - start_time
-            return HealthCheckResult("Qdrant", "error", str(e), {}, response_time)
 
     async def _check_redis(self) -> HealthCheckResult:
         """Check Redis cache health"""

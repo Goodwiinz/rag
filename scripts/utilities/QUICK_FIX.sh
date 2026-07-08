@@ -17,7 +17,7 @@ docker-compose down
 
 # 3. Start databases only
 echo "Starting databases..."
-docker-compose up -d postgres neo4j qdrant redis
+docker-compose up -d postgres neo4j redis
 
 # 4. Wait for databases to be ready
 echo "Waiting for databases..."
@@ -33,7 +33,6 @@ DATABASE_URL=postgresql://raguser:rag_password@localhost:5432/ragdb
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=neo4j_password
-QDRANT_URL=http://localhost:6333
 REDIS_URL=redis://localhost:6379/0
 EOF
 

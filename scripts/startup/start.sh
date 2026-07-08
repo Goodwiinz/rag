@@ -76,22 +76,6 @@ validate_azure_config() {
     print_status "Azure OpenAI configuration validated!"
 }
 
-# Function to validate Qdrant configuration
-validate_qdrant_config() {
-    local env_file="$1"
-
-    if grep -q "^QDRANT_URL=https://.*qdrant.io" "$env_file"; then
-        print_status "Using Qdrant Cloud configuration"
-
-        if ! grep -q "^QDRANT_API_KEY=" "$env_file" || grep -q "^QDRANT_API_KEY=$" "$env_file"; then
-            print_error "QDRANT_API_KEY is required for Qdrant Cloud"
-            exit 1
-        fi
-    else
-        print_status "Using local Qdrant configuration"
-    fi
-}
-
 # Function to start services
 start_services() {
     local compose_file="$1"
@@ -185,7 +169,6 @@ case "${1:-help}" in
         print_header "Starting in Development Mode"
         check_docker
         check_env_file ".env"
-        validate_qdrant_config ".env"
         start_services "docker-compose.development.yml" ".env"
         show_service_urls
         ;;
@@ -195,17 +178,6 @@ case "${1:-help}" in
         check_docker
         check_env_file ".env"
         validate_azure_config ".env"
-        validate_qdrant_config ".env"
-        start_services "docker-compose.azure.yml" ".env"
-        show_service_urls
-        ;;
-
-    "cloud")
-        print_header "Starting in Cloud Mode (Qdrant Cloud + Azure OpenAI)"
-        check_docker
-        check_env_file ".env"
-        validate_azure_config ".env"
-        validate_qdrant_config ".env"
         start_services "docker-compose.azure.yml" ".env"
         show_service_urls
         ;;
@@ -249,7 +221,6 @@ case "${1:-help}" in
         echo "Commands:"
         echo "  dev, development    Start with local services and optional Azure OpenAI"
         echo "  azure              Start with Azure OpenAI and local databases"
-        echo "  cloud              Start with Azure OpenAI and Qdrant Cloud"
         echo "  stop               Stop all running services"
         echo "  logs [service]     Show logs for all services or specific service"
         echo "  status             Show status of all services"

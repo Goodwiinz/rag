@@ -205,10 +205,21 @@ function mergeLocalProvenance(
         ? { ...local.metadata, ...message.metadata }
         : undefined;
 
+    // Legacy (client-persist) rows have no tool_executions column data, so
+    // the flip from local to store messages dropped the tool-activity strip
+    // from the just-finished turn (round-3 M3). Server values stay canonical
+    // where both exist.
+    const mergedToolExecutions = message.toolExecutions?.length
+      ? message.toolExecutions
+      : local.toolExecutions;
+
     return {
       ...message,
       ...((message.plan ?? local.plan)
         ? { plan: message.plan ?? local.plan }
+        : {}),
+      ...(mergedToolExecutions?.length
+        ? { toolExecutions: mergedToolExecutions }
         : {}),
       ...(mergedMetadata ? { metadata: mergedMetadata } : {}),
     };

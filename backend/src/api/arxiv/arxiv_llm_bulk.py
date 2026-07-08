@@ -11,16 +11,25 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from src.core.dependencies import require_admin
 from src.services.ingestion.kaggle_llm_bulk_ingestion import (
     KaggleLLMBulkIngestionService,
     LLMIngestionProgress,
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/arxiv/llm-bulk", tags=["ArXiv LLM Bulk Ingestion"])
+# Admin-only: process-global LLM ingestion singleton, resource- and
+# cost-intensive (paid LLM extraction). Was reachable unauthenticated —
+# MultiTenancyMiddleware lets tokenless requests through, and no route here
+# declared an auth dependency.
+router = APIRouter(
+    prefix="/arxiv/llm-bulk",
+    tags=["ArXiv LLM Bulk Ingestion"],
+    dependencies=[Depends(require_admin)],
+)
 
 # Global progress tracker
 _current_ingestion: Optional[LLMIngestionProgress] = None
@@ -222,9 +231,9 @@ async def get_llm_ingestion_status():
     return LLMBulkIngestionStatus(
         is_running=is_running,
         progress=_current_ingestion,
-        message="LLM ingestion in progress"
-        if is_running
-        else "LLM ingestion completed",
+        message=(
+            "LLM ingestion in progress" if is_running else "LLM ingestion completed"
+        ),
         estimated_cost_usd=estimated_cost,
     )
 
@@ -373,40 +382,34 @@ async def get_llm_ingestion_stats():
             total_doc_count = record["count"] if record else 0
 
             # Get entity counts by type
-            result = await session.run(
-                """
+            result = await session.run("""
                 MATCH (e:Entity)
                 RETURN labels(e) as types, count(*) as count
                 ORDER BY count DESC
-            """
-            )
+            """)
             entity_types = [
                 {"types": r["types"], "count": r["count"]} async for r in result
             ]
 
             # Get relationship counts by type
-            result = await session.run(
-                """
+            result = await session.run("""
                 MATCH ()-[r]->()
                 WHERE type(r) IN ['USES', 'EVALUATED_ON', 'ACHIEVED', 'COMPARED_WITH', 'EXTENDS', 'MENTIONS']
                 RETURN type(r) as rel_type, count(*) as count
                 ORDER BY count DESC
-            """
-            )
+            """)
             relationship_types = [
                 {"type": r["rel_type"], "count": r["count"]} async for r in result
             ]
 
             # Get category distribution for LLM-processed papers
-            result = await session.run(
-                """
+            result = await session.run("""
                 MATCH (d:DOCUMENT)
                 WHERE d.extraction_type = 'llm'
                 RETURN d.arxiv_category as category, count(*) as count
                 ORDER BY count DESC
                 LIMIT 20
-            """
-            )
+            """)
             categories = [
                 {"category": r["category"], "count": r["count"]} async for r in result
             ]

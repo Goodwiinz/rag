@@ -419,3 +419,29 @@ async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
     assert result is True
     assert doc.do_kb_data_source_uuid is None
     assert session.commits == 1
+
+
+@pytest.mark.unit
+def test_record_metric_routes_to_increment_counter():
+    """Regression: _record_metric used to read a module attribute
+    (agent_do_kb_ingest_total) that is defined nowhere, so every ingest-outcome
+    metric was a silent no-op. It must now route through the registered
+    increment_counter, like the RAG read path does."""
+    from src.services.do_kb.ingest import _record_metric
+
+    with patch("src.observability.metrics.increment_counter") as inc:
+        _record_metric("ok")
+
+    inc.assert_called_once_with("do_kb_ingest_total", attributes={"status": "ok"})
+
+
+@pytest.mark.unit
+def test_record_metric_swallows_observability_errors():
+    """Observability is best-effort — a metrics failure must never break ingest."""
+    from src.services.do_kb.ingest import _record_metric
+
+    with patch(
+        "src.observability.metrics.increment_counter",
+        side_effect=RuntimeError("meter down"),
+    ):
+        _record_metric("provision_failed")  # must not raise

@@ -1,11 +1,12 @@
 """Research Engine run endpoints."""
 
 import asyncio
+import functools
 import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -132,8 +133,15 @@ def _build_providers(steps: List[Dict[str, Any]]) -> Dict[str, Any]:
     return providers
 
 
-async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]:
-    """Search the existing hybrid RAG index for local-store style connector output."""
+async def _search_rag_store(
+    query: str, max_results: int = 50, *, organization_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Search the existing hybrid RAG index for local-store style connector output.
+
+    MUST be scoped to the run owner's ``organization_id`` — without it
+    ``hybrid_search_service.search`` runs org-unfiltered and a research run
+    would surface (and copy ``full_text`` from) every tenant's documents.
+    """
     from src.models.search_schemas import SearchQuery
     from src.services.search.hybrid_search_service import hybrid_search_service
 
@@ -141,7 +149,8 @@ async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]
     response = await loop.run_in_executor(
         None,
         lambda: hybrid_search_service.search(
-            SearchQuery(query=query, limit=max_results, search_type="hybrid")
+            SearchQuery(query=query, limit=max_results, search_type="hybrid"),
+            organization_id=organization_id,
         ),
     )
 
@@ -166,16 +175,21 @@ async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]
     return {"results": results}
 
 
-def _build_connectors() -> Dict[str, Any]:
-    """Create connector instances for workflow execution."""
+def _build_connectors(organization_id: Optional[str] = None) -> Dict[str, Any]:
+    """Create connector instances for workflow execution.
+
+    ``organization_id`` (the run owner's) is bound into the rag_store search so
+    the local-index connector only ever returns this tenant's documents.
+    """
     semantic_connector = SemanticScholarConnector()
+    rag_search = functools.partial(_search_rag_store, organization_id=organization_id)
     return {
         "arxiv": ArxivConnector(),
         "semantic_scholar": semantic_connector,
         # Temporary aliases until dedicated connectors are implemented.
         "pubmed": semantic_connector,
         "web": semantic_connector,
-        "rag_store": RagStoreConnector(search_fn=_search_rag_store),
+        "rag_store": RagStoreConnector(search_fn=rag_search),
     }
 
 
@@ -191,8 +205,6 @@ def _get_effective_parameters(
         overrides = manifest["parameters_override"]
     base.update(overrides)
     return base, overrides
-
-
 
 
 router = APIRouter(
@@ -394,7 +406,11 @@ async def stream_run(
             ),
         )
 
-    connectors = _build_connectors()
+    connectors = _build_connectors(
+        organization_id=(
+            str(current_user.organization_id) if current_user.organization_id else None
+        )
+    )
     effective_parameters, parameter_overrides = _get_effective_parameters(
         blueprint, run
     )

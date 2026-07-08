@@ -22,6 +22,7 @@ from src.core.dependencies import (
 )
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
+from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
 
@@ -213,7 +214,26 @@ async def list_files(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            conditions.append(Document.processing_status == processing_status)
+            # This router emits frontend status names ('queued'/'indexed') in
+            # its upload response, so a client filtering by what it received
+            # sends those back. Comparing them raw against the ProcessingStatus
+            # enum column raised LookupError -> 500. Map like documents.py does.
+            frontend_to_backend = {
+                "queued": ProcessingStatus.PENDING,
+                "indexed": ProcessingStatus.COMPLETED,
+                "processing": ProcessingStatus.PROCESSING,
+                "failed": ProcessingStatus.FAILED,
+                "retrying": ProcessingStatus.RETRYING,
+                "pending": ProcessingStatus.PENDING,
+                "completed": ProcessingStatus.COMPLETED,
+            }
+            mapped = frontend_to_backend.get(processing_status.lower())
+            if not mapped:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid processing_status: {processing_status}",
+                )
+            conditions.append(Document.processing_status == mapped)
 
         if search:
             escaped_search = _escape_like(search)
@@ -242,6 +262,9 @@ async def list_files(
             size=size,
         )
 
+    except HTTPException:
+        # e.g. the 400 for an invalid processing_status — don't mask it as 500.
+        raise
     except Exception as e:
         logger.error(f"Error in list_files: {e}")
         raise HTTPException(
@@ -553,7 +576,6 @@ async def cancel_upload(
             )
 
         # First, check if upload_id exists in processing jobs
-        from src.models.processing import ProcessingJob
 
         job_stmt = select(ProcessingJob).where(
             ProcessingJob.celery_task_id == upload_id, ProcessingJob.is_deleted == False
@@ -570,17 +592,25 @@ async def cancel_upload(
                     detail="You can only cancel your own uploads",
                 )
 
-            # Check if job can be cancelled (only pending or running jobs)
-            if processing_job.status not in ["pending", "running"]:
+            # Check if job can be cancelled. JobStatus is a plain PyEnum, so the
+            # old `status not in ["pending", "running"]` compared enum members
+            # to strings — always True, so every cancel early-returned and the
+            # block below was dead (and would have written the raw string
+            # "cancelled" into the enum column). Compare against enum members.
+            if processing_job.status not in (
+                JobStatus.PENDING,
+                JobStatus.QUEUED,
+                JobStatus.RUNNING,
+                JobStatus.RETRYING,
+            ):
                 return {
-                    "message": f"Cannot cancel job in {processing_job.status} state",
+                    "message": f"Cannot cancel job in {processing_job.status.value} state",
                     "upload_id": upload_id,
-                    "job_status": processing_job.status,
+                    "job_status": processing_job.status.value,
                 }
 
-            # Update job status to cancelled
-            processing_job.status = "cancelled"
-            processing_job.completed_at = datetime.utcnow()
+            # cancel_job() sets status=CANCELLED + completed_at + duration.
+            processing_job.cancel_job()
             processing_job.error_message = "Upload cancelled by user"
             await db.commit()
 
@@ -679,11 +709,44 @@ async def reprocess_file(
         document.processing_started_at = None
         document.processing_completed_at = None
 
+        # Create + enqueue an actual ProcessingJob. The old code only reset the
+        # status and committed — it created no job and dispatched no task, so
+        # nothing ever picked the document up (there is no PENDING sweeper); it
+        # sat PENDING forever while the API falsely reported "queued". Mirror
+        # documents.py reprocess_document: flush -> delay -> commit so a broker
+        # failure rolls back the status reset too (no stranded document).
+        from src.models.processing import JobPriority, JobType
+
+        processing_job = ProcessingJob(
+            job_type=JobType.DOCUMENT_INGESTION,
+            status=JobStatus.PENDING,
+            priority=JobPriority.NORMAL,
+            document_id=document.id,
+            organization_id=organization.id,
+            created_by_user_id=current_user.id,
+            parameters={
+                "document_id": str(document.id),
+                "file_path": document.file_path,
+                "document_type": document.document_type.value,
+                "mime_type": document.mime_type,
+            },
+            config={"max_retries": 3, "timeout_seconds": 300},
+            total_steps=5,
+            queue_name="document_processing",
+        )
+        db.add(processing_job)
+        await db.flush()
+
+        from src.tasks.processing_tasks import process_document_ingestion
+
+        process_document_ingestion.delay(str(processing_job.id))
+
         await db.commit()
 
         return {
             "message": "File queued for reprocessing",
             "processing_status": document.processing_status.value,
+            "job_id": str(processing_job.id),
         }
 
     except Exception as e:

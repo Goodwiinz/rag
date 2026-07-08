@@ -35,6 +35,7 @@ vi.mock('@/services/workspaceService', () => ({
 }));
 
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import { useAgentActivityStore } from '@/stores/agentActivityStore';
 
 type StreamCallbacks = {
   onToken: (t: string) => void;
@@ -162,6 +163,10 @@ describe('useChatStreaming HITL confirm tool steps', () => {
 
     // Streaming state fully unwound.
     expect(useChatStore.getState().streamingSteps).toEqual([]);
+    // Activity rail closed out — a confirmed turn must not stay "running"
+    // forever (round-3 M1). The run is keyed by the workspace thread id.
+    const run = useAgentActivityStore.getState().runs['thread-A'];
+    expect(run?.state).toBe('done');
   });
 
   it('carries pre-interrupt plan + citations into the committed confirm message', async () => {
