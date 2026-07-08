@@ -17,7 +17,7 @@ from langgraph.errors import GraphInterrupt
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
 from src.services.agent._builders import RECURSION_LIMIT
-from src.services.agent._pii_redact import redact_pii
+from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.observability import record_token_usage
 
 from . import jobs as _jobs_mod
@@ -161,27 +161,6 @@ def _encode_tool_result(output: Any) -> str:
     return str(output)[:500]
 
 
-def _redact_tool_args(value: Any) -> Any:
-    """Recursively redact PII in a tool-args value while preserving structure.
-
-    Strings are redacted and capped; dicts/lists recurse; JSON-safe scalars
-    (int/float/bool/None) carry no PII and pass through unchanged. Anything
-    else (datetime, Decimal, a custom object, …) is stringified and redacted —
-    ``str(tool_input)`` used to tolerate those, so a bare passthrough here would
-    make the emit-site ``json.dumps`` raise and break the SSE stream. Keeping
-    the JSON shape is what lets the frontend's args summarizer render it.
-    """
-    if isinstance(value, str):
-        return redact_pii(value)[:500]
-    if isinstance(value, dict):
-        return {k: _redact_tool_args(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_redact_tool_args(v) for v in value]
-    if value is None or isinstance(value, (int, float)):  # bool is an int
-        return value
-    return redact_pii(str(value))[:500]
-
-
 def _tool_args_preview(tool_input: Any) -> Any:
     """Render a tool's input args for the SSE ``tool_start.args`` field.
 
@@ -197,7 +176,7 @@ def _tool_args_preview(tool_input: Any) -> Any:
     (the confirm path previously skipped redaction entirely).
     """
     if isinstance(tool_input, dict):
-        return _redact_tool_args(tool_input)
+        return redact_tool_args(tool_input)
     return redact_pii(str(tool_input))[:500] if tool_input else ""
 
 
@@ -1148,11 +1127,16 @@ async def stream_confirm_event_generator(
 
         # Canonical mode carries the persisted ids so the client can reconcile
         # its optimistic bubble with the server row (mirrors the main /stream
-        # done payload). tool_executions stays for legacy CLI clients.
+        # done payload). tool_executions stays for legacy CLI clients — args
+        # redacted like every other browser-visible copy (the live tool_start
+        # preview was redacted in #1046 but this payload kept raw args).
         done_payload: Dict[str, Any] = {
             "status": "complete",
             "tool_executions": (
-                [te.model_dump() for te in tool_executions_out]
+                [
+                    {**te.model_dump(), "args": redact_tool_args(te.args)}
+                    for te in tool_executions_out
+                ]
                 if tool_executions_out
                 else []
             ),

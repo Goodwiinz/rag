@@ -41,6 +41,7 @@ from src.models.document import Document
 from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
 from src.models.workspace import Workspace
+from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
 
 from .jobs import (  # noqa: F401
@@ -722,7 +723,10 @@ async def get_thread_messages(
                 tool_name=msg.tool_name,
                 tool_call_id=msg.tool_call_id,
                 citations=citations_data,
-                tool_executions=msg.tool_executions,
+                # Serve-time redaction: rows were persisted with raw args
+                # (before and after #1046 redacted the live SSE preview), so
+                # redacting here is what covers historical rows on reload.
+                tool_executions=redact_tool_executions(msg.tool_executions),
                 plan=msg.plan,
                 token_usage=msg.token_usage,
             )
