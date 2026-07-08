@@ -9,8 +9,6 @@ stale L2 entry; (4) Redis-down still performs the live call.
 
 from __future__ import annotations
 
-import pytest
-
 from src.api.agent import tools_impl as ti
 
 
