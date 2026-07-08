@@ -38,6 +38,83 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# --- Shared cross-pod arXiv rate gate ---------------------------------------
+# arXiv rate-limits per SOURCE IP. Each pod honoring only its own 3s gate means
+# N HPA replicas + the synthetic CronJob collectively exceed arXiv's window and
+# 429 (LangSmith thread 301d6031: a first-attempt 429). This gate reserves the
+# next request slot in Redis so ALL pods are serialized >= 3s apart against
+# arXiv's per-IP limit. Redis-down / unset degrades to the per-process gate.
+_ARXIV_RATE_KEY = "arxiv:rategate"
+_ARXIV_MIN_INTERVAL_MS = 3000  # arXiv's minimum 3s between requests
+_ARXIV_MAX_WAIT_MS = 15000  # if the queue is deeper than this, proceed (may 429)
+_ARXIV_GATE_TTL_MS = 20000  # key self-expires so a quiet period resets the gate
+# Atomically reserve the next slot: slot = max(now, last + interval); persist it
+# and return how long THIS caller must wait. -1 => queue too deep, don't reserve.
+_ARXIV_GATE_LUA = """
+local last = tonumber(redis.call('GET', KEYS[1]) or '0')
+local now = tonumber(ARGV[1])
+local interval = tonumber(ARGV[2])
+local maxwait = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+local slot = math.max(now, last + interval)
+local wait = slot - now
+if wait > maxwait then
+  return -1
+end
+redis.call('SET', KEYS[1], slot, 'PX', ttl)
+return wait
+"""
+_arxiv_gate_redis: Any = None
+_arxiv_gate_disabled = False
+
+
+async def _acquire_arxiv_rate_slot() -> Optional[float]:
+    """Reserve the next shared arXiv request slot across all pods.
+
+    Returns the seconds to sleep before firing (0.0 = now), or ``None`` when the
+    shared gate is unavailable (no REDIS_URL, or a transient Redis error) so the
+    caller falls back to the per-process gate. Never raises.
+    """
+    global _arxiv_gate_redis, _arxiv_gate_disabled
+    if _arxiv_gate_disabled:
+        return None
+    try:
+        if _arxiv_gate_redis is None:
+            from src.core.config import settings
+
+            if not getattr(settings, "REDIS_URL", None):
+                _arxiv_gate_disabled = True  # never going to work; stop trying
+                return None
+            import redis.asyncio as _redis_async
+
+            _arxiv_gate_redis = _redis_async.from_url(
+                settings.REDIS_URL, decode_responses=True
+            )
+        import time
+
+        now_ms = int(time.time() * 1000)
+        # NOTE: this is Redis' server-side Lua EVAL (not Python eval) — the
+        # script is a module constant and every ARGV is an int, so there is no
+        # code-injection surface.
+        res = await _arxiv_gate_redis.eval(
+            _ARXIV_GATE_LUA,
+            1,
+            _ARXIV_RATE_KEY,
+            now_ms,
+            _ARXIV_MIN_INTERVAL_MS,
+            _ARXIV_MAX_WAIT_MS,
+            _ARXIV_GATE_TTL_MS,
+        )
+        wait_ms = int(res)
+        # -1 (queue too deep) => proceed now rather than pile up; the 429 loop +
+        # the graceful-degrade prompt handle an actual rate-limit if it happens.
+        return 0.0 if wait_ms < 0 else wait_ms / 1000.0
+    except Exception:
+        # Transient Redis error: fall back to the per-process gate THIS call
+        # (don't permanently disable — Redis may recover).
+        logger.debug("arXiv shared rate gate unavailable; per-process gate only")
+        return None
+
 
 class ArXivIngestionService:
     """
@@ -79,14 +156,21 @@ class ArXivIngestionService:
 
     async def _make_async_request(self, url: str, params: Dict) -> str:
         """Make asynchronous request using httpx with rate limiting and 429 retry"""
-        # Enforce minimum 3-second gap between requests (ArXiv policy)
+        # Enforce arXiv's minimum 3-second gap between requests. Prefer the
+        # shared cross-pod gate; fall back to the per-process gate when Redis
+        # is unavailable (same behavior as before this change).
         import time
 
-        now = time.monotonic()
-        elapsed = now - ArXivIngestionService._last_request_time
-        if elapsed < 3.0:
-            await asyncio.sleep(3.0 - elapsed)
-        ArXivIngestionService._last_request_time = time.monotonic()
+        slot_wait = await _acquire_arxiv_rate_slot()
+        if slot_wait is not None:
+            if slot_wait > 0:
+                await asyncio.sleep(slot_wait)
+        else:
+            now = time.monotonic()
+            elapsed = now - ArXivIngestionService._last_request_time
+            if elapsed < 3.0:
+                await asyncio.sleep(3.0 - elapsed)
+            ArXivIngestionService._last_request_time = time.monotonic()
 
         logger.info(f"Async request to: {url}")
 
