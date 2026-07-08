@@ -1,0 +1,176 @@
+"""Option B server-side history rebuild (AGENT_SERVER_SIDE_HISTORY) — unit tests
+for the message-assembly helpers in ``src.api.agent.jobs``.
+
+Pure Python: the graph is a stub whose ``aget_state`` returns a canned snapshot,
+and the DB is a fake whose ``execute`` returns canned ChatMessage rows. No real
+DB or LangGraph runtime. These pin the two invariants the design rests on:
+seed only into an EMPTY checkpoint, and always carry the newest turn.
+"""
+
+from __future__ import annotations
+
+import uuid as _uuid
+from types import SimpleNamespace
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from src.api.agent.jobs import (
+    _newest_user_message,
+    _seed_message_id,
+    build_graph_input_messages,
+    build_thread_seed_messages,
+)
+from src.models.chat_message import MessageRole
+
+THREAD = "11111111-1111-1111-1111-111111111111"
+
+
+def _row(role, content, *, rid, cmid=None):
+    return SimpleNamespace(role=role, content=content, id=rid, client_message_id=cmid)
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _FakeDB:
+    """Returns preset rows for any execute(); records nothing else."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def execute(self, _stmt):
+        return _FakeResult(self._rows)
+
+
+class _FakeGraph:
+    def __init__(self, values):
+        self._values = values
+
+    async def aget_state(self, _config):
+        return SimpleNamespace(values=self._values)
+
+
+def _req(content, cmid=None):
+    return [SimpleNamespace(role="user", content=content, client_message_id=cmid)]
+
+
+# --- id determinism ---------------------------------------------------------
+
+
+def test_seed_id_prefers_client_message_id():
+    row = _row(MessageRole.USER, "hi", rid=_uuid.uuid4(), cmid="cmid-1")
+    assert _seed_message_id(THREAD, row) == "cmid-1"
+
+
+def test_seed_id_falls_back_to_pk_and_is_stable():
+    rid = _uuid.uuid4()
+    row = _row(MessageRole.USER, "hi", rid=rid)
+    a = _seed_message_id(THREAD, row)
+    b = _seed_message_id(THREAD, row)
+    assert a == b == str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{THREAD}:{rid}"))
+
+
+# --- seed builder -----------------------------------------------------------
+
+
+async def test_seed_maps_roles_in_order():
+    rows = [
+        _row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1"),
+        _row(MessageRole.ASSISTANT, "a1", rid=_uuid.uuid4()),
+        _row(MessageRole.USER, "q2", rid=_uuid.uuid4(), cmid="u2"),
+    ]
+    seed = await build_thread_seed_messages(_FakeDB(rows), THREAD)
+    assert [type(m) for m in seed] == [HumanMessage, AIMessage, HumanMessage]
+    assert [m.content for m in seed] == ["q1", "a1", "q2"]
+    assert seed[0].id == "u1" and seed[2].id == "u2"
+
+
+async def test_seed_is_idempotent():
+    rows = [_row(MessageRole.USER, "q1", rid=_uuid.uuid4())]
+    a = await build_thread_seed_messages(_FakeDB(rows), THREAD)
+    b = await build_thread_seed_messages(_FakeDB(rows), THREAD)
+    assert [m.id for m in a] == [m.id for m in b]
+
+
+async def test_seed_bad_thread_id_returns_empty():
+    assert await build_thread_seed_messages(_FakeDB([]), "not-a-uuid") == []
+
+
+# --- newest turn ------------------------------------------------------------
+
+
+def test_newest_uses_cmid():
+    m = _newest_user_message(_req("hello", cmid="c9"), THREAD)
+    assert isinstance(m, HumanMessage) and m.content == "hello" and m.id == "c9"
+
+
+def test_newest_without_cmid_is_deterministic():
+    m1 = _newest_user_message(_req("hello"), THREAD)
+    m2 = _newest_user_message(_req("hello"), THREAD)
+    assert m1.id == m2.id  # content-anchored, stable across retries
+
+
+# --- the core gate: seed only when checkpoint is empty ----------------------
+
+
+async def test_caught_up_checkpoint_appends_only_newest():
+    """Non-empty checkpoint → return only the newest turn (no reseed, no dup)."""
+    graph = _FakeGraph({"messages": [HumanMessage(content="old", id="old")]})
+    db = _FakeDB([_row(MessageRole.USER, "should-not-be-read", rid=_uuid.uuid4())])
+    out = await build_graph_input_messages(db, graph, THREAD, _req("new", cmid="c1"))
+    assert [m.content for m in out] == ["new"]
+
+
+async def test_empty_checkpoint_seeds_from_db():
+    """Empty checkpoint → rebuild the whole conversation from the DB."""
+    graph = _FakeGraph({"messages": []})
+    rows = [
+        _row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1"),
+        _row(MessageRole.ASSISTANT, "a1", rid=_uuid.uuid4()),
+        _row(MessageRole.USER, "new", rid=_uuid.uuid4(), cmid="u2"),
+    ]
+    out = await build_graph_input_messages(
+        db := _FakeDB(rows), graph, THREAD, _req("new", cmid="u2")
+    )
+    assert [m.content for m in out] == [
+        "q1",
+        "a1",
+        "new",
+    ]  # newest already in seed, not duplicated
+
+
+async def test_empty_checkpoint_missing_db_row_still_carries_newest():
+    """Swallowed persist: DB lacks the newest turn → append it, don't drop it."""
+    graph = _FakeGraph({"messages": []})
+    rows = [_row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1")]  # newest absent
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u2")
+    )
+    assert [m.content for m in out] == ["q1", "new"]
+
+
+async def test_empty_checkpoint_and_empty_db_uses_request():
+    """Brand-new / unresolved thread → the request's newest turn."""
+    graph = _FakeGraph({"messages": []})
+    out = await build_graph_input_messages(
+        _FakeDB([]), graph, THREAD, _req("first", cmid="c1")
+    )
+    assert [m.content for m in out] == ["first"]
+
+
+async def test_none_snapshot_treated_as_empty():
+    """aget_state returning no values → seed path (never silently drop)."""
+    graph = _FakeGraph(None)
+    rows = [_row(MessageRole.USER, "first", rid=_uuid.uuid4(), cmid="c1")]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("first", cmid="c1")
+    )
+    assert [m.content for m in out] == ["first"]

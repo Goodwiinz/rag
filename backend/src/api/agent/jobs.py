@@ -237,6 +237,170 @@ def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
     return None
 
 
+# --- Option B: server-side history rebuild (AGENT_SERVER_SIDE_HISTORY) -------
+#
+# The LangGraph checkpoint (keyed by thread_id) is the model-context source of
+# truth. The request array is used only for its newest user turn. The checkpoint
+# is NOT a guaranteed-complete mirror (dev MemorySaver loss on restart, legacy /
+# non-agent threads, job_id-fallback ids), so when it has no history we rebuild
+# it from the DB. add_messages is an id-keyed upsert, so deterministic ids make
+# reseeds and resends converge instead of duplicating.
+
+
+def _seed_message_id(thread_id: str, row: Any) -> str:
+    """Deterministic, reorder/edit-proof id for a seeded message.
+
+    Anchored to the client idempotency key when present, else the immutable
+    chat_message PK — so re-seeding a thread yields byte-identical ids and the
+    add_messages reducer upserts (never duplicates) on repeat.
+    """
+    cmid = getattr(row, "client_message_id", None)
+    if cmid:
+        return str(cmid)
+    return str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:{row.id}"))
+
+
+async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[Any]:
+    """Rebuild a thread's conversation from the DB as LangGraph messages.
+
+    Seeds the checkpoint (Option B) when it has no history of its own — a fresh
+    thread, a lost in-memory checkpoint, or a legacy/non-agent thread. User rows
+    become HumanMessages and assistant rows become plain-content AIMessages (no
+    tool_call replay, which the prompt path does not need). Ordered by
+    created_at; ids are deterministic so a later reseed converges via the
+    id-keyed reducer instead of duplicating turns.
+    """
+    from uuid import UUID
+
+    from langchain_core.messages import AIMessage, HumanMessage
+    from sqlalchemy import select
+
+    from src.models.chat_message import ChatMessage, MessageRole
+
+    try:
+        tid = UUID(thread_id)
+    except (ValueError, TypeError, AttributeError):
+        return []
+
+    rows = (
+        (
+            await db.execute(
+                select(ChatMessage)
+                .where(ChatMessage.thread_id == tid)
+                .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    out: List[Any] = []
+    for r in rows:
+        mid = _seed_message_id(thread_id, r)
+        if r.role == MessageRole.USER:
+            out.append(HumanMessage(content=r.content, id=mid))
+        elif r.role == MessageRole.ASSISTANT:
+            out.append(AIMessage(content=r.content, id=mid))
+        # system / tool rows are not model-context turns; skip.
+    return out
+
+
+def _newest_user_message(messages: List[Any], thread_id: str) -> Optional[Any]:
+    """The current turn as a HumanMessage with a deterministic id.
+
+    Carried explicitly so a swallowed best-effort user-persist can't drop the
+    live turn, and an SSE retry / double-submit is a reducer no-op. Prefers the
+    client idempotency key; falls back to a content-anchored id.
+    """
+    from langchain_core.messages import HumanMessage
+
+    last = next(
+        (m for m in reversed(messages) if getattr(m, "role", None) == "user"), None
+    )
+    if last is None:
+        return None
+    cmid = getattr(last, "client_message_id", None)
+    mid = (
+        str(cmid)
+        if cmid
+        else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:newest:{last.content}"))
+    )
+    return HumanMessage(content=last.content, id=mid)
+
+
+async def _checkpoint_human_count(graph: Any, thread_id: str) -> int:
+    """HumanMessages already in the thread's checkpoint (0 == empty).
+
+    Zero means the checkpoint holds no conversation (fresh / lost / legacy) and
+    must be seeded from the DB. Humans are never compacted (the compactor only
+    removes ToolMessages), so a zero count reliably means 'empty' — the single
+    robust discriminator for seed-vs-append. Any read failure is treated as
+    empty so we seed rather than silently drop context.
+    """
+    from langchain_core.messages import HumanMessage
+
+    if not thread_id:
+        return 0
+    try:
+        snapshot = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        values = snapshot.values if snapshot else None
+        if not values:
+            return 0
+        return sum(1 for m in values.get("messages", []) if isinstance(m, HumanMessage))
+    except Exception:
+        logger.warning(
+            "Option B: checkpoint human-count read failed for thread %s; "
+            "treating as empty (will seed from DB)",
+            thread_id,
+            exc_info=True,
+        )
+        return 0
+
+
+def _seed_tail_matches(seed: List[Any], content: str) -> bool:
+    """True when the seed's most-recent HumanMessage already holds ``content``.
+
+    The just-persisted newest turn is normally the last user row in the seed, so
+    this detects whether we still need to append it (persist was swallowed).
+    """
+    from langchain_core.messages import HumanMessage
+
+    for m in reversed(seed):
+        if isinstance(m, HumanMessage):
+            return m.content == content
+    return False
+
+
+async def build_graph_input_messages(
+    db: AsyncSession, graph: Any, thread_id: str, request_messages: List[Any]
+) -> List[Any]:
+    """Assemble ``initial_state['messages']`` checkpoint-authoritatively.
+
+    If the checkpoint already holds the thread's history, append ONLY the newest
+    user turn and let the reducer accumulate. If the checkpoint is empty, seed
+    the whole conversation from the DB (which already includes the just-persisted
+    newest turn). Never seeds into a non-empty checkpoint — that would duplicate
+    prior assistant turns, whose live LLM-assigned ids can't match a rebuilt id.
+    """
+    newest = _newest_user_message(request_messages, thread_id)
+
+    if await _checkpoint_human_count(graph, thread_id) > 0:
+        # Caught up: the reducer already holds prior turns; add only the new one.
+        return [newest] if newest is not None else []
+
+    seed = await build_thread_seed_messages(db, thread_id)
+    if not seed:
+        # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
+        # swallowed persist): fall back to the request's newest turn.
+        return [newest] if newest is not None else []
+
+    # Ensure the newest turn survives even if its persist was swallowed; normally
+    # it's already the last user row in the seed, so we only append when missing.
+    if newest is not None and not _seed_tail_matches(seed, newest.content):
+        seed.append(newest)
+    return seed
+
+
 async def _clear_stale_pending_confirmation(
     graph: Any, config: Dict[str, Any]
 ) -> Optional[List[str]]:
