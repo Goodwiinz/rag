@@ -16,8 +16,8 @@ from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
-from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent import stream_buffer as _stream_buffer
+from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.observability import record_token_usage
 
@@ -325,8 +325,6 @@ async def stream_event_generator(
     Yields SSE-formatted events: token, tool_start, tool_end,
     rag_context, plan, reflection, confirmation, done, error.
     """
-    from langchain_core.messages import HumanMessage
-
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
     from src.services.agent.memory import get_memory_store
@@ -379,11 +377,9 @@ async def stream_event_generator(
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-        messages = [
-            HumanMessage(content=m.content)
-            for m in request_body.messages
-            if m.role == "user"
-        ]
+        messages = _jobs_mod.build_user_history_messages(
+            request_body.messages, request_body.thread_id or ""
+        )
 
         page_context = _page_context_to_dict(request_body.page_context)
         await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
@@ -1026,9 +1022,7 @@ async def stream_confirm_event_generator(
                 )
                 if user_cmid is not None:
                     return str(
-                        _uuid.uuid5(
-                            _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                        )
+                        _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
                     )
             except Exception:
                 logger.warning(
@@ -1163,9 +1157,7 @@ async def stream_confirm_event_generator(
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         streamed_parts.append(chunk.content)
-                        frame = await emitter.emit(
-                            "token", {"content": chunk.content}
-                        )
+                        frame = await emitter.emit("token", {"content": chunk.content})
                         if not client_disconnected:
                             yield frame
                         tokens_emitted = True
