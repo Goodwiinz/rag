@@ -1892,6 +1892,26 @@ async def _tool_summarize_document(
                     "error_type": "recoverable",
                     "suggestion": "ingest_arxiv_papers",
                 }
+
+            # The id may be a *project* id, not a document id — a common
+            # agent mistake (reusing a project_id from list_projects; trace
+            # 019f4386). Steer it to resolve real document ids first. Wrapped
+            # so any lookup failure falls through to the generic error.
+            try:
+                project = await _verify_project_ownership(document_id, db, current_user)
+            except Exception:
+                project = None
+            if project:
+                return {
+                    "error": (
+                        f"'{document_id}' is a project id, not a document id. "
+                        f'Call list_project_documents(project_id="{document_id}") '
+                        f'to get the document_ids in the "{project.name or "project"}" '
+                        "project, then call summarize_document with one of those ids."
+                    ),
+                    "error_type": "recoverable",
+                    "suggestion": "list_project_documents",
+                }
             return {"error": "Document not found or access denied"}
 
         # Use existing content_text if available, else extract
