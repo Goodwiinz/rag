@@ -101,6 +101,10 @@ export interface ChatPageMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
+  /** Transient marker on the in-flight assistant turn (AUI_FULL path): the
+   * message is a live placeholder whose text/steps/citations are read from the
+   * streaming store, not from these fields. Cleared when the turn commits. */
+  isStreaming?: boolean;
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;

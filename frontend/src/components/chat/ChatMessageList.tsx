@@ -11,6 +11,7 @@ import React, {
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
+import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
 import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import { VirtualizedMessageList } from '@/components/chat/VirtualizedMessageList';
@@ -330,7 +331,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               for the whole turn. The exit is instant so the exiting bubble
               can't repaint the full streamed answer over the committed one. */}
           <AnimatePresence>
-            {storeIsStreaming &&
+            {!AUI_FULL &&
+              storeIsStreaming &&
               !(
                 messages[messages.length - 1]?.role === 'assistant' &&
                 messages[messages.length - 1]?.content === storeStreamingContent

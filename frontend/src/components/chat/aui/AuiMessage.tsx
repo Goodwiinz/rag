@@ -11,16 +11,23 @@ import {
 } from '@assistant-ui/react';
 import { Copy, FileText, Image as ImageIcon, RotateCcw } from 'lucide-react';
 
+import { motion, useReducedMotion } from 'framer-motion';
+
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback';
 import { CitationRenderer } from '@/components/chat/CitationRenderer';
 import { ChatInlinePlan } from '@/components/chat/shared/ChatInlinePlan';
 import { CitationChips } from '@/components/chat/shared/CitationChips';
+import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
+import { AuiToolParts } from '@/components/chat/aui/AuiToolParts';
 import {
   ToolStrip,
   getToolStripProps,
 } from '@/components/chat/shared/ToolStrip';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { completeStreamingMarkdown } from '@/lib/markdown-utils';
 import { cn } from '@/lib/utils';
+import { useChatStore } from '@/store/chat-store';
+import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { getReferencedCitations, type Citation } from '@/utils/citationParser';
 
 export type OnCitationClick = (
@@ -213,6 +220,89 @@ export function AuiUserMessage(): ReactElement {
   );
 }
 
+/** Pre-first-token status pill (mirrors the legacy ChatBubble ThinkingPill). */
+function StreamingThinkingPill({ label }: { label: string }): ReactElement {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      className="nous-streaming-pill"
+      role="status"
+      aria-live="polite"
+      initial={reduce ? false : { opacity: 0, y: 2 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <span
+        className="h-2 w-2 rounded-full bg-(--nous-sol) dark:bg-(--nous-helios)"
+        style={{
+          boxShadow: '0 0 0 3px rgba(var(--nous-sol-rgb), 0.18)',
+          animation: 'nous-pulse 1.4s ease-in-out infinite',
+        }}
+      />
+      <span>{label}</span>
+    </motion.div>
+  );
+}
+
+/**
+ * Body of the in-flight assistant turn (AUI_FULL path). The message itself is
+ * a stable placeholder in the transcript; its live text/steps/citations are
+ * read from the streaming store here, so token updates re-render only this
+ * component (a store-selector subscription) and never remount the message row.
+ * Faithfully mirrors the render the legacy streaming ChatBubble produced.
+ */
+function AuiStreamingBody(): ReactElement {
+  const content = useChatStore((s) => s.streamingContent);
+  const steps = useChatStore((s) => s.streamingSteps);
+  const isRetrievingRag = useChatStore((s) => s.isRetrievingRag);
+  const streamingCitations = useChatStore((s) => s.streamingCitations);
+  const threadId = useAgentActivityStore((s) => s.currentThreadId);
+  const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
+
+  return (
+    <>
+      <InlineAgentSummary threadId={threadId} />
+      {streamingCitations.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
+          style={{
+            color: 'var(--nous-fg-2)',
+            backgroundColor: 'var(--nous-bg-2)',
+            borderColor: 'var(--nous-border-1)',
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: 'var(--nous-sol)' }}
+          />
+          Reading {streamingCitations.length}{' '}
+          {streamingCitations.length === 1 ? 'source' : 'sources'}
+        </div>
+      )}
+      {steps.length > 0 && (
+        <AuiToolParts messageId="streaming" steps={steps} isStreaming />
+      )}
+      {!content ? (
+        <StreamingThinkingPill label={thinkingLabel} />
+      ) : (
+        <div className="nous-chat-body">
+          <CitationRenderer
+            content={completeStreamingMarkdown(content)}
+            citations={[]}
+            onCitationClick={() => {}}
+          />
+          <span
+            className="ml-0.5 inline-block h-4 w-[3px] rounded-sm align-text-bottom animate-pulse bg-(--nous-sol) dark:bg-(--nous-helios)"
+            data-testid="streaming-cursor"
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AuiAssistantMessage({
   message,
   onRetry,
@@ -253,6 +343,22 @@ export function AuiAssistantMessage({
       }}
     />
   ) : undefined;
+
+  // In-flight turn (AUI_FULL): render the store-driven streaming body instead
+  // of the committed chrome. Branches AFTER the hooks above so hook order is
+  // stable across the streaming→committed transition.
+  if (message?.isStreaming) {
+    return (
+      <MessagePrimitive.Root
+        data-role="assistant"
+        className="group relative mb-7 flex justify-start sm:mb-8"
+      >
+        <div className="min-w-0 flex-1 text-left">
+          <AuiStreamingBody />
+        </div>
+      </MessagePrimitive.Root>
+    );
+  }
 
   return (
     <MessagePrimitive.Root
