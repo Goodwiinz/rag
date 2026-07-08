@@ -230,7 +230,7 @@ class _SeqEmitter:
         try:
             await _stream_buffer.finish_stream(self.thread_id, self.sid)
         except Exception:
-            pass
+            logger.debug("stream_buffer.finish_stream failed", exc_info=True)
         self.sid = None
 
 
