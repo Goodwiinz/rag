@@ -305,12 +305,16 @@ async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[A
     return out
 
 
-def _newest_user_message(messages: List[Any], thread_id: str) -> Optional[Any]:
-    """The current turn as a HumanMessage with a deterministic id.
+def _newest_user_message(messages: List[Any]) -> Optional[Any]:
+    """The current turn as a HumanMessage keyed on its client_message_id.
 
-    Carried explicitly so a swallowed best-effort user-persist can't drop the
-    live turn, and an SSE retry / double-submit is a reducer no-op. Prefers the
-    client idempotency key; falls back to a content-anchored id.
+    Option B needs a stable per-turn idempotency key: the id must be unique
+    across distinct turns (so two same-content turns don't collide and overwrite
+    under the id-keyed reducer) AND identical across a retry of the SAME turn (so
+    an SSE retry is a no-op). Only client_message_id satisfies both — a
+    content-derived id fails the first, a row-derived id fails the second. So
+    when the newest turn carries no client_message_id we return None, and the
+    caller falls back to the legacy path rather than fabricate an unsafe id.
     """
     from langchain_core.messages import HumanMessage
 
@@ -320,12 +324,9 @@ def _newest_user_message(messages: List[Any], thread_id: str) -> Optional[Any]:
     if last is None:
         return None
     cmid = getattr(last, "client_message_id", None)
-    mid = (
-        str(cmid)
-        if cmid
-        else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:newest:{last.content}"))
-    )
-    return HumanMessage(content=last.content, id=mid)
+    if not cmid:
+        return None
+    return HumanMessage(content=last.content, id=str(cmid))
 
 
 async def _checkpoint_human_count(graph: Any, thread_id: str) -> int:
@@ -357,23 +358,20 @@ async def _checkpoint_human_count(graph: Any, thread_id: str) -> int:
         return 0
 
 
-def _seed_tail_matches(seed: List[Any], content: str) -> bool:
-    """True when the seed's most-recent HumanMessage already holds ``content``.
+def _seed_has_id(seed: List[Any], msg_id: str) -> bool:
+    """True when a message with ``msg_id`` is already in the seed.
 
-    The just-persisted newest turn is normally the last user row in the seed, so
-    this detects whether we still need to append it (persist was swallowed).
+    The just-persisted newest turn is normally in the seed under its
+    client_message_id; this id-based check (not content) decides whether we must
+    append it because its persist was swallowed — with no false positive when a
+    different turn happens to share content.
     """
-    from langchain_core.messages import HumanMessage
-
-    for m in reversed(seed):
-        if isinstance(m, HumanMessage):
-            return m.content == content
-    return False
+    return any(getattr(m, "id", None) == msg_id for m in seed)
 
 
 async def build_graph_input_messages(
     db: AsyncSession, graph: Any, thread_id: str, request_messages: List[Any]
-) -> List[Any]:
+) -> Optional[List[Any]]:
     """Assemble ``initial_state['messages']`` checkpoint-authoritatively.
 
     If the checkpoint already holds the thread's history, append ONLY the newest
@@ -381,22 +379,27 @@ async def build_graph_input_messages(
     the whole conversation from the DB (which already includes the just-persisted
     newest turn). Never seeds into a non-empty checkpoint — that would duplicate
     prior assistant turns, whose live LLM-assigned ids can't match a rebuilt id.
+
+    Returns ``None`` when the newest turn has no client_message_id — Option B
+    can't assign a safe idempotency id, so the caller uses the legacy path.
     """
-    newest = _newest_user_message(request_messages, thread_id)
+    newest = _newest_user_message(request_messages)
+    if newest is None:
+        return None
 
     if await _checkpoint_human_count(graph, thread_id) > 0:
         # Caught up: the reducer already holds prior turns; add only the new one.
-        return [newest] if newest is not None else []
+        return [newest]
 
     seed = await build_thread_seed_messages(db, thread_id)
     if not seed:
         # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
         # swallowed persist): fall back to the request's newest turn.
-        return [newest] if newest is not None else []
+        return [newest]
 
     # Ensure the newest turn survives even if its persist was swallowed; normally
-    # it's already the last user row in the seed, so we only append when missing.
-    if newest is not None and not _seed_tail_matches(seed, newest.content):
+    # it's already in the seed (same client_message_id), so append only if missing.
+    if not _seed_has_id(seed, newest.id):
         seed.append(newest)
     return seed
 
@@ -1216,13 +1219,24 @@ async def _run_agent_graph(
 
             from src.core.config import get_settings
 
+            messages = None
             if get_settings().AGENT_SERVER_SIDE_HISTORY:
                 # Option B: rebuild context from the checkpoint (seeding from the
                 # DB when empty); ignore all but the newest turn in the request.
-                messages = await build_graph_input_messages(
-                    db, graph, request.thread_id or job_id, request.messages
-                )
-            else:
+                # Best-effort: a DB/checkpoint failure (or a newest turn lacking a
+                # client_message_id -> None) falls back to the legacy path so a
+                # turn that works today is never aborted by the opt-in path.
+                try:
+                    messages = await build_graph_input_messages(
+                        db, graph, request.thread_id or job_id, request.messages
+                    )
+                except Exception:
+                    logger.warning(
+                        "Option B message assembly failed; using legacy history",
+                        exc_info=True,
+                    )
+                    messages = None
+            if messages is None:
                 messages = [
                     HumanMessage(content=m.content)
                     for m in request.messages

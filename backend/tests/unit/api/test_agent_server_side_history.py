@@ -118,14 +118,13 @@ async def test_seed_bad_thread_id_returns_empty():
 
 
 def test_newest_uses_cmid():
-    m = _newest_user_message(_req("hello", cmid="c9"), THREAD)
+    m = _newest_user_message(_req("hello", cmid="c9"))
     assert isinstance(m, HumanMessage) and m.content == "hello" and m.id == "c9"
 
 
-def test_newest_without_cmid_is_deterministic():
-    m1 = _newest_user_message(_req("hello"), THREAD)
-    m2 = _newest_user_message(_req("hello"), THREAD)
-    assert m1.id == m2.id  # content-anchored, stable across retries
+def test_newest_without_cmid_returns_none():
+    # No client_message_id -> no safe idempotency id -> signal legacy fallback.
+    assert _newest_user_message(_req("hello")) is None
 
 
 # --- the core gate: seed only when checkpoint is empty ----------------------
@@ -184,6 +183,26 @@ async def test_none_snapshot_treated_as_empty():
         _FakeDB(rows), graph, THREAD, _req("first", cmid="c1")
     )
     assert [m.content for m in out] == ["first"]
+
+
+async def test_no_cmid_signals_legacy_fallback():
+    """Newest turn without a client_message_id → None (caller uses legacy path)."""
+    graph = _FakeGraph({"messages": []})
+    rows = [_row(MessageRole.USER, "q1", rid=_uuid.uuid4())]
+    out = await build_graph_input_messages(_FakeDB(rows), graph, THREAD, _req("q1"))
+    assert out is None
+
+
+async def test_same_content_distinct_turns_do_not_collide():
+    """Two distinct same-content turns keep distinct ids via cmid (no overwrite)."""
+    graph = _FakeGraph({"messages": [HumanMessage(content="hi", id="c1")]})
+    a = await build_graph_input_messages(
+        _FakeDB([]), graph, THREAD, _req("hi", cmid="c1")
+    )
+    b = await build_graph_input_messages(
+        _FakeDB([]), graph, THREAD, _req("hi", cmid="c2")
+    )
+    assert a[0].id == "c1" and b[0].id == "c2"  # distinct ids despite equal content
 
 
 # --- integration: against a REAL MemorySaver checkpoint + add_messages -------

@@ -381,13 +381,24 @@ async def stream_event_generator(
 
         from src.core.config import get_settings
 
+        messages = None
         if get_settings().AGENT_SERVER_SIDE_HISTORY:
             # Option B: rebuild context from the checkpoint (seeding from the DB
             # when empty); ignore all but the newest turn in the request array.
-            messages = await _jobs_mod.build_graph_input_messages(
-                db, graph, request_body.thread_id or "", request_body.messages
-            )
-        else:
+            # Best-effort: a DB/checkpoint failure (or a newest turn lacking a
+            # client_message_id -> None) falls back to the legacy path below so a
+            # turn that works today is never aborted by the opt-in path.
+            try:
+                messages = await _jobs_mod.build_graph_input_messages(
+                    db, graph, request_body.thread_id or "", request_body.messages
+                )
+            except Exception:
+                logger.warning(
+                    "Option B message assembly failed; using legacy history",
+                    exc_info=True,
+                )
+                messages = None
+        if messages is None:
             messages = [
                 HumanMessage(content=m.content)
                 for m in request_body.messages

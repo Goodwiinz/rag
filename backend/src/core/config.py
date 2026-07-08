@@ -408,6 +408,12 @@ class Settings(BaseSettings):
     # client-resent-history path is used unchanged. Flag-gated rollout: enable
     # on dev only after soak; the frontend send-only-newest change must NOT ship
     # until this is on in that environment.
+    #
+    # Requires the client to send a client_message_id on the newest user turn
+    # (the /chat surface does when NEXT_PUBLIC_SERVER_CANONICAL_CHAT is on) — it
+    # is the idempotency key that keeps two same-content turns distinct and a
+    # retry a no-op. Turns without one safely fall back to the legacy path, so
+    # enabling this where cmids aren't sent just makes it a no-op, never a bug.
     AGENT_SERVER_SIDE_HISTORY: bool = False
 
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
