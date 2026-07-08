@@ -237,6 +237,36 @@ def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
     return None
 
 
+def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
+    """Rebuild resent request history into HumanMessages with *deterministic* ids.
+
+    The /chat client resends the FULL conversation each turn. LangGraph's
+    ``add_messages`` reducer dedupes only by message ``.id`` — a HumanMessage
+    built with no id gets a fresh random id every request, so the reducer sees
+    each prior turn as new and re-appends the whole history into the checkpoint
+    (quadratic growth the compactor never prunes). Anchor each user turn to a
+    stable id — the client idempotency key when present, else a derivation over
+    (thread_id, position) — so a resent history no-ops in the reducer and only
+    the new turn appends.
+    """
+    from langchain_core.messages import HumanMessage
+
+    out: List[Any] = []
+    idx = 0
+    for m in messages:
+        if getattr(m, "role", None) != "user":
+            continue
+        cmid = getattr(m, "client_message_id", None)
+        msg_id = (
+            str(cmid)
+            if cmid is not None
+            else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:user:{idx}"))
+        )
+        out.append(HumanMessage(content=m.content, id=msg_id))
+        idx += 1
+    return out
+
+
 async def _clear_stale_pending_confirmation(
     graph: Any, config: Dict[str, Any]
 ) -> Optional[List[str]]:
@@ -1002,7 +1032,6 @@ async def _run_agent_graph(
     current_user: User,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
-    from langchain_core.messages import HumanMessage
     from langgraph.errors import GraphInterrupt
 
     from src.services.agent.checkpointer import get_checkpointer
@@ -1050,11 +1079,9 @@ async def _run_agent_graph(
             store = await get_memory_store()
             graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-            messages = [
-                HumanMessage(content=m.content)
-                for m in request.messages
-                if m.role == "user"
-            ]
+            messages = build_user_history_messages(
+                request.messages, request.thread_id or job_id
+            )
 
             page_context = _page_context_to_dict(request.page_context)
             await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
