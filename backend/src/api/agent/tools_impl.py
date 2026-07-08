@@ -833,7 +833,9 @@ def _arxiv_redis_key(
             str(int(bool(chronological))),
         ]
     )
-    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()
+    # usedforsecurity=False: this is a cache-key digest, not a security hash
+    # (Bandit B324). Collision resistance is irrelevant for a cache bucket.
+    digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
     return _ARXIV_CACHE_REDIS_PREFIX + digest
 
 
