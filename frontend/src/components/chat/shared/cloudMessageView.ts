@@ -16,6 +16,9 @@ export interface ActivityStep {
   durationMs?: number;
   /** Compact one-line summary of the tool's arguments (e.g. the query). */
   argsSummary?: string;
+  /** Structured (already backend-redacted) tool arguments, for declarative
+   * per-tool renderers that want fields rather than the one-line summary. */
+  args?: Record<string, unknown>;
   /** Compact one-line summary of the result, or the error text on failure. */
   resultSummary?: string;
 }
@@ -84,6 +87,7 @@ export function mapDbToolExecutions(
         ? { durationMs: e.duration_ms }
         : {}),
       ...(argsSummary ? { argsSummary } : {}),
+      ...(e.args && typeof e.args === 'object' ? { args: e.args } : {}),
       ...(resultSummary ? { resultSummary } : {}),
     } satisfies ActivityStep;
   });
@@ -101,6 +105,14 @@ export interface ChatPageMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
+  /** Transient marker on the in-flight assistant turn (AUI_FULL path): the
+   * message is a live placeholder whose text/steps/citations are read from the
+   * streaming store, not from these fields. Cleared when the turn commits. */
+  isStreaming?: boolean;
+  /** In-band HITL approval gate (AUI_FULL / P4): the agent paused awaiting
+   * confirmation of this tool. convertMessage emits an approval tool-call part
+   * that the registered HitlApprovalToolUI renders in the message stream. */
+  pendingApproval?: { toolName: string; args: Record<string, unknown> };
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;

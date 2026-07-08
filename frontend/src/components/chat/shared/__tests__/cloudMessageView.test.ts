@@ -328,6 +328,7 @@ describe('mapDbToolExecutions', () => {
         status: 'done',
         durationMs: 1234,
         argsSummary: 'query: rag',
+        args: { query: 'rag' },
       },
       {
         tool: 'ingest_document',

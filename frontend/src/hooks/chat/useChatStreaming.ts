@@ -12,6 +12,8 @@ import {
 import toast from 'react-hot-toast';
 
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
+import { AUI_FULL } from '@/components/chat/shared/auiFlags';
+import { useHitlBridge } from '@/components/chat/aui/hitlBridge';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
   ChatConversation,
@@ -43,6 +45,31 @@ import { useProjectStore } from '@/store/projectStore';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
+// Stable id for the in-flight assistant placeholder (AUI_FULL path). One turn
+// streams at a time, so a constant is enough; the placeholder is always either
+// replaced by the committed message or removed at every stream exit.
+const STREAMING_PLACEHOLDER_ID = '__nous_streaming_placeholder__';
+
+/** Tool name + args preview from an interrupt's confirmation payload — flat
+ * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
+ * page-level banner's extractToolCall (AUI_FULL / P4). */
+function extractConfirmationPreview(
+  confirmation: Record<string, unknown> | undefined
+): { name: string; args: Record<string, unknown> } {
+  if (!confirmation) return { name: 'this action', args: {} };
+  const flatName = confirmation.tool_name as string | undefined;
+  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
+    | Record<string, unknown>
+    | undefined;
+  if (flatName) return { name: flatName, args: flatArgs ?? {} };
+  const tools = confirmation.tools as
+    | Array<{ name?: string; args?: Record<string, unknown> }>
+    | undefined;
+  const first = tools?.[0];
+  if (first?.name) return { name: first.name, args: first.args ?? {} };
+  return { name: 'this action', args: {} };
+}
+
 export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
   const documentId =
     (ctx.document_id as string | undefined) ??
@@ -357,6 +384,7 @@ export function useChatStreaming(
         // Persisted ids from the done event (server-canonical only).
         let doneIds: {
           assistant_message_id?: string | null;
+          tool_executions?: Array<Record<string, unknown>>;
         } = {};
 
         let assistantContent = '';
@@ -383,6 +411,23 @@ export function useChatStreaming(
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
         });
+
+        // AUI_FULL: render the in-flight turn as a real placeholder message in
+        // the transcript (its live text/steps/citations are read from the
+        // streaming store by AuiAssistantMessage). Legacy path leaves the
+        // separate streaming ChatBubble to render from the store instead.
+        // The placeholder is replaced by the committed message on `done`, or
+        // removed at every early exit below.
+        if (AUI_FULL && isTurnDisplayed()) {
+          const placeholder: ChatPageMessage = {
+            id: STREAMING_PLACEHOLDER_ID,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            isStreaming: true,
+          };
+          setMessages([...newMessages, placeholder]);
+        }
 
         // Fresh turn — clear any stop flag from a previous run and record the
         // thread so Stop can finalize this run's activity indicator.
@@ -441,6 +486,7 @@ export function useChatStreaming(
                 label: toolLabel(tool),
                 status: 'running',
                 argsSummary: summarizeToolArgs(args),
+                ...(args && typeof args === 'object' ? { args } : {}),
               });
               useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
@@ -555,6 +601,17 @@ export function useChatStreaming(
 
         // Don't append a normal message if stream errored or needs confirmation
         if (streamHadError || streamHadConfirmation) {
+          // AUI_FULL: on a confirmation pause the placeholder must go (P4 will
+          // re-introduce it as an in-band approval part). On error, onError
+          // already replaced the placeholder with the error bubble — leave it.
+          if (
+            AUI_FULL &&
+            streamHadConfirmation &&
+            !streamHadError &&
+            isTurnDisplayed()
+          ) {
+            setMessages(newMessages);
+          }
           useChatStore.setState({
             isStreaming: false,
             streamingContent: '',
@@ -582,6 +639,10 @@ export function useChatStreaming(
             };
             if (isTurnDisplayed())
               setMessages([...newMessages, emptyResponseMessage]);
+          } else if (AUI_FULL && isTurnDisplayed()) {
+            // Quiet/stopped unwind with no content: drop the placeholder so no
+            // empty streaming bubble is left behind.
+            setMessages(newMessages);
           }
           useChatStore.setState({
             isStreaming: false,
@@ -602,7 +663,17 @@ export function useChatStreaming(
         // together during the (awaited) DB save window below.
         const responseTimeMs = Date.now() - responseStart;
         const wasStopped = stoppedByUserRef.current;
-        const finalTurnSteps = [...turnSteps];
+        // The done payload carries the graph state's tool executions for the
+        // WHOLE turn (parsed results, real durations) — richer than the live
+        // SSE summaries and identical to what a reload shows. Prefer them so
+        // the committed bubble renders tools even if a live tool_start/tool_end
+        // frame was dropped on the wire (previously that left tools missing
+        // until a page refresh). Fall back to live steps for legacy servers.
+        const serverSteps = mapDbToolExecutions(
+          doneIds.tool_executions as DbToolExecution[] | undefined
+        );
+        const finalTurnSteps =
+          serverSteps && serverSteps.length > 0 ? serverSteps : [...turnSteps];
         // Capture the turn's RAG citations BEFORE the streaming state is
         // cleared below — they are attached to the committed message (so
         // inline [Doc N] refs keep resolving after the stream ends) and
@@ -1087,6 +1158,7 @@ export function useChatStreaming(
                 label: toolLabel(tool),
                 status: 'running',
                 argsSummary: summarizeToolArgs(args),
+                ...(args && typeof args === 'object' ? { args } : {}),
               });
               useChatStore.setState({ streamingSteps: [...confirmSteps] });
             },
@@ -1263,6 +1335,55 @@ export function useChatStreaming(
       activeConversationIdRef,
     ]
   );
+
+  // AUI_FULL / P4: mirror the pending confirmation into (a) the HITL bridge —
+  // whose respond() drives the existing hardened handleConfirmation — and
+  // (b) an in-band approval message the registered HitlApprovalToolUI renders
+  // in the transcript. The flag-off inline banner in page.tsx is the fallback;
+  // handleConfirmation/streamConfirm internals are untouched.
+  const handleConfirmationRef = useRef(handleConfirmation);
+  handleConfirmationRef.current = handleConfirmation;
+  useEffect(() => {
+    if (!AUI_FULL) return;
+    const active = confirmationBelongsToThread(
+      pendingConfirmation,
+      activeConversationId
+    )
+      ? pendingConfirmation
+      : null;
+
+    if (active) {
+      const preview = extractConfirmationPreview(active.confirmation);
+      useHitlBridge.getState().open(
+        { id: active.threadId, toolName: preview.name, args: preview.args },
+        (approved) => handleConfirmationRef.current(approved)
+      );
+    } else {
+      useHitlBridge.getState().close();
+    }
+    useHitlBridge.getState().setResponding(isConfirming);
+
+    // Keep exactly one approval message in the transcript for the active gate.
+    setMessages((prev) => {
+      const withoutApproval = prev.filter((m) => !m.pendingApproval);
+      if (!active) return withoutApproval;
+      const preview = extractConfirmationPreview(active.confirmation);
+      return [
+        ...withoutApproval,
+        {
+          role: 'assistant' as const,
+          content: '',
+          timestamp: Date.now(),
+          pendingApproval: { toolName: preview.name, args: preview.args },
+        },
+      ];
+    });
+  }, [
+    pendingConfirmation,
+    activeConversationId,
+    isConfirming,
+    setMessages,
+  ]);
 
   return {
     input,

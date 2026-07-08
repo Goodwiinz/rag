@@ -18,6 +18,7 @@ from src.core.database import AsyncSessionLocal
 from src.models.user import User
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._builders import RECURSION_LIMIT
+from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.observability import record_token_usage
 
@@ -720,6 +721,7 @@ async def stream_event_generator(
             return
 
         # Check graph state after streaming completes
+        tool_executions_out: Optional[list] = None
         try:
             final_snapshot = await graph.aget_state(config)
             final_values = final_snapshot.values if final_snapshot else {}
@@ -841,7 +843,23 @@ async def stream_event_generator(
             if not client_disconnected:
                 yield frame
 
-        done_payload: Dict[str, Any] = {"status": "complete"}
+        # Carry the graph-final tool executions so the client's committed turn
+        # renders them without a reload. Without this the in-memory turn's
+        # tool strip depended entirely on every live tool_start/tool_end frame
+        # surviving the wire — a dropped frame left the committed bubble
+        # tool-less until a refresh re-read the persisted row. Args redacted
+        # like every browser-visible copy. Mirrors the /stream/confirm payload.
+        done_payload: Dict[str, Any] = {
+            "status": "complete",
+            "tool_executions": (
+                [
+                    {**te.model_dump(), "args": redact_tool_args(te.args)}
+                    for te in tool_executions_out
+                ]
+                if tool_executions_out
+                else []
+            ),
+        }
         if _canonical_persistence_enabled():
             # Ids let the client reconcile its optimistic bubbles with the
             # server-persisted rows instead of double-saving (server-canonical

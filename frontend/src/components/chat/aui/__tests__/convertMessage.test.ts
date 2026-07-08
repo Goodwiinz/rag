@@ -96,6 +96,46 @@ describe('convertMessage', () => {
     expect(part.argsText).toBe('');
   });
 
+  it('emits an approval tool-call part for a pendingApproval message', () => {
+    const msg: ChatPageMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: 1,
+      pendingApproval: {
+        toolName: 'ingest_arxiv_papers',
+        args: { paper_ids: ['2605.1'] },
+      },
+    };
+    const converted = convertMessage(msg);
+    const parts = converted.content as Array<{
+      type: string;
+      toolName?: string;
+      args?: Record<string, unknown>;
+    }>;
+    const approval = parts.find((p) => p.type === 'tool-call');
+    expect(approval?.toolName).toBe('__nous_approval__');
+    expect(approval?.args).toEqual({
+      toolName: 'ingest_arxiv_papers',
+      toolArgs: { paper_ids: ['2605.1'] },
+    });
+  });
+
+  it('passes structured args through to the tool-call part', () => {
+    const steps: ActivityStep[] = [
+      {
+        tool: 'search_documents',
+        label: 'Searching',
+        status: 'done',
+        argsSummary: 'query: rag',
+        args: { query: 'rag', limit: 5 },
+      },
+    ];
+    const [part] = toToolCallParts('m1', steps);
+
+    expect(part.args).toEqual({ query: 'rag', limit: 5 });
+    expect(part.argsText).toBe('query: rag');
+  });
+
   it('falls back to the timestamp for toolCallIds when the message has no id', () => {
     const steps: ActivityStep[] = [
       { tool: 'search_documents', label: 'Searching', status: 'running' },

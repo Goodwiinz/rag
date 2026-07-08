@@ -6,12 +6,16 @@ import type {
 } from '@/components/chat/shared/cloudMessageView';
 import type { MessageAttachment } from '@/types/workspace';
 
+import { HITL_APPROVAL_TOOL } from './hitlBridge';
+
 type ToolCallPart = {
   type: 'tool-call';
   toolCallId: string;
   toolName: string;
-  // ThreadMessageLike requires args to be a ReadonlyJSONObject; we never have
-  // structured args (only argsSummary text), so this is always the empty object.
+  // ThreadMessageLike types args as ReadonlyJSONObject. At runtime we carry the
+  // structured (backend-redacted, JSON-safe) tool args so declarative per-tool
+  // renderers read real fields via their own TArgs generic; the type stays the
+  // JSON-compatible empty shape. `argsText` is the one-line fallback summary.
   args: Record<string, never>;
   argsText: string;
   result?: string;
@@ -84,7 +88,7 @@ export function toToolCallParts(
       type: 'tool-call',
       toolCallId: `${messageId}-tool-${i}`,
       toolName: step.tool,
-      args: {},
+      args: (step.args ?? {}) as Record<string, never>,
       argsText: step.argsSummary ?? '',
       ...(settled && step.resultSummary !== undefined
         ? { result: step.resultSummary }
@@ -105,6 +109,24 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
         message.toolExecutions
       )
     : [];
+
+  // In-band HITL approval gate (AUI_FULL / P4): emit an approval tool-call part
+  // routed to the registered HitlApprovalToolUI. Its args carry the confirmed
+  // tool name + args for display; the bridge store drives resolution.
+  const approvalParts: ToolCallPart[] = message.pendingApproval
+    ? [
+        {
+          type: 'tool-call',
+          toolCallId: `${message.id ?? message.timestamp}-approval`,
+          toolName: HITL_APPROVAL_TOOL,
+          args: {
+            toolName: message.pendingApproval.toolName,
+            toolArgs: message.pendingApproval.args,
+          } as unknown as Record<string, never>,
+          argsText: '',
+        },
+      ]
+    : [];
   return {
     id: message.id,
     role: message.role,
@@ -118,6 +140,10 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
     ...(message.attachments?.length
       ? { attachments: toRuntimeAttachments(message.attachments) }
       : {}),
-    content: [...toolParts, { type: 'text', text: message.content }],
+    content: [
+      ...toolParts,
+      ...approvalParts,
+      { type: 'text', text: message.content },
+    ],
   };
 }
