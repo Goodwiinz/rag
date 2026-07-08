@@ -112,12 +112,20 @@ describe('convertMessage', () => {
       toolName?: string;
       args?: Record<string, unknown>;
     }>;
-    const approval = parts.find((p) => p.type === 'tool-call');
+    const approval = parts.find((p) => p.type === 'tool-call') as {
+      toolName?: string;
+      args?: Record<string, unknown>;
+      approval?: { id: string; approved?: boolean };
+    };
     expect(approval?.toolName).toBe('__nous_approval__');
     expect(approval?.args).toEqual({
       toolName: 'ingest_arxiv_papers',
       toolArgs: { paper_ids: ['2605.1'] },
     });
+    // Real approval gate (approved omitted = pending) so respondToApproval is
+    // callable and routes to the adapter's onRespondToToolApproval.
+    expect(approval?.approval?.id).toBeTruthy();
+    expect(approval?.approval?.approved).toBeUndefined();
   });
 
   it('passes structured args through to the tool-call part', () => {

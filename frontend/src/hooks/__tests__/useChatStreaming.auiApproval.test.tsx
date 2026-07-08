@@ -65,15 +65,10 @@ describe('useChatStreaming AUI_FULL in-band HITL approval', () => {
     vi.resetModules();
   });
 
-  it('opens the bridge + an approval message, and approve routes to streamConfirm', async () => {
+  it('synthesizes an in-band approval message, and handleConfirmation routes to streamConfirm', async () => {
     vi.stubEnv('NEXT_PUBLIC_AUI_FULL', 'true');
     vi.resetModules();
-    // Import the bridge from the SAME reset module graph the hook uses, else
-    // they resolve to different store instances.
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
-    const { useHitlBridge } = await import(
-      '@/components/chat/aui/hitlBridge'
-    );
 
     let current: ChatPageMessage[] = [];
     const setMessages = vi.fn((m: unknown) => {
@@ -98,21 +93,17 @@ describe('useChatStreaming AUI_FULL in-band HITL approval', () => {
       await result.current.handleSubmit('ingest these');
     });
 
-    // The gate is mirrored into the bridge with the confirmed tool preview.
-    const bridge = useHitlBridge.getState();
-    expect(bridge.request).toMatchObject({
-      toolName: 'ingest_arxiv_papers',
-      args: { paper_ids: ['2605.1'] },
-    });
-    expect(bridge.respond).toBeTypeOf('function');
-
-    // ...and surfaced as an in-band approval message in the transcript.
+    // The gate is surfaced as an in-band approval message in the transcript;
+    // convertMessage turns pendingApproval into the real-`approval` tool part
+    // that HitlApprovalToolUI renders (its respondToApproval routes through the
+    // runtime adapter's onRespondToToolApproval → onApproval=handleConfirmation).
     const approvalMsg = current.find((m) => m.pendingApproval);
     expect(approvalMsg?.pendingApproval?.toolName).toBe('ingest_arxiv_papers');
 
-    // Approve routes through the bridge to the hardened confirm flow.
+    // handleConfirmation is exactly the onApproval target the adapter invokes;
+    // approving must drive the hardened confirm flow (streamConfirm).
     await act(async () => {
-      bridge.respond?.(true);
+      await result.current.handleConfirmation(true);
     });
     expect(streamConfirmMock).toHaveBeenCalledTimes(1);
     expect(streamConfirmMock.mock.calls[0][0]).toMatchObject({

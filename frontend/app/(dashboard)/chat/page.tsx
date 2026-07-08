@@ -944,6 +944,7 @@ function ChatPageContent() {
           isSendDisabled={!!activeConfirmation}
           onSend={handleSubmit}
           onCancel={handleStop}
+          onApproval={handleConfirmation}
         >
           <ChatHeader
             messages={displayedMessages}
