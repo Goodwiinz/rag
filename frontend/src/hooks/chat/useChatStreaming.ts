@@ -18,6 +18,7 @@ import {
   generateConversationTitle,
 } from '@/hooks/chat/chatTypes';
 import { agentChatService } from '@/services/agentChatService';
+import type { AgentStreamCallbacks } from '@/services/agentChatService';
 import { workspaceService } from '@/services/workspaceService';
 import {
   resolveBoundProjectId,
@@ -332,6 +333,14 @@ export function useChatStreaming(
   const streamingTimestampRef = useRef(Date.now());
   const streamingRafRef = useRef<number | null>(null);
   const pendingStreamContentRef = useRef<string | null>(null);
+  // rAF-batched SSE seq cursor (same pattern as streamingRafRef for tokens):
+  // onSeq fires per frame, but the activity store only needs the latest value
+  // once per paint.
+  const seqRafRef = useRef<number | null>(null);
+  const pendingSeqRef = useRef<{ threadId: string; seq: number } | null>(null);
+  // Threads a resume was already attempted for this mount — guards against
+  // double-resume from effect re-runs (StrictMode, dep changes).
+  const resumeTriedRef = useRef<Set<string>>(new Set());
 
   // ---- Store bindings ----
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
@@ -376,96 +385,45 @@ export function useChatStreaming(
       if (streamingRafRef.current !== null) {
         cancelAnimationFrame(streamingRafRef.current);
       }
+      if (seqRafRef.current !== null) {
+        cancelAnimationFrame(seqRafRef.current);
+      }
     };
   }, []);
 
   // ---- Handlers ----
 
-  const handleSubmit = useCallback(
-    async (contentOverride?: string) => {
-      if (submitLockRef.current) return;
-      const rawContent =
-        typeof contentOverride === 'string' ? contentOverride : input;
-      const content = rawContent.trim();
-      if (!content || isLoading || storeIsStreaming) return;
-      submitLockRef.current = true;
-
-      const userMessage: ChatPageMessage = {
-        role: 'user',
-        content,
-        timestamp: Date.now(),
-      };
-
-      const newMessages = [...messages, userMessage];
-      setMessages(newMessages);
-      setInput('');
-      setIsLoading(true);
-
-      // Create new thread if needed (when no active conversation).
-      // Read from ref first (synchronous, immune to React batching), then
-      // state, then Zustand store as final fallback.
-      let currentConversationId =
-        activeConversationIdRef.current ||
-        activeConversationId ||
-        useChatStore.getState().currentThreadId;
-      let currentThreadId = currentConversationId;
-
-      if (!currentConversationId && dbConversation) {
-        try {
-          const dynamicTitle = generateConversationTitle(content);
-          console.log(
-            '[Chat] Creating new thread in database with title:',
-            dynamicTitle
-          );
-          const newThread = await workspaceService.createThread(
-            buildThreadCreateRequest({
-              conversationId: dbConversation.id,
-              title: dynamicTitle,
-              projectId: boundProjectId,
-            })
-          );
-
-          // Register in the chat store: the binding selectors and
-          // setThreadProjectBinding read store.threads, and without this the
-          // thread is invisible there until the next full loadThreads — a
-          // project attached to it would be silently dropped from the UI.
-          useChatStore.getState().registerThread(newThread);
-
-          currentConversationId = newThread.id;
-          currentThreadId = newThread.id;
-
-          const newConv: ChatConversation = {
-            id: newThread.id,
-            title: newThread.title || dynamicTitle,
-            messages: newMessages,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            threadId: newThread.id,
-            conversationId: dbConversation.id,
-          };
-
-          setConversations((prev) => [newConv, ...prev]);
-          setActiveConversationId(newConv.id);
-          activeConversationIdRef.current = newConv.id;
-          setCurrentThread(newConv.id);
-          queueMicrotask(() =>
-            router.replace(getSelectedThreadUrl(newThread.id))
-          );
-          console.log('[Chat] Created new thread:', newThread.id);
-        } catch (error) {
-          console.error('[Chat] Failed to create thread:', error);
-          // Roll back the optimistic turn: the user message was appended and
-          // the composer cleared before this call. Without this the bubble
-          // ghosts (never sent, gone on reload) and the typed text is lost.
-          // Restore both and tell the user, so they can retry.
-          setMessages(messages);
-          setInput(content);
-          toast.error('Could not start the conversation. Please try again.');
-          submitLockRef.current = false;
-          setIsLoading(false);
-          return;
-        }
-      }
+  /**
+   * Run one agent turn end-to-end — streaming state setup, the single shared
+   * set of SSE callbacks, and the commit/persist/cleanup path. Used by both
+   * handleSubmit (POST /agent/stream) and the mount-time resume effect
+   * (GET /agent/stream/resume) so a resumed stream renders through EXACTLY
+   * the same path as a live one (isStreaming cleared BEFORE setMessages).
+   */
+  const runStreamTurn = useCallback(
+    async (opts: {
+      currentThreadId: string | null;
+      currentConversationId: string | null;
+      newMessages: ChatPageMessage[];
+      /** Legacy (non-server-canonical) mode: persist this user turn after
+       * the stream. Omitted on resume — the original submit wrote it. */
+      persistUserContent?: string;
+      /** Resume: a replay that yields no tokens (nothing buffered / 204)
+       * must unwind quietly instead of rendering a "no response" bubble. */
+      quietWhenEmpty?: boolean;
+      start: (
+        callbacks: AgentStreamCallbacks,
+        signal: AbortSignal
+      ) => Promise<void>;
+    }): Promise<void> => {
+      const {
+        currentThreadId,
+        currentConversationId,
+        newMessages,
+        persistUserContent,
+        quietWhenEmpty,
+        start,
+      } = opts;
 
       // The thread this turn belongs to, snapshotted after thread creation.
       // Every local setMessages below must be gated on the user still viewing
@@ -481,31 +439,10 @@ export function useChatStreaming(
         activeConversationIdRef.current === turnThreadId;
 
       try {
-        // Stream via Agent (LangGraph) backend
-        // Server-canonical: the workspace thread IS the agent thread — the
-        // legacy localStorage mapping only applies with the flag off.
-        const existingAgentThreadId = SERVER_CANONICAL_CHAT
-          ? currentThreadId || undefined
-          : currentThreadId
-            ? agentThreadMapRef.current[currentThreadId]
-            : undefined;
-        // Idempotency key for this user turn; the backend derives the
-        // assistant row's key from it (uuid5), so an SSE retry can't
-        // duplicate either row.
-        const turnClientMessageId = SERVER_CANONICAL_CHAT
-          ? crypto.randomUUID()
-          : undefined;
         // Persisted ids from the done event (server-canonical only).
         let doneIds: {
           assistant_message_id?: string | null;
         } = {};
-
-        console.log(
-          '[Chat] Starting agent stream, workspace thread:',
-          currentThreadId,
-          'agent thread:',
-          existingAgentThreadId
-        );
 
         let assistantContent = '';
         lastStreamedContentRef.current = '';
@@ -537,46 +474,10 @@ export function useChatStreaming(
         stoppedByUserRef.current = false;
         activeRunThreadRef.current = currentThreadId || null;
 
-        if (currentThreadId) {
-          useAgentActivityStore
-            .getState()
-            .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
-        }
-
         const streamAbort = new AbortController();
         abortControllerRef.current = streamAbort;
 
-        await agentChatService.streamMessage(
-          {
-            messages: newMessages.map((m, i) => ({
-              role: m.role,
-              content: m.content,
-              // Idempotency key rides on the user turn being sent (the last
-              // message) — server-canonical only.
-              ...(turnClientMessageId &&
-              i === newMessages.length - 1 &&
-              m.role === 'user'
-                ? { client_message_id: turnClientMessageId }
-                : {}),
-            })),
-            page_context: {
-              type: boundProjectId ? 'project' : 'chat',
-              ...(boundProjectId && {
-                project_id: boundProjectId,
-                project_name: resolvedProjectName || '',
-              }),
-              // The project is bound to the WORKSPACE thread, but this stream
-              // runs on a separate agent thread. The backend uses this id to
-              // resolve (and durably adopt) the bound project when the URL
-              // param has been dropped by thread navigation.
-              ...(currentThreadId && {
-                metadata: { workspace_thread_id: currentThreadId },
-              }),
-            },
-            use_rag: enableRAG,
-            thread_id: existingAgentThreadId,
-            model: selectedModel,
-          },
+        await start(
           {
             onToken: (content) => {
               assistantContent += content;
@@ -591,6 +492,22 @@ export function useChatStreaming(
                       isRetrievingRag: false,
                     });
                     pendingStreamContentRef.current = null;
+                  }
+                });
+              }
+            },
+            onSeq: (seq) => {
+              if (!currentThreadId) return;
+              pendingSeqRef.current = { threadId: currentThreadId, seq };
+              if (seqRafRef.current === null) {
+                seqRafRef.current = requestAnimationFrame(() => {
+                  seqRafRef.current = null;
+                  const p = pendingSeqRef.current;
+                  pendingSeqRef.current = null;
+                  if (p) {
+                    useAgentActivityStore
+                      .getState()
+                      .setStreamSeq(p.threadId, p.seq);
                   }
                 });
               }
@@ -751,7 +668,7 @@ export function useChatStreaming(
         if (!finalContent.trim()) {
           // A user-stop before the first token: just unwind quietly — no error
           // bubble for an answer the user chose not to wait for.
-          if (!stoppedByUserRef.current) {
+          if (!stoppedByUserRef.current && !quietWhenEmpty) {
             const emptyResponseMessage: ChatPageMessage = {
               role: 'assistant',
               content:
@@ -847,12 +764,12 @@ export function useChatStreaming(
             if (isTurnDisplayed())
               setMessages([...newMessages, finalAssistantMessage]);
           }
-        } else if (currentThreadId && isAuthenticated) {
+        } else if (currentThreadId && isAuthenticated && persistUserContent) {
           try {
             // Save user message
             const savedUserMessage = await workspaceService.createMessage({
               thread_id: currentThreadId,
-              content,
+              content: persistUserContent,
               role: MessageRole.USER,
             });
             addMessageToStore(currentThreadId, savedUserMessage);
@@ -922,6 +839,178 @@ export function useChatStreaming(
       }
     },
     [
+      activeConversationIdRef,
+      setMessages,
+      setConversations,
+      enableRAG,
+      isAuthenticated,
+      addMessageToStore,
+      rememberAgentThread,
+      invalidateProjectDataForTool,
+    ]
+  );
+
+  const handleSubmit = useCallback(
+    async (contentOverride?: string) => {
+      if (submitLockRef.current) return;
+      const rawContent =
+        typeof contentOverride === 'string' ? contentOverride : input;
+      const content = rawContent.trim();
+      if (!content || isLoading || storeIsStreaming) return;
+      submitLockRef.current = true;
+
+      const userMessage: ChatPageMessage = {
+        role: 'user',
+        content,
+        timestamp: Date.now(),
+      };
+
+      const newMessages = [...messages, userMessage];
+      setMessages(newMessages);
+      setInput('');
+      setIsLoading(true);
+
+      // Create new thread if needed (when no active conversation).
+      // Read from ref first (synchronous, immune to React batching), then
+      // state, then Zustand store as final fallback.
+      let currentConversationId =
+        activeConversationIdRef.current ||
+        activeConversationId ||
+        useChatStore.getState().currentThreadId;
+      let currentThreadId = currentConversationId;
+
+      if (!currentConversationId && dbConversation) {
+        try {
+          const dynamicTitle = generateConversationTitle(content);
+          console.log(
+            '[Chat] Creating new thread in database with title:',
+            dynamicTitle
+          );
+          const newThread = await workspaceService.createThread(
+            buildThreadCreateRequest({
+              conversationId: dbConversation.id,
+              title: dynamicTitle,
+              projectId: boundProjectId,
+            })
+          );
+
+          // Register in the chat store: the binding selectors and
+          // setThreadProjectBinding read store.threads, and without this the
+          // thread is invisible there until the next full loadThreads — a
+          // project attached to it would be silently dropped from the UI.
+          useChatStore.getState().registerThread(newThread);
+
+          currentConversationId = newThread.id;
+          currentThreadId = newThread.id;
+
+          const newConv: ChatConversation = {
+            id: newThread.id,
+            title: newThread.title || dynamicTitle,
+            messages: newMessages,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            threadId: newThread.id,
+            conversationId: dbConversation.id,
+          };
+
+          setConversations((prev) => [newConv, ...prev]);
+          setActiveConversationId(newConv.id);
+          activeConversationIdRef.current = newConv.id;
+          setCurrentThread(newConv.id);
+          queueMicrotask(() =>
+            router.replace(getSelectedThreadUrl(newThread.id))
+          );
+          console.log('[Chat] Created new thread:', newThread.id);
+        } catch (error) {
+          console.error('[Chat] Failed to create thread:', error);
+          // Roll back the optimistic turn: the user message was appended and
+          // the composer cleared before this call. Without this the bubble
+          // ghosts (never sent, gone on reload) and the typed text is lost.
+          // Restore both and tell the user, so they can retry.
+          setMessages(messages);
+          setInput(content);
+          toast.error('Could not start the conversation. Please try again.');
+          submitLockRef.current = false;
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Stream via Agent (LangGraph) backend.
+      // Server-canonical: the workspace thread IS the agent thread — the
+      // legacy localStorage mapping only applies with the flag off.
+      const existingAgentThreadId = SERVER_CANONICAL_CHAT
+        ? currentThreadId || undefined
+        : currentThreadId
+          ? agentThreadMapRef.current[currentThreadId]
+          : undefined;
+      // Idempotency key for this user turn; the backend derives the
+      // assistant row's key from it (uuid5), so an SSE retry can't
+      // duplicate either row.
+      const turnClientMessageId = SERVER_CANONICAL_CHAT
+        ? crypto.randomUUID()
+        : undefined;
+
+      console.log(
+        '[Chat] Starting agent stream, workspace thread:',
+        currentThreadId,
+        'agent thread:',
+        existingAgentThreadId
+      );
+
+      if (currentThreadId) {
+        useAgentActivityStore
+          .getState()
+          .startRun(currentThreadId, deriveAgentName(), deriveTask(content));
+      }
+
+      try {
+        await runStreamTurn({
+          currentThreadId,
+          currentConversationId,
+          newMessages,
+          persistUserContent: content,
+          start: (streamCallbacks, signal) =>
+            agentChatService.streamMessage(
+              {
+                messages: newMessages.map((m, i) => ({
+                  role: m.role,
+                  content: m.content,
+                  // Idempotency key rides on the user turn being sent (the
+                  // last message) — server-canonical only.
+                  ...(turnClientMessageId &&
+                  i === newMessages.length - 1 &&
+                  m.role === 'user'
+                    ? { client_message_id: turnClientMessageId }
+                    : {}),
+                })),
+                page_context: {
+                  type: boundProjectId ? 'project' : 'chat',
+                  ...(boundProjectId && {
+                    project_id: boundProjectId,
+                    project_name: resolvedProjectName || '',
+                  }),
+                  // The project is bound to the WORKSPACE thread, but this
+                  // stream runs on a separate agent thread. The backend uses
+                  // this id to resolve (and durably adopt) the bound project
+                  // when the URL param has been dropped by thread navigation.
+                  ...(currentThreadId && {
+                    metadata: { workspace_thread_id: currentThreadId },
+                  }),
+                },
+                use_rag: enableRAG,
+                thread_id: existingAgentThreadId,
+                model: selectedModel,
+              },
+              streamCallbacks,
+              signal
+            ),
+        });
+      } finally {
+        submitLockRef.current = false;
+      }
+    },
+    [
       input,
       isLoading,
       storeIsStreaming,
@@ -936,12 +1025,9 @@ export function useChatStreaming(
       router,
       enableRAG,
       selectedModel,
-      isAuthenticated,
-      addMessageToStore,
       boundProjectId,
       resolvedProjectName,
-      rememberAgentThread,
-      invalidateProjectDataForTool,
+      runStreamTurn,
     ]
   );
 
@@ -972,6 +1058,45 @@ export function useChatStreaming(
       storeStopStreaming();
     }
   }, [storeIsStreaming, storeStopStreaming]);
+
+  // ---- Resume an in-flight stream on mount / thread switch ----
+  // If the activity store still records a running run for the displayed
+  // thread (e.g. the page remounted mid-stream), reattach to the backend's
+  // buffered stream and replay from the last seen seq through the exact
+  // same callbacks/commit path as a live submit.
+  useEffect(() => {
+    const threadId = activeConversationId;
+    if (!threadId || isLoading) return;
+    if (useChatStore.getState().isStreaming) return;
+    const run = useAgentActivityStore.getState().runs[threadId];
+    if (!run || run.state !== 'running') return;
+    if (resumeTriedRef.current.has(threadId)) return;
+    resumeTriedRef.current.add(threadId);
+    console.log('[Chat] Resuming in-flight agent stream:', threadId);
+    // ponytail: messages is the snapshot at effect time — if thread history
+    // is still loading, the resumed commit appends to a stale list; a
+    // reload reconciles from the server-persisted rows.
+    void runStreamTurn({
+      currentThreadId: threadId,
+      currentConversationId: threadId,
+      newMessages: messages,
+      quietWhenEmpty: true,
+      start: async (streamCallbacks, signal) => {
+        const res = await agentChatService.resumeStream(
+          threadId,
+          run.streamSeq ?? 0,
+          streamCallbacks,
+          signal
+        );
+        if (!res.resumed) {
+          // Nothing active server-side — clear the stale run record.
+          useAgentActivityStore.getState().finishRun(threadId, 'done');
+        }
+      },
+    });
+    // storeIsStreaming is a dep so a thread with a stale run gets re-checked
+    // once another thread's live stream ends (the guard above reads fresh).
+  }, [activeConversationId, isLoading, messages, runStreamTurn, storeIsStreaming]);
 
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {

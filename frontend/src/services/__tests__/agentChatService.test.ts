@@ -161,6 +161,68 @@ describe('agentChatService.streamMessage SSE parsing', () => {
   });
 });
 
+describe('agentChatService.resumeStream', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('treats 204 as a clean no-op: no callbacks, {resumed:false}', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+      body: null,
+    })) as unknown as typeof fetch;
+    const onToken = vi.fn();
+    const onDone = vi.fn();
+    const onError = vi.fn();
+    const res = await agentChatService.resumeStream('thread-1', 0, {
+      onToken,
+      onDone,
+      onError,
+    });
+    expect(res).toEqual({ resumed: false });
+    expect(onToken).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('replays buffered frames and reports increasing seqs via onSeq', async () => {
+    global.fetch = fetchWith([
+      'id: 3\nevent: token\ndata: {"content":"he"}\n\n',
+      'id: 4\nevent: token\ndata: {"content":"llo"}\n\n',
+      'id: 5\nevent: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const tokens: string[] = [];
+    const seqs: number[] = [];
+    const onDone = vi.fn();
+    const res = await agentChatService.resumeStream('thread-1', 2, {
+      onToken: (c) => tokens.push(c),
+      onSeq: (s) => seqs.push(s),
+      onDone,
+    });
+    expect(res).toEqual({ resumed: true });
+    expect(tokens).toEqual(['he', 'llo']);
+    expect(seqs).toEqual([3, 4, 5]);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    // GET with the after cursor in the query string
+    const url = vi.mocked(global.fetch).mock.calls[0][0] as string;
+    expect(url).toContain('/agent/stream/resume/thread-1?after=2');
+  });
+
+  it('reports seqs on the live streamMessage path too', async () => {
+    global.fetch = fetchWith([
+      'id: 1\nevent: token\ndata: {"content":"x"}\n\n',
+      'id: 2\nevent: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const seqs: number[] = [];
+    await agentChatService.streamMessage(request, {
+      onSeq: (s) => seqs.push(s),
+    });
+    expect(seqs).toEqual([1, 2]);
+  });
+});
+
 describe('agentChatService.streamConfirm SSE parsing', () => {
   const realFetch = global.fetch;
   afterEach(() => {
