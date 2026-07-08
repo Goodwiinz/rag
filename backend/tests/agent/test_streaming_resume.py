@@ -92,10 +92,6 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
             return_value=_FakeGraph(),
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),

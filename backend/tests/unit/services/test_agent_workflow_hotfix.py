@@ -30,7 +30,7 @@ class TestThreadOwnership:
 
     async def test_foreign_thread_id_is_not_resolved(self):
         from src.api.agent.execute import AgentExecuteRequest
-        from src.api.agent.jobs import _persist_thread_messages
+        from src.api.agent.jobs import _resolve_thread
 
         user = _make_user()
         foreign_thread_id = str(uuid4())
@@ -47,11 +47,13 @@ class TestThreadOwnership:
             thread_id=foreign_thread_id,
         )
 
-        thread_id, conversation_id = await _persist_thread_messages(
-            db, user, request, "assistant reply", None
+        # A thread id the user does not own resolves to None (ownership filter),
+        # so the confirm/resume path creates/commits nothing.
+        thread, conversation_id = await _resolve_thread(
+            db, user, request, create_if_missing=False
         )
 
-        assert thread_id == foreign_thread_id or thread_id == ""
+        assert thread is None
         assert conversation_id == ""
         db.commit.assert_not_called()
 

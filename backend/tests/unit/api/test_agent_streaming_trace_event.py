@@ -51,10 +51,6 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             return_value=_FakeGraph(),
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -93,10 +89,6 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
         patch(
             "src.services.agent.graph.compile_agent_graph",
             return_value=_FakeGraph(),
-        ),
-        patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
         ),
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",

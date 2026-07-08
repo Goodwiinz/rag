@@ -28,7 +28,6 @@ from .jobs import (
     _latest_user_client_message_id,
     _page_context_to_dict,
     _persist_assistant_message,
-    _persist_thread_messages,
     _persist_user_message,
     _resolve_and_bind_project,
     _resolve_thread,
@@ -1291,7 +1290,7 @@ async def stream_confirm_event_generator(
         # Persist ONLY the assistant row for the resumed turn. The user row
         # that started this turn was already written up-front by the original
         # /stream request (stream_event_generator → _persist_user_message),
-        # so re-running _persist_thread_messages here inserted a SECOND bare
+        # so re-persisting it here would insert a SECOND bare
         # user row every confirm (no client_message_id → no dedup), inflated
         # thread.message_count, and confused context assembly.
         #
