@@ -4,9 +4,26 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { ChatRuntimeProvider } from '../ChatRuntimeProvider';
-import { AuiMessages, AuiMessageByIndex } from '../AuiMessage';
+import {
+  AuiMessages,
+  AuiMessageByIndex,
+  MessageByIndexBoundary,
+} from '../AuiMessage';
 
 const noop = vi.fn();
+
+function Thrower({
+  shouldThrow,
+  message,
+  children,
+}: {
+  shouldThrow: boolean;
+  message: string;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  if (shouldThrow) throw new Error(message);
+  return <>{children}</>;
+}
 
 function renderMessages(messages: ChatPageMessage[]) {
   return render(
@@ -249,5 +266,113 @@ describe('AuiMessageByIndex runtime-sync race', () => {
     ).not.toThrow();
 
     expect(screen.queryByText('Not yet in runtime.')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing instead of throwing when the runtime shrinks under a mounted message (thread switch)', () => {
+    // Thread switch: the list mounts MessageByIndex(0) for thread A, then the
+    // active thread's messages are cleared/replaced. The external-store runtime
+    // syncs post-commit, so for one frame the runtime empties while the
+    // still-mounted MessageByIndex(0) subscription re-reads its snapshot —
+    // useClientLookup(0) on an empty thread. The render-time count guard cannot
+    // catch this: the throw originates in the child's store-driven update, not
+    // the parent's render. Prod crash: "useClientLookup: Index 0 out of bounds
+    // (length: 0)" on thread switch.
+    const msg: ChatPageMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: 'From thread A.',
+      timestamp: 2,
+    };
+
+    const { rerender } = render(
+      <ChatRuntimeProvider
+        messages={[msg]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessageByIndex index={0} message={msg} />
+      </ChatRuntimeProvider>
+    );
+    expect(screen.getByText('From thread A.')).toBeInTheDocument();
+
+    expect(() =>
+      rerender(
+        <ChatRuntimeProvider
+          messages={[]}
+          isRunning={false}
+          onSend={noop}
+          onCancel={noop}
+        >
+          <AuiMessageByIndex index={0} message={msg} />
+        </ChatRuntimeProvider>
+      )
+    ).not.toThrow();
+
+    expect(screen.queryByText('From thread A.')).not.toBeInTheDocument();
+  });
+});
+
+describe('MessageByIndexBoundary', () => {
+  // jsdom flushes too synchronously to reproduce the concurrent-scheduler torn
+  // read that crashes prod on thread switch, so these test the boundary's
+  // contract directly: it must swallow ONLY the transient out-of-bounds throw,
+  // surface everything else, and re-attempt once the runtime settles.
+  it('swallows the out-of-bounds throw and renders nothing', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() =>
+      render(
+        <MessageByIndexBoundary resetKey="a">
+          <Thrower
+            shouldThrow
+            message="useClientLookup: Index 0 out of bounds (length: 0)"
+          >
+            should not render
+          </Thrower>
+        </MessageByIndexBoundary>
+      )
+    ).not.toThrow();
+    expect(screen.queryByText('should not render')).not.toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it('rethrows non-out-of-bounds errors so real bugs surface', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() =>
+      render(
+        <MessageByIndexBoundary resetKey="a">
+          <Thrower
+            shouldThrow
+            message="Cannot read properties of undefined (reading 'foo')"
+          />
+        </MessageByIndexBoundary>
+      )
+    ).toThrow(/Cannot read properties/);
+    spy.mockRestore();
+  });
+
+  it('re-attempts rendering after the runtime settles (resetKey change)', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { rerender } = render(
+      <MessageByIndexBoundary resetKey="a">
+        <Thrower
+          shouldThrow
+          message="useClientLookup: Index 0 out of bounds (length: 0)"
+        >
+          recovered
+        </Thrower>
+      </MessageByIndexBoundary>
+    );
+    expect(screen.queryByText('recovered')).not.toBeInTheDocument();
+
+    rerender(
+      <MessageByIndexBoundary resetKey="b">
+        <Thrower shouldThrow={false} message="unused">
+          recovered
+        </Thrower>
+      </MessageByIndexBoundary>
+    );
+    expect(screen.getByText('recovered')).toBeInTheDocument();
+    spy.mockRestore();
   });
 });
