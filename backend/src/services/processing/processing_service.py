@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from celery import Celery
 from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,32 +26,18 @@ from src.services.processing.video_processing_service import VideoProcessingServ
 
 logger = logging.getLogger(__name__)
 
-# Celery configuration
-import ssl as _ssl
-
-celery_app = Celery(
-    "rag_processing",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=["src.tasks.processing_tasks"],
-)
-
-_redis_tls = settings.REDIS_URL.startswith("rediss://")
-_ssl_opts = {"ssl_cert_reqs": _ssl.CERT_NONE} if _redis_tls else None
-
-celery_app.conf.update(
-    **({"broker_use_ssl": _ssl_opts, "redis_backend_use_ssl": _ssl_opts} if _redis_tls else {}),
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30 minutes
-    task_soft_time_limit=25 * 60,  # 25 minutes
-    worker_prefetch_multiplier=1,
-    worker_max_tasks_per_child=1000,
-)
+# NOTE: this module deliberately has NO module-level Celery app. It used to
+# build its own Celery("rag_processing") here, and because Celery() defaults
+# to set_as_current=True, importing this service mid-way through a task
+# module's import stole `current_app` — every `@current_app.task` decorator
+# and `current_app.conf.beat_schedule.update(...)` that ran afterwards landed
+# on the duplicate app instead of the real one. Task execution survived
+# (Celery's global pending-task registry binds tasks to every app on
+# finalize) but the beat entries did not: cleanup-old-jobs and
+# cleanup-old-evaluations lived only on the duplicate app's conf, which no
+# beat process reads, so those schedules silently never ran. The shared app
+# is imported lazily inside queue_processing_job (module-level would cycle
+# through src.tasks.__init__ → processing_tasks → this module).
 
 
 class ProcessingPipeline:
@@ -125,6 +110,10 @@ class ProcessingPipeline:
 
     def queue_processing_job(self, job_id: str):
         """Queue a processing job for execution"""
+        # Lazy: see module-level NOTE — a top-level import cycles through
+        # src.tasks.__init__ back into this module.
+        from src.tasks.celery_app import celery_app
+
         job = self.db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
         if not job:

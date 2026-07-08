@@ -399,6 +399,7 @@ async def _process_arxiv_ingestion(
                     # a doc field / "" default) or the NOT NULL FK insert fails and
                     # papers are un-scoped.
                     persisted = 0
+                    persisted_ids = []
                     for doc in documents:
                         try:
                             metadata = getattr(doc, "document_metadata", {}) or {}
@@ -420,6 +421,8 @@ async def _process_arxiv_ingestion(
                                 is_public=False,
                             )
                             db.add(document)
+                            await db.flush()  # populate document.id
+                            persisted_ids.append(str(document.id))
                             persisted += 1
                         except Exception as doc_err:
                             # One malformed paper must not abort the whole batch.
@@ -428,6 +431,22 @@ async def _process_arxiv_ingestion(
                             )
 
                     if persisted:
+                        # Build search_vector BEFORE commit — these docs land
+                        # COMPLETED, so without this they'd be permanently
+                        # invisible to fulltext/RAG (NULL tsvector never matches).
+                        try:
+                            from src.services.search.fulltext_search_service import (
+                                fulltext_search_service,
+                            )
+
+                            await fulltext_search_service.async_update_document_search_vectors(
+                                persisted_ids, db
+                            )
+                        except Exception as vec_err:
+                            logger.error(
+                                f"arXiv ingest: search_vector update failed: {vec_err}"
+                            )
+
                         await db.commit()
                         logger.info(
                             f"arXiv ingestion persisted {persisted}/{len(documents)} "

@@ -975,6 +975,7 @@ async def _tool_ingest_arxiv(
                     failed_papers[pid] = "PDF download or content extraction failed"
 
             document_ids = []
+            kb_sync_failed = False
             if ingested and current_user:
                 # Use a fresh DB session to avoid concurrency issues with the
                 # shared graph session (same pattern as _tool_add_document_to_project).
@@ -1014,6 +1015,24 @@ async def _tool_ingest_arxiv(
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
                                 persisted_documents.append(document)
+
+                            # Build search_vector so these COMPLETED docs are
+                            # findable — without it the NULL tsvector never
+                            # matches plainto_tsquery and the papers are
+                            # invisible to doc search / RAG.
+                            try:
+                                from src.services.search.fulltext_search_service import (
+                                    fulltext_search_service,
+                                )
+
+                                await fulltext_search_service.async_update_document_search_vectors(
+                                    document_ids, fresh_db
+                                )
+                            except Exception as vec_err:  # noqa: BLE001
+                                logger.warning(
+                                    "arxiv ingest: search_vector update failed: %s",
+                                    vec_err,
+                                )
                             # begin() auto-commits on exit
                     logger.info(
                         "Ingested %d documents to DB: %s",
@@ -1045,6 +1064,7 @@ async def _tool_ingest_arxiv(
                                 await sync_documents_to_kb(kb_db, merged)
                                 await kb_db.commit()
                         except Exception as kb_err:  # noqa: BLE001
+                            kb_sync_failed = True
                             logger.warning(
                                 "do_kb dual-write skipped for arxiv ingest: %s", kb_err
                             )
@@ -1136,6 +1156,17 @@ async def _tool_ingest_arxiv(
             if link_error and status == INGEST_STATUS_COMPLETE:
                 status = INGEST_STATUS_COMPLETE_LINK_FAILED
 
+            # The KB dual-write is best-effort, but the agent must not imply the
+            # papers reached the DO KB when it silently failed. Doc search still
+            # works (search_vector is built above), so this is a note, not a
+            # failure — surface it so the LLM stays honest.
+            if kb_sync_failed and ingested_count > 0:
+                message += (
+                    " Note: knowledge-base sync did not complete, so these "
+                    "papers are searchable via document search but may not yet "
+                    "appear in knowledge-base retrieval."
+                )
+
             failed_papers_list = [
                 {"paper_id": pid, "reason": reason}
                 for pid, reason in failed_papers.items()
@@ -1158,6 +1189,7 @@ async def _tool_ingest_arxiv(
                 "project_id": linked_project_id,
                 "project_name": linked_project_name,
                 "link_error": link_error,
+                "kb_sync_failed": kb_sync_failed,
                 "message": message,
             }
     except Exception as e:
