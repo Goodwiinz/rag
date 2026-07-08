@@ -396,6 +396,54 @@ export function AuiAssistantMessage({
   );
 }
 
+/**
+ * Catches the transient out-of-bounds throw a single MessageByIndex can hit
+ * when the external-store runtime's message array desyncs from the page list
+ * on thread switch. The count guard in {@link AuiMessageByIndex} handles the
+ * common post-commit lag, but under React's concurrent scheduler that guard
+ * can read a stale (non-empty) count while MessageByIndex's own
+ * useSyncExternalStore snapshot reads the freshly-emptied thread — a torn read
+ * that throws "useClientLookup: Index N out of bounds" from inside the child's
+ * store update, out of the render-time guard's reach (prod crash on thread
+ * switch). That frame is transient: render nothing for it and re-attempt once
+ * the runtime settles (resetKey changes). Anything else is a real bug —
+ * rethrow it to the app's error boundary rather than silently swallow.
+ */
+export class MessageByIndexBoundary extends React.Component<
+  { resetKey: string; children: ReactNode },
+  { error: Error | null; lastResetKey: string }
+> {
+  constructor(props: { resetKey: string; children: ReactNode }) {
+    super(props);
+    this.state = { error: null, lastResetKey: props.resetKey };
+  }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+
+  static getDerivedStateFromProps(
+    props: { resetKey: string },
+    state: { error: Error | null; lastResetKey: string }
+  ): { error: Error | null; lastResetKey: string } | null {
+    // Runtime settled (count / message identity changed) — drop the transient
+    // error and re-attempt on the next render. Does not remount children.
+    if (props.resetKey !== state.lastResetKey) {
+      return { error: null, lastResetKey: props.resetKey };
+    }
+    return null;
+  }
+
+  render(): ReactNode {
+    const { error } = this.state;
+    if (error) {
+      if (/out of bounds|useClientLookup/i.test(error.message)) return null;
+      throw error;
+    }
+    return this.props.children;
+  }
+}
+
 export function AuiMessageByIndex({
   index,
   message,
@@ -438,7 +486,13 @@ export function AuiMessageByIndex({
 
   if (index >= runtimeMessageCount) return null;
 
-  return <ThreadPrimitive.MessageByIndex index={index} components={components} />;
+  // resetKey settles the boundary when the runtime re-syncs: count changes on
+  // grow/shrink, and message id changes on thread switch even when counts match.
+  return (
+    <MessageByIndexBoundary resetKey={`${runtimeMessageCount}:${message?.id ?? index}`}>
+      <ThreadPrimitive.MessageByIndex index={index} components={components} />
+    </MessageByIndexBoundary>
+  );
 }
 
 export function AuiMessages(): ReactElement {
