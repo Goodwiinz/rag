@@ -887,10 +887,13 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
-        # A disconnected client can't retry from an error frame it never sees;
-        # persist the partial (stopped=True) so the drained turn isn't lost
-        # when the drain itself dies (e.g. hits the 300s timeout).
-        if client_disconnected and persist_partial_stop is not None:
+        # Persist whatever was streamed before the failure (stopped=True) so the
+        # partial answer survives a reload. Covers both the disconnected drain
+        # dying (e.g. the 300s timeout) and an error while the client is still
+        # connected — in server-canonical mode the frontend saves nothing, so
+        # without this an errored turn leaves a user row and no assistant row.
+        # Idempotent: no-ops if nothing streamed or the row was already saved.
+        if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
@@ -1413,10 +1416,13 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
-        # A disconnected client can't retry from an error frame it never sees;
-        # persist the partial (stopped=True) so the drained turn isn't lost
-        # when the drain itself dies (e.g. hits the 300s timeout).
-        if client_disconnected and persist_partial_stop is not None:
+        # Persist whatever was streamed before the failure (stopped=True) so the
+        # partial answer survives a reload. Covers both the disconnected drain
+        # dying (e.g. the 300s timeout) and an error while the client is still
+        # connected — in server-canonical mode the frontend saves nothing, so
+        # without this an errored turn leaves a user row and no assistant row.
+        # Idempotent: no-ops if nothing streamed or the row was already saved.
+        if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
