@@ -16,6 +16,9 @@ export interface ActivityStep {
   durationMs?: number;
   /** Compact one-line summary of the tool's arguments (e.g. the query). */
   argsSummary?: string;
+  /** Structured (already backend-redacted) tool arguments, for declarative
+   * per-tool renderers that want fields rather than the one-line summary. */
+  args?: Record<string, unknown>;
   /** Compact one-line summary of the result, or the error text on failure. */
   resultSummary?: string;
 }
@@ -84,6 +87,7 @@ export function mapDbToolExecutions(
         ? { durationMs: e.duration_ms }
         : {}),
       ...(argsSummary ? { argsSummary } : {}),
+      ...(e.args && typeof e.args === 'object' ? { args: e.args } : {}),
       ...(resultSummary ? { resultSummary } : {}),
     } satisfies ActivityStep;
   });

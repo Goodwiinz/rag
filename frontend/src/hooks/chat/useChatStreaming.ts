@@ -550,6 +550,7 @@ export function useChatStreaming(
                 label: toolLabel(tool),
                 status: 'running',
                 argsSummary: summarizeToolArgs(args),
+                ...(args && typeof args === 'object' ? { args } : {}),
               });
               useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
@@ -1272,6 +1273,7 @@ export function useChatStreaming(
                 label: toolLabel(tool),
                 status: 'running',
                 argsSummary: summarizeToolArgs(args),
+                ...(args && typeof args === 'object' ? { args } : {}),
               });
               useChatStore.setState({ streamingSteps: [...confirmSteps] });
             },

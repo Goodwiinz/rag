@@ -10,8 +10,10 @@ type ToolCallPart = {
   type: 'tool-call';
   toolCallId: string;
   toolName: string;
-  // ThreadMessageLike requires args to be a ReadonlyJSONObject; we never have
-  // structured args (only argsSummary text), so this is always the empty object.
+  // ThreadMessageLike types args as ReadonlyJSONObject. At runtime we carry the
+  // structured (backend-redacted, JSON-safe) tool args so declarative per-tool
+  // renderers read real fields via their own TArgs generic; the type stays the
+  // JSON-compatible empty shape. `argsText` is the one-line fallback summary.
   args: Record<string, never>;
   argsText: string;
   result?: string;
@@ -84,7 +86,7 @@ export function toToolCallParts(
       type: 'tool-call',
       toolCallId: `${messageId}-tool-${i}`,
       toolName: step.tool,
-      args: {},
+      args: (step.args ?? {}) as Record<string, never>,
       argsText: step.argsSummary ?? '',
       ...(settled && step.resultSummary !== undefined
         ? { result: step.resultSummary }

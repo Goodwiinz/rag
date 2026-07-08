@@ -8,8 +8,10 @@ import {
 } from '@assistant-ui/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 
 import { convertMessage } from './convertMessage';
+import { NousToolUIs } from './toolUIs';
 
 export interface ChatRuntimeProviderProps {
   messages: ChatPageMessage[];
@@ -68,6 +70,9 @@ export function ChatRuntimeProvider({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      {/* Declarative per-tool renderers (register on mount, render null).
+          Flag-gated: unregistered tools keep the generic ToolFallback. */}
+      {AUI_FULL && <NousToolUIs />}
       {children}
     </AssistantRuntimeProvider>
   );
