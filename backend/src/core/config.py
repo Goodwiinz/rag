@@ -401,6 +401,15 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
+    # Option B server-side history rebuild. When True, the agent stream ignores
+    # all but the newest user turn in the request and rebuilds conversation
+    # context from the LangGraph checkpoint (source of truth), seeding it from
+    # the DB when the checkpoint is empty. When False (default), the legacy
+    # client-resent-history path is used unchanged. Flag-gated rollout: enable
+    # on dev only after soak; the frontend send-only-newest change must NOT ship
+    # until this is on in that environment.
+    AGENT_SERVER_SIDE_HISTORY: bool = False
+
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
     # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
