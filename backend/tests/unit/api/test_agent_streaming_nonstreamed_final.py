@@ -68,10 +68,6 @@ async def test_stream_emits_nonstreamed_final_answer_as_token():
             return_value=_FakeGraphNoStream(),
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
