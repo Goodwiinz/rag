@@ -882,7 +882,7 @@ async def _arxiv_redis_set(redis_key: str, payload: Dict[str, Any]) -> None:
             ttl=_ARXIV_CACHE_STALE_TTL,
         )
     except Exception:
-        pass
+        logger.debug("Failed to write arXiv cache entry to Redis", exc_info=True)
 
 
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
