@@ -5,9 +5,10 @@ based on the conversation content.
 """
 
 import asyncio
+import functools
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -26,6 +27,55 @@ SUMMARY_RATE_LIMIT_SECONDS = 300  # 5 minutes
 
 # Maximum summary length
 MAX_SUMMARY_LENGTH = 150
+
+
+def rate_limit_key(thread_id: Union[str, UUID]) -> str:
+    """Redis key gating summary regeneration.
+
+    Single-sourced so the cheap pre-check in ``enqueue_summarization`` can
+    never drift from the worker's rate limit — both must hash to this key.
+    """
+    return f"thread_summary:{thread_id}:last_generated"
+
+
+@functools.lru_cache(maxsize=1)
+def _sync_redis_client():
+    """Cached sync Redis client for the cheap enqueue pre-check.
+
+    Mirrors ``ThreadSummarizationService.redis_client`` construction; short
+    socket timeouts so a Redis stall can't slow the request path.
+    """
+    import redis
+
+    return redis.Redis.from_url(
+        settings.REDIS_URL or "redis://localhost:6379/0",
+        decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+
+
+def enqueue_summarization(thread_id: Union[str, UUID]) -> None:
+    """Enqueue the summarization task, skipping turns the worker would just
+    rate-limit away.
+
+    The worker's ``should_summarize`` discards ~every turn via a 5-minute
+    Redis key, so a cheap sync ``EXISTS`` on that same key lets most turns
+    skip the ``.delay()`` broker round-trip. Degrade-safe: any Redis error
+    falls through to enqueue.
+    """
+    try:
+        if _sync_redis_client().exists(rate_limit_key(str(thread_id))):
+            return
+    except Exception as exc:  # noqa: BLE001
+        logger.debug(
+            "Summarization enqueue pre-check failed for %s: %s", thread_id, exc
+        )
+
+    from src.tasks.summarize_thread_task import summarize_thread_task
+
+    summarize_thread_task.delay(str(thread_id))
+
 
 # Prompt for summary generation
 SUMMARY_GENERATION_PROMPT = """Summarize this conversation in 1-2 sentences (max 150 characters).
@@ -76,7 +126,7 @@ class ThreadSummarizationService:
         # Check rate limit via Redis
         if self.redis_client:
             try:
-                rate_key = f"thread_summary:{thread.id}:last_generated"
+                rate_key = rate_limit_key(thread.id)
                 if self.redis_client.exists(rate_key):
                     logger.debug(f"Thread {thread.id} summary rate limited")
                     return False
@@ -89,7 +139,7 @@ class ThreadSummarizationService:
         """Set rate limit key in Redis."""
         if self.redis_client:
             try:
-                rate_key = f"thread_summary:{thread_id}:last_generated"
+                rate_key = rate_limit_key(thread_id)
                 self.redis_client.setex(
                     rate_key, SUMMARY_RATE_LIMIT_SECONDS, datetime.utcnow().isoformat()
                 )

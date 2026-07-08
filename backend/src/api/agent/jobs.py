@@ -839,9 +839,11 @@ async def _persist_assistant_message(
     # never let a broker hiccup break persistence.
     if thread is not None and (thread.message_count or 0) >= 3:
         try:
-            from src.tasks.summarize_thread_task import summarize_thread_task
+            from src.services.threads.thread_summarization_service import (
+                enqueue_summarization,
+            )
 
-            summarize_thread_task.delay(thread_id)
+            enqueue_summarization(thread_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "Failed to queue summarization for thread %s: %s", thread_id, exc

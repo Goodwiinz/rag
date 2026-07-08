@@ -1024,9 +1024,11 @@ class ChatService:
         # Trigger async summarization if thread has enough messages
         if thread and thread.message_count >= 3:
             try:
-                from src.tasks.summarize_thread_task import summarize_thread_task
+                from src.services.threads.thread_summarization_service import (
+                    enqueue_summarization,
+                )
 
-                summarize_thread_task.delay(str(thread_id))
+                enqueue_summarization(thread_id)
             except Exception as e:
                 # Don't fail message creation if summarization queue fails
                 logger.warning(
