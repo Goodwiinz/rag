@@ -23,7 +23,7 @@ from src.api.arxiv import core
 # Import before any test stubs out `src.core.database` (via monkeypatch): the
 # ingest path lazily imports this module, whose top-level needs get_db_sync
 # from the real database module. Caching it here keeps the stub harmless.
-from src.services.search.fulltext_search_service import fulltext_search_service
+import src.services.search.fulltext_search_service
 
 
 class _FakeDoc:
