@@ -376,9 +376,33 @@ async def stream_event_generator(
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-        messages = _jobs_mod.build_user_history_messages(
-            request_body.messages, request_body.thread_id or ""
-        )
+        from src.core.config import get_settings
+
+        messages = None
+        if get_settings().AGENT_SERVER_SIDE_HISTORY:
+            # Option B: rebuild context from the checkpoint (seeding from the DB
+            # when empty); ignore all but the newest turn in the request array.
+            # Best-effort: a DB/checkpoint failure (or a newest turn lacking a
+            # client_message_id -> None) falls back to the legacy path below so a
+            # turn that works today is never aborted by the opt-in path.
+            try:
+                # Seed only from the ownership-verified thread id (set by
+                # _resolve_thread); never the raw client-supplied thread_id.
+                messages = await _jobs_mod.build_graph_input_messages(
+                    db, graph, resolved_thread_id or "", request_body.messages
+                )
+            except Exception:
+                logger.warning(
+                    "Option B message assembly failed; using legacy history",
+                    exc_info=True,
+                )
+                messages = None
+        if messages is None:
+            # Legacy path (flag off, or Option B declined/failed): B1's
+            # deterministic-id rebuild of the resent history.
+            messages = _jobs_mod.build_user_history_messages(
+                request_body.messages, request_body.thread_id or ""
+            )
 
         page_context = _page_context_to_dict(request_body.page_context)
         await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
