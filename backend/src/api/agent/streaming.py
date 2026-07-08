@@ -16,8 +16,8 @@ from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
-from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent import stream_buffer as _stream_buffer
+from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.observability import record_token_usage
 
@@ -379,11 +379,20 @@ async def stream_event_generator(
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-        messages = [
-            HumanMessage(content=m.content)
-            for m in request_body.messages
-            if m.role == "user"
-        ]
+        from src.core.config import get_settings
+
+        if get_settings().AGENT_SERVER_SIDE_HISTORY:
+            # Option B: rebuild context from the checkpoint (seeding from the DB
+            # when empty); ignore all but the newest turn in the request array.
+            messages = await _jobs_mod.build_graph_input_messages(
+                db, graph, request_body.thread_id or "", request_body.messages
+            )
+        else:
+            messages = [
+                HumanMessage(content=m.content)
+                for m in request_body.messages
+                if m.role == "user"
+            ]
 
         page_context = _page_context_to_dict(request_body.page_context)
         await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
@@ -1026,9 +1035,7 @@ async def stream_confirm_event_generator(
                 )
                 if user_cmid is not None:
                     return str(
-                        _uuid.uuid5(
-                            _uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}"
-                        )
+                        _uuid.uuid5(_uuid.NAMESPACE_URL, f"nous-assistant:{user_cmid}")
                     )
             except Exception:
                 logger.warning(
@@ -1163,9 +1170,7 @@ async def stream_confirm_event_generator(
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         streamed_parts.append(chunk.content)
-                        frame = await emitter.emit(
-                            "token", {"content": chunk.content}
-                        )
+                        frame = await emitter.emit("token", {"content": chunk.content})
                         if not client_disconnected:
                             yield frame
                         tokens_emitted = True

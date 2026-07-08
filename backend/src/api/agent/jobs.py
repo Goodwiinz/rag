@@ -1214,11 +1214,20 @@ async def _run_agent_graph(
             store = await get_memory_store()
             graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-            messages = [
-                HumanMessage(content=m.content)
-                for m in request.messages
-                if m.role == "user"
-            ]
+            from src.core.config import get_settings
+
+            if get_settings().AGENT_SERVER_SIDE_HISTORY:
+                # Option B: rebuild context from the checkpoint (seeding from the
+                # DB when empty); ignore all but the newest turn in the request.
+                messages = await build_graph_input_messages(
+                    db, graph, request.thread_id or job_id, request.messages
+                )
+            else:
+                messages = [
+                    HumanMessage(content=m.content)
+                    for m in request.messages
+                    if m.role == "user"
+                ]
 
             page_context = _page_context_to_dict(request.page_context)
             await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
