@@ -18,6 +18,7 @@ export type { UIMessage, UIConversation } from './useChatPersistence';
 export { useProjectChat } from './useProjectChat';
 
 export { useCitationsForThread } from './useCitationsForThread';
+export type { CitationItem } from './useCitationsForThread';
 
 export {
   useEvidenceMeter,

@@ -663,14 +663,21 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
-# In-process TTL cache for ``_tool_search_arxiv``. Trace 019e1a5a showed
-# the planner firing 4 near-identical arXiv searches in <2 min, tripping
-# the upstream 429 limiter. Keying on the normalized query lets repeated
-# tool calls within ``_ARXIV_SEARCH_CACHE_TTL`` seconds reuse the prior
-# result instead of hammering arxiv.org.
+# Two-layer cache for ``_tool_search_arxiv`` to avoid re-hitting arxiv.org's
+# per-IP 429 limiter. L1 is a per-process in-memory dict (fast; protects a
+# single planner firing 4 near-identical searches in <2 min — trace 019e1a5a).
+# L2 (defined after the stopword list) is a SHARED Redis cache so the 1-5 HPA
+# replicas + the synthetic CronJob reuse each other's results and near-duplicate
+# phrasings collapse to one normalized key. Redis-down degrades to L1 only.
+#
+# L2 entries live ``_ARXIV_CACHE_STALE_TTL`` seconds but only count as a FRESH
+# hit within ``_ARXIV_CACHE_FRESH_TTL``; the older band is the stale-on-429
+# fallback (serve the last known result when arXiv is rate-limited).
 _ARXIV_SEARCH_CACHE: Dict[tuple, tuple[float, Dict[str, Any]]] = {}
-_ARXIV_SEARCH_CACHE_TTL = 600.0  # 10 minutes
+_ARXIV_CACHE_FRESH_TTL = 600.0  # 10 min: served as a fresh cache hit
+_ARXIV_CACHE_STALE_TTL = 1800  # 30 min: kept in Redis for the 429 stale fallback
 _ARXIV_SEARCH_CACHE_MAX = 64
+_ARXIV_CACHE_REDIS_PREFIX = "arxiv:search:"  # own namespace; NOT tenant-scoped search:
 
 
 def _arxiv_cache_key(
@@ -678,9 +685,16 @@ def _arxiv_cache_key(
     max_results: int,
     categories: Optional[List[str]],
     recency_days: int,
+    chronological: bool = False,
 ) -> tuple:
     cats = tuple(sorted(categories)) if categories else ()
-    return (query.strip(), int(max_results), cats, int(recency_days))
+    return (
+        query.strip(),
+        int(max_results),
+        cats,
+        int(recency_days),
+        bool(chronological),
+    )
 
 
 def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
@@ -690,7 +704,7 @@ def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
     if not hit:
         return None
     ts, value = hit
-    if time.monotonic() - ts > _ARXIV_SEARCH_CACHE_TTL:
+    if time.monotonic() - ts > _ARXIV_CACHE_FRESH_TTL:
         _ARXIV_SEARCH_CACHE.pop(key, None)
         return None
     return value
@@ -756,6 +770,121 @@ def _sanitize_arxiv_query(q: str) -> str:
     return cleaned or q
 
 
+# --- L2: shared Redis cache (cross-pod dedup + normalized key + 429 stale) ---
+# arXiv results are public, so the L2 key is tenant-less (unlike core/cache's
+# tenant-scoped ``search:`` keys — hence the distinct ``arxiv:search:``
+# namespace). The KEY-ONLY normalization below collapses near-duplicate
+# phrasings; it does NOT change the query actually sent to arXiv.
+_ARXIV_CACHE_KEY_STOPWORDS = _ARXIV_STOPWORDS | {"arxiv"}
+_arxiv_redis_singleton: Any = None
+_arxiv_redis_init_failed = False
+
+
+async def _get_arxiv_redis() -> Any:
+    """Return ONE shared async Redis client, created lazily and reused.
+
+    ``get_redis_client()`` builds a fresh client + connection pool per call;
+    caching a single client avoids leaking a pool on every arXiv search. Any
+    failure (bad URL, no Redis) disables L2 for the process and the caller
+    degrades to the L1 in-memory cache + a live arXiv call.
+    """
+    global _arxiv_redis_singleton, _arxiv_redis_init_failed
+    if _arxiv_redis_singleton is not None:
+        return _arxiv_redis_singleton
+    if _arxiv_redis_init_failed:
+        return None
+    try:
+        from src.services.core.cache import get_redis_client
+
+        _arxiv_redis_singleton = await get_redis_client()
+        return _arxiv_redis_singleton
+    except Exception:
+        _arxiv_redis_init_failed = True
+        logger.debug("arXiv L2 Redis cache unavailable; using in-memory only")
+        return None
+
+
+def _normalize_cache_query(q: str) -> str:
+    """Key-only query normalization (does NOT change what is sent to arXiv):
+    lowercase, keep alnum/hyphen tokens, drop stopwords (incl 'arxiv'). Collapses
+    'Search arXiv for recent papers on X.' and 'recent papers on X' to the same
+    key so real + synthetic phrasings share one cache entry."""
+    tokens = re.findall(r"[a-z0-9-]+", q.lower())
+    kept = [t for t in tokens if t not in _ARXIV_CACHE_KEY_STOPWORDS]
+    return " ".join(kept) or q.strip().lower()
+
+
+def _arxiv_redis_key(
+    query: str,
+    max_results: int,
+    categories: Optional[List[str]],
+    recency_days: int,
+    chronological: bool,
+) -> str:
+    import hashlib
+
+    cats = ",".join(sorted(categories)) if categories else ""
+    raw = "|".join(
+        [
+            _normalize_cache_query(query),
+            str(int(max_results)),
+            cats,
+            str(int(recency_days)),
+            str(int(bool(chronological))),
+        ]
+    )
+    # usedforsecurity=False: this is a cache-key digest, not a security hash
+    # (Bandit B324). Collision resistance is irrelevant for a cache bucket.
+    digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return _ARXIV_CACHE_REDIS_PREFIX + digest
+
+
+async def _arxiv_redis_get(
+    redis_key: str, allow_stale: bool
+) -> Optional[Dict[str, Any]]:
+    """Read the L2 entry. Fresh (age < FRESH_TTL) always; older entries only
+    when ``allow_stale`` (the 429 fallback). None on any miss/Redis error."""
+    import time
+
+    client = await _get_arxiv_redis()
+    if client is None:
+        return None
+    try:
+        from src.services.core.cache import cache_get
+
+        entry = await cache_get(client, redis_key)
+    except Exception:
+        return None
+    if not isinstance(entry, dict) or "payload" not in entry:
+        return None
+    age = time.time() - float(entry.get("cached_at", 0) or 0)
+    if not allow_stale and age > _ARXIV_CACHE_FRESH_TTL:
+        return None
+    payload = entry.get("payload")
+    return payload if isinstance(payload, dict) else None
+
+
+async def _arxiv_redis_set(redis_key: str, payload: Dict[str, Any]) -> None:
+    """Store a successful payload with an embedded wall-clock ``cached_at`` and
+    the longer STALE_TTL, so the 429 fallback can serve it past the fresh window."""
+    import time
+
+    client = await _get_arxiv_redis()
+    if client is None:
+        return
+    try:
+        from src.services.core.cache import cache_set
+
+        await cache_set(
+            client,
+            redis_key,
+            {"payload": payload, "cached_at": time.time()},
+            ttl=_ARXIV_CACHE_STALE_TTL,
+        )
+    except Exception:
+        logger.debug("Failed to write arXiv cache entry to Redis", exc_info=True)
+
+
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
     from datetime import datetime, timedelta, timezone
@@ -809,8 +938,18 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # Key on the original query + recency_days (an int that already captures
     # the window), NOT the date-filtered query whose minute-precision cutoff
     # changes every minute. (audit #14)
-    cache_key = _arxiv_cache_key(original_query, max_results, categories, recency_days)
+    cache_key = _arxiv_cache_key(
+        original_query, max_results, categories, recency_days, chronological
+    )
+    redis_key = _arxiv_redis_key(
+        original_query, max_results, categories, recency_days, chronological
+    )
+    # Fresh lookup: L1 (per-process) then L2 (shared Redis). An L2 hit warms L1.
     cached = _arxiv_cache_get(cache_key)
+    if cached is None:
+        cached = await _arxiv_redis_get(redis_key, allow_stale=False)
+        if cached is not None:
+            _arxiv_cache_set(cache_key, cached)
     if cached is not None:
         return {**cached, "cached": True}
 
@@ -850,15 +989,22 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                     "query, widening recency_days, or removing categories."
                 )
             _arxiv_cache_set(cache_key, payload)
+            await _arxiv_redis_set(redis_key, payload)
             return payload
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
-        # On 429 or other failure, fall back to a stale cache hit (any TTL)
-        # so the LLM can proceed with prior results instead of looping.
+        # On 429 or other failure, serve the last known result so the LLM can
+        # proceed instead of looping: L1 any-age (bypasses the fresh check),
+        # then L2 stale (entries live STALE_TTL past the fresh window).
         stale = _ARXIV_SEARCH_CACHE.get(cache_key)
-        if stale is not None:
+        stale_payload = (
+            stale[1]
+            if stale is not None
+            else await _arxiv_redis_get(redis_key, allow_stale=True)
+        )
+        if stale_payload is not None:
             return {
-                **stale[1],
+                **stale_payload,
                 "cached": True,
                 "stale": True,
                 "warning": f"ArXiv unavailable ({e}); returned cached results.",
@@ -2614,10 +2760,7 @@ async def _tool_forget_memory(
     if not query or not query.strip():
         return {"error": "forget_memory: empty query"}
 
-    from src.services.agent.memory import (
-        delete_memory_by_query,
-        get_memory_store,
-    )
+    from src.services.agent.memory import delete_memory_by_query, get_memory_store
 
     store = await get_memory_store()
     if store is None:

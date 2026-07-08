@@ -83,12 +83,26 @@ async def test_done_frame_carries_tool_executions():
             return_value=_FakeGraphWithTool(),
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
+            "src.api.agent.streaming.AsyncSessionLocal",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "src.api.agent.streaming._resolve_thread",
+            new=AsyncMock(
+                return_value=(SimpleNamespace(id="thread-resolved-1"), "conv-1")
+            ),
+        ),
+        patch(
+            "src.api.agent.streaming._persist_user_message",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.streaming.AsyncSessionLocal",
-            return_value=AsyncMock(),
+            "src.api.agent.streaming._resolve_and_bind_project",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.api.agent.jobs._persist_assistant_message_safe",
+            new=AsyncMock(return_value="assistant-msg-1"),
         ),
     ):
         events = []
