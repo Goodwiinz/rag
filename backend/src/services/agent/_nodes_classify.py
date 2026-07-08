@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -30,7 +31,11 @@ from langchain_core.runnables import RunnableConfig
 
 from src.services.agent._nodes_memory import memory_retrieval_node
 from src.services.agent._nodes_rag import _coerce_text, rag_node
-from src.services.agent.observability import tag_trace_intent, track_node_execution
+from src.services.agent.observability import (
+    record_node_duration,
+    tag_trace_intent,
+    track_node_execution,
+)
 from src.services.agent.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -140,6 +145,28 @@ async def _classify_core(state: AgentState, config: RunnableConfig) -> dict:
 intent_classifier_node = track_node_execution("intent_classifier_node")(_classify_core)
 
 
+async def _timed_subtask(label: str, coro):
+    """Await ``coro``, logging + recording its wall-clock under
+    ``preprocessing:<label>`` in the shared node histogram.
+
+    The three ``preprocessing_node`` subtasks run concurrently and otherwise
+    emit no traced run, so this is the only place their individual latency is
+    visible. Re-raises so ``gather(return_exceptions=True)`` captures failures
+    exactly as before — pure instrumentation, no behaviour change.
+    """
+    t0 = time.monotonic()
+    status = "success"
+    try:
+        return await coro
+    except BaseException:
+        status = "error"
+        raise
+    finally:
+        dur = time.monotonic() - t0
+        logger.info("preprocessing subtask %s: %.3fs (%s)", label, dur, status)
+        record_node_duration(f"preprocessing:{label}", status, dur)
+
+
 @track_node_execution("preprocessing_node")
 async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
     """Run RAG retrieval, intent classification, and memory retrieval in parallel.
@@ -157,12 +184,11 @@ async def preprocessing_node(state: AgentState, config: RunnableConfig) -> dict:
     - count this turn's first error against last turn's accumulated
       ``error_count``.
     """
-    rag_task = asyncio.create_task(rag_node(state, config))
-    classify_task = asyncio.create_task(_classify_core(state, config))
-    memory_task = asyncio.create_task(memory_retrieval_node(state, config))
-
     results = await asyncio.gather(
-        rag_task, classify_task, memory_task, return_exceptions=True
+        _timed_subtask("rag", rag_node(state, config)),
+        _timed_subtask("classify", _classify_core(state, config)),
+        _timed_subtask("memory", memory_retrieval_node(state, config)),
+        return_exceptions=True,
     )
 
     defaults = [
