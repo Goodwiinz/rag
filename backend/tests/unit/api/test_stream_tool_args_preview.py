@@ -70,12 +70,12 @@ def test_non_json_scalar_is_stringified_so_payload_stays_serializable():
     import datetime as _dt
     import json
 
-    from src.api.agent.streaming import _redact_tool_args
+    from src.services.agent._pii_redact import redact_tool_args
 
     preview = _tool_args_preview({"since": _dt.datetime(2026, 1, 1)})
     assert isinstance(preview["since"], str)
     json.dumps(preview)  # must not raise
 
     # Non-string scalars that ARE JSON-safe keep their type.
-    assert _redact_tool_args(5) == 5
-    assert _redact_tool_args(True) is True
+    assert redact_tool_args(5) == 5
+    assert redact_tool_args(True) is True

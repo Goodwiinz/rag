@@ -37,6 +37,7 @@ from src.schemas.chat import (  # Thread schemas; Bulk thread schemas; Message s
     ThreadResponse,
     ThreadUpdate,
 )
+from src.services.agent._pii_redact import redact_tool_executions
 from src.services.threads.chat_service import ChatService, get_chat_service
 from src.services.threads.thread_event_service import thread_event_service
 
@@ -1045,7 +1046,9 @@ def _format_message_response(message) -> ChatMessageResponse:
         token_count=message.token_count,
         latency_ms=message.latency_ms,
         stopped=message.stopped,
-        tool_executions=message.tool_executions,
+        # Serve-time redaction of persisted raw tool args (see execute.py
+        # get_thread_messages — same finding, same funnel discipline).
+        tool_executions=redact_tool_executions(message.tool_executions),
         plan=message.plan,
         token_usage=message.token_usage,
         model_name=message.model_name,
