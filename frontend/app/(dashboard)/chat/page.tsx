@@ -151,7 +151,6 @@ function ChatPageContent() {
     currentThreadIdFromStore,
     setCurrentThread,
     storeMessages,
-    addMessageToStore,
     isAuthenticated,
     activeThreadId,
     displayedMessages,
@@ -190,9 +189,7 @@ function ChatPageContent() {
     setActiveConversationId,
     activeConversationIdRef,
     dbConversation,
-    isAuthenticated,
     setCurrentThread,
-    addMessageToStore,
     enableRAG,
   });
 
@@ -403,6 +400,27 @@ function ChatPageContent() {
     setCurrentThread,
     activeConversationIdRef,
   ]);
+
+  // Stable across renders so ChatSidebar's React.memo holds on every composer
+  // keystroke (an inline closure re-rendered the sidebar per keystroke).
+  // Shared by both sidebars — closing the mobile drawer is an idempotent no-op
+  // on desktop, where it's already closed and hidden.
+  const handleSelectThread = useCallback(
+    (id: string) => {
+      setActiveConversationId(id);
+      activeConversationIdRef.current = id;
+      setCurrentThread(id);
+      router.push(getSelectedThreadUrl(id));
+      setMobileSidebarOpen(false);
+    },
+    [
+      router,
+      setActiveConversationId,
+      setCurrentThread,
+      activeConversationIdRef,
+      setMobileSidebarOpen,
+    ]
+  );
 
   // Regenerate the most recent assistant response (the /retry command)
   const retryLast = useCallback(() => {
@@ -888,13 +906,7 @@ function ChatPageContent() {
               <ChatSidebar
                 conversations={conversations}
                 activeId={activeConversationId}
-                onSelect={(id) => {
-                  setActiveConversationId(id);
-                  activeConversationIdRef.current = id;
-                  setCurrentThread(id);
-                  router.push(getSelectedThreadUrl(id));
-                  setMobileSidebarOpen(false);
-                }}
+                onSelect={handleSelectThread}
                 onNew={() => {
                   startNewChat();
                   setMobileSidebarOpen(false);
@@ -914,12 +926,7 @@ function ChatPageContent() {
         <ChatSidebar
           conversations={conversations}
           activeId={activeConversationId}
-          onSelect={(id) => {
-            setActiveConversationId(id);
-            activeConversationIdRef.current = id;
-            setCurrentThread(id);
-            router.push(getSelectedThreadUrl(id));
-          }}
+          onSelect={handleSelectThread}
           onNew={startNewChat}
           onRename={handleRenameThread}
           onDelete={handleDeleteThread}

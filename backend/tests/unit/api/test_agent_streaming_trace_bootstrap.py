@@ -57,10 +57,6 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             side_effect=fake_compile_agent_graph,
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -172,10 +168,6 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         patch(
             "src.services.agent.graph.compile_agent_graph",
             side_effect=fake_compile_agent_graph,
-        ),
-        patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
         ),
         patch(
             "src.api.agent.streaming.AsyncSessionLocal",

@@ -87,10 +87,6 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
             return_value=graph,
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),

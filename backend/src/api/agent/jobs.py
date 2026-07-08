@@ -410,6 +410,36 @@ async def build_graph_input_messages(
     return seed
 
 
+def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
+    """Rebuild resent request history into HumanMessages with *deterministic* ids.
+
+    The /chat client resends the FULL conversation each turn. LangGraph's
+    ``add_messages`` reducer dedupes only by message ``.id`` — a HumanMessage
+    built with no id gets a fresh random id every request, so the reducer sees
+    each prior turn as new and re-appends the whole history into the checkpoint
+    (quadratic growth the compactor never prunes). Anchor each user turn to a
+    stable id — the client idempotency key when present, else a derivation over
+    (thread_id, position) — so a resent history no-ops in the reducer and only
+    the new turn appends.
+    """
+    from langchain_core.messages import HumanMessage
+
+    out: List[Any] = []
+    idx = 0
+    for m in messages:
+        if getattr(m, "role", None) != "user":
+            continue
+        cmid = getattr(m, "client_message_id", None)
+        msg_id = (
+            str(cmid)
+            if cmid is not None
+            else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:user:{idx}"))
+        )
+        out.append(HumanMessage(content=m.content, id=msg_id))
+        idx += 1
+    return out
+
+
 async def _clear_stale_pending_confirmation(
     graph: Any, config: Dict[str, Any]
 ) -> Optional[List[str]]:
@@ -1012,9 +1042,11 @@ async def _persist_assistant_message(
     # never let a broker hiccup break persistence.
     if thread is not None and (thread.message_count or 0) >= 3:
         try:
-            from src.tasks.summarize_thread_task import summarize_thread_task
+            from src.services.threads.thread_summarization_service import (
+                enqueue_summarization,
+            )
 
-            summarize_thread_task.delay(thread_id)
+            enqueue_summarization(thread_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "Failed to queue summarization for thread %s: %s", thread_id, exc
@@ -1080,68 +1112,6 @@ async def _persist_assistant_message_safe(
             pass
 
 
-# DEPRECATED — remove after streaming path migration to background tasks (Task 5).
-# Compatibility shim preserving the old ``(thread_id, conversation_id)`` contract
-# used by callers in ``execute.py`` and the confirm path at ``jobs.py:629``.
-# Internally delegates to the three split helpers above, which each commit
-# independently (see their docstrings for the partial-commit warning).
-async def _persist_thread_messages(
-    db: AsyncSession,
-    current_user: User,
-    request: Any,  # AgentExecuteRequest
-    assistant_content: str,
-    tool_executions_out: Optional[list] = None,
-    retrieved_contexts: Optional[list] = None,
-    create_if_missing: bool = True,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
-) -> tuple[str, str]:
-    """Persist thread & messages to the database (deprecated shim).
-
-    Returns ``(thread_id, conversation_id)`` as strings. See the module-level
-    notice above: this function is preserved for compatibility while Task 5
-    migrates the streaming path to background tasks; new code should call
-    ``_persist_user_message`` / ``_persist_assistant_message`` directly.
-
-    Confirm/resume callers pass ``create_if_missing=False`` — see
-    ``_resolve_thread`` for why a lookup miss there must skip persistence
-    rather than create a fresh thread.
-    """
-    thread, conversation_id = await _resolve_thread(
-        db, current_user, request, create_if_missing=create_if_missing
-    )
-    if thread is None:
-        if not create_if_missing:
-            # Always log the skip — the job still reports completed, so this
-            # line is the only record that the turn was not durably stored.
-            logger.warning(
-                "Confirm/resume persist skipped: thread %s not found on "
-                "re-lookup (user_id=%s)",
-                request.thread_id or "<none>",
-                current_user.id,
-            )
-        return request.thread_id or "", ""
-
-    thread_id = str(thread.id)
-
-    if request.thread_id != thread_id:
-        request.thread_id = thread_id
-
-    await _persist_user_message(db, current_user, request)
-    await _persist_assistant_message(
-        db,
-        thread_id=thread_id,
-        content=assistant_content,
-        model_name=request.model,
-        tool_executions_out=tool_executions_out,
-        retrieved_contexts=retrieved_contexts,
-        plan=plan,
-        token_usage=token_usage,
-    )
-
-    return thread_id, conversation_id
-
-
 # ---------------------------------------------------------------------------
 # Background graph runner
 # ---------------------------------------------------------------------------
@@ -1175,7 +1145,6 @@ async def _run_agent_graph(
     current_user: User,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
-    from langchain_core.messages import HumanMessage
     from langgraph.errors import GraphInterrupt
 
     from src.services.agent.checkpointer import get_checkpointer
@@ -1245,11 +1214,11 @@ async def _run_agent_graph(
                     )
                     messages = None
             if messages is None:
-                messages = [
-                    HumanMessage(content=m.content)
-                    for m in request.messages
-                    if m.role == "user"
-                ]
+                # Legacy path (flag off, or Option B declined/failed): B1's
+                # deterministic-id rebuild of the resent history.
+                messages = build_user_history_messages(
+                    request.messages, request.thread_id or job_id
+                )
 
             page_context = _page_context_to_dict(request.page_context)
             await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
@@ -1547,6 +1516,18 @@ async def _resume_agent_graph(
             # Verify thread ownership before resuming. Checkpoints without an
             # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
+            # Pre-resume checkpoint id -> deterministic assistant idempotency
+            # key, captured BEFORE the resume advances the checkpoint so a
+            # double-confirm derives the same key. Mirrors streaming.py's
+            # _resume_assistant_cmid (its checkpoint-anchored branch).
+            try:
+                resume_ckpt_id = (
+                    (snapshot.config or {})["configurable"]["checkpoint_id"]
+                    if snapshot
+                    else None
+                )
+            except Exception:
+                resume_ckpt_id = None
             if snapshot and snapshot.values:
                 snapshot_user_id = snapshot.values.get("user_id")
                 if not snapshot_user_id or snapshot_user_id != str(current_user.id):
@@ -1634,22 +1615,74 @@ async def _resume_agent_graph(
                     assistant_content = msg.content
                     break
 
-            # Persist thread messages — session managed by AsyncSessionLocal context
+            # Token cost on the HITL resume path (parity with the initial run).
+            # Computed once here and reused for the assistant-row token_usage,
+            # the usage counter below, and the response payload.
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+
+            # Persist ONLY the assistant row for the resumed turn. The user row
+            # that started this turn was already written up-front by the
+            # original /execute run (_run_agent_graph -> _persist_user_message),
+            # exactly like the SSE confirm path; re-persisting it here would
+            # insert a second bare user row (no client_message_id -> no dedup)
+            # and inflate thread.message_count.
             thread_id, conversation_id = "", ""
             try:
-                if original_request:
-                    tool_executions_out = [
-                        ToolExecutionResponse(**te)
-                        for te in final_state.get("tool_executions", [])
-                    ] or None
-                    thread_id, conversation_id = await _persist_thread_messages(
-                        db,
-                        current_user,
-                        original_request,
-                        assistant_content,
-                        tool_executions_out,
-                        create_if_missing=False,
+                if original_request and original_request.thread_id:
+                    from uuid import UUID as _UUID
+
+                    from src.models.thread import Thread as _Thread
+
+                    thread_row = await db.get(
+                        _Thread, _UUID(original_request.thread_id)
                     )
+                    if thread_row is None:
+                        # Preserve the old create_if_missing=False semantics: a
+                        # re-lookup miss must skip persistence, not create a
+                        # fresh thread that would split the conversation.
+                        logger.warning(
+                            "Confirm/resume persist skipped: thread %s not found "
+                            "(user_id=%s)",
+                            original_request.thread_id,
+                            current_user.id,
+                        )
+                    else:
+                        thread_id = str(thread_row.id)
+                        conversation_id = str(thread_row.conversation_id)
+                        tool_executions_out = [
+                            ToolExecutionResponse(**te)
+                            for te in final_state.get("tool_executions", [])
+                        ] or None
+                        # Checkpoint-anchored idempotency key — BYTE-IDENTICAL to
+                        # streaming.py's _resume_assistant_cmid so a double-confirm
+                        # across the SSE and job paths dedupes to the same row.
+                        assistant_cmid = (
+                            str(
+                                _uuid.uuid5(
+                                    _uuid.NAMESPACE_URL,
+                                    f"nous-assistant-resume:{original_request.thread_id}:{resume_ckpt_id}",
+                                )
+                            )
+                            if resume_ckpt_id
+                            else None
+                        )
+                        await _persist_assistant_message_safe(
+                            thread_id=thread_id,
+                            content=assistant_content,
+                            model_name=original_request.model,
+                            tool_executions_out=tool_executions_out,
+                            retrieved_contexts=final_state.get("retrieved_contexts"),
+                            plan=final_state.get("plan") or None,
+                            token_usage=(
+                                {
+                                    "input_tokens": in_tok,
+                                    "output_tokens": out_tok,
+                                }
+                                if (in_tok or out_tok)
+                                else None
+                            ),
+                            client_message_id=assistant_cmid,
+                        )
             except Exception as e:
                 logger.warning(
                     "Failed to persist confirmation thread messages", exc_info=e
@@ -1658,8 +1691,6 @@ async def _resume_agent_graph(
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
             )
-            # Token cost on the HITL resume path (parity with the initial run).
-            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
             if in_tok or out_tok:
                 try:
                     from src.services.agent.observability import record_token_usage

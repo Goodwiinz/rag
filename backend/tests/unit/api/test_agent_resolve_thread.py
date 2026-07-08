@@ -1,4 +1,4 @@
-"""``create_if_missing`` behavior of ``_resolve_thread`` / ``_persist_thread_messages``.
+"""``create_if_missing`` behavior of ``_resolve_thread``.
 
 Confirm/resume paths pass ``create_if_missing=False`` because their thread
 already exists (ownership verified against the checkpoint snapshot) — a
@@ -73,49 +73,6 @@ class TestResolveThreadCreateIfMissing:
         assert thread is not None
         assert db.add.call_count == 2  # Conversation + Thread
         db.commit.assert_awaited_once()
-
-
-class TestPersistThreadMessagesCreateIfMissing:
-    async def test_skip_persist_on_miss_returns_original_thread_id(self, caplog):
-        from src.api.agent.jobs import _persist_thread_messages
-
-        db = _db_with_thread_lookup(thread=None)
-        request = _request()
-
-        with caplog.at_level("WARNING"):
-            thread_id, conversation_id = await _persist_thread_messages(
-                db,
-                _mock_user(),
-                request,
-                "assistant says hi",
-                create_if_missing=False,
-            )
-
-        # Client still gets its thread_id back; nothing was persisted.
-        assert thread_id == request.thread_id
-        assert conversation_id == ""
-        assert any("persist skipped" in r.message.lower() for r in caplog.records)
-
-    async def test_skip_logs_even_without_thread_id(self, caplog):
-        """The skip must never be fully silent — even a thread-less request
-        leaves a log record that the turn was not durably stored."""
-        from src.api.agent.jobs import _persist_thread_messages
-
-        db = _db_with_thread_lookup(thread=None)
-        request = _request(thread_id=None)
-
-        with caplog.at_level("WARNING"):
-            thread_id, conversation_id = await _persist_thread_messages(
-                db,
-                _mock_user(),
-                request,
-                "assistant says hi",
-                create_if_missing=False,
-            )
-
-        assert thread_id == ""
-        assert conversation_id == ""
-        assert any("persist skipped" in r.message.lower() for r in caplog.records)
 
 
 class TestResolveThreadFiltersSoftDeleted:

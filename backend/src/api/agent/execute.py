@@ -54,7 +54,6 @@ from .jobs import (  # noqa: F401
     _jobs,
     _jobs_lock,
     _page_context_to_dict,
-    _persist_thread_messages,
     _resume_agent_graph,
     _run_agent_graph,
     _set_job,

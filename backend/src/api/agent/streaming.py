@@ -28,7 +28,6 @@ from .jobs import (
     _latest_user_client_message_id,
     _page_context_to_dict,
     _persist_assistant_message,
-    _persist_thread_messages,
     _persist_user_message,
     _resolve_and_bind_project,
     _resolve_thread,
@@ -325,8 +324,6 @@ async def stream_event_generator(
     Yields SSE-formatted events: token, tool_start, tool_end,
     rag_context, plan, reflection, confirmation, done, error.
     """
-    from langchain_core.messages import HumanMessage
-
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.graph import compile_agent_graph
     from src.services.agent.memory import get_memory_store
@@ -401,11 +398,11 @@ async def stream_event_generator(
                 )
                 messages = None
         if messages is None:
-            messages = [
-                HumanMessage(content=m.content)
-                for m in request_body.messages
-                if m.role == "user"
-            ]
+            # Legacy path (flag off, or Option B declined/failed): B1's
+            # deterministic-id rebuild of the resent history.
+            messages = _jobs_mod.build_user_history_messages(
+                request_body.messages, request_body.thread_id or ""
+            )
 
         page_context = _page_context_to_dict(request_body.page_context)
         await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
@@ -913,10 +910,13 @@ async def stream_event_generator(
 
     except Exception as e:
         logger.error("SSE stream error", exc_info=e)
-        # A disconnected client can't retry from an error frame it never sees;
-        # persist the partial (stopped=True) so the drained turn isn't lost
-        # when the drain itself dies (e.g. hits the 300s timeout).
-        if client_disconnected and persist_partial_stop is not None:
+        # Persist whatever was streamed before the failure (stopped=True) so the
+        # partial answer survives a reload. Covers both the disconnected drain
+        # dying (e.g. the 300s timeout) and an error while the client is still
+        # connected — in server-canonical mode the frontend saves nothing, so
+        # without this an errored turn leaves a user row and no assistant row.
+        # Idempotent: no-ops if nothing streamed or the row was already saved.
+        if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
@@ -1314,7 +1314,7 @@ async def stream_confirm_event_generator(
         # Persist ONLY the assistant row for the resumed turn. The user row
         # that started this turn was already written up-front by the original
         # /stream request (stream_event_generator → _persist_user_message),
-        # so re-running _persist_thread_messages here inserted a SECOND bare
+        # so re-persisting it here would insert a SECOND bare
         # user row every confirm (no client_message_id → no dedup), inflated
         # thread.message_count, and confused context assembly.
         #
@@ -1439,10 +1439,13 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
-        # A disconnected client can't retry from an error frame it never sees;
-        # persist the partial (stopped=True) so the drained turn isn't lost
-        # when the drain itself dies (e.g. hits the 300s timeout).
-        if client_disconnected and persist_partial_stop is not None:
+        # Persist whatever was streamed before the failure (stopped=True) so the
+        # partial answer survives a reload. Covers both the disconnected drain
+        # dying (e.g. the 300s timeout) and an error while the client is still
+        # connected — in server-canonical mode the frontend saves nothing, so
+        # without this an errored turn leaves a user row and no assistant row.
+        # Idempotent: no-ops if nothing streamed or the row was already saved.
+        if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
         frame = await emitter.emit("error", {"error": client_safe_error(e)})
