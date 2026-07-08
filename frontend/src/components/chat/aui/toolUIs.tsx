@@ -4,6 +4,8 @@ import { type ReactElement } from 'react';
 import { makeAssistantToolUI } from '@assistant-ui/react';
 import { FileSearch } from 'lucide-react';
 
+import { HitlApprovalToolUI } from './HitlApprovalToolUI';
+
 /**
  * Declarative per-tool renderers (AUI_FULL / P2). Each is registered by
  * `toolName` via `makeAssistantToolUI`; a matching tool-call part then routes
@@ -79,6 +81,7 @@ export function NousToolUIs(): ReactElement {
   return (
     <>
       <SearchDocumentsUI />
+      <HitlApprovalToolUI />
     </>
   );
 }

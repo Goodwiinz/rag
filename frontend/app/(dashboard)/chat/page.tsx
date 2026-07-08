@@ -26,6 +26,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import {
   useChatStreaming,
@@ -1062,8 +1063,9 @@ function ChatPageContent() {
             />
           )}
 
-          {/* HITL Confirmation Banner */}
-          {activeConfirmation && (
+          {/* HITL Confirmation Banner — flag-off fallback. Under AUI_FULL the
+              approval renders in-band in the transcript (HitlApprovalToolUI). */}
+          {activeConfirmation && !AUI_FULL && (
             <div
               role="alertdialog"
               aria-label="Approval needed"

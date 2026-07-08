@@ -96,6 +96,30 @@ describe('convertMessage', () => {
     expect(part.argsText).toBe('');
   });
 
+  it('emits an approval tool-call part for a pendingApproval message', () => {
+    const msg: ChatPageMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: 1,
+      pendingApproval: {
+        toolName: 'ingest_arxiv_papers',
+        args: { paper_ids: ['2605.1'] },
+      },
+    };
+    const converted = convertMessage(msg);
+    const parts = converted.content as Array<{
+      type: string;
+      toolName?: string;
+      args?: Record<string, unknown>;
+    }>;
+    const approval = parts.find((p) => p.type === 'tool-call');
+    expect(approval?.toolName).toBe('__nous_approval__');
+    expect(approval?.args).toEqual({
+      toolName: 'ingest_arxiv_papers',
+      toolArgs: { paper_ids: ['2605.1'] },
+    });
+  });
+
   it('passes structured args through to the tool-call part', () => {
     const steps: ActivityStep[] = [
       {

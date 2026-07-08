@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { AUI_FULL } from '@/components/chat/shared/auiFlags';
+import { useHitlBridge } from '@/components/chat/aui/hitlBridge';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
   ChatConversation,
@@ -55,6 +56,26 @@ const SERVER_CANONICAL_CHAT =
 // streams at a time, so a constant is enough; the placeholder is always either
 // replaced by the committed message or removed at every stream exit.
 const STREAMING_PLACEHOLDER_ID = '__nous_streaming_placeholder__';
+
+/** Tool name + args preview from an interrupt's confirmation payload — flat
+ * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
+ * page-level banner's extractToolCall (AUI_FULL / P4). */
+function extractConfirmationPreview(
+  confirmation: Record<string, unknown> | undefined
+): { name: string; args: Record<string, unknown> } {
+  if (!confirmation) return { name: 'this action', args: {} };
+  const flatName = confirmation.tool_name as string | undefined;
+  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
+    | Record<string, unknown>
+    | undefined;
+  if (flatName) return { name: flatName, args: flatArgs ?? {} };
+  const tools = confirmation.tools as
+    | Array<{ name?: string; args?: Record<string, unknown> }>
+    | undefined;
+  const first = tools?.[0];
+  if (first?.name) return { name: first.name, args: first.args ?? {} };
+  return { name: 'this action', args: {} };
+}
 
 /**
  * Map a raw rag_context SSE item ({document_id, title, content, score} from
@@ -1449,6 +1470,55 @@ export function useChatStreaming(
       activeConversationIdRef,
     ]
   );
+
+  // AUI_FULL / P4: mirror the pending confirmation into (a) the HITL bridge —
+  // whose respond() drives the existing hardened handleConfirmation — and
+  // (b) an in-band approval message the registered HitlApprovalToolUI renders
+  // in the transcript. The flag-off inline banner in page.tsx is the fallback;
+  // handleConfirmation/streamConfirm internals are untouched.
+  const handleConfirmationRef = useRef(handleConfirmation);
+  handleConfirmationRef.current = handleConfirmation;
+  useEffect(() => {
+    if (!AUI_FULL) return;
+    const active = confirmationBelongsToThread(
+      pendingConfirmation,
+      activeConversationId
+    )
+      ? pendingConfirmation
+      : null;
+
+    if (active) {
+      const preview = extractConfirmationPreview(active.confirmation);
+      useHitlBridge.getState().open(
+        { id: active.threadId, toolName: preview.name, args: preview.args },
+        (approved) => handleConfirmationRef.current(approved)
+      );
+    } else {
+      useHitlBridge.getState().close();
+    }
+    useHitlBridge.getState().setResponding(isConfirming);
+
+    // Keep exactly one approval message in the transcript for the active gate.
+    setMessages((prev) => {
+      const withoutApproval = prev.filter((m) => !m.pendingApproval);
+      if (!active) return withoutApproval;
+      const preview = extractConfirmationPreview(active.confirmation);
+      return [
+        ...withoutApproval,
+        {
+          role: 'assistant' as const,
+          content: '',
+          timestamp: Date.now(),
+          pendingApproval: { toolName: preview.name, args: preview.args },
+        },
+      ];
+    });
+  }, [
+    pendingConfirmation,
+    activeConversationId,
+    isConfirming,
+    setMessages,
+  ]);
 
   return {
     input,

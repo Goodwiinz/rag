@@ -6,6 +6,8 @@ import type {
 } from '@/components/chat/shared/cloudMessageView';
 import type { MessageAttachment } from '@/types/workspace';
 
+import { HITL_APPROVAL_TOOL } from './hitlBridge';
+
 type ToolCallPart = {
   type: 'tool-call';
   toolCallId: string;
@@ -107,6 +109,24 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
         message.toolExecutions
       )
     : [];
+
+  // In-band HITL approval gate (AUI_FULL / P4): emit an approval tool-call part
+  // routed to the registered HitlApprovalToolUI. Its args carry the confirmed
+  // tool name + args for display; the bridge store drives resolution.
+  const approvalParts: ToolCallPart[] = message.pendingApproval
+    ? [
+        {
+          type: 'tool-call',
+          toolCallId: `${message.id ?? message.timestamp}-approval`,
+          toolName: HITL_APPROVAL_TOOL,
+          args: {
+            toolName: message.pendingApproval.toolName,
+            toolArgs: message.pendingApproval.args,
+          } as unknown as Record<string, never>,
+          argsText: '',
+        },
+      ]
+    : [];
   return {
     id: message.id,
     role: message.role,
@@ -120,6 +140,10 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
     ...(message.attachments?.length
       ? { attachments: toRuntimeAttachments(message.attachments) }
       : {}),
-    content: [...toolParts, { type: 'text', text: message.content }],
+    content: [
+      ...toolParts,
+      ...approvalParts,
+      { type: 'text', text: message.content },
+    ],
   };
 }

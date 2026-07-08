@@ -109,6 +109,10 @@ export interface ChatPageMessage {
    * message is a live placeholder whose text/steps/citations are read from the
    * streaming store, not from these fields. Cleared when the turn commits. */
   isStreaming?: boolean;
+  /** In-band HITL approval gate (AUI_FULL / P4): the agent paused awaiting
+   * confirmation of this tool. convertMessage emits an approval tool-call part
+   * that the registered HitlApprovalToolUI renders in the message stream. */
+  pendingApproval?: { toolName: string; args: Record<string, unknown> };
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
