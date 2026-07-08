@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { useCitationsForThread } from '@/hooks';
 import { AgentActivityPanel } from './AgentActivityPanel';
 import { AllCitationsPanel } from './AllCitationsPanel';
 import { ContextPanel } from './ContextPanel';
@@ -38,6 +39,7 @@ export function ContextRail({
   className,
 }: ContextRailProps) {
   const threadLabel = threadId ? `thread · ${threadId.slice(0, 8)}` : null;
+  const { allCitations, relatedResults } = useCitationsForThread();
 
   return (
     <aside
@@ -58,14 +60,15 @@ export function ContextRail({
         onProjectBound={onProjectBound}
       />
       <WorkingFoldersPanel
+        allCitations={allCitations}
         projectId={projectId}
         workspaceName={workspaceName}
         onSelect={onSelect}
       />
       <AgentActivityPanel threadId={threadId} />
       <ProgressPanel threadId={threadId} />
-      <RelatedResultsPanel />
-      <AllCitationsPanel />
+      <RelatedResultsPanel relatedResults={relatedResults} />
+      <AllCitationsPanel allCitations={allCitations} />
       <ContextPanel ragEnabled={ragEnabled} workspaceName={workspaceName} />
     </aside>
   );
