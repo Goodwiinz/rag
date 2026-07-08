@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import uuid as _uuid
 from types import SimpleNamespace
+from typing import Annotated
 
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph.message import add_messages
+from typing_extensions import TypedDict
 
 from src.api.agent.jobs import (
     _newest_user_message,
@@ -23,6 +26,13 @@ from src.api.agent.jobs import (
 from src.models.chat_message import MessageRole
 
 THREAD = "11111111-1111-1111-1111-111111111111"
+
+
+class _GraphState(TypedDict):
+    # Module-level so LangGraph's get_type_hints resolves Annotated/add_messages
+    # against module globals (the file uses `from __future__ import annotations`,
+    # which stringifies annotations).
+    messages: Annotated[list, add_messages]
 
 
 def _row(role, content, *, rid, cmid=None):
@@ -174,3 +184,70 @@ async def test_none_snapshot_treated_as_empty():
         _FakeDB(rows), graph, THREAD, _req("first", cmid="c1")
     )
     assert [m.content for m in out] == ["first"]
+
+
+# --- integration: against a REAL MemorySaver checkpoint + add_messages -------
+#
+# Proves the core hypothesis end to end with genuine LangGraph reducer/checkpoint
+# semantics (not a stub): appending onto a populated checkpoint adds only the
+# newest turn, and seeding into an EMPTY checkpoint rebuilds the whole thread
+# WITHOUT duplicating any turn (the id-keyed upsert converges).
+
+
+def _real_graph():
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import END, START, StateGraph
+
+    g = StateGraph(_GraphState)
+    g.add_node("noop", lambda state: {})
+    g.add_edge(START, "noop")
+    g.add_edge("noop", END)
+    return g.compile(checkpointer=MemorySaver())
+
+
+async def test_real_checkpoint_populated_appends_only_newest():
+    graph = _real_graph()
+    config = {"configurable": {"thread_id": THREAD}}
+    # Turn 1 lands q1 + a1 in the checkpoint.
+    await graph.ainvoke(
+        {
+            "messages": [
+                HumanMessage(content="q1", id="u1"),
+                AIMessage(content="a1", id="a1"),
+            ]
+        },
+        config,
+    )
+    rows = [
+        _row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1"),
+        _row(MessageRole.ASSISTANT, "a1", rid=_uuid.uuid4(), cmid="a1"),
+        _row(MessageRole.USER, "q2", rid=_uuid.uuid4(), cmid="u2"),
+    ]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("q2", cmid="u2")
+    )
+    assert [m.content for m in out] == ["q2"]  # checkpoint holds q1/a1; add only q2
+
+    # Feed it back through the real reducer: history accumulates, no duplicates.
+    await graph.ainvoke({"messages": out}, config)
+    final = (await graph.aget_state(config)).values["messages"]
+    assert [m.content for m in final] == ["q1", "a1", "q2"]
+
+
+async def test_real_checkpoint_empty_seeds_without_duplication():
+    graph = _real_graph()  # fresh MemorySaver — simulates checkpoint loss/legacy
+    config = {"configurable": {"thread_id": THREAD}}
+    rows = [
+        _row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1"),
+        _row(MessageRole.ASSISTANT, "a1", rid=_uuid.uuid4(), cmid="a1"),
+        _row(MessageRole.USER, "q2", rid=_uuid.uuid4(), cmid="u2"),
+    ]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("q2", cmid="u2")
+    )
+    assert [m.content for m in out] == ["q1", "a1", "q2"]  # seeded whole thread
+
+    await graph.ainvoke({"messages": out}, config)
+    final = (await graph.aget_state(config)).values["messages"]
+    # id-keyed upsert: exactly the three seeded turns, none doubled.
+    assert [m.content for m in final] == ["q1", "a1", "q2"]
