@@ -657,6 +657,20 @@ def kg_extract_entities_job(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery (same pattern as
+        # process_document_ingestion above): a worker killed after completion
+        # but before the broker ack redelivers the message, which would re-run
+        # the full LLM extraction and regress the job COMPLETED -> RUNNING.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered KG extraction"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
 
