@@ -68,6 +68,11 @@ class _FakeGraph:
         return SimpleNamespace(values=self._values)
 
 
+class _RaisingGraph:
+    async def aget_state(self, _config):
+        raise RuntimeError("checkpoint read failed")
+
+
 def _req(content, cmid=None):
     return [SimpleNamespace(role="user", content=content, client_message_id=cmid)]
 
@@ -183,6 +188,20 @@ async def test_none_snapshot_treated_as_empty():
         _FakeDB(rows), graph, THREAD, _req("first", cmid="c1")
     )
     assert [m.content for m in out] == ["first"]
+
+
+async def test_checkpoint_read_failure_appends_not_seeds():
+    """A failed checkpoint read must NOT seed (could dup a live checkpoint) —
+    append only the newest turn, even though the DB has rows."""
+    graph = _RaisingGraph()
+    rows = [
+        _row(MessageRole.USER, "q1", rid=_uuid.uuid4(), cmid="u1"),
+        _row(MessageRole.ASSISTANT, "a1", rid=_uuid.uuid4()),
+    ]
+    out = await build_graph_input_messages(
+        _FakeDB(rows), graph, THREAD, _req("new", cmid="u2")
+    )
+    assert [m.content for m in out] == ["new"]  # newest only, DB not seeded
 
 
 async def test_no_cmid_signals_legacy_fallback():

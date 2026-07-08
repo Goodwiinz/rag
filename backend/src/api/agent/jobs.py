@@ -329,14 +329,16 @@ def _newest_user_message(messages: List[Any]) -> Optional[Any]:
     return HumanMessage(content=last.content, id=str(cmid))
 
 
-async def _checkpoint_human_count(graph: Any, thread_id: str) -> int:
-    """HumanMessages already in the thread's checkpoint (0 == empty).
+async def _checkpoint_human_count(graph: Any, thread_id: str) -> Optional[int]:
+    """HumanMessages already in the thread's checkpoint.
 
-    Zero means the checkpoint holds no conversation (fresh / lost / legacy) and
-    must be seeded from the DB. Humans are never compacted (the compactor only
-    removes ToolMessages), so a zero count reliably means 'empty' — the single
-    robust discriminator for seed-vs-append. Any read failure is treated as
-    empty so we seed rather than silently drop context.
+    Returns 0 when the checkpoint truly holds no conversation (fresh / lost /
+    legacy — the case that must be seeded from the DB); a positive count when it
+    has history; and ``None`` when the read FAILED. The None case matters: a
+    transient read failure must NOT be mistaken for 'empty', because seeding a
+    checkpoint that actually has history would duplicate its assistant turns
+    (their live ids can't match rebuilt ids). Humans are never compacted (the
+    compactor only removes ToolMessages), so a real 0 reliably means empty.
     """
     from langchain_core.messages import HumanMessage
 
@@ -350,12 +352,12 @@ async def _checkpoint_human_count(graph: Any, thread_id: str) -> int:
         return sum(1 for m in values.get("messages", []) if isinstance(m, HumanMessage))
     except Exception:
         logger.warning(
-            "Option B: checkpoint human-count read failed for thread %s; "
-            "treating as empty (will seed from DB)",
+            "Option B: checkpoint read failed for thread %s; appending newest "
+            "turn only (will NOT seed, to avoid duplicating a live checkpoint)",
             thread_id,
             exc_info=True,
         )
-        return 0
+        return None
 
 
 def _seed_has_id(seed: List[Any], msg_id: str) -> bool:
@@ -387,10 +389,14 @@ async def build_graph_input_messages(
     if newest is None:
         return None
 
-    if await _checkpoint_human_count(graph, thread_id) > 0:
-        # Caught up: the reducer already holds prior turns; add only the new one.
+    count = await _checkpoint_human_count(graph, thread_id)
+    if count is None or count > 0:
+        # Populated checkpoint (append) OR a failed read (do NOT seed a possibly
+        # live checkpoint — that would duplicate its turns). Either way, add only
+        # the newest turn and let the reducer accumulate onto existing state.
         return [newest]
 
+    # count == 0: the checkpoint is genuinely empty → rebuild from the DB.
     seed = await build_thread_seed_messages(db, thread_id)
     if not seed:
         # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
@@ -1227,8 +1233,10 @@ async def _run_agent_graph(
                 # client_message_id -> None) falls back to the legacy path so a
                 # turn that works today is never aborted by the opt-in path.
                 try:
+                    # Seed only from the ownership-verified thread id (set by
+                    # _resolve_thread); never the raw client-supplied thread_id.
                     messages = await build_graph_input_messages(
-                        db, graph, request.thread_id or job_id, request.messages
+                        db, graph, resolved_thread_id or "", request.messages
                     )
                 except Exception:
                     logger.warning(

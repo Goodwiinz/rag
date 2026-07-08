@@ -389,8 +389,10 @@ async def stream_event_generator(
             # client_message_id -> None) falls back to the legacy path below so a
             # turn that works today is never aborted by the opt-in path.
             try:
+                # Seed only from the ownership-verified thread id (set by
+                # _resolve_thread); never the raw client-supplied thread_id.
                 messages = await _jobs_mod.build_graph_input_messages(
-                    db, graph, request_body.thread_id or "", request_body.messages
+                    db, graph, resolved_thread_id or "", request_body.messages
                 )
             except Exception:
                 logger.warning(
