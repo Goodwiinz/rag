@@ -151,7 +151,6 @@ function ChatPageContent() {
     currentThreadIdFromStore,
     setCurrentThread,
     storeMessages,
-    addMessageToStore,
     isAuthenticated,
     activeThreadId,
     displayedMessages,
@@ -190,9 +189,7 @@ function ChatPageContent() {
     setActiveConversationId,
     activeConversationIdRef,
     dbConversation,
-    isAuthenticated,
     setCurrentThread,
-    addMessageToStore,
     enableRAG,
   });
 
