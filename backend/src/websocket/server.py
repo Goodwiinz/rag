@@ -198,18 +198,32 @@ async def health_check():
         )
 
 
+def _ws_token_from_protocol(websocket: WebSocket) -> Optional[str]:
+    """Extract the JWT from the ``Sec-WebSocket-Protocol`` header (``access_token.<jwt>``).
+
+    Tokens must never travel in the URL query string — proxies and access logs
+    record query params. Mirrors the deployed handler in api/realtime/websocket.py.
+    """
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    for protocol in protocols.split(","):
+        protocol = protocol.strip()
+        if protocol.startswith("access_token."):
+            return protocol.replace("access_token.", "", 1)
+    return None
+
+
 # Main WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: Optional[str] = Query(None),
     organization_id: Optional[str] = Query(None),
 ):
     """
     Main WebSocket endpoint for real-time document processing updates
 
+    Authentication: Sec-WebSocket-Protocol: access_token.<jwt> (NOT a query param)
+
     Query Parameters:
-    - token: JWT authentication token (required)
     - organization_id: Organization context (optional, uses user's default)
 
     Supported message types:
@@ -221,7 +235,8 @@ async def websocket_endpoint(
     connection_id = None
 
     try:
-        # Authenticate WebSocket connection
+        # Authenticate WebSocket connection (token via Sec-WebSocket-Protocol header)
+        token = _ws_token_from_protocol(websocket)
         user, session_id, org_id = await websocket_auth_required(
             websocket=websocket, token=token, organization_id=organization_id
         )
@@ -348,22 +363,20 @@ async def _verify_document_access(
 
 # Document processing specific endpoints
 @app.websocket("/ws/documents/{document_id}")
-async def document_websocket(
-    document_id: str, websocket: WebSocket, token: Optional[str] = Query(None)
-):
+async def document_websocket(document_id: str, websocket: WebSocket):
     """
     WebSocket endpoint for document-specific processing updates
 
     Path Parameters:
     - document_id: ID of the document to monitor
 
-    Query Parameters:
-    - token: JWT authentication token (required)
+    Authentication: Sec-WebSocket-Protocol: access_token.<jwt> (NOT a query param)
     """
     connection_id = None
 
     try:
-        # Authenticate
+        # Authenticate (token via Sec-WebSocket-Protocol header)
+        token = _ws_token_from_protocol(websocket)
         user, session_id, org_id = await websocket_auth_required(
             websocket=websocket, token=token
         )
