@@ -67,6 +67,26 @@ function makeParams() {
   };
 }
 
+/**
+ * Inspect only COMMITTED assistant messages across the mocked setMessages
+ * calls. The hook always adds a transient streaming placeholder
+ * (`isStreaming`) at turn start and mirrors the active HITL gate via a
+ * functional `setMessages((prev) => …)` updater (P4 in-band approval) —
+ * neither is a committed turn, so both are filtered out. The functional
+ * updater is a bare vi.fn() that never applies, so non-array args are skipped.
+ */
+function committedAssistantMessages(
+  setMessages: ReturnType<typeof vi.fn>
+): ChatPageMessage[] {
+  return setMessages.mock.calls
+    .map((c) => c[0])
+    .filter((arg): arg is ChatPageMessage[] => Array.isArray(arg))
+    .flatMap((arr) => arr)
+    .filter(
+      (m) => m.role === 'assistant' && !m.isStreaming && !m.pendingApproval
+    );
+}
+
 describe('useChatStreaming HITL confirm tool steps', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
@@ -145,10 +165,8 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     // Committed: the assistant message carries the full turn's tools,
     // reconciled from the done payload's full-fidelity executions (real
     // durations from the graph state, not the live summaries).
-    const calls = params.setMessages.mock.calls;
-    const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
-    const committed = lastArg[lastArg.length - 1];
-    expect(committed).toMatchObject({
+    const committed = committedAssistantMessages(params.setMessages);
+    expect(committed[committed.length - 1]).toMatchObject({
       role: 'assistant',
       content: 'done ingesting',
       toolExecutions: [
@@ -202,9 +220,8 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await result.current.handleConfirmation(true);
     });
 
-    const calls = params.setMessages.mock.calls;
-    const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
-    expect(lastArg[lastArg.length - 1]).toMatchObject({
+    const committed = committedAssistantMessages(params.setMessages);
+    expect(committed[committed.length - 1]).toMatchObject({
       role: 'assistant',
       content: 'confirmed answer',
       plan: [{ description: 'Ingest the papers' }],
@@ -247,10 +264,9 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       confirmation: { tool: 'create_note' },
       steps: [{ tool: 'ingest_arxiv_papers', status: 'done' }],
     });
-    // Nothing was committed for the incomplete turn.
-    const committed = params.setMessages.mock.calls
-      .flatMap((c) => c[0] as ChatPageMessage[])
-      .filter((m) => m.role === 'assistant');
+    // Nothing was committed for the incomplete turn — the transient streaming
+    // placeholder and P4 approval-mirror updaters are excluded by the helper.
+    const committed = committedAssistantMessages(params.setMessages);
     expect(committed).toEqual([]);
   });
 
@@ -291,9 +307,10 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await confirmPromise;
     });
 
-    const calls = params.setMessages.mock.calls;
-    const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
-    expect(lastArg[lastArg.length - 1]).toMatchObject({
+    // The confirm stream commits the partial answer tagged `stopped` — the
+    // last committed assistant message (functional P4 updaters are excluded).
+    const committed = committedAssistantMessages(params.setMessages);
+    expect(committed[committed.length - 1]).toMatchObject({
       role: 'assistant',
       content: 'partial resumed answer',
       metadata: { stopped: true },
