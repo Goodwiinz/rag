@@ -1510,6 +1510,11 @@ async def _tool_do_kb_retrieve(
             project_id=resolved_project_id,
         )
 
+    if chunks_to_emit and getattr(_kb_settings, "AGENT_DOKB_COHERE_RERANK", False):
+        from src.services.do_kb.rerank import cohere_rescore_chunks
+
+        chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
+
     chunks_payload = []
     for c in chunks_to_emit:
         resolved_id, title = title_by_key.get(c.document_id or "", (None, None))
