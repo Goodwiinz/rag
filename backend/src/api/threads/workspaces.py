@@ -428,11 +428,10 @@ async def list_conversations(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Fetch conversations with eager-loaded threads
+    # Fetch conversations (no thread rows — see the aggregate below)
     offset = (page - 1) * limit
     stmt = (
         select(Conversation)
-        .options(selectinload(Conversation.threads))
         .where(*base_conditions)
         .order_by(Conversation.last_activity_at.desc())
         .offset(offset)
@@ -441,8 +440,35 @@ async def list_conversations(
     result = await db.execute(stmt)
     conversations = result.scalars().all()
 
+    # Size the sidebar badges with ONE grouped COUNT/SUM over this page's
+    # conversations instead of selectinload-ing every thread row (all columns)
+    # per conversation. Mirrors the unfiltered Conversation.threads relationship
+    # (hard-delete cascade, no is_deleted filter), so thread_count matches
+    # len(self.threads) and message_count matches the per-thread sum exactly.
+    counts: dict[UUID, tuple[int, int]] = {}
+    conv_ids = [c.id for c in conversations]
+    if conv_ids:
+        agg_stmt = (
+            select(
+                Thread.conversation_id,
+                func.count(Thread.id),
+                func.coalesce(func.sum(Thread.message_count), 0),
+            )
+            .where(Thread.conversation_id.in_(conv_ids))
+            .group_by(Thread.conversation_id)
+        )
+        agg_result = await db.execute(agg_stmt)
+        counts = {row[0]: (row[1], row[2]) for row in agg_result.all()}
+
     return ConversationListResponse(
-        conversations=[_conversation_to_response(c) for c in conversations],
+        conversations=[
+            _conversation_to_response(
+                c,
+                thread_count=counts.get(c.id, (0, 0))[0],
+                message_count=counts.get(c.id, (0, 0))[1],
+            )
+            for c in conversations
+        ],
         total=total,
         page=page,
         limit=limit,
@@ -1346,8 +1372,18 @@ def _member_to_response(member: WorkspaceMember) -> WorkspaceMemberResponse:
     )
 
 
-def _conversation_to_response(conversation: Conversation) -> ConversationResponse:
-    """Convert Conversation model to response schema"""
+def _conversation_to_response(
+    conversation: Conversation,
+    thread_count: int | None = None,
+    message_count: int | None = None,
+) -> ConversationResponse:
+    """Convert Conversation model to response schema.
+
+    thread_count/message_count may be supplied from a grouped COUNT/SUM so the
+    list path need not selectinload every thread row per conversation just to
+    size the sidebar badges. When omitted (single-conversation callers that
+    already eager-load threads), they fall back to the loaded relationship.
+    """
     return ConversationResponse(
         id=conversation.id,
         workspace_id=conversation.workspace_id,
@@ -1357,11 +1393,19 @@ def _conversation_to_response(conversation: Conversation) -> ConversationRespons
         is_pinned=conversation.is_pinned,
         last_activity_at=conversation.last_activity_at,
         created_by_id=conversation.created_by_id,
-        thread_count=conversation.thread_count,
+        thread_count=(
+            thread_count
+            if thread_count is not None
+            else conversation.thread_count
+        ),
         message_count=(
-            sum(t.message_count or 0 for t in conversation.threads)
-            if conversation.threads
-            else 0
+            message_count
+            if message_count is not None
+            else (
+                sum(t.message_count or 0 for t in conversation.threads)
+                if conversation.threads
+                else 0
+            )
         ),
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
