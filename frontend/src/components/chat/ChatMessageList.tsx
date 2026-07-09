@@ -300,22 +300,35 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             </div>
           )}
 
-          {messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD ? (
-            <VirtualizedMessageList
-              messages={messages}
-              activeThreadId={activeThreadId}
-              isLoading={isLoading}
-              storeIsStreaming={storeIsStreaming}
-              onRegenerate={onRegenerate}
-              onCitationClick={onCitationClick}
-              isRetrievingRag={isRetrievingRag}
-              onLoadOlder={onLoadOlder}
-              hasMore={hasMore}
-              isLoadingOlder={isLoadingOlder}
-            />
-          ) : (
-            renderedMessages
-          )}
+          {/* Key the message-row subtree by thread id so a thread switch
+              MOUNTS a fresh row tree instead of reconciling the previous
+              thread's index-addressed MessageByIndex fibers against the new
+              thread. Rapid switching otherwise interleaves partial commits and
+              trips React's reconciler ("Tried to unmount a fiber that is
+              already unmounted") — a reconciler-internal error the #1096
+              MessageByIndexBoundary cannot catch. A clean remount also drops
+              the old thread's store subscriptions in one unit, shrinking the
+              window for the useClientLookup torn read (which the boundary still
+              backstops). Appends within a thread keep the same key — no
+              remount, no flicker. */}
+          <React.Fragment key={`rows-${activeThreadId ?? 'new'}`}>
+            {messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD ? (
+              <VirtualizedMessageList
+                messages={messages}
+                activeThreadId={activeThreadId}
+                isLoading={isLoading}
+                storeIsStreaming={storeIsStreaming}
+                onRegenerate={onRegenerate}
+                onCitationClick={onCitationClick}
+                isRetrievingRag={isRetrievingRag}
+                onLoadOlder={onLoadOlder}
+                hasMore={hasMore}
+                isLoadingOlder={isLoadingOlder}
+              />
+            ) : (
+              renderedMessages
+            )}
+          </React.Fragment>
 
           {/* Streaming assistant message.
               Hide it the instant the streamed answer is COMMITTED — i.e. the
