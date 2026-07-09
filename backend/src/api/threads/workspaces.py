@@ -428,11 +428,10 @@ async def list_conversations(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Fetch conversations with eager-loaded threads
+    # Fetch conversations (no thread rows — see the aggregate below)
     offset = (page - 1) * limit
     stmt = (
         select(Conversation)
-        .options(selectinload(Conversation.threads))
         .where(*base_conditions)
         .order_by(Conversation.last_activity_at.desc())
         .offset(offset)
@@ -441,8 +440,35 @@ async def list_conversations(
     result = await db.execute(stmt)
     conversations = result.scalars().all()
 
+    # Size the sidebar badges with ONE grouped COUNT/SUM over this page's
+    # conversations instead of selectinload-ing every thread row (all columns)
+    # per conversation. Mirrors the unfiltered Conversation.threads relationship
+    # (hard-delete cascade, no is_deleted filter), so thread_count matches
+    # len(self.threads) and message_count matches the per-thread sum exactly.
+    counts: dict[UUID, tuple[int, int]] = {}
+    conv_ids = [c.id for c in conversations]
+    if conv_ids:
+        agg_stmt = (
+            select(
+                Thread.conversation_id,
+                func.count(Thread.id),
+                func.coalesce(func.sum(Thread.message_count), 0),
+            )
+            .where(Thread.conversation_id.in_(conv_ids))
+            .group_by(Thread.conversation_id)
+        )
+        agg_result = await db.execute(agg_stmt)
+        counts = {row[0]: (row[1], row[2]) for row in agg_result.all()}
+
     return ConversationListResponse(
-        conversations=[_conversation_to_response(c) for c in conversations],
+        conversations=[
+            _conversation_to_response(
+                c,
+                thread_count=counts.get(c.id, (0, 0))[0],
+                message_count=counts.get(c.id, (0, 0))[1],
+            )
+            for c in conversations
+        ],
         total=total,
         page=page,
         limit=limit,
@@ -1346,8 +1372,18 @@ def _member_to_response(member: WorkspaceMember) -> WorkspaceMemberResponse:
     )
 
 
-def _conversation_to_response(conversation: Conversation) -> ConversationResponse:
-    """Convert Conversation model to response schema"""
+def _conversation_to_response(
+    conversation: Conversation,
+    thread_count: int | None = None,
+    message_count: int | None = None,
+) -> ConversationResponse:
+    """Convert Conversation model to response schema.
+
+    thread_count/message_count may be supplied from a grouped COUNT/SUM so the
+    list path need not selectinload every thread row per conversation just to
+    size the sidebar badges. When omitted (single-conversation callers that
+    already eager-load threads), they fall back to the loaded relationship.
+    """
     return ConversationResponse(
         id=conversation.id,
         workspace_id=conversation.workspace_id,
@@ -1357,11 +1393,19 @@ def _conversation_to_response(conversation: Conversation) -> ConversationRespons
         is_pinned=conversation.is_pinned,
         last_activity_at=conversation.last_activity_at,
         created_by_id=conversation.created_by_id,
-        thread_count=conversation.thread_count,
+        thread_count=(
+            thread_count
+            if thread_count is not None
+            else conversation.thread_count
+        ),
         message_count=(
-            sum(t.message_count or 0 for t in conversation.threads)
-            if conversation.threads
-            else 0
+            message_count
+            if message_count is not None
+            else (
+                sum(t.message_count or 0 for t in conversation.threads)
+                if conversation.threads
+                else 0
+            )
         ),
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
@@ -1817,6 +1861,23 @@ async def list_messages_standalone(
     thread_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
+    order: str = Query(
+        "asc",
+        pattern="^(asc|desc)$",
+        description=(
+            "asc = chronological page/offset (default). desc = newest-first "
+            "cursor window: returns the most recent `limit` messages (older than "
+            "`before_id` when given), newest→oldest; the client reverses for "
+            "display. `has_more` then means older messages remain."
+        ),
+    ),
+    before_id: Optional[UUID] = Query(
+        None,
+        description=(
+            "desc-order cursor: return only messages strictly OLDER than this "
+            "message id. Ignored when order=asc."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1848,40 +1909,61 @@ async def list_messages_standalone(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Query with eager loading of citations and their documents
-    offset = (page - 1) * limit
-    msg_stmt = (
-        select(ChatMessage)
-        .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-        )
-        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
-        .order_by(ChatMessage.created_at.asc())
-        .offset(offset)
-        .limit(limit)
-    )
-    msg_result = await db.execute(msg_stmt)
-    messages = msg_result.scalars().all()
+    # load_only: the message responses render only title/type/mime of a
+    # cited/attached Document — never content_text/content_summary/search_vector
+    # (the heavy extracted body). Loading only the 3 read columns keeps
+    # content_text off the wire on every paged fetch.
+    base_stmt = select(ChatMessage).options(
+        selectinload(ChatMessage.citations)
+        .selectinload(Citation.document)
+        .load_only(Document.title, Document.document_type, Document.mime_type),
+        selectinload(ChatMessage.attachments)
+        .selectinload(MessageAttachment.document)
+        .load_only(Document.title, Document.document_type, Document.mime_type),
+    ).where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
+
+    if order == "desc":
+        # Newest-first cursor window (long-thread paging): the most recent
+        # `limit` messages, optionally older than `before_id`, returned
+        # newest→oldest (the client reverses for chronological display). A
+        # +1-row sentinel — not offset+len<total — decides `has_more`, so a
+        # cursor page never re-fetches itself forever.
+        if before_id is not None:
+            cursor_at = (
+                await db.execute(
+                    select(ChatMessage.created_at).where(
+                        ChatMessage.id == before_id,
+                        ChatMessage.thread_id == thread_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if cursor_at is not None:
+                base_stmt = base_stmt.where(ChatMessage.created_at < cursor_at)
+        rows = (
+            await db.execute(
+                base_stmt.order_by(ChatMessage.created_at.desc()).limit(limit + 1)
+            )
+        ).scalars().all()
+        has_more = len(rows) > limit
+        messages = rows[:limit]  # newest→oldest; client reverses
+    else:
+        # Chronological page/offset (default, backward-compatible).
+        offset = (page - 1) * limit
+        messages = (
+            await db.execute(
+                base_stmt.order_by(ChatMessage.created_at.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars().all()
+        has_more = (offset + len(messages)) < total
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(messages)) < total,
+        has_more=has_more,
     )
 
 
