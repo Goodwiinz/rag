@@ -1067,9 +1067,16 @@ def get_graph_analytics(
 
 @router.get("/health", response_model=GraphHealthStatus)
 def get_graph_health(current_user: User = Depends(get_current_user)):
-    """Get health status of the graph database"""
+    """Get health status of the graph database (counts scoped to caller's org)"""
     try:
-        health = knowledge_graph_service.get_health_status()
+        # Always pass the org string unconditionally. Do NOT rewrite this to
+        # `str(org) if org else None` like the sibling endpoints — a None here
+        # takes get_health_status's global (unscoped) branch and re-leaks the
+        # whole multi-tenant graph size. An orgless user (org deleted → SET NULL)
+        # stringifies to 'None', which matches no node → shows zeros. Safe.
+        health = knowledge_graph_service.get_health_status(
+            organization_id=str(current_user.organization_id)
+        )
         return health
     except Exception as e:
         logger.error(f"Error getting graph health: {e}")
