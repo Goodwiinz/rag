@@ -1861,6 +1861,23 @@ async def list_messages_standalone(
     thread_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
+    order: str = Query(
+        "asc",
+        pattern="^(asc|desc)$",
+        description=(
+            "asc = chronological page/offset (default). desc = newest-first "
+            "cursor window: returns the most recent `limit` messages (older than "
+            "`before_id` when given), newest→oldest; the client reverses for "
+            "display. `has_more` then means older messages remain."
+        ),
+    ),
+    before_id: Optional[UUID] = Query(
+        None,
+        description=(
+            "desc-order cursor: return only messages strictly OLDER than this "
+            "message id. Ignored when order=asc."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1892,40 +1909,61 @@ async def list_messages_standalone(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Query with eager loading of citations and their documents
-    offset = (page - 1) * limit
-    msg_stmt = (
-        select(ChatMessage)
-        .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-        )
-        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
-        .order_by(ChatMessage.created_at.asc())
-        .offset(offset)
-        .limit(limit)
-    )
-    msg_result = await db.execute(msg_stmt)
-    messages = msg_result.scalars().all()
+    # load_only: the message responses render only title/type/mime of a
+    # cited/attached Document — never content_text/content_summary/search_vector
+    # (the heavy extracted body). Loading only the 3 read columns keeps
+    # content_text off the wire on every paged fetch.
+    base_stmt = select(ChatMessage).options(
+        selectinload(ChatMessage.citations)
+        .selectinload(Citation.document)
+        .load_only(Document.title, Document.document_type, Document.mime_type),
+        selectinload(ChatMessage.attachments)
+        .selectinload(MessageAttachment.document)
+        .load_only(Document.title, Document.document_type, Document.mime_type),
+    ).where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
+
+    if order == "desc":
+        # Newest-first cursor window (long-thread paging): the most recent
+        # `limit` messages, optionally older than `before_id`, returned
+        # newest→oldest (the client reverses for chronological display). A
+        # +1-row sentinel — not offset+len<total — decides `has_more`, so a
+        # cursor page never re-fetches itself forever.
+        if before_id is not None:
+            cursor_at = (
+                await db.execute(
+                    select(ChatMessage.created_at).where(
+                        ChatMessage.id == before_id,
+                        ChatMessage.thread_id == thread_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if cursor_at is not None:
+                base_stmt = base_stmt.where(ChatMessage.created_at < cursor_at)
+        rows = (
+            await db.execute(
+                base_stmt.order_by(ChatMessage.created_at.desc()).limit(limit + 1)
+            )
+        ).scalars().all()
+        has_more = len(rows) > limit
+        messages = rows[:limit]  # newest→oldest; client reverses
+    else:
+        # Chronological page/offset (default, backward-compatible).
+        offset = (page - 1) * limit
+        messages = (
+            await db.execute(
+                base_stmt.order_by(ChatMessage.created_at.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars().all()
+        has_more = (offset + len(messages)) < total
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(messages)) < total,
+        has_more=has_more,
     )
 
 
