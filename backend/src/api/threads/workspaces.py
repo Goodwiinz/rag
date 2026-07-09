@@ -12,7 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
@@ -768,9 +768,19 @@ async def create_message(
     stmt = (
         select(ChatMessage)
         .options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(
-                MessageAttachment.document
+            # load_only: the message responses render only title/type/mime of a
+            # cited/attached Document — never content_text/content_summary/
+            # search_vector (the heavy extracted body). Loading only the 3 read
+            # columns keeps content_text off the wire on every paged fetch.
+            selectinload(ChatMessage.citations)
+            .selectinload(Citation.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
+            ),
+            selectinload(ChatMessage.attachments)
+            .selectinload(MessageAttachment.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
             ),
         )
         .where(ChatMessage.id == message.id)
@@ -811,9 +821,19 @@ async def list_messages(
     stmt = (
         select(ChatMessage)
         .options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(
-                MessageAttachment.document
+            # load_only: the message responses render only title/type/mime of a
+            # cited/attached Document — never content_text/content_summary/
+            # search_vector (the heavy extracted body). Loading only the 3 read
+            # columns keeps content_text off the wire on every paged fetch.
+            selectinload(ChatMessage.citations)
+            .selectinload(Citation.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
+            ),
+            selectinload(ChatMessage.attachments)
+            .selectinload(MessageAttachment.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
             ),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
@@ -1833,9 +1853,19 @@ async def list_messages_standalone(
     msg_stmt = (
         select(ChatMessage)
         .options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(
-                MessageAttachment.document
+            # load_only: the message responses render only title/type/mime of a
+            # cited/attached Document — never content_text/content_summary/
+            # search_vector (the heavy extracted body). Loading only the 3 read
+            # columns keeps content_text off the wire on every paged fetch.
+            selectinload(ChatMessage.citations)
+            .selectinload(Citation.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
+            ),
+            selectinload(ChatMessage.attachments)
+            .selectinload(MessageAttachment.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
             ),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
@@ -1882,9 +1912,19 @@ async def create_message_standalone(
     stmt = (
         select(ChatMessage)
         .options(
-            selectinload(ChatMessage.citations).selectinload(Citation.document),
-            selectinload(ChatMessage.attachments).selectinload(
-                MessageAttachment.document
+            # load_only: the message responses render only title/type/mime of a
+            # cited/attached Document — never content_text/content_summary/
+            # search_vector (the heavy extracted body). Loading only the 3 read
+            # columns keeps content_text off the wire on every paged fetch.
+            selectinload(ChatMessage.citations)
+            .selectinload(Citation.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
+            ),
+            selectinload(ChatMessage.attachments)
+            .selectinload(MessageAttachment.document)
+            .load_only(
+                Document.title, Document.document_type, Document.mime_type
             ),
         )
         .where(ChatMessage.id == message.id)

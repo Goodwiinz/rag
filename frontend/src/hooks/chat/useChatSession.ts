@@ -253,7 +253,12 @@ export function useChatSession(): UseChatSessionReturn {
           setActiveConversationId(threadDetail.id);
           activeConversationIdRef.current = threadDetail.id;
           setMessages(uiMessages);
-          setCurrentThread(threadDetail.id);
+          // Set the store id directly (mirror the warm-start path) instead of
+          // setCurrentThread, whose loadMessages side-effect would re-fetch the
+          // transcript we just got from getThread. The conversation cache is
+          // already seeded above (upsertConversationFromThreadDetail), so the
+          // lazy-load effect cache-hits.
+          useChatStore.setState({ currentThreadId: threadDetail.id });
         } catch (error: unknown) {
           if (!cancelled) {
             console.error('[Chat] Failed to fetch requested thread:', error);
@@ -440,11 +445,21 @@ export function useChatSession(): UseChatSessionReturn {
 
           if (warmData) {
             const [threadListResponse, threadDetail] = warmData;
+            // Map the warm-fetched transcript ONCE and seed it into the active
+            // thread's conversation cache. Without this the lazy-load effect
+            // (conv.messages.length > 0 guard) misses, clears `messages` to a
+            // skeleton, and re-fetches getThread — a redundant round-trip of the
+            // heaviest payload plus a transcript→skeleton→transcript flicker on
+            // the most common load path.
+            const persistedUiMessages = threadDetail.messages.map(
+              mapDbMessageToUiMessage
+            );
             const uiConversations: ChatConversation[] =
               threadListResponse.threads.map((thread) => ({
                 id: thread.id,
                 title: thread.title || 'New Chat',
-                messages: [],
+                messages:
+                  thread.id === persistedThreadId ? persistedUiMessages : [],
                 createdAt: new Date(thread.created_at).getTime(),
                 updatedAt: new Date(thread.updated_at).getTime(),
                 threadId: thread.id,
@@ -453,19 +468,24 @@ export function useChatSession(): UseChatSessionReturn {
                 messageCount: thread.message_count,
               }));
             setConversations(uiConversations);
-            setMessages(threadDetail.messages.map(mapDbMessageToUiMessage));
+            setMessages(persistedUiMessages);
             setActiveConversationId(persistedThreadId);
             activeConversationIdRef.current = persistedThreadId;
             // Set store ID directly to avoid the loadMessages side-effect in
             // setCurrentThread — we already have messages from getThread above.
             useChatStore.setState({ currentThreadId: persistedThreadId });
-
-            // Still need dbConversation so new-thread creation works
-            const conv = await workspaceService.getOrCreateDefaultConversation(
-              ws.id
-            );
-            setDbConversation(conv);
             isHydratedRef.current = true;
+
+            // dbConversation is only needed for NEW-thread creation (post user
+            // action), so fetch it OFF the paint path — awaiting it here blocked
+            // first paint / isInitializing on an extra HTTP round-trip. The
+            // .catch is required: the call re-throws on 404.
+            void workspaceService
+              .getOrCreateDefaultConversation(ws.id)
+              .then(setDbConversation)
+              .catch((e) =>
+                console.warn('[Chat] default conversation fetch failed', e)
+              );
             console.log('[Chat] Warm-start initialization complete');
             return;
           }
