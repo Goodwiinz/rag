@@ -13,24 +13,22 @@ from celery import Task, current_app
 
 from src.core.config import settings
 from src.core.database import SessionLocal, get_db
-from src.tasks.celery_app import celery_app
-from src.models.document import Document, ProcessingStatus
+from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (
     BatchEntityRequest,
     CreateEntityRequest,
     CreateRelationshipRequest,
-    EntityType as GraphEntityType,
-    ExtractionMethod as GraphExtractionMethod,
-    RelationshipType as GraphRelationshipType,
 )
+from src.models.graph import EntityType as GraphEntityType
+from src.models.graph import ExtractionMethod as GraphExtractionMethod
+from src.models.graph import RelationshipType as GraphRelationshipType
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.llm_entity_extraction import (
-    LLMEntityExtractionService,
-)
+from src.services.processing.llm_entity_extraction import LLMEntityExtractionService
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
+from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +204,31 @@ def process_document_ingestion(self, job_id: str):
                 "character_count", text_extraction_result["character_count"]
             )
         db.commit()
+
+        # Step 1b: Figure extraction (optional, flag-gated; never fails ingestion)
+        if (
+            settings.FIGURE_EXTRACTION_ENABLED
+            and document.document_type == DocumentType.PDF
+        ):
+            try:
+                from src.services.processing.figure_extraction_service import (
+                    extract_figures_for_document,
+                    merge_captions_into_text,
+                )
+
+                job.update_progress("Extracting figures", 35)
+                db.commit()
+                fig_result = extract_figures_for_document(db, document)
+                if fig_result.get("captions_text"):
+                    document.content_text = merge_captions_into_text(
+                        document.content_text, fig_result["captions_text"]
+                    )
+                db.commit()
+            except Exception as fig_err:  # optional step, mirrors Neo4j tolerance above
+                db.rollback()
+                logger.warning(
+                    f"Figure extraction failed for document {document.id}: {fig_err}"
+                )
 
         # Step 2: Entity Extraction
         job.update_progress("Extracting entities", 50)
@@ -466,9 +489,10 @@ def extract_entities(self, job_id: str):
             )
 
         # Save entities
+        from datetime import datetime
+
         from src.models.entity import Entity, ExtractionMethod
         from src.services.processing.llm_entity_extraction import map_to_entity_type
-        from datetime import datetime
 
         saved_entities = []
         for ent in extraction_result.entities:
