@@ -204,10 +204,20 @@ class DraftGenerationService:
         document_count = 0
 
         try:
-            # Owns its own session: generate_draft() fire-and-forgets this
+            # Owns its own sessions: generate_draft() fire-and-forgets this
             # coroutine and returns immediately, so the caller's session
             # (self.db, request-scoped) is typically closed before this task's
             # first DB call runs. Never use self.db in this method.
+            #
+            # Split into two session windows rather than one spanning the
+            # whole method: _build_draft_content's LLM call can take up to
+            # 60s, and holding a pooled connection idle for that long starved
+            # the pool. Window 1 only fetches the source documents; window 2
+            # (opened after the draft content is built) covers the citation
+            # reviewer, version lookup, and persistence/commit. Document rows
+            # stay usable across the gap: expire_on_commit=False (see
+            # src/core/database.py) means their already-loaded attributes
+            # survive session close.
             async with AsyncSessionLocal() as db:
                 # Phase 1: Analyzing documents
                 self._update_status(
@@ -242,37 +252,39 @@ class DraftGenerationService:
                     )
                     return
 
-                await asyncio.sleep(0.5)  # Simulate processing
+            await asyncio.sleep(0.5)  # Simulate processing
 
-                # Phase 2: Generating content
-                self._update_status(
-                    task_id, DraftGenerationStatus.GENERATING, 30, "Generating content"
-                )
+            # Phase 2: Generating content — no DB session held here; this is
+            # the ~60s LLM call the window split above exists for.
+            self._update_status(
+                task_id, DraftGenerationStatus.GENERATING, 30, "Generating content"
+            )
 
-                # Build draft content
-                draft_content = await self._build_draft_content(
-                    documents=documents,
-                    themes=themes,
-                    style=style,
-                    max_sections=max_sections,
-                    include_abstract=include_abstract,
-                )
+            # Build draft content
+            draft_content = await self._build_draft_content(
+                documents=documents,
+                themes=themes,
+                style=style,
+                max_sections=max_sections,
+                include_abstract=include_abstract,
+            )
 
-                self._update_status(
-                    task_id, DraftGenerationStatus.GENERATING, 60, "Building sections"
-                )
-                await asyncio.sleep(0.3)
+            self._update_status(
+                task_id, DraftGenerationStatus.GENERATING, 60, "Building sections"
+            )
+            await asyncio.sleep(0.3)
 
-                # Phase 3: Adding citations
-                self._update_status(
-                    task_id, DraftGenerationStatus.CITING, 80, "Adding citations"
-                )
+            # Phase 3: Adding citations
+            self._update_status(
+                task_id, DraftGenerationStatus.CITING, 80, "Adding citations"
+            )
 
-                # Extract citations
-                citations_data = self._extract_citations_from_content(
-                    draft_content, documents
-                )
+            # Extract citations
+            citations_data = self._extract_citations_from_content(
+                draft_content, documents
+            )
 
+            async with AsyncSessionLocal() as db:
                 citation_review: Optional[Dict[str, Any]] = None
                 from src.core.config import settings
 
