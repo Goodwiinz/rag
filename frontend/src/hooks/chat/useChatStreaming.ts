@@ -12,7 +12,6 @@ import {
 import toast from 'react-hot-toast';
 
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
-import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
   ChatConversation,
@@ -44,14 +43,14 @@ import { useProjectStore } from '@/store/projectStore';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
-// Stable id for the in-flight assistant placeholder (AUI_FULL path). One turn
+// Stable id for the in-flight assistant placeholder path. One turn
 // streams at a time, so a constant is enough; the placeholder is always either
 // replaced by the committed message or removed at every stream exit.
 const STREAMING_PLACEHOLDER_ID = '__nous_streaming_placeholder__';
 
 /** Tool name + args preview from an interrupt's confirmation payload — flat
  * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
- * page-level banner's extractToolCall (AUI_FULL / P4). */
+ * page-level banner's extractToolCall (P4). */
 function extractConfirmationPreview(
   confirmation: Record<string, unknown> | undefined
 ): { name: string; args: Record<string, unknown> } {
@@ -411,13 +410,12 @@ export function useChatStreaming(
           isRetrievingRag: enableRAG,
         });
 
-        // AUI_FULL: render the in-flight turn as a real placeholder message in
-        // the transcript (its live text/steps/citations are read from the
-        // streaming store by AuiAssistantMessage). Legacy path leaves the
-        // separate streaming ChatBubble to render from the store instead.
-        // The placeholder is replaced by the committed message on `done`, or
-        // removed at every early exit below.
-        if (AUI_FULL && isTurnDisplayed()) {
+        // Render the in-flight turn as a real placeholder message in the
+        // transcript (its live text/steps/citations are read from the
+        // streaming store by AuiAssistantMessage). The placeholder is replaced
+        // by the committed message on `done`, or removed at every early exit
+        // below.
+        if (isTurnDisplayed()) {
           const placeholder: ChatPageMessage = {
             id: STREAMING_PLACEHOLDER_ID,
             role: 'assistant',
@@ -600,15 +598,10 @@ export function useChatStreaming(
 
         // Don't append a normal message if stream errored or needs confirmation
         if (streamHadError || streamHadConfirmation) {
-          // AUI_FULL: on a confirmation pause the placeholder must go (P4 will
-          // re-introduce it as an in-band approval part). On error, onError
-          // already replaced the placeholder with the error bubble — leave it.
-          if (
-            AUI_FULL &&
-            streamHadConfirmation &&
-            !streamHadError &&
-            isTurnDisplayed()
-          ) {
+          // On a confirmation pause the placeholder must go (P4 re-introduces
+          // it as an in-band approval part). On error, onError already replaced
+          // the placeholder with the error bubble — leave it.
+          if (streamHadConfirmation && !streamHadError && isTurnDisplayed()) {
             setMessages(newMessages);
           }
           useChatStore.setState({
@@ -638,7 +631,7 @@ export function useChatStreaming(
             };
             if (isTurnDisplayed())
               setMessages([...newMessages, emptyResponseMessage]);
-          } else if (AUI_FULL && isTurnDisplayed()) {
+          } else if (isTurnDisplayed()) {
             // Quiet/stopped unwind with no content: drop the placeholder so no
             // empty streaming bubble is left behind.
             setMessages(newMessages);
@@ -1335,15 +1328,13 @@ export function useChatStreaming(
     ]
   );
 
-  // AUI_FULL / P4: mirror the active pending confirmation into an in-band
-  // approval message the registered HitlApprovalToolUI renders in the
-  // transcript. Its Approve/Deny call the runtime's respondToApproval, which
-  // routes through the ExternalStore adapter (ChatRuntimeProvider's
-  // onRespondToToolApproval → onApproval=handleConfirmation). The flag-off
-  // inline banner in page.tsx is the fallback; handleConfirmation/streamConfirm
-  // internals are untouched.
+  // P4: mirror the active pending confirmation into an in-band approval
+  // message the registered HitlApprovalToolUI renders in the transcript. Its
+  // Approve/Deny call the runtime's respondToApproval, which routes through the
+  // ExternalStore adapter (ChatRuntimeProvider's onRespondToToolApproval →
+  // onApproval=handleConfirmation). handleConfirmation/streamConfirm internals
+  // are untouched.
   useEffect(() => {
-    if (!AUI_FULL) return;
     const active = confirmationBelongsToThread(
       pendingConfirmation,
       activeConversationId

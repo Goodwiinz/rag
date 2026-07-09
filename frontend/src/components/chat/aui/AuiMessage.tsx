@@ -245,7 +245,7 @@ function StreamingThinkingPill({ label }: { label: string }): ReactElement {
 }
 
 /**
- * Body of the in-flight assistant turn (AUI_FULL path). The message itself is
+ * Body of the in-flight assistant turn path. The message itself is
  * a stable placeholder in the transcript; its live text/steps/citations are
  * read from the streaming store here, so token updates re-render only this
  * component (a store-selector subscription) and never remount the message row.
@@ -344,8 +344,8 @@ export function AuiAssistantMessage({
     />
   ) : undefined;
 
-  // In-flight turn (AUI_FULL): render the store-driven streaming body instead
-  // of the committed chrome. Branches AFTER the hooks above so hook order is
+  // In-flight turn: render the store-driven streaming body instead of the
+  // committed chrome. Branches AFTER the hooks above so hook order is
   // stable across the streaming→committed transition.
   if (message?.isStreaming) {
     return (

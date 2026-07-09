@@ -42,7 +42,6 @@ const baseProps = {
   isLoading: false,
   storeIsStreaming: false,
   storeStreamingContent: '',
-  streamingTimestamp: 0,
   onRegenerate: vi.fn(),
   onCitationClick: vi.fn(),
   hasMore: true,

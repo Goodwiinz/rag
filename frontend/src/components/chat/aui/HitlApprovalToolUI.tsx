@@ -26,7 +26,7 @@ function formatArgValue(value: unknown, max = 140): string {
 
 /**
  * Renders the HITL approval gate in-band at the tool-call position (replaces
- * the detached page-level banner under AUI_FULL). The part carries a real
+ * the in-band approval part). The part carries a real
  * `approval` gate, so Approve/Deny call the runtime's `respondToApproval`,
  * which routes to the ExternalStore adapter's `onRespondToToolApproval`
  * (wired in ChatRuntimeProvider → handleConfirmation → streamConfirm). No

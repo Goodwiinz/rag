@@ -20,7 +20,7 @@ type ToolCallPart = {
   argsText: string;
   result?: string;
   isError?: true;
-  // Real approval gate for the in-band HITL part (AUI_FULL / P4). `approved`
+  // Real approval gate for the in-band HITL part (P4). `approved`
   // omitted = pending, so the renderer's respondToApproval is callable and
   // routes to the adapter's onRespondToToolApproval.
   approval?: { readonly id: string; readonly approved?: boolean };
@@ -114,7 +114,7 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
       )
     : [];
 
-  // In-band HITL approval gate (AUI_FULL / P4): emit an approval tool-call part
+  // In-band HITL approval gate (P4): emit an approval tool-call part
   // routed to the registered HitlApprovalToolUI. Its args carry the confirmed
   // tool name + args for display; the bridge store drives resolution.
   const approvalParts: ToolCallPart[] = message.pendingApproval

@@ -54,7 +54,7 @@ function makeParams(setMessages: (m: ChatPageMessage[]) => void) {
   };
 }
 
-describe('useChatStreaming AUI_FULL in-flight placeholder', () => {
+describe('useChatStreaming in-flight placeholder', () => {
   beforeEach(() => streamMessageMock.mockReset());
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -62,7 +62,6 @@ describe('useChatStreaming AUI_FULL in-flight placeholder', () => {
   });
 
   it('adds a streaming placeholder at start and replaces it on done', async () => {
-    vi.stubEnv('NEXT_PUBLIC_AUI_FULL', 'true');
     vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 
