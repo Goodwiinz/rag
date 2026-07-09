@@ -341,6 +341,16 @@ class FileService:
         is_public: bool = False,
     ) -> Document:
         """Process and store uploaded file"""
+        # Track what durably landed so a mid-upload failure can be compensated.
+        # The storage object is committed BEFORE the DB rows, and the DB writes
+        # span multiple commits — without this, a failure orphans the object,
+        # strands a PENDING row, or drifts org storage quota (see the except).
+        document = None
+        document_committed = False
+        quota_committed = False
+        processing_job = None
+        processing_job_committed = False
+        stored_object = None  # (backend, storage_path, file_path) once the object lands
         try:
             # Validate file
             validation_result = self.validate_file(file, user, organization)
@@ -440,6 +450,17 @@ class FileService:
                     storage_backend="local",
                 )
 
+            # Capture the storage identity as plain values now, before any commit
+            # or rollback can expire the ORM instance. The rollback path must be
+            # able to delete the object without reading the (possibly expired)
+            # instance — a sync attribute read on an expired instance raises
+            # MissingGreenlet inside an async session.
+            stored_object = (
+                document.storage_backend,
+                document.storage_path,
+                document.file_path,
+            )
+
             # Add file hash as metadata
             document.add_metadata("file_hash", file_hash)
             document.add_metadata("original_filename", file.filename)
@@ -447,6 +468,7 @@ class FileService:
             self.db.add(document)
             await self.db.commit()
             await self.db.refresh(document)
+            document_committed = True
 
             # Atomically update organization storage usage
             await self.db.execute(
@@ -455,6 +477,7 @@ class FileService:
                 )
             )
             await self.db.commit()
+            quota_committed = True
 
             # Create processing job for document ingestion
             processing_job = ProcessingJob(
@@ -479,6 +502,7 @@ class FileService:
             self.db.add(processing_job)
             await self.db.commit()
             await self.db.refresh(processing_job)
+            processing_job_committed = True
 
             # Queue the job for processing
             from src.tasks.processing_tasks import process_document_ingestion
@@ -489,6 +513,50 @@ class FileService:
 
         except Exception as e:
             await self.db.rollback()
+            # Compensate whatever durably landed before the failure. First reverse
+            # the DB (soft-delete the row + revert quota + drop the stray job in one
+            # commit); only if that succeeds do we delete the storage object. If the
+            # DB reversal itself fails (e.g. the connection is still bad), the row
+            # stays live, so we keep the object as a sweepable orphan rather than
+            # orphan a live row from its backing file. `reversal_ok` starts True when
+            # nothing was committed (no live row to protect).
+            reversal_ok = not document_committed
+            if document_committed and document is not None:
+                try:
+                    # A committed ProcessingJob only exists when the enqueue
+                    # (.delay) failed — drop it so it can't run against the
+                    # soft-deleted document.
+                    if processing_job_committed and processing_job is not None:
+                        await self.db.delete(processing_job)
+                    document.soft_delete()
+                    if quota_committed:
+                        await self.db.execute(
+                            Organization.storage_usage_update(
+                                organization.id, -validation_result["file_size"]
+                            )
+                        )
+                    await self.db.commit()
+                    reversal_ok = True
+                except Exception:
+                    await self.db.rollback()
+                    logger.warning(
+                        "upload rollback: failed to reverse committed row/quota for "
+                        "document %s; leaving storage object as a sweepable orphan",
+                        getattr(document, "id", None),
+                        exc_info=True,
+                    )
+            # Delete by captured primitives (never the possibly-expired instance).
+            if reversal_ok and stored_object is not None:
+                backend, storage_path, obj_file_path = stored_object
+                try:
+                    self._delete_stored_object(backend, storage_path, obj_file_path)
+                except Exception:
+                    logger.warning(
+                        "upload rollback: orphaned storage object %s (recoverable "
+                        "by a later sweep)",
+                        storage_path or obj_file_path,
+                        exc_info=True,
+                    )
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 
     def extract_text_content(self, document: Document) -> str:
@@ -666,21 +734,35 @@ class FileService:
 
         return metadata
 
-    def delete_physical_file(self, document: Document) -> None:
-        """Delete the physical file from S3, Supabase Storage, or local disk."""
-        if document.storage_backend == "s3" and document.storage_path:
+    def _delete_stored_object(
+        self,
+        storage_backend: Optional[str],
+        storage_path: Optional[str],
+        file_path: Optional[str],
+    ) -> None:
+        """Delete a stored object by its raw identity (backend / key / path).
+
+        Takes plain values rather than a Document so it can run in the upload
+        rollback path, where the ORM instance may be expired — a sync attribute
+        read on an expired instance raises MissingGreenlet in an async session.
+        """
+        if storage_backend == "s3" and storage_path:
             from src.core.s3_client import S3StorageHelper
 
-            helper = S3StorageHelper()
-            helper.delete_file(document.storage_path)
-        elif document.storage_backend == "supabase" and document.storage_path:
+            S3StorageHelper().delete_file(storage_path)
+        elif storage_backend == "supabase" and storage_path:
             from src.core.supabase_client import parse_storage_key
 
-            bucket, key = parse_storage_key(document.storage_path)
+            bucket, key = parse_storage_key(storage_path)
             self.storage_helper.delete_file(bucket, key)
-        else:
-            if os.path.exists(document.file_path):
-                os.remove(document.file_path)
+        elif file_path and os.path.exists(file_path):
+            os.remove(file_path)
+
+    def delete_physical_file(self, document: Document) -> None:
+        """Delete the physical file from S3, Supabase Storage, or local disk."""
+        self._delete_stored_object(
+            document.storage_backend, document.storage_path, document.file_path
+        )
 
     async def delete_file(self, document: Document, user: User) -> bool:
         """Delete file and update storage"""
