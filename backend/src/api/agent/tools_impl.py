@@ -2411,21 +2411,19 @@ async def _tool_create_draft(
         if not project:
             return {"error": "Project not found or access denied"}
 
-        from src.core.database import AsyncSessionLocal
         from src.services.research.draft_generation_service import (
             DraftGenerationService,
         )
 
-        # Use a fresh independent session for draft generation — the agent's
-        # session may be rolled back before the async background task completes.
-        async with AsyncSessionLocal() as draft_db:
-            draft_service = DraftGenerationService(draft_db)
-            result = await draft_service.generate_draft(
-                project_id=project.id,
-                user_id=current_user.id,
-                themes=themes,
-                style=style,
-            )
+        # Background generation owns its own AsyncSessionLocal; the
+        # request session here is only used for the ownership check above.
+        draft_service = DraftGenerationService(db)
+        result = await draft_service.generate_draft(
+            project_id=project.id,
+            user_id=current_user.id,
+            themes=themes,
+            style=style,
+        )
 
         return {
             "task_id": result.get("task_id", ""),
