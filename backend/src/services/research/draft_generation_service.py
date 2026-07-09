@@ -30,6 +30,7 @@ class DraftGenerationStatus:
     ANALYZING = "analyzing"
     GENERATING = "generating"
     CITING = "citing"
+    REVIEWING = "reviewing"
     FINALIZING = "finalizing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -272,6 +273,33 @@ class DraftGenerationService:
                     draft_content, documents
                 )
 
+                citation_review: Optional[Dict[str, Any]] = None
+                from src.core.config import settings
+
+                if settings.DRAFT_CITATION_REVIEW_ENABLED and citations_data:
+                    self._update_status(
+                        task_id,
+                        DraftGenerationStatus.REVIEWING,
+                        85,
+                        "Verifying citations",
+                    )
+                    try:
+                        from src.services.research.citation_verification_service import (
+                            CitationVerificationService,
+                        )
+
+                        citation_review = await CitationVerificationService(
+                            db
+                        ).verify_draft_citations(draft_content, documents)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        # Reviewer failure must never fail the draft.
+                        logger.warning(
+                            "citation_review_failed", task_id=task_id, error=str(exc)
+                        )
+                        citation_review = {"error": str(exc)}
+
                 # Phase 4: Finalizing
                 self._update_status(
                     task_id, DraftGenerationStatus.FINALIZING, 90, "Finalizing draft"
@@ -306,6 +334,11 @@ class DraftGenerationService:
                         "max_sections": max_sections,
                         "include_abstract": include_abstract,
                         "document_count": len(documents),
+                        **(
+                            {"citation_review": citation_review}
+                            if citation_review is not None
+                            else {}
+                        ),
                     },
                     is_current=True,
                 )
