@@ -106,7 +106,7 @@ class DraftGenerationService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self._openai_client = self._init_openai_client()
+        self._openai_client, self._openai_model = self._init_openai_client()
 
     async def generate_draft(
         self,
@@ -364,20 +364,19 @@ class DraftGenerationService:
             )
 
     @staticmethod
-    def _init_openai_client() -> Optional[Any]:
-        """Initialize OpenAI client if API key is available."""
+    def _init_openai_client() -> Tuple[Optional[Any], str]:
+        """Azure-first client selection (extraction_matrix pattern).
+        Returns (client, model); (None, "") when no key is configured →
+        template fallback."""
         try:
-            from src.core.config import settings
+            from src.services.research.extraction_matrix_service import (
+                ExtractionMatrixService,
+            )
 
-            api_key = getattr(settings, "OPENAI_API_KEY", None)
-            if not api_key:
-                return None
-            import openai
-
-            return openai.AsyncOpenAI(api_key=api_key)
-        except Exception as exc:
+            return ExtractionMatrixService._get_openai_client()
+        except Exception as exc:  # RuntimeError = no key configured
             logger.warning("openai_client_init_failed", error=str(exc))
-            return None
+            return None, ""
 
     async def _build_draft_content(
         self,
@@ -462,16 +461,22 @@ class DraftGenerationService:
             + "\n\nGenerate the literature review now."
         )
 
+        create_kwargs: Dict[str, Any] = {
+            "model": self._openai_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        # gpt-5 family rejects temperature and max_tokens (Azure 400s);
+        # mirrors azure_openai_service.py's gpt-5 handling.
+        if self._openai_model.startswith("gpt-5"):
+            create_kwargs["max_completion_tokens"] = 4000
+        else:
+            create_kwargs["max_tokens"] = 4000
+            create_kwargs["temperature"] = 0.7
         response = await asyncio.wait_for(
-            self._openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.7,
-                max_tokens=4000,
-            ),
+            self._openai_client.chat.completions.create(**create_kwargs),
             timeout=60.0,
         )
 
