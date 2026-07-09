@@ -105,11 +105,11 @@ export interface ChatPageMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
-  /** Transient marker on the in-flight assistant turn (AUI_FULL path): the
+  /** Transient marker on the in-flight assistant turn path: the
    * message is a live placeholder whose text/steps/citations are read from the
    * streaming store, not from these fields. Cleared when the turn commits. */
   isStreaming?: boolean;
-  /** In-band HITL approval gate (AUI_FULL / P4): the agent paused awaiting
+  /** In-band HITL approval gate (P4): the agent paused awaiting
    * confirmation of this tool. convertMessage emits an approval tool-call part
    * that the registered HitlApprovalToolUI renders in the message stream. */
   pendingApproval?: { toolName: string; args: Record<string, unknown> };

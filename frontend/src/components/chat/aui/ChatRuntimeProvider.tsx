@@ -8,7 +8,6 @@ import {
 } from '@assistant-ui/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
-import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 
 import { convertMessage } from './convertMessage';
 import { NousToolUIs } from './toolUIs';
@@ -23,8 +22,8 @@ export interface ChatRuntimeProviderProps {
    * external-store API even though the composer stays custom in stage 1. */
   onSend: (text: string) => void;
   onCancel: () => void;
-  /** Resolves an in-band HITL approval (AUI_FULL / P4). Wired to the
-   * ExternalStore adapter's onRespondToToolApproval so the approval tool UI's
+  /** Resolves an in-band HITL approval (P4). Wired to the ExternalStore
+   * adapter's onRespondToToolApproval so the approval tool UI's
    * respondToApproval routes to the existing hardened confirm handler. */
   onApproval?: (approved: boolean) => void;
   children: ReactNode;
@@ -87,8 +86,8 @@ export function ChatRuntimeProvider({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       {/* Declarative per-tool renderers (register on mount, render null).
-          Flag-gated: unregistered tools keep the generic ToolFallback. */}
-      {AUI_FULL && <NousToolUIs />}
+          Unregistered tools keep the generic ToolFallback. */}
+      <NousToolUIs />
       {children}
     </AssistantRuntimeProvider>
   );

@@ -7,7 +7,7 @@ import { FileSearch } from 'lucide-react';
 import { HitlApprovalToolUI } from './HitlApprovalToolUI';
 
 /**
- * Declarative per-tool renderers (AUI_FULL / P2). Each is registered by
+ * Declarative per-tool renderers (P2). Each is registered by
  * `toolName` via `makeAssistantToolUI`; a matching tool-call part then routes
  * to it instead of the generic `ToolFallback`. Renderers branch on
  * `status.type` (running → skeleton, incomplete → error, complete → result)

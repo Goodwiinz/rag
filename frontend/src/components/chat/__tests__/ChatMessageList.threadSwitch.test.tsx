@@ -20,7 +20,6 @@ const baseProps = {
   isLoading: false,
   storeIsStreaming: false,
   storeStreamingContent: '',
-  streamingTimestamp: 1,
   onRegenerate: () => {},
   onCitationClick: () => {},
 };

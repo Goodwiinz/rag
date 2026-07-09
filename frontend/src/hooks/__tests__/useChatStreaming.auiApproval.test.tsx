@@ -55,7 +55,7 @@ function makeParams(setMessages: (m: unknown) => void) {
   };
 }
 
-describe('useChatStreaming AUI_FULL in-band HITL approval', () => {
+describe('useChatStreaming in-band HITL approval', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     streamConfirmMock.mockClear();
@@ -66,7 +66,6 @@ describe('useChatStreaming AUI_FULL in-band HITL approval', () => {
   });
 
   it('synthesizes an in-band approval message, and handleConfirmation routes to streamConfirm', async () => {
-    vi.stubEnv('NEXT_PUBLIC_AUI_FULL', 'true');
     vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 

@@ -11,7 +11,6 @@ import React, {
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
-import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
 import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import { VirtualizedMessageList } from '@/components/chat/VirtualizedMessageList';
@@ -22,7 +21,6 @@ import type {
   CommandOutput,
 } from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
-import { useChatStore } from '@/store/chat-store';
 
 const MESSAGE_VIRTUALIZATION_THRESHOLD = 75;
 
@@ -32,7 +30,6 @@ export interface ChatMessageListProps {
   isLoading: boolean;
   storeIsStreaming: boolean;
   storeStreamingContent: string;
-  streamingTimestamp: number;
   onRegenerate: (index: number) => void;
   onCitationClick: (
     citations: Citation[],
@@ -58,7 +55,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   isLoading,
   storeIsStreaming,
   storeStreamingContent,
-  streamingTimestamp,
   onRegenerate,
   onCitationClick,
   commandOutputs,
@@ -68,10 +64,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   hasMore,
   isLoadingOlder,
 }: ChatMessageListProps) {
-  // Live citations captured mid-stream (set once by onRagContext); used to
-  // surface a subtle "reading sources" chip while the answer streams.
-  const streamingCitations = useChatStore((s) => s.streamingCitations);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -198,9 +190,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
   // Memoize the committed message list so it doesn't re-map on every
-  // streaming token. The streaming bubble (below) reads storeStreamingContent
-  // and streamingCitations directly and is outside this memo. Dependencies
-  // are only things that actually change the committed list's output.
+  // streaming token. The in-flight turn streams via its own placeholder
+  // message (AuiStreamingBody reads the store directly), so this memo's
+  // dependencies are only things that actually change the committed list.
   const renderedMessages = useMemo(
     () =>
       messages.map((message, index) => {
@@ -329,70 +321,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               renderedMessages
             )}
           </React.Fragment>
-
-          {/* Streaming assistant message.
-              Hide it the instant the streamed answer is COMMITTED — i.e. the
-              last message is an assistant turn whose content equals what we
-              streamed. Both derive from the same React list, so the bubble
-              unmounts in the same render the final message appears. Gating only
-              on the Zustand `storeIsStreaming` flag raced the React message
-              append across two reactive systems, leaving a window where the
-              same answer painted twice (streamed bubble + committed bubble).
-              We compare CONTENT, not just role: during a regenerate the stale
-              assistant answer is still the last message while a NEW stream is
-              in flight, so a role-only check would wrongly hide the live bubble
-              for the whole turn. The exit is instant so the exiting bubble
-              can't repaint the full streamed answer over the committed one. */}
-          <AnimatePresence>
-            {!AUI_FULL &&
-              storeIsStreaming &&
-              !(
-                messages[messages.length - 1]?.role === 'assistant' &&
-                messages[messages.length - 1]?.content === storeStreamingContent
-              ) && (
-                <motion.div
-                  key="streaming-message"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, transition: { duration: 0 } }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <InlineAgentSummary threadId={activeThreadId} />
-                  {streamingCitations.length > 0 && (
-                    <div
-                      role="status"
-                      aria-live="polite"
-                      className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-nous-mono text-[10px]"
-                      style={{
-                        color: 'var(--nous-fg-2)',
-                        backgroundColor: 'var(--nous-bg-2)',
-                        borderColor: 'var(--nous-border-1)',
-                      }}
-                    >
-                      <span
-                        className="h-1.5 w-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: 'var(--nous-sol)' }}
-                      />
-                      Reading {streamingCitations.length}{' '}
-                      {streamingCitations.length === 1 ? 'source' : 'sources'}
-                    </div>
-                  )}
-                  <ChatBubble
-                    message={{
-                      role: 'assistant',
-                      content: '',
-                      timestamp: streamingTimestamp,
-                    }}
-                    index={messages.length}
-                    modelName="NOUS"
-                    isStreaming={true}
-                    streamingContent={storeStreamingContent}
-                    onCitationClick={onCitationClick}
-                    thinkingLabel={thinkingLabel}
-                  />
-                </motion.div>
-              )}
-          </AnimatePresence>
 
           {/* Ephemeral CLI command output (not persisted, not sent to agent) */}
           {commandOutputs?.map((output) => (

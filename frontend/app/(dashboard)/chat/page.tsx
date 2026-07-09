@@ -15,10 +15,9 @@ import { enhancedDocumentService } from '@/services/enhancedDocumentService';
 import toast from 'react-hot-toast';
 import { Citation } from '@/utils/citationParser';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, Loader2, ShieldCheck } from 'lucide-react';
+import { Activity, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
-  Fragment,
   Suspense,
   useCallback,
   useEffect,
@@ -26,7 +25,6 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { AUI_FULL } from '@/components/chat/shared/auiFlags';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import {
   useChatStreaming,
@@ -57,46 +55,6 @@ function relativeTime(ms: number): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(ms).toLocaleDateString();
-}
-
-// ============================================
-// HITL HELPERS
-// ============================================
-
-interface ToolCallPreview {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-function extractToolCall(
-  confirmation: Record<string, unknown> | undefined
-): ToolCallPreview | null {
-  if (!confirmation) return null;
-  const flatName = confirmation.tool_name as string | undefined;
-  const flatArgs = (confirmation.tool_args ?? confirmation.args) as
-    Record<string, unknown> | undefined;
-  if (flatName) return { name: flatName, args: flatArgs ?? {} };
-  const tools = confirmation.tools as
-    Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
-  const first = tools?.[0];
-  if (first?.name) return { name: first.name, args: first.args ?? {} };
-  return null;
-}
-
-function formatArgValue(value: unknown, max = 140): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string') {
-    return value.length > max ? value.slice(0, max - 1) + '…' : value;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  try {
-    const s = JSON.stringify(value);
-    return s.length > max ? s.slice(0, max - 1) + '…' : s;
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 // Shared loading skeleton for cold-load + thread-switch (on-brand bubble rows).
@@ -172,13 +130,11 @@ function ChatPageContent() {
     handleSubmit,
     handleStop,
     pendingConfirmation,
-    isConfirming,
     handleConfirmation,
     chatInputRef,
     storeIsStreaming,
     storeStreamingContent,
     storeIsRetrievingRag,
-    streamingTimestampRef,
     selectedModel,
     setSelectedModel,
   } = useChatStreaming({
@@ -862,16 +818,13 @@ function ChatPageContent() {
     }
   }, []);
 
-  // HITL banner: move focus to Approve when it appears (scoped to the owning
-  // thread), and return focus to the composer when it resolves — the
-  // Approve/Deny button just unmounted, so without this focus drops to <body>.
-  const approveRef = useRef<HTMLButtonElement>(null);
+  // Return focus to the composer when a HITL confirmation resolves — the
+  // in-band Approve/Deny part just unmounted, so without this focus would drop
+  // to <body>. (The approval part handles its own Approve autofocus on appear.)
   const prevActiveConfirmationRef = useRef<PendingConfirmation | null>(null);
   useEffect(() => {
     const had = prevActiveConfirmationRef.current;
-    if (activeConfirmation) {
-      approveRef.current?.focus();
-    } else if (had) {
+    if (!activeConfirmation && had) {
       chatInputRef.current?.focus();
     }
     prevActiveConfirmationRef.current = activeConfirmation;
@@ -1047,7 +1000,6 @@ function ChatPageContent() {
               isLoading={isLoading}
               storeIsStreaming={storeIsStreaming}
               storeStreamingContent={storeStreamingContent}
-              streamingTimestamp={streamingTimestampRef.current}
               onRegenerate={handleRegenerate}
               onCitationClick={handleCitationClick}
               commandOutputs={commandOutputs}
@@ -1071,99 +1023,6 @@ function ChatPageContent() {
             />
           )}
 
-          {/* HITL Confirmation Banner — flag-off fallback. Under AUI_FULL the
-              approval renders in-band in the transcript (HitlApprovalToolUI). */}
-          {activeConfirmation && !AUI_FULL && (
-            <div
-              role="alertdialog"
-              aria-label="Approval needed"
-              aria-describedby="hitl-desc"
-              tabIndex={-1}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && !isConfirming)
-                  handleConfirmation(false);
-              }}
-              className="mx-2 sm:mx-4 mb-2 p-3 sm:p-4 rounded-xl border border-(--nous-sol)/30 bg-(--nous-sol)/5 outline-hidden"
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <ShieldCheck
-                  aria-hidden
-                  className="h-4 w-4 text-(--nous-sol)"
-                  strokeWidth={1.8}
-                />
-                <p
-                  className="text-sm font-medium text-(--nous-fg-2)"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
-                  Approval needed
-                </p>
-              </div>
-              {(() => {
-                const call = extractToolCall(activeConfirmation.confirmation);
-                const argEntries = call ? Object.entries(call.args) : [];
-                return (
-                  <>
-                    <p
-                      id="hitl-desc"
-                      className="text-sm leading-relaxed text-(--nous-fg-1) mb-3"
-                      style={{ fontFamily: 'var(--nous-font-ui)' }}
-                    >
-                      The agent wants to run{' '}
-                      <span
-                        className="rounded bg-(--nous-sol-subtle) px-1.5 py-0.5 text-(--nous-fg-accent)"
-                        style={{ fontFamily: 'var(--nous-font-mono)' }}
-                      >
-                        {call?.name ?? 'this action'}
-                      </span>
-                      . Approve to let it continue, or Deny to stop.
-                    </p>
-                    {argEntries.length > 0 && (
-                      <dl
-                        className="mb-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-2)/60 p-3 text-xs"
-                        aria-label="Tool arguments"
-                      >
-                        {argEntries.map(([key, value]) => (
-                          <Fragment key={key}>
-                            <dt
-                              className="whitespace-nowrap text-(--nous-fg-3)"
-                              style={{ fontFamily: 'var(--nous-font-mono)' }}
-                            >
-                              {key}
-                            </dt>
-                            <dd
-                              className="break-all text-(--nous-fg-2)"
-                              style={{ fontFamily: 'var(--nous-font-mono)' }}
-                            >
-                              {formatArgValue(value)}
-                            </dd>
-                          </Fragment>
-                        ))}
-                      </dl>
-                    )}
-                  </>
-                );
-              })()}
-              <div className="flex items-center gap-3">
-                <button
-                  ref={approveRef}
-                  onClick={() => handleConfirmation(true)}
-                  disabled={isConfirming}
-                  className="px-4 py-2 rounded-xl bg-(--nous-sol) text-(--nous-erebus) text-xs font-semibold hover:brightness-110 disabled:opacity-50 transition-all"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
-                  {isConfirming ? 'Processing…' : 'Approve'}
-                </button>
-                <button
-                  onClick={() => handleConfirmation(false)}
-                  disabled={isConfirming}
-                  className="px-4 py-2 rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 text-(--nous-mars) text-xs font-semibold hover:bg-(--nous-mars)/10 disabled:opacity-50 transition-all"
-                  style={{ fontFamily: 'var(--nous-font-ui)' }}
-                >
-                  Deny
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Input Area */}
           <ChatInput
