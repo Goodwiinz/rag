@@ -54,6 +54,9 @@ function makeParams() {
     messages: [
       { role: 'user', content: 'earlier question', timestamp: 1 },
     ] as ChatPageMessage[],
+    displayedMessages: [
+      { role: 'user', content: 'earlier question', timestamp: 1 },
+    ] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
     setConversations: vi.fn(),

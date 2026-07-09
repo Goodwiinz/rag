@@ -139,6 +139,7 @@ function ChatPageContent() {
     setSelectedModel,
   } = useChatStreaming({
     messages,
+    displayedMessages,
     setMessages,
     conversations,
     setConversations,

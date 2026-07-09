@@ -182,6 +182,13 @@ export function confirmationBelongsToThread(
 
 export interface UseChatStreamingParams {
   messages: ChatPageMessage[];
+  /** CX2: the reconciled view the user actually sees (local ∪ store) —
+   * `selectDisplayedMessages` in useChatSession. handleSubmit must build the
+   * posted turn from this, not `messages`: `messages` is empty during the
+   * lazy-load window right after a thread switch (threads list seeds
+   * `conversations` with `messages: []`), while the store already has the
+   * transcript — submitting from `messages` silently dropped the history. */
+  displayedMessages: ChatPageMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
@@ -220,6 +227,7 @@ export function useChatStreaming(
 ): UseChatStreamingReturn {
   const {
     messages,
+    displayedMessages,
     setMessages,
     conversations,
     setConversations,
@@ -794,7 +802,11 @@ export function useChatStreaming(
         timestamp: Date.now(),
       };
 
-      const newMessages = [...messages, userMessage];
+      // CX2: build the turn from the RECONCILED view (local ∪ store) — the
+      // local array is empty during the lazy-load window after a thread
+      // switch, and submitting from it silently dropped the whole history.
+      const history = displayedMessages;
+      const newMessages = [...history, userMessage];
       setMessages(newMessages);
       setInput('');
       setIsLoading(true);
@@ -936,6 +948,7 @@ export function useChatStreaming(
       isLoading,
       storeIsStreaming,
       messages,
+      displayedMessages,
       setMessages,
       activeConversationIdRef,
       activeConversationId,

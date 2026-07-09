@@ -41,6 +41,7 @@ type StreamCallbacks = {
 function makeParams() {
   return {
     messages: [] as ChatPageMessage[],
+    displayedMessages: [] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
     setConversations: vi.fn(),
