@@ -6,7 +6,7 @@ import type {
 } from '@/components/chat/shared/cloudMessageView';
 import type { MessageAttachment } from '@/types/workspace';
 
-import { HITL_APPROVAL_TOOL } from './hitlBridge';
+import { HITL_APPROVAL_TOOL } from './hitlConstants';
 
 type ToolCallPart = {
   type: 'tool-call';
@@ -20,6 +20,10 @@ type ToolCallPart = {
   argsText: string;
   result?: string;
   isError?: true;
+  // Real approval gate for the in-band HITL part (AUI_FULL / P4). `approved`
+  // omitted = pending, so the renderer's respondToApproval is callable and
+  // routes to the adapter's onRespondToToolApproval.
+  approval?: { readonly id: string; readonly approved?: boolean };
 };
 
 // Tool parts must be referentially stable across per-token re-conversions of
@@ -124,6 +128,7 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
             toolArgs: message.pendingApproval.args,
           } as unknown as Record<string, never>,
           argsText: '',
+          approval: { id: `${message.id ?? message.timestamp}-approval` },
         },
       ]
     : [];

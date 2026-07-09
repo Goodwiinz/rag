@@ -13,7 +13,6 @@ import toast from 'react-hot-toast';
 
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { AUI_FULL } from '@/components/chat/shared/auiFlags';
-import { useHitlBridge } from '@/components/chat/aui/hitlBridge';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
   ChatConversation,
@@ -1336,13 +1335,13 @@ export function useChatStreaming(
     ]
   );
 
-  // AUI_FULL / P4: mirror the pending confirmation into (a) the HITL bridge —
-  // whose respond() drives the existing hardened handleConfirmation — and
-  // (b) an in-band approval message the registered HitlApprovalToolUI renders
-  // in the transcript. The flag-off inline banner in page.tsx is the fallback;
-  // handleConfirmation/streamConfirm internals are untouched.
-  const handleConfirmationRef = useRef(handleConfirmation);
-  handleConfirmationRef.current = handleConfirmation;
+  // AUI_FULL / P4: mirror the active pending confirmation into an in-band
+  // approval message the registered HitlApprovalToolUI renders in the
+  // transcript. Its Approve/Deny call the runtime's respondToApproval, which
+  // routes through the ExternalStore adapter (ChatRuntimeProvider's
+  // onRespondToToolApproval → onApproval=handleConfirmation). The flag-off
+  // inline banner in page.tsx is the fallback; handleConfirmation/streamConfirm
+  // internals are untouched.
   useEffect(() => {
     if (!AUI_FULL) return;
     const active = confirmationBelongsToThread(
@@ -1351,17 +1350,6 @@ export function useChatStreaming(
     )
       ? pendingConfirmation
       : null;
-
-    if (active) {
-      const preview = extractConfirmationPreview(active.confirmation);
-      useHitlBridge.getState().open(
-        { id: active.threadId, toolName: preview.name, args: preview.args },
-        (approved) => handleConfirmationRef.current(approved)
-      );
-    } else {
-      useHitlBridge.getState().close();
-    }
-    useHitlBridge.getState().setResponding(isConfirming);
 
     // Keep exactly one approval message in the transcript for the active gate.
     setMessages((prev) => {
@@ -1378,12 +1366,7 @@ export function useChatStreaming(
         },
       ];
     });
-  }, [
-    pendingConfirmation,
-    activeConversationId,
-    isConfirming,
-    setMessages,
-  ]);
+  }, [pendingConfirmation, activeConversationId, setMessages]);
 
   return {
     input,

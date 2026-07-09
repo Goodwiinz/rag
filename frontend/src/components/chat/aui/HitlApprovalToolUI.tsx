@@ -1,10 +1,10 @@
 'use client';
 
-import { Fragment, useEffect, useRef, type ReactElement } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactElement } from 'react';
 import { makeAssistantToolUI } from '@assistant-ui/react';
 import { ShieldCheck } from 'lucide-react';
 
-import { HITL_APPROVAL_TOOL, useHitlBridge } from './hitlBridge';
+import { HITL_APPROVAL_TOOL } from './hitlConstants';
 
 export { HITL_APPROVAL_TOOL };
 
@@ -26,12 +26,12 @@ function formatArgValue(value: unknown, max = 140): string {
 
 /**
  * Renders the HITL approval gate in-band at the tool-call position (replaces
- * the detached page-level banner under AUI_FULL). NOUS resolves confirmations
- * over the separate streamConfirm endpoint, so approve/deny drive the hardened
- * `handleConfirmation` via the bridge store — `respondToApproval` is called
- * best-effort for runtime part-state, but the bridge is the source of truth.
- * Accessibility (alertdialog role, Approve autofocus, Escape=deny, disabled
- * while responding) mirrors the banner it replaces.
+ * the detached page-level banner under AUI_FULL). The part carries a real
+ * `approval` gate, so Approve/Deny call the runtime's `respondToApproval`,
+ * which routes to the ExternalStore adapter's `onRespondToToolApproval`
+ * (wired in ChatRuntimeProvider → handleConfirmation → streamConfirm). No
+ * side-channel bridge. Accessibility (alertdialog role, Approve autofocus,
+ * Escape=deny, disabled after submit) mirrors the banner it replaces.
  */
 export const HitlApprovalToolUI = makeAssistantToolUI<
   { toolName?: string; toolArgs?: Record<string, unknown> },
@@ -39,32 +39,28 @@ export const HitlApprovalToolUI = makeAssistantToolUI<
 >({
   toolName: HITL_APPROVAL_TOOL,
   display: 'standalone',
-  render: ({ args, respondToApproval }): ReactElement | null => {
-    const request = useHitlBridge((s) => s.request);
-    const respond = useHitlBridge((s) => s.respond);
-    const isResponding = useHitlBridge((s) => s.isResponding);
+  render: ({ args, approval, respondToApproval }): ReactElement | null => {
     const approveRef = useRef<HTMLButtonElement>(null);
+    // Local latch: disable the buttons the instant the user decides, until the
+    // gate resolves and the message is removed. Prevents double-submit.
+    const [submitted, setSubmitted] = useState(false);
 
     // Move focus to Approve when the gate appears (mirrors the banner).
     useEffect(() => {
-      if (request) approveRef.current?.focus();
-    }, [request]);
+      approveRef.current?.focus();
+    }, []);
 
-    // Gate already resolved (bridge closed) — render nothing.
-    if (!request || !respond) return null;
+    // Only render while the gate is open (approved === undefined).
+    if (!approval || approval.approved !== undefined) return null;
 
-    const toolName = args?.toolName ?? request.toolName ?? 'this action';
-    const toolArgs = args?.toolArgs ?? request.args ?? {};
+    const toolName = args?.toolName ?? 'this action';
+    const toolArgs = args?.toolArgs ?? {};
     const argEntries = Object.entries(toolArgs);
 
     const decide = (approved: boolean) => {
-      // Best-effort runtime signal; the bridge does the real resolution.
-      try {
-        respondToApproval?.({ approved });
-      } catch {
-        /* respondToApproval is not wired for the external-store transport */
-      }
-      respond(approved);
+      if (submitted) return;
+      setSubmitted(true);
+      respondToApproval({ approved });
     };
 
     return (
@@ -74,7 +70,7 @@ export const HitlApprovalToolUI = makeAssistantToolUI<
         aria-describedby="hitl-tool-desc"
         tabIndex={-1}
         onKeyDown={(e) => {
-          if (e.key === 'Escape' && !isResponding) decide(false);
+          if (e.key === 'Escape' && !submitted) decide(false);
         }}
         className="my-2 rounded-xl border border-(--nous-sol)/30 bg-(--nous-sol)/5 p-3 outline-hidden sm:p-4"
       >
@@ -132,15 +128,15 @@ export const HitlApprovalToolUI = makeAssistantToolUI<
           <button
             ref={approveRef}
             onClick={() => decide(true)}
-            disabled={isResponding}
+            disabled={submitted}
             className="rounded-xl bg-(--nous-sol) px-4 py-2 text-xs font-semibold text-(--nous-erebus) transition-all hover:brightness-110 disabled:opacity-50"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
-            {isResponding ? 'Processing…' : 'Approve'}
+            {submitted ? 'Processing…' : 'Approve'}
           </button>
           <button
             onClick={() => decide(false)}
-            disabled={isResponding}
+            disabled={submitted}
             className="rounded-xl border border-(--nous-mars)/40 bg-(--nous-mars)/5 px-4 py-2 text-xs font-semibold text-(--nous-mars) transition-all hover:bg-(--nous-mars)/10 disabled:opacity-50"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
