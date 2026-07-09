@@ -67,6 +67,7 @@ from src.core.config import settings
 from src.core.database import get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import JobStatus, JobType, ProcessingJob
+from src.services.documents.storage_utils import local_file_for_document
 from src.services.embedding.embedding_service import EmbeddingService
 from src.services.processing.entity_extraction_service import EntityExtractionService
 
@@ -291,7 +292,6 @@ class MultimodalProcessingService:
             if not OCR_AVAILABLE:
                 return {"error": "OCR libraries not available"}
 
-            file_path = document.file_path
             results = {
                 "text_content": "",
                 "page_count": 0,
@@ -299,50 +299,51 @@ class MultimodalProcessingService:
                 "metadata": {},
             }
 
-            # Extract text using PyMuPDF
-            try:
-                pdf_document = fitz.open(file_path)
-                results["page_count"] = len(pdf_document)
-
-                text_content = []
-                for page_num in range(len(pdf_document)):
-                    page = pdf_document.load_page(page_num)
-                    text_content.append(page.get_text())
-
-                results["text_content"] = "\n".join(text_content)
-
-                # Extract metadata
-                metadata = pdf_document.metadata
-                results["metadata"] = {
-                    "title": metadata.get("title", ""),
-                    "author": metadata.get("author", ""),
-                    "subject": metadata.get("subject", ""),
-                    "creator": metadata.get("creator", ""),
-                    "producer": metadata.get("producer", ""),
-                    "creation_date": metadata.get("creationDate", ""),
-                    "modification_date": metadata.get("modDate", ""),
-                }
-
-                pdf_document.close()
-
-            except Exception as e:
-                logger.error(f"PyMuPDF processing failed: {str(e)}")
-
-                # Fallback to pdfplumber
+            with local_file_for_document(document) as file_path:
+                # Extract text using PyMuPDF
                 try:
-                    import pdfplumber
+                    pdf_document = fitz.open(file_path)
+                    results["page_count"] = len(pdf_document)
 
-                    with pdfplumber.open(file_path) as pdf:
-                        text_content = []
-                        for page in pdf.pages:
-                            text_content.append(page.extract_text())
+                    text_content = []
+                    for page_num in range(len(pdf_document)):
+                        page = pdf_document.load_page(page_num)
+                        text_content.append(page.get_text())
 
-                        results["text_content"] = "\n".join(text_content)
-                        results["page_count"] = len(pdf.pages)
+                    results["text_content"] = "\n".join(text_content)
 
-                except Exception as e2:
-                    logger.error(f"pdfplumber fallback failed: {str(e2)}")
-                    raise e
+                    # Extract metadata
+                    metadata = pdf_document.metadata
+                    results["metadata"] = {
+                        "title": metadata.get("title", ""),
+                        "author": metadata.get("author", ""),
+                        "subject": metadata.get("subject", ""),
+                        "creator": metadata.get("creator", ""),
+                        "producer": metadata.get("producer", ""),
+                        "creation_date": metadata.get("creationDate", ""),
+                        "modification_date": metadata.get("modDate", ""),
+                    }
+
+                    pdf_document.close()
+
+                except Exception as e:
+                    logger.error(f"PyMuPDF processing failed: {str(e)}")
+
+                    # Fallback to pdfplumber
+                    try:
+                        import pdfplumber
+
+                        with pdfplumber.open(file_path) as pdf:
+                            text_content = []
+                            for page in pdf.pages:
+                                text_content.append(page.extract_text())
+
+                            results["text_content"] = "\n".join(text_content)
+                            results["page_count"] = len(pdf.pages)
+
+                    except Exception as e2:
+                        logger.error(f"pdfplumber fallback failed: {str(e2)}")
+                        raise e
 
             return results
 
@@ -358,53 +359,53 @@ class MultimodalProcessingService:
             if not OCR_AVAILABLE:
                 return {"error": "OCR not available"}
 
-            file_path = document.file_path
             results = {"ocr_text": "", "confidence_scores": [], "processing_time": 0}
 
             start_time = time.time()
 
-            # Use pytesseract for OCR
-            try:
-                import fitz
-                import pytesseract
-                from PIL import Image
+            with local_file_for_document(document) as file_path:
+                # Use pytesseract for OCR
+                try:
+                    import fitz
+                    import pytesseract
+                    from PIL import Image
 
-                pdf_document = fitz.open(file_path)
-                ocr_text_pages = []
+                    pdf_document = fitz.open(file_path)
+                    ocr_text_pages = []
 
-                for page_num in range(len(pdf_document)):
-                    page = pdf_document.load_page(page_num)
+                    for page_num in range(len(pdf_document)):
+                        page = pdf_document.load_page(page_num)
 
-                    # Convert page to image
-                    pix = page.get_pixmap(
-                        matrix=fitz.Matrix(2, 2)
-                    )  # 2x zoom for better OCR
-                    img_data = pix.tobytes("png")
+                        # Convert page to image
+                        pix = page.get_pixmap(
+                            matrix=fitz.Matrix(2, 2)
+                        )  # 2x zoom for better OCR
+                        img_data = pix.tobytes("png")
 
-                    # Perform OCR
-                    image = Image.open(io.BytesIO(img_data))
-                    text = pytesseract.image_to_string(image)
-                    confidence = pytesseract.image_to_data(
-                        image, output_type=pytesseract.Output.DICT
-                    )
+                        # Perform OCR
+                        image = Image.open(io.BytesIO(img_data))
+                        text = pytesseract.image_to_string(image)
+                        confidence = pytesseract.image_to_data(
+                            image, output_type=pytesseract.Output.DICT
+                        )
 
-                    ocr_text_pages.append(text)
+                        ocr_text_pages.append(text)
 
-                    # Calculate average confidence
-                    if confidence.get("conf"):
-                        avg_confidence = sum(
-                            conf["conf"] for conf in confidence["conf"] if conf > 0
-                        ) / len([c for c in confidence["conf"] if c > 0])
-                        results["confidence_scores"].append(avg_confidence)
+                        # Calculate average confidence
+                        if confidence.get("conf"):
+                            avg_confidence = sum(
+                                conf["conf"] for conf in confidence["conf"] if conf > 0
+                            ) / len([c for c in confidence["conf"] if c > 0])
+                            results["confidence_scores"].append(avg_confidence)
 
-                results["ocr_text"] = "\n".join(ocr_text_pages)
-                results["processing_time"] = time.time() - start_time
+                    results["ocr_text"] = "\n".join(ocr_text_pages)
+                    results["processing_time"] = time.time() - start_time
 
-                pdf_document.close()
+                    pdf_document.close()
 
-            except Exception as e:
-                logger.error(f"OCR processing failed: {str(e)}")
-                raise
+                except Exception as e:
+                    logger.error(f"OCR processing failed: {str(e)}")
+                    raise
 
             return results
 
@@ -420,6 +421,9 @@ class MultimodalProcessingService:
             if not IMAGE_PROCESSING_AVAILABLE:
                 return {"error": "Image processing libraries not available"}
 
+            # ponytail: same s3 file_path bug as process_pdf/extract_text_with_ocr
+            # (and the 7 other file_path sites below); fix when image/audio/video
+            # pipelines are actually live.
             file_path = document.file_path
             results = {
                 "width": 0,
