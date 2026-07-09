@@ -187,7 +187,11 @@ async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
     with (
         patch(
             "src.core.config.settings",
-            MagicMock(DO_KB_ENABLED=True, AGENT_DOKB_COHERE_RERANK=True),
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=True,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch("src.services.do_kb.rerank.cohere_rescore_chunks", mock_rescore),
@@ -229,7 +233,11 @@ async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
     with (
         patch(
             "src.core.config.settings",
-            MagicMock(DO_KB_ENABLED=True, AGENT_DOKB_COHERE_RERANK=False),
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=False,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch("src.services.do_kb.rerank.cohere_rescore_chunks") as mock_rescore,
@@ -239,3 +247,116 @@ async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
     mock_rescore.assert_not_called()
     assert [c["document_id"] for c in result["chunks"]] == ["a.pdf", "b.pdf"]
     assert [c["score"] for c in result["chunks"]] == [0.9, 0.5]
+
+
+# -- Call-site wiring: evidence_mode / summarize_evidence (PR-2) -------------
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
+    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[Chunk(text="a", score=0.9, document_id="a.pdf", metadata={})],
+            total=1,
+        )
+    )
+
+    enriched_payload = [
+        {
+            "text": "a",
+            "score": 0.9,
+            "document_id": "a.pdf",
+            "title": "a.pdf",
+            "metadata": {},
+            "relevance": 8,
+            "summary": "on point",
+            "quote": "a",
+        }
+    ]
+    mock_summarize = AsyncMock(return_value=enriched_payload)
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=False,
+                AGENT_ITERATIVE_RETRIEVAL=True,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch("src.services.agent.evidence.summarize_evidence", mock_summarize),
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    mock_summarize.assert_awaited_once()
+    call_args = mock_summarize.call_args.args
+    assert call_args[0] == "x"
+    assert call_args[1] == [
+        {
+            "text": "a",
+            "score": 0.9,
+            "document_id": "a.pdf",
+            "title": "a.pdf",
+            "metadata": {},
+        }
+    ]
+    assert result["evidence_mode"] is True
+    assert result["chunks"] == enriched_payload
+
+
+@pytest.mark.unit
+async def test_tool_do_kb_retrieve_evidence_flag_off_never_calls_summarize_evidence():
+    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.do_kb.models import RetrieveResult
+
+    user = MagicMock()
+    user.organization_id = "org-1"
+
+    db = MagicMock()
+    org_row = MagicMock()
+    org_row.do_kb_uuid = "kb-1"
+    db.get = AsyncMock(return_value=org_row)
+    empty_rows = MagicMock()
+    empty_rows.__iter__ = lambda self: iter([])
+    db.execute = AsyncMock(return_value=empty_rows)
+
+    fake_client = MagicMock()
+    fake_client.retrieve = AsyncMock(
+        return_value=RetrieveResult(
+            chunks=[Chunk(text="a", score=0.9, document_id="a.pdf", metadata={})],
+            total=1,
+        )
+    )
+
+    with (
+        patch(
+            "src.core.config.settings",
+            MagicMock(
+                DO_KB_ENABLED=True,
+                AGENT_DOKB_COHERE_RERANK=False,
+                AGENT_ITERATIVE_RETRIEVAL=False,
+            ),
+        ),
+        patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
+        patch("src.services.agent.evidence.summarize_evidence") as mock_summarize,
+    ):
+        result = await _tool_do_kb_retrieve({"query": "x", "top_k": 5}, db, user)
+
+    mock_summarize.assert_not_called()
+    assert result["evidence_mode"] is False

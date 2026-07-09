@@ -1527,11 +1527,20 @@ async def _tool_do_kb_retrieve(
                 "metadata": c.metadata,
             }
         )
+
+    evidence_mode = False
+    if chunks_payload and getattr(_kb_settings, "AGENT_ITERATIVE_RETRIEVAL", False):
+        from src.services.agent.evidence import summarize_evidence
+
+        chunks_payload = await summarize_evidence(query, chunks_payload)
+        evidence_mode = True
+
     return {
         "chunks": chunks_payload,
         "total": len(chunks_payload) if project_id else result.total,
         "source": "do_kb",
         "query": query,
+        "evidence_mode": evidence_mode,
     }
 
 

@@ -429,6 +429,13 @@ class Settings(BaseSettings):
     # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
     AGENT_DOKB_COHERE_RERANK: bool = False
 
+    # PaperQA2-style gather-evidence inside do_kb_retrieve: rerank-ordered
+    # chunks get per-chunk contextual relevance summaries + verbatim quotes
+    # from the lightweight LLM, enabling narrow-then-broad iteration within
+    # the existing tool-loop ceiling. Adds up to 5 lightweight LLM calls
+    # (~20s budget) per do_kb_retrieve call.
+    AGENT_ITERATIVE_RETRIEVAL: bool = False
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None
