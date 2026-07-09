@@ -17,6 +17,7 @@ and the listener delivers to LOCAL subscribers only (never re-publishes).
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
@@ -183,3 +184,46 @@ async def test_dispatch_legacy_channel_payload_still_routes():
     await mgr._dispatch_cluster_message(bd)
 
     assert len(ws.sent) == 1
+
+
+class HangWS(FakeWS):
+    """A socket whose send never completes — simulates a stuck/slow client."""
+
+    async def send_json(self, payload):
+        await asyncio.sleep(3600)
+
+
+@pytest.mark.asyncio
+async def test_slow_client_does_not_block_fanout_and_is_disconnected():
+    # FO4: one stuck client must not head-of-line-block delivery to everyone else.
+    mgr = EnhancedConnectionManager()
+    mgr.send_timeout = 0.05  # fail fast in the test
+
+    _, fast_ws = _register(
+        mgr, user_id="u-fast", org_id="orgA", channels=("broadcast_ch",), conn_id="fast"
+    )
+    slow_ws = HangWS()
+    slow = ConnectionInfo(
+        user_id="u-slow",
+        organization_id="orgA",
+        connection_id="slow",
+        websocket=slow_ws,
+        connected_at=_now(),
+        last_heartbeat=_now(),
+        subscribed_channels={"broadcast_ch"},
+        client_info={"role": "USER"},
+    )
+    mgr.active_connections["slow"] = slow
+    mgr.user_connections["u-slow"].add("slow")
+    mgr.organization_connections["orgA"].add("slow")
+    mgr.channel_subscribers["broadcast_ch"].add("slow")
+
+    # The whole broadcast must finish quickly despite the hanging client.
+    await asyncio.wait_for(
+        mgr.broadcast_to_channel("broadcast_ch", _msg(target_org=None)), timeout=1.0
+    )
+    assert len(fast_ws.sent) == 1  # fast client delivered, not blocked by the slow one
+
+    # The slow client's send timed out -> a disconnect was scheduled; let it run.
+    await asyncio.sleep(0.1)
+    assert "slow" not in mgr.active_connections  # stuck client reaped

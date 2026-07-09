@@ -189,6 +189,10 @@ class EnhancedConnectionManager(BaseService):
         # Configuration
         self.heartbeat_interval = 30  # seconds
         self.connection_timeout = 300  # 5 minutes
+        # Per-send timeout: a stuck/slow socket must not block the (concurrent)
+        # fan-out to everyone else on this worker. On timeout the send is treated
+        # as a failure and the connection is scheduled for disconnect.
+        self.send_timeout = getattr(settings, "WS_SEND_TIMEOUT", 10)  # seconds
         self.max_connections = 10000
         # Per-user cap: the global cap alone lets one user (or a single leaked
         # token) open thousands of sockets and starve the global budget for
@@ -608,8 +612,13 @@ class EnhancedConnectionManager(BaseService):
                 "priority": message.priority.value,
             }
 
-            # Send message
-            await connection_info.websocket.send_json(payload)
+            # Send with a bounded timeout so one stuck/slow socket cannot block
+            # the concurrent fan-out — on timeout it is handled like any send
+            # failure and scheduled for disconnect below.
+            await asyncio.wait_for(
+                connection_info.websocket.send_json(payload),
+                timeout=self.send_timeout,
+            )
 
             # Record message metrics if we have a database record
             await self._record_message_metrics(
@@ -643,13 +652,29 @@ class EnhancedConnectionManager(BaseService):
         }
 
     async def _deliver_local(self, connection_ids: Set[str], message: WebSocketMessage):
-        """Deliver to the given locally-connected ids, honouring the
-        per-connection tenant/channel/filter gate. Snapshot the id set first — a
-        failed send schedules a disconnect that mutates it mid-iteration."""
-        for connection_id in list(connection_ids):
-            connection_info = self.active_connections.get(connection_id)
-            if connection_info and connection_info.should_receive_message(message):
-                await self.send_message_to_connection(connection_id, message)
+        """Deliver to the given locally-connected ids CONCURRENTLY, honouring the
+        per-connection tenant/channel/filter gate. Concurrency plus the per-send
+        timeout (in send_message_to_connection) stop one slow/stuck client from
+        head-of-line-blocking delivery to everyone else on this worker. Snapshot
+        the id set first — a failed send schedules a disconnect that mutates it.
+
+        # ponytail: concurrent fan-out + per-send timeout. A full bounded
+        # per-connection send queue is the heavier upgrade if a high-volume
+        # channel ever needs true backpressure; this push channel does not.
+        """
+        targets = [
+            cid
+            for cid in list(connection_ids)
+            if (conn := self.active_connections.get(cid))
+            and conn.should_receive_message(message)
+        ]
+        if not targets:
+            return
+        # send_message_to_connection swallows its own exceptions (returns False),
+        # so gather never propagates and needs no return_exceptions.
+        await asyncio.gather(
+            *(self.send_message_to_connection(cid, message) for cid in targets)
+        )
 
     async def _publish_to_cluster(
         self, kind: str, target: str, message: WebSocketMessage
