@@ -59,6 +59,7 @@ type StreamCallbacks = {
 function makeParams(activeConversationId = 'thread-A') {
   return {
     messages: [] as ChatPageMessage[],
+    displayedMessages: [] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
     setConversations: vi.fn(),
