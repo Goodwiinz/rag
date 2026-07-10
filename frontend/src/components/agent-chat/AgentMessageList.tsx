@@ -21,13 +21,29 @@ export const AgentMessageList = React.memo(function AgentMessageList({
   const confirmAction = useAgentChatStore((s) => s.confirmAction);
   const isConfirming = useAgentChatStore((s) => s.isConfirming);
   const retryLastMessage = useAgentChatStore((s) => s.retryLastMessage);
+  const isLoadingMessages = useAgentChatStore((s) => s.isLoadingMessages);
+  const latestContent = messages[messages.length - 1]?.content;
 
   useEffect(() => {
     const el = containerRef.current;
     if (el) {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: isStreaming ? 'auto' : 'smooth',
+      });
     }
-  }, [messages.length, isStreaming, pendingConfirmation]);
+  }, [messages.length, latestContent, isStreaming, pendingConfirmation]);
+
+  if (isLoadingMessages) {
+    return (
+      <div
+        role="status"
+        className="flex-1 flex items-center justify-center px-6 text-sm text-muted-foreground"
+      >
+        Loading conversation…
+      </div>
+    );
+  }
 
   if (messages.length === 0) {
     return (

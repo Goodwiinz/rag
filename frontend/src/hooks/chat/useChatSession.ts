@@ -120,6 +120,9 @@ export function useChatSession(): UseChatSessionReturn {
   const storeLoadOlderMessages = useChatStore(
     (state) => state.loadOlderMessages
   );
+  const storeIsLoadingMessages = useChatStore(
+    (state) => state.isLoadingMessages
+  );
   const messagePagination = useChatStore((state) => state.messagePagination);
 
   // ---- Derived values ----
@@ -128,8 +131,9 @@ export function useChatSession(): UseChatSessionReturn {
       selectDisplayedMessages({
         localMessages: messages,
         storeMessages: activeThreadMessages ?? [],
+        isStoreLoading: storeIsLoadingMessages,
       }),
-    [messages, activeThreadMessages]
+    [messages, activeThreadMessages, storeIsLoadingMessages]
   );
 
   // ---- Callbacks ----
@@ -458,6 +462,7 @@ export function useChatSession(): UseChatSessionReturn {
             );
             setDbConversation(conv);
             isHydratedRef.current = true;
+            setInitError(null);
             console.log('[Chat] Warm-start initialization complete');
             return;
           }
@@ -520,6 +525,7 @@ export function useChatSession(): UseChatSessionReturn {
         }
 
         isHydratedRef.current = true;
+        setInitError(null);
         console.log('[Chat] Database initialization complete');
       } catch (error: unknown) {
         console.error('[Chat] Failed to initialize from database:', error);
@@ -544,6 +550,7 @@ export function useChatSession(): UseChatSessionReturn {
             setMessages([]);
             console.log('[Chat] Created fresh workspace and conversation');
             isHydratedRef.current = true;
+            setInitError(null);
             setIsInitializing(false);
             return;
           } catch (retryError) {
@@ -658,7 +665,8 @@ export function useChatSession(): UseChatSessionReturn {
     dbConversation,
     isInitializing,
     initError,
-    isLoadingMessages,
+    isLoadingMessages:
+      isLoadingMessages || (activeThreadId !== null && storeIsLoadingMessages),
 
     // Refs
     activeConversationIdRef,

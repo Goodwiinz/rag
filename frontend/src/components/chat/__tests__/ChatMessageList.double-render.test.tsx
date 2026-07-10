@@ -20,6 +20,10 @@ vi.mock('../shared/InlineAgentSummary', () => ({
   InlineAgentSummary: () => null,
 }));
 vi.mock('../CommandOutputBubble', () => ({ CommandOutputBubble: () => null }));
+vi.mock('../VirtualizedMessageList', () => ({
+  VirtualizedMessageList: ({ hasMore, onLoadOlder }: any) =>
+    hasMore ? <button onClick={onLoadOlder}>Load older messages</button> : null,
+}));
 vi.mock('@/store/chat-store', () => ({
   useChatStore: (selector: any) => selector({ streamingCitations: [] }),
 }));
@@ -96,5 +100,22 @@ describe('ChatMessageList streaming bubble (double-render guard)', () => {
 
     expect(screen.getByTestId('streaming-bubble')).toBeTruthy();
     expect(screen.getByText('NEW partial answer')).toBeTruthy();
+  });
+
+  it('renders one load-older control after switching to the virtualized transcript', () => {
+    renderList({
+      ...baseProps,
+      storeIsStreaming: false,
+      hasMore: true,
+      onLoadOlder: () => {},
+      messages: Array.from({ length: 76 }, (_, index) => ({
+        id: `m-${index}`,
+        role: 'user' as const,
+        content: `message ${index}`,
+        timestamp: index,
+      })),
+    });
+
+    expect(screen.getAllByText('Load older messages')).toHaveLength(1);
   });
 });

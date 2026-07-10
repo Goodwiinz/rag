@@ -889,6 +889,7 @@ function ChatPageContent() {
                 conversations={conversations}
                 activeId={activeConversationId}
                 onSelect={(id) => {
+                  setMessages([]);
                   setActiveConversationId(id);
                   activeConversationIdRef.current = id;
                   setCurrentThread(id);
@@ -915,6 +916,7 @@ function ChatPageContent() {
           conversations={conversations}
           activeId={activeConversationId}
           onSelect={(id) => {
+            setMessages([]);
             setActiveConversationId(id);
             activeConversationIdRef.current = id;
             setCurrentThread(id);

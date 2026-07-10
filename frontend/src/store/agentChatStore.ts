@@ -21,6 +21,10 @@ const PROJECT_MUTATING_TOOLS = new Set([
   'create_project_note',
 ]);
 
+// Each thread load owns a monotonically increasing token. A late response must
+// never replace the transcript selected after it started.
+let threadLoadEpoch = 0;
+
 interface AgentChatStore extends AgentChatState, AgentChatActions {
   /** Internal: AbortController for current polling loop */
   _abortController: AbortController | null;
@@ -878,14 +882,19 @@ export const useAgentChatStore = create<AgentChatStore>()(
     // Threads
     newThread: () =>
       set((state) => {
+        threadLoadEpoch += 1;
         state.activeThreadId = null;
         state.messages = [];
         state.inputValue = '';
+        state.isLoadingMessages = false;
       }),
 
     selectThread: (threadId: string) =>
       set((state) => {
+        threadLoadEpoch += 1;
         state.activeThreadId = threadId;
+        state.messages = [];
+        state.isLoadingMessages = true;
       }),
 
     loadThreads: async () => {
@@ -920,6 +929,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
     },
 
     loadThreadMessages: async (threadId: string) => {
+      const loadEpoch = ++threadLoadEpoch;
       set((state) => {
         state.isLoadingMessages = true;
       });
@@ -954,6 +964,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
           backendMessageId: m.id,
         }));
 
+        if (
+          loadEpoch !== threadLoadEpoch ||
+          get().activeThreadId !== threadId
+        ) {
+          return;
+        }
+
         set((state) => {
           state.messages = messages;
           state.activeThreadId = threadId;
@@ -961,6 +978,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
         });
       } catch (error) {
         console.error('Failed to load thread messages:', error);
+        if (
+          loadEpoch !== threadLoadEpoch ||
+          get().activeThreadId !== threadId
+        ) {
+          return;
+        }
         set((state) => {
           state.isLoadingMessages = false;
         });
