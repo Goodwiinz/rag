@@ -253,6 +253,37 @@ class TestVerifyDraftCitations:
         assert entry["identity_source"] is None
         assert entry["verdict"] == "exact"
 
+    async def test_fulltext_escalation_receives_full_excerpt_not_400_chars(
+        self,
+    ) -> None:
+        """F1: source_text must reach the LLM uncut by the 400-char
+        classifier cap — a sentinel placed at char 3000 of content_text
+        must survive into the escalated (full-text) prompt."""
+        sentinel = "SENTINEL-3000"
+        content_text = ("x" * 3000) + sentinel + ("y" * 200)
+        document = _make_document(
+            content_summary="Short abstract that will not fully verify.",
+            content_text=content_text,
+        )
+        minor_then_exact = (
+            _LLMVerdict(verdict="minor", evidence="Abstract is vague."),
+            _LLMVerdict(verdict="exact", evidence="Full text confirms claim."),
+        )
+        llm, structured = _llm_mock(*minor_then_exact)
+        service = CitationVerificationService(AsyncMock())
+
+        with patch(f"{_MODULE}.build_lightweight_llm", return_value=llm):
+            result = await service.verify_draft_citations(
+                "The method scales linearly [Doc 1].", [document]
+            )
+
+        assert structured.ainvoke.await_count == 2
+        escalated_messages = structured.ainvoke.await_args_list[1].args[0]
+        escalated_user_content = escalated_messages[1]["content"]
+        assert sentinel in escalated_user_content
+        assert len(escalated_user_content) > 400
+        assert result["verdicts"][0]["escalated_to_fulltext"] is True
+
     async def test_summary_counts_and_max_docs_cap(self) -> None:
         documents = [_make_document() for _ in range(12)]  # cap is 10
         content = " ".join(
@@ -273,3 +304,82 @@ class TestVerifyDraftCitations:
             "unverified": 0,
         }
         assert len(result["verdicts"]) == 10
+
+
+@pytest.mark.asyncio
+class TestIdentityCorroborationThreshold:
+    """F2: a shared surname alone must not rescue an outright title
+    mismatch — only corroborate a title that's already plausibly close."""
+
+    async def test_common_surname_does_not_rescue_unrelated_title(self) -> None:
+        # title_ratio ~0.27 (well below _TITLE_CORROBORATION_THRESHOLD=0.35)
+        document = _make_document(
+            title="Attention Is All You Need",
+            document_metadata={
+                "doi": "10.1000/hijacked",
+                "authors": ["Ashish Vaswani"],
+            },
+        )
+        hijacked = CitationCreate(
+            document_title="Quantum Computing Basics And Applications",
+            authors=["John Vaswani"],  # shared surname only
+            doi="10.1000/hijacked",
+            metadata_source="crossref",
+        )
+        service = CitationVerificationService(AsyncMock())
+
+        with (
+            patch.object(
+                CitationExtractionService,
+                "extract_from_crossref",
+                AsyncMock(return_value=hijacked),
+            ),
+            patch(f"{_MODULE}.build_lightweight_llm") as llm_factory_mock,
+        ):
+            result = await service.verify_draft_citations(
+                "The transformer architecture uses self-attention [Doc 1].",
+                [document],
+            )
+
+        llm_factory_mock.assert_not_called()  # mismatch short-circuits faithfulness
+        entry = result["verdicts"][0]
+        assert entry["identity"] == "mismatch"
+        assert entry["verdict"] == "major"
+
+    async def test_borderline_title_with_shared_surname_still_matches(self) -> None:
+        # title_ratio == 0.5 (between the corroboration and outright-match
+        # thresholds) plus a shared surname must still resolve as a match.
+        document = _make_document(
+            title="Attention Is All You Need for Translation",
+            document_metadata={
+                "doi": "10.1000/borderline",
+                "authors": ["Ashish Vaswani"],
+            },
+            content_summary="Introduces the transformer architecture.",
+        )
+        borderline = CitationCreate(
+            document_title="All You Need Is Better Attention Mechanisms",
+            authors=["Ashish Vaswani"],
+            doi="10.1000/borderline",
+            metadata_source="crossref",
+        )
+        llm, structured = _llm_mock(
+            _LLMVerdict(verdict="exact", evidence="Directly supported.")
+        )
+        service = CitationVerificationService(AsyncMock())
+
+        with (
+            patch.object(
+                CitationExtractionService,
+                "extract_from_crossref",
+                AsyncMock(return_value=borderline),
+            ),
+            patch(f"{_MODULE}.build_lightweight_llm", return_value=llm),
+        ):
+            result = await service.verify_draft_citations(
+                "Self-attention replaces recurrence entirely [Doc 1].", [document]
+            )
+
+        entry = result["verdicts"][0]
+        assert entry["identity"] == "match"
+        assert entry["verdict"] == "exact"

@@ -11,6 +11,7 @@ request-scoped session used only by the request-scoped methods).
 
 from __future__ import annotations
 
+from typing import List
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -120,6 +121,72 @@ async def test_happy_path_completes_through_patched_session():
     status = DraftGenerationService.get_status("task-happy")
     assert status["status"] == DraftGenerationStatus.COMPLETED
     bg_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_two_session_windows_first_closed_before_build_draft_content():
+    """F3: the docs-fetch session (window 1) must be closed before the ~60s
+    _build_draft_content LLM call runs, and window 2 (reviewer/version/
+    persist/commit) must open only after that call returns — a pooled
+    connection must never sit idle across the LLM call."""
+    documents = [MagicMock(id=uuid4(), title="Doc A")]
+    call_order: List[str] = []
+
+    docs_result = MagicMock()
+    docs_result.scalars.return_value.all.return_value = documents
+    window1_session = MagicMock()
+    window1_session.execute = AsyncMock(return_value=docs_result)
+
+    version_result = MagicMock()
+    version_result.scalar.return_value = 0
+    update_result = MagicMock()
+    window2_session = MagicMock()
+    window2_session.execute = AsyncMock(side_effect=[version_result, update_result])
+    window2_session.flush = AsyncMock()
+    window2_session.commit = AsyncMock()
+
+    class _RecordingSessionCtx:
+        def __init__(self, session: MagicMock, label: str) -> None:
+            self._session = session
+            self._label = label
+
+        async def __aenter__(self) -> MagicMock:
+            call_order.append(f"enter:{self._label}")
+            return self._session
+
+        async def __aexit__(self, *exc_info: object) -> bool:
+            call_order.append(f"exit:{self._label}")
+            return False
+
+    session_factory = MagicMock(
+        side_effect=[
+            _RecordingSessionCtx(window1_session, "w1"),
+            _RecordingSessionCtx(window2_session, "w2"),
+        ]
+    )
+
+    service = DraftGenerationService(MagicMock())
+
+    async def _fake_build_draft_content(*args: object, **kwargs: object) -> str:
+        call_order.append("build_draft_content")
+        return "Findings from [Doc 1]."
+
+    service._build_draft_content = AsyncMock(side_effect=_fake_build_draft_content)
+
+    with patch(
+        "src.services.research.draft_generation_service.AsyncSessionLocal",
+        session_factory,
+    ):
+        await _run(service, "task-two-windows")
+
+    assert call_order == [
+        "enter:w1",
+        "exit:w1",
+        "build_draft_content",
+        "enter:w2",
+        "exit:w2",
+    ]
+    window2_session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
