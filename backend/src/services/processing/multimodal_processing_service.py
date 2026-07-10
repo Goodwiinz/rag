@@ -253,6 +253,9 @@ class MultimodalProcessingService:
                 ProcessingStep(
                     "OCR Extraction", self.extract_text_with_ocr, required=False
                 ),
+                ProcessingStep(
+                    "Figure Extraction", self.extract_figures, required=False
+                ),
                 *common_steps,
             ]
         elif document_type == DocumentType.IMAGE:
@@ -412,6 +415,20 @@ class MultimodalProcessingService:
         except Exception as e:
             logger.error(f"OCR extraction failed: {str(e)}")
             raise
+
+    async def extract_figures(
+        self, document: Document, job: ProcessingJob
+    ) -> Dict[str, Any]:
+        """Extract embedded raster figures + caption heuristics (flag-gated)."""
+        from src.services.processing.figure_extraction_service import (
+            extract_figures_for_document,
+        )
+
+        if not settings.FIGURE_EXTRACTION_ENABLED:
+            return {"skipped": "disabled"}
+        result = extract_figures_for_document(self.db, document)
+        self.db.commit()
+        return result
 
     async def process_image(
         self, document: Document, job: ProcessingJob
@@ -1270,6 +1287,19 @@ class MultimodalProcessingService:
                 "text_content"
             ):
                 document.content_text = results["text_extraction"]["text_content"]
+
+            # Merge figure captions in — must run after content_text is set
+            # above (pipeline A assigns content_text last, not inside the
+            # figure-extraction step itself).
+            captions = (results.get("figure_extraction") or {}).get("captions_text")
+            if captions:
+                from src.services.processing.figure_extraction_service import (
+                    merge_captions_into_text,
+                )
+
+                document.content_text = merge_captions_into_text(
+                    document.content_text, captions
+                )
 
             # Update processing status
             if results["success"]:
