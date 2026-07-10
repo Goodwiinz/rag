@@ -979,6 +979,11 @@ async def stream_confirm_event_generator(
     # the error-path partial persist must never double-write the turn.
     assistant_persisted = False
     persist_partial_stop = None  # bound inside try once its inputs exist
+    # CX1 claim state — pre-declared so the except handler can reference
+    # them even when an exception fires before the claim block runs.
+    confirm_claim_key: Optional[str] = None
+    redis_client = None
+    events_started = False
     try:
         _bootstrap_langsmith()
         checkpointer = await get_checkpointer()
@@ -1049,6 +1054,39 @@ async def stream_confirm_event_generator(
             ]
         except Exception:
             resume_ckpt_id = None
+
+        # CX1: atomically claim this interrupt before resuming. The job
+        # confirm endpoint has a CAS (execute.py compare_and_set_status);
+        # this SSE path had none — two concurrent confirms both issued
+        # Command(resume=...) and a destructive tool could run twice.
+        # Claim key is anchored to the interrupt checkpoint (same anchor as
+        # the #1065 resume-dedup cmid): a nested confirm re-parks on a NEW
+        # checkpoint, so its key rotates and the next confirm still works.
+        if resume_ckpt_id:
+            from src.core.caching import _acquire_lock
+            from src.services.agent.job_store import get_redis
+
+            redis_client = await get_redis()
+            if redis_client is not None:
+                confirm_claim_key = (
+                    f"hitl-confirm-claim:{request_body.thread_id}:{resume_ckpt_id}"
+                )
+                # TTL > the 300s stream timeout so a live winner can't lose
+                # its claim mid-run; a crashed winner unblocks after TTL.
+                if not await _acquire_lock(redis_client, confirm_claim_key, ttl=330):
+                    yield await emitter.emit(
+                        "error",
+                        {"error": "Confirmation already in progress"},
+                    )
+                    return
+            # ponytail: Redis down → no claim (single-worker in-memory CAS
+            # like job_store._cas_in_memory is the upgrade if this bites).
+        else:
+            logger.warning(
+                "No checkpoint id for resumed thread %s; confirm proceeds "
+                "unclaimed (matches the cmid fallback philosophy)",
+                request_body.thread_id,
+            )
 
         async def _resume_assistant_cmid() -> Optional[str]:
             if resume_ckpt_id:
@@ -1174,6 +1212,11 @@ async def stream_confirm_event_generator(
                 request,
                 drain_on_disconnect=emitter.sid is not None,
             ):
+                # CX1: the resumed graph is now making real progress — a
+                # failure from here on must NOT release the claim (the
+                # winner may already have run a destructive tool; TTL
+                # handles cleanup instead of letting a racing retry in).
+                events_started = True
                 if item["type"] == "disconnect":
                     client_disconnected = True
                     if emitter.sid is None:
@@ -1457,6 +1500,15 @@ async def stream_confirm_event_generator(
 
     except Exception as e:
         logger.error("SSE stream confirm error", exc_info=e)
+        # CX1: the winner failed before the resumed graph produced any
+        # event — release the claim so a legit retry is not locked out for
+        # the full TTL. Once events_started is True the resume may have run
+        # a destructive tool already, so the claim is left for TTL cleanup.
+        if confirm_claim_key and not events_started:
+            with contextlib.suppress(Exception):
+                from src.core.caching import _release_lock
+
+                await _release_lock(redis_client, confirm_claim_key)
         # Persist whatever was streamed before the failure (stopped=True) so the
         # partial answer survives a reload. Covers both the disconnected drain
         # dying (e.g. the 300s timeout) and an error while the client is still

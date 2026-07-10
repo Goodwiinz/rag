@@ -182,6 +182,13 @@ export function confirmationBelongsToThread(
 
 export interface UseChatStreamingParams {
   messages: ChatPageMessage[];
+  /** CX2: the reconciled view the user actually sees (local ∪ store) —
+   * `selectDisplayedMessages` in useChatSession. handleSubmit must build the
+   * posted turn from this, not `messages`: `messages` is empty during the
+   * lazy-load window right after a thread switch (threads list seeds
+   * `conversations` with `messages: []`), while the store already has the
+   * transcript — submitting from `messages` silently dropped the history. */
+  displayedMessages: ChatPageMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
@@ -220,6 +227,7 @@ export function useChatStreaming(
 ): UseChatStreamingReturn {
   const {
     messages,
+    displayedMessages,
     setMessages,
     conversations,
     setConversations,
@@ -274,6 +282,12 @@ export function useChatStreaming(
   const activeRunThreadRef = useRef<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const submitLockRef = useRef(false);
+  // CX1 belt: isConfirming (React state) is not synchronous, so two
+  // Approve clicks in the same tick both see isConfirming === false before
+  // either setState flushes. A ref mirrors submitLockRef's guard so a
+  // double-click can't fire streamConfirm twice client-side (the server
+  // now also claims atomically — this is defense in depth).
+  const confirmLockRef = useRef(false);
   const streamingTimestampRef = useRef(Date.now());
   const streamingRafRef = useRef<number | null>(null);
   const pendingStreamContentRef = useRef<string | null>(null);
@@ -794,7 +808,11 @@ export function useChatStreaming(
         timestamp: Date.now(),
       };
 
-      const newMessages = [...messages, userMessage];
+      // CX2: build the turn from the RECONCILED view (local ∪ store) — the
+      // local array is empty during the lazy-load window after a thread
+      // switch, and submitting from it silently dropped the whole history.
+      const history = displayedMessages;
+      const newMessages = [...history, userMessage];
       setMessages(newMessages);
       setInput('');
       setIsLoading(true);
@@ -936,6 +954,7 @@ export function useChatStreaming(
       isLoading,
       storeIsStreaming,
       messages,
+      displayedMessages,
       setMessages,
       activeConversationIdRef,
       activeConversationId,
@@ -1028,6 +1047,9 @@ export function useChatStreaming(
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
       if (!pendingConfirmation) return;
+      // CX1 belt: block a synchronous double-click before it can fire a
+      // second streamConfirm call (see confirmLockRef declaration).
+      if (confirmLockRef.current) return;
       // Defense in depth — the page hides the banner on foreign threads, but
       // a stale click must never resume a confirmation against the wrong
       // thread's transcript.
@@ -1038,6 +1060,7 @@ export function useChatStreaming(
         )
       )
         return;
+      confirmLockRef.current = true;
       // The confirm resume is async; the user can still switch threads while it
       // streams. Gate every local setMessages below on the confirmation's
       // thread still being displayed — the resumed answer is persisted
@@ -1301,6 +1324,7 @@ export function useChatStreaming(
         // (carrying the turn's accumulated provenance); otherwise clear it.
         setPendingConfirmation(nestedConfirmation);
         setIsConfirming(false);
+        confirmLockRef.current = false;
         stoppedByUserRef.current = false;
         // The confirm stream shares streamingRafRef/pendingStreamContentRef
         // with handleSubmit's onToken throttle. A token that lands just
