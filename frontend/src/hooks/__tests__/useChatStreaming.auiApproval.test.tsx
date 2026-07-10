@@ -41,6 +41,7 @@ type Cb = {
 function makeParams(setMessages: (m: unknown) => void) {
   return {
     messages: [] as ChatPageMessage[],
+    displayedMessages: [] as ChatPageMessage[],
     setMessages,
     conversations: [],
     setConversations: vi.fn(),

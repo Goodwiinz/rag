@@ -182,6 +182,13 @@ export function confirmationBelongsToThread(
 
 export interface UseChatStreamingParams {
   messages: ChatPageMessage[];
+  /** CX2: the reconciled view the user actually sees (local ∪ store) —
+   * `selectDisplayedMessages` in useChatSession. handleSubmit must build the
+   * posted turn from this, not `messages`: `messages` is empty during the
+   * lazy-load window right after a thread switch (threads list seeds
+   * `conversations` with `messages: []`), while the store already has the
+   * transcript — submitting from `messages` silently dropped the history. */
+  displayedMessages: ChatPageMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
@@ -206,6 +213,11 @@ export interface UseChatStreamingReturn {
   storeIsStreaming: boolean;
   storeStreamingContent: string;
   storeIsRetrievingRag: boolean;
+  /** CX5: the thread id the live stream belongs to, or null when idle. Lets
+   * the page gate streaming-derived rendering (typing indicator, welcome
+   * state) to the thread that actually owns the stream, without touching the
+   * global single-flight `storeIsStreaming` the composer blocks on. */
+  streamingThreadId: string | null;
   streamingTimestampRef: React.MutableRefObject<number>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -220,6 +232,7 @@ export function useChatStreaming(
 ): UseChatStreamingReturn {
   const {
     messages,
+    displayedMessages,
     setMessages,
     conversations,
     setConversations,
@@ -274,6 +287,12 @@ export function useChatStreaming(
   const activeRunThreadRef = useRef<string | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const submitLockRef = useRef(false);
+  // CX1 belt: isConfirming (React state) is not synchronous, so two
+  // Approve clicks in the same tick both see isConfirming === false before
+  // either setState flushes. A ref mirrors submitLockRef's guard so a
+  // double-click can't fire streamConfirm twice client-side (the server
+  // now also claims atomically — this is defense in depth).
+  const confirmLockRef = useRef(false);
   const streamingTimestampRef = useRef(Date.now());
   const streamingRafRef = useRef<number | null>(null);
   const pendingStreamContentRef = useRef<string | null>(null);
@@ -291,6 +310,7 @@ export function useChatStreaming(
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
+  const streamingThreadId = useChatStore((state) => state.streamingThreadId);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
@@ -401,13 +421,19 @@ export function useChatStreaming(
         // fires just before `done`. Null until (and unless) it arrives.
         let turnTokenUsage: { input: number; output: number } | null = null;
 
-        // Set streaming state in store for UI
+        // Set streaming state in store for UI. streamingThreadId records
+        // WHICH thread owns this live turn (CX5) — isStreaming etc. stay
+        // global (single-flight is unchanged), but a thread-scoped consumer
+        // can gate on streamingThreadId === its own activeThreadId so a
+        // background turn's live tokens/citations don't render on whatever
+        // thread the user has switched to.
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
+          streamingThreadId: turnThreadId,
         });
 
         // Render the in-flight turn as a real placeholder message in the
@@ -609,6 +635,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingThreadId: null,
           });
           setIsLoading(false);
           return;
@@ -641,6 +668,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingThreadId: null,
           });
           setIsLoading(false);
           stoppedByUserRef.current = false;
@@ -714,6 +742,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingCitations: [],
           streamingSteps: [],
+          streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
 
@@ -764,6 +793,7 @@ export function useChatStreaming(
           isStreaming: false,
           streamingContent: '',
           streamingCitations: [],
+          streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
         stoppedByUserRef.current = false;
@@ -794,7 +824,11 @@ export function useChatStreaming(
         timestamp: Date.now(),
       };
 
-      const newMessages = [...messages, userMessage];
+      // CX2: build the turn from the RECONCILED view (local ∪ store) — the
+      // local array is empty during the lazy-load window after a thread
+      // switch, and submitting from it silently dropped the whole history.
+      const history = displayedMessages;
+      const newMessages = [...history, userMessage];
       setMessages(newMessages);
       setInput('');
       setIsLoading(true);
@@ -936,6 +970,7 @@ export function useChatStreaming(
       isLoading,
       storeIsStreaming,
       messages,
+      displayedMessages,
       setMessages,
       activeConversationIdRef,
       activeConversationId,
@@ -1028,6 +1063,9 @@ export function useChatStreaming(
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
       if (!pendingConfirmation) return;
+      // CX1 belt: block a synchronous double-click before it can fire a
+      // second streamConfirm call (see confirmLockRef declaration).
+      if (confirmLockRef.current) return;
       // Defense in depth — the page hides the banner on foreign threads, but
       // a stale click must never resume a confirmation against the wrong
       // thread's transcript.
@@ -1038,6 +1076,7 @@ export function useChatStreaming(
         )
       )
         return;
+      confirmLockRef.current = true;
       // The confirm resume is async; the user can still switch threads while it
       // streams. Gate every local setMessages below on the confirmation's
       // thread still being displayed — the resumed answer is persisted
@@ -1062,11 +1101,16 @@ export function useChatStreaming(
       // exit cleared the live streaming state, so restore it here.
       const carriedCitations = pendingConfirmation.citations ?? [];
       let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+      // CX5: the confirm-resume path is a SEPARATE live-stream owner from
+      // runStreamTurn (a resumed HITL turn belongs to the confirmation's
+      // workspace thread, which may differ from whatever thread is
+      // currently displayed) — stamp it the same way.
       useChatStore.setState({
         isStreaming: true,
         streamingContent: '',
         streamingSteps: [...confirmSteps],
         streamingCitations: carriedCitations,
+        streamingThreadId: pendingConfirmation.workspaceThreadId || null,
       });
 
       let confirmContent = '';
@@ -1301,6 +1345,7 @@ export function useChatStreaming(
         // (carrying the turn's accumulated provenance); otherwise clear it.
         setPendingConfirmation(nestedConfirmation);
         setIsConfirming(false);
+        confirmLockRef.current = false;
         stoppedByUserRef.current = false;
         // The confirm stream shares streamingRafRef/pendingStreamContentRef
         // with handleSubmit's onToken throttle. A token that lands just
@@ -1316,6 +1361,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingSteps: [],
           streamingCitations: [],
+          streamingThreadId: null,
         });
       }
     },
@@ -1372,6 +1418,7 @@ export function useChatStreaming(
     storeIsStreaming,
     storeStreamingContent,
     storeIsRetrievingRag,
+    streamingThreadId,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,

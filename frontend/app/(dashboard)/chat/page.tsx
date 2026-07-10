@@ -115,6 +115,8 @@ function ChatPageContent() {
     displayedMessages,
     loadOlderMessages,
     messagePagination,
+    hasMoreThreads,
+    loadMoreThreads,
     mapDbMessageToUiMessage,
     loadThreadsFromDb,
   } = useChatSession();
@@ -135,10 +137,12 @@ function ChatPageContent() {
     storeIsStreaming,
     storeStreamingContent,
     storeIsRetrievingRag,
+    streamingThreadId,
     selectedModel,
     setSelectedModel,
   } = useChatStreaming({
     messages,
+    displayedMessages,
     setMessages,
     conversations,
     setConversations,
@@ -149,6 +153,14 @@ function ChatPageContent() {
     setCurrentThread,
     enableRAG,
   });
+
+  // CX5: storeIsStreaming is intentionally global (single-flight — the
+  // composer below stays blocked on the raw flag regardless of which thread
+  // is displayed). This derived flag is ONLY for streaming-derived UI that
+  // must not bleed into a thread that isn't actually streaming — a
+  // background turn on thread A rendering into thread B's transcript.
+  const isStreamingThisThread =
+    storeIsStreaming && streamingThreadId === activeThreadId;
 
   // Only the thread that owns the pending confirmation shows the banner or
   // has its input locked — pendingConfirmation itself survives navigation so
@@ -869,6 +881,8 @@ function ChatPageContent() {
                 onDelete={handleDeleteThread}
                 onBulkDelete={handleBulkDeleteThreads}
                 currentWorkspace={workspace}
+                hasMoreThreads={hasMoreThreads}
+                onLoadMoreThreads={loadMoreThreads}
               />
             </motion.div>
           </div>
@@ -886,6 +900,8 @@ function ChatPageContent() {
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
           currentWorkspace={workspace}
+          hasMoreThreads={hasMoreThreads}
+          onLoadMoreThreads={loadMoreThreads}
         />
       </div>
 
@@ -984,7 +1000,7 @@ function ChatPageContent() {
             </div>
           ) : displayedMessages.length === 0 &&
             commandOutputs.length === 0 &&
-            !storeIsStreaming ? (
+            !isStreamingThisThread ? (
             <div className="flex-1 relative min-h-0">
               <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
                 <WelcomeState
@@ -997,14 +1013,20 @@ function ChatPageContent() {
             <ChatMessageList
               messages={displayedMessages}
               activeThreadId={activeThreadId}
-              isLoading={isLoading}
-              storeIsStreaming={storeIsStreaming}
-              storeStreamingContent={storeStreamingContent}
+              // isLoading is set (globally) for the whole span of a turn,
+              // same lifecycle as storeIsStreaming — gate it the same way so
+              // the pre-first-token "typing" bubble can't render on a thread
+              // that isn't the one actually loading (CX5).
+              isLoading={isStreamingThisThread ? isLoading : false}
+              storeIsStreaming={isStreamingThisThread}
+              storeStreamingContent={
+                isStreamingThisThread ? storeStreamingContent : ''
+              }
               onRegenerate={handleRegenerate}
               onCitationClick={handleCitationClick}
               commandOutputs={commandOutputs}
               onCommandItemAction={handleCommandItemAction}
-              isRetrievingRag={storeIsRetrievingRag}
+              isRetrievingRag={isStreamingThisThread ? storeIsRetrievingRag : false}
               onLoadOlder={
                 activeThreadId
                   ? () => loadOlderMessages(activeThreadId)
