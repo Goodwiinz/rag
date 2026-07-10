@@ -115,6 +115,8 @@ function ChatPageContent() {
     displayedMessages,
     loadOlderMessages,
     messagePagination,
+    hasMoreThreads,
+    loadMoreThreads,
     mapDbMessageToUiMessage,
     loadThreadsFromDb,
   } = useChatSession();
@@ -870,6 +872,8 @@ function ChatPageContent() {
                 onDelete={handleDeleteThread}
                 onBulkDelete={handleBulkDeleteThreads}
                 currentWorkspace={workspace}
+                hasMoreThreads={hasMoreThreads}
+                onLoadMoreThreads={loadMoreThreads}
               />
             </motion.div>
           </div>
@@ -887,6 +891,8 @@ function ChatPageContent() {
           onDelete={handleDeleteThread}
           onBulkDelete={handleBulkDeleteThreads}
           currentWorkspace={workspace}
+          hasMoreThreads={hasMoreThreads}
+          onLoadMoreThreads={loadMoreThreads}
         />
       </div>
 
