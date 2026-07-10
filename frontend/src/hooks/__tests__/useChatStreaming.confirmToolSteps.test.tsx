@@ -317,4 +317,52 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       metadata: { stopped: true },
     });
   });
+
+  it('CX1: a synchronous double-click on Approve only fires streamConfirm once', async () => {
+    streamMessageMock.mockImplementation(
+      (_req: unknown, cb: StreamCallbacks) => {
+        cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
+        cb.onDone({});
+        return Promise.resolve();
+      }
+    );
+    let releaseConfirm!: () => void;
+    streamConfirmMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseConfirm = resolve;
+        })
+    );
+
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('ingest these');
+    });
+    expect(result.current.pendingConfirmation).not.toBeNull();
+
+    // Two Approve calls in the same tick, before the first streamConfirm
+    // call has resolved — mirrors a fast double-click. The second call
+    // must be blocked client-side (confirmLockRef), not just deduped by
+    // the server-side claim (CX1 backend fix).
+    let p1!: Promise<void>;
+    let p2!: Promise<void>;
+    act(() => {
+      p1 = result.current.handleConfirmation(true);
+      p2 = result.current.handleConfirmation(true);
+    });
+
+    expect(streamConfirmMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseConfirm();
+      await Promise.all([p1, p2]);
+    });
+
+    // Still exactly one call after both promises settle.
+    expect(streamConfirmMock).toHaveBeenCalledTimes(1);
+    // The lock released so a later, legitimate confirmation isn't stuck.
+    expect(result.current.isConfirming).toBe(false);
+  });
 });
