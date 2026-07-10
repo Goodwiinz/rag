@@ -213,6 +213,11 @@ export interface UseChatStreamingReturn {
   storeIsStreaming: boolean;
   storeStreamingContent: string;
   storeIsRetrievingRag: boolean;
+  /** CX5: the thread id the live stream belongs to, or null when idle. Lets
+   * the page gate streaming-derived rendering (typing indicator, welcome
+   * state) to the thread that actually owns the stream, without touching the
+   * global single-flight `storeIsStreaming` the composer blocks on. */
+  streamingThreadId: string | null;
   streamingTimestampRef: React.MutableRefObject<number>;
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -305,6 +310,7 @@ export function useChatStreaming(
   const storeIsStreaming = useChatStore((state) => state.isStreaming);
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
+  const streamingThreadId = useChatStore((state) => state.streamingThreadId);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
@@ -415,13 +421,19 @@ export function useChatStreaming(
         // fires just before `done`. Null until (and unless) it arrives.
         let turnTokenUsage: { input: number; output: number } | null = null;
 
-        // Set streaming state in store for UI
+        // Set streaming state in store for UI. streamingThreadId records
+        // WHICH thread owns this live turn (CX5) — isStreaming etc. stay
+        // global (single-flight is unchanged), but a thread-scoped consumer
+        // can gate on streamingThreadId === its own activeThreadId so a
+        // background turn's live tokens/citations don't render on whatever
+        // thread the user has switched to.
         useChatStore.setState({
           isStreaming: true,
           streamingContent: '',
           streamingSteps: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
+          streamingThreadId: turnThreadId,
         });
 
         // Render the in-flight turn as a real placeholder message in the
@@ -623,6 +635,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingThreadId: null,
           });
           setIsLoading(false);
           return;
@@ -655,6 +668,7 @@ export function useChatStreaming(
             streamingContent: '',
             streamingCitations: [],
             streamingSteps: [],
+            streamingThreadId: null,
           });
           setIsLoading(false);
           stoppedByUserRef.current = false;
@@ -728,6 +742,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingCitations: [],
           streamingSteps: [],
+          streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
 
@@ -778,6 +793,7 @@ export function useChatStreaming(
           isStreaming: false,
           streamingContent: '',
           streamingCitations: [],
+          streamingThreadId: null,
         });
         lastStreamedContentRef.current = '';
         stoppedByUserRef.current = false;
@@ -1085,11 +1101,16 @@ export function useChatStreaming(
       // exit cleared the live streaming state, so restore it here.
       const carriedCitations = pendingConfirmation.citations ?? [];
       let confirmPlan: PlanStep[] = [...(pendingConfirmation.plan ?? [])];
+      // CX5: the confirm-resume path is a SEPARATE live-stream owner from
+      // runStreamTurn (a resumed HITL turn belongs to the confirmation's
+      // workspace thread, which may differ from whatever thread is
+      // currently displayed) — stamp it the same way.
       useChatStore.setState({
         isStreaming: true,
         streamingContent: '',
         streamingSteps: [...confirmSteps],
         streamingCitations: carriedCitations,
+        streamingThreadId: pendingConfirmation.workspaceThreadId || null,
       });
 
       let confirmContent = '';
@@ -1340,6 +1361,7 @@ export function useChatStreaming(
           streamingContent: '',
           streamingSteps: [],
           streamingCitations: [],
+          streamingThreadId: null,
         });
       }
     },
@@ -1396,6 +1418,7 @@ export function useChatStreaming(
     storeIsStreaming,
     storeStreamingContent,
     storeIsRetrievingRag,
+    streamingThreadId,
     streamingTimestampRef,
     selectedModel,
     setSelectedModel,
