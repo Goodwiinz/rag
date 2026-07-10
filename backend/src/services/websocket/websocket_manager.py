@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import uuid
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
@@ -176,6 +176,10 @@ class EnhancedConnectionManager(BaseService):
         # self-filter compare "unknown" == "unknown" and silently drop every
         # cross-worker broadcast (defeating fan-out at >1 gunicorn worker).
         self.instance_id = uuid.uuid4().hex
+        # Redis pub/sub can deliver duplicates, and pre-fix workers re-publish
+        # new-format messages during rolling deploys. Keep a bounded local
+        # message-id cache so those copies do not reach clients twice.
+        self._recent_cluster_message_ids: OrderedDict[str, None] = OrderedDict()
 
         # Redis for clustering and message broadcasting
         self.redis_client: Optional[redis.Redis] = None
@@ -924,11 +928,19 @@ class EnhancedConnectionManager(BaseService):
             return
 
         message_dict = broadcast_data["message"]
+        message_id = message_dict.get("message_id") or message_dict.get("id")
+        if message_id is not None:
+            if message_id in self._recent_cluster_message_ids:
+                return
+            self._recent_cluster_message_ids[message_id] = None
+            if len(self._recent_cluster_message_ids) > 1024:
+                self._recent_cluster_message_ids.popitem(last=False)
+
         message = WebSocketMessage(
             type=MessageType(message_dict["type"]),
             data=message_dict["data"],
             timestamp=datetime.fromisoformat(message_dict["timestamp"]),
-            message_id=message_dict.get("message_id") or message_dict.get("id"),
+            message_id=message_id,
             priority=Priority(message_dict["priority"]),
             target_channels=message_dict.get("target_channels", []),
             target_organization=message_dict.get("target_organization"),

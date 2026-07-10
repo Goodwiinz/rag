@@ -152,6 +152,42 @@ async def test_dispatch_cluster_message_delivers_local_only_no_republish():
 
 
 @pytest.mark.asyncio
+async def test_dispatch_cluster_message_skips_duplicate_message_id():
+    mgr = EnhancedConnectionManager()
+    _, ws = _register(mgr, user_id="u1", org_id="orgA")
+
+    bd = {
+        "kind": "user",
+        "target": "u1",
+        "message": mgr._serialize_for_cluster(_msg(target_org=None)),
+        "source_instance": "some-other-worker",
+    }
+    await mgr._dispatch_cluster_message(bd)
+    await mgr._dispatch_cluster_message(bd)
+
+    assert len(ws.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_dispatch_cluster_message_without_id_still_delivers():
+    mgr = EnhancedConnectionManager()
+    _, ws = _register(mgr, user_id="u1", org_id="orgA")
+    message = mgr._serialize_for_cluster(_msg(target_org=None))
+    message.pop("message_id")
+
+    await mgr._dispatch_cluster_message(
+        {
+            "kind": "user",
+            "target": "u1",
+            "message": message,
+            "source_instance": "some-other-worker",
+        }
+    )
+
+    assert len(ws.sent) == 1
+
+
+@pytest.mark.asyncio
 async def test_dispatch_skips_own_publish():
     mgr = EnhancedConnectionManager()
     _, ws = _register(mgr, user_id="u1", org_id="orgA")
