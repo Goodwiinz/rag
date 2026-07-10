@@ -172,6 +172,10 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
+    # Figure extraction (PyMuPDF, Phase 1) — embedded raster figures + caption
+    # heuristics during PDF ingestion. Off by default; flip per-env in Infisical.
+    FIGURE_EXTRACTION_ENABLED: bool = False
+
     # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
     # Public Preview — API may churn. One KB per organization.
     DO_KB_ENABLED: bool = False
