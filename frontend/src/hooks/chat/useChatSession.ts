@@ -17,10 +17,33 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
+  Thread,
   Workspace,
 } from '@/types/workspace';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+const THREADS_PAGE_SIZE = 50;
+
+// Shared by every listThreads call site (cold load, warm start, "show older")
+// so the sidebar's ChatConversation shape can't drift between them.
+function threadToConversation(
+  thread: Thread,
+  conversationId: string,
+  messages: ChatPageMessage[] = []
+): ChatConversation {
+  return {
+    id: thread.id,
+    title: thread.title || 'New Chat',
+    messages,
+    createdAt: new Date(thread.created_at).getTime(),
+    updatedAt: new Date(thread.updated_at).getTime(),
+    threadId: thread.id,
+    conversationId,
+    previewText: thread.summary || undefined,
+    messageCount: thread.message_count,
+  };
+}
 
 export interface UseChatSessionReturn {
   // State
@@ -61,6 +84,11 @@ export interface UseChatSessionReturn {
     { hasMore: boolean; loadingOlder: boolean; loadedCount: number }
   > | null;
 
+  // Sidebar thread pagination (CX8) — the thread list is capped at
+  // THREADS_PAGE_SIZE per fetch; loadMoreThreads fetches+appends the next page.
+  hasMoreThreads: boolean;
+  loadMoreThreads: () => Promise<void>;
+
   // Helpers
   mapDbMessageToUiMessage: (dbMsg: DBChatMessage) => ChatPageMessage;
   loadThreadsFromDb: (
@@ -92,6 +120,12 @@ export function useChatSession(): UseChatSessionReturn {
   );
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+
+  // Sidebar thread pagination (CX8): which conversation + page the currently
+  // loaded thread list reflects, so loadMoreThreads knows what to fetch next.
+  const [hasMoreThreads, setHasMoreThreads] = useState(false);
+  const threadsListConvIdRef = useRef<string | null>(null);
+  const threadsPageRef = useRef(1);
 
   // Loading states
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -292,22 +326,18 @@ export function useChatSession(): UseChatSessionReturn {
         );
         const threadResponse = await workspaceService.listThreads(
           conversationId,
-          { limit: 50 }
+          { page: 1, limit: THREADS_PAGE_SIZE }
         );
+
+        // CX8: record what this list reflects so "show older threads" knows
+        // which conversation + page to fetch next.
+        threadsListConvIdRef.current = conversationId;
+        threadsPageRef.current = 1;
+        setHasMoreThreads(threadResponse.has_more);
 
         // Map threads without loading messages (lazy-loaded on selection)
         const uiConversations: ChatConversation[] = threadResponse.threads.map(
-          (thread) => ({
-            id: thread.id,
-            title: thread.title || 'New Chat',
-            messages: [],
-            createdAt: new Date(thread.created_at).getTime(),
-            updatedAt: new Date(thread.updated_at).getTime(),
-            threadId: thread.id,
-            conversationId: conversationId,
-            previewText: thread.summary || undefined,
-            messageCount: thread.message_count,
-          })
+          (thread) => threadToConversation(thread, conversationId)
         );
 
         setConversations(uiConversations);
@@ -377,6 +407,36 @@ export function useChatSession(): UseChatSessionReturn {
     [mapDbMessageToUiMessage, setCurrentThread]
   );
 
+  // CX8: fetch the next page of threads for whichever conversation the
+  // sidebar list currently reflects, and append (never replace) — a stable
+  // callback so it can be passed straight into ChatSidebar (React.memo, #1083).
+  const loadMoreThreads = useCallback(async () => {
+    const conversationId = threadsListConvIdRef.current;
+    if (!conversationId) return;
+
+    const nextPage = threadsPageRef.current + 1;
+    try {
+      const response = await workspaceService.listThreads(conversationId, {
+        page: nextPage,
+        limit: THREADS_PAGE_SIZE,
+      });
+
+      setConversations((prev) => {
+        const existingIds = new Set(prev.map((c) => c.id));
+        const appended = response.threads
+          .filter((thread) => !existingIds.has(thread.id))
+          .map((thread) => threadToConversation(thread, conversationId));
+        return [...prev, ...appended];
+      });
+
+      threadsPageRef.current = nextPage;
+      setHasMoreThreads(response.has_more);
+    } catch (error) {
+      console.error('[Chat] Failed to load more threads:', error);
+      toast.error('Could not load more threads. Please try again.');
+    }
+  }, []);
+
   // Initialize workspace and conversation from database
   useEffect(() => {
     // Watchdog: a hung request (socket open, no response) leaves init awaiting
@@ -432,7 +492,10 @@ export function useChatSession(): UseChatSessionReturn {
 
         if (persistedConvId && persistedThreadId) {
           const warmDataPromise = Promise.all([
-            workspaceService.listThreads(persistedConvId, { limit: 50 }),
+            workspaceService.listThreads(persistedConvId, {
+              page: 1,
+              limit: THREADS_PAGE_SIZE,
+            }),
             workspaceService.getThread(persistedThreadId),
           ]).catch(() => null);
 
@@ -455,18 +518,17 @@ export function useChatSession(): UseChatSessionReturn {
               mapDbMessageToUiMessage
             );
             const uiConversations: ChatConversation[] =
-              threadListResponse.threads.map((thread) => ({
-                id: thread.id,
-                title: thread.title || 'New Chat',
-                messages:
-                  thread.id === persistedThreadId ? persistedUiMessages : [],
-                createdAt: new Date(thread.created_at).getTime(),
-                updatedAt: new Date(thread.updated_at).getTime(),
-                threadId: thread.id,
-                conversationId: persistedConvId,
-                previewText: thread.summary || undefined,
-                messageCount: thread.message_count,
-              }));
+              threadListResponse.threads.map((thread) =>
+                threadToConversation(
+                  thread,
+                  persistedConvId,
+                  thread.id === persistedThreadId ? persistedUiMessages : []
+                )
+              );
+            // CX8: warm-start also seeds the first page of the thread list.
+            threadsListConvIdRef.current = persistedConvId;
+            threadsPageRef.current = 1;
+            setHasMoreThreads(threadListResponse.has_more);
             setConversations(uiConversations);
             setMessages(persistedUiMessages);
             setActiveConversationId(persistedThreadId);
@@ -727,6 +789,8 @@ export function useChatSession(): UseChatSessionReturn {
     // Pagination
     loadOlderMessages,
     messagePagination,
+    hasMoreThreads,
+    loadMoreThreads,
 
     // Helpers
     mapDbMessageToUiMessage,

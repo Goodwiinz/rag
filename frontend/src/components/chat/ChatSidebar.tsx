@@ -42,6 +42,10 @@ interface ChatSidebarProps {
   onBulkDelete?: (ids: string[]) => void;
   currentWorkspace?: Workspace | null;
   className?: string;
+  // CX8: sidebar thread list is paginated server-side. Both are optional so
+  // existing/mobile callers that don't pass them just never show the button.
+  hasMoreThreads?: boolean;
+  onLoadMoreThreads?: () => void | Promise<void>;
 }
 
 function formatCompactTime(date: Date): string {
@@ -100,11 +104,22 @@ export const ChatSidebar = memo(function ChatSidebar({
   onBulkDelete,
   currentWorkspace,
   className,
+  hasMoreThreads,
+  onLoadMoreThreads,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const handleLoadMore = useCallback(() => {
+    if (!onLoadMoreThreads || isLoadingMore) return;
+    setIsLoadingMore(true);
+    Promise.resolve(onLoadMoreThreads()).finally(() =>
+      setIsLoadingMore(false)
+    );
+  }, [onLoadMoreThreads, isLoadingMore]);
 
   const filteredConversations = useMemo(() => {
     let list = conversations;
@@ -482,6 +497,23 @@ export const ChatSidebar = memo(function ChatSidebar({
             >
               {searchQuery ? 'No matching threads' : 'No conversations yet'}
             </p>
+          </div>
+        )}
+
+        {/* CX8: more threads exist server-side than the current page. Hidden
+            while searching — the client-side filter only covers loaded
+            threads, so "load more" wouldn't visibly help a filtered view. */}
+        {hasMoreThreads && !searchQuery && (
+          <div className="px-2.5 pb-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="w-full py-[7px] rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) text-[11px] text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:border-(--nous-sol)/30 transition-all disabled:opacity-50"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
+              {isLoadingMore ? 'Loading…' : 'Show older threads'}
+            </button>
           </div>
         )}
       </div>

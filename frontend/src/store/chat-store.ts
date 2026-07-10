@@ -177,6 +177,14 @@ interface ChatState {
   isRetrievingRag: boolean;
   /** Tool executions accumulated during the current streaming turn. */
   streamingSteps: ActivityStep[];
+  // CX5: the workspace thread id that owns the CURRENT live stream (both the
+  // main runStreamTurn path and the separate HITL confirm-resume path stamp
+  // this). isStreaming etc. above stay global — single-flight streaming is
+  // an invariant (see the ponytail comment in useChatStreaming's
+  // runStreamTurn) — but a thread-scoped UI consumer can compare this against
+  // its own activeThreadId to avoid rendering another thread's in-flight
+  // turn. null when no stream is active.
+  streamingThreadId: string | null;
 }
 
 interface ChatActions {
@@ -406,6 +414,7 @@ const initialState: ChatState = {
   streamingDiagnosticsTraceId: null,
   isRetrievingRag: false,
   streamingSteps: [],
+  streamingThreadId: null,
 };
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)
@@ -1458,6 +1467,7 @@ export const useChatStore = create<ChatStore>()(
           state.streamingCitations = [];
           state.streamingDiagnosticsTraceId = null;
           state.isRetrievingRag = false;
+          state.streamingThreadId = null;
         });
       },
 
