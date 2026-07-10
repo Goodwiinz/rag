@@ -13,3 +13,7 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+
+## 2025-05-18 - Ensure keyboard accessibility on custom interactive elements
+**Learning:** Custom interactive elements (like `button` tags) implemented without standard UI components often omit `type="button"` (risking accidental form submission) and `focus-visible` styles, rendering them inaccessible to keyboard users as browser default outlines might be suppressed or insufficient.
+**Action:** Always explicitly define `type="button"` and include explicit focus indicators (e.g., `focus-visible:ring-2 focus-visible:outline-none`) on raw `<button>` elements to ensure robust keyboard accessibility.

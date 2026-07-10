@@ -106,17 +106,19 @@ export function ChatPanel({
         </h3>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={onClear}
             aria-label="Clear chat messages"
             disabled={messages.length === 0}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close chat panel"
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="h-4 w-4" />
           </button>

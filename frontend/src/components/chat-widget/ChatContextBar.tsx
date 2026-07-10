@@ -46,12 +46,13 @@ export function ChatContextBar({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   onClick={() => onToggleAll(!allEnabled)}
                   aria-label={
                     allEnabled ? 'Disable all context' : 'Enable all context'
                   }
                   aria-pressed={allEnabled}
-                  className={`flex items-center px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border ${
+                  className={`flex items-center px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     allEnabled
                       ? 'bg-primary/10 text-primary border-primary/30'
                       : 'bg-muted/50 text-muted-foreground border-transparent hover:border-border'
@@ -71,10 +72,11 @@ export function ChatContextBar({
                 <Tooltip key={chip.kind}>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       onClick={() => onToggleChip(chip.kind)}
                       aria-label={`${chip.active ? 'Disable' : 'Enable'} ${chip.label} context`}
                       aria-pressed={chip.active}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border ${
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] whitespace-nowrap transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         chip.active
                           ? 'bg-primary/10 text-primary border-primary/30'
                           : 'bg-muted/50 text-muted-foreground border-transparent hover:border-border'

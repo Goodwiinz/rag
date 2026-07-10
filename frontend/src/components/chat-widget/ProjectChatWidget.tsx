@@ -76,9 +76,10 @@ export function ProjectChatWidget({
 
       {/* FAB */}
       <button
+        type="button"
         onClick={widget.toggle}
         aria-label={widget.isOpen ? 'Close project chat' : 'Open project chat'}
-        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center"
+        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {widget.isOpen ? (
           <X className="h-5 w-5" />

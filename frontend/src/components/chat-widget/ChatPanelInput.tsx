@@ -69,10 +69,11 @@ export function ChatPanelInput({
           className="flex-1 resize-none bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden focus:border-primary/50 disabled:opacity-50 transition-colors"
         />
         <button
+          type="button"
           onClick={handleSendClick}
           disabled={disabled || !value.trim()}
           aria-label="Send message"
-          className="shrink-0 h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Send className="h-4 w-4" />
         </button>
