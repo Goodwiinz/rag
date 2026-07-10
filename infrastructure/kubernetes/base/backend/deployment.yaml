@@ -64,16 +64,6 @@ spec:
             secretKeyRef:
               name: neo4j-secret
               key: neo4j-password
-        - name: QDRANT_URL
-          valueFrom:
-            secretKeyRef:
-              name: qdrant-secret
-              key: qdrant-url
-        - name: QDRANT_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: qdrant-secret
-              key: qdrant-api-key
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:

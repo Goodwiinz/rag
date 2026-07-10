@@ -202,46 +202,6 @@ neo4j:
     targetCPUUtilization: 70
     targetMemoryUtilization: 80
 
-qdrant:
-  name: qdrant
-  replicas: 3
-  image:
-    repository: qdrant/qdrant
-    tag: "v1.7.3"
-    pullPolicy: IfNotPresent
-  service:
-    type: ClusterIP
-    port: 6333
-    targetPort: 6333
-    portName: http
-    apiPort: 6333
-    targetApiPort: 6333
-    portNameApi: api
-  resources:
-    requests:
-      memory: "2Gi"
-      cpu: "1000m"
-    limits:
-      memory: "4Gi"
-      cpu: "2000m"
-  env:
-    QDRANT__SERVICE__HTTP_PORT: "6333"
-    QDRANT__SERVICE__API_KEY: "qdrant-secret-key"
-    QDRANT__SERVICE__ENABLE_CORS: "true"
-    QDRANT__LOG_LEVEL: "info"
-    QDRANT__STORAGE__STORAGE_PATH: "/qdrant/storage"
-    QDRANT__STORAGE__SNAPSHOTS_PATH: "/qdrant/snapshots"
-  persistence:
-    enabled: true
-    size: "100Gi"
-    storageClass: "fast-ssd"
-  serviceAccount:
-    name: rag-qdrant-sa
-  scaling:
-    minReplicas: 3
-    maxReplicas: 8
-    targetCPUUtilization: 70
-    targetMemoryUtilization: 80
 
 redis:
   name: redis
@@ -687,9 +647,6 @@ resourceLimits:
   neo4j:
     cpu: "4000m"
     memory: "8Gi"
-  qdrant:
-    cpu: "2000m"
-    memory: "4Gi"
   redis:
     cpu: "1000m"
     memory: "2Gi"
@@ -727,9 +684,6 @@ podDisruptionBudgets:
     minAvailable: 1
     maxUnavailable: 1
   neo4j:
-    minAvailable: 2
-    maxUnavailable: 1
-  qdrant:
     minAvailable: 2
     maxUnavailable: 1
   redis:
@@ -797,16 +751,6 @@ nodeAffinity:
         value: "rag"
         effect: "NoSchedule"
   neo4j:
-    matchExpressions:
-      - key: "node-role"
-        operator: "In"
-        values: ["database"]
-    tolerations:
-      - key: "dedicated"
-        operator: "Equal"
-        value: "database"
-        effect: "NoSchedule"
-  qdrant:
     matchExpressions:
       - key: "node-role"
         operator: "In"
@@ -939,16 +883,6 @@ podAntiAffinity:
                 operator: In
                 values: [neo4j]
           topologyKey: "kubernetes.io/hostname"
-  qdrant:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-              - key: app
-                operator: In
-                values: [qdrant]
-          topologyKey: "kubernetes.io/hostname"
   redis:
     preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 100
@@ -1061,7 +995,6 @@ backup:
   compression: true
   databases:
     - neo4j
-    - qdrant
     - redis
     - elasticsearch
   applications:

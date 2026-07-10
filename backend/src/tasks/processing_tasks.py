@@ -13,24 +13,22 @@ from celery import Task, current_app
 
 from src.core.config import settings
 from src.core.database import SessionLocal, get_db
-from src.tasks.celery_app import celery_app
-from src.models.document import Document, ProcessingStatus
+from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (
     BatchEntityRequest,
     CreateEntityRequest,
     CreateRelationshipRequest,
-    EntityType as GraphEntityType,
-    ExtractionMethod as GraphExtractionMethod,
-    RelationshipType as GraphRelationshipType,
 )
+from src.models.graph import EntityType as GraphEntityType
+from src.models.graph import ExtractionMethod as GraphExtractionMethod
+from src.models.graph import RelationshipType as GraphRelationshipType
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.llm_entity_extraction import (
-    LLMEntityExtractionService,
-)
+from src.services.processing.llm_entity_extraction import LLMEntityExtractionService
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
+from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +134,7 @@ def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
         return GraphRelationshipType.RELATED_TO
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="process_document_ingestion")
 def process_document_ingestion(self, job_id: str):
     """Process complete document ingestion pipeline"""
     db = SessionLocal()
@@ -206,6 +204,31 @@ def process_document_ingestion(self, job_id: str):
                 "character_count", text_extraction_result["character_count"]
             )
         db.commit()
+
+        # Step 1b: Figure extraction (optional, flag-gated; never fails ingestion)
+        if (
+            settings.FIGURE_EXTRACTION_ENABLED
+            and document.document_type == DocumentType.PDF
+        ):
+            try:
+                from src.services.processing.figure_extraction_service import (
+                    extract_figures_for_document,
+                    merge_captions_into_text,
+                )
+
+                job.update_progress("Extracting figures", 35)
+                db.commit()
+                fig_result = extract_figures_for_document(db, document)
+                if fig_result.get("captions_text"):
+                    document.content_text = merge_captions_into_text(
+                        document.content_text, fig_result["captions_text"]
+                    )
+                db.commit()
+            except Exception as fig_err:  # optional step, mirrors Neo4j tolerance above
+                db.rollback()
+                logger.warning(
+                    f"Figure extraction failed for document {document.id}: {fig_err}"
+                )
 
         # Step 2: Entity Extraction
         job.update_progress("Extracting entities", 50)
@@ -364,7 +387,7 @@ def process_document_ingestion(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="extract_text_content")
 def extract_text_content(self, job_id: str):
     """Extract text content from document"""
     db = SessionLocal()
@@ -423,7 +446,7 @@ def extract_text_content(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="extract_entities")
 def extract_entities(self, job_id: str):
     """Extract entities from document text"""
     db = SessionLocal()
@@ -466,9 +489,10 @@ def extract_entities(self, job_id: str):
             )
 
         # Save entities
+        from datetime import datetime
+
         from src.models.entity import Entity, ExtractionMethod
         from src.services.processing.llm_entity_extraction import map_to_entity_type
-        from datetime import datetime
 
         saved_entities = []
         for ent in extraction_result.entities:
@@ -520,7 +544,7 @@ def extract_entities(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="generate_embeddings")
 def generate_embeddings(self, job_id: str):
     """Generate embeddings for document"""
     db = SessionLocal()
@@ -582,7 +606,7 @@ def generate_embeddings(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True)
+@current_app.task(base=ProcessingTask, bind=True, name="index_in_graph")
 def index_in_graph(self, job_id: str):
     """Index document and entities in knowledge graph"""
     db = SessionLocal()
@@ -656,6 +680,20 @@ def kg_extract_entities_job(self, job_id: str):
         job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
+
+        # Idempotency guard for acks_late redelivery (same pattern as
+        # process_document_ingestion above): a worker killed after completion
+        # but before the broker ack redelivers the message, which would re-run
+        # the full LLM extraction and regress the job COMPLETED -> RUNNING.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered KG extraction"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
 
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()

@@ -87,7 +87,6 @@ update_docker_compose() {
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=neo4j_password
-      - QDRANT_URL=http://qdrant:6333
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=development
       - LOG_LEVEL=INFO
@@ -96,7 +95,6 @@ update_docker_compose() {
     depends_on:
       - postgres
       - neo4j
-      - qdrant
       - redis
     networks:
       - rag-network
@@ -176,7 +174,6 @@ display_status() {
     echo "  • Backend:            $(docker ps --format "{{.Names}}\t{{.Status}}" | grep rag-backend || echo "Not running")"
     echo "  • PostgreSQL:         $(docker ps --format "{{.Names}}\t{{.Status}}" | grep postgres || echo "Not running")"
     echo "  • Neo4j:              $(docker ps --format "{{.Names}}\t{{.Status}}" | grep neo4j || echo "Not running")"
-    echo "  • Qdrant:             $(docker ps --format "{{.Names}}\t{{.Status}}" | grep qdrant || echo "Not running")"
     echo "  • Redis:              $(docker ps --format "{{.Names}}\t{{.Status}}" | grep redis || echo "Not running")"
     echo ""
     echo -e "${GREEN}🌐 Backend Access:${NC}"

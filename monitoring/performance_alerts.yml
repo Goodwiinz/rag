@@ -181,29 +181,7 @@ groups:
           runbook_url: "https://docs.rag-system.com/runbooks/redis-memory-usage"
 
       # Vector Database Alerts
-      - alert: QdrantHighResponseTime
-        expr: qdrant_request_duration_seconds > 1
-        for: 3m
-        labels:
-          severity: warning
-          service: qdrant
-          component: vector-db
-        annotations:
-          summary: "High Qdrant response time detected"
-          description: "Qdrant response time is {{ $value }}s, which is above the 1s threshold"
-          runbook_url: "https://docs.rag-system.com/runbooks/qdrant-high-response-time"
 
-      - alert: QdrantMemoryUsage
-        expr: qdrant_memory_usage_bytes / (1024*1024*1024) > 8
-        for: 5m
-        labels:
-          severity: warning
-          service: qdrant
-          component: vector-db
-        annotations:
-          summary: "High Qdrant memory usage detected"
-          description: "Qdrant memory usage is {{ $value }}GB, which is above the 8GB threshold"
-          runbook_url: "https://docs.rag-system.com/runbooks/qdrant-memory-usage"
 
       # Knowledge Graph Alerts
       - alert: Neo4jHighResponseTime

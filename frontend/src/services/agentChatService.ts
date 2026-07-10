@@ -29,6 +29,183 @@ async function getStreamAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+/**
+ * Callbacks shared by all agent SSE consumers (streamMessage, streamConfirm,
+ * resumeStream). One superset shape — individual streams simply never emit
+ * some events (e.g. streamConfirm never emits trace).
+ */
+export interface AgentStreamCallbacks {
+  onToken?: (content: string) => void;
+  onToolStart?: (tool: string, args: Record<string, unknown>) => void;
+  onToolEnd?: (tool: string, result: string, isError: boolean) => void;
+  onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
+  onPlan?: (steps: Array<Record<string, unknown>>, reasoning: string) => void;
+  onReflection?: (
+    passed: boolean,
+    issues: string[],
+    round: number,
+    revising?: boolean
+  ) => void;
+  onConfirmation?: (
+    threadId: string,
+    confirmation: Record<string, unknown>
+  ) => void;
+  onTrace?: (threadId: string) => void;
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
+  /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
+   * cursor. Persist the latest value to resume after a disconnect. */
+  onSeq?: (seq: number) => void;
+  onDone?: (payload?: {
+    thread_id?: string;
+    assistant_message_id?: string | null;
+    client_message_id?: string | null;
+    /** Full-fidelity tool executions from the graph state (parsed
+     * results, real durations) — richer than the live SSE summaries. */
+    tool_executions?: Array<Record<string, unknown>>;
+  }) => void;
+  onError?: (error: string) => void;
+}
+
+/** Read the backend's error body so the user sees the real cause, not just
+ * an HTTP number. FastAPI usually returns `{detail: "..."}`. */
+async function readErrorBody(response: Response): Promise<string> {
+  let backendMessage = '';
+  try {
+    const text = await response.text();
+    if (text) {
+      try {
+        const parsed = JSON.parse(text);
+        const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+        backendMessage =
+          typeof raw === 'string' ? raw : raw?.message || JSON.stringify(raw);
+      } catch {
+        backendMessage = text.slice(0, 500);
+      }
+    }
+  } catch {
+    // Ignore — fall back to status code only.
+  }
+  return backendMessage;
+}
+
+/**
+ * Shared SSE consume loop: reads `response.body`, parses `id:`/`event:`/
+ * `data:` lines (chunk-boundary and CRLF safe), and dispatches to callbacks.
+ * AbortError is swallowed — an aborted stream resolves quietly.
+ */
+async function consumeSse(
+  response: Response,
+  callbacks: AgentStreamCallbacks
+): Promise<void> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let eventType = '';
+
+  const dispatchData = (ev: string, dataLine: string): void => {
+    try {
+      const data = JSON.parse(dataLine.slice(6));
+      switch (ev) {
+        case 'token':
+          callbacks.onToken?.(data.content);
+          break;
+        case 'tool_start':
+          callbacks.onToolStart?.(data.tool, data.args);
+          break;
+        case 'tool_end':
+          callbacks.onToolEnd?.(data.tool, data.result, Boolean(data.is_error));
+          break;
+        case 'rag_context':
+          callbacks.onRagContext?.(data.contexts);
+          break;
+        case 'plan':
+          callbacks.onPlan?.(data.steps, data.reasoning ?? '');
+          break;
+        case 'trace':
+          if (data.thread_id) {
+            callbacks.onTrace?.(data.thread_id);
+          }
+          break;
+        case 'reflection':
+          callbacks.onReflection?.(
+            data.passed,
+            data.issues,
+            data.round,
+            data.revising
+          );
+          break;
+        case 'confirmation':
+          callbacks.onConfirmation?.(data.thread_id, data.confirmation);
+          break;
+        case 'usage':
+          callbacks.onUsage?.(
+            Number(data.input_tokens) || 0,
+            Number(data.output_tokens) || 0
+          );
+          break;
+        case 'done':
+          // Server-canonical persistence: the done payload carries the
+          // persisted ids so the client can reconcile its optimistic
+          // bubbles instead of double-saving. Legacy servers send only
+          // {status} — the payload fields are simply undefined then.
+          callbacks.onDone?.(data);
+          break;
+        case 'error':
+          callbacks.onError?.(
+            typeof data.error === 'string'
+              ? data.error
+              : String(data.error?.message || JSON.stringify(data.error))
+          );
+          break;
+      }
+    } catch (err) {
+      console.warn('[Chat] Malformed SSE data line, skipping:', dataLine, err);
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) {
+          eventType = '';
+          continue;
+        }
+        if (line.startsWith('id: ')) {
+          const seq = parseInt(line.slice(4), 10);
+          if (!Number.isNaN(seq)) callbacks.onSeq?.(seq);
+        } else if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && eventType) {
+          dispatchData(eventType, line);
+        }
+      }
+    }
+    // Defensive flush: if the server's final chunk ended without a
+    // trailing \n (the backend always \n\n-terminates, so this is
+    // rare), buffer holds an unprocessed data: line — process it so
+    // the last event isn't silently dropped.
+    if (buffer.trim() && eventType) {
+      const tail = buffer.trim();
+      if (tail.startsWith('data: ')) {
+        dispatchData(eventType, tail);
+      }
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return;
+    throw err;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export interface AgentExecuteRequest {
   messages: Array<{
     role: string;
@@ -157,34 +334,7 @@ class AgentChatService {
 
   async streamMessage(
     request: AgentExecuteRequest,
-    callbacks: {
-      onToken?: (content: string) => void;
-      onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
-      onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
-      onPlan?: (
-        steps: Array<Record<string, unknown>>,
-        reasoning: string
-      ) => void;
-      onReflection?: (
-        passed: boolean,
-        issues: string[],
-        round: number,
-        revising?: boolean
-      ) => void;
-      onConfirmation?: (
-        threadId: string,
-        confirmation: Record<string, unknown>
-      ) => void;
-      onTrace?: (threadId: string) => void;
-      onUsage?: (inputTokens: number, outputTokens: number) => void;
-      onDone?: (payload?: {
-        thread_id?: string;
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) => void;
-      onError?: (error: string) => void;
-    },
+    callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
     const headers = await getStreamAuthHeaders();
@@ -203,27 +353,7 @@ class AgentChatService {
     }
 
     if (!response.ok || !response.body) {
-      // Read the backend's error body so the user sees the real cause,
-      // not just an HTTP number. FastAPI usually returns `{detail: "..."}`.
-      let backendMessage = '';
-      try {
-        const text = await response.text();
-        if (text) {
-          try {
-            const parsed = JSON.parse(text);
-            const raw =
-              parsed?.detail || parsed?.error || parsed?.message || text;
-            backendMessage =
-              typeof raw === 'string'
-                ? raw
-                : raw?.message || JSON.stringify(raw);
-          } catch {
-            backendMessage = text.slice(0, 500);
-          }
-        }
-      } catch {
-        // Ignore — fall back to status code only.
-      }
+      const backendMessage = await readErrorBody(response);
       callbacks.onError?.(
         backendMessage
           ? `Stream failed (${response.status}): ${backendMessage}`
@@ -232,151 +362,58 @@ class AgentChatService {
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let eventType = '';
+    await consumeSse(response, callbacks);
+  }
 
-    const dispatchData = (ev: string, dataLine: string): void => {
-      try {
-        const data = JSON.parse(dataLine.slice(6));
-        switch (ev) {
-          case 'token':
-            callbacks.onToken?.(data.content);
-            break;
-          case 'tool_start':
-            callbacks.onToolStart?.(data.tool, data.args);
-            break;
-          case 'tool_end':
-            callbacks.onToolEnd?.(
-              data.tool,
-              data.result,
-              Boolean(data.is_error)
-            );
-            break;
-          case 'rag_context':
-            callbacks.onRagContext?.(data.contexts);
-            break;
-          case 'plan':
-            callbacks.onPlan?.(data.steps, data.reasoning);
-            break;
-          case 'trace':
-            if (data.thread_id) {
-              callbacks.onTrace?.(data.thread_id);
-            }
-            break;
-          case 'reflection':
-            callbacks.onReflection?.(
-              data.passed,
-              data.issues,
-              data.round,
-              data.revising
-            );
-            break;
-          case 'confirmation':
-            callbacks.onConfirmation?.(data.thread_id, data.confirmation);
-            break;
-          case 'usage':
-            callbacks.onUsage?.(
-              Number(data.input_tokens) || 0,
-              Number(data.output_tokens) || 0
-            );
-            break;
-          case 'done':
-            // Server-canonical persistence: the done payload carries the
-            // persisted ids so the client can reconcile its optimistic
-            // bubbles instead of double-saving. Legacy servers send only
-            // {status} — the payload fields are simply undefined then.
-            callbacks.onDone?.(data);
-            break;
-          case 'error':
-            callbacks.onError?.(
-              typeof data.error === 'string'
-                ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
-            );
-            break;
-        }
-      } catch (err) {
-        console.warn(
-          '[Chat] Malformed SSE data line, skipping:',
-          dataLine,
-          err
-        );
-      }
-    };
+  /**
+   * Resume an in-flight (or just-finished, still-buffered) agent stream.
+   * 204 means nothing is active for the thread — a clean no-op. Otherwise
+   * the buffered frames after `afterSeq` replay through the same callbacks
+   * as streamMessage, ending with the terminal frame (done/error/
+   * confirmation).
+   */
+  async resumeStream(
+    threadId: string,
+    afterSeq: number,
+    callbacks: AgentStreamCallbacks,
+    signal?: AbortSignal
+  ): Promise<{ resumed: boolean }> {
+    const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
+    const url = `${base}/agent/stream/resume/${encodeURIComponent(
+      threadId
+    )}?after=${afterSeq}`;
+    const headers = await getStreamAuthHeaders();
 
+    let response: Response;
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const rawLine of lines) {
-          const line = rawLine.trim();
-          if (!line) {
-            eventType = '';
-            continue;
-          }
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ') && eventType) {
-            dispatchData(eventType, line);
-          }
-        }
-      }
-      // Defensive flush: if the server's final chunk ended without a
-      // trailing \n (the backend always \n\n-terminates, so this is
-      // rare), buffer holds an unprocessed data: line — process it so
-      // the last event isn't silently dropped.
-      if (buffer.trim() && eventType) {
-        const tail = buffer.trim();
-        if (tail.startsWith('data: ')) {
-          dispatchData(eventType, tail);
-        }
-      }
+      response = await fetch(url, { method: 'GET', headers, signal });
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return { resumed: false };
+      }
       throw err;
-    } finally {
-      reader.releaseLock();
     }
+
+    if (response.status === 204) {
+      return { resumed: false };
+    }
+    if (!response.ok || !response.body) {
+      const backendMessage = await readErrorBody(response);
+      callbacks.onError?.(
+        backendMessage
+          ? `Stream resume failed (${response.status}): ${backendMessage}`
+          : `Stream resume failed: ${response.status}`
+      );
+      return { resumed: false };
+    }
+
+    await consumeSse(response, callbacks);
+    return { resumed: true };
   }
 
   async streamConfirm(
     request: { thread_id: string; confirmed: boolean },
-    callbacks: {
-      onToken?: (content: string) => void;
-      onToolStart?: (tool: string, args: Record<string, unknown>) => void;
-      onToolEnd?: (tool: string, result: string, isError: boolean) => void;
-      onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
-      onPlan?: (
-        steps: Array<Record<string, unknown>>,
-        reasoning: string
-      ) => void;
-      onReflection?: (
-        passed: boolean,
-        issues: string[],
-        round: number,
-        revising?: boolean
-      ) => void;
-      onConfirmation?: (
-        threadId: string,
-        confirmation: Record<string, unknown>
-      ) => void;
-      onUsage?: (inputTokens: number, outputTokens: number) => void;
-      onDone?: (payload?: {
-        thread_id?: string;
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) => void;
-      onError?: (error: string) => void;
-    },
+    callbacks: AgentStreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
     const headers = await getStreamAuthHeaders();
@@ -395,25 +432,7 @@ class AgentChatService {
     }
 
     if (!response.ok || !response.body) {
-      let backendMessage = '';
-      try {
-        const text = await response.text();
-        if (text) {
-          try {
-            const parsed = JSON.parse(text);
-            const raw =
-              parsed?.detail || parsed?.error || parsed?.message || text;
-            backendMessage =
-              typeof raw === 'string'
-                ? raw
-                : raw?.message || JSON.stringify(raw);
-          } catch {
-            backendMessage = text.slice(0, 500);
-          }
-        }
-      } catch {
-        // Ignore — fall back to status code only.
-      }
+      const backendMessage = await readErrorBody(response);
       callbacks.onError?.(
         backendMessage
           ? `Stream confirm failed (${response.status}): ${backendMessage}`
@@ -422,121 +441,8 @@ class AgentChatService {
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let eventType = '';
-
-    const dispatchData = (ev: string, dataLine: string): void => {
-      try {
-        const data = JSON.parse(dataLine.slice(6));
-        switch (ev) {
-          case 'token':
-            callbacks.onToken?.(data.content);
-            break;
-          case 'tool_start':
-            callbacks.onToolStart?.(data.tool, data.args);
-            break;
-          case 'tool_end':
-            callbacks.onToolEnd?.(
-              data.tool,
-              data.result,
-              Boolean(data.is_error)
-            );
-            break;
-          case 'rag_context':
-            // Post-confirm retrieval — without this the resumed turn's
-            // sources were silently dropped (sync-audit gap 2).
-            callbacks.onRagContext?.(data.contexts);
-            break;
-          case 'plan':
-            callbacks.onPlan?.(data.steps, data.reasoning ?? '');
-            break;
-          case 'trace':
-            break;
-          case 'reflection':
-            callbacks.onReflection?.(
-              data.passed,
-              data.issues,
-              data.round,
-              data.revising
-            );
-            break;
-          case 'confirmation':
-            callbacks.onConfirmation?.(data.thread_id, data.confirmation);
-            break;
-          case 'usage':
-            callbacks.onUsage?.(
-              Number(data.input_tokens) || 0,
-              Number(data.output_tokens) || 0
-            );
-            break;
-          case 'done':
-            // Server-canonical persistence: the done payload carries the
-            // persisted ids so the client can reconcile its optimistic
-            // bubbles instead of double-saving. Legacy servers send only
-            // {status} — the payload fields are simply undefined then.
-            callbacks.onDone?.(data);
-            break;
-          case 'error':
-            callbacks.onError?.(
-              typeof data.error === 'string'
-                ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
-            );
-            break;
-        }
-      } catch (err) {
-        console.warn(
-          '[Chat] Malformed SSE data line, skipping:',
-          dataLine,
-          err
-        );
-      }
-    };
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const rawLine of lines) {
-          const line = rawLine.trim();
-          if (!line) {
-            eventType = '';
-            continue;
-          }
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim();
-          } else if (line.startsWith('data: ') && eventType) {
-            dispatchData(eventType, line);
-          }
-        }
-      }
-      // Defensive flush: if the server's final chunk ended without a
-      // trailing \n (the backend always \n\n-terminates, so this is
-      // rare), buffer holds an unprocessed data: line — process it so
-      // the last event isn't silently dropped.
-      if (buffer.trim() && eventType) {
-        const tail = buffer.trim();
-        if (tail.startsWith('data: ')) {
-          dispatchData(eventType, tail);
-        }
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      throw err;
-    } finally {
-      reader.releaseLock();
-    }
+    await consumeSse(response, callbacks);
   }
-
   async startDurableRun(
     request: AgentExecuteRequest
   ): Promise<{ runId: string }> {

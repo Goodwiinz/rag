@@ -172,6 +172,10 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
+    # Figure extraction (PyMuPDF, Phase 1) — embedded raster figures + caption
+    # heuristics during PDF ingestion. Off by default; flip per-env in Infisical.
+    FIGURE_EXTRACTION_ENABLED: bool = False
+
     # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
     # Public Preview — API may churn. One KB per organization.
     DO_KB_ENABLED: bool = False
@@ -401,12 +405,40 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
+    # Citation-faithfulness reviewer pass in draft generation (WS1).
+    # Default off: merge inert, flip in values-dev after verify.
+    # When flipping on in dev, no secret is needed — boolean env only;
+    # if ever sourced from Infisical, add DRAFT_CITATION_REVIEW_ENABLED
+    # to the /do-kb path per project convention.
+    DRAFT_CITATION_REVIEW_ENABLED: bool = False
+
+    # Option B server-side history rebuild. When True, the agent stream ignores
+    # all but the newest user turn in the request and rebuilds conversation
+    # context from the LangGraph checkpoint (source of truth), seeding it from
+    # the DB when the checkpoint is empty. When False (default), the legacy
+    # client-resent-history path is used unchanged. Flag-gated rollout: enable
+    # on dev only after soak; the frontend send-only-newest change must NOT ship
+    # until this is on in that environment.
+    #
+    # Requires the client to send a client_message_id on the newest user turn
+    # (the /chat surface does when NEXT_PUBLIC_SERVER_CANONICAL_CHAT is on) — it
+    # is the idempotency key that keeps two same-content turns distinct and a
+    # retry a no-op. Turns without one safely fall back to the legacy path, so
+    # enabling this where cmids aren't sent just makes it a no-op, never a bug.
+    AGENT_SERVER_SIDE_HISTORY: bool = False
+
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
     # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
     # record (intent, plan, tool_executions, retrieved_contexts summary,
     # ai_response, reflection_result, tokens, timing). Empty disables.
     AGENT_LEDGER_DIR: Optional[str] = None
+
+    # Re-score DO KB chunks with the Azure Cohere cross-encoder after
+    # resolve/filter. DO KB Public Preview returns no scores (we synthesize
+    # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
+    # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
+    AGENT_DOKB_COHERE_RERANK: bool = False
 
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None

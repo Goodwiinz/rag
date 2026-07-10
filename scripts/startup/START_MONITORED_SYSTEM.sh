@@ -74,7 +74,7 @@ start_core_services() {
     print_header "Starting Core RAG Services..."
 
     # Start databases and core infrastructure
-    docker-compose up -d postgres neo4j qdrant redis
+    docker-compose up -d postgres neo4j redis
 
     print_status "Core services started ✓"
 }
@@ -85,7 +85,6 @@ initialize_databases() {
 
     # Wait for databases to be ready
     wait_for_service http://localhost:7687 "Neo4j"
-    wait_for_service http://localhost:6333 "Qdrant"
     wait_for_service http://localhost:5432 "PostgreSQL"
 
     # Run setup script
@@ -170,7 +169,6 @@ verify_services() {
 
     # Check core services
     check_service http://localhost:7687 "Neo4j" || true
-    check_service http://localhost:6333 "Qdrant" || true
     check_service http://localhost:6379 "Redis" || true
 
     # Check monitoring
@@ -202,7 +200,6 @@ display_info() {
     echo ""
     echo -e "${GREEN}🗄️  Database Services:${NC}"
     echo "  • Neo4j Browser:        http://localhost:7474"
-    echo "  • Qdrant Console:       http://localhost:6333/dashboard"
     echo ""
     echo -e "${GREEN}🔧 Management Commands:${NC}"
     echo "  • View backend logs:     tail -f logs/backend.log"

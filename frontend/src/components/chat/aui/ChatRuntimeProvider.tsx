@@ -10,6 +10,7 @@ import {
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 
 import { convertMessage } from './convertMessage';
+import { NousToolUIs } from './toolUIs';
 
 export interface ChatRuntimeProviderProps {
   messages: ChatPageMessage[];
@@ -21,6 +22,10 @@ export interface ChatRuntimeProviderProps {
    * external-store API even though the composer stays custom in stage 1. */
   onSend: (text: string) => void;
   onCancel: () => void;
+  /** Resolves an in-band HITL approval (P4). Wired to the ExternalStore
+   * adapter's onRespondToToolApproval so the approval tool UI's
+   * respondToApproval routes to the existing hardened confirm handler. */
+  onApproval?: (approved: boolean) => void;
   children: ReactNode;
 }
 
@@ -36,6 +41,7 @@ export function ChatRuntimeProvider({
   isSendDisabled,
   onSend,
   onCancel,
+  onApproval,
   children,
 }: ChatRuntimeProviderProps): ReactElement {
   const onNew = useCallback(
@@ -57,6 +63,16 @@ export function ChatRuntimeProvider({
     onCancel();
   }, [onCancel]);
 
+  // Route the runtime's approval resolution to the existing confirm handler.
+  // The renderer's respondToApproval → runtime → this adapter callback; opts
+  // carries the resolved boolean, so no option-list resolution is needed here.
+  const onRespondToToolApproval = useCallback(
+    (opts: { approved: boolean }) => {
+      onApproval?.(opts.approved);
+    },
+    [onApproval]
+  );
+
   const runtime = useExternalStoreRuntime({
     messages,
     isRunning,
@@ -64,10 +80,14 @@ export function ChatRuntimeProvider({
     convertMessage,
     onNew,
     onCancel: handleCancel,
+    onRespondToToolApproval,
   });
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      {/* Declarative per-tool renderers (register on mount, render null).
+          Unregistered tools keep the generic ToolFallback. */}
+      <NousToolUIs />
       {children}
     </AssistantRuntimeProvider>
   );

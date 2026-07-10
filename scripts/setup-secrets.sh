@@ -97,8 +97,6 @@ REDIS_PASSWORD=$(generate_random_string 32)
 NEO4J_PASSWORD=$(generate_random_string 32)
 NEO4J_USERNAME=neo4j
 
-# Qdrant Configuration
-QDRANT_API_KEY=$(generate_random_string 64)
 
 # Backend Security
 BACKEND_SECRET_KEY=$(generate_random_string 64)
@@ -169,12 +167,6 @@ create_k8s_secrets() {
         --namespace="$NAMESPACE" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-    # Create Qdrant credentials secret
-    log_info "Creating Qdrant credentials secret..."
-    kubectl create secret generic qdrant-credentials \
-        --from-literal=api-key="$QDRANT_API_KEY" \
-        --namespace="$NAMESPACE" \
-        --dry-run=client -o yaml | kubectl apply -f -
 
     # Create backend secrets
     log_info "Creating backend secrets..."
@@ -238,7 +230,6 @@ setup_aws_secrets_manager() {
         "knowledge-graph-analytics/$ENVIRONMENT/database-password:$DB_PASSWORD"
         "knowledge-graph-analytics/$ENVIRONMENT/redis-password:$REDIS_PASSWORD"
         "knowledge-graph-analytics/$ENVIRONMENT/neo4j-password:$NEO4J_PASSWORD"
-        "knowledge-graph-analytics/$ENVIRONMENT/qdrant-api-key:$QDRANT_API_KEY"
         "knowledge-graph-analytics/$ENVIRONMENT/openai-api-key:$OPENAI_API_KEY"
         "knowledge-graph-analytics/$ENVIRONMENT/anthropic-api-key:$ANTHROPIC_API_KEY"
     )
@@ -271,7 +262,6 @@ verify_secrets() {
         "database-credentials"
         "redis-credentials"
         "neo4j-credentials"
-        "qdrant-credentials"
         "backend-secrets"
         "ai-credentials"
         "monitoring-credentials"
@@ -290,7 +280,7 @@ verify_secrets() {
 show_status() {
     log_info "Current secrets status for namespace: $NAMESPACE"
     echo
-    kubectl get secrets -n "$NAMESPACE" | grep -E "(database|redis|neo4j|qdrant|backend|ai|monitoring)"
+    kubectl get secrets -n "$NAMESPACE" | grep -E "(database|redis|neo4j|backend|ai|monitoring)"
 }
 
 # Rotate secrets
@@ -301,7 +291,6 @@ rotate_secrets() {
     local new_db_password=$(generate_random_string 24)
     local new_redis_password=$(generate_random_string 32)
     local new_neo4j_password=$(generate_random_string 32)
-    local new_qdrant_api_key=$(generate_random_string 64)
     local new_backend_secret_key=$(generate_random_string 64)
     local new_jwt_secret=$(generate_random_string 64)
 
@@ -309,7 +298,6 @@ rotate_secrets() {
     kubectl patch secret database-credentials -n "$NAMESPACE" -p='{"data":{"password":"'$(echo -n "$new_db_password" | base64 -w 0)'"}}'
     kubectl patch secret redis-credentials -n "$NAMESPACE" -p='{"data":{"password":"'$(echo -n "$new_redis_password" | base64 -w 0)'"}}'
     kubectl patch secret neo4j-credentials -n "$NAMESPACE" -p='{"data":{"password":"'$(echo -n "$new_neo4j_password" | base64 -w 0)'"}}'
-    kubectl patch secret qdrant-credentials -n "$NAMESPACE" -p='{"data":{"api-key":"'$(echo -n "$new_qdrant_api_key" | base64 -w 0)'"}}'
     kubectl patch secret backend-secrets -n "$NAMESPACE" -p='{"data":{"secret-key":"'$(echo -n "$new_backend_secret_key" | base64 -w 0)'"}}'
     kubectl patch secret backend-secrets -n "$NAMESPACE" -p='{"data":{"jwt-secret":"'$(echo -n "$new_jwt_secret" | base64 -w 0)'"}}'
 

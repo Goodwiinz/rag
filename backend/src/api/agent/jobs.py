@@ -237,6 +237,209 @@ def _get_latest_user_content(messages: List[Any]) -> Optional[str]:
     return None
 
 
+# --- Option B: server-side history rebuild (AGENT_SERVER_SIDE_HISTORY) -------
+#
+# The LangGraph checkpoint (keyed by thread_id) is the model-context source of
+# truth. The request array is used only for its newest user turn. The checkpoint
+# is NOT a guaranteed-complete mirror (dev MemorySaver loss on restart, legacy /
+# non-agent threads, job_id-fallback ids), so when it has no history we rebuild
+# it from the DB. add_messages is an id-keyed upsert, so deterministic ids make
+# reseeds and resends converge instead of duplicating.
+
+
+def _seed_message_id(thread_id: str, row: Any) -> str:
+    """Deterministic, reorder/edit-proof id for a seeded message.
+
+    Anchored to the client idempotency key when present, else the immutable
+    chat_message PK — so re-seeding a thread yields byte-identical ids and the
+    add_messages reducer upserts (never duplicates) on repeat.
+    """
+    cmid = getattr(row, "client_message_id", None)
+    if cmid:
+        return str(cmid)
+    return str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:{row.id}"))
+
+
+async def build_thread_seed_messages(db: AsyncSession, thread_id: str) -> List[Any]:
+    """Rebuild a thread's conversation from the DB as LangGraph messages.
+
+    Seeds the checkpoint (Option B) when it has no history of its own — a fresh
+    thread, a lost in-memory checkpoint, or a legacy/non-agent thread. User rows
+    become HumanMessages and assistant rows become plain-content AIMessages (no
+    tool_call replay, which the prompt path does not need). Ordered by
+    created_at; ids are deterministic so a later reseed converges via the
+    id-keyed reducer instead of duplicating turns.
+    """
+    from uuid import UUID
+
+    from langchain_core.messages import AIMessage, HumanMessage
+    from sqlalchemy import select
+
+    from src.models.chat_message import ChatMessage, MessageRole
+
+    try:
+        tid = UUID(thread_id)
+    except (ValueError, TypeError, AttributeError):
+        return []
+
+    rows = (
+        (
+            await db.execute(
+                select(ChatMessage)
+                .where(ChatMessage.thread_id == tid)
+                .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    out: List[Any] = []
+    for r in rows:
+        mid = _seed_message_id(thread_id, r)
+        if r.role == MessageRole.USER:
+            out.append(HumanMessage(content=r.content, id=mid))
+        elif r.role == MessageRole.ASSISTANT:
+            out.append(AIMessage(content=r.content, id=mid))
+        # system / tool rows are not model-context turns; skip.
+    return out
+
+
+def _newest_user_message(messages: List[Any]) -> Optional[Any]:
+    """The current turn as a HumanMessage keyed on its client_message_id.
+
+    Option B needs a stable per-turn idempotency key: the id must be unique
+    across distinct turns (so two same-content turns don't collide and overwrite
+    under the id-keyed reducer) AND identical across a retry of the SAME turn (so
+    an SSE retry is a no-op). Only client_message_id satisfies both — a
+    content-derived id fails the first, a row-derived id fails the second. So
+    when the newest turn carries no client_message_id we return None, and the
+    caller falls back to the legacy path rather than fabricate an unsafe id.
+    """
+    from langchain_core.messages import HumanMessage
+
+    last = next(
+        (m for m in reversed(messages) if getattr(m, "role", None) == "user"), None
+    )
+    if last is None:
+        return None
+    cmid = getattr(last, "client_message_id", None)
+    if not cmid:
+        return None
+    return HumanMessage(content=last.content, id=str(cmid))
+
+
+async def _checkpoint_human_count(graph: Any, thread_id: str) -> Optional[int]:
+    """HumanMessages already in the thread's checkpoint.
+
+    Returns 0 when the checkpoint truly holds no conversation (fresh / lost /
+    legacy — the case that must be seeded from the DB); a positive count when it
+    has history; and ``None`` when the read FAILED. The None case matters: a
+    transient read failure must NOT be mistaken for 'empty', because seeding a
+    checkpoint that actually has history would duplicate its assistant turns
+    (their live ids can't match rebuilt ids). Humans are never compacted (the
+    compactor only removes ToolMessages), so a real 0 reliably means empty.
+    """
+    from langchain_core.messages import HumanMessage
+
+    if not thread_id:
+        return 0
+    try:
+        snapshot = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        values = snapshot.values if snapshot else None
+        if not values:
+            return 0
+        return sum(1 for m in values.get("messages", []) if isinstance(m, HumanMessage))
+    except Exception:
+        logger.warning(
+            "Option B: checkpoint read failed for thread %s; appending newest "
+            "turn only (will NOT seed, to avoid duplicating a live checkpoint)",
+            thread_id,
+            exc_info=True,
+        )
+        return None
+
+
+def _seed_has_id(seed: List[Any], msg_id: str) -> bool:
+    """True when a message with ``msg_id`` is already in the seed.
+
+    The just-persisted newest turn is normally in the seed under its
+    client_message_id; this id-based check (not content) decides whether we must
+    append it because its persist was swallowed — with no false positive when a
+    different turn happens to share content.
+    """
+    return any(getattr(m, "id", None) == msg_id for m in seed)
+
+
+async def build_graph_input_messages(
+    db: AsyncSession, graph: Any, thread_id: str, request_messages: List[Any]
+) -> Optional[List[Any]]:
+    """Assemble ``initial_state['messages']`` checkpoint-authoritatively.
+
+    If the checkpoint already holds the thread's history, append ONLY the newest
+    user turn and let the reducer accumulate. If the checkpoint is empty, seed
+    the whole conversation from the DB (which already includes the just-persisted
+    newest turn). Never seeds into a non-empty checkpoint — that would duplicate
+    prior assistant turns, whose live LLM-assigned ids can't match a rebuilt id.
+
+    Returns ``None`` when the newest turn has no client_message_id — Option B
+    can't assign a safe idempotency id, so the caller uses the legacy path.
+    """
+    newest = _newest_user_message(request_messages)
+    if newest is None:
+        return None
+
+    count = await _checkpoint_human_count(graph, thread_id)
+    if count is None or count > 0:
+        # Populated checkpoint (append) OR a failed read (do NOT seed a possibly
+        # live checkpoint — that would duplicate its turns). Either way, add only
+        # the newest turn and let the reducer accumulate onto existing state.
+        return [newest]
+
+    # count == 0: the checkpoint is genuinely empty → rebuild from the DB.
+    seed = await build_thread_seed_messages(db, thread_id)
+    if not seed:
+        # Empty checkpoint AND empty DB (brand-new / unresolved thread, or a
+        # swallowed persist): fall back to the request's newest turn.
+        return [newest]
+
+    # Ensure the newest turn survives even if its persist was swallowed; normally
+    # it's already in the seed (same client_message_id), so append only if missing.
+    if not _seed_has_id(seed, newest.id):
+        seed.append(newest)
+    return seed
+
+
+def build_user_history_messages(messages: List[Any], thread_id: str) -> List[Any]:
+    """Rebuild resent request history into HumanMessages with *deterministic* ids.
+
+    The /chat client resends the FULL conversation each turn. LangGraph's
+    ``add_messages`` reducer dedupes only by message ``.id`` — a HumanMessage
+    built with no id gets a fresh random id every request, so the reducer sees
+    each prior turn as new and re-appends the whole history into the checkpoint
+    (quadratic growth the compactor never prunes). Anchor each user turn to a
+    stable id — the client idempotency key when present, else a derivation over
+    (thread_id, position) — so a resent history no-ops in the reducer and only
+    the new turn appends.
+    """
+    from langchain_core.messages import HumanMessage
+
+    out: List[Any] = []
+    idx = 0
+    for m in messages:
+        if getattr(m, "role", None) != "user":
+            continue
+        cmid = getattr(m, "client_message_id", None)
+        msg_id = (
+            str(cmid)
+            if cmid is not None
+            else str(_uuid.uuid5(_uuid.NAMESPACE_URL, f"{thread_id}:user:{idx}"))
+        )
+        out.append(HumanMessage(content=m.content, id=msg_id))
+        idx += 1
+    return out
+
+
 async def _clear_stale_pending_confirmation(
     graph: Any, config: Dict[str, Any]
 ) -> Optional[List[str]]:
@@ -537,6 +740,14 @@ async def _resolve_thread(
             .options(selectinload(Thread.source_project))
             .where(Thread.id == UUID(request.thread_id))
             .where(Workspace.owner_id == current_user.id)
+            # Never resolve a soft-deleted thread (or one under a soft-deleted
+            # conversation/workspace): a stale tab / SSE retry would otherwise
+            # persist a new turn into a deleted thread. On the create-if-missing
+            # path a miss falls through to a fresh thread; on confirm/resume
+            # (create_if_missing=False) it returns (None, "") — never recreated.
+            .where(Thread.is_deleted == False)  # noqa: E712
+            .where(Conversation.is_deleted == False)  # noqa: E712
+            .where(Workspace.is_deleted == False)  # noqa: E712
         )
         result = await db.execute(stmt)
         thread = result.scalar_one_or_none()
@@ -545,8 +756,16 @@ async def _resolve_thread(
         return None, ""
 
     if thread is None:
+        # Never create a new Conversation+Thread under a soft-deleted
+        # workspace: delete_workspace flags only its own row, so a live-owner
+        # pick must exclude it.
         ws_stmt = (
-            select(Workspace).where(Workspace.owner_id == current_user.id).limit(1)
+            select(Workspace)
+            .where(
+                Workspace.owner_id == current_user.id,
+                Workspace.is_deleted == False,  # noqa: E712
+            )
+            .limit(1)
         )
         ws_result = await db.execute(ws_stmt)
         workspace = ws_result.scalar_one_or_none()
@@ -823,9 +1042,11 @@ async def _persist_assistant_message(
     # never let a broker hiccup break persistence.
     if thread is not None and (thread.message_count or 0) >= 3:
         try:
-            from src.tasks.summarize_thread_task import summarize_thread_task
+            from src.services.threads.thread_summarization_service import (
+                enqueue_summarization,
+            )
 
-            summarize_thread_task.delay(thread_id)
+            enqueue_summarization(thread_id)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "Failed to queue summarization for thread %s: %s", thread_id, exc
@@ -891,68 +1112,6 @@ async def _persist_assistant_message_safe(
             pass
 
 
-# DEPRECATED — remove after streaming path migration to background tasks (Task 5).
-# Compatibility shim preserving the old ``(thread_id, conversation_id)`` contract
-# used by callers in ``execute.py`` and the confirm path at ``jobs.py:629``.
-# Internally delegates to the three split helpers above, which each commit
-# independently (see their docstrings for the partial-commit warning).
-async def _persist_thread_messages(
-    db: AsyncSession,
-    current_user: User,
-    request: Any,  # AgentExecuteRequest
-    assistant_content: str,
-    tool_executions_out: Optional[list] = None,
-    retrieved_contexts: Optional[list] = None,
-    create_if_missing: bool = True,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
-) -> tuple[str, str]:
-    """Persist thread & messages to the database (deprecated shim).
-
-    Returns ``(thread_id, conversation_id)`` as strings. See the module-level
-    notice above: this function is preserved for compatibility while Task 5
-    migrates the streaming path to background tasks; new code should call
-    ``_persist_user_message`` / ``_persist_assistant_message`` directly.
-
-    Confirm/resume callers pass ``create_if_missing=False`` — see
-    ``_resolve_thread`` for why a lookup miss there must skip persistence
-    rather than create a fresh thread.
-    """
-    thread, conversation_id = await _resolve_thread(
-        db, current_user, request, create_if_missing=create_if_missing
-    )
-    if thread is None:
-        if not create_if_missing:
-            # Always log the skip — the job still reports completed, so this
-            # line is the only record that the turn was not durably stored.
-            logger.warning(
-                "Confirm/resume persist skipped: thread %s not found on "
-                "re-lookup (user_id=%s)",
-                request.thread_id or "<none>",
-                current_user.id,
-            )
-        return request.thread_id or "", ""
-
-    thread_id = str(thread.id)
-
-    if request.thread_id != thread_id:
-        request.thread_id = thread_id
-
-    await _persist_user_message(db, current_user, request)
-    await _persist_assistant_message(
-        db,
-        thread_id=thread_id,
-        content=assistant_content,
-        model_name=request.model,
-        tool_executions_out=tool_executions_out,
-        retrieved_contexts=retrieved_contexts,
-        plan=plan,
-        token_usage=token_usage,
-    )
-
-    return thread_id, conversation_id
-
-
 # ---------------------------------------------------------------------------
 # Background graph runner
 # ---------------------------------------------------------------------------
@@ -986,7 +1145,6 @@ async def _run_agent_graph(
     current_user: User,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
-    from langchain_core.messages import HumanMessage
     from langgraph.errors import GraphInterrupt
 
     from src.services.agent.checkpointer import get_checkpointer
@@ -1034,11 +1192,33 @@ async def _run_agent_graph(
             store = await get_memory_store()
             graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
-            messages = [
-                HumanMessage(content=m.content)
-                for m in request.messages
-                if m.role == "user"
-            ]
+            from src.core.config import get_settings
+
+            messages = None
+            if get_settings().AGENT_SERVER_SIDE_HISTORY:
+                # Option B: rebuild context from the checkpoint (seeding from the
+                # DB when empty); ignore all but the newest turn in the request.
+                # Best-effort: a DB/checkpoint failure (or a newest turn lacking a
+                # client_message_id -> None) falls back to the legacy path so a
+                # turn that works today is never aborted by the opt-in path.
+                try:
+                    # Seed only from the ownership-verified thread id (set by
+                    # _resolve_thread); never the raw client-supplied thread_id.
+                    messages = await build_graph_input_messages(
+                        db, graph, resolved_thread_id or "", request.messages
+                    )
+                except Exception:
+                    logger.warning(
+                        "Option B message assembly failed; using legacy history",
+                        exc_info=True,
+                    )
+                    messages = None
+            if messages is None:
+                # Legacy path (flag off, or Option B declined/failed): B1's
+                # deterministic-id rebuild of the resent history.
+                messages = build_user_history_messages(
+                    request.messages, request.thread_id or job_id
+                )
 
             page_context = _page_context_to_dict(request.page_context)
             await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
@@ -1336,6 +1516,18 @@ async def _resume_agent_graph(
             # Verify thread ownership before resuming. Checkpoints without an
             # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
+            # Pre-resume checkpoint id -> deterministic assistant idempotency
+            # key, captured BEFORE the resume advances the checkpoint so a
+            # double-confirm derives the same key. Mirrors streaming.py's
+            # _resume_assistant_cmid (its checkpoint-anchored branch).
+            try:
+                resume_ckpt_id = (
+                    (snapshot.config or {})["configurable"]["checkpoint_id"]
+                    if snapshot
+                    else None
+                )
+            except Exception:
+                resume_ckpt_id = None
             if snapshot and snapshot.values:
                 snapshot_user_id = snapshot.values.get("user_id")
                 if not snapshot_user_id or snapshot_user_id != str(current_user.id):
@@ -1423,22 +1615,74 @@ async def _resume_agent_graph(
                     assistant_content = msg.content
                     break
 
-            # Persist thread messages — session managed by AsyncSessionLocal context
+            # Token cost on the HITL resume path (parity with the initial run).
+            # Computed once here and reused for the assistant-row token_usage,
+            # the usage counter below, and the response payload.
+            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
+
+            # Persist ONLY the assistant row for the resumed turn. The user row
+            # that started this turn was already written up-front by the
+            # original /execute run (_run_agent_graph -> _persist_user_message),
+            # exactly like the SSE confirm path; re-persisting it here would
+            # insert a second bare user row (no client_message_id -> no dedup)
+            # and inflate thread.message_count.
             thread_id, conversation_id = "", ""
             try:
-                if original_request:
-                    tool_executions_out = [
-                        ToolExecutionResponse(**te)
-                        for te in final_state.get("tool_executions", [])
-                    ] or None
-                    thread_id, conversation_id = await _persist_thread_messages(
-                        db,
-                        current_user,
-                        original_request,
-                        assistant_content,
-                        tool_executions_out,
-                        create_if_missing=False,
+                if original_request and original_request.thread_id:
+                    from uuid import UUID as _UUID
+
+                    from src.models.thread import Thread as _Thread
+
+                    thread_row = await db.get(
+                        _Thread, _UUID(original_request.thread_id)
                     )
+                    if thread_row is None:
+                        # Preserve the old create_if_missing=False semantics: a
+                        # re-lookup miss must skip persistence, not create a
+                        # fresh thread that would split the conversation.
+                        logger.warning(
+                            "Confirm/resume persist skipped: thread %s not found "
+                            "(user_id=%s)",
+                            original_request.thread_id,
+                            current_user.id,
+                        )
+                    else:
+                        thread_id = str(thread_row.id)
+                        conversation_id = str(thread_row.conversation_id)
+                        tool_executions_out = [
+                            ToolExecutionResponse(**te)
+                            for te in final_state.get("tool_executions", [])
+                        ] or None
+                        # Checkpoint-anchored idempotency key — BYTE-IDENTICAL to
+                        # streaming.py's _resume_assistant_cmid so a double-confirm
+                        # across the SSE and job paths dedupes to the same row.
+                        assistant_cmid = (
+                            str(
+                                _uuid.uuid5(
+                                    _uuid.NAMESPACE_URL,
+                                    f"nous-assistant-resume:{original_request.thread_id}:{resume_ckpt_id}",
+                                )
+                            )
+                            if resume_ckpt_id
+                            else None
+                        )
+                        await _persist_assistant_message_safe(
+                            thread_id=thread_id,
+                            content=assistant_content,
+                            model_name=original_request.model,
+                            tool_executions_out=tool_executions_out,
+                            retrieved_contexts=final_state.get("retrieved_contexts"),
+                            plan=final_state.get("plan") or None,
+                            token_usage=(
+                                {
+                                    "input_tokens": in_tok,
+                                    "output_tokens": out_tok,
+                                }
+                                if (in_tok or out_tok)
+                                else None
+                            ),
+                            client_message_id=assistant_cmid,
+                        )
             except Exception as e:
                 logger.warning(
                     "Failed to persist confirmation thread messages", exc_info=e
@@ -1447,8 +1691,6 @@ async def _resume_agent_graph(
             response_model_name: str = (
                 getattr(original_request, "model", "") if original_request else ""
             )
-            # Token cost on the HITL resume path (parity with the initial run).
-            in_tok, out_tok = _sum_message_usage(final_state.get("messages"))
             if in_tok or out_tok:
                 try:
                     from src.services.agent.observability import record_token_usage

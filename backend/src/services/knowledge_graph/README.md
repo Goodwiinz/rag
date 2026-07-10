@@ -1,12 +1,12 @@
 # Knowledge graph service layer
 
-Neo4j-backed service responsible for storing, querying, and visualizing the entities and relationships extracted from ingested documents. The main FastAPI backend (port 8000) calls into `KnowledgeGraphService` directly; two optional standalone microservices (`knowledge_graph_main.py` port 8003, `graph_analytics_microservice.py` port 8009) provide extended REST surfaces when deployed separately.
+Neo4j-backed service responsible for storing, querying, and visualizing the entities and relationships extracted from ingested documents. The main FastAPI backend (port 8000) calls into `KnowledgeGraphService` directly. (The former standalone microservices — knowledge_graph_main, graph_analytics_microservice, graph_visualization_service — were never deployed and have been removed.)
 
 ## Where it sits
 
 - **Agent data subgraph** — the LangGraph `data` route calls KG query tools in `backend/src/api/agent/execute.py` to answer entity/relationship questions.
 - **KG REST API** — `backend/src/api/knowledge_graph/` routes delegate CRUD and search to `KnowledgeGraphService`.
-- **Graph visualization panel** — the frontend graph explorer hits the visualization endpoints, which call `get_neighborhood`, `find_paths`, and `graph_visualization_service.py`.
+- **Graph visualization panel** — the frontend graph explorer hits the visualization endpoints, which call `get_neighborhood`, `find_paths`.
 
 ## Key files
 
@@ -14,10 +14,7 @@ Neo4j-backed service responsible for storing, querying, and visualizing the enti
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `knowledge_graph_service.py`          | Core synchronous service — entity/relationship CRUD, full-text search, path traversal, neighborhood queries. The canonical implementation used by the main backend.                                                                           |
 | `knowledge_graph_service_improved.py` | `ResilientKnowledgeGraphService` wrapper — offloads blocking Neo4j calls to `asyncio.to_thread`, adds per-operation retry logic for connection failures.                                                                                      |
-| `knowledge_graph_main.py`             | Standalone FastAPI microservice (port 8003) — async driver, Redis caching, WebSocket broadcasts for real-time updates, and an entity-extraction endpoint that calls `EntityExtractionService`.                                                |
 | `graph_algorithms.py`                 | `GraphAlgorithms` class — centrality, community detection, path finding, anomaly detection. Validates `organization_id` as a UUID before any GDS query (prevents cross-tenant leakage and parameter injection into GDS `nodeFilter` strings). |
-| `graph_analytics_microservice.py`     | Standalone FastAPI microservice (port 8009) — exposes graph analytics over HTTP, backed by Celery for long-running background jobs.                                                                                                           |
-| `graph_visualization_service.py`      | Standalone FastAPI microservice (port 8010) — prepares visualization payloads, delegates layout computation to `LayoutAlgorithms`.                                                                                                            |
 | `layout_algorithms.py`                | Pure-Python layout algorithms (force-directed Fruchterman-Reingold, others) — iterations are bounded by graph size to avoid blocking the event loop on large graphs.                                                                          |
 
 ## Neo4j connection
@@ -52,6 +49,6 @@ All query methods accept `organization_id` and/or `source_document_ids`. The `_e
 ## Gotchas
 
 - `metadata` and `evidence` fields are stored as JSON strings in Neo4j (not native maps). `_parse_metadata` handles JSON, Python `repr` strings (legacy), and native dicts. Always `json.dumps` before writing.
-- The standalone microservice in `knowledge_graph_main.py` was written with `tenant_id` semantics; the main-backend service uses `organization_id`. Both refer to the same concept but the property name differs in older nodes.
+- Older Neo4j nodes may carry `tenant_id` (written by the removed standalone microservice) instead of `organization_id`. Both refer to the same concept but the property name differs in older nodes.
 - `updated_at` must be set with the Cypher function `datetime()` inline — passing the string `"datetime()"` as a bind parameter stores the literal text, not a timestamp.
-- The `KnowledgeGraphService` driver is synchronous (`neo4j.GraphDatabase`). Calling it directly from async FastAPI handlers blocks the event loop; use `ResilientKnowledgeGraphService` (which wraps calls in `asyncio.to_thread`) or the async driver in the standalone microservices.
+- The `KnowledgeGraphService` driver is synchronous (`neo4j.GraphDatabase`). Calling it directly from async FastAPI handlers blocks the event loop; use `ResilientKnowledgeGraphService` (which wraps calls in `asyncio.to_thread`).

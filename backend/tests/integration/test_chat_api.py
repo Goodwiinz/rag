@@ -391,6 +391,31 @@ class TestMessageAPI:
 
         assert response.status_code in [200, 401, 404]
 
+    def test_list_messages_v2_desc_cursor_params(self, test_client, auth_headers):
+        """v2 standalone messages endpoint accepts the newest-first cursor
+        params (order=desc + before_id) without a 500 — param-wiring guard.
+
+        Ordering correctness (newest→oldest window, +1 sentinel, before_id
+        filter) is exercised end-to-end by the frontend store paging suite +
+        the browser flow, not here (this harness seeds no rows)."""
+        thread_id = uuid4()
+        response = test_client.get(
+            f"/api/v2/threads/{thread_id}/messages",
+            params={"limit": 100, "order": "desc", "before_id": str(uuid4())},
+            headers=auth_headers,
+        )
+        assert response.status_code in [200, 401, 404]
+
+    def test_list_messages_v2_rejects_bad_order(self, test_client, auth_headers):
+        """order must match ^(asc|desc)$ — a typo is a 422, not silently asc."""
+        thread_id = uuid4()
+        response = test_client.get(
+            f"/api/v2/threads/{thread_id}/messages",
+            params={"order": "sideways"},
+            headers=auth_headers,
+        )
+        assert response.status_code in [422, 401]
+
     def test_update_message_feedback(self, test_client, auth_headers):
         """Test updating message feedback (rating)."""
         message_id = uuid4()

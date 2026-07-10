@@ -135,6 +135,69 @@ async def test_agent_stream_path_sets_tenant_context():
     assert response.json() == {"tenant_id": "org-123"}
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/refresh",
+        # a sub-path of a skipped route still skips (startswith match)
+        "/api/v1/auth/refresh/callback",
+        "/health",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/api/v1/sentry-debug",
+    ],
+)
+def test_should_skip_tenant_validation_matches_mounted_paths(path):
+    """The skip-list must match the *actual* mounted auth routes.
+
+    Auth router is mounted at ``/api/v1`` + ``/auth`` => ``/api/v1/auth/...``
+    (main.py:522, api/auth/auth.py:35). A ``startswith`` check against
+    ``/auth/login`` never fires, so every login/register/refresh request
+    needlessly opens a DB session and runs JWT verification. Regression
+    guard for issue #1003.
+    """
+    from unittest.mock import MagicMock
+
+    from fastapi import Request
+
+    from src.middleware.multi_tenancy import MultiTenancyMiddleware
+
+    middleware = MultiTenancyMiddleware(app=None)
+    mock_request = MagicMock(spec=Request)
+    mock_request.url.path = path
+    assert middleware._should_skip_tenant_validation(mock_request) is True, (
+        f"expected skip for {path!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/documents",
+        "/api/v1/agent/stream",
+        "/api/v1/analytics",
+        "/",  # root must NOT skip — tenant scope applies
+    ],
+)
+def test_should_skip_tenant_validation_does_not_overmatch(path):
+    """Skip-list must not swallow tenant-scoped routes or the bare root."""
+    from unittest.mock import MagicMock
+
+    from fastapi import Request
+
+    from src.middleware.multi_tenancy import MultiTenancyMiddleware
+
+    middleware = MultiTenancyMiddleware(app=None)
+    mock_request = MagicMock(spec=Request)
+    mock_request.url.path = path
+    assert middleware._should_skip_tenant_validation(mock_request) is False, (
+        f"expected NO skip for {path!r}"
+    )
+
+
 def _fast_path_session(db_user):
     """A mock AsyncSessionLocal() context manager whose execute() resolves to
     db_user (or None)."""

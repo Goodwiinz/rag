@@ -23,7 +23,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "1200066"
+    tag: "8ec52eb"
     pullPolicy: Always
   service:
     type: ClusterIP
@@ -177,7 +177,6 @@ backend:
     waitForPostgres: true
     waitForRedis: false
     waitForNeo4j: false
-    waitForQdrant: false
     runMigrations: true
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
@@ -187,8 +186,6 @@ postgresql:
 redis:
   enabled: false
 neo4j:
-  enabled: false
-qdrant:
   enabled: false
 celeryWorker:
   enabled: false

@@ -346,6 +346,7 @@ describe('mapDbToolExecutions', () => {
         status: 'done',
         durationMs: 1234,
         argsSummary: 'query: rag',
+        args: { query: 'rag' },
       },
       {
         tool: 'ingest_document',
@@ -504,6 +505,26 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     expect(result[0].metadata?.toolsUsed).toEqual(['Searching arXiv']);
     // Server latency stays canonical over the local estimate.
     expect(result[0].metadata?.responseTimeMs).toBe(2000);
+  });
+
+  it('keeps toolExecutions when the store row has none (legacy mode, M3)', () => {
+    const toolExecutions = [
+      { tool: 'search_arxiv', label: 'Searching arXiv', status: 'done' as const },
+    ];
+    const result = selectDisplayedMessages({
+      localMessages: [
+        {
+          id: 'm-1',
+          role: 'assistant',
+          content: 'Answer',
+          timestamp: 1,
+          toolExecutions,
+        },
+      ],
+      storeMessages: [storeMsg('m-1', 'Answer')],
+    });
+
+    expect(result[0].toolExecutions).toEqual(toolExecutions);
   });
 
   it('falls back to role+content matching for optimistic messages without ids', () => {

@@ -71,7 +71,7 @@ export const ChatHeader = memo(function ChatHeader({
 
   return (
     <div className="bg-(--nous-bg-1) flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-(--nous-border-1) px-3 sm:px-4 z-40">
-      {/* Left: sidebar trigger + mobile menu + breadcrumb */}
+      {/* Left: sidebar trigger + title */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         {onMobileSidebarToggle && (
           <button
@@ -84,21 +84,14 @@ export const ChatHeader = memo(function ChatHeader({
           </button>
         )}
 
-        {/* Mobile: show chat title */}
-        <span
-          className="md:hidden text-[13px] font-medium text-(--nous-fg-1) truncate max-w-[160px]"
-          style={{ fontFamily: 'var(--nous-font-ui)' }}
-        >
-          {chatTitle}
-        </span>
-
-        <div
-          className="hidden lg:flex items-center whitespace-nowrap"
-          style={{ fontFamily: 'var(--nous-font-ui)' }}
-        >
-          <span className="text-xs text-(--nous-fg-3)">
-            Dashboard /{' '}
-            <span className="text-(--nous-fg-1) font-medium">Chat</span>
+        {/* Conversation title — visible at all breakpoints */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="text-[13px] sm:text-sm font-medium text-(--nous-fg-1) truncate"
+            style={{ fontFamily: 'var(--nous-font-ui)' }}
+            title={chatTitle}
+          >
+            {chatTitle}
           </span>
         </div>
       </div>

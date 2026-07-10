@@ -54,7 +54,12 @@ def test_delete_document_unsyncs_do_kb_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -90,7 +95,12 @@ def test_delete_document_skips_unsync_when_no_data_source():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -123,7 +133,12 @@ def test_delete_document_do_kb_failure_does_not_block_delete():
 
     db = MagicMock()
     db.execute = AsyncMock(
-        side_effect=[_result(document), _result(None), _result(None)]
+        side_effect=[
+            _result(document),
+            _result(None),
+            _result(None),
+            MagicMock(),  # atomic quota update
+        ]
     )
     db.commit = AsyncMock()
 
@@ -146,11 +161,24 @@ def test_delete_document_do_kb_failure_does_not_block_delete():
     boom.assert_awaited_once()
 
 
+def _session_ctx(db):
+    """Async context manager stub standing in for AsyncSessionLocal()."""
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=db)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    return ctx
+
+
 @pytest.mark.unit
-def test_bulk_delete_unsyncs_each_deleted_document():
-    """Bulk delete unsyncs every doc that had a data source."""
+def test_bulk_delete_defers_do_kb_cleanup_to_background_task():
+    """Bulk delete must NOT await DO KB cleanup inline (up to 100 DO HTTP calls
+    with retries would block the response); it registers ONE background task
+    covering only the docs that had a data source, and that task — run after
+    the response with its own session — unsyncs each of them."""
+    from starlette.background import BackgroundTasks
+
     doc_a = _make_document(ds_uuid="ds-a")
-    doc_b = _make_document(ds_uuid=None)  # no DS → skipped
+    doc_b = _make_document(ds_uuid=None)  # no DS → excluded from cleanup
 
     user = MagicMock()
     user.id = "user-1"
@@ -161,26 +189,28 @@ def test_bulk_delete_unsyncs_each_deleted_document():
     request.document_ids = [str(doc_a.id), str(doc_b.id)]
 
     db = MagicMock()
-    # Per-doc: entity update, job update are execute() too; only the initial
-    # doc-select returns a scalar we read. Use a mapping by call to stay robust.
+    # Set-based bulk delete: one select returning all docs, then batch entity
+    # update, batch job update, one atomic quota update.
+    select_result = MagicMock()
+    select_result.scalars.return_value.all.return_value = [doc_a, doc_b]
     db.execute = AsyncMock(
         side_effect=[
-            _result(doc_a),  # select doc_a
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
-            _result(doc_b),  # select doc_b
-            MagicMock(),  # entity update
-            MagicMock(),  # job update
+            select_result,  # select all docs
+            MagicMock(),  # batch entity update
+            MagicMock(),  # batch job update
+            MagicMock(),  # atomic quota update
         ]
     )
     db.commit = AsyncMock()
 
+    background_tasks = BackgroundTasks()
     unsync = AsyncMock(return_value=True)
     with patch("src.services.do_kb.unsync_document_from_kb", new=unsync):
-        asyncio.run(
+        resp = asyncio.run(
             documents_mod.bulk_delete_documents(
                 request=request,
                 cascade=True,
+                background_tasks=background_tasks,
                 current_user=user,
                 organization=org,
                 db=db,
@@ -188,8 +218,48 @@ def test_bulk_delete_unsyncs_each_deleted_document():
             )
         )
 
-    # doc_a had a data source → unsynced; doc_b had none → skipped.
-    unsync.assert_awaited_once_with(db, doc_a)
+        # Response returned WITHOUT touching DO KB inline...
+        assert resp.success_count == 2
+        unsync.assert_not_awaited()
+        # ...but cleanup for the doc with a data source is registered.
+        assert len(background_tasks.tasks) == 1
+        assert background_tasks.tasks[0].args == ([str(doc_a.id)],)
+
+        # Now run the background task the way Starlette would (post-response),
+        # with a fresh-session stub in place of AsyncSessionLocal.
+        bg_db = MagicMock()
+        bg_db.get = AsyncMock(return_value=doc_a)
+        with patch(
+            "src.core.database.AsyncSessionLocal",
+            return_value=_session_ctx(bg_db),
+        ):
+            asyncio.run(background_tasks())
+
+    # doc_a had a data source → unsynced on the BACKGROUND session, not `db`.
+    unsync.assert_awaited_once_with(bg_db, doc_a)
+
+
+@pytest.mark.unit
+def test_bulk_delete_background_cleanup_swallows_do_failure():
+    """A DO outage inside the background cleanup must not raise (it would kill
+    the remaining docs' cleanup and log a worker error) — swallow + log."""
+    doc = _make_document(ds_uuid="ds-123")
+
+    bg_db = MagicMock()
+    bg_db.get = AsyncMock(return_value=doc)
+
+    boom = AsyncMock(side_effect=RuntimeError("DO KB down"))
+    with (
+        patch("src.services.do_kb.unsync_document_from_kb", new=boom),
+        patch(
+            "src.core.database.AsyncSessionLocal",
+            return_value=_session_ctx(bg_db),
+        ),
+    ):
+        # Must not raise.
+        asyncio.run(documents_mod._cleanup_do_kb_data_sources_background([str(doc.id)]))
+
+    boom.assert_awaited_once()
 
 
 @pytest.mark.unit

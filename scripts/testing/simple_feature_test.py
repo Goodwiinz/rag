@@ -267,7 +267,7 @@ def test_docker_configuration():
     if check_file_exists("docker-compose.yml"):
         with open("docker-compose.yml", "r") as f:
             content = f.read()
-            services = ["backend", "frontend", "postgres", "redis", "neo4j", "qdrant"]
+            services = ["backend", "frontend", "postgres", "redis", "neo4j"]
             found_services = [service for service in services if service in content]
             print(f"  🐋 Docker services found: {len(found_services)}/{len(services)}")
 

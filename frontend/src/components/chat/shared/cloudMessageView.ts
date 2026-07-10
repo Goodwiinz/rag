@@ -16,6 +16,9 @@ export interface ActivityStep {
   durationMs?: number;
   /** Compact one-line summary of the tool's arguments (e.g. the query). */
   argsSummary?: string;
+  /** Structured (already backend-redacted) tool arguments, for declarative
+   * per-tool renderers that want fields rather than the one-line summary. */
+  args?: Record<string, unknown>;
   /** Compact one-line summary of the result, or the error text on failure. */
   resultSummary?: string;
 }
@@ -84,6 +87,7 @@ export function mapDbToolExecutions(
         ? { durationMs: e.duration_ms }
         : {}),
       ...(argsSummary ? { argsSummary } : {}),
+      ...(e.args && typeof e.args === 'object' ? { args: e.args } : {}),
       ...(resultSummary ? { resultSummary } : {}),
     } satisfies ActivityStep;
   });
@@ -101,6 +105,14 @@ export interface ChatPageMessage {
   toolExecutions?: ActivityStep[];
   /** Structured execution plan emitted by the agent planner for this turn. */
   plan?: PlanStep[];
+  /** Transient marker on the in-flight assistant turn path: the
+   * message is a live placeholder whose text/steps/citations are read from the
+   * streaming store, not from these fields. Cleared when the turn commits. */
+  isStreaming?: boolean;
+  /** In-band HITL approval gate (P4): the agent paused awaiting
+   * confirmation of this tool. convertMessage emits an approval tool-call part
+   * that the registered HitlApprovalToolUI renders in the message stream. */
+  pendingApproval?: { toolName: string; args: Record<string, unknown> };
   metadata?: {
     toolsUsed?: string[];
     responseTimeMs?: number;
@@ -207,10 +219,21 @@ function mergeLocalProvenance(
         ? { ...local.metadata, ...message.metadata }
         : undefined;
 
+    // Legacy (client-persist) rows have no tool_executions column data, so
+    // the flip from local to store messages dropped the tool-activity strip
+    // from the just-finished turn (round-3 M3). Server values stay canonical
+    // where both exist.
+    const mergedToolExecutions = message.toolExecutions?.length
+      ? message.toolExecutions
+      : local.toolExecutions;
+
     return {
       ...message,
       ...((message.plan ?? local.plan)
         ? { plan: message.plan ?? local.plan }
+        : {}),
+      ...(mergedToolExecutions?.length
+        ? { toolExecutions: mergedToolExecutions }
         : {}),
       ...(mergedMetadata ? { metadata: mergedMetadata } : {}),
     };

@@ -132,6 +132,8 @@ class Document(BaseModel):
         Index('idx_document_status_created', 'processing_status', 'created_at'),
         Index('idx_document_embedded_indexed', 'is_embedded', 'is_indexed'),
         Index('idx_document_org_public', 'organization_id', 'is_public'),
+        # Backs the default GET /documents list: WHERE org ORDER BY created_at DESC
+        Index('idx_document_org_created', 'organization_id', 'created_at'),
     )
 
     def __repr__(self):

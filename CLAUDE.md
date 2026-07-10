@@ -1,7 +1,7 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **`dev` + `staging` are live** (ArgoCD auto-sync from `develop`, gitops image bumps for both); **`production` is scaffolded** (`values-production.yaml`, `api.gen-text.app`, namespace `rag-production`) but not yet actively deployed/bumped. `dev` is the primary working env.
-Runs locally via `docker-compose.development.yml`, or deployed to the **DOKS cluster** — namespaces `rag-dev` / `rag-staging` / `rag-production`:
+Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **Only `dev` is live** (ArgoCD auto-sync from `develop`, namespace `rag-dev`). `staging` + `production` ArgoCD apps were **retired 2026-04-29 (PR #442)** for cluster memory pressure (DO volume snapshots taken before deletion); their values files remain and the gitops workflow still bumps staging tags nothing consumes.
+Runs locally (no Docker; user runs backend/frontend manually) or deployed to the **DOKS cluster**:
 Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
 ## Development Workflow
@@ -78,7 +78,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Connections
 
-`dev` + `staging` deploy via ArgoCD (gitops bumps both); `production` is scaffolded (values + `rag-production` namespace) but not yet actively bumped. `dev` is the primary working env. Two ways to run `dev`:
+Only `dev` deploys via ArgoCD (staging/prod apps retired in #442, values scaffolding kept). Two ways to run `dev`:
 
 ### Local (`docker-compose.development.yml`)
 
@@ -106,7 +106,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 | Secrets        | **Infisical** operator       | envFrom `app-secrets`, `*-credentials`                                                                                                                           |
 | Retrieval/RAG  | PostgreSQL fulltext          | DO KB (`backend/src/services/do_kb/`) behind `DO_KB_ENABLED` (off)                                                                                               |
 
-> **Qdrant:** the Helm subchart still deploys a pod (`qdrant.enabled:true` in `values-dev.yaml`), but the app sets **no `QDRANT_URL`**, so `VectorService` can't connect (init connectivity check fails) and vector ops are disabled — Qdrant is never queried. Effectively unused; safe to drop the subchart.
+> **Qdrant:** removed. Retrieval migrated Qdrant → DO KB; the app sets no `QDRANT_URL` and never queries Qdrant. The `knowledge-graph-analytics` chart never actually had a Qdrant subchart or pod template — only dead `qdrant.*` values, a never-called `qdrantUrl` helper, and networkpolicy residue, all dropped in #1043. Legacy non-ArgoCD charts/manifests (`deployment/helm/rag-system`, `infrastructure/kubernetes/manifests/databases.yaml`, monitoring/terraform/backup/CI/docker-compose) still carry Qdrant refs; not deployed, cleanup pending.
 
 ## Branch Strategy
 

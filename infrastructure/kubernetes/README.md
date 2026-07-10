@@ -105,7 +105,6 @@ Persistent volumes are configured for:
 - PostgreSQL data
 - Redis data
 - Neo4j data
-- Qdrant vectors
 - Application logs
 - Model files
 

@@ -40,6 +40,8 @@ export interface Run {
   plan: PlanItem[];
   state: 'running' | 'done' | 'error' | 'stopped';
   startedAt: number;
+  /** Last SSE frame seq seen for this run — the resume cursor. */
+  streamSeq?: number;
 }
 
 interface AgentActivityState {
@@ -49,6 +51,7 @@ interface AgentActivityState {
   pushToolStart: (threadId: string, tool: string) => void;
   pushToolEnd: (threadId: string, tool: string, ok: boolean) => void;
   setPlan: (threadId: string, items: PlanItemInput[]) => void;
+  setStreamSeq: (threadId: string, seq: number) => void;
   finishRun: (threadId: string, state: 'done' | 'error' | 'stopped') => void;
 }
 
@@ -171,6 +174,13 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
         return { id: `plan-${Date.now()}-${i}`, text, tool, done: false };
       });
       return { runs: { ...s.runs, [threadId]: { ...run, plan } } };
+    }),
+
+  setStreamSeq: (threadId, seq) =>
+    set((s) => {
+      const run = s.runs[threadId];
+      if (!run || run.streamSeq === seq) return s;
+      return { runs: { ...s.runs, [threadId]: { ...run, streamSeq: seq } } };
     }),
 
   finishRun: (threadId, state) =>

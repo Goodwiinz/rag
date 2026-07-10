@@ -14,8 +14,8 @@ Two stages of retrieval policy live here:
 * **Primary read (DO KB) + fallback** — ``_try_primary_do_kb_read`` runs
   the DigitalOcean Knowledge Base when the org has one configured and
   the active project is known; ``_legacy_hybrid_search_fallback`` is
-  the Qdrant + reranker chain used when DO KB is disabled or returns
-  nothing.
+  the Postgres hybrid search + reranker chain used when DO KB is
+  disabled or returns nothing.
 
 This module reaches back into ``graph.py`` for the shared helper
 ``_extract_project_id_from_text`` via a lazy import to avoid a cycle.
@@ -235,7 +235,7 @@ def _is_retrieval_query(content: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# DO KB primary read (Phase 4b) + Qdrant fallback
+# DO KB primary read (Phase 4b) + Postgres hybrid fallback
 # ---------------------------------------------------------------------------
 
 
@@ -285,7 +285,7 @@ async def _try_primary_do_kb_read(
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
     Returns None when primary read is disabled, the org has no KB, or the
-    call fails — caller then falls back to the legacy Qdrant path.
+    call fails — caller then falls back to the legacy Postgres hybrid path.
 
     When *project_id* is provided, post-filters chunks so only documents
     that belong to the active project survive. DO KB itself is org-scoped,
@@ -378,7 +378,7 @@ async def _try_primary_do_kb_read(
                 project_id=scoped_project_id,
             )
 
-            # Two distinct empty-result paths that trigger Qdrant fallback:
+            # Two distinct empty-result paths that trigger the hybrid fallback:
             if scoped_project_id and not title_by_key and result.chunks:
                 logger.info(
                     "do_kb_read: %d chunks unresolvable to org documents under "
@@ -396,6 +396,11 @@ async def _try_primary_do_kb_read(
                 )
                 _record_do_kb_read("project_scope_empty")
                 return None
+
+        if getattr(_kb_cfg, "AGENT_DOKB_COHERE_RERANK", False) and chunks_to_emit:
+            from src.services.do_kb.rerank import cohere_rescore_chunks
+
+            chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
         _record_do_kb_read("success")
         return [_shape_do_kb_context(c, title_by_key) for c in chunks_to_emit]

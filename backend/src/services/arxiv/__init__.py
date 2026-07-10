@@ -19,13 +19,6 @@ def get_arxiv_change_tracker():
     return ArXivChangeTracker
 
 
-def get_arxiv_search_service():
-    """Get ArxivSearchService lazily."""
-    from .arxiv_search_service import ArxivSearchService
-
-    return ArxivSearchService
-
-
 def get_arxiv_kg_integration():
     """Get ArxivKGIntegration lazily."""
     from .arxiv_kg_integration import ArxivKGIntegration
@@ -36,6 +29,5 @@ def get_arxiv_kg_integration():
 __all__ = [
     "get_arxiv_service",
     "get_arxiv_change_tracker",
-    "get_arxiv_search_service",
     "get_arxiv_kg_integration",
 ]

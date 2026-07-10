@@ -61,24 +61,6 @@ else
 fi
 echo ""
 
-# Test Qdrant
-echo "Testing Qdrant..."
-response=$(curl -s -X GET "http://localhost:6333/collections" -H "api-key: qdrant_api_key_123")
-if [ $? -eq 0 ] && [[ "$response" != *"error"* ]]; then
-    collection_count=$(echo "$response" | grep -o "name" | wc -l)
-    echo -e "${GREEN}✅ Qdrant: Connected${NC}"
-    echo "   Collections: $collection_count"
-    if [ "$collection_count" -gt 0 ]; then
-        echo "$response" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | while read name; do
-            echo "   - $name"
-        done
-    fi
-    ((success_count++))
-else
-    echo -e "${RED}❌ Qdrant: Failed${NC}"
-fi
-echo ""
-
 # Summary
 echo "============================================================"
 echo "📊 Summary"
@@ -102,12 +84,6 @@ else
     echo -e "${RED}❌ Neo4j: Failed${NC}"
 fi
 
-response=$(curl -s -X GET "http://localhost:6333/collections" -H "api-key: qdrant_api_key_123")
-if [ $? -eq 0 ] && [[ "$response" != *"error"* ]]; then
-    echo -e "${GREEN}✅ Qdrant: Connected${NC}"
-else
-    echo -e "${RED}❌ Qdrant: Failed${NC}"
-fi
 
 echo ""
 echo "Total: $success_count/$total_count databases connected"

@@ -22,6 +22,7 @@ import magic
 from fastapi import Depends, HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 # ClamAV integration - only available if properly configured
@@ -1149,12 +1150,32 @@ class EnhancedFileService:
             self.db.commit()
             self.db.refresh(document)
 
-            # Update organization storage usage
-            organization.update_storage_usage(basic["file_size"])
+            # Atomically update organization storage usage
+            self.db.execute(
+                Organization.storage_usage_update(organization.id, basic["file_size"])
+            )
             self.db.commit()
 
             return document
 
+        except HTTPException:
+            # e.g. the dedup 409 — surface as-is instead of wrapping into a
+            # FileStorageError (which turned a duplicate upload into a 500).
+            self.db.rollback()
+            if document is not None:
+                self._best_effort_delete_object(document)
+            raise
+        except IntegrityError as e:
+            # The check-then-insert dedup can race: two concurrent identical
+            # uploads both pass _find_org_duplicate, and the partial unique
+            # index uq_documents_org_checksum_live rejects the loser here. Map
+            # it to the same 409 the pre-check returns.
+            self.db.rollback()
+            if document is not None:
+                self._best_effort_delete_object(document)
+            if "uq_documents_org_checksum_live" in str(getattr(e, "orig", e)):
+                raise HTTPException(status_code=409, detail=self._DUPLICATE_DETAIL)
+            raise FileStorageError(f"Failed to upload file: {str(e)}")
         except Exception as e:
             self.db.rollback()
             # The storage object was uploaded BEFORE the failed commit, so a

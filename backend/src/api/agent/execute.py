@@ -9,6 +9,7 @@ job management, streaming, and helpers live in sibling modules:
 - streaming.py     — SSE event generators for /stream and /stream/confirm
 """
 
+import asyncio
 import logging
 import uuid as _uuid
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ from fastapi import (
     Query,
     Request,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import cast, desc, func, select
@@ -41,6 +42,8 @@ from src.models.document import Document
 from src.models.thread import Thread, ThreadStatus
 from src.models.user import User
 from src.models.workspace import Workspace
+from src.services.agent import stream_buffer as _stream_buffer
+from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
 
 from .jobs import (  # noqa: F401
@@ -51,7 +54,6 @@ from .jobs import (  # noqa: F401
     _jobs,
     _jobs_lock,
     _page_context_to_dict,
-    _persist_thread_messages,
     _resume_agent_graph,
     _run_agent_graph,
     _set_job,
@@ -526,6 +528,77 @@ async def get_graph_trace(
     return {"mermaid": diagram, "thread_id": thread_id}
 
 
+@router.get("/stream/resume/{thread_id}")
+async def resume_stream(
+    request: Request,
+    thread_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
+    after: int = Query(0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Replay buffered SSE frames (seq > after) for the thread's active run."""
+    try:
+        thread_uuid = _uuid.UUID(thread_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid thread_id")
+
+    # Same IDOR guard as get_graph_trace: thread must belong to the caller's
+    # workspace; 404 (not 403) so we don't confirm another tenant's thread.
+    ownership_stmt = (
+        select(Thread)
+        .join(Conversation, Thread.conversation_id == Conversation.id)
+        .join(Workspace, Conversation.workspace_id == Workspace.id)
+        .where(
+            Thread.id == thread_uuid,
+            Workspace.owner_id == current_user.id,
+            Thread.is_deleted == False,
+        )
+    )
+    thread_row = (await db.execute(ownership_stmt)).scalar_one_or_none()
+    if thread_row is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    sid = await _stream_buffer.active_stream_id(thread_id)
+    if sid is None:
+        return Response(status_code=204)
+
+    async def replay():
+        last_seq = after
+        # Hard bound: ~10 min of polling so a stuck active pointer can't
+        # hold the connection forever.
+        for _ in range(600):
+            frames = await _stream_buffer.read_after(sid, last_seq)
+            for buffered in frames:
+                yield buffered.frame
+                last_seq = buffered.seq
+                # Anchor to the actual event line: LLM token text in the
+                # data line can contain the literal string "event: done".
+                event_line = next(
+                    (
+                        line
+                        for line in buffered.frame.split("\n")
+                        if line.startswith("event: ")
+                    ),
+                    "",
+                )
+                if event_line in {
+                    "event: done",
+                    "event: error",
+                    "event: confirmation",
+                }:
+                    return
+            if await request.is_disconnected():
+                return
+            if not frames and await _stream_buffer.active_stream_id(thread_id) != sid:
+                return  # run finished and buffer drained
+            # ponytail: poll-follow; pub/sub if latency matters
+            await asyncio.sleep(1.0)
+
+    return StreamingResponse(
+        replay(), media_type="text/event-stream", headers=_SSE_HEADERS
+    )
+
+
 @router.get("/health")
 async def agent_health():
     """Health check for agent service."""
@@ -722,7 +795,10 @@ async def get_thread_messages(
                 tool_name=msg.tool_name,
                 tool_call_id=msg.tool_call_id,
                 citations=citations_data,
-                tool_executions=msg.tool_executions,
+                # Serve-time redaction: rows were persisted with raw args
+                # (before and after #1046 redacted the live SSE preview), so
+                # redacting here is what covers historical rows on reload.
+                tool_executions=redact_tool_executions(msg.tool_executions),
                 plan=msg.plan,
                 token_usage=msg.token_usage,
             )

@@ -42,6 +42,10 @@ interface ChatSidebarProps {
   onBulkDelete?: (ids: string[]) => void;
   currentWorkspace?: Workspace | null;
   className?: string;
+  // CX8: sidebar thread list is paginated server-side. Both are optional so
+  // existing/mobile callers that don't pass them just never show the button.
+  hasMoreThreads?: boolean;
+  onLoadMoreThreads?: () => void | Promise<void>;
 }
 
 function formatCompactTime(date: Date): string {
@@ -100,11 +104,22 @@ export const ChatSidebar = memo(function ChatSidebar({
   onBulkDelete,
   currentWorkspace,
   className,
+  hasMoreThreads,
+  onLoadMoreThreads,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const handleLoadMore = useCallback(() => {
+    if (!onLoadMoreThreads || isLoadingMore) return;
+    setIsLoadingMore(true);
+    Promise.resolve(onLoadMoreThreads()).finally(() =>
+      setIsLoadingMore(false)
+    );
+  }, [onLoadMoreThreads, isLoadingMore]);
 
   const filteredConversations = useMemo(() => {
     let list = conversations;
@@ -202,7 +217,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             exitSelectMode();
             onNew();
           }}
-          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-erebus) dark:bg-(--nous-umber) dark:border dark:border-(--nous-shade) text-white shadow-xs hover:shadow-md transition-shadow"
+          className="w-full flex items-center justify-center gap-[7px] py-[9px] px-3 rounded-lg bg-(--nous-sol) text-(--nous-erebus) shadow-xs hover:shadow-md hover:brightness-105 transition-all"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           <Plus className="w-[13px] h-[13px]" />
@@ -213,7 +228,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             New chat
           </span>
           <kbd
-            className="ml-auto px-[5px] py-px rounded-[3px] bg-white/12 text-white/70 text-[9px] font-semibold"
+            className="ml-auto px-[5px] py-px rounded-[3px] bg-(--nous-erebus)/10 text-(--nous-erebus)/70 text-[9px] font-semibold"
             style={{ fontFamily: 'var(--nous-font-mono)' }}
           >
             ⌘N
@@ -258,7 +273,7 @@ export const ChatSidebar = memo(function ChatSidebar({
             className={cn(
               'inline-flex items-center px-[9px] py-[3px] rounded-full border text-[10px] whitespace-nowrap transition-all',
               activeFilter === f.key
-                ? 'bg-(--nous-erebus) dark:bg-(--nous-helios) text-white dark:text-(--nous-nyx) border-(--nous-erebus) dark:border-(--nous-helios)'
+                ? 'bg-(--nous-sol) text-(--nous-erebus) border-(--nous-sol) dark:bg-(--nous-helios) dark:text-(--nous-nyx) dark:border-(--nous-helios)'
                 : 'bg-transparent border-(--nous-border-1) dark:border-(--nous-shade) text-(--nous-fg-2) hover:border-(--nous-sol) hover:text-(--nous-sol-safe)'
             )}
             style={{ fontFamily: 'var(--nous-font-ui)' }}
@@ -482,6 +497,23 @@ export const ChatSidebar = memo(function ChatSidebar({
             >
               {searchQuery ? 'No matching threads' : 'No conversations yet'}
             </p>
+          </div>
+        )}
+
+        {/* CX8: more threads exist server-side than the current page. Hidden
+            while searching — the client-side filter only covers loaded
+            threads, so "load more" wouldn't visibly help a filtered view. */}
+        {hasMoreThreads && !searchQuery && (
+          <div className="px-2.5 pb-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="w-full py-[7px] rounded-lg border border-(--nous-border-1) dark:border-(--nous-shade) text-[11px] text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:border-(--nous-sol)/30 transition-all disabled:opacity-50"
+              style={{ fontFamily: 'var(--nous-font-ui)' }}
+            >
+              {isLoadingMore ? 'Loading…' : 'Show older threads'}
+            </button>
           </div>
         )}
       </div>

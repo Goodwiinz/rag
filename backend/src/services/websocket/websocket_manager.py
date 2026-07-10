@@ -169,6 +169,14 @@ class EnhancedConnectionManager(BaseService):
         self.organization_connections: Dict[str, Set[str]] = defaultdict(set)
         self.channel_subscribers: Dict[str, Set[str]] = defaultdict(set)
 
+        # Unique id for THIS manager instance (one per worker process). Stamped
+        # on every Redis broadcast so the listener can skip the copy of its own
+        # publish (Redis fan-out delivers back to the publisher) WITHOUT dropping
+        # sibling workers' messages. Must be a real value: a missing id made the
+        # self-filter compare "unknown" == "unknown" and silently drop every
+        # cross-worker broadcast (defeating fan-out at >1 gunicorn worker).
+        self.instance_id = uuid.uuid4().hex
+
         # Redis for clustering and message broadcasting
         self.redis_client: Optional[redis.Redis] = None
         self.redis_pubsub: Optional[redis.PubSub] = None
@@ -181,6 +189,10 @@ class EnhancedConnectionManager(BaseService):
         # Configuration
         self.heartbeat_interval = 30  # seconds
         self.connection_timeout = 300  # 5 minutes
+        # Per-send timeout: a stuck/slow socket must not block the (concurrent)
+        # fan-out to everyone else on this worker. On timeout the send is treated
+        # as a failure and the connection is scheduled for disconnect.
+        self.send_timeout = getattr(settings, "WS_SEND_TIMEOUT", 10)  # seconds
         self.max_connections = 10000
         # Per-user cap: the global cap alone lets one user (or a single leaked
         # token) open thousands of sockets and starve the global budget for
@@ -600,8 +612,13 @@ class EnhancedConnectionManager(BaseService):
                 "priority": message.priority.value,
             }
 
-            # Send message
-            await connection_info.websocket.send_json(payload)
+            # Send with a bounded timeout so one stuck/slow socket cannot block
+            # the concurrent fan-out — on timeout it is handled like any send
+            # failure and scheduled for disconnect below.
+            await asyncio.wait_for(
+                connection_info.websocket.send_json(payload),
+                timeout=self.send_timeout,
+            )
 
             # Record message metrics if we have a database record
             await self._record_message_metrics(
@@ -619,8 +636,72 @@ class EnhancedConnectionManager(BaseService):
             )
             return False
 
+    def _serialize_for_cluster(self, message: WebSocketMessage) -> Dict[str, Any]:
+        """Explicit message shape for Redis fan-out. ``asdict`` would emit raw
+        Enum/datetime that json.dumps can't encode; target_organization MUST
+        round-trip so ``should_receive_message`` can still gate tenants on the
+        receiving worker."""
+        return {
+            "type": message.type.value,
+            "data": message.data,
+            "timestamp": message.timestamp.isoformat(),
+            "message_id": message.message_id,
+            "priority": message.priority.value,
+            "target_channels": message.target_channels,
+            "target_organization": message.target_organization,
+        }
+
+    async def _deliver_local(self, connection_ids: Set[str], message: WebSocketMessage):
+        """Deliver to the given locally-connected ids CONCURRENTLY, honouring the
+        per-connection tenant/channel/filter gate. Concurrency plus the per-send
+        timeout (in send_message_to_connection) stop one slow/stuck client from
+        head-of-line-blocking delivery to everyone else on this worker. Snapshot
+        the id set first — a failed send schedules a disconnect that mutates it.
+
+        # ponytail: concurrent fan-out + per-send timeout. A full bounded
+        # per-connection send queue is the heavier upgrade if a high-volume
+        # channel ever needs true backpressure; this push channel does not.
+        """
+        targets = [
+            cid
+            for cid in list(connection_ids)
+            if (conn := self.active_connections.get(cid))
+            and conn.should_receive_message(message)
+        ]
+        if not targets:
+            return
+        # send_message_to_connection swallows its own exceptions (returns False),
+        # so gather never propagates and needs no return_exceptions.
+        await asyncio.gather(
+            *(self.send_message_to_connection(cid, message) for cid in targets)
+        )
+
+    async def _publish_to_cluster(
+        self, kind: str, target: str, message: WebSocketMessage
+    ):
+        """Publish to the OTHER worker processes / replicas so a push produced on
+        one worker reaches sockets held by another. ``kind`` is
+        channel|user|organization; ``target`` is the channel name / user id / org
+        id. No-op in single-instance mode (no Redis)."""
+        if not self.redis_client:
+            return
+        try:
+            payload = {
+                "kind": kind,
+                "target": target,
+                # Back-compat: pre-fix workers read a bare ``channel`` key.
+                # Keep it so channel fan-out still crosses to not-yet-upgraded
+                # pods during a rolling deploy.
+                "channel": target,
+                "message": self._serialize_for_cluster(message),
+                "source_instance": self.instance_id,
+            }
+            await self.redis_client.publish("websocket_broadcast", json.dumps(payload))
+        except Exception as e:
+            logger.error(f"Failed to broadcast via Redis (kind={kind}): {e}")
+
     async def broadcast_to_channel(self, channel: str, message: WebSocketMessage):
-        """Broadcast message to all subscribers of a channel"""
+        """Broadcast message to all subscribers of a channel (local + cluster)."""
         # Validate channel name to prevent injection
         if not re.match(r"^[a-zA-Z0-9_.\-]+$", channel):
             raise ValueError(f"Invalid channel name: {channel}")
@@ -629,64 +710,26 @@ class EnhancedConnectionManager(BaseService):
         if channel not in message.target_channels:
             message.target_channels.append(channel)
 
-        # Get subscribers
-        subscriber_ids = self.channel_subscribers.get(channel, set())
-
-        # Send to local connections
-        for connection_id in subscriber_ids:
-            if connection_id in self.active_connections:
-                connection_info = self.active_connections[connection_id]
-                if connection_info.should_receive_message(message):
-                    await self.send_message_to_connection(connection_id, message)
-
-        # Broadcast to other instances via Redis. Serialize explicitly in the
-        # shape the receiver (`_redis_message_listener`) reconstructs from —
-        # ``asdict()`` emits raw Enum/datetime objects that json.dumps cannot
-        # encode, so the previous payload raised TypeError and no message ever
-        # crossed instances (defeating multi-worker tenant scoping). Carries
-        # target_organization so the org gate holds across workers.
-        if self.redis_client:
-            try:
-                broadcast_payload = {
-                    "channel": channel,
-                    "message": {
-                        "type": message.type.value,
-                        "data": message.data,
-                        "timestamp": message.timestamp.isoformat(),
-                        "message_id": message.message_id,
-                        "priority": message.priority.value,
-                        "target_channels": message.target_channels,
-                        "target_organization": message.target_organization,
-                    },
-                    "source_instance": getattr(self, "instance_id", "unknown"),
-                }
-                await self.redis_client.publish(
-                    "websocket_broadcast", json.dumps(broadcast_payload)
-                )
-            except Exception as e:
-                logger.error(f"Failed to broadcast message via Redis: {e}")
+        await self._deliver_local(self.channel_subscribers.get(channel, set()), message)
+        await self._publish_to_cluster("channel", channel, message)
 
     async def broadcast_to_user(self, user_id: str, message: WebSocketMessage):
-        """Broadcast message to all connections for a user"""
-        connection_ids = self.user_connections.get(user_id, set())
+        """Broadcast message to all connections for a user (local + cluster).
 
-        for connection_id in connection_ids:
-            if connection_id in self.active_connections:
-                connection_info = self.active_connections[connection_id]
-                if connection_info.should_receive_message(message):
-                    await self.send_message_to_connection(connection_id, message)
+        Was local-only, so a targeted push produced on worker/replica A never
+        reached the user's socket on worker B — ~half of pushes at two workers,
+        and every push produced off the web process (Celery) reached nobody."""
+        await self._deliver_local(self.user_connections.get(user_id, set()), message)
+        await self._publish_to_cluster("user", user_id, message)
 
     async def broadcast_to_organization(
         self, organization_id: str, message: WebSocketMessage
     ):
-        """Broadcast message to all connections in an organization"""
-        connection_ids = self.organization_connections.get(organization_id, set())
-
-        for connection_id in connection_ids:
-            if connection_id in self.active_connections:
-                connection_info = self.active_connections[connection_id]
-                if connection_info.should_receive_message(message):
-                    await self.send_message_to_connection(connection_id, message)
+        """Broadcast message to all connections in an organization (local + cluster)."""
+        await self._deliver_local(
+            self.organization_connections.get(organization_id, set()), message
+        )
+        await self._publish_to_cluster("organization", organization_id, message)
 
     async def handle_client_message(self, connection_id: str, raw_message: str):
         """Handle incoming message from client"""
@@ -867,6 +910,45 @@ class EnhancedConnectionManager(BaseService):
                 logger.error(f"Error in cleanup task: {e}")
                 await asyncio.sleep(30)  # Brief pause before retrying
 
+    async def _dispatch_cluster_message(self, broadcast_data: Dict[str, Any]):
+        """Deliver a Redis-forwarded broadcast to LOCAL subscribers only.
+
+        Never calls ``broadcast_to_*`` — those re-publish to Redis, which would
+        amplify every forwarded message into an infinite cross-worker storm now
+        that ``instance_id`` is a real value. Skips the copy of our own publish
+        (Redis fans out back to the sender). Reconstructs target_organization so
+        the tenant gate still holds on the receiving worker.
+        """
+        # Skip the copy of our own publish.
+        if broadcast_data.get("source_instance") == self.instance_id:
+            return
+
+        message_dict = broadcast_data["message"]
+        message = WebSocketMessage(
+            type=MessageType(message_dict["type"]),
+            data=message_dict["data"],
+            timestamp=datetime.fromisoformat(message_dict["timestamp"]),
+            message_id=message_dict.get("message_id") or message_dict.get("id"),
+            priority=Priority(message_dict["priority"]),
+            target_channels=message_dict.get("target_channels", []),
+            target_organization=message_dict.get("target_organization"),
+        )
+
+        kind = broadcast_data.get("kind", "channel")
+        # ``target`` is the new field; fall back to the legacy ``channel`` key so
+        # an in-flight message from a not-yet-upgraded worker still routes.
+        target = broadcast_data.get("target") or broadcast_data.get("channel")
+        if kind == "user":
+            await self._deliver_local(self.user_connections.get(target, set()), message)
+        elif kind == "organization":
+            await self._deliver_local(
+                self.organization_connections.get(target, set()), message
+            )
+        else:
+            await self._deliver_local(
+                self.channel_subscribers.get(target, set()), message
+            )
+
     async def _redis_message_listener(self):
         """Listen for broadcast messages from other instances"""
         if not self.redis_client:
@@ -878,35 +960,7 @@ class EnhancedConnectionManager(BaseService):
                 if message and message["type"] == "message":
                     try:
                         broadcast_data = json.loads(message["data"])
-
-                        # Ignore our own broadcasts
-                        source_instance = broadcast_data.get("source_instance")
-                        if source_instance == getattr(self, "instance_id", "unknown"):
-                            continue
-
-                        # Process the broadcast
-                        channel = broadcast_data["channel"]
-                        message_dict = broadcast_data["message"]
-
-                        # Reconstruct WebSocketMessage. target_organization MUST
-                        # round-trip — without it a cross-instance broadcast
-                        # loses its tenant scope and should_receive_message can
-                        # no longer gate it, reopening the cross-org leak on
-                        # multi-worker deployments.
-                        message = WebSocketMessage(
-                            type=MessageType(message_dict["type"]),
-                            data=message_dict["data"],
-                            timestamp=datetime.fromisoformat(message_dict["timestamp"]),
-                            message_id=message_dict.get("message_id")
-                            or message_dict.get("id"),
-                            priority=Priority(message_dict["priority"]),
-                            target_channels=message_dict.get("target_channels", []),
-                            target_organization=message_dict.get("target_organization"),
-                        )
-
-                        # Forward to local subscribers
-                        await self.broadcast_to_channel(channel, message)
-
+                        await self._dispatch_cluster_message(broadcast_data)
                     except (json.JSONDecodeError, KeyError, ValueError) as e:
                         logger.error(f"Invalid broadcast message format: {e}")
 

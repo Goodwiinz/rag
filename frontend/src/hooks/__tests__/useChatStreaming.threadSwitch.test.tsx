@@ -34,12 +34,25 @@ vi.mock('@/services/workspaceService', () => ({
   },
 }));
 
+const toastErrorMock = vi.fn();
+vi.mock('react-hot-toast', () => ({
+  default: {
+    error: (...args: unknown[]) => toastErrorMock(...args),
+    success: vi.fn(),
+  },
+}));
+
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 
-function makeParams(overrides: Partial<Parameters<typeof useChatStreaming>[0]> = {}) {
+function makeParams(
+  overrides: Partial<Parameters<typeof useChatStreaming>[0]> = {}
+) {
   const activeConversationIdRef = { current: 'thread-A' as string | null };
   return {
     messages: [
+      { role: 'user', content: 'earlier question', timestamp: 1 },
+    ] as ChatPageMessage[],
+    displayedMessages: [
       { role: 'user', content: 'earlier question', timestamp: 1 },
     ] as ChatPageMessage[],
     setMessages: vi.fn(),
@@ -57,6 +70,45 @@ function makeParams(overrides: Partial<Parameters<typeof useChatStreaming>[0]> =
   };
 }
 
+describe('useChatStreaming failed thread creation', () => {
+  beforeEach(() => {
+    streamMessageMock.mockReset();
+    toastErrorMock.mockReset();
+  });
+
+  it('rolls back the optimistic bubble, restores input, and toasts when thread creation fails', async () => {
+    const { workspaceService } = await import('@/services/workspaceService');
+    vi.mocked(workspaceService.createThread).mockRejectedValueOnce(
+      new Error('500')
+    );
+
+    // First send in a brand-new conversation → the create-thread branch runs.
+    const originalMessages: ChatPageMessage[] = [];
+    const params = makeParams({
+      messages: originalMessages,
+      displayedMessages: originalMessages,
+      activeConversationId: null,
+      dbConversation: { id: 'conv-1' } as never,
+    });
+    params.activeConversationIdRef.current = null;
+
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('my first message');
+    });
+
+    // Rollback: the final setMessages restores the pre-submit list (no ghost).
+    const calls = params.setMessages.mock.calls;
+    expect(calls[calls.length - 1][0]).toBe(originalMessages);
+    // Composer text is restored so the user does not lose what they typed.
+    expect(result.current.input).toBe('my first message');
+    // The user is told, and nothing was streamed.
+    expect(toastErrorMock).toHaveBeenCalled();
+    expect(streamMessageMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('useChatStreaming thread-switch guard', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
@@ -66,7 +118,13 @@ describe('useChatStreaming thread-switch guard', () => {
     // streamMessage resolves only when the test says so, after emitting tokens.
     let finishStream!: () => void;
     streamMessageMock.mockImplementation(
-      (_req: unknown, callbacks: { onToken: (t: string) => void; onDone: (p?: unknown) => void }) =>
+      (
+        _req: unknown,
+        callbacks: {
+          onToken: (t: string) => void;
+          onDone: (p?: unknown) => void;
+        }
+      ) =>
         new Promise<void>((resolve) => {
           callbacks.onToken('hello from thread A');
           callbacks.onDone({});
@@ -99,7 +157,13 @@ describe('useChatStreaming thread-switch guard', () => {
 
   it('still commits the final message when the thread did NOT change', async () => {
     streamMessageMock.mockImplementation(
-      (_req: unknown, callbacks: { onToken: (t: string) => void; onDone: (p?: unknown) => void }) => {
+      (
+        _req: unknown,
+        callbacks: {
+          onToken: (t: string) => void;
+          onDone: (p?: unknown) => void;
+        }
+      ) => {
         callbacks.onToken('answer');
         callbacks.onDone({});
         return Promise.resolve();

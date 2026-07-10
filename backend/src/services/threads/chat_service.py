@@ -94,14 +94,22 @@ class ChatService:
         return workspace
 
     async def get_workspace(
-        self, workspace_id: UUID, user_id: UUID
+        self, workspace_id: UUID, user_id: UUID, load_conversations: bool = False
     ) -> Optional[Workspace]:
-        """Get workspace by ID if user has access"""
+        """Get workspace by ID if user has access.
+
+        This is the access gate for every conversation/collection CRUD op, so
+        by default it loads only what the check needs (owner/public/members).
+        Eager-loading the unbounded conversations collection on every gate call
+        grew linearly with workspace age; pass load_conversations=True only
+        where the response actually renders conversation_count.
+        """
+        options = [selectinload(Workspace.members)]
+        if load_conversations:
+            options.append(selectinload(Workspace.conversations))
         stmt = (
             select(Workspace)
-            .options(
-                selectinload(Workspace.members), selectinload(Workspace.conversations)
-            )
+            .options(*options)
             .where(Workspace.id == workspace_id, Workspace.is_deleted == False)
         )
         result = await self.db.execute(stmt)
@@ -159,7 +167,10 @@ class ChatService:
         self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
         """Update workspace"""
-        workspace = await self.get_workspace(workspace_id, user_id)
+        # load_conversations: the PATCH response renders conversation_count.
+        workspace = await self.get_workspace(
+            workspace_id, user_id, load_conversations=True
+        )
         if not workspace:
             return None
 
@@ -201,6 +212,11 @@ class ChatService:
 
     def _user_can_access_workspace(self, workspace: Workspace, user_id: UUID) -> bool:
         """Check if user can access workspace"""
+        # A soft-deleted workspace revokes access to everything under it —
+        # callers reach here via relationship loads (conversation.workspace,
+        # thread.conversation.workspace) that carry no is_deleted filter.
+        if workspace.is_deleted:
+            return False
         if workspace.is_public:
             return True
         if str(workspace.owner_id) == str(user_id):
@@ -254,6 +270,13 @@ class ChatService:
         conversation = result.scalars().first()
 
         if not conversation:
+            return None
+
+        # A soft-deleted parent workspace must revoke access to its
+        # conversations: delete_workspace flags only its OWN row and never
+        # cascades to child conversations/threads, so this read path must
+        # reject a conversation whose workspace is soft-deleted.
+        if conversation.workspace.is_deleted:
             return None
 
         # Check workspace access
@@ -439,6 +462,14 @@ class ChatService:
         thread = result.scalars().first()
 
         if not thread:
+            return None
+
+        # A soft-deleted parent conversation/workspace must revoke access to
+        # its threads: delete_conversation / delete_workspace flag only their
+        # OWN row and never cascade to child threads, so this shared funnel
+        # (create_message / list_messages / thread update+delete) is the one
+        # guard that keeps a deleted parent's threads unreachable.
+        if thread.conversation.is_deleted or thread.conversation.workspace.is_deleted:
             return None
 
         # Check workspace access
@@ -993,9 +1024,11 @@ class ChatService:
         # Trigger async summarization if thread has enough messages
         if thread and thread.message_count >= 3:
             try:
-                from src.tasks.summarize_thread_task import summarize_thread_task
+                from src.services.threads.thread_summarization_service import (
+                    enqueue_summarization,
+                )
 
-                summarize_thread_task.delay(str(thread_id))
+                enqueue_summarization(thread_id)
             except Exception as e:
                 # Don't fail message creation if summarization queue fails
                 logger.warning(
@@ -1033,6 +1066,14 @@ class ChatService:
         # leaving GET/PATCH/DELETE on the message id reachable after the parent
         # thread was soft-deleted. selectinload already loaded thread.is_deleted.
         if message.thread.is_deleted:
+            return None
+
+        # ...and a soft-deleted parent conversation/workspace must too (the
+        # flag is not cascaded to threads), matching get_thread's guard.
+        if (
+            message.thread.conversation.is_deleted
+            or message.thread.conversation.workspace.is_deleted
+        ):
             return None
 
         # Check workspace access

@@ -65,6 +65,12 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
+        # Force the legacy (no stream buffer) path: these tests cover the
+        # Redis-down disconnect behavior.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith", return_value=None
         ),
@@ -81,10 +87,6 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
             return_value=graph,
         ),
         patch(
-            "src.api.agent.streaming._persist_thread_messages",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -96,7 +98,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
     assert graph.aclosed is True  # resumed run cancelled
     # Early-returned before the post-loop snapshot/emit path.
     assert not any(
-        e.startswith("event: done") or e.startswith("event: confirmation")
+        "event: done" in e or "event: confirmation" in e
         for e in events
     )
 
@@ -125,6 +127,12 @@ async def test_confirm_stream_persists_partial_on_disconnect():
 
     persist = AsyncMock(return_value="assistant-row-1")
     with (
+        # Force the legacy (no stream buffer) path: these tests cover the
+        # Redis-down disconnect behavior.
+        patch(
+            "src.api.agent.streaming._stream_buffer.start_stream",
+            new=AsyncMock(side_effect=RuntimeError("redis down")),
+        ),
         patch(
             "src.services.agent.observability.configure_langsmith",
             return_value=None,

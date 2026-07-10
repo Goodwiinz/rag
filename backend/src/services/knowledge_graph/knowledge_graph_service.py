@@ -2267,8 +2267,17 @@ class KnowledgeGraphService:
             logger.error(f"Error getting graph analytics: {e}")
             return GraphAnalytics()
 
-    def get_health_status(self) -> GraphHealthStatus:
-        """Get health status of the graph database"""
+    def get_health_status(
+        self, organization_id: Optional[str] = None
+    ) -> GraphHealthStatus:
+        """Get health status of the graph database.
+
+        When ``organization_id`` is supplied the node/relationship counts (and
+        database size) are scoped to that tenant. These counts feed a
+        user-facing panel, so a global ``MATCH (n)`` would leak the whole
+        multi-tenant graph's size to every tenant. Called with no org only from
+        ops/standalone scripts, which keep the global counts.
+        """
         start_time = time.time()
         try:
             with self.get_session() as session:
@@ -2281,12 +2290,28 @@ class KnowledgeGraphService:
                 version_result = session.run(
                     "CALL dbms.components() YIELD name, versions RETURN versions[0] as version"
                 ).single()
-                node_count_result = session.run(
-                    "MATCH (n) RETURN count(n) as count"
-                ).single()
-                rel_count_result = session.run(
-                    "MATCH ()-[r]->() RETURN count(r) as count"
-                ).single()
+                if organization_id:
+                    # Strict org-equality (no source_document_id fallback like
+                    # _entity_scope_predicate): this is a best-effort display
+                    # panel, and every deployed env is org-backfilled. New writes
+                    # always stamp organization_id, so counts stay accurate.
+                    node_count_result = session.run(
+                        "MATCH (e:Entity {organization_id: $org}) "
+                        "RETURN count(e) as count",
+                        org=organization_id,
+                    ).single()
+                    rel_count_result = session.run(
+                        "MATCH (:Entity {organization_id: $org})-[r]->"
+                        "(:Entity {organization_id: $org}) RETURN count(r) as count",
+                        org=organization_id,
+                    ).single()
+                else:
+                    node_count_result = session.run(
+                        "MATCH (n) RETURN count(n) as count"
+                    ).single()
+                    rel_count_result = session.run(
+                        "MATCH ()-[r]->() RETURN count(r) as count"
+                    ).single()
 
                 # Get indexes and constraints
                 index_result = session.run(
@@ -2361,6 +2386,11 @@ class KnowledgeGraphService:
                             uptime = f"{minutes}m"
                 except Exception as uptime_error:
                     logger.debug(f"Could not get uptime: {uptime_error}")
+
+                # Whole-DB store size is a cross-tenant signal; don't expose it
+                # on the per-tenant health panel.
+                if organization_id:
+                    database_size = None
 
                 return GraphHealthStatus(
                     status="healthy",

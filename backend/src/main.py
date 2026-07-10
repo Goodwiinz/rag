@@ -19,6 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -40,6 +41,7 @@ from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
 from src.api.documents import (
     documents_router,
+    figures_router,
     files_router,
     integrity_router,
     processing_router,
@@ -409,6 +411,24 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error closing agent job store Redis: {e}")
 
 
+class SelectiveGZipMiddleware(GZipMiddleware):
+    """Compress JSON/text responses, but pass SSE/streaming + file-export
+    routes through UNCOMPRESSED. gzip buffers to accumulate before flushing,
+    which would stall token-by-token SSE (the whole point of streaming) — so
+    any path containing ``/stream`` (agent stream / confirm / resume, thread
+    stream) or ending in ``/export`` bypasses compression. Everything else
+    (list_messages, list_threads, thread-detail, search JSON) gets 70-85% off
+    the wire size."""
+
+    async def __call__(self, scope, receive, send):  # type: ignore[override]
+        if scope.get("type") == "http":
+            path = scope.get("path", "")
+            if "/stream" in path or path.endswith("/export"):
+                await self.app(scope, receive, send)
+                return
+        await super().__call__(scope, receive, send)
+
+
 # Create FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
@@ -445,6 +465,10 @@ app.add_middleware(
     expose_headers=settings.cors_expose_list,
     max_age=settings.CORS_MAX_AGE,  # Cache preflight for 24 hours
 )
+
+# Compress JSON/text responses (list_messages/list_threads/thread-detail/
+# search) — SSE + export routes are excluded so token streaming isn't buffered.
+app.add_middleware(SelectiveGZipMiddleware, minimum_size=1024)
 
 # Add rate limiting middleware for analytics endpoints
 app.add_middleware(AnalyticsRateLimitMiddleware, redis_client=redis_client)
@@ -599,6 +623,7 @@ app.include_router(writer_router)  # AI Writer endpoints
 app.include_router(pipeline_router)  # Research Pipeline wizard endpoints
 app.include_router(integrity_router)  # AI Integrity Detector endpoints
 app.include_router(table_extraction_router)  # Table & math extraction endpoints
+app.include_router(figures_router)  # Extracted figures endpoints
 app.include_router(
     research_engine_projects_router, prefix="/api/v1"
 )  # Research Engine projects

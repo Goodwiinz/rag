@@ -194,7 +194,6 @@ class BackendTester:
             "PostgreSQL": "localhost:5432",
             "Redis": "localhost:6379",
             "Neo4j": "localhost:7474",
-            "Qdrant": "localhost:6333"
         }
 
         for db_name, address in databases.items():

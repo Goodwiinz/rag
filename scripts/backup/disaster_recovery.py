@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional, Sequence
 from enum import Enum
 
 import asyncpg
-from qdrant_client import QdrantClient
 from neo4j import GraphDatabase
 
 # Set up logging
@@ -86,7 +85,7 @@ class DisasterRecovery:
         logger.info("Starting disaster recovery process...")
 
         if not components:
-            components = ["database", "vector_store", "knowledge_graph", "uploads"]
+            components = ["database", "knowledge_graph", "uploads"]
 
         recovery_results = {}
 
@@ -94,7 +93,6 @@ class DisasterRecovery:
         recovery_order = {
             "database": self.recover_database,
             "knowledge_graph": self.recover_knowledge_graph,
-            "vector_store": self.recover_vector_store,
             "uploads": self.recover_uploads,
             "services": self.recover_services,
         }
@@ -230,58 +228,6 @@ class DisasterRecovery:
             logger.error(f"Knowledge graph recovery failed: {e}")
             return {"status": RecoveryStatus.FAILED.value, "error": str(e)}
 
-    async def recover_vector_store(self) -> Dict[str, Any]:
-        """Recover Qdrant vector store from backup."""
-        logger.info("Starting vector store recovery...")
-
-        try:
-            # Find latest vector store backup
-            backup_file = await self._find_latest_backup("qdrant")
-            if not backup_file:
-                logger.warning("No Qdrant backup found, skipping vector store recovery")
-                return {
-                    "status": RecoveryStatus.SKIPPED.value,
-                    "reason": "No backup found",
-                }
-
-            logger.info(f"Using backup: {backup_file}")
-
-            # Stop Qdrant service
-            await self._stop_service("qdrant")
-
-            # Clear existing data
-            await self._clear_qdrant_data()
-
-            # Restore from backup
-            success = await self._restore_qdrant(backup_file)
-
-            if success:
-                # Verify vector store integrity
-                integrity_ok = await self._verify_qdrant_integrity()
-
-                if integrity_ok:
-                    logger.info("Vector store recovery completed successfully")
-                    return {
-                        "status": RecoveryStatus.SUCCESS.value,
-                        "backup_file": str(backup_file),
-                        "restored_at": datetime.now().isoformat(),
-                    }
-                else:
-                    logger.error("Vector store integrity check failed")
-                    return {
-                        "status": RecoveryStatus.PARTIAL.value,
-                        "warning": "Integrity check failed",
-                    }
-            else:
-                return {
-                    "status": RecoveryStatus.FAILED.value,
-                    "error": "Qdrant restore failed",
-                }
-
-        except Exception as e:
-            logger.error(f"Vector store recovery failed: {e}")
-            return {"status": RecoveryStatus.FAILED.value, "error": str(e)}
-
     async def recover_uploads(self) -> Dict[str, Any]:
         """Recover uploaded files from backup."""
         logger.info("Starting uploads recovery...")
@@ -330,7 +276,6 @@ class DisasterRecovery:
                 "postgres",
                 "redis",
                 "neo4j",
-                "qdrant",
                 "backend",
                 "celery-worker",
                 "celery-beat",
@@ -394,8 +339,6 @@ class DisasterRecovery:
                 pattern = "multimodal_rag_backup_*.sql.gz"
             elif component == "neo4j":
                 pattern = "neo4j_backup_*.tar.gz"
-            elif component == "qdrant":
-                pattern = "qdrant_backup_*.tar.gz"
             elif component == "uploads":
                 pattern = "uploads_backup_*.tar.gz"
             else:
@@ -616,55 +559,6 @@ class DisasterRecovery:
             logger.error(f"Neo4j integrity check failed: {e}")
             return False
 
-    async def _clear_qdrant_data(self):
-        """Clear all data from Qdrant."""
-        try:
-            client = QdrantClient(
-                host=self.config.get("qdrant_host", "localhost"),
-                port=self.config.get("qdrant_port", 6333),
-                api_key=self.config.get("qdrant_api_key"),
-            )
-
-            # Get all collections
-            collections = client.get_collections()
-
-            # Delete all collections
-            for collection in collections.collections:
-                client.delete_collection(collection.name)
-
-            logger.info(f"Cleared {len(collections.collections)} Qdrant collections")
-        except Exception as e:
-            logger.warning(f"Failed to clear Qdrant data: {e}")
-
-    async def _restore_qdrant(self, backup_file: Path) -> bool:
-        """Restore Qdrant from backup."""
-        try:
-            # This would use the backup_vector_store.py restore functionality
-            logger.info(f"Qdrant restore from {backup_file} (simulated)")
-            return True
-        except Exception as e:
-            logger.error(f"Qdrant restore failed: {e}")
-            return False
-
-    async def _verify_qdrant_integrity(self) -> bool:
-        """Verify Qdrant integrity after restore."""
-        try:
-            client = QdrantClient(
-                host=self.config.get("qdrant_host", "localhost"),
-                port=self.config.get("qdrant_port", 6333),
-                api_key=self.config.get("qdrant_api_key"),
-            )
-
-            collections = client.get_collections()
-            logger.info(
-                f"Qdrant integrity check passed: {len(collections.collections)} collections found"
-            )
-            return True
-
-        except Exception as e:
-            logger.error(f"Qdrant integrity check failed: {e}")
-            return False
-
     async def _restore_uploads(self, backup_file: Path) -> bool:
         """Restore uploaded files from backup."""
         try:
@@ -785,9 +679,6 @@ def load_config() -> Dict[str, Any]:
         "neo4j_uri": os.getenv("NEO4J_URI", "bolt://localhost:7687"),
         "neo4j_user": os.getenv("NEO4J_USER", "neo4j"),
         "neo4j_password": os.getenv("NEO4J_PASSWORD"),
-        "qdrant_host": os.getenv("QDRANT_HOST", "localhost"),
-        "qdrant_port": int(os.getenv("QDRANT_PORT", "6333")),
-        "qdrant_api_key": os.getenv("QDRANT_API_KEY"),
         "upload_dir": os.getenv("UPLOAD_DIR", "/app/uploads"),
     }
 
@@ -800,7 +691,7 @@ async def main():
     parser.add_argument(
         "--components",
         nargs="+",
-        help="Components to recover (database, vector_store, knowledge_graph, uploads, services)",
+        help="Components to recover (database, knowledge_graph, uploads, services)",
     )
     parser.add_argument(
         "--dry-run",

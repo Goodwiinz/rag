@@ -19,7 +19,7 @@ export default function ChatConversationPage() {
         <div className="w-8 h-8 border-2 border-(--nous-sol) border-t-transparent rounded-full animate-spin mx-auto mb-4" />
         <p
           className="text-sm text-(--nous-fg-3)"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           Loading conversation...
         </p>
