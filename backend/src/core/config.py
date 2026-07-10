@@ -430,6 +430,12 @@ class Settings(BaseSettings):
     # ai_response, reflection_result, tokens, timing). Empty disables.
     AGENT_LEDGER_DIR: Optional[str] = None
 
+    # Re-score DO KB chunks with the Azure Cohere cross-encoder after
+    # resolve/filter. DO KB Public Preview returns no scores (we synthesize
+    # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
+    # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
+    AGENT_DOKB_COHERE_RERANK: bool = False
+
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
     COHERE_RERANK_API_KEY: Optional[str] = None
