@@ -187,7 +187,12 @@ backend:
           key: AZURE_OPENAI_CHAT_API_VERSION
   healthCheck:
     enabled: true
+    # Process-alive path for liveness + startup (unconditional /health handler).
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    # Dependency-aware path for readiness (checks Postgres + Redis, cached ~5s).
+    readinessPath: /health/readiness
     startupProbe:
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -197,10 +202,13 @@ backend:
     periodSeconds: 15
     timeoutSeconds: 5
     failureThreshold: 3
+    # Readiness is deliberately slack: it gates the LB, so a transient DB/Redis
+    # blip must not flap every pod out at once. failureThreshold >= 3 and
+    # periodSeconds >= 10 are enforced as floors in the template.
     readinessInitialDelaySeconds: 5
     readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 3
-    readinessFailureThreshold: 2
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
   initContainers:
     waitForPostgres: true
     waitForRedis: false
