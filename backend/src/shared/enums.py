@@ -5,7 +5,11 @@ These enums provide type-safe validation for query parameters
 to prevent SQL injection and other security vulnerabilities.
 """
 
-from enum import Enum
+from enum import Enum, StrEnum
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import to avoid a cycle
+    from src.models.document import ProcessingStatus
 
 
 class DocumentSortField(str, Enum):
@@ -115,3 +119,86 @@ def validate_sort_field(model_name: str, field_name: str) -> bool:
     """
     allowed_fields = SORT_FIELD_MAPPINGS.get(model_name, set())
     return field_name in allowed_fields
+
+
+class ApiDocumentStatus(StrEnum):
+    """Public, client-facing document processing status vocabulary.
+
+    The database stores raw ``ProcessingStatus`` values
+    (``pending``/``processing``/``completed``/``failed``/``retrying``). The API
+    exposes a stable, narrower vocabulary to clients. These classmethods are the
+    single source of truth for translating between the two in both directions,
+    replacing the per-router inline dicts that had drifted apart and caused two
+    production incidents (a filter 500 and a false ``queued`` state).
+
+    Direction quirks (encoded below, do not "simplify"):
+      * db ``pending``   -> api ``queued``
+      * db ``completed`` -> api ``indexed``
+      * db ``retrying``  -> api ``processing`` (collapsed; never surfaced raw)
+    So the mapping is *not* a clean bijection: ``retrying`` folds into
+    ``processing`` on the way out. ``to_db`` therefore maps ``processing`` back
+    to ``PROCESSING`` (not ``RETRYING``) and additionally accepts the raw db
+    spellings (``pending``/``completed``/``retrying``) as filter input for
+    backwards compatibility.
+    """
+
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    INDEXED = "indexed"
+    FAILED = "failed"
+
+    @classmethod
+    def from_db(cls, db_status: object) -> "ApiDocumentStatus":
+        """Map a stored ``ProcessingStatus`` (enum, ``.value`` str, or ``None``)
+        to the public API status. Unknown/None values fall back to ``QUEUED``
+        (preserving the historical ``to_dict`` default)."""
+        raw = getattr(db_status, "value", db_status)
+        key = str(raw).lower() if raw is not None else ""
+        return {
+            "pending": cls.QUEUED,
+            "processing": cls.PROCESSING,
+            "completed": cls.INDEXED,
+            "failed": cls.FAILED,
+            "retrying": cls.PROCESSING,
+        }.get(key, cls.QUEUED)
+
+    @classmethod
+    def to_db(cls, api_status: object) -> "ProcessingStatus":
+        """Map a client-supplied status filter to the backend ``ProcessingStatus``
+        enum member. Accepts the public vocabulary
+        (``queued``/``processing``/``indexed``/``failed``) plus the raw db
+        spellings (``pending``/``completed``/``retrying``).
+
+        Raises:
+            ValueError: if the value is not a recognised status. Callers wire
+                this to an HTTP 400 (keeps the validated-enum injection-prevention
+                pattern — only known values ever reach the query).
+        """
+        from src.models.document import ProcessingStatus
+
+        raw = getattr(api_status, "value", api_status)
+        key = str(raw).lower() if raw is not None else ""
+        mapping = {
+            # public API vocabulary
+            "queued": ProcessingStatus.PENDING,
+            "processing": ProcessingStatus.PROCESSING,
+            "indexed": ProcessingStatus.COMPLETED,
+            "failed": ProcessingStatus.FAILED,
+            # raw backend spellings, accepted for convenience/back-compat
+            "pending": ProcessingStatus.PENDING,
+            "completed": ProcessingStatus.COMPLETED,
+            "retrying": ProcessingStatus.RETRYING,
+        }
+        try:
+            return mapping[key]
+        except KeyError as exc:
+            raise ValueError(f"Invalid processing_status: {api_status}") from exc
+
+    @classmethod
+    def try_to_db(cls, api_status: object) -> Optional["ProcessingStatus"]:
+        """Like :meth:`to_db` but returns ``None`` instead of raising for
+        unknown values."""
+        try:
+            return cls.to_db(api_status)
+        except ValueError:
+            return None
