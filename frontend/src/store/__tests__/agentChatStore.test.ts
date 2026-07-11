@@ -207,6 +207,18 @@ describe('agentChatStore', () => {
       const threadB = new Promise<{ messages: Array<Record<string, unknown>> }>((resolve) => {
         resolveThreadB = resolve;
       });
+      // Serve the SAME deferred payloads at BOTH layers. In this suite one
+      // loadThreadMessages call resolves the mocked agentChatService while the
+      // other reaches the real module's api-client fetch (vitest module-graph
+      // quirk, stack-verified) — with only the fetch stub, the mock-routed load
+      // resolved instantly (empty) and the "earlier fetch resolves LAST" race
+      // never happened: the test passed even with the epoch guard deleted.
+      // Mutation-verified: with both layers deferred, deleting the guard fails
+      // this test.
+      serviceMocks.getThreadMessages.mockImplementation(
+        async (threadId: string) =>
+          threadId.includes('thread-A') ? threadA : threadB
+      );
       vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
         const response = String(input).includes('thread-A') ? threadA : threadB;
         return response.then((body) =>
