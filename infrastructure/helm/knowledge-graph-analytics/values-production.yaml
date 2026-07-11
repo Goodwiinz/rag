@@ -311,8 +311,9 @@ serviceAccount:
 rbac:
   create: false
 
-backup:
-  enabled: false
+# Note: no Neo4j backup/DR automation ships with this chart. See
+# docs/decisions/neo4j-dr.md — DR must be revisited before production
+# promotion (a managed snapshot/backup story is required for prod data).
 
 # Synthetic traffic is dev-only; never runs in production.
 syntheticTraffic:
