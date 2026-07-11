@@ -239,7 +239,13 @@ async def do_kb_retrieve(
     top_k: int = 8,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
-    """Semantic retrieval over the organization's DigitalOcean Knowledge Base."""
+    """Semantic retrieval over the organization's DigitalOcean Knowledge Base.
+
+    When evidence mode is on, each chunk includes 'relevance' (0-10), a
+    'summary' of how it bears on the query, and a verbatim 'quote'. Cite
+    using the quote. If top relevance is below 5, call this tool again
+    with a narrower or broader reformulation instead of settling for weak
+    evidence."""
     config = config or {}
     from src.api.agent.execute import _tool_do_kb_retrieve
 
