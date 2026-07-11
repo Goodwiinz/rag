@@ -140,6 +140,14 @@ interface ChatState {
   isLoadingConversations: boolean;
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
+  /**
+   * The thread whose initial message page is in flight (null when none).
+   * Written in lockstep with isLoadingMessages — consumers that must not
+   * blank the UI for unrelated loads (send-path fetch of a just-created
+   * thread, background refresh of a cached thread) key off this instead of
+   * the coarse boolean (#1121 regressions).
+   */
+  loadingThreadId: string | null;
   isSendingMessage: boolean;
 
   // Pagination state per thread
@@ -395,6 +403,7 @@ const initialState: ChatState = {
   isLoadingConversations: false,
   isLoadingThreads: false,
   isLoadingMessages: false,
+  loadingThreadId: null,
   isSendingMessage: false,
   messagePagination: {},
   isReinitializing: false,
@@ -467,6 +476,14 @@ export const useChatStore = create<ChatStore>()(
         messageLoadEpoch += 1;
         set((state) => {
           state.currentThreadId = threadId;
+          if (!threadId) {
+            // "New chat": no load follows, and the epoch bump above makes any
+            // in-flight response stale (it early-returns without touching
+            // state) — so the loading flags must be cleared here or they
+            // strand true forever.
+            state.isLoadingMessages = false;
+            state.loadingThreadId = null;
+          }
         });
 
         // Load messages for new thread
@@ -1062,6 +1079,7 @@ export const useChatStore = create<ChatStore>()(
         const loadEpoch = ++messageLoadEpoch;
         set((state) => {
           state.isLoadingMessages = true;
+          state.loadingThreadId = threadId;
           state.error = null;
         });
 
@@ -1114,6 +1132,7 @@ export const useChatStore = create<ChatStore>()(
             }
 
             state.isLoadingMessages = false;
+            state.loadingThreadId = null;
           });
         } catch (error) {
           console.error('[ChatStore] Error loading messages:', error);
@@ -1123,6 +1142,7 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             state.error = 'Failed to load messages';
             state.isLoadingMessages = false;
+            state.loadingThreadId = null;
           });
         }
       },
