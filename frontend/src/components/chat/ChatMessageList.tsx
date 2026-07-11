@@ -186,6 +186,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   }, []);
 
   const lastIndex = messages.length - 1;
+  const isVirtualized = messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD;
   // Phase-aware "thinking" label (the pill only shows before any token arrives).
   const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
@@ -274,7 +275,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       >
         <div className="max-w-(--nous-chat-col) mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {/* Load older messages indicator */}
-          {hasMore && !isLoadingOlder && messages.length > 0 && (
+          {!isVirtualized && hasMore && !isLoadingOlder && messages.length > 0 && (
             <div className="flex justify-center py-2">
               <button
                 onClick={onLoadOlder}
@@ -284,7 +285,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               </button>
             </div>
           )}
-          {isLoadingOlder && (
+          {!isVirtualized && isLoadingOlder && (
             <div className="flex justify-center py-2">
               <span className="text-xs font-medium text-(--nous-fg-2)">
                 Loading older messages...
@@ -304,7 +305,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               backstops). Appends within a thread keep the same key — no
               remount, no flicker. */}
           <React.Fragment key={`rows-${activeThreadId ?? 'new'}`}>
-            {messages.length > MESSAGE_VIRTUALIZATION_THRESHOLD ? (
+            {isVirtualized ? (
               <VirtualizedMessageList
                 messages={messages}
                 activeThreadId={activeThreadId}
