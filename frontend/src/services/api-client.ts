@@ -16,6 +16,7 @@
  */
 
 import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS } from '@/types/api';
+import { parseErrorBody } from '@/utils/parseErrorBody';
 import { ZodSchema } from 'zod';
 
 // ============================================================================
@@ -521,7 +522,7 @@ export class APIClient {
   private async handleErrorResponse(
     response: Response
   ): Promise<APIErrorClass> {
-    let errorData: Record<string, unknown> = {};
+    let errorData: unknown = {};
 
     try {
       errorData = await response.json();
@@ -529,14 +530,22 @@ export class APIClient {
       // Response body may not be JSON
     }
 
+    // The backend rewrites every error into the structured envelope
+    // `{ error: { message, status_code, type, details? } }`. Parse it so the
+    // user sees the real cause, and surface `type` so callers can branch on
+    // auth_error / rate_limit instead of only the raw HTTP status text.
+    const parsed = parseErrorBody(errorData, response.statusText);
+    const rawDetails =
+      typeof errorData === 'object' && errorData !== null
+        ? (errorData as Record<string, unknown>)
+        : undefined;
+
     return new APIErrorClass({
-      message:
-        (errorData.detail as string) ||
-        (errorData.message as string) ||
-        response.statusText,
+      message: parsed.message,
       status_code: response.status,
-      type: 'http_error',
-      details: errorData as Record<string, unknown>,
+      type: parsed.type ?? 'http_error',
+      details: parsed.details ?? rawDetails,
+      ...(parsed.silent !== undefined ? { silent: parsed.silent } : {}),
     });
   }
 
