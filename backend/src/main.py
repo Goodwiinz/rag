@@ -18,7 +18,6 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -104,6 +103,7 @@ from src.api.threads import (
 )
 from src.core.config import settings
 from src.core.database import Base, engine
+from src.core.probes import ProbeAwareTrustedHostMiddleware
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
@@ -166,6 +166,22 @@ except Exception as e:
         f"Failed to create Redis client: {e}. Rate limiting will use in-memory storage."
     )
     redis_client = None
+
+
+# Export Celery broker queue depth as a Prometheus gauge (celery_queue_depth) on
+# the global registry — see observability/celery_queue_metrics.py and audit item
+# P1.6. This is the backlog signal a future KEDA/prometheus-adapter-driven worker
+# HPA will scale on; HPA wiring itself is deferred.
+try:
+    from src.observability.celery_queue_metrics import (
+        register_celery_queue_depth_collector,
+    )
+
+    register_celery_queue_depth_collector(settings.REDIS_URL)
+except Exception as _queue_metric_err:  # noqa: BLE001
+    print(
+        f"Warning: Celery queue-depth metric registration failed: {_queue_metric_err}"
+    )
 
 
 @asynccontextmanager
@@ -327,7 +343,8 @@ async def lifespan(app: FastAPI):
 
     # Initialise LangGraph checkpointer + memory store at startup so the
     # first request doesn't pay the setup() cost (and so a misconfigured
-    # Postgres connection surfaces immediately in prod/staging).
+    # Postgres connection surfaces immediately wherever durable agent
+    # state is required — i.e. every env except local/CI throwaways).
     try:
         from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.memory import get_memory_store
@@ -335,14 +352,21 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(get_checkpointer(), get_memory_store())
         logger.info("LangGraph checkpointer + memory store warmed at startup")
     except Exception as e:
-        if environment in ("production", "staging"):
+        if settings.require_durable_agent_state:
             logger.error(
-                "LangGraph persistence warm-up failed in %s: %s",
+                "LangGraph persistence warm-up failed and durable agent "
+                "state is required (ENVIRONMENT=%s) — aborting startup. "
+                "Set ALLOW_MEMORY_FALLBACK=true to permit the non-durable "
+                "in-memory fallback instead. Cause: %s",
                 environment,
                 e,
             )
             raise
-        logger.warning("LangGraph persistence warm-up skipped: %s", e)
+        logger.warning(
+            "LangGraph persistence warm-up skipped (in-memory fallback "
+            "permitted): %s",
+            e,
+        )
 
     # Pre-populate critical caches in the background (non-blocking)
     try:
@@ -480,19 +504,12 @@ app.add_middleware(MultiTenancyMiddleware)
 # Add trusted host middleware for production.
 # Kubelet HTTP probes set Host header to the pod IP, which is not in the
 # allow-list — that produced HTTP 400 on /health and crash-looped pods.
-# Exempt kube probe paths from host validation.
+# Probe paths (incl. /health/readiness) are exempted from host validation via
+# PROBE_EXEMPT_PATHS; see src/core/probes.py. A missing readiness exemption
+# would 400 every readiness probe and flap all pods out of the LB.
 if not settings.DEBUG:
-    _PROBE_PATHS = {"/health", "/healthz", "/readyz", "/livez", "/metrics"}
-
-    class _ProbeAwareTrustedHostMiddleware(TrustedHostMiddleware):
-        async def __call__(self, scope, receive, send):
-            if scope.get("type") == "http" and scope.get("path") in _PROBE_PATHS:
-                await self.app(scope, receive, send)
-                return
-            await super().__call__(scope, receive, send)
-
     app.add_middleware(
-        _ProbeAwareTrustedHostMiddleware,
+        ProbeAwareTrustedHostMiddleware,
         allowed_hosts=[
             "localhost",
             "127.0.0.1",

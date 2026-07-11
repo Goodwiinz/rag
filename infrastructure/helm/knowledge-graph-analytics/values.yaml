@@ -144,11 +144,23 @@ backend:
 
   healthCheck:
     enabled: true
+    # path        -> liveness + startup (process-alive /health handler)
+    # readinessPath -> readiness (dependency-aware /health/readiness handler)
+    # Split so a dependency outage removes a pod from the LB (readiness)
+    # without restarting it (liveness). Readiness timing has safe floors
+    # enforced in the template (periodSeconds >= 10, failureThreshold >= 3).
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    readinessPath: /health/readiness
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
+    readinessInitialDelaySeconds: 5
+    readinessPeriodSeconds: 10
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
 
 # Celery Worker Configuration
 celeryWorker:
@@ -516,13 +528,10 @@ serviceAccount:
 rbac:
   create: true
 
-# Backup Configuration
-backup:
-  enabled: true
-  schedule: "0 2 * * *"
-  retention: "30d"
-  storageClass: "gp2"
-  storageSize: "50Gi"
+# Note: no Neo4j backup/DR automation ships with this chart. The knowledge
+# graph is derived data — DR is a rebuild via scripts/repair_kg.py, and PVC
+# loss is accepted on dev. See docs/decisions/neo4j-dr.md. Revisit before
+# production promotion.
 
 # Synthetic traffic generator — drives the compiled LangGraph agent in-process
 # to produce continuous LangSmith traces. Disabled by default; enabled only in

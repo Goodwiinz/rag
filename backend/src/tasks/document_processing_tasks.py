@@ -20,6 +20,7 @@ from src.services.processing.multimodal_processing_service import (
     MultimodalProcessingService,
 )
 from src.tasks.celery_app import celery_app
+from src.tasks.replay_guard import claim_job_for_processing
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,21 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
             logger.error(f"Processing job {job_id} not found")
             return {"status": "error", "message": "Job not found"}
 
-        # Update job with task ID
-        job.celery_task_id = task_id
-        job.queue_job()
+        # Atomic idempotency claim for acks_late redelivery (batch_process_documents
+        # dispatches this task via .delay(), so a worker killed mid-run has its
+        # message redelivered). Without a claim the redelivered run reset the job
+        # back to QUEUED (job.queue_job) and reprocessed the whole document. Skip a
+        # finished or actively-running job; reclaim only one whose worker died.
+        claim = claim_job_for_processing(
+            db, job, worker_id=task_id, celery_task_id=task_id
+        )
+        if not claim.proceed:
+            logger.info(
+                "Job %s not claimable (%s); skipping redelivered upload processing",
+                job_id,
+                claim.reason,
+            )
+            return {"status": "skipped", "job_id": job_id, "reason": claim.reason}
 
         # Get document
         document = db.query(Document).filter(Document.id == job.document_id).first()

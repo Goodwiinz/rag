@@ -119,7 +119,6 @@ def test_t4_security():
         "backend/src/middleware/encryption_middleware.py",
         "backend/src/api/encryption.py",
         "backend/src/config/encryption_config.py",
-        "backend/src/migrations/add_encryption_tables.py",
         "backend/src/middleware/multi_tenancy.py",
         "backend/src/middleware/rbac.py",
         "backend/src/services/audit_service.py",

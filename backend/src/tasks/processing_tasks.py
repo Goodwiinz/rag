@@ -14,7 +14,7 @@ from celery import Task, current_app
 from src.core.config import settings
 from src.core.database import SessionLocal, get_db
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.entity import Entity
+from src.models.entity import Entity, ExtractionMethod
 from src.models.graph import (
     BatchEntityRequest,
     CreateEntityRequest,
@@ -29,8 +29,35 @@ from src.services.processing.llm_entity_extraction import LLMEntityExtractionSer
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
 from src.tasks.celery_app import celery_app
+from src.tasks.replay_guard import claim_job_for_processing
 
 logger = logging.getLogger(__name__)
+
+# Extraction methods produced by the synchronous ingestion pipeline
+# (ProcessingPipeline -> EntityExtractionService: spaCy NER + regex). Curated
+# (MANUAL) and LLM (OPENAI) entities use other methods and must never be
+# clobbered when this pipeline replays; scope the delete-before-insert to these.
+_PIPELINE_EXTRACTION_METHODS = (ExtractionMethod.SPACY, ExtractionMethod.REGEX)
+
+
+def _reset_pipeline_entities(db, document_id) -> int:
+    """Delete this pipeline's own auto-extracted entities for a document.
+
+    Makes the entity-extraction stage idempotent under acks_late redelivery: a
+    crash mid-run can leave a partial spaCy/regex entity set from the previous
+    attempt, so we drop those rows before re-inserting the fresh set
+    (delete-before-insert, the same pattern the figure stage uses). Only rows
+    written by this pipeline (SPACY/REGEX) are removed; MANUAL/OPENAI entities
+    are preserved. Returns the number of rows deleted.
+    """
+    return (
+        db.query(Entity)
+        .filter(
+            Entity.document_id == document_id,
+            Entity.extraction_method.in_(_PIPELINE_EXTRACTION_METHODS),
+        )
+        .delete(synchronize_session=False)
+    )
 
 
 def _sync_document_to_kb_blocking(document) -> str | None:
@@ -154,34 +181,38 @@ def process_document_ingestion(self, job_id: str):
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
 
-        # Idempotency guard for acks_late redelivery. The Celery app sets
-        # task_acks_late, so a worker recycled/killed AFTER this job finished but
-        # before the broker ack causes the message to be redelivered and the
-        # whole pipeline to re-run — re-extracting and re-inserting a second full
-        # set of Postgres Entity rows (the Neo4j path upserts; Postgres has no
-        # unique constraint to dedup). This is the dominant redelivery case;
-        # short-circuit it. (A crash mid-run, job still RUNNING, can still leave
-        # a partial entity set behind on re-run — that needs an idempotency key
-        # rather than a destructive delete that would clobber curated entities;
-        # tracked as a follow-up.)
-        if job.status == JobStatus.COMPLETED:
+        # Atomic idempotency claim for acks_late redelivery. The Celery app sets
+        # task_acks_late, so a worker killed mid-run never acks and the broker
+        # redelivers this message. claim_job_for_processing serializes the
+        # decision on a row lock: it short-circuits a job that already finished
+        # (terminal) or is still running on another worker, and reclaims only one
+        # whose worker died mid-run (stale RUNNING). A reclaim safely re-runs the
+        # pipeline because every stage is idempotent — text/metadata are
+        # overwritten, figure rows use delete-before-insert, DO KB sync reuses
+        # the existing data source, the Neo4j path upserts, and the Postgres
+        # entity writes below are replaced (not appended) per run.
+        claim = claim_job_for_processing(
+            db,
+            job,
+            worker_id=self.request.id,
+            celery_task_id=self.request.id,
+        )
+        if not claim.proceed:
             logger.info(
-                f"Job {job_id} already completed; skipping redelivered ingestion run"
+                "Job %s not claimable (%s); skipping redelivered ingestion run",
+                job_id,
+                claim.reason,
             )
             return {
-                "status": "completed",
+                "status": job.status.value,
                 "document_id": str(document.id),
-                "skipped": "duplicate_delivery",
+                "skipped": claim.reason,
             }
 
         # Initialize processing service
         processing_service = ProcessingPipeline(db)
 
-        # Start job
-        job.start_job(worker_id=self.request.id)
-        db.commit()
-
-        # Update document status
+        # Update document status (claim already moved the job to RUNNING).
         document.update_processing_status(ProcessingStatus.PROCESSING)
         db.commit()
 
@@ -247,6 +278,11 @@ def process_document_ingestion(self, job_id: str):
             finally:
                 loop.close()
 
+            # Replay-safe write: drop any spaCy/regex entities left by a prior
+            # crashed run for this document before inserting the fresh set, so an
+            # acks_late reclaim replaces rather than duplicates them. The delete
+            # and the inserts commit in one transaction (all-or-nothing).
+            _reset_pipeline_entities(db, document.id)
             for entity in entities:
                 db.add(entity)
             db.commit()

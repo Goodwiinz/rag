@@ -109,33 +109,46 @@ spec:
               containerPort: {{ .Values.backend.service.targetPort }}
               protocol: TCP
           {{- if .Values.backend.healthCheck.enabled }}
+          # Probe paths are split by purpose:
+          #  * liveness + startup -> process-alive path (backend.healthCheck.path,
+          #    default /health). MUST NOT gate on external deps or a slow/unhealthy
+          #    dependency would restart / block-start otherwise-fine pods.
+          #  * readiness -> dependency-aware path (backend.healthCheck.readinessPath,
+          #    default /health/readiness) so a pod that loses a critical dependency
+          #    is pulled from the Service without being killed.
           # Startup probe: generous time for ML model loading
           startupProbe:
             httpGet:
-              path: {{ .Values.backend.healthCheck.path }}
+              path: {{ .Values.backend.healthCheck.startupPath | default .Values.backend.healthCheck.path | default "/health" }}
               port: http
             initialDelaySeconds: {{ .Values.backend.healthCheck.startupProbe.initialDelaySeconds | default 10 }}
             periodSeconds: {{ .Values.backend.healthCheck.startupProbe.periodSeconds | default 10 }}
             timeoutSeconds: {{ .Values.backend.healthCheck.startupProbe.timeoutSeconds | default 5 }}
             failureThreshold: {{ .Values.backend.healthCheck.startupProbe.failureThreshold | default 18 }}
-          # Liveness: is the process alive?
+          # Liveness: is the process alive? (process-alive path only)
           livenessProbe:
             httpGet:
-              path: {{ .Values.backend.healthCheck.path }}
+              path: {{ .Values.backend.healthCheck.livenessPath | default .Values.backend.healthCheck.path | default "/health" }}
               port: http
             initialDelaySeconds: {{ .Values.backend.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.backend.healthCheck.periodSeconds }}
             timeoutSeconds: {{ .Values.backend.healthCheck.timeoutSeconds }}
             failureThreshold: {{ .Values.backend.healthCheck.failureThreshold }}
-          # Readiness: can it serve traffic?
+          # Readiness: can it serve traffic? (dependency-aware path)
+          # SAFETY: readiness gates the load balancer, so a strict/flappy check
+          # can pull EVERY pod out of the Service at once -> total outage. The
+          # thresholds below are clamped to safe floors (periodSeconds >= 10,
+          # failureThreshold >= 3) so a values override can't accidentally cross
+          # them, and the timeout is generous because the check does a (cached)
+          # DB + Redis round-trip.
           readinessProbe:
             httpGet:
-              path: {{ .Values.backend.healthCheck.path }}
+              path: {{ .Values.backend.healthCheck.readinessPath | default "/health/readiness" }}
               port: http
             initialDelaySeconds: {{ .Values.backend.healthCheck.readinessInitialDelaySeconds | default 5 }}
-            periodSeconds: {{ .Values.backend.healthCheck.readinessPeriodSeconds | default 10 }}
-            timeoutSeconds: {{ .Values.backend.healthCheck.readinessTimeoutSeconds | default 3 }}
-            failureThreshold: {{ .Values.backend.healthCheck.readinessFailureThreshold | default 2 }}
+            periodSeconds: {{ max (.Values.backend.healthCheck.readinessPeriodSeconds | default 10 | int) 10 }}
+            timeoutSeconds: {{ .Values.backend.healthCheck.readinessTimeoutSeconds | default 5 }}
+            failureThreshold: {{ max (.Values.backend.healthCheck.readinessFailureThreshold | default 3 | int) 3 }}
           {{- end }}
           # preStop delay: on termination the pod is removed from Service
           # endpoints; this sleep gives the ingress time to stop routing NEW

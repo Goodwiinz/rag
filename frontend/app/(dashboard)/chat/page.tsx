@@ -729,6 +729,9 @@ function ChatPageContent() {
     (action: CommandAction) => {
       switch (action.type) {
         case 'open-thread':
+          // Same clear-before-switch as handleSelectThread: never paint the
+          // previous thread's local transcript under the new selection.
+          setMessages([]);
           setActiveConversationId(action.id);
           activeConversationIdRef.current = action.id;
           setCurrentThread(action.id);
@@ -766,6 +769,7 @@ function ChatPageContent() {
     },
     [
       router,
+      setMessages,
       setActiveConversationId,
       setCurrentThread,
       activeConversationIdRef,

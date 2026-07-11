@@ -21,6 +21,16 @@ _health_checker: Optional[HealthChecker] = None
 _last_check_time: float = 0
 _check_cache_ttl: float = 30  # Cache health checks for 30 seconds
 
+# Readiness probe cache. The readiness endpoint is polled by the kubelet on
+# every pod (~every 10s); each evaluation opens a fresh DB + Redis connection.
+# Cache the outcome for a few seconds so probe polling doesn't hammer
+# Supabase / DO Redis. Kept short so a real dependency outage still surfaces
+# quickly (readiness failureThreshold * periodSeconds dominates the delay).
+_readiness_cache_ttl: float = 5.0
+_readiness_last_check_time: float = 0.0
+_readiness_cached_result: Optional[Dict[str, Any]] = None
+_readiness_lock: Optional["asyncio.Lock"] = None
+
 # Readiness flag: set False when LLM config is missing at startup so the
 # /health/readiness probe returns 503 and the pod stays out of the LB.
 # Starts True so development boots don't 503 before startup runs.
@@ -241,6 +251,77 @@ async def invalidate_health_cache():
     return {"message": "Health check cache invalidated", "timestamp": time.time()}
 
 
+def _get_readiness_lock() -> "asyncio.Lock":
+    """Lazily create the readiness lock bound to the running event loop."""
+    global _readiness_lock
+    if _readiness_lock is None:
+        _readiness_lock = asyncio.Lock()
+    return _readiness_lock
+
+
+async def _evaluate_readiness() -> Dict[str, Any]:
+    """Run the critical-dependency checks for the readiness probe.
+
+    Only checks dependencies that are *always* required to serve traffic
+    (Postgres + Redis). Optional / feature-gated backends (Neo4j, DO KB,
+    external LLM/model APIs) are deliberately NOT checked here: a knowledge
+    graph or KB outage must degrade those features, not pull the whole API
+    out of the load balancer.
+
+    Returns a dict ``{"ready": bool, "detail": Optional[str]}``. Never raises —
+    any error is folded into a not-ready result so the outcome can be cached
+    and dependency checks aren't retried on every probe hit.
+    """
+    try:
+        health_checker = get_health_checker()
+        critical_checks = ["database", "redis"]
+
+        for component in critical_checks:
+            check_method = getattr(health_checker, f"check_{component}", None)
+            if check_method is None:
+                continue
+            result = await check_method()
+            if result.status != HealthStatus.HEALTHY:
+                return {
+                    "ready": False,
+                    "detail": f"Critical component {component} is not healthy",
+                }
+
+        return {"ready": True, "detail": None}
+    except Exception as e:  # defensive: any failure -> not ready (never 500)
+        return {"ready": False, "detail": f"Readiness check failed: {str(e)}"}
+
+
+async def get_cached_readiness() -> Dict[str, Any]:
+    """Return the readiness outcome, evaluating at most once per TTL window.
+
+    Uses a lock + double-check so concurrent probe requests trigger only a
+    single dependency evaluation instead of a thundering herd of DB/Redis
+    connections.
+    """
+    global _readiness_last_check_time, _readiness_cached_result
+
+    now = time.time()
+    cached = _readiness_cached_result
+    if cached is not None and (now - _readiness_last_check_time) < _readiness_cache_ttl:
+        return cached
+
+    async with _get_readiness_lock():
+        # Re-check inside the lock: another coroutine may have just refreshed.
+        now = time.time()
+        cached = _readiness_cached_result
+        if (
+            cached is not None
+            and (now - _readiness_last_check_time) < _readiness_cache_ttl
+        ):
+            return cached
+
+        result = await _evaluate_readiness()
+        _readiness_cached_result = result
+        _readiness_last_check_time = time.time()
+        return result
+
+
 @router.get("/readiness")
 async def readiness_probe():
     """
@@ -249,8 +330,14 @@ async def readiness_probe():
     Returns 503 when the LLM config is incomplete (non-dev) or when a
     critical dependency is unhealthy. Liveness (/health/liveness) is
     unaffected — the pod stays alive but is removed from the LB.
+
+    The dependency checks are cached for a few seconds (see
+    ``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh
+    DB + Redis connection on every hit.
     """
     if not _llm_config_ready:
+        # Cheap in-memory flag — checked before (and without) any dependency
+        # call so a missing LLM config short-circuits without touching DB/Redis.
         raise HTTPException(
             status_code=503,
             detail=(
@@ -259,28 +346,11 @@ async def readiness_probe():
             ),
         )
 
-    try:
-        health_checker = get_health_checker()
+    readiness = await get_cached_readiness()
+    if not readiness["ready"]:
+        raise HTTPException(status_code=503, detail=readiness["detail"])
 
-        # Check critical components for readiness
-        critical_checks = ["database", "redis"]
-
-        for component in critical_checks:
-            check_method = getattr(health_checker, f"check_{component}", None)
-            if check_method:
-                result = await check_method()
-                if result.status != HealthStatus.HEALTHY:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"Critical component {component} is not healthy",
-                    )
-
-        return {"status": "ready", "timestamp": time.time()}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Readiness check failed: {str(e)}")
+    return {"status": "ready", "timestamp": time.time()}
 
 
 @router.get("/liveness")

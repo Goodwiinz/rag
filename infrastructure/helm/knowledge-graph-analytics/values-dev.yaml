@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "5ecf396"
+    tag: "58a9224"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -93,6 +93,15 @@ backend:
   env:
     - name: ENVIRONMENT
       value: "dev"
+    # Durable agent state (audit X3): ENVIRONMENT=dev is a SHARED deployed
+    # environment, so the LangGraph checkpointer/memory store hard-fail on
+    # Postgres init failure instead of silently degrading to in-memory
+    # state (which breaks HITL resume + cross-restart memory invisibly).
+    # "false" here is the code default, stated explicitly as the rollback
+    # lever: flip to "true" (values-only change, no image rebuild) to
+    # temporarily tolerate a broken Postgres, and revert after the outage.
+    - name: ALLOW_MEMORY_FALLBACK
+      value: "false"
     - name: PYTHONPATH
       value: "/app"
     - name: LOG_LEVEL
@@ -187,7 +196,12 @@ backend:
           key: AZURE_OPENAI_CHAT_API_VERSION
   healthCheck:
     enabled: true
+    # Process-alive path for liveness + startup (unconditional /health handler).
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    # Dependency-aware path for readiness (checks Postgres + Redis, cached ~5s).
+    readinessPath: /health/readiness
     startupProbe:
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -197,10 +211,13 @@ backend:
     periodSeconds: 15
     timeoutSeconds: 5
     failureThreshold: 3
+    # Readiness is deliberately slack: it gates the LB, so a transient DB/Redis
+    # blip must not flap every pod out at once. failureThreshold >= 3 and
+    # periodSeconds >= 10 are enforced as floors in the template.
     readinessInitialDelaySeconds: 5
     readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 3
-    readinessFailureThreshold: 2
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
   initContainers:
     waitForPostgres: true
     waitForRedis: false
@@ -251,6 +268,13 @@ celeryWorker:
     # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
     # on memory too. Requires the memory metric block in templates/hpa.yaml.
     targetMemoryUtilizationPercentage: 75
+    # TODO (audit P1.6 / finding X5): CPU+memory is backlog-blind for I/O-bound
+    # LLM/ingestion tasks. The queue-depth signal is now exported as the
+    # Prometheus gauge `celery_queue_depth{queue=...}` (backend
+    # observability/celery_queue_metrics.py). To scale on it, deploy KEDA (add a
+    # ScaledObject on the Redis list length) or prometheus-adapter (expose an
+    # external metric) and add a `- type: External` metric to templates/hpa.yaml.
+    # Deferred: no metrics adapter is deployed in the cluster yet.
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60

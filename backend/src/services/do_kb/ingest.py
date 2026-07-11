@@ -24,19 +24,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.models.document import Document
 
+# Single source of truth for the canonical text-mirror key, shared with the
+# document-delete path + storage reconciler so their key derivation can't drift
+# from what ``_upload_canonical_text`` writes (drift would leak the .txt object
+# on delete — audit finding D6). Re-exported here for backwards compatibility.
+from src.services.documents.object_keys import canonical_text_key
+
 from .client import DOKnowledgeBaseClient, DOKnowledgeBaseError, get_do_kb_client
 from .pre_flight import ensure_content_text_for_kb
 from .provisioner import ensure_kb_for_org
 
 logger = logging.getLogger(__name__)
 
-_CANONICAL_KEY_PREFIX = "documents"
-
-
-def _canonical_key(document: Document, ext: str) -> str:
-    """``documents/{org_id}/{document_id}.{ext}`` — single canonical layout
-    for every document the KB indexes, regardless of source format."""
-    return f"{_CANONICAL_KEY_PREFIX}/{document.organization_id}/{document.id}.{ext}"
+__all__ = [
+    "canonical_text_key",
+    "sync_document_to_kb",
+    "sync_documents_to_kb",
+    "unsync_document_from_kb",
+]
 
 
 def _source_item_path(src: dict) -> Optional[str]:
@@ -109,7 +114,7 @@ async def _upload_canonical_text(document: Document) -> Optional[tuple[str, str]
         from src.core.s3_client import S3StorageHelper
 
         helper = S3StorageHelper()
-        key = _canonical_key(document, "txt")
+        key = canonical_text_key(document)
         # upload_file is sync/blocking (boto3); offload so we don't stall the
         # event loop for every document during bulk ingest (audit A8).
         await asyncio.to_thread(

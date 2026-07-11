@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from typing import Optional
+from typing import List, Optional
 
 import structlog
 
@@ -139,6 +139,24 @@ class S3StorageHelper:
                 return False
             self._log.error("s3_head_failed", key=key, error=str(exc))
             raise
+
+    def list_objects(self, prefix: str) -> List[str]:
+        """List every object key under ``prefix`` (transparently paginated).
+
+        Returns an empty list when nothing matches. Raises on a hard API/network
+        error so callers can decide whether to treat listing as best-effort
+        (the delete path swallows + logs; the reconcile job surfaces it).
+        """
+        self._log.debug("s3_list_start", prefix=prefix)
+        keys: List[str] = []
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj.get("Key")
+                if key:
+                    keys.append(key)
+        self._log.debug("s3_list_complete", prefix=prefix, count=len(keys))
+        return keys
 
     def create_signed_url(self, key: str, expires_in: int = 900) -> str:
         """Create a presigned URL for temporary file access.

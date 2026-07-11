@@ -25,6 +25,7 @@ from src.models.organization import Organization
 from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
+from src.shared.enums import ApiDocumentStatus
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -51,7 +52,7 @@ class FileUploadResponse(BaseModel):
     file_size_bytes: int
     file_size_mb: float
     mime_type: str
-    processing_status: str
+    processing_status: ApiDocumentStatus
     upload_timestamp: str
     created_at: str
     message: str
@@ -158,14 +159,8 @@ async def upload_file(
             is_public=is_public,
         )
 
-        # Map backend status to frontend expected status
-        status_mapping = {
-            "PENDING": "queued",
-            "PROCESSING": "processing",
-            "COMPLETED": "indexed",
-            "FAILED": "failed",
-        }
-        frontend_status = status_mapping.get(document.processing_status.value, "queued")
+        # Map backend status to the public API vocabulary
+        frontend_status = ApiDocumentStatus.from_db(document.processing_status)
 
         return FileUploadResponse(
             document_id=str(document.id),
@@ -214,21 +209,15 @@ async def list_files(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            # This router emits frontend status names ('queued'/'indexed') in
-            # its upload response, so a client filtering by what it received
-            # sends those back. Comparing them raw against the ProcessingStatus
-            # enum column raised LookupError -> 500. Map like documents.py does.
-            frontend_to_backend = {
-                "queued": ProcessingStatus.PENDING,
-                "indexed": ProcessingStatus.COMPLETED,
-                "processing": ProcessingStatus.PROCESSING,
-                "failed": ProcessingStatus.FAILED,
-                "retrying": ProcessingStatus.RETRYING,
-                "pending": ProcessingStatus.PENDING,
-                "completed": ProcessingStatus.COMPLETED,
-            }
-            mapped = frontend_to_backend.get(processing_status.lower())
-            if not mapped:
+            # This router emits public status names ('queued'/'indexed') in its
+            # upload response, so a client filtering by what it received sends
+            # those back. Comparing them raw against the ProcessingStatus enum
+            # column raised LookupError -> 500. Translate via the shared
+            # vocabulary (single source of truth), keeping the validated-enum
+            # injection-prevention pattern — only known values reach the query.
+            try:
+                mapped = ApiDocumentStatus.to_db(processing_status)
+            except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid processing_status: {processing_status}",
