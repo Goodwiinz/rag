@@ -268,6 +268,13 @@ celeryWorker:
     # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
     # on memory too. Requires the memory metric block in templates/hpa.yaml.
     targetMemoryUtilizationPercentage: 75
+    # TODO (audit P1.6 / finding X5): CPU+memory is backlog-blind for I/O-bound
+    # LLM/ingestion tasks. The queue-depth signal is now exported as the
+    # Prometheus gauge `celery_queue_depth{queue=...}` (backend
+    # observability/celery_queue_metrics.py). To scale on it, deploy KEDA (add a
+    # ScaledObject on the Redis list length) or prometheus-adapter (expose an
+    # external metric) and add a `- type: External` metric to templates/hpa.yaml.
+    # Deferred: no metrics adapter is deployed in the cluster yet.
   livenessProbe:
     commandTimeout: 60
     initialDelaySeconds: 60
