@@ -45,7 +45,6 @@ from src.models.workspace import Workspace
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
-
 from src.shared.enums import JobStatus
 
 from .jobs import (  # noqa: F401
@@ -310,6 +309,162 @@ class StreamConfirmRequest(BaseModel):
     confirmed: bool
 
 
+# ---------------------------------------------------------------------------
+# Dispatch backends (audit P1.3, X1 dispatch half)
+# ---------------------------------------------------------------------------
+
+_DISPATCH_BACKENDS = frozenset({"background", "celery"})
+
+
+def _resolve_dispatch_backend() -> str:
+    """Read AGENT_DISPATCH_BACKEND per-call (values-flippable, no restart).
+
+    Unknown values degrade to ``"background"`` with a warning instead of
+    failing the request — a typo in a values file must not take down /execute.
+    """
+    from src.core.config import get_settings
+
+    raw = (get_settings().AGENT_DISPATCH_BACKEND or "background").strip().lower()
+    if raw not in _DISPATCH_BACKENDS:
+        logger.warning(
+            "Unknown AGENT_DISPATCH_BACKEND %r — falling back to 'background'", raw
+        )
+        return "background"
+    return raw
+
+
+def _client_idempotency_key(request: "AgentExecuteRequest", current_user: User):
+    """Idempotency key for a dispatch, derived from the newest user turn.
+
+    Scoped by user id so the globally-unique partial index on
+    ``agent_runs.idempotency_key`` can never collide across tenants. ``None``
+    when the client sent no ``client_message_id`` (legacy clients) — those
+    requests dispatch unconditionally, exactly like today.
+    """
+    last = next((m for m in reversed(request.messages) if m.role == "user"), None)
+    cmid = getattr(last, "client_message_id", None) if last is not None else None
+    if cmid is None:
+        return None
+    return f"agent-execute:{current_user.id}:{cmid}"
+
+
+async def _celery_dispatch(
+    job_id: str,
+    job_payload: dict,
+    request: "AgentExecuteRequest",
+    current_user: User,
+) -> tuple[str, str]:
+    """Dispatch the turn to the Celery ``agent_runs`` queue.
+
+    Returns ``(outcome, job_id_for_client)`` with outcome one of:
+
+    - ``"dispatched"`` — row committed, job record written, task enqueued.
+    - ``"dedup"``     — a run for this idempotency key already exists; the
+      existing job_id is returned and NOTHING new is enqueued (retry of the
+      same turn resolves to the original run).
+    - ``"failed"``    — the enqueue itself failed AFTER the durable writes;
+      the job is marked failed in both stores so the poller stops cleanly.
+      We deliberately do NOT fall back to in-process execution here: the
+      broker exception is ambiguous (the message may have been published),
+      and running the turn in-process next to a possibly-delivered task
+      would double-execute it.
+    - ``"fallback"``  — the durable row could not be written, so nothing was
+      enqueued and the caller may safely run the turn in-process instead.
+
+    Ordering is the whole point (repo orphan-state lesson: flush-before-
+    external): the ``agent_runs`` row commits FIRST, then the Redis job
+    record, and the broker publish happens strictly last. A crash between
+    the commit and the publish leaves a row the sweeper reaps — never a
+    running task without a row (which would be unclaimable and unsweepable).
+    """
+    from src.core.database import AsyncSessionLocal
+    from src.services.agent import agent_run_service
+
+    org = getattr(current_user, "organization_id", None)
+    idem_key = _client_idempotency_key(request, current_user)
+
+    # 1. Durable agent_runs row (+ idempotency key) FIRST.
+    try:
+        async with AsyncSessionLocal() as run_db:
+            run = await agent_run_service.upsert_run(
+                run_db,
+                job_id=job_id,
+                status=JobStatus.RUNNING,
+                organization_id=org,
+                user_id=current_user.id,
+                thread_id=request.thread_id,
+                idempotency_key=idem_key,
+            )
+            if run is None and idem_key is not None:
+                existing = await agent_run_service.get_run_by_idempotency_key(
+                    run_db,
+                    idem_key,
+                    organization_id=org,
+                    user_id=current_user.id,
+                )
+                if existing is not None:
+                    logger.info(
+                        "celery dispatch: idempotency key already dispatched — "
+                        "returning existing job %s (requested %s)",
+                        existing.job_id,
+                        job_id,
+                    )
+                    return "dedup", existing.job_id
+            if run is None:
+                logger.warning(
+                    "celery dispatch: agent_runs row not created for job %s; "
+                    "falling back to in-process dispatch",
+                    job_id,
+                )
+                return "fallback", job_id
+    except Exception:
+        logger.warning(
+            "celery dispatch: agent_runs row write failed for job %s; "
+            "falling back to in-process dispatch",
+            job_id,
+            exc_info=True,
+        )
+        return "fallback", job_id
+
+    # 2. Job record for pollers (L1 + Redis + projection).
+    _set_job(job_id, job_payload)
+
+    # 3. Enqueue LAST — the external call happens only after all state is
+    #    durable, so the worker's execution claim always finds its row.
+    try:
+        from src.tasks.agent_run_tasks import run_agent_job
+
+        run_agent_job.delay(
+            job_id=job_id,
+            request_payload=request.model_dump(mode="json"),
+            user_id=str(current_user.id),
+        )
+    except Exception:
+        logger.exception(
+            "celery dispatch: enqueue failed for job %s — marking failed", job_id
+        )
+        error = "Agent dispatch failed (task queue unavailable). Please retry."
+        _set_job(
+            job_id,
+            {
+                "status": JobStatus.FAILED,
+                "error": error,
+                "tool_executions": [],
+                **_actor_fields(current_user),
+            },
+        )
+        # Durable projection write (await — the fire-and-forget projection
+        # scheduled by _set_job is best-effort; this one must land so the
+        # sweeper never resurrects the orphan as "stale running").
+        await agent_run_service.record_job_status(
+            job_id,
+            {"status": JobStatus.FAILED, "error": error, **_actor_fields(current_user)},
+        )
+        return "failed", job_id
+
+    return "dispatched", job_id
+
+
 @router.post("/execute", response_model=JobStartResponse)
 async def execute_agent(
     request: AgentExecuteRequest,
@@ -320,6 +475,11 @@ async def execute_agent(
     """Execute an agent chat completion via LangGraph.
 
     Returns a job ID immediately.  Poll ``GET /jobs/{job_id}`` for the result.
+
+    Dispatch is flag-gated (AGENT_DISPATCH_BACKEND): "background" runs the
+    graph on this pod via FastAPI BackgroundTasks (default, today's behavior);
+    "celery" enqueues it to the dedicated agent_runs queue with a durable
+    agent_runs row committed before the publish (audit P1.3 / X1).
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_execute"
@@ -339,19 +499,28 @@ async def execute_agent(
             "page_context": request.page_context.type,
             "message_count": len(request.messages),
             "use_rag": request.use_rag,
+            "dispatch_backend": _resolve_dispatch_backend(),
         },
     )
 
     job_id = str(_uuid.uuid4())
-    _set_job(
-        job_id,
-        {
-            "status": JobStatus.RUNNING,
-            "tool_executions": [],
-            **_actor_fields(current_user),
-            "request": request.model_dump(),
-        },
-    )
+    job_payload = {
+        "status": JobStatus.RUNNING,
+        "tool_executions": [],
+        **_actor_fields(current_user),
+        "request": request.model_dump(),
+    }
+
+    if _resolve_dispatch_backend() == "celery":
+        outcome, dispatched_job_id = await _celery_dispatch(
+            job_id, job_payload, request, current_user
+        )
+        if outcome != "fallback":
+            return JobStartResponse(job_id=dispatched_job_id)
+        # "fallback": nothing was enqueued and no job record written — safe
+        # to run in-process below, exactly as if the flag were "background".
+
+    _set_job(job_id, job_payload)
 
     background_tasks.add_task(
         _run_agent_graph,
@@ -388,13 +557,17 @@ async def get_job_status(
     the run became untrackable (audit X1/D7). The projection carries only
     status + error — result payloads still require the Redis record.
     """
-    # Try L1 first (fast path)
+    # L1 is only trustworthy for terminal records (immutable). A non-terminal
+    # L1 entry may be a stale seed while another PROCESS owns the run's writes
+    # (Celery dispatch mode, multi-replica API) — without the fresh read the
+    # poller would see "running" until the 1h TTL. get_job_fresh degrades to
+    # the L1 read when Redis is unavailable, so single-process behavior (and
+    # Redis-less tests) are unchanged.
     job = _get_job(job_id)
-    # Fall back to Redis L2 (survives restarts)
-    if not job:
-        from src.services.agent.job_store import get_job as _get_job_async_local
+    if job is None or not _normalized_job_status(job.get("status")).is_terminal:
+        from src.services.agent.job_store import get_job_fresh as _get_job_fresh
 
-        job = await _get_job_async_local(job_id)
+        job = (await _get_job_fresh(job_id)) or job
     if not job:
         # Redis miss: fall back to the durable projection (tenancy-filtered —
         # org + user must both match; a miss 404s without confirming existence).
@@ -428,15 +601,22 @@ async def confirm_agent_action(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Confirm or deny a pending agent action (human-in-the-loop)."""
-    from src.services.agent.job_store import compare_and_set_status
-    from src.services.agent.job_store import get_job as _get_job_async_local
+    """Confirm or deny a pending agent action (human-in-the-loop).
 
-    # Read the job (L1 then Redis) for a friendly 404 + ownership/status check.
-    with _jobs_lock:
-        job = _jobs.get(job_id)
-    if job is None:
-        job = await _get_job_async_local(job_id)
+    Works identically in both dispatch modes: the graph re-enters via the
+    Postgres checkpointer (keyed by thread_id), which any API pod can reach,
+    so the resume itself runs here as a BackgroundTask BY DESIGN even when
+    the original turn executed on a Celery worker (see agent_run_tasks).
+    """
+    from src.services.agent.job_store import compare_and_set_status
+    from src.services.agent.job_store import get_job_fresh as _get_job_fresh
+
+    # Read the job Redis-first for the friendly 404 + ownership/status check.
+    # In Celery dispatch mode the awaiting_confirmation write came from the
+    # worker process, so this pod's L1 may still hold the stale "running"
+    # dispatch record — trusting it would 409 every legitimate confirm.
+    # (The authoritative claim is still the CAS below, not this read.)
+    job = await _get_job_fresh(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     _validate_confirmable_job(job, current_user)

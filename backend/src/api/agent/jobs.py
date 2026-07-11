@@ -1516,7 +1516,12 @@ async def _resume_agent_graph(
             checkpointer = await get_checkpointer()
             store = await get_memory_store()
             graph = compile_agent_graph(checkpointer=checkpointer, store=store)
-            job = _get_job(job_id)
+            # L1 first, then Redis: in Celery dispatch mode (or behind a
+            # multi-replica API) the pod resuming the confirm may not be the
+            # pod that dispatched, so the request payload only exists in
+            # Redis. Without it the resume falls back to thread_id=job_id and
+            # can never find the interrupt.
+            job = _get_job(job_id) or await _get_job_async(job_id)
             original_request = None
             if job and job.get("request"):
                 original_request = AgentExecuteRequest(**job["request"])

@@ -427,6 +427,41 @@ class Settings(BaseSettings):
     # enabling this where cmids aren't sent just makes it a no-op, never a bug.
     AGENT_SERVER_SIDE_HISTORY: bool = False
 
+    # Audit P1.3 (X1 dispatch half): where POST /agent/execute runs the turn.
+    # "background" (default) keeps today's FastAPI BackgroundTasks path —
+    # fire-and-forget on the API pod, lost on pod death. "celery" enqueues the
+    # turn to the dedicated `agent_runs` queue after durably committing the
+    # agent_runs row (flush-before-external), so a duplicate delivery no-ops
+    # on the execution lease and a crashed worker's run is reaped by the
+    # sweeper. Values-level rollback: flip back to "background" — no image
+    # rebuild. Unknown values degrade to "background" with a warning (a typo
+    # in values must not crash the pod at boot).
+    AGENT_DISPATCH_BACKEND: str = "background"
+
+    # Execution-lease TTL the Celery runner stamps on the agent_runs row when
+    # it claims a job. Must exceed the graph's own 360s hard timeout so a live
+    # run can never look lease-expired to the sweeper.
+    AGENT_RUN_EXECUTION_LEASE_SECONDS: int = 600
+
+    # Audit P1.4 (X1 recovery half + D7): beat sweepers for stale agent runs
+    # and stuck processing jobs. Default on; values-controllable kill switch.
+    SWEEPERS_ENABLED: bool = True
+
+    # A non-terminal agent_runs row with no status write for this long is
+    # considered dead (graph hard timeout is 360s) and swept to failed.
+    AGENT_RUN_STALE_AFTER_SECONDS: int = 1800
+
+    # awaiting_confirmation is a legitimately-parked state — a user may take
+    # a while to confirm. Sweep it only after the Redis job record (TTL 1h)
+    # is guaranteed gone and the confirm can no longer succeed anyway.
+    AGENT_RUN_STALE_AWAITING_AFTER_SECONDS: int = 7200
+
+    # A non-terminal processing_jobs row with no update for this long is
+    # definitively stuck: Celery's hard time limit is 600s, so 30 min of
+    # silence means the task was killed/lost without a terminal write (D7 —
+    # cleanup_old_jobs only ever deletes terminal rows).
+    PROCESSING_JOB_STUCK_AFTER_SECONDS: int = 1800
+
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
     # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit

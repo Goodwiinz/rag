@@ -438,6 +438,48 @@ async def get_job(job_id: str) -> Optional[dict]:
     return None
 
 
+async def get_job_fresh(job_id: str) -> Optional[dict]:
+    """Redis-first job read for cross-process freshness; L1 fallback.
+
+    ``get_job`` prefers the process-local L1 cache, which is only coherent
+    with writes made by THIS process. When the run's writer is a different
+    process — Celery dispatch mode, or a confirm/poll landing on a different
+    API replica — a previously-seeded L1 entry goes permanently stale (a
+    ``running`` record would 409 every confirm and spin the poller for the
+    full 1h TTL). Poll/confirm reads therefore consult Redis first and fold
+    the fresh copy back into L1 under the monotonic guard (so an in-flight
+    newer local write is never clobbered). Degrades to the plain L1 read when
+    Redis is unavailable — identical to today's single-process behavior.
+    """
+    redis_client = await _get_redis()
+    if redis_client is not None:
+        try:
+            raw = await redis_client.get(f"{_JOB_KEY_PREFIX}{job_id}")
+            if raw is not None:
+                data = _json.loads(raw)
+                with _l1_lock:
+                    existing = _l1.get(job_id)
+                    if existing is None or _is_newer_or_equal(data, existing):
+                        _l1[job_id] = data
+                        return data
+                    # L1 holds a strictly newer local write (fire-and-forget
+                    # Redis write still in flight) — prefer it.
+                    return existing
+            # Redis miss (TTL/failover): fall through to L1 so a record that
+            # only ever lived locally (Redis down at write time) still reads.
+        except Exception:
+            logger.exception("Failed to read job %s from Redis", job_id)
+    with _l1_lock:
+        _l1_maybe_cleanup()
+        cached = _l1.get(job_id)
+        if cached is None:
+            return None
+        if time.time() - cached.get("created_at", 0) > _JOB_TTL_SECONDS:
+            del _l1[job_id]
+            return None
+        return cached
+
+
 async def delete_job(job_id: str) -> None:
     """Remove a job from both L1 and Redis."""
     with _l1_lock:

@@ -28,12 +28,18 @@ def _user(org=None):
 
 
 def _patch_stores(l1_job=None, redis_job=None):
-    """Patch the L1 and Redis read layers of the poll endpoint."""
+    """Patch the L1 and Redis read layers of the poll endpoint.
+
+    The endpoint reads L1 first and, for non-terminal (or missing) records,
+    revalidates through ``get_job_fresh`` (Redis-first, L1 fallback — P1.3
+    cross-process freshness). The fake mirrors that contract: the Redis copy
+    when present, else the L1 record.
+    """
     return (
         patch("src.api.agent.execute._get_job", return_value=l1_job),
         patch(
-            "src.services.agent.job_store.get_job",
-            new=AsyncMock(return_value=redis_job),
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=redis_job if redis_job is not None else l1_job),
         ),
     )
 

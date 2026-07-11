@@ -23,6 +23,10 @@ _EXPECTED_KEYS = {
     "health-check",  # document_processing_tasks
     "generate-reports",  # document_processing_tasks
     "cleanup-old-evaluations",  # evaluation_tasks
+    # Defined centrally in celery_app.py (P1.4 sweepers) — a module-level
+    # full assignment would clobber these too, so they belong in this guard.
+    "sweep-stale-agent-runs",  # celery_app (task in agent_run_tasks)
+    "sweep-stuck-processing-jobs",  # celery_app (task in processing_tasks)
 }
 
 
@@ -32,6 +36,7 @@ def test_all_task_modules_beat_schedules_coexist():
     import src.tasks.processing_tasks  # noqa: F401
     import src.tasks.document_processing_tasks  # noqa: F401
     import src.tasks.evaluation_tasks  # noqa: F401
+    import src.tasks.agent_run_tasks  # noqa: F401
     from src.tasks.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
@@ -43,6 +48,7 @@ def test_scheduled_tasks_resolve_to_registered_tasks():
     import src.tasks.processing_tasks  # noqa: F401
     import src.tasks.document_processing_tasks  # noqa: F401
     import src.tasks.evaluation_tasks  # noqa: F401
+    import src.tasks.agent_run_tasks  # noqa: F401
     from src.tasks.celery_app import celery_app
 
     for key in _EXPECTED_KEYS:
