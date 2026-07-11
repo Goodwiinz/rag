@@ -1,19 +1,34 @@
 """
-Multi-tenancy middleware for RAG Analytics
-Provides organization-based data isolation and tenant-aware request handling
+Per-request tenant context for RAG Analytics.
+
+What this module actually does:
+- ``MultiTenancyMiddleware`` resolves the authenticated user + organization from
+  the Bearer JWT (DB is the source of truth), validates the organization is
+  active, and enters ``tenant_context_manager`` so the org/user/role are
+  available for the duration of the request via ContextVars.
+- The ``get_current_*`` accessors + ``check_tenant_permission`` /
+  ``validate_tenant_access`` read that per-request context (used by the RBAC,
+  audit, compliance and tenant-management layers).
+
+What this module does NOT do: it does not enforce tenant isolation at the
+database layer. There is no PostgreSQL Row Level Security and no automatic
+query rewriting. Tenant isolation is a *per-query convention* — every
+tenant-scoped query explicitly filters ``organization_id`` (~1,600+ sites
+across the codebase). Earlier revisions carried an RLS/query-helper toolkit
+(``add_row_level_security_filters``, ``setup_row_level_security``,
+``TenantAwareQuery``, a no-op ``before_cursor_execute`` listener, …) that had
+zero callers and falsely implied centralized enforcement; it was removed so the
+module honestly reflects the real mechanism.
 """
 
 import logging
 from contextvars import ContextVar
-from functools import wraps
 from typing import Any, Callable, Optional
 
 import sentry_sdk
 from fastapi import HTTPException, Request, Response, status
-from sqlalchemy import event, select
-from sqlalchemy.engine import Engine
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.database import AsyncSessionLocal
@@ -56,9 +71,7 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
 
                 if not tenant_info:
                     return await call_next(request)
-                await self._validate_tenant_access(
-                    tenant_info["organization_id"], db
-                )
+                await self._validate_tenant_access(tenant_info["organization_id"], db)
 
                 request.state.db = db
 
@@ -78,7 +91,9 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
             return error_response(403, str(e))
         except Exception as e:
             logger.error(f"Multi-tenancy middleware error: {e}")
-            return error_response(500, "Internal server error during tenant validation", "internal_error")
+            return error_response(
+                500, "Internal server error during tenant validation", "internal_error"
+            )
 
     def _should_skip_tenant_validation(self, request: Request) -> bool:
         """Check if tenant validation should be skipped for this endpoint.
@@ -225,7 +240,8 @@ class MultiTenancyMiddleware(BaseHTTPMiddleware):
                 details={"organization_id": organization_id, "error": str(e)},
             )
 
-# Row Level Security functions
+
+# Per-request tenant context accessors
 
 
 def get_current_tenant_id() -> Optional[str]:
@@ -241,83 +257,6 @@ def get_current_user_id() -> Optional[str]:
 def get_current_user_role() -> Optional[str]:
     """Get current user role from context"""
     return role_context.get()
-
-
-# Database row-level security
-
-
-def add_row_level_security_filters(query, model_class):
-    """Add organization filter to query for row-level security"""
-    tenant_id = get_current_tenant_id()
-
-    if tenant_id and hasattr(model_class, "organization_id"):
-        query = query.filter(model_class.organization_id == tenant_id)
-
-    return query
-
-
-def enforce_tenant_access(model_class):
-    """Decorator to enforce tenant access on database operations"""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            tenant_id = get_current_tenant_id()
-
-            if not tenant_id and hasattr(model_class, "organization_id"):
-                raise PermissionDeniedException(
-                    required_permission="tenant_access",
-                    user_role=get_current_user_role() or "unknown",
-                    details={"model": model_class.__name__},
-                )
-
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-# PostgreSQL Row Level Security setup
-
-
-def setup_row_level_security(db: Session):
-    """Set up PostgreSQL Row Level Security policies"""
-
-    # Enable RLS on relevant tables
-    tables_with_rls = [
-        "documents",
-        "users",
-        "analytics_events",
-        "user_sessions",
-        "performance_logs",
-        "quality_metrics",
-    ]
-
-    for table_name in tables_with_rls:
-        try:
-            # Enable RLS
-            enable_rls_sql = f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY;"
-            db.execute(enable_rls_sql)
-
-            # Create policy for organization-based access
-            policy_sql = f"""
-            CREATE POLICY tenant_isolation_policy ON {table_name}
-                FOR ALL TO authenticated_role
-                USING (organization_id = current_setting('app.current_organization_id')::uuid);
-            """
-            db.execute(policy_sql)
-
-            logger.info(f"RLS policy created for table: {table_name}")
-
-        except Exception as e:
-            logger.warning(f"Failed to create RLS policy for {table_name}: {e}")
-
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to commit RLS policies: {e}")
 
 
 # Context manager for setting organization context
@@ -405,113 +344,14 @@ def validate_tenant_access(organization_id: str) -> bool:
     return current_tenant == organization_id
 
 
-def validate_cross_tenant_access(organization_ids: list) -> bool:
-    """Validate access to multiple organizations (for admin users)"""
-    current_role = get_current_user_role()
-    current_tenant = get_current_tenant_id()
-
-    # Admin users can access cross-tenant data
-    if current_role in ["admin", "super_admin"]:
-        return True
-
-    # Regular users can only access their own tenant
-    return current_tenant in organization_ids
-
-
-# Database event listeners for automatic tenant filtering
-
-
-@event.listens_for(Engine, "before_cursor_execute")
-def receive_before_cursor_execute(
-    conn, cursor, statement, parameters, context, executemany
-):
-    """Add tenant filtering to SELECT queries automatically"""
-    tenant_id = get_current_tenant_id()
-
-    if tenant_id and statement.strip().upper().startswith("SELECT"):
-        # TODO: Implement automatic query modification for tenant filtering
-        # This is complex and requires SQL parsing - implement as needed
-        pass
-
-
-# Tenant-aware query builder
-
-
-class TenantAwareQuery:
-    """Helper class for building tenant-aware queries"""
-
-    def __init__(self, db_session: Session, model_class):
-        self.db = db_session
-        self.model_class = model_class
-        self.tenant_id = get_current_tenant_id()
-
-    def filter_by_tenant(self):
-        """Add tenant filter to query"""
-        query = self.db.query(self.model_class)
-
-        if self.tenant_id and hasattr(self.model_class, "organization_id"):
-            query = query.filter(self.model_class.organization_id == self.tenant_id)
-
-        return query
-
-    def get_with_tenant_filter(self, entity_id: str):
-        """Get entity by ID with tenant filter"""
-        query = self.filter_by_tenant()
-        return query.filter(self.model_class.id == entity_id).first()
-
-    def create_with_tenant(self, **kwargs):
-        """Create entity with current tenant context"""
-        if self.tenant_id and hasattr(self.model_class, "organization_id"):
-            kwargs["organization_id"] = self.tenant_id
-
-        entity = self.model_class(**kwargs)
-        self.db.add(entity)
-        return entity
-
-    def update_with_tenant_validation(self, entity_id: str, **kwargs):
-        """Update entity with tenant validation"""
-        entity = self.get_with_tenant_filter(entity_id)
-
-        if not entity:
-            raise PermissionDeniedException(
-                required_permission="update_access",
-                user_role=get_current_user_role() or "unknown",
-                details={"entity_id": entity_id, "model": self.model_class.__name__},
-            )
-
-        for key, value in kwargs.items():
-            setattr(entity, key, value)
-
-        return entity
-
-    def delete_with_tenant_validation(self, entity_id: str):
-        """Delete entity with tenant validation"""
-        entity = self.get_with_tenant_filter(entity_id)
-
-        if not entity:
-            raise PermissionDeniedException(
-                required_permission="delete_access",
-                user_role=get_current_user_role() or "unknown",
-                details={"entity_id": entity_id, "model": self.model_class.__name__},
-            )
-
-        self.db.delete(entity)
-        return entity
-
-
 # Export main components
 __all__ = [
     "MultiTenancyMiddleware",
     "get_current_tenant_id",
     "get_current_user_id",
     "get_current_user_role",
-    "add_row_level_security_filters",
-    "enforce_tenant_access",
-    "setup_row_level_security",
     "tenant_context_manager",
     "check_tenant_permission",
     "validate_tenant_access",
-    "validate_cross_tenant_access",
-    "TenantAwareQuery",
     "ROLE_PERMISSIONS",
 ]
