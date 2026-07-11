@@ -173,8 +173,28 @@ export function mapStoreMessagesToChatMessages(
 interface SelectDisplayedMessagesParams {
   localMessages: ChatPageMessage[];
   storeMessages?: ChatMessage[];
-  /** The active thread changed and its authoritative store page is pending. */
-  isStoreLoading?: boolean;
+}
+
+/**
+ * True only while the ACTIVE thread's initial page is in flight and there is
+ * nothing renderable for it yet — the sole case that warrants a transcript
+ * skeleton. Local optimistic/streaming turns (first send in a new chat) and
+ * already-cached store pages keep rendering; background refreshes never blank
+ * the transcript. Scoping the gate this way is what fixes the #1121
+ * regressions (blanked first send, skeleton flash on cached thread switches).
+ */
+export function isThreadSwitchPending(params: {
+  activeThreadId: string | null;
+  loadingThreadId: string | null;
+  localMessageCount: number;
+  storeMessageCount: number;
+}): boolean {
+  return (
+    params.activeThreadId !== null &&
+    params.loadingThreadId === params.activeThreadId &&
+    params.localMessageCount === 0 &&
+    params.storeMessageCount === 0
+  );
 }
 
 function shouldUseStoreMessages(
@@ -243,12 +263,7 @@ function mergeLocalProvenance(
 export function selectDisplayedMessages({
   localMessages,
   storeMessages = [],
-  isStoreLoading = false,
 }: SelectDisplayedMessagesParams): ChatPageMessage[] {
-  // Local messages belong to the previously displayed thread until the new
-  // store page arrives. Never paint them under a newly selected thread.
-  if (isStoreLoading) return [];
-
   if (shouldUseStoreMessages(localMessages, storeMessages)) {
     return mergeLocalProvenance(
       mapStoreMessagesToChatMessages(storeMessages),
