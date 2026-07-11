@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Send, Square } from 'lucide-react';
+import { useAgentChatStore } from '@/store/agentChatStore';
 
 interface AgentInputProps {
   value: string;
@@ -23,6 +24,8 @@ export function AgentInput({
   placeholder = 'Ask the agent...',
 }: AgentInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isLoadingMessages = useAgentChatStore((s) => s.isLoadingMessages);
+  const isComposerDisabled = disabled || isLoadingMessages;
 
   // Auto-resize textarea
   useEffect(() => {
@@ -35,7 +38,7 @@ export function AgentInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && !isStreaming && value.trim()) {
+      if (!isComposerDisabled && !isStreaming && value.trim()) {
         onSend();
       }
     }
@@ -50,7 +53,7 @@ export function AgentInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={disabled || isStreaming}
+          disabled={isComposerDisabled || isStreaming}
           rows={1}
           className="flex-1 resize-none bg-muted/30 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
@@ -65,7 +68,7 @@ export function AgentInput({
         ) : (
           <button
             onClick={onSend}
-            disabled={disabled || isStreaming || !value.trim()}
+            disabled={isComposerDisabled || isStreaming || !value.trim()}
             aria-label="Send message"
             className="shrink-0 h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >

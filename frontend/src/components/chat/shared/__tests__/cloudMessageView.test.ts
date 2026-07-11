@@ -197,6 +197,24 @@ describe('cloudMessageView', () => {
     ).toEqual(localMessages);
   });
 
+  it('hides stale local messages while the selected thread is loading from the store', () => {
+    const localMessages = [
+      {
+        role: 'assistant' as const,
+        content: 'thread A transcript',
+        timestamp: 1,
+      },
+    ];
+
+    expect(
+      selectDisplayedMessages({
+        localMessages,
+        storeMessages: [],
+        isStoreLoading: true,
+      })
+    ).toEqual([]);
+  });
+
   it('uses store-backed messages when persisted state is ahead of local cache', () => {
     const displayed = selectDisplayedMessages({
       localMessages: [

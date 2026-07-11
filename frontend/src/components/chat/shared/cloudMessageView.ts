@@ -173,6 +173,8 @@ export function mapStoreMessagesToChatMessages(
 interface SelectDisplayedMessagesParams {
   localMessages: ChatPageMessage[];
   storeMessages?: ChatMessage[];
+  /** The active thread changed and its authoritative store page is pending. */
+  isStoreLoading?: boolean;
 }
 
 function shouldUseStoreMessages(
@@ -241,7 +243,12 @@ function mergeLocalProvenance(
 export function selectDisplayedMessages({
   localMessages,
   storeMessages = [],
+  isStoreLoading = false,
 }: SelectDisplayedMessagesParams): ChatPageMessage[] {
+  // Local messages belong to the previously displayed thread until the new
+  // store page arrives. Never paint them under a newly selected thread.
+  if (isStoreLoading) return [];
+
   if (shouldUseStoreMessages(localMessages, storeMessages)) {
     return mergeLocalProvenance(
       mapStoreMessagesToChatMessages(storeMessages),

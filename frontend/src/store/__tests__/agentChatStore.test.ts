@@ -1,5 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChatStore } from '@/store/agentChatStore';
+
+const serviceMocks = vi.hoisted(() => ({
+  listThreads: vi.fn(async () => ({ threads: [] })),
+  getThreadMessages: vi.fn(async () => ({ messages: [] })),
+  streamMessage: vi.fn(async () => {}),
+  startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
+}));
 
 // loadThreads/loadThreadMessages dynamically import agentChatService and call
 // the backend. In jsdom that request never resolves, so loadThreads otherwise
@@ -7,11 +14,11 @@ import { useAgentChatStore } from '@/store/agentChatStore';
 // hermetic and fast. (Mirrors the fix in PR #734.)
 vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
-    listThreads: vi.fn(async () => ({ threads: [] })),
-    getThreadMessages: vi.fn(async () => ({ messages: [] })),
-    streamMessage: vi.fn(async () => {}),
+    listThreads: serviceMocks.listThreads,
+    getThreadMessages: serviceMocks.getThreadMessages,
+    streamMessage: serviceMocks.streamMessage,
+    startDurableRun: serviceMocks.startDurableRun,
     streamConfirm: vi.fn(async () => {}),
-    startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
     completeDurableConfirmation: vi.fn(async () => {}),
     getDurableRunStatus: vi.fn(async () => ({ status: 'PENDING' })),
     confirmAction: vi.fn(async () => {}),
@@ -19,8 +26,14 @@ vi.mock('@/services/agentChatService', () => ({
 }));
 
 describe('agentChatStore', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     useAgentChatStore.getState().reset();
+    serviceMocks.getThreadMessages.mockReset();
+    serviceMocks.getThreadMessages.mockResolvedValue({ messages: [] });
   });
 
   describe('initial state', () => {
@@ -183,6 +196,72 @@ describe('agentChatStore', () => {
     it('selectThread sets activeThreadId', () => {
       useAgentChatStore.getState().selectThread('thread-42');
       expect(useAgentChatStore.getState().activeThreadId).toBe('thread-42');
+    });
+
+    it('keeps the latest selected thread when an earlier fetch resolves last', async () => {
+      let resolveThreadA!: (value: { messages: Array<Record<string, unknown>> }) => void;
+      let resolveThreadB!: (value: { messages: Array<Record<string, unknown>> }) => void;
+      const threadA = new Promise<{ messages: Array<Record<string, unknown>> }>((resolve) => {
+        resolveThreadA = resolve;
+      });
+      const threadB = new Promise<{ messages: Array<Record<string, unknown>> }>((resolve) => {
+        resolveThreadB = resolve;
+      });
+      // Serve the SAME deferred payloads at BOTH layers. In this suite one
+      // loadThreadMessages call resolves the mocked agentChatService while the
+      // other reaches the real module's api-client fetch (vitest module-graph
+      // quirk, stack-verified) — with only the fetch stub, the mock-routed load
+      // resolved instantly (empty) and the "earlier fetch resolves LAST" race
+      // never happened: the test passed even with the epoch guard deleted.
+      // Mutation-verified: with both layers deferred, deleting the guard fails
+      // this test.
+      serviceMocks.getThreadMessages.mockImplementation(
+        async (threadId: string) =>
+          threadId.includes('thread-A') ? threadA : threadB
+      );
+      vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+        const response = String(input).includes('thread-A') ? threadA : threadB;
+        return response.then((body) =>
+          Promise.resolve(
+            new Response(JSON.stringify(body), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        );
+      }));
+
+      useAgentChatStore.setState({
+        messages: [
+          { id: 'old', role: 'assistant', content: 'old transcript', timestamp: new Date() },
+        ],
+      });
+
+      useAgentChatStore.getState().selectThread('thread-A');
+      const loadA = useAgentChatStore.getState().loadThreadMessages('thread-A');
+      useAgentChatStore.getState().selectThread('thread-B');
+      const loadB = useAgentChatStore.getState().loadThreadMessages('thread-B');
+
+      expect(useAgentChatStore.getState().messages).toEqual([]);
+      expect(useAgentChatStore.getState().isLoadingMessages).toBe(true);
+
+      resolveThreadB({
+        messages: [
+          { id: 'b1', role: 'assistant', content: 'thread B', created_at: new Date().toISOString() },
+        ],
+      });
+      await loadB;
+      resolveThreadA({
+        messages: [
+          { id: 'a1', role: 'assistant', content: 'thread A', created_at: new Date().toISOString() },
+        ],
+      });
+      await loadA;
+
+      const state = useAgentChatStore.getState();
+      expect(state.activeThreadId).toBe('thread-B');
+      expect(state.messages.map((message) => message.content)).toEqual(['thread B']);
+      expect(state.isLoadingMessages).toBe(false);
     });
   });
 

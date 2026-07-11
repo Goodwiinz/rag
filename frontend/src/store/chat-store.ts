@@ -419,6 +419,9 @@ const initialState: ChatState = {
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)
 let _activeAbortController: AbortController | null = null;
+// Only the newest initial thread-message request may update the shared loading
+// state. A late response from a previously selected thread must be ignored.
+let messageLoadEpoch = 0;
 
 // ============================================================================
 // Store
@@ -461,6 +464,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       setCurrentThread: (threadId) => {
+        messageLoadEpoch += 1;
         set((state) => {
           state.currentThreadId = threadId;
         });
@@ -1055,6 +1059,7 @@ export const useChatStore = create<ChatStore>()(
       // ========================================================================
 
       loadMessages: async (threadId) => {
+        const loadEpoch = ++messageLoadEpoch;
         set((state) => {
           state.isLoadingMessages = true;
           state.error = null;
@@ -1072,6 +1077,9 @@ export const useChatStore = create<ChatStore>()(
           const ordered = Array.isArray(response.messages)
             ? [...response.messages].reverse()
             : [];
+          if (loadEpoch !== messageLoadEpoch) {
+            return;
+          }
           set((state) => {
             state.messages[threadId] = ordered;
             // Populate reverse index for O(1) lookup (GOO-86)
@@ -1109,6 +1117,9 @@ export const useChatStore = create<ChatStore>()(
           });
         } catch (error) {
           console.error('[ChatStore] Error loading messages:', error);
+          if (loadEpoch !== messageLoadEpoch) {
+            return;
+          }
           set((state) => {
             state.error = 'Failed to load messages';
             state.isLoadingMessages = false;
@@ -1482,6 +1493,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       reset: () => {
+        messageLoadEpoch += 1;
         set(initialState);
       },
 
