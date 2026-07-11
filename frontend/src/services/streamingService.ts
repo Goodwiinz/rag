@@ -1,9 +1,18 @@
-// DEPRECATED: Orphaned v2 streaming client. The active chat page streams via
-// `agentChatService` against `/api/v1/agent/stream` (LangGraph agent). This
-// module is referenced only by the deprecated `useChatStore.streamMessage`
-// action and its tests. Slated for removal in a dedicated cleanup PR — do
-// not introduce new callers. (File-level block comment is intentionally a
-// plain comment so TS doesn't mark every internal symbol `@deprecated`.)
+// DEPRECATED — ORPHANED (audit finding C3). This is the dead "third SSE
+// dialect" client: it speaks the v2 threads event vocabulary
+// (`message_start` / `rag_context` / `token` / `citation_inline` /
+// `message_done`) against `POST /api/v2/threads/{id}/stream` — a dialect the
+// active chat page never uses. The active chat page streams via
+// `agentChatService` against `/api/v1/agent/stream` (LangGraph agent).
+//
+// Sole importer: the deprecated `useChatStore.streamMessage` action in
+// `store/chat-store.ts` (which itself has no live UI callers — only a
+// `typeof === 'function'` smoke test). Because that importer still exists,
+// this module is NOT deleted here; both are slated for removal together in a
+// dedicated cleanup PR. The matching backend route is marked `deprecated=True`
+// (`backend/src/api/threads/stream.py`). Do not introduce new callers.
+// (File-level block comment is intentionally a plain comment so TS doesn't
+// mark every internal symbol `@deprecated`.)
 
 /**
  * Streaming Service

@@ -71,7 +71,7 @@ _SSE_HEADERS = {
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{thread_id}/stream")
+@router.post("/{thread_id}/stream", deprecated=True)
 async def stream_thread_chat(
     thread_id: UUID,
     body: StreamRequest,
@@ -79,7 +79,16 @@ async def stream_thread_chat(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Stream an LLM response for a thread message via Server-Sent Events.
+    [DEPRECATED] Stream an LLM response for a thread message via Server-Sent Events.
+
+    Deprecated (audit finding C3): this is the orphaned "v2 threads" SSE dialect
+    (``message_start`` -> ``rag_context`` -> ``token`` -> ``message_done``,
+    with ``citation_inline``). Its only client was the frontend
+    ``services/streamingService.ts``, which is itself deprecated and has no live
+    UI callers — the active chat page streams via ``agentChatService`` against
+    ``POST /api/v1/agent/stream`` (LangGraph agent). Do not add new callers.
+    The route is kept for a deprecation window (it is wire-visible); removal is a
+    follow-up once the deprecated frontend client is deleted.
 
     1. Persists the user message
     2. Optionally performs RAG retrieval
