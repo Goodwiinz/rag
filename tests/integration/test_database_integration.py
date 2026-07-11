@@ -8,7 +8,22 @@ import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Generator
-from sqlalchemy import create_engine, text, inspect, MetaData, Table, Column, Integer, String, DateTime, Boolean, ForeignKey, Float, Text, JSON
+from sqlalchemy import (
+    create_engine,
+    text,
+    inspect,
+    MetaData,
+    Table,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    Float,
+    Text,
+    JSON,
+)
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -22,7 +37,6 @@ from src.models.organization import Organization
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.processing import ProcessingJob, JobType, JobStatus, JobPriority
 from src.models.quality import QualityAssessment
-from src.migrations.migration_runner import MigrationRunner
 from tests.conftest import test_db, test_engine, TestSession
 
 
@@ -37,141 +51,217 @@ class TestDatabaseSchemaValidation:
     def test_all_tables_exist(self, inspector):
         """Verify all required tables exist in the database"""
         expected_tables = {
-            'users',
-            'organizations',
-            'documents',
-            'processing_jobs',
-            'quality_assessments',
-            'document_tags',
-            'document_metadata',
-            'audit_logs',
-            'file_storage'
+            "users",
+            "organizations",
+            "documents",
+            "processing_jobs",
+            "quality_assessments",
+            "document_tags",
+            "document_metadata",
+            "audit_logs",
+            "file_storage",
         }
 
         existing_tables = set(inspector.get_table_names())
         missing_tables = expected_tables - existing_tables
 
         assert not missing_tables, f"Missing tables: {missing_tables}"
-        assert existing_tables.issuperset(expected_tables), f"Unexpected tables found: {existing_tables - expected_tables}"
+        assert existing_tables.issuperset(
+            expected_tables
+        ), f"Unexpected tables found: {existing_tables - expected_tables}"
 
     def test_user_table_schema(self, inspector):
         """Test users table schema and constraints"""
-        columns = inspector.get_columns('users')
-        column_names = {col['name'] for col in columns}
+        columns = inspector.get_columns("users")
+        column_names = {col["name"] for col in columns}
 
         required_columns = {
-            'id', 'email', 'password_hash', 'full_name', 'role',
-            'is_active', 'organization_id', 'created_at', 'updated_at'
+            "id",
+            "email",
+            "password_hash",
+            "full_name",
+            "role",
+            "is_active",
+            "organization_id",
+            "created_at",
+            "updated_at",
         }
 
-        assert required_columns.issubset(column_names), f"Missing user columns: {required_columns - column_names}"
+        assert required_columns.issubset(
+            column_names
+        ), f"Missing user columns: {required_columns - column_names}"
 
         # Check column types and constraints
-        email_column = next(col for col in columns if col['name'] == 'email')
-        assert email_column['nullable'] == False, "Email should be non-nullable"
-        assert 'unique' in email_column or any(constr['type'] == 'unique' for constr in email_column.get('constraints', [])), "Email should be unique"
+        email_column = next(col for col in columns if col["name"] == "email")
+        assert email_column["nullable"] == False, "Email should be non-nullable"
+        assert "unique" in email_column or any(
+            constr["type"] == "unique" for constr in email_column.get("constraints", [])
+        ), "Email should be unique"
 
-        role_column = next(col for col in columns if col['name'] == 'role')
-        assert role_column['nullable'] == False, "Role should be non-nullable"
+        role_column = next(col for col in columns if col["name"] == "role")
+        assert role_column["nullable"] == False, "Role should be non-nullable"
 
     def test_organization_table_schema(self, inspector):
         """Test organizations table schema"""
-        columns = inspector.get_columns('organizations')
-        column_names = {col['name'] for col in columns}
+        columns = inspector.get_columns("organizations")
+        column_names = {col["name"] for col in columns}
 
         required_columns = {
-            'id', 'name', 'slug', 'settings', 'is_active',
-            'created_at', 'updated_at'
+            "id",
+            "name",
+            "slug",
+            "settings",
+            "is_active",
+            "created_at",
+            "updated_at",
         }
 
-        assert required_columns.issubset(column_names), f"Missing organization columns: {required_columns - column_names}"
+        assert required_columns.issubset(
+            column_names
+        ), f"Missing organization columns: {required_columns - column_names}"
 
         # Check unique constraints
-        name_column = next(col for col in columns if col['name'] == 'name')
-        slug_column = next(col for col in columns if col['name'] == 'slug')
+        name_column = next(col for col in columns if col["name"] == "name")
+        slug_column = next(col for col in columns if col["name"] == "slug")
 
-        assert name_column['nullable'] == False, "Organization name should be non-nullable"
-        assert slug_column['nullable'] == False, "Organization slug should be non-nullable"
+        assert (
+            name_column["nullable"] == False
+        ), "Organization name should be non-nullable"
+        assert (
+            slug_column["nullable"] == False
+        ), "Organization slug should be non-nullable"
 
     def test_document_table_schema(self, inspector):
         """Test documents table schema and relationships"""
-        columns = inspector.get_columns('documents')
-        column_names = {col['name'] for col in columns}
+        columns = inspector.get_columns("documents")
+        column_names = {col["name"] for col in columns}
 
         required_columns = {
-            'id', 'title', 'filename', 'file_path', 'file_type',
-            'mime_type', 'file_size_bytes', 'file_size_mb',
-            'processing_status', 'uploaded_by_user_id', 'organization_id',
-            'is_public', 'is_deleted', 'created_at', 'updated_at'
+            "id",
+            "title",
+            "filename",
+            "file_path",
+            "file_type",
+            "mime_type",
+            "file_size_bytes",
+            "file_size_mb",
+            "processing_status",
+            "uploaded_by_user_id",
+            "organization_id",
+            "is_public",
+            "is_deleted",
+            "created_at",
+            "updated_at",
         }
 
-        assert required_columns.issubset(column_names), f"Missing document columns: {required_columns - column_names}"
+        assert required_columns.issubset(
+            column_names
+        ), f"Missing document columns: {required_columns - column_names}"
 
         # Check foreign key constraints
-        foreign_keys = inspector.get_foreign_keys('documents')
-        fk_columns = {fk['constrained_columns'][0] for fk in foreign_keys}
+        foreign_keys = inspector.get_foreign_keys("documents")
+        fk_columns = {fk["constrained_columns"][0] for fk in foreign_keys}
 
-        assert 'uploaded_by_user_id' in fk_columns, "Missing foreign key to users"
-        assert 'organization_id' in fk_columns, "Missing foreign key to organizations"
+        assert "uploaded_by_user_id" in fk_columns, "Missing foreign key to users"
+        assert "organization_id" in fk_columns, "Missing foreign key to organizations"
 
     def test_processing_jobs_table_schema(self, inspector):
         """Test processing_jobs table schema"""
-        columns = inspector.get_columns('processing_jobs')
-        column_names = {col['name'] for col in columns}
+        columns = inspector.get_columns("processing_jobs")
+        column_names = {col["name"] for col in columns}
 
         required_columns = {
-            'id', 'job_type', 'status', 'priority', 'document_id',
-            'organization_id', 'created_by_user_id', 'parameters',
-            'config', 'total_steps', 'completed_steps', 'error_message',
-            'started_at', 'completed_at', 'created_at', 'updated_at'
+            "id",
+            "job_type",
+            "status",
+            "priority",
+            "document_id",
+            "organization_id",
+            "created_by_user_id",
+            "parameters",
+            "config",
+            "total_steps",
+            "completed_steps",
+            "error_message",
+            "started_at",
+            "completed_at",
+            "created_at",
+            "updated_at",
         }
 
-        assert required_columns.issubset(column_names), f"Missing processing job columns: {required_columns - column_names}"
+        assert required_columns.issubset(
+            column_names
+        ), f"Missing processing job columns: {required_columns - column_names}"
 
         # Check JSON columns
-        parameters_column = next(col for col in columns if col['name'] == 'parameters')
-        config_column = next(col for col in columns if col['name'] == 'config')
+        parameters_column = next(col for col in columns if col["name"] == "parameters")
+        config_column = next(col for col in columns if col["name"] == "config")
 
-        assert parameters_column['type'].upper() == 'JSON', "Parameters should be JSON type"
-        assert config_column['type'].upper() == 'JSON', "Config should be JSON type"
+        assert (
+            parameters_column["type"].upper() == "JSON"
+        ), "Parameters should be JSON type"
+        assert config_column["type"].upper() == "JSON", "Config should be JSON type"
 
     def test_quality_assessments_table_schema(self, inspector):
         """Test quality_assessments table schema"""
-        columns = inspector.get_columns('quality_assessments')
-        column_names = {col['name'] for col in columns}
+        columns = inspector.get_columns("quality_assessments")
+        column_names = {col["name"] for col in columns}
 
         required_columns = {
-            'id', 'document_id', 'overall_score', 'readability_score',
-            'content_quality_score', 'technical_quality_score',
-            'recommendations', 'issues', 'processing_time_ms', 'created_at'
+            "id",
+            "document_id",
+            "overall_score",
+            "readability_score",
+            "content_quality_score",
+            "technical_quality_score",
+            "recommendations",
+            "issues",
+            "processing_time_ms",
+            "created_at",
         }
 
-        assert required_columns.issubset(column_names), f"Missing quality assessment columns: {required_columns - column_names}"
+        assert required_columns.issubset(
+            column_names
+        ), f"Missing quality assessment columns: {required_columns - column_names}"
 
         # Check numeric columns
-        overall_score_column = next(col for col in columns if col['name'] == 'overall_score')
-        assert overall_score_column['type'].lower() in ('float', 'numeric', 'decimal'), "Overall score should be numeric"
+        overall_score_column = next(
+            col for col in columns if col["name"] == "overall_score"
+        )
+        assert overall_score_column["type"].lower() in (
+            "float",
+            "numeric",
+            "decimal",
+        ), "Overall score should be numeric"
 
     def test_foreign_key_relationships(self, inspector):
         """Test foreign key relationships between tables"""
         # Test users -> organizations relationship
-        user_fks = inspector.get_foreign_keys('users')
-        assert any(fk['referred_table'] == 'organizations' for fk in user_fks), "Users should reference organizations"
+        user_fks = inspector.get_foreign_keys("users")
+        assert any(
+            fk["referred_table"] == "organizations" for fk in user_fks
+        ), "Users should reference organizations"
 
         # Test documents -> users and organizations relationships
-        doc_fks = inspector.get_foreign_keys('documents')
-        doc_fk_tables = {fk['referred_table'] for fk in doc_fks}
-        assert 'users' in doc_fk_tables, "Documents should reference users"
-        assert 'organizations' in doc_fk_tables, "Documents should reference organizations"
+        doc_fks = inspector.get_foreign_keys("documents")
+        doc_fk_tables = {fk["referred_table"] for fk in doc_fks}
+        assert "users" in doc_fk_tables, "Documents should reference users"
+        assert (
+            "organizations" in doc_fk_tables
+        ), "Documents should reference organizations"
 
         # Test processing_jobs -> documents relationship
-        job_fks = inspector.get_foreign_keys('processing_jobs')
-        job_fk_tables = {fk['referred_table'] for fk in job_fks}
-        assert 'documents' in job_fk_tables, "Processing jobs should reference documents"
+        job_fks = inspector.get_foreign_keys("processing_jobs")
+        job_fk_tables = {fk["referred_table"] for fk in job_fks}
+        assert (
+            "documents" in job_fk_tables
+        ), "Processing jobs should reference documents"
 
         # Test quality_assessments -> documents relationship
-        qa_fks = inspector.get_foreign_keys('quality_assessments')
-        assert any(fk['referred_table'] == 'documents' for fk in qa_fks), "Quality assessments should reference documents"
+        qa_fks = inspector.get_foreign_keys("quality_assessments")
+        assert any(
+            fk["referred_table"] == "documents" for fk in qa_fks
+        ), "Quality assessments should reference documents"
 
 
 class TestDatabaseConstraintsAndValidation:
@@ -184,7 +274,7 @@ class TestDatabaseConstraintsAndValidation:
             email="test@example.com",
             password_hash="hash1",
             full_name="Test User 1",
-            role=UserRole.USER
+            role=UserRole.USER,
         )
         test_db.add(user1)
         test_db.commit()
@@ -194,7 +284,7 @@ class TestDatabaseConstraintsAndValidation:
             email="test@example.com",
             password_hash="hash2",
             full_name="Test User 2",
-            role=UserRole.USER
+            role=UserRole.USER,
         )
         test_db.add(user2)
 
@@ -204,19 +294,13 @@ class TestDatabaseConstraintsAndValidation:
     def test_organization_slug_uniqueness(self, test_db: TestSession):
         """Test that organization slugs must be unique"""
         # Create first organization
-        org1 = Organization(
-            name="Test Organization",
-            slug="test-org",
-            settings={}
-        )
+        org1 = Organization(name="Test Organization", slug="test-org", settings={})
         test_db.add(org1)
         test_db.commit()
 
         # Try to create second organization with same slug
         org2 = Organization(
-            name="Another Test Organization",
-            slug="test-org",
-            settings={}
+            name="Another Test Organization", slug="test-org", settings={}
         )
         test_db.add(org2)
 
@@ -236,7 +320,7 @@ class TestDatabaseConstraintsAndValidation:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.UPLOADED,
             uploaded_by_user_id="non-existent-id",
-            organization_id="non-existent-org-id"
+            organization_id="non-existent-org-id",
         )
         test_db.add(doc)
 
@@ -255,7 +339,7 @@ class TestDatabaseConstraintsAndValidation:
             password_hash="hash",
             full_name="Test User",
             role=UserRole.USER,
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(user)
         test_db.flush()
@@ -270,7 +354,7 @@ class TestDatabaseConstraintsAndValidation:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.UPLOADED,
             uploaded_by_user_id=user.id,
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(doc)
         test_db.flush()
@@ -281,7 +365,7 @@ class TestDatabaseConstraintsAndValidation:
             priority=JobPriority.NORMAL,
             document_id=doc.id,
             organization_id=org.id,
-            created_by_user_id=user.id
+            created_by_user_id=user.id,
         )
         test_db.add(job)
         test_db.commit()
@@ -300,10 +384,7 @@ class TestDatabaseConstraintsAndValidation:
         """Test NOT NULL constraints on required fields"""
         # Test user with null email
         user_null_email = User(
-            email=None,
-            password_hash="hash",
-            full_name="Test User",
-            role=UserRole.USER
+            email=None, password_hash="hash", full_name="Test User", role=UserRole.USER
         )
         test_db.add(user_null_email)
 
@@ -323,7 +404,7 @@ class TestDatabaseConstraintsAndValidation:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.UPLOADED,
             uploaded_by_user_id="test-user-id",
-            organization_id="test-org-id"
+            organization_id="test-org-id",
         )
         test_db.add(doc_null_title)
 
@@ -332,12 +413,7 @@ class TestDatabaseConstraintsAndValidation:
 
 
 class TestDatabaseMigrations:
-    """Test database migration functionality"""
-
-    @pytest.fixture
-    def migration_runner(self, test_engine):
-        """Create migration runner instance"""
-        return MigrationRunner(test_engine)
+    """Test database migration functionality (Alembic)"""
 
     @pytest.fixture
     def alembic_config(self):
@@ -345,56 +421,6 @@ class TestDatabaseMigrations:
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", "sqlite:///:memory:")
         return config
-
-    def test_migration_initialization(self, migration_runner):
-        """Test migration runner initialization"""
-        assert migration_runner.engine is not None
-        assert migration_runner.connection is not None
-
-    def test_create_migration_table(self, migration_runner):
-        """Test migration table creation"""
-        migration_runner.create_migration_table()
-
-        # Verify table exists
-        inspector = inspect(migration_runner.engine)
-        assert 'alembic_version' in inspector.get_table_names()
-
-    def test_migration_history_tracking(self, migration_runner):
-        """Test migration history tracking"""
-        migration_runner.create_migration_table()
-
-        # Record a migration
-        migration_runner.record_migration("test_migration_001", "Initial test migration")
-
-        # Verify migration is recorded
-        history = migration_runner.get_migration_history()
-        assert len(history) == 1
-        assert history[0]['version_num'] == "test_migration_001"
-
-    def test_duplicate_migration_prevention(self, migration_runner):
-        """Test that duplicate migrations are prevented"""
-        migration_runner.create_migration_table()
-        migration_runner.record_migration("test_migration_001", "Initial test migration")
-
-        # Try to record same migration again
-        with pytest.raises(IntegrityError):
-            migration_runner.record_migration("test_migration_001", "Duplicate migration")
-
-    def test_migration_rollback(self, migration_runner):
-        """Test migration rollback functionality"""
-        migration_runner.create_migration_table()
-
-        # Record multiple migrations
-        migration_runner.record_migration("test_migration_001", "First migration")
-        migration_runner.record_migration("test_migration_002", "Second migration")
-        migration_runner.record_migration("test_migration_003", "Third migration")
-
-        # Rollback to specific version
-        migration_runner.rollback_to_version("test_migration_001")
-
-        # Verify current version
-        current_version = migration_runner.get_current_version()
-        assert current_version == "test_migration_001"
 
     def test_alembic_integration(self, alembic_config):
         """Test Alembic integration for real migrations"""
@@ -417,7 +443,9 @@ class TestDatabaseMigrations:
         tables_after_downgrade = inspector.get_table_names()
 
         # Most tables should be gone after downgrade to base
-        assert len(tables_after_downgrade) < len(tables), "Downgrade didn't remove tables"
+        assert len(tables_after_downgrade) < len(
+            tables
+        ), "Downgrade didn't remove tables"
 
 
 class TestDatabasePerformanceAndOptimization:
@@ -435,7 +463,7 @@ class TestDatabasePerformanceAndOptimization:
             password_hash="hash",
             full_name="Test User",
             role=UserRole.USER,
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(user)
         test_db.flush()
@@ -453,7 +481,7 @@ class TestDatabasePerformanceAndOptimization:
                 file_size_mb=0.001 * (i + 1),
                 processing_status=ProcessingStatus.INDEXED,
                 uploaded_by_user_id=user.id,
-                organization_id=org.id
+                organization_id=org.id,
             )
             documents.append(doc)
         test_db.add_all(documents)
@@ -463,27 +491,33 @@ class TestDatabasePerformanceAndOptimization:
         start_time = datetime.now()
 
         # Query by organization (should use index)
-        org_docs = test_db.query(Document).filter(
-            Document.organization_id == org.id
-        ).all()
+        org_docs = (
+            test_db.query(Document).filter(Document.organization_id == org.id).all()
+        )
 
         org_query_time = (datetime.now() - start_time).total_seconds()
 
         start_time = datetime.now()
 
         # Query by user (should use index)
-        user_docs = test_db.query(Document).filter(
-            Document.uploaded_by_user_id == user.id
-        ).all()
+        user_docs = (
+            test_db.query(Document)
+            .filter(Document.uploaded_by_user_id == user.id)
+            .all()
+        )
 
         user_query_time = (datetime.now() - start_time).total_seconds()
 
         start_time = datetime.now()
 
         # Query with ordering (should be optimized)
-        ordered_docs = test_db.query(Document).filter(
-            Document.organization_id == org.id
-        ).order_by(Document.created_at.desc()).limit(50).all()
+        ordered_docs = (
+            test_db.query(Document)
+            .filter(Document.organization_id == org.id)
+            .order_by(Document.created_at.desc())
+            .limit(50)
+            .all()
+        )
 
         order_query_time = (datetime.now() - start_time).total_seconds()
 
@@ -519,7 +553,7 @@ class TestDatabasePerformanceAndOptimization:
                 file_size_mb=0.001,
                 processing_status=ProcessingStatus.UPLOADED,
                 uploaded_by_user_id="test-user",
-                organization_id=org.id
+                organization_id=org.id,
             )
             documents.append(doc)
 
@@ -534,11 +568,9 @@ class TestDatabasePerformanceAndOptimization:
         # Test bulk update performance
         start_time = datetime.now()
 
-        test_db.query(Document).filter(
-            Document.organization_id == org.id
-        ).update({
-            "processing_status": ProcessingStatus.INDEXED
-        }, synchronize_session=False)
+        test_db.query(Document).filter(Document.organization_id == org.id).update(
+            {"processing_status": ProcessingStatus.INDEXED}, synchronize_session=False
+        )
 
         test_db.commit()
 
@@ -550,9 +582,9 @@ class TestDatabasePerformanceAndOptimization:
         # Test bulk delete performance
         start_time = datetime.now()
 
-        test_db.query(Document).filter(
-            Document.organization_id == org.id
-        ).delete(synchronize_session=False)
+        test_db.query(Document).filter(Document.organization_id == org.id).delete(
+            synchronize_session=False
+        )
 
         test_db.commit()
 
@@ -613,7 +645,7 @@ class TestDatabasePerformanceAndOptimization:
                     file_size_mb=0.001,
                     processing_status=ProcessingStatus.UPLOADED,
                     uploaded_by_user_id="test-user",
-                    organization_id=new_org.id
+                    organization_id=new_org.id,
                 )
                 test_db.add(doc)
 
@@ -628,12 +660,16 @@ class TestDatabasePerformanceAndOptimization:
 
         # Verify rollback worked
         final_count = test_db.query(Organization).count()
-        assert final_count == initial_count, "Rollback didn't work - organization count changed"
+        assert (
+            final_count == initial_count
+        ), "Rollback didn't work - organization count changed"
 
         # Verify no orphaned documents exist
-        orphaned_docs = test_db.query(Document).filter(
-            Document.organization_id == new_org.id
-        ).count()
+        orphaned_docs = (
+            test_db.query(Document)
+            .filter(Document.organization_id == new_org.id)
+            .count()
+        )
         assert orphaned_docs == 0, "Orphaned documents found after rollback"
 
 
@@ -652,7 +688,7 @@ class TestDataIntegrityAndConsistency:
             password_hash="hash",
             full_name="Test User",
             role=UserRole.USER,
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(user)
         test_db.flush()
@@ -667,7 +703,7 @@ class TestDataIntegrityAndConsistency:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.PROCESSING,
             uploaded_by_user_id=user.id,
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(doc)
         test_db.flush()
@@ -681,7 +717,7 @@ class TestDataIntegrityAndConsistency:
             organization_id=org.id,
             created_by_user_id=user.id,
             total_steps=5,
-            completed_steps=2
+            completed_steps=2,
         )
         test_db.add(job)
         test_db.commit()
@@ -697,7 +733,9 @@ class TestDataIntegrityAndConsistency:
 
         # Verify consistency
         final_doc = test_db.query(Document).filter(Document.id == doc.id).first()
-        final_job = test_db.query(ProcessingJob).filter(ProcessingJob.id == job.id).first()
+        final_job = (
+            test_db.query(ProcessingJob).filter(ProcessingJob.id == job.id).first()
+        )
 
         assert final_doc.processing_status == ProcessingStatus.INDEXED
         assert final_job.status == JobStatus.COMPLETED
@@ -720,7 +758,7 @@ class TestDataIntegrityAndConsistency:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.INDEXED,
             uploaded_by_user_id="test-user",
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(doc)
         test_db.flush()
@@ -737,18 +775,20 @@ class TestDataIntegrityAndConsistency:
                 {
                     "type": "readability",
                     "severity": "medium",
-                    "description": "Long paragraphs detected"
+                    "description": "Long paragraphs detected",
                 }
             ],
-            processing_time_ms=1500
+            processing_time_ms=1500,
         )
         test_db.add(qa)
         test_db.commit()
 
         # Verify data integrity
-        retrieved_qa = test_db.query(QualityAssessment).filter(
-            QualityAssessment.document_id == doc.id
-        ).first()
+        retrieved_qa = (
+            test_db.query(QualityAssessment)
+            .filter(QualityAssessment.document_id == doc.id)
+            .first()
+        )
 
         assert retrieved_qa is not None
         assert retrieved_qa.overall_score == 0.85
@@ -775,7 +815,7 @@ class TestDataIntegrityAndConsistency:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.INDEXED,
             uploaded_by_user_id="test-user",
-            organization_id=org.id
+            organization_id=org.id,
         )
         test_db.add(doc)
         test_db.flush()
@@ -787,7 +827,7 @@ class TestDataIntegrityAndConsistency:
             priority=JobPriority.NORMAL,
             document_id=doc.id,
             organization_id=org.id,
-            created_by_user_id="test-user"
+            created_by_user_id="test-user",
         )
         test_db.add(job)
 
@@ -799,7 +839,7 @@ class TestDataIntegrityAndConsistency:
             technical_quality_score=0.85,
             recommendations=[],
             issues=[],
-            processing_time_ms=1000
+            processing_time_ms=1000,
         )
         test_db.add(qa)
         test_db.commit()
@@ -809,12 +849,23 @@ class TestDataIntegrityAndConsistency:
         test_db.commit()
 
         # Verify related records are handled appropriately
-        remaining_job = test_db.query(ProcessingJob).filter(ProcessingJob.document_id == doc.id).first()
-        remaining_qa = test_db.query(QualityAssessment).filter(QualityAssessment.document_id == doc.id).first()
+        remaining_job = (
+            test_db.query(ProcessingJob)
+            .filter(ProcessingJob.document_id == doc.id)
+            .first()
+        )
+        remaining_qa = (
+            test_db.query(QualityAssessment)
+            .filter(QualityAssessment.document_id == doc.id)
+            .first()
+        )
 
         # Both should either be deleted or marked as deleted
         if remaining_job:
-            assert remaining_job.status == JobStatus.CANCELLED or remaining_job.document_id != doc.id
+            assert (
+                remaining_job.status == JobStatus.CANCELLED
+                or remaining_job.document_id != doc.id
+            )
 
         if remaining_qa:
             # Quality assessments might remain for audit purposes
@@ -839,7 +890,7 @@ class TestDataIntegrityAndConsistency:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.INDEXED,
             uploaded_by_user_id="user1",
-            organization_id=org1.id
+            organization_id=org1.id,
         )
 
         doc2 = Document(
@@ -852,15 +903,19 @@ class TestDataIntegrityAndConsistency:
             file_size_mb=0.001,
             processing_status=ProcessingStatus.INDEXED,
             uploaded_by_user_id="user2",
-            organization_id=org2.id
+            organization_id=org2.id,
         )
 
         test_db.add_all([doc1, doc2])
         test_db.commit()
 
         # Test isolation - queries should only return data for specific organization
-        org1_docs = test_db.query(Document).filter(Document.organization_id == org1.id).all()
-        org2_docs = test_db.query(Document).filter(Document.organization_id == org2.id).all()
+        org1_docs = (
+            test_db.query(Document).filter(Document.organization_id == org1.id).all()
+        )
+        org2_docs = (
+            test_db.query(Document).filter(Document.organization_id == org2.id).all()
+        )
 
         assert len(org1_docs) == 1
         assert len(org2_docs) == 1
