@@ -123,7 +123,7 @@ class TestHitlCheckpointOwnership:
         mock_graph.ainvoke.assert_not_called()
         job = _get_job(job_id)
         assert job is not None
-        assert job["status"] == "error"
+        assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
         assert job["error"] == "Thread not found"
 
 

@@ -42,7 +42,11 @@ from src.services.agent.job_store import _l1_lock as _jobs_lock
 from src.services.agent.job_store import _write_to_redis_only
 from src.services.agent.job_store import delete_job as _delete_job_async
 from src.services.agent.job_store import get_job as _get_job_async
+from src.services.agent.job_store import (
+    schedule_run_projection as _schedule_run_projection,
+)
 from src.services.agent.job_store import set_job as _set_job_async
+from src.shared.enums import JobStatus
 
 MAX_JOBS = 500
 
@@ -121,7 +125,17 @@ def _set_job(job_id: str, data: dict):
         existing = _jobs.get(job_id)
         if "user_id" not in data and existing is not None and existing.get("user_id"):
             data["user_id"] = existing["user_id"]
+        if (
+            "organization_id" not in data
+            and existing is not None
+            and existing.get("organization_id")
+        ):
+            data["organization_id"] = existing["organization_id"]
         _jobs[job_id] = data
+
+    # Durable projection (fire-and-forget; Redis stays authoritative). Has its
+    # own no-running-loop guard, so it is safe outside the try below.
+    _schedule_run_projection(job_id, data)
 
     try:
         loop = _asyncio.get_running_loop()
@@ -146,6 +160,20 @@ def _on_redis_write_done(task) -> None:
         pass
     except Exception:
         logger.exception("Background Redis write task failed for a job")
+
+
+def _actor_fields(current_user: User) -> dict:
+    """Owner + tenancy stamps for a job payload.
+
+    ``user_id`` drives the poll ownership check (fails closed when missing);
+    ``organization_id`` scopes the durable ``agent_runs`` projection so the
+    Postgres fallback read stays tenant-filtered.
+    """
+    org = getattr(current_user, "organization_id", None)
+    return {
+        "user_id": str(current_user.id),
+        "organization_id": str(org) if org else None,
+    }
 
 
 def _get_job(job_id: str) -> dict | None:
@@ -1302,10 +1330,10 @@ async def _run_agent_graph(
                     await _set_job_async(
                         job_id,
                         {
-                            "status": "awaiting_confirmation",
+                            "status": JobStatus.AWAITING_CONFIRMATION,
                             "confirmation": confirmation_details,
                             "tool_executions": [],
-                            "user_id": str(current_user.id),
+                            **_actor_fields(current_user),
                             "request": request.model_dump(),
                         },
                     )
@@ -1316,10 +1344,10 @@ async def _run_agent_graph(
                 await _set_job_async(
                     job_id,
                     {
-                        "status": "awaiting_confirmation",
+                        "status": JobStatus.AWAITING_CONFIRMATION,
                         "confirmation": confirmation_details,
                         "tool_executions": [],
-                        "user_id": str(current_user.id),
+                        **_actor_fields(current_user),
                         "request": request.model_dump(),
                     },
                 )
@@ -1418,10 +1446,10 @@ async def _run_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "completed",
+                    "status": JobStatus.COMPLETED,
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )
         except asyncio.CancelledError:
@@ -1434,9 +1462,9 @@ async def _run_agent_graph(
                 await _set_job_async(
                     job_id,
                     {
-                        "status": "cancelled",
+                        "status": JobStatus.CANCELLED,
                         "error": "execution cancelled",
-                        "user_id": str(current_user.id),
+                        **_actor_fields(current_user),
                     },
                 )
             except Exception:
@@ -1447,9 +1475,9 @@ async def _run_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "failed",
+                    "status": JobStatus.FAILED,
                     "error": "Agent execution timed out after 360s",
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )
         except Exception as e:
@@ -1457,9 +1485,9 @@ async def _run_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "failed",
+                    "status": JobStatus.FAILED,
                     "error": client_safe_error(e),
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )
 
@@ -1538,13 +1566,14 @@ async def _resume_agent_graph(
                         current_user.id,
                     )
                     # Stamp the *requesting* user so their polling sees the
-                    # error; never the snapshot owner.
+                    # error; never the snapshot owner. Status is FAILED — the
+                    # legacy failed/error split is collapsed (audit C7).
                     await _set_job_async(
                         job_id,
                         {
-                            "status": "error",
+                            "status": JobStatus.FAILED,
                             "error": "Thread not found",
-                            "user_id": str(current_user.id),
+                            **_actor_fields(current_user),
                         },
                     )
                     return
@@ -1574,9 +1603,10 @@ async def _resume_agent_graph(
                     await _set_job_async(
                         job_id,
                         {
-                            "status": "error",
+                            # Collapsed from the legacy "error" status (C7).
+                            "status": JobStatus.FAILED,
                             "error": "Interrupt already consumed",
-                            "user_id": str(current_user.id),
+                            **_actor_fields(current_user),
                         },
                     )
                     return
@@ -1597,10 +1627,10 @@ async def _resume_agent_graph(
                 await _set_job_async(
                     job_id,
                     {
-                        "status": "awaiting_confirmation",
+                        "status": JobStatus.AWAITING_CONFIRMATION,
                         "confirmation": confirmation_details,
                         "tool_executions": list(final_state.get("tool_executions", [])),
-                        "user_id": str(current_user.id),
+                        **_actor_fields(current_user),
                         "request": (
                             original_request.model_dump() if original_request else None
                         ),
@@ -1718,10 +1748,10 @@ async def _resume_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "completed",
+                    "status": JobStatus.COMPLETED,
                     "result": result.model_dump(),
                     "tool_executions": list(final_state.get("tool_executions", [])),
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )
         except GraphInterrupt as exc:
@@ -1737,12 +1767,12 @@ async def _resume_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "awaiting_confirmation",
+                    "status": JobStatus.AWAITING_CONFIRMATION,
                     "confirmation": confirmation_details,
                     # ainvoke raised before returning, so no final_state exists —
                     # match _run_agent_graph and reset the per-turn executions.
                     "tool_executions": [],
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                     "request": (
                         original_request.model_dump() if original_request else None
                     ),
@@ -1757,9 +1787,9 @@ async def _resume_agent_graph(
                 await _set_job_async(
                     job_id,
                     {
-                        "status": "cancelled",
+                        "status": JobStatus.CANCELLED,
                         "error": "resume cancelled",
-                        "user_id": str(current_user.id),
+                        **_actor_fields(current_user),
                     },
                 )
             except Exception:
@@ -1770,9 +1800,9 @@ async def _resume_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "failed",
+                    "status": JobStatus.FAILED,
                     "error": "Agent execution timed out after 360s",
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )
         except Exception as e:
@@ -1780,8 +1810,8 @@ async def _resume_agent_graph(
             await _set_job_async(
                 job_id,
                 {
-                    "status": "failed",
+                    "status": JobStatus.FAILED,
                     "error": client_safe_error(e),
-                    "user_id": str(current_user.id),
+                    **_actor_fields(current_user),
                 },
             )

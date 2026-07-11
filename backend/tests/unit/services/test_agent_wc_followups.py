@@ -172,7 +172,7 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
     graph.ainvoke.assert_not_called()
     job = _get_job(job_id)
     assert job is not None
-    assert job["status"] == "error"
+    assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
     assert "already consumed" in (job.get("error") or "").lower()
 
 
@@ -239,7 +239,7 @@ async def test_resume_rejects_ownerless_checkpoint():
     graph.ainvoke.assert_not_called()
     job = _get_job(job_id)
     assert job is not None
-    assert job["status"] == "error"
+    assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
     assert job["error"] == "Thread not found"
 
 
