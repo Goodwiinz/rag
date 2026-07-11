@@ -2,6 +2,7 @@
 Document management API endpoints
 """
 
+import asyncio
 import logging
 import uuid as uuid_module
 from datetime import datetime, timedelta, timezone
@@ -111,6 +112,60 @@ async def _cleanup_do_kb_data_sources_background(document_ids: List[str]) -> Non
                 extra={"document_id": str(document_id)},
                 exc_info=True,
             )
+
+
+async def _cleanup_document_graph(document_id: str, organization_id: str) -> None:
+    """Best-effort removal of a deleted document's entity subgraph from Neo4j.
+
+    The delete transaction soft-deletes the document's Postgres ``Entity`` rows
+    but historically never touched the mirrored ``:Entity`` nodes in Neo4j, so a
+    deleted document's graph entities orphaned there forever (audit D2). This
+    ``DETACH DELETE``s them by ``source_document_id``, scoped to the org
+    (property-based graph tenancy).
+
+    The KG service is synchronous (blocking Neo4j driver), so it's offloaded to a
+    worker thread to avoid stalling the event loop — the same pattern
+    ``ResilientKnowledgeGraphService`` uses.
+
+    Failure-isolated: the KG call can raise when the neo4j circuit breaker is open
+    or the driver can't connect. Graph cleanup must never block or fail the user's
+    delete — the document is already gone from Postgres. There is no
+    ``neo4j_index_status`` column yet to record the resulting graph drift, so on
+    failure we only log a warning with the document id (follow-up: add a
+    per-document ``neo4j_index_status`` to make orphaned-graph drift sweepable,
+    per the audit plan).
+    """
+    try:
+        from src.services.knowledge_graph.knowledge_graph_service import (
+            KnowledgeGraphService,
+        )
+
+        await asyncio.to_thread(
+            lambda: KnowledgeGraphService().delete_document_graph(
+                document_id, organization_id
+            )
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "knowledge-graph cleanup on delete failed",
+            extra={"document_id": str(document_id)},
+            exc_info=True,
+        )
+
+
+async def _cleanup_document_graphs_background(
+    document_ids: List[str], organization_id: str
+) -> None:
+    """Bulk-delete Neo4j graph cleanup, run as a FastAPI background task.
+
+    Mirrors ``_cleanup_do_kb_data_sources_background``: runs after the response,
+    so it must not touch the request's session. Every document in a bulk delete
+    shares one org. Per-doc failure isolation comes from ``_cleanup_document_graph``
+    (a neo4j outage on one doc must not skip the rest). See that helper for the
+    ``neo4j_index_status`` follow-up note.
+    """
+    for document_id in document_ids:
+        await _cleanup_document_graph(document_id, organization_id)
 
 
 # Request/Response Models
@@ -617,6 +672,13 @@ async def delete_document(
         # Remove the DO KB data source so the deleted doc stops surfacing in
         # retrieval and no longer leaks storage (best-effort, never blocks).
         await _cleanup_do_kb_data_source(db, document)
+
+        # DETACH DELETE this document's entity subgraph from Neo4j so its graph
+        # entities don't orphan forever (audit D2). Gated on ``cascade`` to match
+        # the Postgres Entity soft-delete above; best-effort, runs after the
+        # commit like the DO KB cleanup and never blocks the delete.
+        if cascade:
+            await _cleanup_document_graph(document_id, str(organization.id))
 
         return {
             "message": "Document deleted successfully",
@@ -1167,6 +1229,17 @@ async def bulk_delete_documents(
     if kb_cleanup_ids:
         background_tasks.add_task(
             _cleanup_do_kb_data_sources_background, kb_cleanup_ids
+        )
+
+    # Best-effort Neo4j graph cleanup, deferred like DO KB above: DETACH DELETE
+    # each deleted document's entity subgraph so it doesn't orphan (audit D2).
+    # Gated on ``cascade`` to match the Postgres Entity soft-delete; per-doc
+    # failure isolation lives in the background helper.
+    if cascade and deleted_docs:
+        background_tasks.add_task(
+            _cleanup_document_graphs_background,
+            [str(d.id) for d in deleted_docs],
+            str(organization.id),
         )
 
     return BulkDocumentResponse(

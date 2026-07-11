@@ -725,6 +725,64 @@ class KnowledgeGraphService:
             logger.error(f"Error deleting entity {entity_id}: {e}")
             return False
 
+    def delete_document_graph(
+        self,
+        document_id: str,
+        organization_id: Optional[str] = None,
+    ) -> int:
+        """Best-effort DETACH DELETE of a document's entity subgraph (audit D2).
+
+        Deleting a document soft-deletes its Postgres ``Entity`` rows but
+        historically left the mirrored ``:Entity`` nodes in Neo4j untouched, so a
+        deleted document's entities orphaned in the graph forever. This removes
+        every entity node stamped with the document's ``source_document_id``
+        (``DETACH`` also drops their relationships).
+
+        Anchored on ``source_document_id`` — globally unique to one document in
+        one org — so the delete is already tenant-isolated; the
+        ``organization_id`` predicate is defense-in-depth for property-based
+        graph tenancy. Legacy pre-backfill nodes (``organization_id`` IS NULL)
+        for this document are still cleaned up, since only this document's nodes
+        can match the anchor.
+
+        NOTE: this deliberately does NOT reuse ``_entity_scope_predicate`` — that
+        helper OR's ``organization_id`` with the ``source_document_id`` IN-list
+        for read breadth, which here would widen the delete to the *whole org's*
+        graph. A targeted per-document delete must AND them.
+
+        Returns the number of entity nodes deleted. Raises on driver / circuit
+        breaker failure; callers isolate it (best-effort at the delete endpoint).
+        """
+        with self.get_session() as session:
+            params: Dict[str, Any] = {"source_document_id": str(document_id)}
+            org_filter = ""
+            if organization_id is not None:
+                params["organization_id"] = str(organization_id)
+                # AND'd with the source_document_id anchor above; kept broad on
+                # legacy NULL-org nodes so this doc's pre-backfill entities are
+                # still reaped (the anchor already guarantees tenant isolation).
+                org_filter = (
+                    "\n                    WHERE e.organization_id = $organization_id"
+                    "\n                       OR e.organization_id IS NULL"
+                )
+            query = f"""
+                    MATCH (e:Entity {{source_document_id: $source_document_id}}){org_filter}
+                    DETACH DELETE e
+                    RETURN count(e) as deleted_count
+                    """
+
+            result = session.run(query, params)
+            record = result.single()
+            deleted_count = record["deleted_count"] if record else 0
+
+            logger.info(
+                "Deleted %d graph entities for document %s (org=%s)",
+                deleted_count,
+                document_id,
+                organization_id,
+            )
+            return deleted_count
+
     def search_entities(
         self,
         query: str,
@@ -1376,9 +1434,7 @@ class KnowledgeGraphService:
             return []
         try:
             with self.get_session() as session:
-                conditions = [
-                    "(source.id IN $entity_ids OR target.id IN $entity_ids)"
-                ]
+                conditions = ["(source.id IN $entity_ids OR target.id IN $entity_ids)"]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
                 if organization_id is not None:
                     conditions.append("source.organization_id = $organization_id")
