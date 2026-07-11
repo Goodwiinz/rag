@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  isThreadSwitchPending,
   mapDbMessageToChatPageMessage,
   mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
@@ -157,8 +158,8 @@ export function useChatSession(): UseChatSessionReturn {
   const storeLoadOlderMessages = useChatStore(
     (state) => state.loadOlderMessages
   );
-  const storeIsLoadingMessages = useChatStore(
-    (state) => state.isLoadingMessages
+  const storeLoadingThreadId = useChatStore(
+    (state) => state.loadingThreadId
   );
   const messagePagination = useChatStore((state) => state.messagePagination);
 
@@ -168,10 +169,20 @@ export function useChatSession(): UseChatSessionReturn {
       selectDisplayedMessages({
         localMessages: messages,
         storeMessages: activeThreadMessages ?? [],
-        isStoreLoading: storeIsLoadingMessages,
       }),
-    [messages, activeThreadMessages, storeIsLoadingMessages]
+    [messages, activeThreadMessages]
   );
+
+  // Skeleton gate: only an uncached switch into the active thread counts as
+  // "loading" — a send-path fetch of a just-created thread (local turn
+  // present) or a background refresh of a cached thread must keep rendering
+  // the transcript (#1121 regressions).
+  const isThreadLoadPending = isThreadSwitchPending({
+    activeThreadId,
+    loadingThreadId: storeLoadingThreadId,
+    localMessageCount: messages.length,
+    storeMessageCount: activeThreadMessages?.length ?? 0,
+  });
 
   // ---- Callbacks ----
 
@@ -776,8 +787,7 @@ export function useChatSession(): UseChatSessionReturn {
     dbConversation,
     isInitializing,
     initError,
-    isLoadingMessages:
-      isLoadingMessages || (activeThreadId !== null && storeIsLoadingMessages),
+    isLoadingMessages: isLoadingMessages || isThreadLoadPending,
 
     // Refs
     activeConversationIdRef,
