@@ -194,6 +194,50 @@ def test_reclaim_moves_started_at_forward(session_factory):
     db.close()
 
 
+def test_claim_reads_freshly_locked_row_not_stale_cache(session_factory):
+    """The lock re-read must reflect the just-locked DB row, not the cached
+    identity-map instance.
+
+    Simulates the concurrency race the guard exists to prevent: worker B loads
+    the job while it is still QUEUED, worker A commits it to RUNNING out-of-band
+    (a second session), then worker B calls ``claim_job_for_processing``. Without
+    ``populate_existing()`` on the FOR UPDATE query, SQLAlchemy returns worker
+    B's cached (stale QUEUED) instance and B wrongly claims the already-running
+    job → double-processing. With the fix, B sees RUNNING and skips.
+    """
+    Session = session_factory
+    db = Session()
+    other = Session()
+    org_id, doc_id, job_id = uuid4(), uuid4(), uuid4()
+    _seed_job(
+        db,
+        job_id=job_id,
+        doc_id=doc_id,
+        org_id=org_id,
+        status=JobStatus.QUEUED,
+    )
+    db.commit()
+
+    # Worker B loads the job (now cached QUEUED in this Session's identity map).
+    job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+    assert job.status == JobStatus.QUEUED
+
+    # Worker A claims it out-of-band: mutate the row to RUNNING (recent) via a
+    # second session and commit, so the DB row is now live-RUNNING.
+    a_job = other.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
+    a_job.start_job(worker_id="worker-a")
+    other.commit()
+    other.close()
+
+    # Worker B now tries to claim. It must observe the freshly-locked RUNNING row
+    # (recent -> assumed live) and refuse, NOT act on its stale cached QUEUED.
+    result = claim_job_for_processing(db, job, worker_id="worker-b")
+
+    assert result.proceed is False
+    assert result.reason == "running"
+    db.close()
+
+
 # ---------------------------------------------------------------------------
 # _reset_pipeline_entities scoping
 # ---------------------------------------------------------------------------

@@ -100,9 +100,18 @@ def claim_job_for_processing(
     # instance (i.e. the passed ``job``) while still emitting FOR UPDATE, which
     # serializes the claim against other workers. FOR UPDATE is a harmless no-op
     # on SQLite (unit tests).
+    #
+    # ``populate_existing()`` is mandatory: without it SQLAlchemy hands back the
+    # already-cached (and un-expired) identity-map instance and *discards* the
+    # freshly-locked row's column values, so ``locked.status`` would reflect the
+    # pre-lock in-memory state. Two concurrent redeliveries could then both see a
+    # stale QUEUED after the other committed RUNNING and both claim the job —
+    # the exact double-processing this guard exists to prevent. Forcing a refresh
+    # of the locked row makes the status check see the just-locked DB state.
     locked = (
         db.query(ProcessingJob)
         .filter(ProcessingJob.id == job.id)
+        .populate_existing()
         .with_for_update()
         .first()
     )
