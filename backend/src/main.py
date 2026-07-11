@@ -168,6 +168,22 @@ except Exception as e:
     redis_client = None
 
 
+# Export Celery broker queue depth as a Prometheus gauge (celery_queue_depth) on
+# the global registry — see observability/celery_queue_metrics.py and audit item
+# P1.6. This is the backlog signal a future KEDA/prometheus-adapter-driven worker
+# HPA will scale on; HPA wiring itself is deferred.
+try:
+    from src.observability.celery_queue_metrics import (
+        register_celery_queue_depth_collector,
+    )
+
+    register_celery_queue_depth_collector(settings.REDIS_URL)
+except Exception as _queue_metric_err:  # noqa: BLE001
+    print(
+        f"Warning: Celery queue-depth metric registration failed: {_queue_metric_err}"
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""

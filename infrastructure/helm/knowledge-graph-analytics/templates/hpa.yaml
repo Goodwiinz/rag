@@ -64,6 +64,14 @@ spec:
     name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
   minReplicas: {{ .Values.celeryWorker.autoscaling.minReplicas | default 1 }}
   maxReplicas: {{ .Values.celeryWorker.autoscaling.maxReplicas | default 10 }}
+  # NOTE (audit P1.6 / finding X5): the worker runs I/O-bound LLM/ingestion tasks,
+  # so CPU+memory below is backlog-blind — a queue of pending jobs can build up
+  # while CPU/RAM stay low and the HPA never scales up. The backlog signal is now
+  # exported as the Prometheus gauge `celery_queue_depth{queue=...}` (see
+  # backend/src/observability/celery_queue_metrics.py). Wiring it into scaling is
+  # DEFERRED until a metrics adapter is deployed: add a KEDA ScaledObject on the
+  # Redis list length, or an `External`/`Object` metric via prometheus-adapter,
+  # then add a `- type: External` block here. Neither operator is installed today.
   metrics:
     {{- if .Values.celeryWorker.autoscaling.targetCPUUtilizationPercentage }}
     - type: Resource
