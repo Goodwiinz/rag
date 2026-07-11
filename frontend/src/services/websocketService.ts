@@ -1,11 +1,12 @@
 /**
- * @deprecated This file is deprecated. Please migrate to the new unified WebSocket client.
- * Import from '@/services/websocket-client' instead.
+ * @deprecated This file is deprecated. Please migrate to the canonical WebSocket client.
+ * Import from '@/services/websocket' (`WebSocketManager`) instead — see
+ * `docs/decisions/frontend-realtime-transport.md` for the transport rule.
  *
  * Migration guide:
- * - Replace `websocketService` with `WebSocketClient` from websocket-client
- * - Use `initializeWebSocketClient()` for singleton setup
- * - The new client includes message buffering, latency monitoring, and priority queues
+ * - Replace `websocketService` with `WebSocketManager` from '@/services/websocket'
+ * - Authenticate via the `Sec-WebSocket-Protocol` header (`['auth', token]`), not URL params
+ * - Subscribe to typed event topics on the shared connection; unsubscribe on unmount
  */
 
 /**
