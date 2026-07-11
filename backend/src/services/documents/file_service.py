@@ -759,10 +759,106 @@ class FileService:
             os.remove(file_path)
 
     def delete_physical_file(self, document: Document) -> None:
-        """Delete the physical file from S3, Supabase Storage, or local disk."""
-        self._delete_stored_object(
-            document.storage_backend, document.storage_path, document.file_path
+        """Delete every stored object a document owns.
+
+        Three object classes accumulate for one document:
+
+        1. the original upload (``storage_path``), honoring ``storage_backend``
+           (s3 / supabase / local disk);
+        2. the canonical DO-KB text mirror ``documents/{org}/{doc}.txt``; and
+        3. figure PNG crops under ``figures/{org}/{doc}/``.
+
+        Classes 2 and 3 are always written to S3/Spaces by the KB-ingest and
+        figure-extraction services (they upload via ``S3StorageHelper`` directly,
+        independent of the document's ``storage_backend``), so they are removed
+        from S3 whenever a client is available. Deleting only ``storage_path``
+        left them behind as retained user content after delete (audit finding
+        D6). Auxiliary cleanup is best-effort and never raises; the original
+        delete keeps its raise-on-failure contract so callers still log it as a
+        recoverable orphan.
+        """
+        original_error: Optional[Exception] = None
+        try:
+            self._delete_stored_object(
+                document.storage_backend, document.storage_path, document.file_path
+            )
+        except Exception as exc:  # re-raised below, AFTER aux cleanup runs
+            original_error = exc
+
+        # Run the derived-object cleanup regardless of the original delete's
+        # outcome, and never let it mask or replace the original error.
+        self._delete_auxiliary_objects(document)
+
+        if original_error is not None:
+            raise original_error
+
+    @staticmethod
+    def _s3_helper_or_none():
+        """An ``S3StorageHelper`` when S3/Spaces is configured, else ``None``.
+
+        The canonical text mirror and figure crops live on S3 regardless of the
+        document's ``storage_backend``, so their cleanup targets S3 whenever it
+        is available — NOT ``self.s3_helper``, which is ``None`` unless the
+        service's own backend is s3. A missing S3 config is not an error (those
+        object classes were never created without S3), so this returns ``None``
+        instead of raising (``S3StorageHelper.__init__`` raises ``RuntimeError``
+        when unconfigured).
+        """
+        try:
+            from src.core.s3_client import S3StorageHelper
+
+            return S3StorageHelper()
+        except Exception:
+            return None
+
+    def _delete_auxiliary_objects(self, document: Document) -> None:
+        """Best-effort delete of a document's canonical KB text mirror + figure
+        PNG crops from S3/Spaces.
+
+        Every key is derived strictly from the document row (its org id + id),
+        so this can only ever touch objects that belong to THIS document — never
+        an object a live document references. Never raises: each storage error
+        is logged and swallowed (an undeleted auxiliary object is a sweepable
+        orphan, surfaced by ``storage_reconcile``).
+        """
+        helper = self._s3_helper_or_none()
+        if helper is None:
+            return  # No S3 → these object classes never existed.
+
+        # Key derivations live in the dependency-light ``object_keys`` module, so
+        # this hot path derives them WITHOUT importing the heavy KB-ingest /
+        # figure-extraction (PDF/ML) packages, and can't drift from the writers.
+        from src.services.documents.object_keys import (
+            canonical_text_key,
+            figure_object_prefix,
         )
+
+        doc_id = getattr(document, "id", "?")
+
+        # (2) Canonical DO-KB text mirror: documents/{org}/{doc}.txt.
+        try:
+            helper.delete_file(canonical_text_key(document))
+        except Exception:
+            logger.warning(
+                "Failed to delete canonical KB text object for document %s "
+                "(orphan, recoverable by storage_reconcile)",
+                doc_id,
+                exc_info=True,
+            )
+
+        # (3) Figure PNG crops: figures/{org}/{doc}/... — list the doc-scoped
+        #     prefix (it embeds the doc UUID, so it matches ONLY this document's
+        #     figures) and delete each object.
+        try:
+            for key in helper.list_objects(figure_object_prefix(document)):
+                helper.delete_file(key)
+        except Exception:
+            logger.warning(
+                "Failed to enumerate/delete figure objects for document %s "
+                "(orphan, recoverable by storage_reconcile)",
+                doc_id,
+                exc_info=True,
+            )
 
     async def delete_file(self, document: Document, user: User) -> bool:
         """Delete file and update storage"""
