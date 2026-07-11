@@ -144,11 +144,23 @@ backend:
 
   healthCheck:
     enabled: true
+    # path        -> liveness + startup (process-alive /health handler)
+    # readinessPath -> readiness (dependency-aware /health/readiness handler)
+    # Split so a dependency outage removes a pod from the LB (readiness)
+    # without restarting it (liveness). Readiness timing has safe floors
+    # enforced in the template (periodSeconds >= 10, failureThreshold >= 3).
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    readinessPath: /health/readiness
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
+    readinessInitialDelaySeconds: 5
+    readinessPeriodSeconds: 10
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
 
 # Celery Worker Configuration
 celeryWorker:

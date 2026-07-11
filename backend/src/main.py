@@ -18,7 +18,6 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -104,6 +103,7 @@ from src.api.threads import (
 )
 from src.core.config import settings
 from src.core.database import Base, engine
+from src.core.probes import ProbeAwareTrustedHostMiddleware
 from src.middleware.multi_tenancy import MultiTenancyMiddleware
 from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
@@ -480,19 +480,12 @@ app.add_middleware(MultiTenancyMiddleware)
 # Add trusted host middleware for production.
 # Kubelet HTTP probes set Host header to the pod IP, which is not in the
 # allow-list — that produced HTTP 400 on /health and crash-looped pods.
-# Exempt kube probe paths from host validation.
+# Probe paths (incl. /health/readiness) are exempted from host validation via
+# PROBE_EXEMPT_PATHS; see src/core/probes.py. A missing readiness exemption
+# would 400 every readiness probe and flap all pods out of the LB.
 if not settings.DEBUG:
-    _PROBE_PATHS = {"/health", "/healthz", "/readyz", "/livez", "/metrics"}
-
-    class _ProbeAwareTrustedHostMiddleware(TrustedHostMiddleware):
-        async def __call__(self, scope, receive, send):
-            if scope.get("type") == "http" and scope.get("path") in _PROBE_PATHS:
-                await self.app(scope, receive, send)
-                return
-            await super().__call__(scope, receive, send)
-
     app.add_middleware(
-        _ProbeAwareTrustedHostMiddleware,
+        ProbeAwareTrustedHostMiddleware,
         allowed_hosts=[
             "localhost",
             "127.0.0.1",

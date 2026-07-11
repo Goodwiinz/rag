@@ -159,7 +159,12 @@ backend:
           key: AZURE_OPENAI_CHAT_API_VERSION
   healthCheck:
     enabled: true
+    # Process-alive path for liveness + startup.
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    # Dependency-aware path for readiness (Postgres + Redis, cached ~5s).
+    readinessPath: /health/readiness
     startupProbe:
       initialDelaySeconds: 10
       periodSeconds: 10
@@ -169,10 +174,12 @@ backend:
     periodSeconds: 15
     timeoutSeconds: 5
     failureThreshold: 3
+    # Slack readiness floors (see template): a flappy readiness check pulls
+    # every pod from the LB at once.
     readinessInitialDelaySeconds: 5
     readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 3
-    readinessFailureThreshold: 2
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
   initContainers:
     waitForPostgres: true
     waitForRedis: false
