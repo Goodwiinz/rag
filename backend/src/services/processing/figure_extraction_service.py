@@ -13,7 +13,23 @@ from sqlalchemy.orm import Session
 from src.core.config import settings
 from src.models.document import Document, DocumentType
 from src.models.document_processing import ContentType, MultimodalContent
+from src.services.documents.object_keys import (
+    FIGURES_KEY_PREFIX,
+    figure_object_key,
+    figure_object_prefix,
+)
 from src.services.documents.storage_utils import local_file_for_document
+
+# Re-exported for backwards compatibility; the canonical definitions now live in
+# ``object_keys`` so the delete/reconcile paths can derive figure keys without
+# importing this (PDF/ML-heavy) module.
+__all__ = [
+    "FIGURES_KEY_PREFIX",
+    "extract_figures_for_document",
+    "figure_object_key",
+    "figure_object_prefix",
+    "merge_captions_into_text",
+]
 
 logger = structlog.get_logger()
 
@@ -189,9 +205,7 @@ def extract_figures_for_document(db: Session, document: Document) -> Dict[str, A
 
             storage_key = None
             if is_raster and helper is not None:
-                storage_key = (
-                    f"figures/{document.organization_id}/{document.id}/{content_id}.png"
-                )
+                storage_key = figure_object_key(document, content_id)
                 helper.upload_file(
                     storage_key, cand["png_bytes"], content_type="image/png"
                 )
