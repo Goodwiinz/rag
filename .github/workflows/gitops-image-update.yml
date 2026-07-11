@@ -39,6 +39,12 @@ jobs:
   update-dev:
     name: Update Dev Image Tags
     runs-on: ubuntu-latest
+    # Serialize dev bumps so two rapid develop merges can't race the git push.
+    # Newer runs supersede an older *pending* one (cancel-in-progress: false only
+    # queues), which is correct: dev should land on the latest commit's tag.
+    concurrency:
+      group: gitops-update-dev
+      cancel-in-progress: false
     if: |
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
@@ -97,7 +103,24 @@ jobs:
           fi
 
           git commit -m "chore(gitops): update dev images to $TAG [skip ci]"
-          git push origin develop
+
+          # Push with rebase-retry. A commit landing on develop between our
+          # checkout and push makes a bare push non-fast-forward; without this
+          # the bump is dropped and dev stays on the old image. Our commit only
+          # touches values-dev.yaml, so replaying it onto latest develop is
+          # conflict-free in practice (the concurrency group serializes the only
+          # other writer of this file).
+          for attempt in 1 2 3 4 5; do
+            if git push origin develop; then
+              echo "Pushed dev tag $TAG (attempt $attempt)"
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt); rebasing onto latest develop"
+            git pull --rebase origin develop
+          done
+
+          echo "::error::Failed to push dev image tag $TAG after 5 attempts"
+          exit 1
 
   # ─────────────────────────────────────────────
   # Update staging image tags — MANUAL ONLY.
