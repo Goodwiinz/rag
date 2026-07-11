@@ -327,7 +327,8 @@ async def lifespan(app: FastAPI):
 
     # Initialise LangGraph checkpointer + memory store at startup so the
     # first request doesn't pay the setup() cost (and so a misconfigured
-    # Postgres connection surfaces immediately in prod/staging).
+    # Postgres connection surfaces immediately wherever durable agent
+    # state is required — i.e. every env except local/CI throwaways).
     try:
         from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.memory import get_memory_store
@@ -335,14 +336,21 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(get_checkpointer(), get_memory_store())
         logger.info("LangGraph checkpointer + memory store warmed at startup")
     except Exception as e:
-        if environment in ("production", "staging"):
+        if settings.require_durable_agent_state:
             logger.error(
-                "LangGraph persistence warm-up failed in %s: %s",
+                "LangGraph persistence warm-up failed and durable agent "
+                "state is required (ENVIRONMENT=%s) — aborting startup. "
+                "Set ALLOW_MEMORY_FALLBACK=true to permit the non-durable "
+                "in-memory fallback instead. Cause: %s",
                 environment,
                 e,
             )
             raise
-        logger.warning("LangGraph persistence warm-up skipped: %s", e)
+        logger.warning(
+            "LangGraph persistence warm-up skipped (in-memory fallback "
+            "permitted): %s",
+            e,
+        )
 
     # Pre-populate critical caches in the background (non-blocking)
     try:
