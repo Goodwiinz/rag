@@ -3,7 +3,10 @@
 Uses ``AsyncPostgresSaver`` wired to the shared ``AsyncConnectionPool``
 owned by ``_pool_utils`` (TCP keepalives required for HITL pauses behind
 Supabase/PgBouncer in session mode). Falls back to in-memory
-``MemorySaver`` only when ``ENVIRONMENT`` is not ``production``/``staging``.
+``MemorySaver`` only when durable agent state is not required
+(``settings.require_durable_agent_state`` — local/CI throwaway envs or
+the ``ALLOW_MEMORY_FALLBACK`` override); every other environment raises
+on init failure instead of degrading silently.
 
 Pool lifecycle lives in ``_pool_utils``; this module never closes it.
 """
@@ -44,8 +47,10 @@ def get_db_uri() -> str:
 async def get_checkpointer():
     """Return the async checkpointer singleton.
 
-    Attempts ``AsyncPostgresSaver`` over the shared pool. On failure,
-    prod/staging raises; dev/test falls back to ``MemorySaver``.
+    Attempts ``AsyncPostgresSaver`` over the shared pool. On failure:
+    raises when durable agent state is required
+    (``settings.require_durable_agent_state``); otherwise falls back to
+    ``MemorySaver``.
     """
     global _checkpointer
 
@@ -69,16 +74,22 @@ async def get_checkpointer():
                     (ReflectionResult.__module__, ReflectionResult.__name__),
                 ]
             )
-            _checkpointer = AsyncPostgresSaver(pool, serde=serde)
-            await _checkpointer.setup()
+            # Assign the singleton only after setup() succeeds — assigning
+            # earlier would leave a half-initialised saver (tables missing)
+            # in the global when setup() raises, and every later call would
+            # short-circuit on ``is not None`` and hand it out.
+            saver = AsyncPostgresSaver(pool, serde=serde)
+            await saver.setup()
+            _checkpointer = saver
             logger.info("LangGraph checkpointer initialised (PostgreSQL)")
         except Exception as e:
-            require_durable_or_fallback(
-                "Postgres checkpointer", get_settings().ENVIRONMENT, e
-            )
+            # Raises when durable state is required; the singleton stays
+            # None so the next call retries with a clean slate.
+            require_durable_or_fallback("Postgres checkpointer", e)
 
             logger.error(
-                "Postgres checkpointer UNAVAILABLE — falling back to MemorySaver. "
+                "Postgres checkpointer UNAVAILABLE — falling back to MemorySaver "
+                "(permitted: throwaway env or ALLOW_MEMORY_FALLBACK). "
                 "HITL state will not survive restarts. Cause: %s",
                 e,
             )
