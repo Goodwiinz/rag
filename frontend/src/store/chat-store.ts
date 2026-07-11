@@ -140,6 +140,14 @@ interface ChatState {
   isLoadingConversations: boolean;
   isLoadingThreads: boolean;
   isLoadingMessages: boolean;
+  /**
+   * The thread whose initial message page is in flight (null when none).
+   * Written in lockstep with isLoadingMessages — consumers that must not
+   * blank the UI for unrelated loads (send-path fetch of a just-created
+   * thread, background refresh of a cached thread) key off this instead of
+   * the coarse boolean (#1121 regressions).
+   */
+  loadingThreadId: string | null;
   isSendingMessage: boolean;
 
   // Pagination state per thread
@@ -395,6 +403,7 @@ const initialState: ChatState = {
   isLoadingConversations: false,
   isLoadingThreads: false,
   isLoadingMessages: false,
+  loadingThreadId: null,
   isSendingMessage: false,
   messagePagination: {},
   isReinitializing: false,
@@ -419,6 +428,9 @@ const initialState: ChatState = {
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)
 let _activeAbortController: AbortController | null = null;
+// Only the newest initial thread-message request may update the shared loading
+// state. A late response from a previously selected thread must be ignored.
+let messageLoadEpoch = 0;
 
 // ============================================================================
 // Store
@@ -461,8 +473,17 @@ export const useChatStore = create<ChatStore>()(
       },
 
       setCurrentThread: (threadId) => {
+        messageLoadEpoch += 1;
         set((state) => {
           state.currentThreadId = threadId;
+          if (!threadId) {
+            // "New chat": no load follows, and the epoch bump above makes any
+            // in-flight response stale (it early-returns without touching
+            // state) — so the loading flags must be cleared here or they
+            // strand true forever.
+            state.isLoadingMessages = false;
+            state.loadingThreadId = null;
+          }
         });
 
         // Load messages for new thread
@@ -1055,8 +1076,10 @@ export const useChatStore = create<ChatStore>()(
       // ========================================================================
 
       loadMessages: async (threadId) => {
+        const loadEpoch = ++messageLoadEpoch;
         set((state) => {
           state.isLoadingMessages = true;
+          state.loadingThreadId = threadId;
           state.error = null;
         });
 
@@ -1072,6 +1095,9 @@ export const useChatStore = create<ChatStore>()(
           const ordered = Array.isArray(response.messages)
             ? [...response.messages].reverse()
             : [];
+          if (loadEpoch !== messageLoadEpoch) {
+            return;
+          }
           set((state) => {
             state.messages[threadId] = ordered;
             // Populate reverse index for O(1) lookup (GOO-86)
@@ -1106,12 +1132,17 @@ export const useChatStore = create<ChatStore>()(
             }
 
             state.isLoadingMessages = false;
+            state.loadingThreadId = null;
           });
         } catch (error) {
           console.error('[ChatStore] Error loading messages:', error);
+          if (loadEpoch !== messageLoadEpoch) {
+            return;
+          }
           set((state) => {
             state.error = 'Failed to load messages';
             state.isLoadingMessages = false;
+            state.loadingThreadId = null;
           });
         }
       },
@@ -1482,6 +1513,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       reset: () => {
+        messageLoadEpoch += 1;
         set(initialState);
       },
 

@@ -175,6 +175,28 @@ interface SelectDisplayedMessagesParams {
   storeMessages?: ChatMessage[];
 }
 
+/**
+ * True only while the ACTIVE thread's initial page is in flight and there is
+ * nothing renderable for it yet — the sole case that warrants a transcript
+ * skeleton. Local optimistic/streaming turns (first send in a new chat) and
+ * already-cached store pages keep rendering; background refreshes never blank
+ * the transcript. Scoping the gate this way is what fixes the #1121
+ * regressions (blanked first send, skeleton flash on cached thread switches).
+ */
+export function isThreadSwitchPending(params: {
+  activeThreadId: string | null;
+  loadingThreadId: string | null;
+  localMessageCount: number;
+  storeMessageCount: number;
+}): boolean {
+  return (
+    params.activeThreadId !== null &&
+    params.loadingThreadId === params.activeThreadId &&
+    params.localMessageCount === 0 &&
+    params.storeMessageCount === 0
+  );
+}
+
 function shouldUseStoreMessages(
   localMessages: ChatPageMessage[],
   storeMessages: ChatMessage[]

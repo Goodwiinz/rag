@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isThreadSwitchPending,
   mapDbMessageToChatPageMessage,
   mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
@@ -185,6 +186,28 @@ describe('cloudMessageView', () => {
       {
         role: 'user' as const,
         content: 'optimistic',
+        timestamp: 1,
+      },
+    ];
+
+    expect(
+      selectDisplayedMessages({
+        localMessages,
+        storeMessages: [],
+      })
+    ).toEqual(localMessages);
+  });
+
+  it('keeps local optimistic messages displayed even while a store page is in flight', () => {
+    // Regression guard for #1121: the selector must never blanket-hide local
+    // messages on a global loading flag — the first send in a new chat has a
+    // load in flight for the very thread the local turn belongs to. Stale
+    // cross-thread paint is prevented upstream (local messages are cleared /
+    // re-adopted per thread on switch), not here.
+    const localMessages = [
+      {
+        role: 'user' as const,
+        content: 'just sent',
         timestamp: 1,
       },
     ];
@@ -542,5 +565,48 @@ describe('selectDisplayedMessages local-provenance merge', () => {
 
     expect(result[0].plan).toBeUndefined();
     expect(result[0].metadata?.tokenUsage).toBeUndefined();
+  });
+});
+
+describe('isThreadSwitchPending', () => {
+  const base = {
+    activeThreadId: 'thread-B',
+    loadingThreadId: 'thread-B',
+    localMessageCount: 0,
+    storeMessageCount: 0,
+  };
+
+  it('is pending while the active thread loads with nothing renderable yet', () => {
+    expect(isThreadSwitchPending(base)).toBe(true);
+  });
+
+  it('is not pending when local messages exist (first send in a new thread)', () => {
+    expect(isThreadSwitchPending({ ...base, localMessageCount: 1 })).toBe(
+      false
+    );
+  });
+
+  it('is not pending when the store already has the thread cached', () => {
+    expect(isThreadSwitchPending({ ...base, storeMessageCount: 2 })).toBe(
+      false
+    );
+  });
+
+  it('is not pending when the in-flight load is for another thread', () => {
+    expect(isThreadSwitchPending({ ...base, loadingThreadId: 'thread-A' })).toBe(
+      false
+    );
+  });
+
+  it('is not pending with no load in flight', () => {
+    expect(isThreadSwitchPending({ ...base, loadingThreadId: null })).toBe(
+      false
+    );
+  });
+
+  it('is not pending with no active thread', () => {
+    expect(
+      isThreadSwitchPending({ ...base, activeThreadId: null, loadingThreadId: null })
+    ).toBe(false);
   });
 });

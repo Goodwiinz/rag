@@ -376,6 +376,10 @@ function ChatPageContent() {
   // on desktop, where it's already closed and hidden.
   const handleSelectThread = useCallback(
     (id: string) => {
+      // Clear the previous thread's messages BEFORE switching so the loading
+      // skeleton shows instead of the old thread's transcript flashing while
+      // the new one loads (fix/chat-loading-consistency).
+      setMessages([]);
       setActiveConversationId(id);
       activeConversationIdRef.current = id;
       setCurrentThread(id);
@@ -384,6 +388,7 @@ function ChatPageContent() {
     },
     [
       router,
+      setMessages,
       setActiveConversationId,
       setCurrentThread,
       activeConversationIdRef,
@@ -724,6 +729,9 @@ function ChatPageContent() {
     (action: CommandAction) => {
       switch (action.type) {
         case 'open-thread':
+          // Same clear-before-switch as handleSelectThread: never paint the
+          // previous thread's local transcript under the new selection.
+          setMessages([]);
           setActiveConversationId(action.id);
           activeConversationIdRef.current = action.id;
           setCurrentThread(action.id);
@@ -761,6 +769,7 @@ function ChatPageContent() {
     },
     [
       router,
+      setMessages,
       setActiveConversationId,
       setCurrentThread,
       activeConversationIdRef,
