@@ -59,6 +59,10 @@ type StreamCallbacks = {
 function makeParams(activeConversationId = 'thread-A') {
   return {
     messages: [] as ChatPageMessage[],
+    // Required since CX2 (#1109) made handleSubmit build the turn from the
+    // reconciled view; this suite (written pre-CX2) never provided it, so
+    // every submit threw "history is not iterable".
+    displayedMessages: [] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
     setConversations: vi.fn(),
