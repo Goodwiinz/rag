@@ -221,17 +221,32 @@ def test_bulk_delete_defers_do_kb_cleanup_to_background_task():
         # Response returned WITHOUT touching DO KB inline...
         assert resp.success_count == 2
         unsync.assert_not_awaited()
-        # ...but cleanup for the doc with a data source is registered.
-        assert len(background_tasks.tasks) == 1
-        assert background_tasks.tasks[0].args == ([str(doc_a.id)],)
+        # ...but cleanup for the doc with a data source is registered. (A
+        # sibling Neo4j graph-cleanup task is also registered now — see
+        # test_delete_document_neo4j_cleanup — so locate the DO KB task by its
+        # callable rather than by position/count.)
+        kb_tasks = [
+            t
+            for t in background_tasks.tasks
+            if t.func is documents_mod._cleanup_do_kb_data_sources_background
+        ]
+        assert len(kb_tasks) == 1
+        assert kb_tasks[0].args == ([str(doc_a.id)],)
 
         # Now run the background task the way Starlette would (post-response),
-        # with a fresh-session stub in place of AsyncSessionLocal.
+        # with a fresh-session stub in place of AsyncSessionLocal. Stub the KG
+        # service so the sibling graph-cleanup task is an inert no-op here.
         bg_db = MagicMock()
         bg_db.get = AsyncMock(return_value=doc_a)
-        with patch(
-            "src.core.database.AsyncSessionLocal",
-            return_value=_session_ctx(bg_db),
+        with (
+            patch(
+                "src.core.database.AsyncSessionLocal",
+                return_value=_session_ctx(bg_db),
+            ),
+            patch(
+                "src.services.knowledge_graph.knowledge_graph_service."
+                "KnowledgeGraphService"
+            ),
         ):
             asyncio.run(background_tasks())
 
