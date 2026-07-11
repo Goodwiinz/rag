@@ -25,13 +25,10 @@ export interface Document {
   file_size?: number; // bytes - legacy frontend field
   file_size_bytes?: number; // Backend field name
   file_size_mb?: number; // Backend field name
-  processing_status:
-    | 'queued'
-    | 'processing'
-    | 'indexed'
-    | 'failed'
-    | 'pending'
-    | 'completed';
+  // Public API vocabulary — the backend always maps raw db statuses
+  // (pending/completed/retrying) to these before serialising. Keep in sync with
+  // ProcessingStatusSchema in types/schemas.ts and backend ApiDocumentStatus.
+  processing_status: 'queued' | 'processing' | 'indexed' | 'failed';
   processing_error?: string;
   // Support both frontend naming (upload_timestamp) and backend naming (created_at)
   upload_timestamp?: string; // Legacy frontend field

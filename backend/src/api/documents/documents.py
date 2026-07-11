@@ -44,7 +44,7 @@ from src.models.organization import Organization
 from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
-from src.shared.enums import DocumentSortField, SortOrder
+from src.shared.enums import ApiDocumentStatus, DocumentSortField, SortOrder
 
 router = APIRouter(prefix="/documents", tags=["documents"], redirect_slashes=False)
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class DocumentResponse(BaseModel):
     file_size_bytes: int
     file_size_mb: float
     mime_type: str
-    processing_status: str
+    processing_status: ApiDocumentStatus
     tags: Optional[List[str]] = Field(default_factory=list)
     is_public: bool
     content_preview: Optional[str] = None
@@ -180,7 +180,7 @@ class DocumentSearchResponse(BaseModel):
 
 class DocumentStatusResponse(BaseModel):
     document_id: str
-    processing_status: str
+    processing_status: ApiDocumentStatus
     progress_percentage: float
     current_step: Optional[str] = None
     processing_started_at: Optional[datetime] = None
@@ -347,25 +347,17 @@ async def list_documents(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            # Reverse-map frontend status names to backend enum values
-            frontend_to_backend = {
-                "queued": ProcessingStatus.PENDING,
-                "indexed": ProcessingStatus.COMPLETED,
-                "processing": ProcessingStatus.PROCESSING,
-                "failed": ProcessingStatus.FAILED,
-                "retrying": ProcessingStatus.RETRYING,
-                # Also accept raw backend values
-                "pending": ProcessingStatus.PENDING,
-                "completed": ProcessingStatus.COMPLETED,
-            }
-            mapped = frontend_to_backend.get(processing_status.lower())
-            if mapped:
-                conditions.append(Document.processing_status == mapped)
-            else:
+            # Translate the public/raw status filter to the backend enum via the
+            # shared vocabulary (single source of truth). Keeps the validated-enum
+            # injection-prevention pattern — only known values reach the query.
+            try:
+                mapped = ApiDocumentStatus.to_db(processing_status)
+            except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid processing_status: {processing_status}",
                 )
+            conditions.append(Document.processing_status == mapped)
 
         if search:
             search_pattern = f"%{_escape_like(search)}%"
@@ -850,7 +842,7 @@ async def check_duplicate(
             file_size_bytes=existing.file_size_bytes or 0,
             file_size_mb=round((existing.file_size_bytes or 0) / (1024 * 1024), 2),
             mime_type=existing.mime_type or "",
-            processing_status=existing.processing_status or "unknown",
+            processing_status=ApiDocumentStatus.from_db(existing.processing_status),
             tags=existing.tags or [],
             is_public=existing.is_public or False,
             created_at=str(existing.created_at) if existing.created_at else "",
