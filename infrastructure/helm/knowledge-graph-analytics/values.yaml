@@ -516,13 +516,10 @@ serviceAccount:
 rbac:
   create: true
 
-# Backup Configuration
-backup:
-  enabled: true
-  schedule: "0 2 * * *"
-  retention: "30d"
-  storageClass: "gp2"
-  storageSize: "50Gi"
+# Note: no Neo4j backup/DR automation ships with this chart. The knowledge
+# graph is derived data — DR is a rebuild via scripts/repair_kg.py, and PVC
+# loss is accepted on dev. See docs/decisions/neo4j-dr.md. Revisit before
+# production promotion.
 
 # Synthetic traffic generator — drives the compiled LangGraph agent in-process
 # to produce continuous LangSmith traces. Disabled by default; enabled only in
