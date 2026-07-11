@@ -6,10 +6,12 @@ touched the mirrored `:Entity` nodes in Neo4j — so a deleted document's graph
 entities orphaned there permanently (`knowledge_graph_service.delete_entity`
 existed but had no per-document caller).
 
-The fix DETACH-DELETEs the document's subgraph by `source_document_id`, scoped
-to the org, after the Postgres commit. Failure isolation is load-bearing: a
-neo4j outage (or an open circuit breaker) during delete must not raise or block
-the user's delete.
+The fix calls `KnowledgeGraphService.delete_document_graph` (reference-count
+style: the doc's relationships first, then only fully-orphaned nodes it
+created — entity nodes are SHARED across documents, see the service tests)
+scoped to the org, after the Postgres commit. Failure isolation is
+load-bearing: a neo4j outage (or an open circuit breaker) during delete must
+not raise or block the user's delete.
 """
 
 from __future__ import annotations
@@ -69,7 +71,7 @@ def _single_delete_db(document):
 
 @pytest.mark.unit
 def test_delete_document_cleans_up_graph():
-    """Deleting a doc DETACH-DELETEs its Neo4j subgraph, keyed by doc id + org."""
+    """Deleting a doc reaps its Neo4j graph, keyed by doc id + org."""
     document = _make_document()
     org = MagicMock()
     org.id = document.organization_id
@@ -155,7 +157,7 @@ def test_delete_document_graph_failure_does_not_block_delete():
 
 @pytest.mark.unit
 def test_bulk_delete_defers_graph_cleanup_to_background_task():
-    """Bulk delete must NOT DETACH-DELETE inline (up to 100 neo4j round-trips
+    """Bulk delete must NOT run graph cleanup inline (up to 100 neo4j round-trips
     would block the response); it registers ONE background task covering every
     deleted doc, and that task — run after the response — deletes each subgraph
     keyed by doc id + the shared org."""

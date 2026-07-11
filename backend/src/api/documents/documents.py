@@ -118,10 +118,13 @@ async def _cleanup_document_graph(document_id: str, organization_id: str) -> Non
     """Best-effort removal of a deleted document's entity subgraph from Neo4j.
 
     The delete transaction soft-deletes the document's Postgres ``Entity`` rows
-    but historically never touched the mirrored ``:Entity`` nodes in Neo4j, so a
-    deleted document's graph entities orphaned there forever (audit D2). This
-    ``DETACH DELETE``s them by ``source_document_id``, scoped to the org
-    (property-based graph tenancy).
+    but historically never touched the mirrored graph in Neo4j, so a deleted
+    document's graph data orphaned there forever (audit D2). Entity nodes are
+    shared across documents (MERGE identity has no doc component), so the KG
+    service deletes reference-count style: this doc's relationships first
+    (``r.source_document_id``), then only entity nodes it created that are left
+    with no relationships at all — scoped to the org (property-based graph
+    tenancy). See ``KnowledgeGraphService.delete_document_graph``.
 
     The KG service is synchronous (blocking Neo4j driver), so it's offloaded to a
     worker thread to avoid stalling the event loop — the same pattern
@@ -673,10 +676,12 @@ async def delete_document(
         # retrieval and no longer leaks storage (best-effort, never blocks).
         await _cleanup_do_kb_data_source(db, document)
 
-        # DETACH DELETE this document's entity subgraph from Neo4j so its graph
-        # entities don't orphan forever (audit D2). Gated on ``cascade`` to match
-        # the Postgres Entity soft-delete above; best-effort, runs after the
-        # commit like the DO KB cleanup and never blocks the delete.
+        # Reap this document's graph from Neo4j (its relationships, then its
+        # now-orphaned entity nodes — nodes are shared across docs, so no blind
+        # DETACH DELETE) so the graph doesn't drift forever (audit D2). Gated on
+        # ``cascade`` to match the Postgres Entity soft-delete above;
+        # best-effort, runs after the commit like the DO KB cleanup and never
+        # blocks the delete.
         if cascade:
             await _cleanup_document_graph(document_id, str(organization.id))
 
@@ -1231,10 +1236,11 @@ async def bulk_delete_documents(
             _cleanup_do_kb_data_sources_background, kb_cleanup_ids
         )
 
-    # Best-effort Neo4j graph cleanup, deferred like DO KB above: DETACH DELETE
-    # each deleted document's entity subgraph so it doesn't orphan (audit D2).
-    # Gated on ``cascade`` to match the Postgres Entity soft-delete; per-doc
-    # failure isolation lives in the background helper.
+    # Best-effort Neo4j graph cleanup, deferred like DO KB above: reap each
+    # deleted document's relationships + now-orphaned entity nodes so the graph
+    # doesn't drift (audit D2). Gated on ``cascade`` to match the Postgres
+    # Entity soft-delete; per-doc failure isolation lives in the background
+    # helper.
     if cascade and deleted_docs:
         background_tasks.add_task(
             _cleanup_document_graphs_background,

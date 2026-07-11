@@ -729,59 +729,102 @@ class KnowledgeGraphService:
         self,
         document_id: str,
         organization_id: Optional[str] = None,
-    ) -> int:
-        """Best-effort DETACH DELETE of a document's entity subgraph (audit D2).
+    ) -> Tuple[int, int]:
+        """Best-effort reference-count deletion of a document's graph (audit D2).
 
         Deleting a document soft-deletes its Postgres ``Entity`` rows but
-        historically left the mirrored ``:Entity`` nodes in Neo4j untouched, so a
-        deleted document's entities orphaned in the graph forever. This removes
-        every entity node stamped with the document's ``source_document_id``
-        (``DETACH`` also drops their relationships).
+        historically left the mirrored Neo4j graph untouched, so a deleted
+        document's graph data orphaned forever.
 
-        Anchored on ``source_document_id`` — globally unique to one document in
-        one org — so the delete is already tenant-isolated; the
-        ``organization_id`` predicate is defense-in-depth for property-based
-        graph tenancy. Legacy pre-backfill nodes (``organization_id`` IS NULL)
-        for this document are still cleaned up, since only this document's nodes
-        can match the anchor.
+        :Entity nodes are NOT per-document: both creation paths MERGE on
+        ``(canonical_key, type, organization_id)`` — no document component — so
+        one node is *shared* by every document in the org that names the entity,
+        and ``e.source_document_id`` (set only ON CREATE) records merely the
+        FIRST creator. A node-anchored ``DETACH DELETE`` would therefore destroy
+        other documents' relationships whenever the deleted doc happened to be
+        the node's creator. Only RELATED_TO relationships carry true per-document
+        provenance (``r.source_document_id`` is part of their MERGE key).
 
-        NOTE: this deliberately does NOT reuse ``_entity_scope_predicate`` — that
-        helper OR's ``organization_id`` with the ``source_document_id`` IN-list
-        for read breadth, which here would widen the delete to the *whole org's*
-        graph. A targeted per-document delete must AND them.
+        So this deletes in two steps, inside one transaction:
 
-        Returns the number of entity nodes deleted. Raises on driver / circuit
-        breaker failure; callers isolate it (best-effort at the delete endpoint).
+        1. DELETE this document's *relationships* (``r.source_document_id`` =
+           the doc id) — the per-document part of the graph.
+        2. DELETE only entity *nodes* that this document created
+           (``e.source_document_id``) AND that are now fully orphaned
+           (``COUNT { (e)--() } = 0`` — no remaining relationships from any
+           document; Neo4j 5.x syntax, dev runs 5.26). Plain ``DELETE`` (not
+           ``DETACH``) so if the orphan guard ever regresses, Neo4j raises on a
+           still-connected node instead of silently destroying shared data.
+
+        A node created by this doc but still connected via another doc survives
+        (that doc still references it) — its ``source_document_id`` then points
+        at a deleted document; harmless for reads, and a future reconciler can
+        re-stamp it. A node created by another doc keeps living even if all of
+        this doc's relationships to it are removed in step 1.
+
+        ``source_document_id`` is globally unique to one document in one org, so
+        both steps are already tenant-isolated; the ``organization_id``
+        predicates are defense-in-depth for property-based graph tenancy, kept
+        broad on legacy NULL-org nodes/edges so pre-backfill data for this doc
+        is still reaped. They are AND'd with the doc anchor (never OR — that
+        would widen the delete to the whole org's graph); this deliberately does
+        NOT reuse ``_entity_scope_predicate``, whose OR semantics are for read
+        breadth.
+
+        Returns ``(deleted_relationships, deleted_nodes)``. Raises on driver /
+        circuit breaker failure; callers isolate it (best-effort at the delete
+        endpoint).
         """
-        with self.get_session() as session:
-            params: Dict[str, Any] = {"source_document_id": str(document_id)}
-            org_filter = ""
-            if organization_id is not None:
-                params["organization_id"] = str(organization_id)
-                # AND'd with the source_document_id anchor above; kept broad on
-                # legacy NULL-org nodes so this doc's pre-backfill entities are
-                # still reaped (the anchor already guarantees tenant isolation).
-                org_filter = (
-                    "\n                    WHERE e.organization_id = $organization_id"
-                    "\n                       OR e.organization_id IS NULL"
-                )
-            query = f"""
-                    MATCH (e:Entity {{source_document_id: $source_document_id}}){org_filter}
-                    DETACH DELETE e
+        params: Dict[str, Any] = {"source_document_id": str(document_id)}
+        rel_org_filter = ""
+        node_org_filter = ""
+        if organization_id is not None:
+            params["organization_id"] = str(organization_id)
+            rel_org_filter = (
+                "\n                    WHERE (r.organization_id = $organization_id"
+                "\n                        OR r.organization_id IS NULL)"
+            )
+            node_org_filter = (
+                "\n                          (e.organization_id = $organization_id"
+                "\n                        OR e.organization_id IS NULL)"
+                "\n                      AND"
+            )
+        # Step 1: this document's relationships (per-document provenance edges).
+        rel_query = f"""
+                    MATCH ()-[r:RELATED_TO {{source_document_id: $source_document_id}}]->(){rel_org_filter}
+                    DELETE r
+                    RETURN count(r) as deleted_count
+                    """
+        # Step 2: nodes this doc created that no document references any more.
+        # The COUNT {{ (e)--() }} = 0 orphan guard is load-bearing: without it,
+        # deleting a creator doc destroys nodes still wired to other docs.
+        node_query = f"""
+                    MATCH (e:Entity {{source_document_id: $source_document_id}})
+                    WHERE{node_org_filter} COUNT {{ (e)--() }} = 0
+                    DELETE e
                     RETURN count(e) as deleted_count
                     """
 
-            result = session.run(query, params)
-            record = result.single()
-            deleted_count = record["deleted_count"] if record else 0
+        with self.get_session() as session:
+            # One explicit transaction: step 2's orphan check must observe
+            # step 1's deletions, and a failure between steps must not strand
+            # a half-cleaned graph (the Transaction context manager commits on
+            # clean exit, rolls back on error).
+            with session.begin_transaction() as tx:
+                rel_record = tx.run(rel_query, params).single()
+                deleted_relationships = rel_record["deleted_count"] if rel_record else 0
+                node_record = tx.run(node_query, params).single()
+                deleted_nodes = node_record["deleted_count"] if node_record else 0
 
             logger.info(
-                "Deleted %d graph entities for document %s (org=%s)",
-                deleted_count,
+                "Deleted %d graph relationships and %d orphaned entities "
+                "for document %s (org=%s)",
+                deleted_relationships,
+                deleted_nodes,
                 document_id,
                 organization_id,
             )
-            return deleted_count
+            return deleted_relationships, deleted_nodes
 
     def search_entities(
         self,
