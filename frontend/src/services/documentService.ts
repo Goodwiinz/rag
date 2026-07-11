@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/client';
-import { useAuthStore } from '@/stores/authStore';
 import { APIResponse, API_CONFIG } from '@/types/api';
 import {
   Document,
@@ -44,7 +43,6 @@ export class DocumentService {
       data: { session },
     } = await supabase.auth.getSession();
     const token = session?.access_token;
-    const organizationId = useAuthStore.getState().organization?.id;
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -77,17 +75,11 @@ export class DocumentService {
         reject(new Error('Network error during upload'));
       });
 
-      xhr.open(
-        'POST',
-        `${API_CONFIG.BASE_URL}${this.basePath}/batch-upload`
-      );
+      xhr.open('POST', `${API_CONFIG.BASE_URL}${this.basePath}/batch-upload`);
 
       // Add auth headers
       if (token) {
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        if (organizationId) {
-          xhr.setRequestHeader('X-Organization-ID', organizationId);
-        }
       }
 
       xhr.send(formData);
@@ -124,7 +116,9 @@ export class DocumentService {
     }
 
     const queryString = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, String(v)])
     ).toString();
     return api.get(`${this.basePath}${queryString ? `?${queryString}` : ''}`);
   }
@@ -217,7 +211,9 @@ export class DocumentService {
     }
 
     const qs = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, String(v)])
     ).toString();
     return api.get(`${this.basePath}/search${qs ? `?${qs}` : ''}`);
   }

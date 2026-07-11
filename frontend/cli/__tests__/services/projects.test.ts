@@ -19,7 +19,6 @@ beforeEach(() => {
   mockedHeaders.mockReturnValue({
     'Content-Type': 'application/json',
     Authorization: 'Bearer test',
-    'X-Organization-ID': 'org_1',
   });
   mockedBase.mockReturnValue('http://api.test/api/v1');
 });

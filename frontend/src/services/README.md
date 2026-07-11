@@ -48,9 +48,12 @@ Headers attached to every authenticated request:
 
 ```
 Authorization: Bearer <supabase_access_token>
-X-Organization-ID: <org_id>          // when present
 Content-Type: application/json       // omitted for FormData
 ```
+
+The backend derives the tenant/organization from the authenticated user
+(`current_user`), so no `X-Organization-ID` header is sent — it was never read
+inbound.
 
 For `FormData` bodies (file upload), the client strips `Content-Type` so the browser sets `multipart/form-data` with its own boundary. Upload progress uses `XMLHttpRequest.upload.onprogress`; blob/inline-preview uses `fetchObjectUrl`, which returns an object URL the caller must revoke.
 

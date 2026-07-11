@@ -48,7 +48,6 @@ export class APIClient {
   private baseURL: string;
   private token: string | null = null;
   private explicitToken: string | null = null;
-  private organizationId: string | null = null;
   private defaultTimeout: number;
 
   constructor(baseURL: string = API_CONFIG.BASE_URL) {
@@ -60,16 +59,14 @@ export class APIClient {
   // Authentication
   // --------------------------------------------------------------------------
 
-  setAuth(token: string, organizationId: string): void {
+  setAuth(token: string): void {
     this.explicitToken = token;
     this.token = token;
-    this.organizationId = organizationId;
   }
 
   clearAuth(): void {
     this.explicitToken = null;
     this.token = null;
-    this.organizationId = null;
   }
 
   /** Load auth from the CURRENT Supabase session before each request.
@@ -104,8 +101,6 @@ export class APIClient {
         data: { session },
       } = await supabase.auth.getSession();
       this.token = session?.access_token ?? null;
-      this.organizationId =
-        session?.user?.user_metadata?.organization_id ?? null;
     } catch (error) {
       console.warn('Failed to load auth from Supabase session:', error);
     }
@@ -118,9 +113,6 @@ export class APIClient {
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
-    }
-    if (this.organizationId) {
-      headers['X-Organization-ID'] = this.organizationId;
     }
 
     return headers;
@@ -415,9 +407,6 @@ export class APIClient {
       // Set auth headers
       if (this.token) {
         xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
-      }
-      if (this.organizationId) {
-        xhr.setRequestHeader('X-Organization-ID', this.organizationId);
       }
 
       xhr.upload.onprogress = (event) => {

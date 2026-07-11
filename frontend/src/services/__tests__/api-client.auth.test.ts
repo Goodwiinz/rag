@@ -35,7 +35,10 @@ describe('APIClient auth bootstrapping', () => {
 
     const { APIClient } = await import('../api-client');
     const client = new APIClient('http://api.test');
-    await client.requestWithValidation('/secure', z.object({ value: z.string() }));
+    await client.requestWithValidation(
+      '/secure',
+      z.object({ value: z.string() })
+    );
 
     expect(getSession).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -43,10 +46,13 @@ describe('APIClient auth bootstrapping', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer session-token',
-          'X-Organization-ID': 'org-123',
         }),
       })
     );
+    // The backend derives org from current_user; the dead X-Organization-ID
+    // header must not be sent.
+    const sentHeaders = fetchMock.mock.calls[0][1].headers;
+    expect(sentHeaders).not.toHaveProperty('X-Organization-ID');
   });
 
   it('loads auth before uploadWithProgress requests', async () => {
@@ -96,9 +102,10 @@ describe('APIClient auth bootstrapping', () => {
       'Authorization',
       'Bearer upload-token'
     );
-    expect(setRequestHeader).toHaveBeenCalledWith(
+    // The dead X-Organization-ID header must not be sent.
+    expect(setRequestHeader).not.toHaveBeenCalledWith(
       'X-Organization-ID',
-      'org-upload'
+      expect.anything()
     );
   });
 });
