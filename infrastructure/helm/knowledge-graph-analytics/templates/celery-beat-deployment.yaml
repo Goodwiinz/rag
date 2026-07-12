@@ -45,6 +45,12 @@ spec:
             {{- if .Values.backend.env }}
             {{- toYaml .Values.backend.env | nindent 12 }}
             {{- end }}
+            # Per-component env overrides (e.g. a smaller DB pool budget than the
+            # request-serving backend). Appended after the shared backend.env so
+            # duplicate keys win last (Kubernetes last-value-wins semantics).
+            {{- with .Values.celeryBeat.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
             {{- if .Values.celeryBeat.resources }}
             {{- toYaml .Values.celeryBeat.resources | nindent 12 }}
