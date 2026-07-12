@@ -161,22 +161,22 @@ def _get_execute_tool():
     """Lazily import execute_tool and keep it patch-friendly.
 
     The agent tests patch both ``src.services.agent.graph.execute_tool`` and
-    the backward-compatible re-export at ``src.api.agent.execute.execute_tool``.
+    the dispatcher at ``src.services.agent.tools_impl.execute_tool``.
     After the API split, caching the first imported callable caused later
-    re-export patches to be ignored. We only refresh the cached callable when
-    graph.py is still pointing at the last default import.
+    source-module patches to be ignored. We only refresh the cached callable
+    when graph.py is still pointing at the last default import.
     """
     global execute_tool, _default_execute_tool  # noqa: PLW0603
 
     with _execute_tool_lock:
         if execute_tool is None:
-            from src.api.agent.execute import execute_tool as _et
+            from src.services.agent.tools_impl import execute_tool as _et
 
             execute_tool = _et
             _default_execute_tool = _et
             return execute_tool
 
-        from src.api.agent.execute import execute_tool as _et
+        from src.services.agent.tools_impl import execute_tool as _et
 
         if execute_tool is _default_execute_tool:
             execute_tool = _et
