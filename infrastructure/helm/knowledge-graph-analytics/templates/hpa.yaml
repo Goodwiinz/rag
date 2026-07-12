@@ -49,7 +49,15 @@ spec:
       selectPolicy: Max
 {{- end }}
 ---
-{{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled }}
+{{- /*
+Mutual exclusion with KEDA (audit P1.6 / finding X5): when keda.enabled=true the
+KEDA ScaledObject (templates/keda-scaledobject.yaml) owns worker autoscaling and
+reconciles its own HPA (keda-hpa-<name>). Rendering this plain CPU/memory HPA too
+would make two controllers fight over the same Deployment's replica count, so it
+is suppressed while KEDA is on. Rollback = flip keda.enabled false and this HPA
+re-renders unchanged.
+*/ -}}
+{{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled (not .Values.keda.enabled) }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
