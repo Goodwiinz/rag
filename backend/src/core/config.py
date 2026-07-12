@@ -536,6 +536,28 @@ class Settings(BaseSettings):
     # cleanup_old_jobs only ever deletes terminal rows).
     PROCESSING_JOB_STUCK_AFTER_SECONDS: int = 1800
 
+    # Audit D5 (P2.5): data-retention beat tasks (src/tasks/retention_tasks.py).
+    # Two-stage safety: RETENTION_ENABLED is the kill switch (tasks no-op when
+    # false); RETENTION_APPLY is the dry-run gate — false (default) only LOGS
+    # what it would delete, true performs the deletes. Both default-safe, so
+    # nothing is removed until an operator flips RETENTION_APPLY=true.
+    RETENTION_ENABLED: bool = True
+    RETENTION_APPLY: bool = False
+    # Threads soft-deleted (is_deleted=True) longer than this are hard-deleted
+    # (chat_messages + LangGraph checkpoint rows + the thread row).
+    RETENTION_SOFT_DELETED_THREAD_DAYS: int = 30
+    # Synthetic-traffic checkpoint threads ('synthetic-<key>-<epoch_ms>') older
+    # than this — by their embedded timestamp — are purged as machine noise,
+    # regardless of soft-delete state. Closes the ~72-threads/day synthetic
+    # checkpoint leak.
+    RETENTION_SYNTHETIC_THREAD_DAYS: int = 7
+    # Append-only analytics_events / audit_events / rag_queries rows older than
+    # this are purged (these tables never shrink otherwise). Conservative.
+    RETENTION_APPEND_ONLY_DAYS: int = 180
+    # Rows touched per table per batch, and max batches per append-only run
+    # (bounded work per beat tick).
+    RETENTION_BATCH_SIZE: int = 500
+    RETENTION_MAX_BATCHES: int = 20
     # Audit P2.3 (D1): scheduled satellite reconciler. Satellite indexing
     # (Neo4j KG / DO KB) is best-effort during ingestion; failures are
     # recorded per-document (neo4j_index_status / do_kb_sync_status =
