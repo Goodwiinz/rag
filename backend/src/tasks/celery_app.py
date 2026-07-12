@@ -35,6 +35,7 @@ celery_app = Celery(
         "src.tasks.evaluation_tasks",
         "src.tasks.research_tasks",
         "src.tasks.agent_run_tasks",
+        "src.tasks.retention_tasks",
     ],
 )
 
@@ -110,6 +111,20 @@ celery_app.conf.update(
         "sweep-stuck-processing-jobs": {
             "task": "src.tasks.processing_tasks.sweep_stuck_processing_jobs",
             "schedule": 900.0,  # every 15 min; stuck threshold is 30 min
+        },
+        # Audit D5 (P2.5) retention riders. Two-stage safe: no-op unless
+        # RETENTION_ENABLED, dry-run (log-only) unless RETENTION_APPLY=true.
+        "retention-purge-soft-deleted-threads": {
+            "task": "src.tasks.retention_tasks.purge_soft_deleted_threads",
+            "schedule": 86400.0,  # daily
+        },
+        "retention-purge-synthetic-threads": {
+            "task": "src.tasks.retention_tasks.purge_synthetic_threads",
+            "schedule": 86400.0,  # daily; closes the synthetic checkpoint leak
+        },
+        "retention-purge-append-only-events": {
+            "task": "src.tasks.retention_tasks.purge_append_only_events",
+            "schedule": 86400.0,  # daily
         },
     },
     task_default_retry_delay=60,
