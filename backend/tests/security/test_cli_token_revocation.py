@@ -42,23 +42,85 @@ async def test_no_cutoff_means_not_revoked() -> None:
     client = AsyncMock()
     client.get = AsyncMock(return_value=None)  # no revoked-before key
     with patch.object(ctr, "_get_redis", AsyncMock(return_value=client)):
-        assert await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is False
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc))
+            is False
+        )
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_fail_open_when_redis_unavailable() -> None:
     with patch.object(ctr, "_get_redis", AsyncMock(return_value=None)):
-        assert await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is False
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc))
+            is False
+        )
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_fail_open_on_redis_error() -> None:
+    # Default (flag off) preserves historical fail-open on a store ERROR.
     client = AsyncMock()
     client.get = AsyncMock(side_effect=RuntimeError("redis down"))
     with patch.object(ctr, "_get_redis", AsyncMock(return_value=client)):
-        assert await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is False
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc))
+            is False
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fail_closed_on_redis_error_when_flag_on(monkeypatch) -> None:
+    # Redis read raises -> DENY when CLI_TOKEN_REVOCATION_FAIL_CLOSED is set.
+    monkeypatch.setattr(ctr.settings, "CLI_TOKEN_REVOCATION_FAIL_CLOSED", True)
+    client = AsyncMock()
+    client.get = AsyncMock(side_effect=RuntimeError("redis down"))
+    with patch.object(ctr, "_get_redis", AsyncMock(return_value=client)):
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is True
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_fail_closed_when_no_client_and_flag_on(monkeypatch) -> None:
+    # No Redis client at all (store unreachable) -> DENY when fail-closed.
+    monkeypatch.setattr(ctr.settings, "CLI_TOKEN_REVOCATION_FAIL_CLOSED", True)
+    with patch.object(ctr, "_get_redis", AsyncMock(return_value=None)):
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is True
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_miss_still_allows_even_when_flag_on(monkeypatch) -> None:
+    # A plain MISS (store reachable, no cutoff key) must ALLOW regardless of the
+    # fail-closed flag — else every CLI call breaks after a Redis flush.
+    monkeypatch.setattr(ctr.settings, "CLI_TOKEN_REVOCATION_FAIL_CLOSED", True)
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=None)
+    with patch.object(ctr, "_get_redis", AsyncMock(return_value=client)):
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc))
+            is False
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_corrupt_cutoff_fails_closed_when_flag_on(monkeypatch) -> None:
+    # A non-integer cutoff is a store fault (not a miss): deny when fail-closed.
+    monkeypatch.setattr(ctr.settings, "CLI_TOKEN_REVOCATION_FAIL_CLOSED", True)
+    client = AsyncMock()
+    client.get = AsyncMock(return_value="not-an-int")
+    with patch.object(ctr, "_get_redis", AsyncMock(return_value=client)):
+        assert (
+            await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc)) is True
+        )
 
 
 @pytest.mark.unit
@@ -100,9 +162,7 @@ async def test_cached_client_reset_after_error() -> None:
     broken.get = AsyncMock(side_effect=RuntimeError("loop closed"))
     ctr._client = broken
     try:
-        revoked = await ctr.is_cli_token_revoked(
-            "user-1", datetime.now(timezone.utc)
-        )
+        revoked = await ctr.is_cli_token_revoked("user-1", datetime.now(timezone.utc))
         assert revoked is False  # fail-open
         assert ctr._client is None  # cached client dropped for reconnect
     finally:

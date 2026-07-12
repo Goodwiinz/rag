@@ -192,9 +192,7 @@ def create_cli_token(
     rather than silently issuing tokens with a default-empty signing key.
     """
     if not settings.JWT_SECRET_KEY:
-        raise RuntimeError(
-            "JWT_SECRET_KEY must be configured to mint CLI tokens"
-        )
+        raise RuntimeError("JWT_SECRET_KEY must be configured to mint CLI tokens")
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
@@ -323,6 +321,21 @@ def get_current_user_token(
         if token_data.exp and token_data.exp < datetime.utcnow():
             raise credentials_exception
 
+        # Hard max-age cap on CLI tokens, independent of the token's own `exp`
+        # claim. A CLI token minted under a previously larger
+        # CLI_TOKEN_EXPIRE_DAYS is still clamped to the *current* configured
+        # lifetime. This bounds exposure if the Redis revocation store loses a
+        # revoked-before cutoff (e.g. a flush, which reads as a miss and so
+        # allows): the token ages out within the cap instead of staying valid
+        # to its original exp. (audit D7)
+        if token_data.is_cli and token_data.issued_at is not None:
+            issued_at = token_data.issued_at
+            if issued_at.tzinfo is not None:
+                issued_at = issued_at.astimezone(timezone.utc).replace(tzinfo=None)
+            max_age = timedelta(days=settings.CLI_TOKEN_EXPIRE_DAYS)
+            if datetime.utcnow() - issued_at > max_age:
+                raise credentials_exception
+
         return token_data
 
     except Exception:
@@ -409,7 +422,8 @@ def verify_sensitive_data_hash(data: str, hashed: str) -> bool:
 
 
 # Import RateLimiter implementations
-from src.core.rate_limit import create_rate_limiter, InMemoryRateLimiter as RateLimiter
+from src.core.rate_limit import InMemoryRateLimiter as RateLimiter
+from src.core.rate_limit import create_rate_limiter
 
 # Global rate limiter instance (will be initialized after settings import)
 # Use higher limits for development to avoid blocking during testing
