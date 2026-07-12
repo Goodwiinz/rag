@@ -322,8 +322,24 @@ securityContext:
   fsGroup: 1001
 podSecurityPolicy:
   enabled: false
+# NetworkPolicy — ingress default-deny for the backend pods (audit finding X6).
+# Kept DISABLED pending live-cluster selector verification; flipping `enabled:
+# true` renders an INGRESS-ONLY policy (egress lockdown deferred as a follow-up:
+# the external managed deps make egress the outage-prone half). To enable:
+#   1. Confirm the ingress-nginx controller runs in the `ingress-nginx`
+#      namespace: `kubectl get ns -L kubernetes.io/metadata.name | grep nginx`.
+#      If it lives elsewhere, override `networkPolicy.ingressControllerNamespace`.
+#   2. Confirm Prometheus runs in `monitoring` (or override `monitoringNamespace`).
+#   3. Set `enabled: true`, let ArgoCD sync, then verify: dev-api.gen-text.app
+#      still serves, backend readiness probes stay green (kubelet host->pod), and
+#      backend metrics still scrape. Rollback = set `enabled: false` (policy is
+#      pruned on next sync).
 networkPolicy:
   enabled: false
+  ingress:
+    enabled: true
+  egress:
+    enabled: false
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
