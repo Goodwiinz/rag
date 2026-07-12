@@ -1,10 +1,20 @@
 # `src/types/` — Shared TypeScript type definitions
 
 This directory holds all TypeScript interfaces, enums, and Zod schemas used
-across the NOUS frontend. Types are authored by hand against the FastAPI backend;
-there is no code-generation step. Keeping them in sync with backend Pydantic
-models is a manual discipline: field names follow the backend's snake_case
-convention, and any backend schema change must be reflected here.
+across the NOUS frontend. Most modules here are still authored by hand against
+the FastAPI backend, so keeping them in sync with backend Pydantic models is a
+manual discipline: field names follow the backend's snake_case convention, and
+any backend schema change must be reflected here.
+
+**Generated types (`generated/api.d.ts`).** As of the audit C5 REST contract
+ratchet, request/response shapes can instead be sourced from the backend's
+OpenAPI schema via `openapi-typescript`. Run `pnpm generate:api-types` to
+rebuild `generated/api.d.ts` from `backend/openapi.json`, and reference schemas
+as `components['schemas'][...]`. CI fails if the committed `backend/openapi.json`
+drifts from the running app (see `generated/README.md`), so a contract change
+and its regenerated types travel together in the same PR. Hand-written modules
+migrate **adopt-on-touch**, not all at once; the pilot consumer is
+`services/documentAnalyticsApi.ts` (`DocumentStatusResponse`).
 
 `index.ts` is the public re-export barrel. Prefer importing from `@/types`
 rather than from individual modules.
