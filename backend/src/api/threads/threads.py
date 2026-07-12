@@ -724,6 +724,7 @@ async def get_thread_context(
     "/{thread_id}/messages",
     response_model=ChatMessageResponse,
     status_code=status.HTTP_201_CREATED,
+    deprecated=True,
 )
 async def create_message(
     thread_id: UUID,
@@ -732,7 +733,15 @@ async def create_message(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Create a new message in a thread.
+    [DEPRECATED] Create a new message in a thread.
+
+    Audit finding C4: three public POST create-message routes coexist but only
+    the flat ``POST /api/v2/messages`` (``create_message_standalone`` in
+    ``api/threads/workspaces.py``) is called by any client — it is the
+    canonical route. This nested variant has no live callers (frontend, CLI,
+    scripts, or synthetic traffic) and is kept only for a deprecation window.
+    New clients MUST use ``POST /api/v2/messages`` with ``thread_id`` in the
+    body. Slated for removal in a follow-up cleanup PR once the window closes.
     """
     # Ensure thread_id matches
     if data.thread_id != thread_id:

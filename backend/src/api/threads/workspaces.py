@@ -754,6 +754,7 @@ async def delete_thread(
     "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages",
     response_model=ChatMessageResponse,
     status_code=status.HTTP_201_CREATED,
+    deprecated=True,
 )
 async def create_message(
     workspace_id: UUID,
@@ -763,7 +764,17 @@ async def create_message(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new message in a thread"""
+    """[DEPRECATED] Create a new message in a thread.
+
+    Audit finding C4: three public POST create-message routes coexist but only
+    the flat ``POST /api/v2/messages`` (``create_message_standalone`` below) is
+    called by any client — it is the canonical route. This deeply-nested
+    workspace variant has no live callers (frontend, CLI, scripts, or synthetic
+    traffic); it already delegates to ``ChatService.create_message`` and is kept
+    only for a deprecation window. New clients MUST use ``POST /api/v2/messages``
+    with ``thread_id`` in the body. Slated for removal in a follow-up cleanup PR
+    once the window closes.
+    """
     # Validate the path hierarchy (workspace/conversation/thread + soft-delete
     # filters) before delegating; the 403 for non-editors is this route's
     # documented behavior.
@@ -1975,7 +1986,15 @@ async def create_message_standalone(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new message (standalone route - uses thread_id from request body)"""
+    """Create a new message (standalone route - uses thread_id from request body).
+
+    CANONICAL create-message route (audit finding C4). This flat
+    ``POST /api/v2/messages`` is the only create-message route any client calls
+    (frontend ``workspaceService.createMessage``); the two nested variants
+    (``POST /api/v2/threads/{thread_id}/messages`` and
+    ``POST /api/v2/workspaces/.../threads/{thread_id}/messages``) are deprecated
+    and awaiting removal. Route new clients here.
+    """
     # Delegate to the canonical ChatService.create_message. This route used to
     # reimplement it and drifted: it accepted but silently discarded
     # latency_ms, stopped, and attachment_ids (so legacy-mode clients lost the
