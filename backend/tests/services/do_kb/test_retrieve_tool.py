@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.api.agent.tools_impl import AGENT_TOOLS, _tool_do_kb_retrieve
+from src.services.agent.tools_impl import AGENT_TOOLS, _tool_do_kb_retrieve
 from src.services.do_kb.client import DOKnowledgeBaseError
 from src.services.do_kb.models import Chunk, RetrieveResult
 
@@ -28,7 +28,7 @@ async def test_returns_empty_when_disabled(monkeypatch):
     fake_settings = MagicMock()
     fake_settings.DO_KB_ENABLED = False
     monkeypatch.setattr(
-        "src.api.agent.tools_impl.settings", fake_settings, raising=False
+        "src.services.agent.tools_impl.settings", fake_settings, raising=False
     )
 
     user = MagicMock()
@@ -165,7 +165,7 @@ async def test_retrieve_404_logs_error_and_falls_back(caplog):
     with (
         patch("src.core.config.settings", MagicMock(DO_KB_ENABLED=True)),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
-        caplog.at_level(logging.ERROR, logger="src.api.agent.tools_impl"),
+        caplog.at_level(logging.ERROR, logger="src.services.agent.tools_impl"),
     ):
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 3}, db, user)
 
@@ -201,7 +201,7 @@ async def test_retrieve_transient_error_stays_warning(caplog):
     with (
         patch("src.core.config.settings", MagicMock(DO_KB_ENABLED=True)),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
-        caplog.at_level(logging.WARNING, logger="src.api.agent.tools_impl"),
+        caplog.at_level(logging.WARNING, logger="src.services.agent.tools_impl"),
     ):
         result = await _tool_do_kb_retrieve({"query": "x", "top_k": 3}, db, user)
 
@@ -304,7 +304,7 @@ async def test_project_id_filters_out_cross_project_chunks():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.api.agent.tools_impl._verify_project_ownership",
+            "src.services.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=owned),
         ),
     ):
@@ -394,7 +394,7 @@ async def test_owned_project_id_with_unresolvable_chunks_returns_empty():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.api.agent.tools_impl._verify_project_ownership",
+            "src.services.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=owned),
         ),
     ):
@@ -441,7 +441,7 @@ async def test_project_id_not_owned_returns_access_denied():
         ),
         patch("src.services.do_kb.get_do_kb_client", return_value=fake_client),
         patch(
-            "src.api.agent.tools_impl._verify_project_ownership",
+            "src.services.agent.tools_impl._verify_project_ownership",
             AsyncMock(return_value=None),  # not owned / not found
         ),
     ):

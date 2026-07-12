@@ -56,7 +56,7 @@ class TestAssistantClientMessageId:
 class TestPersistSafeForwarding:
     @pytest.mark.asyncio
     async def test_forwards_new_kwargs_and_returns_id(self):
-        from src.api.agent import jobs
+        from src.services.agent import agent_execution_service as jobs
 
         captured = {}
 
@@ -89,7 +89,7 @@ class TestPersistSafeForwarding:
 
     @pytest.mark.asyncio
     async def test_swallows_errors_and_returns_none(self):
-        from src.api.agent import jobs
+        from src.services.agent import agent_execution_service as jobs
 
         with (
             patch.object(

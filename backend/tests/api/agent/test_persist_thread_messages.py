@@ -23,7 +23,7 @@ import pytest
 from sqlalchemy import func, select
 
 from src.api.agent.execute import AgentExecuteRequest, AgentMessage
-from src.api.agent.jobs import _persist_assistant_message, _persist_user_message
+from src.services.agent.agent_execution_service import _persist_assistant_message, _persist_user_message
 from src.models.chat_message import ChatMessage, MessageRole
 
 pytestmark = pytest.mark.integration

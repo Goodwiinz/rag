@@ -107,7 +107,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             return_value=fake_db,
         ),
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=persist_mock,
         ),
         patch(
@@ -189,7 +189,7 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             return_value=fake_db,
         ),
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=persist_mock,
         ),
         patch(
@@ -256,7 +256,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
             return_value=fake_db,
         ),
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=AsyncMock(return_value="assistant-msg-1"),
         ),
         patch(

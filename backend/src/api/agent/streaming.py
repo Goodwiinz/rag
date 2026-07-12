@@ -16,16 +16,16 @@ from langgraph.errors import GraphInterrupt
 
 from src.core.database import AsyncSessionLocal
 from src.models.user import User
+
+# The job runner lives in the service layer (audit B5); `_jobs_mod` keeps its
+# historical alias so the late-bound call sites (and the tests that patch
+# them) read unchanged.
+from src.services.agent import agent_execution_service as _jobs_mod
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._builders import RECURSION_LIMIT
-from src.services.agent import stream_buffer as _stream_buffer
+from src.services.agent._errors import client_safe_error, extract_interrupt_confirmation
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
-from src.services.agent.observability import record_token_usage
-from src.shared.enums import AgentStreamEvent
-
-from . import jobs as _jobs_mod
-from ._errors import client_safe_error, extract_interrupt_confirmation
-from .jobs import (
+from src.services.agent.agent_execution_service import (
     _clear_stale_pending_confirmation,
     _latest_user_client_message_id,
     _page_context_to_dict,
@@ -34,6 +34,9 @@ from .jobs import (
     _resolve_and_bind_project,
     _resolve_thread,
 )
+from src.services.agent.observability import record_token_usage
+from src.shared.enums import AgentStreamEvent
+
 from .trace_context import build_trace_payload
 
 logger = logging.getLogger(__name__)

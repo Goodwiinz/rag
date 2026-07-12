@@ -5,6 +5,7 @@
  */
 
 import { api } from '@/services/api-client';
+import type { components } from '@/types/generated/api';
 
 // Response Types
 export interface FileTypeStats {
@@ -64,15 +65,15 @@ export interface DocumentAnalytics {
   recent_uploads_count: number;
 }
 
-export interface DocumentStatusResponse {
-  document_id: string;
-  processing_status: string;
-  progress_percentage: number;
-  current_step?: string;
-  processing_started_at?: string;
-  estimated_completion?: string;
-  error_message?: string;
-}
+// Pilot consumer of the generated OpenAPI types (audit C5 REST contract
+// ratchet). Sourced from backend/openapi.json via `pnpm generate:api-types`
+// instead of a hand-mirrored interface, so the shape can never silently drift
+// from the FastAPI response model. Note `processing_status` is the backend's
+// narrowed ApiDocumentStatus enum ('queued' | 'processing' | 'indexed' |
+// 'failed'), not a loose `string` as it was when hand-written. This is the
+// proof-of-loop consumer; other types migrate adopt-on-touch, not en masse.
+export type DocumentStatusResponse =
+  components['schemas']['DocumentStatusResponse'];
 
 // Query parameters
 export interface DocumentListParams {
@@ -133,9 +134,7 @@ class DocumentAnalyticsApiService {
    * Get single document details
    */
   async getDocument(documentId: string): Promise<DocumentResponse> {
-    return api.get<DocumentResponse>(
-      `${this.documentsPath}/${documentId}`
-    );
+    return api.get<DocumentResponse>(`${this.documentsPath}/${documentId}`);
   }
 
   /**
@@ -558,9 +557,7 @@ class PerformanceApiService {
    */
   async getSystemHealth(): Promise<SystemHealthMetrics> {
     try {
-      const response = await api.get<any>(
-        `${this.basePath}/system-health`
-      );
+      const response = await api.get<any>(`${this.basePath}/system-health`);
       return {
         cpu_usage: response.cpu_usage || 0,
         memory_usage: response.memory_usage || 0,
@@ -597,9 +594,7 @@ class PerformanceApiService {
     pageViews: number;
   }> {
     try {
-      const response = await api.get<any>(
-        `${this.basePath}/user-engagement`
-      );
+      const response = await api.get<any>(`${this.basePath}/user-engagement`);
       return {
         dailyActiveUsers: response.daily_active_users || 0,
         weeklyActiveUsers: response.weekly_active_users || 0,

@@ -41,7 +41,7 @@ class _FakeGraph:
 @pytest.mark.asyncio
 async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
     from src.api.agent.execute import AgentExecuteRequest, _set_job
-    from src.api.agent.jobs import _resume_agent_graph
+    from src.services.agent.agent_execution_service import _resume_agent_graph
 
     user = Mock()
     user.id = "user-confirm-1"
@@ -114,15 +114,15 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
             return_value=graph,
         ),
         patch(
-            "src.api.agent.jobs.AsyncSessionLocal",
+            "src.services.agent.agent_execution_service.AsyncSessionLocal",
             return_value=_session_cm(),
         ),
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=persist_assistant,
         ),
         patch(
-            "src.api.agent.jobs._persist_user_message",
+            "src.services.agent.agent_execution_service._persist_user_message",
             new=persist_user,
         ),
         patch(

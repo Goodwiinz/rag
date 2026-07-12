@@ -183,12 +183,12 @@ class TestSearchIngestAddWorkflow:
 
             with (
                 patch(
-                    "src.api.agent.tools_impl._resolve_document_id",
+                    "src.services.agent.tools_impl._resolve_document_id",
                     new_callable=AsyncMock,
                     return_value=mock_doc,
                 ),
                 patch(
-                    "src.api.agent.tools_impl._verify_project_ownership",
+                    "src.services.agent.tools_impl._verify_project_ownership",
                     new_callable=AsyncMock,
                     return_value=project,
                 ),
@@ -220,7 +220,7 @@ class TestAddWithoutIngestFails:
         fake_doc_id = "1803.10916v1"  # arXiv ID, not a UUID
 
         with patch(
-            "src.api.agent.tools_impl._resolve_document_id",
+            "src.services.agent.tools_impl._resolve_document_id",
             new_callable=AsyncMock,
             return_value=None,  # document not found
         ):
@@ -242,7 +242,7 @@ class TestAddWithoutIngestFails:
         fake_uuid = str(uuid4())
 
         with patch(
-            "src.api.agent.tools_impl._resolve_document_id",
+            "src.services.agent.tools_impl._resolve_document_id",
             new_callable=AsyncMock,
             return_value=None,
         ):
@@ -462,12 +462,12 @@ class TestSharedSessionNeverUsedForWrites:
                 side_effect=_fail_sessionmaker,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=doc,
             ),
             patch(
-                "src.api.agent.tools_impl._verify_project_ownership",
+                "src.services.agent.tools_impl._verify_project_ownership",
                 new_callable=AsyncMock,
                 return_value=project,
             ),

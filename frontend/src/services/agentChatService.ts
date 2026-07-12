@@ -26,10 +26,9 @@ async function getStreamAuthHeaders(): Promise<Record<string, string>> {
     if (session?.access_token) {
       headers['Authorization'] = `Bearer ${session.access_token}`;
     }
-    const orgId = session?.user?.user_metadata?.organization_id;
-    if (orgId) {
-      headers['X-Organization-ID'] = orgId;
-    }
+    // Org is derived server-side from current_user; no X-Organization-ID is
+    // sent (the header was never read inbound and its CORS allowlist entry was
+    // dropped alongside this sender).
   } catch {
     // Fall through without auth headers
   }

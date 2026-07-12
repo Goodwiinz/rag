@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.api.agent.jobs import _extract_pending_interrupt
+from src.services.agent.agent_execution_service import _extract_pending_interrupt
 
 pytestmark = pytest.mark.unit
 

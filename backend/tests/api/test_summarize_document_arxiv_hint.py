@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.api.agent.tools_impl import _tool_summarize_document
+from src.services.agent.tools_impl import _tool_summarize_document
 
 
 @pytest.mark.unit
@@ -25,7 +25,7 @@ async def test_arxiv_id_not_ingested_returns_recoverable_hint():
     db = MagicMock()
 
     with patch(
-        "src.api.agent.tools_impl._resolve_document_id",
+        "src.services.agent.tools_impl._resolve_document_id",
         new=AsyncMock(return_value=None),
     ):
         result = await _tool_summarize_document({"document_id": "2303.15563"}, db, user)
@@ -44,7 +44,7 @@ async def test_arxiv_id_with_version_also_hints():
     db = MagicMock()
 
     with patch(
-        "src.api.agent.tools_impl._resolve_document_id",
+        "src.services.agent.tools_impl._resolve_document_id",
         new=AsyncMock(return_value=None),
     ):
         result = await _tool_summarize_document(
@@ -63,11 +63,11 @@ async def test_non_arxiv_missing_doc_returns_generic_error():
 
     with (
         patch(
-            "src.api.agent.tools_impl._resolve_document_id",
+            "src.services.agent.tools_impl._resolve_document_id",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.tools_impl._verify_project_ownership",
+            "src.services.agent.tools_impl._verify_project_ownership",
             new=AsyncMock(return_value=None),
         ),
     ):
@@ -95,11 +95,11 @@ async def test_project_id_returns_recoverable_list_documents_hint():
 
     with (
         patch(
-            "src.api.agent.tools_impl._resolve_document_id",
+            "src.services.agent.tools_impl._resolve_document_id",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.tools_impl._verify_project_ownership",
+            "src.services.agent.tools_impl._verify_project_ownership",
             new=AsyncMock(return_value=project),
         ),
     ):

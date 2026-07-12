@@ -266,6 +266,60 @@ jobs:
           AZURE_OPENAI_API_KEY: "test-key-not-real"
 
   # ==========================================================================
+  # OpenAPI Contract Ratchet (C5) — the FastAPI app is the single source of
+  # truth for the REST contract. Regenerate the committed schema snapshot and
+  # fail if it drifts from backend/openapi.json, forcing every contract change
+  # to ship with regenerated frontend types (openapi-typescript) in the SAME PR
+  # instead of silently diverging from the hand-mirrored types.
+  # ==========================================================================
+  openapi-contract:
+    name: OpenAPI Contract Ratchet
+    runs-on: ubuntu-latest
+    needs: lint-backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          # Same key as unit-tests: importing the app needs the full backend
+          # requirement set, so the warm test wheel cache is reused here.
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      - name: Install backend dependencies
+        run: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Verify OpenAPI snapshot is in sync with the app
+        # Rebuilds app.openapi() offline (in-memory SQLite + placeholder Azure
+        # creds — no DB/Redis/network) and diffs it against the committed
+        # backend/openapi.json. On drift: `python scripts/ci/generate_openapi.py`
+        # then `cd frontend && pnpm generate:api-types`, review + commit both.
+        run: python scripts/ci/generate_openapi.py --check
+        env:
+          ENVIRONMENT: testing
+          DATABASE_URL: "sqlite:///:memory:"
+          # Dummy Azure creds — the agent-graph constructor refuses to import
+          # without them; no real model call is made during schema generation.
+          AZURE_OPENAI_CHAT_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_CHAT_API_KEY: "test-key-not-real"
+          AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: "test-deployment"
+          AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
+          AZURE_OPENAI_ENDPOINT: "https://example.invalid"
+          AZURE_OPENAI_API_KEY: "test-key-not-real"
+
+  # ==========================================================================
   # Security Scan
   # ==========================================================================
   security-scan:
@@ -923,10 +977,11 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [migration-check, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, e2e-tests]
+    needs: [migration-check, openapi-contract, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, e2e-tests]
     if: always()
     env:
       MIGRATION_RESULT: ${{ needs.migration-check.result }}
+      OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
       UNIT_RESULT: ${{ needs.unit-tests.result }}
       GOLDEN_RESULT: ${{ needs.golden-replay.result }}
       INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
@@ -953,6 +1008,15 @@ jobs:
               echo "| Alembic Migration Check | :fast_forward: Skipped |"
             else
               echo "| Alembic Migration Check | :x: $MIGRATION_RESULT |"
+            fi
+
+            # OpenAPI Contract Ratchet
+            if [ "$OPENAPI_RESULT" = "success" ]; then
+              echo "| OpenAPI Contract Ratchet | :white_check_mark: Passed |"
+            elif [ "$OPENAPI_RESULT" = "skipped" ]; then
+              echo "| OpenAPI Contract Ratchet | :fast_forward: Skipped |"
+            else
+              echo "| OpenAPI Contract Ratchet | :x: $OPENAPI_RESULT |"
             fi
 
             # Unit Tests
@@ -1026,6 +1090,7 @@ jobs:
       - name: Fail if critical tests failed
         env:
           MIGRATION_RESULT: ${{ needs.migration-check.result }}
+          OPENAPI_RESULT: ${{ needs.openapi-contract.result }}
           UNIT_RESULT: ${{ needs.unit-tests.result }}
           GOLDEN_RESULT: ${{ needs.golden-replay.result }}
           FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
@@ -1033,12 +1098,13 @@ jobs:
           INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
           RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
         run: |
-          # Blocking lanes: migration guard, unit, golden replay, frontend,
-          # security, integration, resilience. E2E and performance
-          # remain non-blocking (continue-on-error) until the E2E infra is
-          # stabilized.
+          # Blocking lanes: migration guard, OpenAPI contract, unit, golden
+          # replay, frontend, security, integration, resilience. E2E and
+          # performance remain non-blocking (continue-on-error) until the E2E
+          # infra is stabilized.
           failed=0
-          for pair in "migration:$MIGRATION_RESULT" "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" \
+          for pair in "migration:$MIGRATION_RESULT" "openapi:$OPENAPI_RESULT" \
+                      "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" \
                       "frontend:$FRONTEND_RESULT" "security:$SECURITY_RESULT" \
                       "integration:$INTEGRATION_RESULT" \
                       "resilience:$RESILIENCE_RESULT"; do

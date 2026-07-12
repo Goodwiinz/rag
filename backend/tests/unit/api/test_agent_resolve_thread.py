@@ -46,7 +46,7 @@ def _request(thread_id="11111111-1111-1111-1111-111111111111"):
 
 class TestResolveThreadCreateIfMissing:
     async def test_miss_with_create_if_missing_false_returns_none(self):
-        from src.api.agent.jobs import _resolve_thread
+        from src.services.agent.agent_execution_service import _resolve_thread
 
         db = _db_with_thread_lookup(thread=None)
         thread, conversation_id = await _resolve_thread(
@@ -62,7 +62,7 @@ class TestResolveThreadCreateIfMissing:
 
     async def test_miss_with_default_still_creates(self):
         """The default path (initial turns) must keep creating on miss."""
-        from src.api.agent.jobs import _resolve_thread
+        from src.services.agent.agent_execution_service import _resolve_thread
 
         workspace = Mock()
         workspace.id = "ws-1"
@@ -81,7 +81,7 @@ class TestResolveThreadFiltersSoftDeleted:
     otherwise persist a new turn into a deleted thread."""
 
     async def test_lookup_filters_out_soft_deleted_rows(self):
-        from src.api.agent.jobs import _resolve_thread
+        from src.services.agent.agent_execution_service import _resolve_thread
 
         captured = {}
 
@@ -109,7 +109,7 @@ class TestResolveThreadFiltersSoftDeleted:
         workspaces, so a fresh Conversation+Thread is never parented under a
         deleted workspace. With only a soft-deleted workspace present the pick
         finds nothing → thread stays None → returns (None, "")."""
-        from src.api.agent.jobs import _resolve_thread
+        from src.services.agent.agent_execution_service import _resolve_thread
 
         captured = []
 

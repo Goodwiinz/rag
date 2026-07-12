@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.api.agent.tool_helpers import _ARXIV_ID_RE, _resolve_document_id
+from src.services.agent.tool_helpers import _ARXIV_ID_RE, _resolve_document_id
 
 
 @pytest.mark.unit

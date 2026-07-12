@@ -1,19 +1,21 @@
 """Agent execution endpoint.
 
-FastAPI route definitions for the agent API. Tool implementations,
-job management, streaming, and helpers live in sibling modules:
+FastAPI route definitions for the agent API. Everything without HTTP
+concerns lives in the service layer (audit B1/B5):
 
-- tools_impl.py   — _tool_* functions, execute_tool, AGENT_TOOLS
-- tool_helpers.py  — _resolve_document_id, _verify_project_ownership, etc.
-- jobs.py          — _jobs, _set_job, _get_job, _run_agent_graph, _resume_agent_graph
-- streaming.py     — SSE event generators for /stream and /stream/confirm
+- src/services/agent/tools_impl.py    — _tool_* functions, execute_tool, AGENT_TOOLS
+- src/services/agent/tool_helpers.py  — _resolve_document_id, _verify_project_ownership, etc.
+- src/services/agent/agent_execution_service.py — job store access,
+  _run_agent_graph/_resume_agent_graph, thread resolution, message persistence
+- src/services/agent/schemas.py       — execute/response wire models (re-exported here)
+- streaming.py (sibling)              — SSE event generators for /stream and /stream/confirm
 """
 
 import asyncio
 import logging
 import uuid as _uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -27,7 +29,7 @@ from fastapi import (
 )
 from fastapi.responses import Response, StreamingResponse
 from langgraph.errors import GraphInterrupt  # noqa: F401  re-export for backward compat
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from sqlalchemy import cast, desc, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,9 +47,7 @@ from src.models.workspace import Workspace
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
-from src.shared.enums import TERMINAL_STREAM_EVENTS, JobStatus
-
-from .jobs import (  # noqa: F401
+from src.services.agent.agent_execution_service import (  # noqa: F401
     MAX_JOBS,
     _actor_fields,
     _cleanup_jobs,
@@ -60,21 +60,29 @@ from .jobs import (  # noqa: F401
     _run_agent_graph,
     _set_job,
 )
-from .streaming import (  # noqa: F401
-    _SSE_HEADERS,
-    stream_confirm_event_generator,
-    stream_event_generator,
+
+# Wire models moved to the service layer (audit B5) so the graph runner can
+# build them without importing src.api. Re-exported here so every existing
+# `from src.api.agent.execute import <schema>` keeps resolving.
+from src.services.agent.schemas import (  # noqa: F401
+    SUPPORTED_MODELS,
+    AgentExecuteRequest,
+    AgentExecuteResponse,
+    AgentMessage,
+    PageContextRequest,
+    RetrievedContextResponse,
+    ToolExecutionResponse,
 )
-from .tool_helpers import (  # noqa: F401
+from src.services.agent.tool_helpers import (  # noqa: F401
     _resolve_document_id,
     _resolve_project_id,
     _sanitize_metadata,
     _verify_project_ownership,
 )
 
-# Re-export from new modules so existing imports keep working.
-# Every `from src.api.agent.execute import <name>` must resolve.
-from .tools_impl import (  # noqa: F401
+# Re-export from the canonical service modules so existing imports keep
+# working. Every `from src.api.agent.execute import <name>` must resolve.
+from src.services.agent.tools_impl import (  # noqa: F401
     AGENT_TOOLS,
     _tool_add_document_to_project,
     _tool_compare_documents,
@@ -98,6 +106,13 @@ from .tools_impl import (  # noqa: F401
     _tool_search_knowledge_graph,
     _tool_summarize_document,
     execute_tool,
+)
+from src.shared.enums import TERMINAL_STREAM_EVENTS, JobStatus
+
+from .streaming import (  # noqa: F401
+    _SSE_HEADERS,
+    stream_confirm_event_generator,
+    stream_event_generator,
 )
 
 # Per-user rate limiter for agent execute/stream endpoints.
@@ -131,102 +146,11 @@ def _validate_confirmable_job(job: dict, current_user: User) -> None:
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
-
-
-class AgentMessage(BaseModel):
-    role: Literal["user", "assistant"] = Field(
-        ..., description="Message role: user or assistant"
-    )
-    content: str = Field(..., max_length=32000, description="Message content")
-    client_message_id: Optional[UUID] = Field(
-        default=None,
-        description=(
-            "Client-supplied idempotency key. Only honored for role='user'; "
-            "ignored otherwise. Used to dedupe retries without a server-side SELECT."
-        ),
-    )
-
-    @field_validator("client_message_id")
-    @classmethod
-    def _only_for_user(cls, v: Optional[UUID], info) -> Optional[UUID]:
-        if v is not None and info.data.get("role") != "user":
-            raise ValueError("client_message_id only valid on user messages")
-        return v
-
-
-class PageContextRequest(BaseModel):
-    type: str = Field(default="unknown", description="Page context type")
-    project_id: Optional[str] = Field(
-        default=None, description="Project ID if on project page"
-    )
-    project_name: Optional[str] = Field(
-        default=None, description="Project name for display"
-    )
-    label: Optional[str] = Field(
-        default=None, description="Current page label (e.g., 'Documents', 'Notes')"
-    )
-    metadata: Optional[Dict[str, Any]] = None
-
-
-SUPPORTED_MODELS: frozenset[str] = frozenset({"", "model-router", "gpt-5-mini"})
-
-
-class AgentExecuteRequest(BaseModel):
-    messages: List[AgentMessage] = Field(
-        ..., max_length=50, description="Conversation messages"
-    )
-    page_context: PageContextRequest = Field(default_factory=PageContextRequest)
-    model: str = Field(
-        default="",
-        description=(
-            "Azure deployment name to route the chat to. Empty string uses the "
-            "server-configured deployment. See SUPPORTED_MODELS for the allow-list."
-        ),
-    )
-    use_rag: bool = Field(default=True)
-    max_context_docs: int = Field(default=5, ge=1, le=10)
-    thread_id: Optional[str] = None
-
-    @field_validator("model")
-    @classmethod
-    def _validate_model(cls, value: str) -> str:
-        if value not in SUPPORTED_MODELS:
-            supported = ", ".join(sorted(name for name in SUPPORTED_MODELS if name))
-            raise ValueError(
-                f"Unsupported model {value!r}. Supported deployments: {supported}."
-            )
-        return value
-
-
-class RetrievedContextResponse(BaseModel):
-    document_id: Optional[str] = None
-    title: str
-    content: str
-    score: float
-
-
-class ToolExecutionResponse(BaseModel):
-    id: str
-    tool_name: str
-    tool_display_name: str
-    args: Dict[str, Any]
-    status: str
-    result: Optional[Any] = None
-    error: Optional[str] = None
-    duration_ms: Optional[int] = None
-
-
-class AgentExecuteResponse(BaseModel):
-    message: AgentMessage
-    model: str
-    usage: Dict[str, int]
-    finish_reason: str
-    timestamp: str
-    rag_enabled: bool = False
-    retrieved_contexts: Optional[List[RetrievedContextResponse]] = None
-    tool_executions: Optional[List[ToolExecutionResponse]] = None
-    thread_id: str = ""
-    conversation_id: str = ""
+#
+# AgentMessage / PageContextRequest / SUPPORTED_MODELS / AgentExecuteRequest /
+# RetrievedContextResponse / ToolExecutionResponse / AgentExecuteResponse
+# moved to src/services/agent/schemas.py (re-exported above). Only the
+# router-local schemas remain here.
 
 
 class JobStartResponse(BaseModel):
