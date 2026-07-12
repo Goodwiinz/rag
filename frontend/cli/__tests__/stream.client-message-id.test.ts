@@ -28,7 +28,6 @@ const CONFIG = {
 const HEADERS = {
   'Content-Type': 'application/json',
   Authorization: 'Bearer tok_test',
-  'X-Organization-ID': 'org_1',
 };
 
 const UUID_V4_RE =

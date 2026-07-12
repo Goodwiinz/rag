@@ -31,7 +31,6 @@ const CONFIG = {
 const HEADERS = {
   'Content-Type': 'application/json',
   Authorization: 'Bearer tok_test',
-  'X-Organization-ID': 'org_1',
 };
 
 function sseResponse(events: Array<{ event: string; data: unknown }>) {
@@ -160,7 +159,8 @@ test('yields confirmation event', async () => {
 });
 
 test('yields error event on non-ok response', async () => {
-  const mockFetch = vi.fn()
+  const mockFetch = vi
+    .fn()
     .mockResolvedValue({ ok: false, status: 401, body: null });
 
   const events: unknown[] = [];
