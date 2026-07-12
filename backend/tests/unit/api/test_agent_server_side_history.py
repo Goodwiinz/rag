@@ -1,5 +1,5 @@
 """Option B server-side history rebuild (AGENT_SERVER_SIDE_HISTORY) — unit tests
-for the message-assembly helpers in ``src.api.agent.jobs``.
+for the message-assembly helpers in ``src.services.agent.agent_execution_service``.
 
 Pure Python: the graph is a stub whose ``aget_state`` returns a canned snapshot,
 and the DB is a fake whose ``execute`` returns canned ChatMessage rows. No real
@@ -17,7 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-from src.api.agent.jobs import (
+from src.services.agent.agent_execution_service import (
     _newest_user_message,
     _seed_message_id,
     build_graph_input_messages,

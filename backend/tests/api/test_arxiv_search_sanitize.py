@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.api.agent.tools_impl import _sanitize_arxiv_query, _tool_search_arxiv
+from src.services.agent.tools_impl import _sanitize_arxiv_query, _tool_search_arxiv
 
 # ---------------------------------------------------------------------------
 # _sanitize_arxiv_query
@@ -79,10 +79,10 @@ async def test_tool_search_arxiv_uses_relevance_sort_by_default() -> None:
     with (
         patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
         patch(
-            "src.api.agent.tools_impl._arxiv_cache_get",
+            "src.services.agent.tools_impl._arxiv_cache_get",
             return_value=None,
         ),
-        patch("src.api.agent.tools_impl._arxiv_cache_set"),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
     ):
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -115,10 +115,10 @@ async def test_tool_search_arxiv_chronological_uses_date_sort() -> None:
     with (
         patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
         patch(
-            "src.api.agent.tools_impl._arxiv_cache_get",
+            "src.services.agent.tools_impl._arxiv_cache_get",
             return_value=None,
         ),
-        patch("src.api.agent.tools_impl._arxiv_cache_set"),
+        patch("src.services.agent.tools_impl._arxiv_cache_set"),
     ):
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -139,10 +139,10 @@ async def test_tool_search_arxiv_empty_results_include_honest_warning() -> None:
     with (
         patch("src.services.arxiv.arxiv_service.ArXivIngestionService") as mock_cls,
         patch(
-            "src.api.agent.tools_impl._arxiv_cache_get",
+            "src.services.agent.tools_impl._arxiv_cache_get",
             return_value=None,
         ),
-        patch("src.api.agent.tools_impl._arxiv_cache_set") as cache_set,
+        patch("src.services.agent.tools_impl._arxiv_cache_set") as cache_set,
     ):
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=service)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=None)

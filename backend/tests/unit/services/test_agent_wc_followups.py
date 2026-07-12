@@ -26,7 +26,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.agent.execute import router
-from src.api.agent.jobs import (
+from src.services.agent.agent_execution_service import (
     _clear_stale_pending_confirmation,
     _get_job,
     _resume_agent_graph,
@@ -165,7 +165,7 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -201,7 +201,7 @@ async def test_resume_proceeds_when_interrupt_present():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -232,7 +232,7 @@ async def test_resume_rejects_ownerless_checkpoint():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 

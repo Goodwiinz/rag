@@ -101,7 +101,7 @@ async def test_done_frame_carries_tool_executions():
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=AsyncMock(return_value="assistant-msg-1"),
         ),
     ):

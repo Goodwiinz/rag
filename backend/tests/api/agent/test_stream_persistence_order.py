@@ -165,7 +165,7 @@ async def test_connected_client_error_persists_partial_assistant_row(
 
     TestSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
 
-    from src.api.agent import jobs as jobs_mod
+    from src.services.agent import agent_execution_service as jobs_mod
     from src.api.agent import streaming as streaming_mod
 
     with (

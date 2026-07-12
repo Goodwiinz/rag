@@ -1,8 +1,12 @@
-"""Client-safe error helpers for the agent API.
+"""Client-safe error helpers for the agent execution paths.
 
 Provides utilities that log the full internal exception server-side while
 returning a generic, non-leaking message to the caller.  Callers should
 replace bare ``str(e)`` in client-facing payloads with ``client_safe_error``.
+
+Lives in the service layer (moved from ``src.api.agent._errors``, audit
+B5/C4-fold) because the graph runner in ``agent_execution_service`` needs it
+and services must never import ``src.api``.
 """
 
 import logging

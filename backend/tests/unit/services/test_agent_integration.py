@@ -415,16 +415,16 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ) as mock_persist_assistant,
             patch(
-                "src.api.agent.jobs._persist_user_message",
+                "src.services.agent.agent_execution_service._persist_user_message",
                 new_callable=AsyncMock,
             ) as mock_persist_user,
             patch(
-                "src.api.agent.jobs.AsyncSessionLocal",
+                "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -492,12 +492,12 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ),
             patch(
-                "src.api.agent.jobs.AsyncSessionLocal",
+                "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -561,12 +561,12 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ),
             patch(
-                "src.api.agent.jobs.AsyncSessionLocal",
+                "src.services.agent.agent_execution_service.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -742,12 +742,12 @@ class TestSSEStreamPersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-id",
             ) as mock_persist_assistant,
             patch(
-                "src.api.agent.jobs._persist_user_message",
+                "src.services.agent.agent_execution_service._persist_user_message",
                 new_callable=AsyncMock,
             ) as mock_persist_user,
         ):

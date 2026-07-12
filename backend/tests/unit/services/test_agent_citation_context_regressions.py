@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
-from src.api.agent.jobs import _coerce_citation_document_id
+from src.services.agent.agent_execution_service import _coerce_citation_document_id
 from src.services.agent._nodes_rag import _shape_do_kb_context
 
 

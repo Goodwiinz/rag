@@ -9,7 +9,7 @@ stale L2 entry; (4) Redis-down still performs the live call.
 
 from __future__ import annotations
 
-from src.api.agent import tools_impl as ti
+from src.services.agent import tools_impl as ti
 
 
 def _clear_l1():

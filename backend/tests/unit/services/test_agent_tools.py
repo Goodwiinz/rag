@@ -81,12 +81,12 @@ class TestAddDocumentToProject:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=doc,
             ),
             patch(
-                "src.api.agent.tools_impl._verify_project_ownership",
+                "src.services.agent.tools_impl._verify_project_ownership",
                 new_callable=AsyncMock,
                 return_value=project,
             ),
@@ -115,7 +115,7 @@ class TestAddDocumentToProject:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -161,12 +161,12 @@ class TestAddDocumentToProject:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=doc,
             ),
             patch(
-                "src.api.agent.tools_impl._verify_project_ownership",
+                "src.services.agent.tools_impl._verify_project_ownership",
                 new_callable=AsyncMock,
                 return_value=project,
             ),
@@ -378,7 +378,7 @@ class TestExecuteToolDispatch:
         from src.api.agent.execute import execute_tool
 
         with patch(
-            "src.api.agent.tools_impl._tool_add_document_to_project",
+            "src.services.agent.tools_impl._tool_add_document_to_project",
             new_callable=AsyncMock,
             return_value={"status": "success"},
         ) as mock_handler:
@@ -398,7 +398,7 @@ class TestExecuteToolDispatch:
         from src.api.agent.execute import execute_tool
 
         with patch(
-            "src.api.agent.tools_impl._tool_create_project",
+            "src.services.agent.tools_impl._tool_create_project",
             new_callable=AsyncMock,
             return_value={"status": "success", "project_id": "p1"},
         ) as mock_handler:
@@ -418,7 +418,7 @@ class TestExecuteToolDispatch:
         from src.api.agent.execute import execute_tool
 
         with patch(
-            "src.api.agent.tools_impl._tool_forget_memory",
+            "src.services.agent.tools_impl._tool_forget_memory",
             new_callable=AsyncMock,
             return_value={"status": "completed", "deleted": 1, "matches": []},
         ) as mock_handler:
@@ -442,7 +442,7 @@ class TestExecuteToolDispatch:
         from src.api.agent.execute import execute_tool
 
         with patch(
-            "src.api.agent.tools_impl._tool_execute_code",
+            "src.services.agent.tools_impl._tool_execute_code",
             new_callable=AsyncMock,
             return_value={"status": "ok"},
         ) as mock_handler:

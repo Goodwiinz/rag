@@ -152,7 +152,7 @@ async def test_partial_results_covered_first_leftovers_in_original_order():
 
 @pytest.mark.unit
 async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
-    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.client import DOKnowledgeBaseError  # noqa: F401
     from src.services.do_kb.models import RetrieveResult
 
@@ -205,7 +205,7 @@ async def test_tool_do_kb_retrieve_flag_on_calls_rerank_and_reflects_scores():
 
 @pytest.mark.unit
 async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
-    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.models import RetrieveResult
 
     user = MagicMock()
@@ -254,7 +254,7 @@ async def test_tool_do_kb_retrieve_flag_off_never_imports_rerank():
 
 @pytest.mark.unit
 async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
-    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.models import RetrieveResult
 
     user = MagicMock()
@@ -322,7 +322,7 @@ async def test_tool_do_kb_retrieve_evidence_flag_on_calls_summarize_evidence():
 
 @pytest.mark.unit
 async def test_tool_do_kb_retrieve_evidence_flag_off_never_calls_summarize_evidence():
-    from src.api.agent.tools_impl import _tool_do_kb_retrieve
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
     from src.services.do_kb.models import RetrieveResult
 
     user = MagicMock()

@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.api.agent.jobs import _clear_stale_pending_confirmation
+from src.services.agent.agent_execution_service import _clear_stale_pending_confirmation
 
 
 def _make_graph(
@@ -145,7 +145,7 @@ class TestClearStalePendingConfirmation:
 
         import logging
 
-        with caplog.at_level(logging.WARNING, logger="src.api.agent.jobs"):
+        with caplog.at_level(logging.WARNING, logger="src.services.agent.agent_execution_service"):
             result = await _clear_stale_pending_confirmation(graph, config)
 
         # Returned list contains the tool name.

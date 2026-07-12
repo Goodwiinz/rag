@@ -6,8 +6,9 @@ Dispatch (flag-gated by ``AGENT_DISPATCH_BACKEND=celery``, default
 ``background``): the API commits the ``agent_runs`` row (+ idempotency key)
 and writes the Redis job record BEFORE publishing (flush-before-external),
 then ``run_agent_job`` claims the row's one-shot execution lease and drives
-``jobs._run_agent_graph`` — the exact coroutine the FastAPI BackgroundTasks
-path runs, so both backends share one runner and one status protocol.
+``agent_execution_service._run_agent_graph`` — the exact coroutine the
+FastAPI BackgroundTasks path runs, so both backends share one runner and one
+status protocol.
 
 Idempotency: ``agent_run_service.claim_execution`` succeeds at most once per
 run (``status == running AND lease_owner IS NULL``), so a duplicate delivery
@@ -157,9 +158,10 @@ async def _execute_agent_job(
 ) -> dict:
     """Claim the run, rebuild the request/user, and drive the shared runner.
 
-    ``jobs._run_agent_graph`` owns every status transition for the run itself
-    (completed / failed / awaiting_confirmation / cancelled / timeout); this
-    wrapper only handles what can go wrong BEFORE the runner starts.
+    ``agent_execution_service._run_agent_graph`` owns every status transition
+    for the run itself (completed / failed / awaiting_confirmation /
+    cancelled / timeout); this wrapper only handles what can go wrong BEFORE
+    the runner starts.
     """
     from src.services.agent import agent_run_service
 
@@ -206,8 +208,8 @@ async def _execute_agent_job(
         await _fail_job_record(job_id, "Agent run owner unavailable.", user_id=user_id)
         return {"job_id": job_id, "outcome": "user-unavailable"}
 
-    from src.api.agent.execute import AgentExecuteRequest
-    from src.api.agent.jobs import _run_agent_graph
+    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.services.agent.schemas import AgentExecuteRequest
 
     try:
         request = AgentExecuteRequest(**request_payload)

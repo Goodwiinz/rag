@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 from langgraph.graph import add_messages
 
-from src.api.agent.jobs import build_user_history_messages
+from src.services.agent.agent_execution_service import build_user_history_messages
 
 
 def _user(content: str, cmid=None) -> SimpleNamespace:
