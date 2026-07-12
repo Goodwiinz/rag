@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from src.api.documents import files as files_mod
 from src.models.processing import JobStatus
+from src.shared.pagination import PaginationParams
 
 pytestmark = pytest.mark.unit
 
@@ -123,8 +124,7 @@ def test_list_files_maps_frontend_status_vocabulary():
     # column used to raise LookupError → 500. Now it maps and returns cleanly.
     resp = asyncio.run(
         files_mod.list_files(
-            page=1,
-            size=20,
+            pagination=PaginationParams(page=1, size=20),
             document_type=None,
             processing_status="indexed",
             search=None,
@@ -144,8 +144,7 @@ def test_list_files_rejects_unknown_status():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             files_mod.list_files(
-                page=1,
-                size=20,
+                pagination=PaginationParams(page=1, size=20),
                 document_type=None,
                 processing_status="bogus",
                 search=None,
