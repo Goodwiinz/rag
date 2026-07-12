@@ -96,3 +96,47 @@ def test_dev_is_not_a_fallback_environment() -> None:
     """
     assert "dev" not in MEMORY_FALLBACK_ENVIRONMENTS
     assert "development" in MEMORY_FALLBACK_ENVIRONMENTS
+
+
+# ---------------------------------------------------------------------------
+# is_throwaway_environment — the shared predicate reused by both durability
+# gating (above) and the startup LLM-config readiness gate (main.py). Kept in
+# lock-step with require_durable_agent_state so the two can never drift.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "environment",
+    ["development", "testing", "local", "test", "ci", "TESTING", " development "],
+)
+def test_is_throwaway_true_for_local_ci_envs(environment: str) -> None:
+    assert _settings(environment).is_throwaway_environment is True
+
+
+@pytest.mark.parametrize(
+    "environment",
+    ["dev", "production", "staging", "qa", "prod-eu", "", "DEV", " dev "],
+)
+def test_is_throwaway_false_for_shared_or_unknown_envs(environment: str) -> None:
+    assert _settings(environment).is_throwaway_environment is False
+
+
+def test_is_throwaway_ignores_break_glass_override() -> None:
+    """Env classification is independent of ALLOW_MEMORY_FALLBACK.
+
+    The override waives durability but does NOT reclassify a shared env as a
+    throwaway boot — readiness gating must still treat ``dev`` as strict.
+    """
+    settings = _settings("dev", ALLOW_MEMORY_FALLBACK=True)
+    assert settings.is_throwaway_environment is False
+    assert settings.require_durable_agent_state is False
+
+
+@pytest.mark.parametrize(
+    "environment",
+    ["development", "testing", "local", "test", "ci", "dev", "production", "qa", ""],
+)
+def test_durability_is_inverse_of_throwaway_without_override(environment: str) -> None:
+    """Without the break-glass override, durability == not throwaway."""
+    settings = _settings(environment)
+    assert settings.require_durable_agent_state is not settings.is_throwaway_environment

@@ -310,34 +310,44 @@ async def lifespan(app: FastAPI):
         logger.debug(f"LangSmith configuration skipped: {e}")
 
     # Validate LLM (Azure/OpenAI) configuration at startup.
-    # In non-dev environments, a missing endpoint/key sets the readiness flag
-    # to not-ready so the pod is kept out of the load balancer rather than
-    # crashing on every agent turn. In dev/local it's a warning only.
+    # In strict (shared/deployed) environments, a missing endpoint/key flips
+    # the readiness flag to not-ready so the pod is kept out of the load
+    # balancer rather than crashing on every agent turn. In a throwaway
+    # local/CI boot (``is_throwaway_environment``) it is a warning only and
+    # MUST NOT block readiness — otherwise a dev-labelled process with
+    # missing/rotated Azure config would flip every pod NotReady while the
+    # log claims readiness isn't blocked. Uses the same throwaway-env
+    # predicate as ``require_durable_agent_state`` so the two gates can't drift.
     try:
+        from src.health.endpoints import (
+            resolve_startup_readiness,
+            set_llm_config_ready,
+        )
         from src.services.agent.llm_factory import validate_llm_config
-        from src.health.endpoints import set_llm_config_ready
 
         llm_config_ok = validate_llm_config()
-        set_llm_config_ready(llm_config_ok)
-        if not llm_config_ok:
-            if environment in ("development", "local", "test"):
-                logger.warning(
-                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
-                    "AZURE_OPENAI_CHAT_API_KEY (or non-CHAT variants) are unset. "
-                    "Agent turns will fail at call time. "
-                    "Continuing in %s without blocking readiness.",
-                    environment,
-                )
-            else:
-                logger.critical(
-                    "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and "
-                    "AZURE_OPENAI_CHAT_API_KEY (or AZURE_OPENAI_ENDPOINT / "
-                    "AZURE_OPENAI_API_KEY) must be set. Readiness probe will "
-                    "return 503 until resolved (environment=%s).",
-                    environment,
-                )
-        else:
+        is_throwaway = app_settings.is_throwaway_environment
+        set_llm_config_ready(resolve_startup_readiness(llm_config_ok, is_throwaway))
+        if llm_config_ok:
             logger.info("LLM config validated OK")
+        elif is_throwaway:
+            # Throwaway boot: keep readiness ready, warn only.
+            logger.warning(
+                "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and/or "
+                "AZURE_OPENAI_CHAT_API_KEY (or non-CHAT variants) are unset. "
+                "Agent turns will fail at call time. "
+                "Continuing in %s without blocking readiness.",
+                environment,
+            )
+        else:
+            # Strict env: readiness already flipped False so the pod leaves the LB.
+            logger.critical(
+                "LLM config incomplete: AZURE_OPENAI_CHAT_ENDPOINT and "
+                "AZURE_OPENAI_CHAT_API_KEY (or AZURE_OPENAI_ENDPOINT / "
+                "AZURE_OPENAI_API_KEY) must be set. Readiness probe will "
+                "return 503 until resolved (environment=%s).",
+                environment,
+            )
     except Exception as e:
         logger.debug("LLM config validation skipped: %s", e)
 

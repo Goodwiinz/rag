@@ -31,9 +31,12 @@ _readiness_last_check_time: float = 0.0
 _readiness_cached_result: Optional[Dict[str, Any]] = None
 _readiness_lock: Optional["asyncio.Lock"] = None
 
-# Readiness flag: set False when LLM config is missing at startup so the
-# /health/readiness probe returns 503 and the pod stays out of the LB.
-# Starts True so development boots don't 503 before startup runs.
+# Readiness flag: set False only in strict (shared/deployed) environments
+# when LLM config is missing at startup, so the /health/readiness probe
+# returns 503 and the pod stays out of the LB. Throwaway local/CI boots keep
+# this True (warning only) — see main.py's is_throwaway_environment branch —
+# so a dev-labelled process with missing/rotated Azure config doesn't flip
+# every pod NotReady. Starts True so boots don't 503 before startup runs.
 _llm_config_ready: bool = True
 
 
@@ -41,6 +44,20 @@ def set_llm_config_ready(ok: bool) -> None:
     """Called from main.py lifespan after validate_llm_config()."""
     global _llm_config_ready
     _llm_config_ready = ok
+
+
+def resolve_startup_readiness(llm_config_ok: bool, is_throwaway_env: bool) -> bool:
+    """Readiness-flag value to set at startup given LLM config validity + env.
+
+    Matches the documented intent of the readiness probe: a missing/rotated
+    LLM config blocks readiness (returns False) ONLY in strict
+    (shared/deployed) environments. In a throwaway local/CI boot
+    (``Settings.is_throwaway_environment``) readiness is never blocked on LLM
+    config — the process still boots ready with a warning — so a
+    dev-labelled pod with bad Azure config isn't flipped NotReady while the
+    logs claim readiness isn't blocked.
+    """
+    return llm_config_ok or is_throwaway_env
 
 
 def get_health_checker() -> HealthChecker:
@@ -327,9 +344,10 @@ async def readiness_probe():
     """
     Kubernetes readiness probe.
     Checks if the application is ready to serve traffic.
-    Returns 503 when the LLM config is incomplete (non-dev) or when a
-    critical dependency is unhealthy. Liveness (/health/liveness) is
-    unaffected — the pod stays alive but is removed from the LB.
+    Returns 503 when the LLM config is incomplete (strict/non-throwaway
+    env only) or when a critical dependency is unhealthy. Liveness
+    (/health/liveness) is unaffected — the pod stays alive but is removed
+    from the LB.
 
     The dependency checks are cached for a few seconds (see
     ``_readiness_cache_ttl``) so kubelet polling doesn't open a fresh
