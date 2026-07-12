@@ -2,7 +2,6 @@
 Background tasks for document processing with async pipeline execution
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
@@ -16,9 +15,11 @@ from src.models.document import Document, ProcessingStatus
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.documents.document_quality_service import DocumentQualityService
 from src.services.documents.enhanced_file_service import EnhancedFileService
+from src.services.documents.upload_progress_bus import publish_progress
 from src.services.processing.multimodal_processing_service import (
     MultimodalProcessingService,
 )
+from src.tasks._async_utils import run_async
 from src.tasks.celery_app import celery_app
 from src.tasks.replay_guard import claim_job_for_processing
 
@@ -39,9 +40,6 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
     """
     Process document upload with enhanced pipeline
     """
-    # Lazy import to avoid circular dependency
-    from src.api.documents.document_upload import upload_manager
-
     db = SessionLocal()
     task_id = self.request.id
 
@@ -86,31 +84,26 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
         # Initialize processing service
         processing_service = MultimodalProcessingService(db)
 
-        # Update upload progress if available
+        # Publish upload progress to Redis; the API process forwards it to the
+        # live WebSocket. This worker cannot reach those sockets directly — its
+        # in-process connection map is always empty (audit B7).
         if upload_id:
-            asyncio.run(
-                upload_manager.update_progress(
-                    upload_id, 20.0, "Starting processing pipeline"
-                )
-            )
+            run_async(publish_progress(upload_id, 20.0, "Starting processing pipeline"))
 
         # Process document
-        processing_results = asyncio.run(
+        processing_results = run_async(
             processing_service.process_document(document, job, upload_id)
         )
 
-        # Update upload progress if available
+        # Publish terminal upload progress (forwarded to the WebSocket by the
+        # API-process subscriber).
         if upload_id:
             if processing_results["success"]:
-                asyncio.run(
-                    upload_manager.update_progress(
-                        upload_id, 100.0, "Processing completed"
-                    )
-                )
+                run_async(publish_progress(upload_id, 100.0, "Processing completed"))
             else:
                 error_msg = "; ".join(processing_results["errors"])
-                asyncio.run(
-                    upload_manager.update_progress(
+                run_async(
+                    publish_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {error_msg}"
                     )
                 )
@@ -139,16 +132,16 @@ def process_document_upload(self, job_id: str, upload_id: Optional[str] = None):
             job.fail_job(str(e))
             db.commit()
 
-        # Update upload progress if available
+        # Publish failure progress (best-effort; must not mask the original error).
         if upload_id:
             try:
-                asyncio.run(
-                    upload_manager.update_progress(
+                run_async(
+                    publish_progress(
                         upload_id, 0.0, error_message=f"Processing failed: {str(e)}"
                     )
                 )
-            except:
-                pass
+            except Exception:  # noqa: BLE001
+                logger.debug("Failed to publish upload failure progress", exc_info=True)
 
         # Retry if possible
         if self.request.retries < self.max_retries:
@@ -211,7 +204,7 @@ def process_high_priority_document(self, job_id: str):
         job.config["skip_optional_steps"] = True  # Skip non-essential steps for speed
         db.commit()
 
-        processing_results = asyncio.run(
+        processing_results = run_async(
             processing_service.process_document(document, job)
         )
 
@@ -286,7 +279,7 @@ def process_low_priority_document(self, job_id: str):
         job.config["extended_timeout"] = True
         db.commit()
 
-        processing_results = asyncio.run(
+        processing_results = run_async(
             processing_service.process_document(document, job)
         )
 
@@ -491,7 +484,7 @@ def retry_failed_processing(self, job_id: str):
 
         # Process document
         processing_service = MultimodalProcessingService(db)
-        processing_results = asyncio.run(
+        processing_results = run_async(
             processing_service.process_document(document, job)
         )
 
