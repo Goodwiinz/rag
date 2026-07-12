@@ -87,6 +87,24 @@ class Settings(BaseSettings):
     ALLOW_MEMORY_FALLBACK: bool = False
 
     @property
+    def is_throwaway_environment(self) -> bool:
+        """Whether ``ENVIRONMENT`` names an explicit local/CI throwaway process.
+
+        Keyed on ``MEMORY_FALLBACK_ENVIRONMENTS`` — the single source of truth
+        for "is this a disposable local/test/CI boot?" (``development``,
+        ``testing``, ``local``, ``test``, ``ci``). Deliberately excludes
+        ``dev``: the DOKS ``dev`` deployment is a shared, long-lived,
+        load-balanced environment and must behave like a strict env for
+        readiness / durability gating.
+
+        Reuse this predicate anywhere behaviour must relax only for throwaway
+        boots (agent-state durability, readiness gating) instead of
+        re-deriving an env allowlist — a drifted second/third list is how the
+        live ``ENVIRONMENT=dev`` deployment slips through the wrong branch.
+        """
+        return self.ENVIRONMENT.strip().lower() in MEMORY_FALLBACK_ENVIRONMENTS
+
+    @property
     def require_durable_agent_state(self) -> bool:
         """Whether agent state (checkpointer / memory store) must be durable.
 
@@ -96,7 +114,7 @@ class Settings(BaseSettings):
         initialise, instead of silently degrading to in-memory state.
 
         False only when the environment is an explicit local/CI throwaway
-        (``MEMORY_FALLBACK_ENVIRONMENTS``) or the ``ALLOW_MEMORY_FALLBACK``
+        (``is_throwaway_environment``) or the ``ALLOW_MEMORY_FALLBACK``
         break-glass override is set. Keyed on "is this a throwaway
         process?", never on a hard-coded allowlist of strict env names —
         the old ``("production", "staging")`` gate never fired in the live
@@ -104,7 +122,7 @@ class Settings(BaseSettings):
         """
         if self.ALLOW_MEMORY_FALLBACK:
             return False
-        return self.ENVIRONMENT.strip().lower() not in MEMORY_FALLBACK_ENVIRONMENTS
+        return not self.is_throwaway_environment
 
     # Canonical public URL of the frontend (e.g. https://www.goodwiinz.tech).
     # Used to build redirect targets like the CLI device-flow auth page.

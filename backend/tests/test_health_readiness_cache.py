@@ -172,6 +172,65 @@ async def test_readiness_llm_config_not_ready_skips_dependency_calls(monkeypatch
 
 
 @pytest.mark.unit
+def test_startup_readiness_strict_env_bad_config_blocks():
+    """Strict (non-throwaway) env + missing LLM config → not ready (503 later)."""
+    assert ep.resolve_startup_readiness(
+        llm_config_ok=False, is_throwaway_env=False
+    ) is (False)
+
+
+@pytest.mark.unit
+def test_startup_readiness_throwaway_env_bad_config_stays_ready():
+    """Throwaway local/CI env + missing LLM config → stays ready (warn only)."""
+    assert ep.resolve_startup_readiness(llm_config_ok=False, is_throwaway_env=True) is (
+        True
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("is_throwaway", [True, False])
+def test_startup_readiness_good_config_ready_everywhere(is_throwaway):
+    """Valid LLM config → ready in every environment class."""
+    assert (
+        ep.resolve_startup_readiness(llm_config_ok=True, is_throwaway_env=is_throwaway)
+        is True
+    )
+
+
+@pytest.mark.unit
+async def test_readiness_strict_env_bad_config_returns_503(monkeypatch):
+    """End-to-end: strict-env startup decision flips the flag → probe 503s."""
+    stub = _StubChecker()
+    monkeypatch.setattr(ep, "get_health_checker", lambda: stub)
+    # Mirror the main.py startup wiring for a strict env with bad config.
+    ep.set_llm_config_ready(
+        ep.resolve_startup_readiness(llm_config_ok=False, is_throwaway_env=False)
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await ep.readiness_probe()
+
+    assert exc.value.status_code == 503
+    assert "LLM configuration incomplete" in exc.value.detail
+    assert stub.calls == {}  # short-circuited before dependency checks
+
+
+@pytest.mark.unit
+async def test_readiness_throwaway_env_bad_config_stays_ready(monkeypatch):
+    """End-to-end: throwaway-env startup decision keeps the pod ready."""
+    stub = _StubChecker()
+    monkeypatch.setattr(ep, "get_health_checker", lambda: stub)
+    ep.set_llm_config_ready(
+        ep.resolve_startup_readiness(llm_config_ok=False, is_throwaway_env=True)
+    )
+
+    result = await ep.readiness_probe()
+
+    assert result["status"] == "ready"
+    assert stub.calls == {"database": 1, "redis": 1}
+
+
+@pytest.mark.unit
 async def test_readiness_only_checks_database_and_redis(monkeypatch):
     """Optional backends (e.g. Neo4j) must not gate readiness."""
     stub = _StubChecker()
