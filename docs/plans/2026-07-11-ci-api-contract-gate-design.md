@@ -8,29 +8,24 @@ as successful even when pytest fails. The latest successful `develop` pipeline
 demonstrated the defect: pytest exited 4 because `faker` was missing, while both
 `API Contract Tests` and `Test Summary` remained green.
 
+Further investigation showed the job does not point at a test suite at all:
+`backend/tests/api_contract/` does not exist. The similarly named
+`tests/api_contract/` suite is 7,587 lines of stale tests and cannot collect
+against the current auth API. Adding Faker and making the job blocking would
+therefore replace a false green gate with a permanently red one.
+
 ## Approved design
 
-Make the existing contract lane genuinely blocking without broadening its
-dependency surface:
-
-1. Install the already project-pinned `faker==25.2.0` dependency alongside
-   `schemathesis` in the contract job.
-2. Remove step-level `continue-on-error` so pytest's exit status becomes the job
-   result consumed by `test-summary`.
-3. Add a focused static regression test that reads the workflow and asserts the
-   contract step installs Faker and cannot suppress pytest failures.
-
-Installing all of `backend/requirements-test.txt` was rejected because it adds a
-large unrelated test and evaluation dependency set to this job. Removing only
-`continue-on-error` was rejected because the known missing dependency would make
-the gate fail before exercising any contracts.
+Remove the dead job and every `test-summary` dependency, environment variable,
+table row, and blocking-lane reference that advertises it as a gate. Preserve
+the stale suite for a separate, explicitly scoped contract-test rebuild. Add a
+static regression test that prevents the dead job or its summary claims from
+being restored accidentally.
 
 ## Verification
 
 Use a red/green cycle for the static workflow regression test, parse/lint the
-workflow, and run the API contract suite in an environment containing the same
-runtime dependencies. GitHub Actions remains the authoritative full-system check
-because it provisions the PostgreSQL service used by the job.
+workflow, and verify no contract-job identifiers remain in the workflow.
 
 ## Delivery boundary
 
