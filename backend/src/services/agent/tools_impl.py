@@ -1234,8 +1234,8 @@ async def _tool_ingest_arxiv(
             linked_project_name: Optional[str] = None
             link_error: Optional[str] = None
             if project_id and document_ids and current_user:
-                from src.api.agent.tool_helpers import _link_documents_to_project
                 from src.core.database import AsyncSessionLocal as _LinkSession
+                from src.services.agent.tool_helpers import _link_documents_to_project
 
                 try:
                     async with _LinkSession() as link_db:
@@ -1585,7 +1585,7 @@ async def _tool_add_document_to_project(
             if not project:
                 return {"error": "Project not found or access denied"}
 
-            from src.api.agent.tool_helpers import _link_documents_to_project
+            from src.services.agent.tool_helpers import _link_documents_to_project
 
             result = await _link_documents_to_project(
                 fresh_db, project, [str(doc_uuid)]
