@@ -22,9 +22,8 @@ def _state_with_n_humans(n: int) -> dict:
 
 
 def _config() -> dict:
-    user = MagicMock()
-    user.id = "user-1"
-    return {"configurable": {"current_user": user, "thread_id": "t-1"}}
+    # Ids-only configurable (audit B8)
+    return {"configurable": {"user_id": "user-1", "thread_id": "t-1"}}
 
 
 @pytest.mark.unit

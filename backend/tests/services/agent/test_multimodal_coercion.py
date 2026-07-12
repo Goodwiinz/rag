@@ -78,7 +78,7 @@ class TestMemorySaveCoercesMultimodal:
             "tool_executions": [{"tool_name": "search_arxiv"}],
             "thread_id": "",
         }
-        config = {"configurable": {"current_user": user, "thread_id": ""}}
+        config = {"configurable": {"user_id": str(user.id), "thread_id": ""}}
 
         with patch(
             "src.services.agent.memory.get_memory_store",

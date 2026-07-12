@@ -318,10 +318,10 @@ class TurnResult:
 async def run_scenario(
     scenario: Scenario,
     graph: Any,
-    db: Any,
+    db: Any,  # kept for call-signature stability; config carries ids only (B8)
     user: Any,
 ) -> TurnResult:
-    """Drive one agent scenario with a real DB session + user.
+    """Drive one agent scenario as a real user (ids-only graph config).
 
     HITL auto-confirm: on a pending interrupt (detected via the returned
     ``__interrupt__`` state, or ``GraphInterrupt`` as a defensive fallback)
@@ -399,10 +399,12 @@ async def run_scenario(
             "org_id": str(getattr(user, "organization_id", "") or ""),
             "thread_id": thread_id,
         },
+        # Ids only (audit B8): graph nodes/tools open their own
+        # tool_session() and re-load the user org-scoped.
         "configurable": {
             "thread_id": thread_id,
-            "db": db,
-            "current_user": user,
+            "user_id": str(user.id),
+            "organization_id": str(getattr(user, "organization_id", "") or ""),
             "page_context": dict(scenario.page_context),
         },
     }

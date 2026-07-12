@@ -594,8 +594,101 @@ AGENT_TOOLS = [
 # Tool dispatcher
 # ---------------------------------------------------------------------------
 
+# Tools whose implementations take neither a DB session nor a User object.
+# The dispatcher skips opening a tool_session() for these so a slow external
+# call (search_arxiv sits in the 120s timeout tier) never pins a pooled
+# session/user lookup it will not use.
+_CONTEXT_FREE_TOOLS = frozenset(
+    {
+        "search_arxiv",
+        "search_external_database",
+        "list_external_databases",
+        "forget_memory",  # user_id string only — no session, no ORM user
+    }
+)
+
 
 async def execute_tool(
+    tool_name: str,
+    args: Dict[str, Any],
+    user_id: str = "",
+    organization_id: str = "",
+    thread_id: str = "",
+    db: Optional[AsyncSession] = None,
+    current_user: Optional[User] = None,
+) -> Dict[str, Any]:
+    """Execute an agent tool and return the result.
+
+    This is the boundary where scalar identifiers become a session + user
+    (audit B8): the LangGraph ``configurable`` carries ids only, so the
+    production path calls this with ``user_id`` / ``organization_id`` /
+    ``thread_id`` and the dispatcher opens a fresh tool-call-scoped session
+    via :func:`~src.services.agent.tool_session.tool_session` and re-loads
+    the acting user org-scoped via ``resolve_tool_user``.
+
+    ``db`` / ``current_user`` remain as an explicit injection seam for
+    direct callers and tests; when either is provided no session is opened
+    and the values are forwarded as-is.
+    """
+    if tool_name in _CONTEXT_FREE_TOOLS or _is_unknown_tool(tool_name):
+        return await _dispatch_tool(
+            tool_name, args, user_id, db, current_user, thread_id
+        )
+
+    if db is not None or current_user is not None:
+        return await _dispatch_tool(
+            tool_name, args, user_id, db, current_user, thread_id
+        )
+
+    from src.services.agent.tool_session import resolve_tool_user, tool_session
+
+    async with tool_session() as session:
+        resolved_user = await resolve_tool_user(session, user_id, organization_id)
+        # End the resolve transaction so the connection returns to the pool
+        # while a slow tool body (LLM call, arXiv download) runs;
+        # expire_on_commit=False keeps the loaded User usable and the tool's
+        # own statements transparently begin a new transaction.
+        await session.commit()
+        return await _dispatch_tool(
+            tool_name, args, user_id, session, resolved_user, thread_id
+        )
+
+
+# Known tool names — kept in sync with the dispatch chain below so unknown
+# tools short-circuit without opening a database session.
+_KNOWN_TOOLS = frozenset(
+    {
+        "search_arxiv",
+        "ingest_arxiv_papers",
+        "search_documents",
+        "do_kb_retrieve",
+        "add_document_to_project",
+        "create_project",
+        "create_project_note",
+        "list_projects",
+        "list_project_documents",
+        "summarize_document",
+        "compare_documents",
+        "extract_entities",
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+        "create_draft",
+        "export_bibliography",
+        "execute_code",
+        "search_external_database",
+        "list_external_databases",
+        "forget_memory",
+    }
+)
+
+
+def _is_unknown_tool(tool_name: str) -> bool:
+    return tool_name not in _KNOWN_TOOLS
+
+
+async def _dispatch_tool(
     tool_name: str,
     args: Dict[str, Any],
     user_id: str = "",
@@ -603,7 +696,7 @@ async def execute_tool(
     current_user: Optional[User] = None,
     thread_id: str = "",
 ) -> Dict[str, Any]:
-    """Execute an agent tool and return the result."""
+    """Route a tool call to its ``_tool_*`` implementation."""
     if tool_name == "search_arxiv":
         return await _tool_search_arxiv(args)
     if tool_name == "ingest_arxiv_papers":
@@ -1122,8 +1215,13 @@ async def _tool_ingest_arxiv(
             document_ids = []
             kb_sync_failed = False
             if ingested and current_user:
-                # Use a fresh DB session to avoid concurrency issues with the
-                # shared graph session (same pattern as _tool_add_document_to_project).
+                # KEPT fresh sessions (audit B8 judgment): ingest is
+                # deliberately phase-isolated — this atomic ``begin()`` batch
+                # commits the documents independently of the KB dual-write
+                # (kb_db) and the project link (link_db) below, so a failure
+                # in a later phase can never roll back papers that already
+                # landed. The tool-call session from execute_tool may carry
+                # an open transaction, which ``begin()`` would reject.
                 from src.core.database import AsyncSessionLocal
 
                 try:
@@ -1542,10 +1640,11 @@ async def _tool_add_document_to_project(
 ) -> Dict[str, Any]:
     """Add an existing document to a research project.
 
-    Uses a fresh DB session to avoid concurrency issues when the agent
-    fires multiple add_document_to_project calls in parallel.
+    ``db`` is the tool-call-scoped session opened by ``execute_tool`` —
+    parallel add_document_to_project calls each own their session, so the
+    former ad-hoc fresh-session dodge here is no longer needed (audit B8).
     """
-    if not current_user:
+    if not db or not current_user:
         return {"error": "Authentication required"}
 
     document_id = args.get("document_id", "")
@@ -1556,45 +1655,38 @@ async def _tool_add_document_to_project(
     if not project_id:
         return {"error": "project_id is required"}
 
-    from src.core.database import AsyncSessionLocal
-
     try:
-        async with AsyncSessionLocal() as fresh_db:
-            # Resolve document (UUID or title)
-            doc = await _resolve_document_id(document_id, fresh_db, current_user)
-            if not doc:
-                return {
-                    "error": f"Document '{document_id}' not found. The document must be ingested into the system first. "
-                    "Use ingest_arxiv_papers to ingest papers, then use the returned document_ids (UUIDs)."
-                }
-            doc_uuid = doc.id
-
-            # Verify project ownership (resolves UUID or name)
-            project = await _verify_project_ownership(
-                project_id, fresh_db, current_user
-            )
-            if not project:
-                return {"error": "Project not found or access denied"}
-
-            from src.services.agent.tool_helpers import _link_documents_to_project
-
-            result = await _link_documents_to_project(
-                fresh_db, project, [str(doc_uuid)]
-            )
-            await fresh_db.commit()
-
-            if result["linked"] == 0 and result["already_linked"] >= 1:
-                return {
-                    "status": "already_linked",
-                    "message": f"Document '{doc.title}' is already in project '{project.name}'.",
-                }
-
+        # Resolve document (UUID or title)
+        doc = await _resolve_document_id(document_id, db, current_user)
+        if not doc:
             return {
-                "status": "success",
-                "message": f"Added document '{doc.title}' to project '{project.name}'.",
-                "document_id": str(doc.id),
-                "project_id": str(project.id),
+                "error": f"Document '{document_id}' not found. The document must be ingested into the system first. "
+                "Use ingest_arxiv_papers to ingest papers, then use the returned document_ids (UUIDs)."
             }
+        doc_uuid = doc.id
+
+        # Verify project ownership (resolves UUID or name)
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
+
+        from src.services.agent.tool_helpers import _link_documents_to_project
+
+        result = await _link_documents_to_project(db, project, [str(doc_uuid)])
+        await db.commit()
+
+        if result["linked"] == 0 and result["already_linked"] >= 1:
+            return {
+                "status": "already_linked",
+                "message": f"Document '{doc.title}' is already in project '{project.name}'.",
+            }
+
+        return {
+            "status": "success",
+            "message": f"Added document '{doc.title}' to project '{project.name}'.",
+            "document_id": str(doc.id),
+            "project_id": str(project.id),
+        }
     except Exception as e:
         logger.error("add_document_to_project tool failed", exc_info=e)
         return {"error": f"Failed to add document to project: {str(e)}"}
@@ -1609,62 +1701,59 @@ async def _tool_create_project(
 
     If ``workspace_id`` is omitted, the user's first workspace is used.
     """
-    if not current_user:
+    if not db or not current_user:
         return {"error": "Authentication required"}
 
     name = (args.get("name") or "").strip()
     if not name:
         return {"error": "name is required"}
 
-    from src.core.database import AsyncSessionLocal
     from src.services.research.project_service import ProjectService
     from src.shared.research_schemas import ProjectCreate
 
     try:
-        async with AsyncSessionLocal() as fresh_db:
-            service = ProjectService(fresh_db)
+        # ``db`` is tool-call-scoped (execute_tool opens one session per
+        # call), so the service can use it directly; ProjectService commits
+        # internally. (audit B8 — former fresh-session dodge removed.)
+        service = ProjectService(db)
 
-            workspace_id_raw = args.get("workspace_id")
-            if workspace_id_raw:
-                try:
-                    workspace_id = UUID(str(workspace_id_raw))
-                except ValueError:
-                    return {"error": "workspace_id must be a valid UUID"}
-            else:
-                workspace_ids = await service._get_workspace_ids_for_user(
-                    current_user.id
-                )
-                if not workspace_ids:
-                    return {
-                        "error": (
-                            "No workspace found for user. Create a workspace first."
-                        )
-                    }
-                workspace_id = workspace_ids[0]
+        workspace_id_raw = args.get("workspace_id")
+        if workspace_id_raw:
+            try:
+                workspace_id = UUID(str(workspace_id_raw))
+            except ValueError:
+                return {"error": "workspace_id must be a valid UUID"}
+        else:
+            workspace_ids = await service._get_workspace_ids_for_user(current_user.id)
+            if not workspace_ids:
+                return {
+                    "error": ("No workspace found for user. Create a workspace first.")
+                }
+            workspace_id = workspace_ids[0]
 
-            payload = ProjectCreate(
-                workspace_id=workspace_id,
-                name=name,
-                description=args.get("description") or None,
-                research_goals=args.get("research_goals") or None,
-                tags=list(args.get("tags") or []),
-                deadline=None,
-                color=None,
-                icon=None,
-            )
+        payload = ProjectCreate(
+            workspace_id=workspace_id,
+            name=name,
+            description=args.get("description") or None,
+            research_goals=args.get("research_goals") or None,
+            tags=list(args.get("tags") or []),
+            deadline=None,
+            color=None,
+            icon=None,
+        )
 
-            project = await service.create_project(
-                user_id=current_user.id,
-                project_data=payload,
-            )
+        project = await service.create_project(
+            user_id=current_user.id,
+            project_data=payload,
+        )
 
-            return {
-                "status": "success",
-                "project_id": str(project.id),
-                "name": project.name,
-                "workspace_id": str(project.workspace_id),
-                "message": f"Created project '{project.name}'.",
-            }
+        return {
+            "status": "success",
+            "project_id": str(project.id),
+            "name": project.name,
+            "workspace_id": str(project.workspace_id),
+            "message": f"Created project '{project.name}'.",
+        }
     except Exception as e:
         logger.error("create_project tool failed", exc_info=e)
         return {"error": f"Failed to create project: {str(e)}"}
@@ -1691,35 +1780,32 @@ async def _tool_create_project_note(
     if not project_id:
         return {"error": "project_id is required"}
 
-    from src.core.database import AsyncSessionLocal
     from src.services.research.project_service import ProjectService
 
     try:
-        async with AsyncSessionLocal() as fresh_db:
-            # Verify project ownership (resolves UUID or name). Kept in the
-            # adapter — the tool and the REST route authorize differently, so
-            # ProjectService.create_note stays persistence-only.
-            project = await _verify_project_ownership(
-                project_id, fresh_db, current_user
-            )
-            if not project:
-                return {"error": "Project not found or access denied"}
+        # Verify project ownership (resolves UUID or name). Kept in the
+        # adapter — the tool and the REST route authorize differently, so
+        # ProjectService.create_note stays persistence-only. ``db`` is the
+        # tool-call-scoped session (audit B8 — fresh-session dodge removed).
+        project = await _verify_project_ownership(project_id, db, current_user)
+        if not project:
+            return {"error": "Project not found or access denied"}
 
-            note = await ProjectService(fresh_db).create_note(
-                user_id=current_user.id,
-                project_id=project.id,
-                title=title,
-                content=content,
-                tags=tags or [],
-            )
+        note = await ProjectService(db).create_note(
+            user_id=current_user.id,
+            project_id=project.id,
+            title=title,
+            content=content,
+            tags=tags or [],
+        )
 
-            return {
-                "status": "success",
-                "note_id": str(note.id),
-                "title": note.title,
-                "project_name": project.name,
-                "message": f"Created note '{title}' in project '{project.name}'.",
-            }
+        return {
+            "status": "success",
+            "note_id": str(note.id),
+            "title": note.title,
+            "project_name": project.name,
+            "message": f"Created note '{title}' in project '{project.name}'.",
+        }
     except Exception as e:
         logger.error("create_project_note tool failed", exc_info=e)
         return {"error": f"Failed to create note: {str(e)}"}
@@ -1811,10 +1897,11 @@ async def _tool_list_projects(
     """List research projects owned by the current user.
 
     Thin wrapper around :meth:`ProjectService.list_projects` that returns a
-    compact payload suitable for LLM context. Uses a fresh DB session to
-    avoid conflicts with the shared graph session.
+    compact payload suitable for LLM context. ``db`` is the tool-call-scoped
+    session opened by ``execute_tool`` (audit B8 — the former fresh-session
+    dodge of the shared graph session is no longer needed).
     """
-    if not current_user:
+    if not db or not current_user:
         return {"error": "Authentication required"}
 
     raw_limit = args.get("limit", 20)
@@ -1827,41 +1914,39 @@ async def _tool_list_projects(
     tag = (args.get("tag") or "").strip() or None
     search = (args.get("search") or "").strip() or None
 
-    from src.core.database import AsyncSessionLocal
     from src.services.research.project_service import ProjectService
 
     try:
-        async with AsyncSessionLocal() as fresh_db:
-            service = ProjectService(fresh_db)
-            result = await service.list_projects(
-                user_id=current_user.id,
-                project_status=status,
-                tag=tag,
-                search=search,
-                skip=0,
-                limit=limit,
-            )
+        service = ProjectService(db)
+        result = await service.list_projects(
+            user_id=current_user.id,
+            project_status=status,
+            tag=tag,
+            search=search,
+            skip=0,
+            limit=limit,
+        )
 
-            projects = list(result.get("projects") or [])
-            return {
-                "projects": [
-                    {
-                        "id": str(p.id),
-                        "name": p.name,
-                        "description": getattr(p, "description", None),
-                        "status": getattr(p, "research_status", None),
-                        "tags": list(getattr(p, "tags", []) or []),
-                        "updated_at": (
-                            p.updated_at.isoformat()
-                            if getattr(p, "updated_at", None)
-                            else None
-                        ),
-                    }
-                    for p in projects
-                ],
-                "total": result.get("total", len(projects)),
-                "returned": len(projects),
-            }
+        projects = list(result.get("projects") or [])
+        return {
+            "projects": [
+                {
+                    "id": str(p.id),
+                    "name": p.name,
+                    "description": getattr(p, "description", None),
+                    "status": getattr(p, "research_status", None),
+                    "tags": list(getattr(p, "tags", []) or []),
+                    "updated_at": (
+                        p.updated_at.isoformat()
+                        if getattr(p, "updated_at", None)
+                        else None
+                    ),
+                }
+                for p in projects
+            ],
+            "total": result.get("total", len(projects)),
+            "returned": len(projects),
+        }
     except Exception as e:
         logger.error("list_projects tool failed", exc_info=e)
         return {"error": f"Failed to list projects: {str(e)}"}

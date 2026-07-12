@@ -139,11 +139,6 @@ async def test_route_and_tool_produce_identical_note(session_factory, monkeypatc
     user_id, project_id = await _seed_project(session_factory)
     current_user = SimpleNamespace(id=user_id)
 
-    # The tool opens its own fresh AsyncSessionLocal() — point it at our engine.
-    monkeypatch.setattr(
-        "src.core.database.AsyncSessionLocal", session_factory, raising=False
-    )
-
     # --- Route path -------------------------------------------------------
     async with session_factory() as db:
         note_data = NoteCreate(
@@ -162,16 +157,18 @@ async def test_route_and_tool_produce_identical_note(session_factory, monkeypatc
     route_note_id = route_resp.id
 
     # --- Tool path --------------------------------------------------------
-    tool_result = await tools_impl._tool_create_project_note(
-        {
-            "project_id": str(project_id),
-            "title": "Shared title",
-            "content": "Shared body",
-            "tags": ["a", "b"],
-        },
-        db=object(),  # truthy sentinel; the tool uses a fresh session
-        current_user=current_user,
-    )
+    # The tool writes via the per-call session it is handed (audit B8).
+    async with session_factory() as tool_db:
+        tool_result = await tools_impl._tool_create_project_note(
+            {
+                "project_id": str(project_id),
+                "title": "Shared title",
+                "content": "Shared body",
+                "tags": ["a", "b"],
+            },
+            db=tool_db,
+            current_user=current_user,
+        )
     assert tool_result["status"] == "success"
     tool_note_id = uuid.UUID(tool_result["note_id"])
 
@@ -202,17 +199,15 @@ async def test_tool_rejects_unowned_project(session_factory, monkeypatch):
     _, project_id = await _seed_project(session_factory)
     # A different user does NOT own the project.
     other_user = SimpleNamespace(id=uuid.uuid4())
-    monkeypatch.setattr(
-        "src.core.database.AsyncSessionLocal", session_factory, raising=False
-    )
 
-    result = await tools_impl._tool_create_project_note(
-        {
-            "project_id": str(project_id),
-            "title": "T",
-            "content": "C",
-        },
-        db=object(),
-        current_user=other_user,
-    )
+    async with session_factory() as tool_db:
+        result = await tools_impl._tool_create_project_note(
+            {
+                "project_id": str(project_id),
+                "title": "T",
+                "content": "C",
+            },
+            db=tool_db,
+            current_user=other_user,
+        )
     assert result == {"error": "Project not found or access denied"}

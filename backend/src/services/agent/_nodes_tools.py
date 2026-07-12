@@ -117,12 +117,14 @@ def _scrub_tool_args(args: dict) -> dict:
 
 
 def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:
-    """(user_id, org_id, thread_id) for audit logging, from the run config."""
+    """(user_id, org_id, thread_id) for audit logging, from the run config.
+
+    The configurable carries scalar ids only (audit B8) — never an ORM User.
+    """
     configurable = (config or {}).get("configurable", {}) if config else {}
-    cu = configurable.get("current_user")
     return (
-        str(getattr(cu, "id", "") or ""),
-        str(getattr(cu, "organization_id", "") or ""),
+        str(configurable.get("user_id", "") or ""),
+        str(configurable.get("organization_id", "") or ""),
         str(configurable.get("thread_id", "") or ""),
     )
 
@@ -427,17 +429,22 @@ async def _execute_single_tool(
         try:
             configurable = config.get("configurable", {})
 
-            current_user = configurable.get("current_user")
+            # Scalar identifiers only (audit B8) — the executor
+            # (tools_impl.execute_tool) opens its own tool_session() and
+            # re-loads the acting user org-scoped. Never pull a live
+            # AsyncSession / ORM User out of the LangGraph config.
+            user_id = str(configurable.get("user_id", "") or "")
+            organization_id = str(configurable.get("organization_id", "") or "")
+            thread_id = str(configurable.get("thread_id", "") or "")
 
             async def _call_tool(args: dict):
                 return await asyncio.wait_for(
                     tool_executor(
                         tool_name=tool_name,
                         args=args,
-                        user_id=str(current_user.id) if current_user else "",
-                        db=configurable.get("db"),
-                        current_user=current_user,
-                        thread_id=configurable.get("thread_id") or "",
+                        user_id=user_id,
+                        organization_id=organization_id,
+                        thread_id=thread_id,
                     ),
                     timeout=timeout,
                 )

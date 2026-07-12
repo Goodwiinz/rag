@@ -138,8 +138,10 @@ def _resolve_active_project_id(
     return existing_project_id or extracted_pid or None
 
 
-async def _user_owns_project(session, project_id: Optional[str], current_user) -> bool:
-    """True if ``current_user`` owns the project (collection) ``project_id``.
+async def _user_owns_project(
+    session, project_id: Optional[str], user_id: Optional[str]
+) -> bool:
+    """True if the user ``user_id`` owns the project (collection) ``project_id``.
 
     The DO KB is org-scoped, and ``resolve_and_filter_chunks`` happily filters
     chunks by ANY project id it's handed. ``project_id`` here originates from
@@ -147,14 +149,17 @@ async def _user_owns_project(session, project_id: Optional[str], current_user) -
     user could pass another in-org project's id and learn which org documents
     belong to it (membership inference). Mirrors the ownership guard the agent
     tools use (``_verify_project_ownership``); kept inline to avoid a
-    services→api import. A non-UUID id is treated as not-owned (drop the scope).
+    services→api import. Takes the scalar ``user_id`` from the ids-only
+    configurable (audit B8). A non-UUID id is treated as not-owned (drop the
+    scope).
     """
-    if not project_id or current_user is None:
+    if not project_id or not user_id:
         return False
     try:
         from uuid import UUID as _UUID
 
         proj_uuid = _UUID(str(project_id).strip())
+        user_uuid = _UUID(str(user_id).strip())
     except (ValueError, AttributeError, TypeError):
         return False
     try:
@@ -169,7 +174,7 @@ async def _user_owns_project(session, project_id: Optional[str], current_user) -
             .where(
                 Collection.id == proj_uuid,
                 Collection.is_deleted == False,  # noqa: E712
-                Workspace.owner_id == current_user.id,
+                Workspace.owner_id == user_uuid,
             )
         )
         result = await session.execute(stmt)
@@ -279,13 +284,17 @@ def _maybe_traced_retriever(name: str):
 @_maybe_traced_retriever("do_kb_retriever")
 async def _try_primary_do_kb_read(
     query: str,
-    current_user,
+    user_id: Optional[str],
+    organization_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> Optional[List[dict]]:
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
     Returns None when primary read is disabled, the org has no KB, or the
     call fails — caller then falls back to the legacy Postgres hybrid path.
+
+    Takes scalar ``user_id`` / ``organization_id`` from the ids-only
+    configurable (audit B8) and opens its own tool-call-scoped session.
 
     When *project_id* is provided, post-filters chunks so only documents
     that belong to the active project survive. DO KB itself is org-scoped,
@@ -297,18 +306,25 @@ async def _try_primary_do_kb_read(
 
         if not getattr(_kb_cfg, "DO_KB_PRIMARY_READ", False):
             return None
-        org_id = getattr(current_user, "organization_id", None)
+        # Normalise to a UUID so downstream org-scoped queries bind the same
+        # type the ORM User's organization_id used to provide.
+        try:
+            from uuid import UUID as _UUID
+
+            org_id = _UUID(str(organization_id).strip()) if organization_id else None
+        except (ValueError, TypeError, AttributeError):
+            org_id = None
         if not org_id:
             return None
 
-        from src.core.database import AsyncSessionLocal
+        from src.services.agent.tool_session import tool_session
         from src.services.do_kb.retrieval import (
             DOKBRetrieveStatus,
             resolve_org_kb_uuid,
             retrieve_kb_chunks,
         )
 
-        async with AsyncSessionLocal() as session:
+        async with tool_session() as session:
             kb_uuid = await resolve_org_kb_uuid(session, org_id)
             if not kb_uuid:
                 return None
@@ -346,7 +362,7 @@ async def _try_primary_do_kb_read(
             # project that isn't theirs.
             scoped_project_id = project_id
             if project_id and not await _user_owns_project(
-                session, project_id, current_user
+                session, project_id, user_id
             ):
                 logger.info(
                     "do_kb_read: project %s not owned by caller — dropping scope",
@@ -396,8 +412,15 @@ async def _try_primary_do_kb_read(
 
 
 @_maybe_traced_retriever("hybrid_search_retriever")
-async def _legacy_hybrid_search_fallback(query: str, current_user) -> List[dict]:
-    """Fallback to hybrid search when DO KB is unavailable or returns nothing."""
+async def _legacy_hybrid_search_fallback(
+    query: str,
+    user_id: str,
+    organization_id: Optional[str] = None,
+) -> List[dict]:
+    """Fallback to hybrid search when DO KB is unavailable or returns nothing.
+
+    Takes scalar ids from the ids-only configurable (audit B8).
+    """
     try:
         from src.models.search_schemas import SearchQuery, SearchSortOrder, SearchType
         from src.services.search.hybrid_search_service import hybrid_search_service
@@ -409,10 +432,8 @@ async def _legacy_hybrid_search_fallback(query: str, current_user) -> List[dict]
             sort_order=SearchSortOrder.RELEVANCE,
             filters=None,
         )
-        org_id = (
-            str(current_user.organization_id) if current_user.organization_id else None
-        )
-        uid = str(current_user.id)
+        org_id = str(organization_id) if organization_id else None
+        uid = str(user_id)
         search_response = await asyncio.wait_for(
             asyncio.to_thread(
                 hybrid_search_service.search,
@@ -511,7 +532,10 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import _extract_project_id_from_text
 
     configurable = config.get("configurable", {})
-    current_user = configurable.get("current_user")
+    # Ids-only configurable (audit B8): retrieval needs the scalar user /
+    # org identifiers only — sessions are opened by the helpers themselves.
+    user_id = str(configurable.get("user_id", "") or "")
+    organization_id = str(configurable.get("organization_id", "") or "")
 
     # Find the last user message to use as search query
     last_user_msg: Optional[str] = None
@@ -589,7 +613,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
             }
             state_update["page_context"] = page_context
 
-    if not last_user_msg or not current_user:
+    if not last_user_msg or not user_id:
         return {"retrieved_contexts": [], **state_update}
 
     # Test-time injection / custom retriever override receives the query
@@ -598,7 +622,7 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     search_fn = configurable.get("search_fn")
     if search_fn:
         try:
-            contexts = await search_fn(last_user_msg, str(current_user.id))
+            contexts = await search_fn(last_user_msg, user_id)
             return {"retrieved_contexts": contexts, **state_update}
         except Exception as e:
             logger.warning("injected search_fn failed", exc_info=e)
@@ -622,13 +646,15 @@ async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     # Pass resolved_project_id so KB results stay scoped to the active project
     # — org-scoped KB otherwise leaks chunks from sibling projects.
     primary_contexts: Optional[List[dict]] = await _try_primary_do_kb_read(
-        search_query, current_user, project_id=resolved_project_id
+        search_query, user_id, organization_id, project_id=resolved_project_id
     )
     if primary_contexts:
         return {"retrieved_contexts": primary_contexts, **state_update}
 
     _record_do_kb_read("fallback_used")
-    contexts = await _legacy_hybrid_search_fallback(search_query, current_user)
+    contexts = await _legacy_hybrid_search_fallback(
+        search_query, user_id, organization_id
+    )
     return {"retrieved_contexts": contexts, **state_update}
 
 

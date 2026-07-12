@@ -48,37 +48,29 @@ def _mock_project(name="Test Project", proj_id=None):
 
 
 class TestAddDocumentToProject:
-    """Tests for _tool_add_document_to_project fresh-session behaviour."""
+    """_tool_add_document_to_project writes via the per-call session (B8)."""
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). _link_documents_to_project was refactored from db.add() "
-            "to a bulk db.execute(pg_insert.on_conflict_do_nothing); "
-            "MockAsyncSession.assert_added only tracks add() calls. "
-            "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
-            "remove this mark when the issue is fixed."
-        ),
-        strict=True,
-    )
-    async def test_success_uses_fresh_session(self):
-        """Tool should commit via AsyncSessionLocal, not the passed-in db."""
+    async def test_success_writes_via_tool_call_session(self):
+        """Tool commits via the per-call session passed in (audit B8) —
+        no ad-hoc AsyncSessionLocal of its own."""
         from src.api.agent.execute import _tool_add_document_to_project
 
         user = _mock_user()
         doc = _mock_document(title="Attention Paper")
         project = _mock_project(name="My Project")
 
-        fresh_db = MockAsyncSession()
-        # First execute → resolve document → found
-        # Second execute → verify project → found
-        # Third execute → check existing link → None (not linked)
-        fresh_db._scalar_result = None  # default for "not already linked"
+        tool_db = MockAsyncSession()
+        tool_db._scalar_result = None  # existing-link check → not linked
+
+        def _fail_sessionmaker(*_a, **_kw):  # pragma: no cover - guard
+            raise AssertionError(
+                "add_document_to_project must not open its own session"
+            )
 
         with (
             patch(
                 "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
+                side_effect=_fail_sessionmaker,
             ),
             patch(
                 "src.api.agent.tools_impl._resolve_document_id",
@@ -93,36 +85,32 @@ class TestAddDocumentToProject:
         ):
             result = await _tool_add_document_to_project(
                 args={"document_id": str(doc.id), "project_id": str(project.id)},
-                db=AsyncMock(),  # shared graph db — should NOT be used
+                db=tool_db,
                 current_user=user,
             )
 
         assert result["status"] == "success"
         assert "Attention Paper" in result["message"]
-        fresh_db.assert_added(count=1)
-        fresh_db.assert_committed()
+        # _link_documents_to_project uses a bulk INSERT..ON CONFLICT via
+        # db.execute (not db.add) — assert the statements + commit landed
+        # on the per-call session.
+        assert len(tool_db.execute_calls) >= 2  # existing-links SELECT + INSERT
+        tool_db.assert_committed()
 
     async def test_document_not_found_returns_error(self):
         """Tool should return a helpful error when document doesn't exist."""
         from src.api.agent.execute import _tool_add_document_to_project
 
         user = _mock_user()
-        fresh_db = MockAsyncSession()
 
-        with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
-            ),
-            patch(
-                "src.api.agent.tools_impl._resolve_document_id",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
+        with patch(
+            "src.api.agent.tools_impl._resolve_document_id",
+            new_callable=AsyncMock,
+            return_value=None,
         ):
             result = await _tool_add_document_to_project(
                 args={"document_id": "fake-id", "project_id": str(uuid4())},
-                db=AsyncMock(),
+                db=MockAsyncSession(),
                 current_user=user,
             )
 
@@ -130,19 +118,6 @@ class TestAddDocumentToProject:
         assert "not found" in result["error"].lower()
         assert "ingest" in result["error"].lower()
 
-    @pytest.mark.xfail(
-        reason=(
-            "Pre-existing failure exposed by depot→github-hosted runner switch "
-            "(PR #518). _link_documents_to_project moved to a bulk "
-            "pg_insert.on_conflict_do_nothing path; the 'already_linked' "
-            "branch now keys off the existence-select returning rows, but "
-            "the test only sets fresh_db._scalar_result (not query_results), "
-            "so .all() returns [] and the code reports 'success' instead. "
-            "Tracked in GOO-XXX-FILE_FOLLOWUP. Quarantined to unblock CI; "
-            "remove this mark when the issue is fixed."
-        ),
-        strict=True,
-    )
     async def test_already_linked_returns_status(self):
         """Tool should detect and report already-linked documents."""
         from src.api.agent.execute import _tool_add_document_to_project
@@ -151,15 +126,12 @@ class TestAddDocumentToProject:
         doc = _mock_document()
         project = _mock_project()
 
-        fresh_db = MockAsyncSession()
-        # scalar_one_or_none returns a truthy value → already linked
-        fresh_db.set_scalar_result(Mock())
+        tool_db = MockAsyncSession()
+        # The already-linked branch keys off the existence SELECT returning
+        # rows: _link_documents_to_project reads row[0] per row.
+        tool_db.set_query_result([(str(doc.id),)])
 
         with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
-            ),
             patch(
                 "src.api.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
@@ -173,7 +145,7 @@ class TestAddDocumentToProject:
         ):
             result = await _tool_add_document_to_project(
                 args={"document_id": str(doc.id), "project_id": str(project.id)},
-                db=AsyncMock(),
+                db=tool_db,
                 current_user=user,
             )
 
@@ -475,7 +447,9 @@ class TestCreateProject:
     async def test_missing_name_returns_error(self):
         from src.api.agent.execute import _tool_create_project
 
-        result = await _tool_create_project({"name": "  "}, None, _mock_user())
+        result = await _tool_create_project(
+            {"name": "  "}, MockAsyncSession(), _mock_user()
+        )
         assert "error" in result
         assert "name is required" in result["error"]
 
@@ -484,7 +458,7 @@ class TestCreateProject:
 
         result = await _tool_create_project(
             {"name": "X", "workspace_id": "not-a-uuid"},
-            None,
+            MockAsyncSession(),
             _mock_user(),
         )
         assert "error" in result
@@ -503,20 +477,14 @@ class TestCreateProject:
         service._get_workspace_ids_for_user = AsyncMock(return_value=[workspace_id])
         service.create_project = AsyncMock(return_value=project)
 
-        fresh_db = MockAsyncSession()
-
-        with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
-            ),
-            patch(
-                "src.services.research.project_service.ProjectService",
-                return_value=service,
-            ),
+        with patch(
+            "src.services.research.project_service.ProjectService",
+            return_value=service,
         ):
             result = await _tool_create_project(
-                {"name": "Diffusion Transformers", "tags": ["ml"]}, None, user
+                {"name": "Diffusion Transformers", "tags": ["ml"]},
+                MockAsyncSession(),
+                user,
             )
 
         assert result["status"] == "success"
@@ -533,19 +501,13 @@ class TestCreateProject:
         service = MagicMock()
         service._get_workspace_ids_for_user = AsyncMock(return_value=[])
 
-        fresh_db = MockAsyncSession()
-
-        with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
-            ),
-            patch(
-                "src.services.research.project_service.ProjectService",
-                return_value=service,
-            ),
+        with patch(
+            "src.services.research.project_service.ProjectService",
+            return_value=service,
         ):
-            result = await _tool_create_project({"name": "X"}, None, user)
+            result = await _tool_create_project(
+                {"name": "X"}, MockAsyncSession(), user
+            )
 
         assert "error" in result
         assert "workspace" in result["error"].lower()
@@ -591,21 +553,13 @@ class TestListProjects:
             }
         )
 
-        fresh_db = MockAsyncSession()
-
-        with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=fresh_db,
-            ),
-            patch(
-                "src.services.research.project_service.ProjectService",
-                return_value=service,
-            ),
+        with patch(
+            "src.services.research.project_service.ProjectService",
+            return_value=service,
         ):
             result = await _tool_list_projects(
                 {"status": "active", "tag": "ml", "search": "Alp", "limit": 5},
-                None,
+                MockAsyncSession(),
                 user,
             )
 
@@ -635,25 +589,20 @@ class TestListProjects:
             return_value={"projects": [], "total": 0}
         )
 
-        with (
-            patch(
-                "src.core.database.AsyncSessionLocal",
-                return_value=MockAsyncSession(),
-            ),
-            patch(
-                "src.services.research.project_service.ProjectService",
-                return_value=service,
-            ),
+        with patch(
+            "src.services.research.project_service.ProjectService",
+            return_value=service,
         ):
-            await _tool_list_projects({"limit": 9999}, None, user)
+            db = MockAsyncSession()
+            await _tool_list_projects({"limit": 9999}, db, user)
             assert service.list_projects.await_args.kwargs["limit"] == 50
 
             service.list_projects.reset_mock()
-            await _tool_list_projects({"limit": -3}, None, user)
+            await _tool_list_projects({"limit": -3}, db, user)
             assert service.list_projects.await_args.kwargs["limit"] == 1
 
             service.list_projects.reset_mock()
-            await _tool_list_projects({"limit": "not-a-number"}, None, user)
+            await _tool_list_projects({"limit": "not-a-number"}, db, user)
             assert service.list_projects.await_args.kwargs["limit"] == 20
 
 

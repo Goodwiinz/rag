@@ -66,12 +66,11 @@ def _make_state(user_msg: str) -> dict:
 
 
 def _make_config(thread_id: str | None = None) -> dict:
-    user = Mock(id=uuid4(), organization_id=uuid4())
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid4()),
-            "db": AsyncMock(),
-            "current_user": user,
+            "user_id": str(uuid4()),
+            "organization_id": str(uuid4()),
             "page_context": {"type": "unknown"},
         }
     }

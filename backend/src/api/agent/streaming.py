@@ -450,10 +450,15 @@ async def stream_event_generator(
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
         config = {
             "recursion_limit": RECURSION_LIMIT,
+            # Ids only (audit B8): graph nodes/tools open their own
+            # tool_session() and re-load the user org-scoped — never smuggle
+            # the live AsyncSession / ORM User through LangGraph config.
             "configurable": {
                 "thread_id": stream_thread_id,
-                "db": db,
-                "current_user": current_user,
+                "user_id": str(current_user.id),
+                "organization_id": str(
+                    getattr(current_user, "organization_id", "") or ""
+                ),
                 "page_context": page_context,
             },
             # LangSmith run metadata — per-tenant/turn filterable traces.
@@ -1000,11 +1005,15 @@ async def stream_confirm_event_generator(
         store = await get_memory_store()
         graph = compile_agent_graph(checkpointer=checkpointer, store=store)
 
+        # Ids only in configurable (audit B8) — checkpoint lookup needs the
+        # thread_id; the ids keep parity with the run config shape.
         snapshot_config = {
             "configurable": {
                 "thread_id": request_body.thread_id,
-                "db": db,
-                "current_user": current_user,
+                "user_id": str(current_user.id),
+                "organization_id": str(
+                    getattr(current_user, "organization_id", "") or ""
+                ),
             }
         }
         current_snapshot = await graph.aget_state(snapshot_config)
@@ -1023,8 +1032,10 @@ async def stream_confirm_event_generator(
             snapshot_config = {
                 "configurable": {
                     "thread_id": request_body.thread_id,
-                    "db": db,
-                    "current_user": current_user,
+                    "user_id": str(current_user.id),
+                    "organization_id": str(
+                        getattr(current_user, "organization_id", "") or ""
+                    ),
                 }
             }
             current_snapshot = await graph.aget_state(snapshot_config)
@@ -1131,10 +1142,13 @@ async def stream_confirm_event_generator(
 
         config = {
             "recursion_limit": RECURSION_LIMIT,
+            # Ids only (audit B8) — see stream_event_generator's run config.
             "configurable": {
                 "thread_id": request_body.thread_id,
-                "db": db,
-                "current_user": current_user,
+                "user_id": str(current_user.id),
+                "organization_id": str(
+                    getattr(current_user, "organization_id", "") or ""
+                ),
                 "page_context": page_context,
             },
         }
