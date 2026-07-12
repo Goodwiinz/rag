@@ -263,7 +263,11 @@ celeryWorker:
   autoscaling:
     enabled: true
     minReplicas: 1
-    maxReplicas: 5
+    # Capped at 3 (was 5) to bound the Supabase session-mode pooler budget.
+    # Worst-case client math (pooler cap 25): backend 7 + beat 3 + 3*3 workers
+    # 9 + synthetic 3 = 22, leaving headroom 3. Raise only after the pooler
+    # pool_size is lifted (or workers move to the transaction pooler).
+    maxReplicas: 3
     targetCPUUtilizationPercentage: 75
     # A backlog of heavy indexing tasks pressures RAM before CPU, so add workers
     # on memory too. Requires the memory metric block in templates/hpa.yaml.
@@ -291,8 +295,34 @@ celeryWorker:
     requests:
       cpu: 500m
       memory: 2Gi
+  # Per-component DB pool override (appended after the shared backend.env in
+  # templates/celery-worker-deployment.yaml; duplicate keys win last). Workers
+  # only open an async engine for the periodic beat tasks (reconcile/retention/
+  # sweepers), so a request-serving pool is wasteful and saturates the Supabase
+  # session-mode pooler (cap 25). Worst case per worker pod: async 1+1 + sync
+  # 1+0 = 3 connections.
+  env:
+    - name: DB_ASYNC_POOL_SIZE
+      value: "1"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "1"
+    - name: DB_SYNC_POOL_SIZE
+      value: "1"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "0"
 celeryBeat:
   enabled: true
+  # Per-component DB pool override (see celeryWorker.env above). Beat is a
+  # singleton scheduler; worst case 3 connections (async 1+1 + sync 1+0).
+  env:
+    - name: DB_ASYNC_POOL_SIZE
+      value: "1"
+    - name: DB_ASYNC_MAX_OVERFLOW
+      value: "1"
+    - name: DB_SYNC_POOL_SIZE
+      value: "1"
+    - name: DB_SYNC_MAX_OVERFLOW
+      value: "0"
   resources:
     # memory request == limit so beat is never "over request" and is not a
     # first-choice eviction target. It was OOM-evicted using ~686Mi against a
