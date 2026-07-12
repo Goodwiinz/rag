@@ -107,7 +107,7 @@ async def test_confirm_retries_on_first_aget_state_miss():
         # Confirm path now persists the assistant row directly via the safe
         # wrapper instead of the deprecated _persist_thread_messages shim.
         patch(
-            "src.api.agent.jobs._persist_assistant_message_safe",
+            "src.services.agent.agent_execution_service._persist_assistant_message_safe",
             new=AsyncMock(return_value="msg-1"),
         ),
         patch(

@@ -93,7 +93,7 @@ def stream_confirm_harness(monkeypatch):
     )
     monkeypatch.setattr(streaming_mod, "AsyncSessionLocal", lambda: fake_db)
     monkeypatch.setattr(
-        "src.api.agent.jobs._persist_assistant_message_safe",
+        "src.services.agent.agent_execution_service._persist_assistant_message_safe",
         AsyncMock(return_value="assistant-msg-1"),
     )
     monkeypatch.setattr(

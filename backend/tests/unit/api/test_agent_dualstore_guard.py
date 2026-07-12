@@ -1,6 +1,6 @@
 """Chat dual-store divergence guard — unit tests (audit D3 / P2.6).
 
-Covers the two halves of the guard added to ``src.api.agent.jobs``:
+Covers the two halves of the guard added to ``src.services.agent.agent_execution_service``:
 
 1. ``_persist_user_message_guarded`` — the user-turn INSERT is retried once and,
    if it still fails, emits a structured WARN (thread_id + client_message_id) and
@@ -24,12 +24,12 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import HumanMessage
 
-import src.api.agent.jobs as jobs
+import src.services.agent.agent_execution_service as jobs
 import src.services.agent.observability as obs
 from src.models.chat_message import MessageRole
 
 THREAD = "11111111-1111-1111-1111-111111111111"
-JOBS_LOGGER = "src.api.agent.jobs"
+JOBS_LOGGER = "src.services.agent.agent_execution_service"
 
 
 # --------------------------------------------------------------------------- #

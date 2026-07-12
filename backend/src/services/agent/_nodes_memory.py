@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Background-task tracking — strong references so tasks are not GC'd mid-flight.
-# Mirrors the pattern in src/api/agent/jobs.py (_background_tasks + callback).
+# Mirrors the pattern in src/services/agent/agent_execution_service.py
+# (_background_tasks + callback).
 # ---------------------------------------------------------------------------
 _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 

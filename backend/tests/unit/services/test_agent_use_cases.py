@@ -195,12 +195,12 @@ class TestSearchIngestAddWorkflow:
                     return_value=add_fresh_db,
                 ),
                 patch(
-                    "src.api.agent.tools_impl._resolve_document_id",
+                    "src.services.agent.tools_impl._resolve_document_id",
                     new_callable=AsyncMock,
                     return_value=mock_doc,
                 ),
                 patch(
-                    "src.api.agent.tools_impl._verify_project_ownership",
+                    "src.services.agent.tools_impl._verify_project_ownership",
                     new_callable=AsyncMock,
                     return_value=project,
                 ),
@@ -238,7 +238,7 @@ class TestAddWithoutIngestFails:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=None,  # document not found
             ),
@@ -268,7 +268,7 @@ class TestAddWithoutIngestFails:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=None,
             ),
@@ -481,12 +481,12 @@ class TestSharedSessionNeverUsedForWrites:
                 return_value=fresh_db,
             ),
             patch(
-                "src.api.agent.tools_impl._resolve_document_id",
+                "src.services.agent.tools_impl._resolve_document_id",
                 new_callable=AsyncMock,
                 return_value=doc,
             ),
             patch(
-                "src.api.agent.tools_impl._verify_project_ownership",
+                "src.services.agent.tools_impl._verify_project_ownership",
                 new_callable=AsyncMock,
                 return_value=project,
             ),

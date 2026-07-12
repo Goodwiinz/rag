@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.agent.jobs import _resolve_and_bind_project
+from src.services.agent.agent_execution_service import _resolve_and_bind_project
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ async def test_unowned_client_project_is_dropped(mock_user, agent_thread, mock_d
     mock_db.execute.return_value = _result(first=None)
 
     with patch(
-        "src.api.agent.jobs._resolve_project_for_thread",
+        "src.services.agent.agent_execution_service._resolve_project_for_thread",
         new=AsyncMock(return_value=(None, None)),
     ), patch(
         "src.services.research.project_thread_service.attach_thread_to_project",
@@ -104,7 +104,7 @@ async def test_already_linked_thread_resolves_without_reattach(
     page_context = {"type": "chat"}
 
     with patch(
-        "src.api.agent.jobs._resolve_project_for_thread",
+        "src.services.agent.agent_execution_service._resolve_project_for_thread",
         new=AsyncMock(return_value=(str(project_id), "Linked Project")),
     ), patch(
         "src.services.research.project_thread_service.attach_thread_to_project",
@@ -144,7 +144,7 @@ async def test_workspace_thread_bridge_resolves_and_binds_agent_thread(
         return None, None
 
     with patch(
-        "src.api.agent.jobs._resolve_project_for_thread",
+        "src.services.agent.agent_execution_service._resolve_project_for_thread",
         new=AsyncMock(side_effect=resolve),
     ), patch(
         "src.services.research.project_thread_service.attach_thread_to_project",

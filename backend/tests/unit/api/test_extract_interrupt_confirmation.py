@@ -9,7 +9,7 @@ contract so the bug cannot silently return.
 
 import pytest
 
-from src.api.agent._errors import extract_interrupt_confirmation
+from src.services.agent._errors import extract_interrupt_confirmation
 
 
 class _FakeInterrupt:

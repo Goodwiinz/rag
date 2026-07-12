@@ -87,7 +87,7 @@ async def test_done_event_does_not_wait_on_commit(
 
     bg = _MockBackgroundTasks()
 
-    from src.api.agent import jobs as jobs_mod
+    from src.services.agent import agent_execution_service as jobs_mod
     from src.api.agent import streaming as streaming_mod
 
     with (

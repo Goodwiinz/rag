@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.api.agent.tool_helpers import _resolve_document_id, _resolve_project_id
+from src.services.agent.tool_helpers import _resolve_document_id, _resolve_project_id
 
 
 def _compiled(stmt) -> str:
