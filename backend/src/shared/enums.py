@@ -288,3 +288,23 @@ TERMINAL_STREAM_EVENTS: frozenset[AgentStreamEvent] = frozenset(
         AgentStreamEvent.CONFIRMATION,
     }
 )
+
+
+class SatelliteSyncStatus(StrEnum):
+    """Per-satellite fan-out outcome recorded on ``documents`` (audit D1).
+
+    Ingestion fans a document out to satellite indexes (Neo4j knowledge graph,
+    DO Knowledge Base) on a best-effort basis: a satellite failure is
+    deliberately non-fatal and the document still reaches COMPLETED. These
+    values record the truth of each satellite attempt
+    (``documents.neo4j_index_status`` / ``documents.do_kb_sync_status``) so a
+    drifted document is distinguishable from a healthy one and the scheduled
+    reconciler (``src.tasks.reconcile_tasks``) can re-drive failures.
+
+    ``NULL`` (column left unset) means the satellite write was never attempted
+    — e.g. the document has no extracted text, or DO KB is disabled.
+    """
+
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"

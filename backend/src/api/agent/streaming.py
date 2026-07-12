@@ -30,7 +30,7 @@ from .jobs import (
     _latest_user_client_message_id,
     _page_context_to_dict,
     _persist_assistant_message,
-    _persist_user_message,
+    _persist_user_message_guarded,
     _resolve_and_bind_project,
     _resolve_thread,
 )
@@ -366,7 +366,9 @@ async def stream_event_generator(
                 resolved_thread_id = str(thread_obj.id)
                 if request_body.thread_id != resolved_thread_id:
                     request_body.thread_id = resolved_thread_id
-                await _persist_user_message(db, current_user, request_body)
+                # Retry-once + observable-on-failure so a swallowed persist
+                # can't silently diverge the two stores (audit D3 / P2.6).
+                await _persist_user_message_guarded(db, current_user, request_body)
         except Exception:
             logger.warning(
                 "Failed to persist user turn before LLM call",

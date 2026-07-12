@@ -83,6 +83,20 @@ class Document(BaseModel):
     # Per-document DO KB indexing health: indexed | skipped | failed | timeout
     do_kb_index_status = Column(String(20), nullable=True, index=True)
 
+    # Per-satellite fan-out truth (audit D1). Values from
+    # src.shared.enums.SatelliteSyncStatus (pending | completed | failed);
+    # NULL = never attempted. Satellite failures are non-fatal by design (the
+    # document still reaches COMPLETED), so these columns are the only record
+    # that a satellite index drifted — the scheduled reconciler
+    # (src.tasks.reconcile_tasks) re-drives rows marked 'failed'.
+    # Outcome of the last Neo4j knowledge-graph indexing attempt:
+    neo4j_index_status = Column(String(20), nullable=True, index=True)
+    neo4j_indexed_at = Column(DateTime(timezone=True), nullable=True)
+    # Outcome of the last DO KB sync attempt (data-source registration).
+    # Distinct from do_kb_index_status, which tracks the KB-side indexing
+    # lifecycle after a successful registration.
+    do_kb_sync_status = Column(String(20), nullable=True, index=True)
+
     # Access control
     is_public = Column(Boolean, default=False, nullable=False)
     tags = Column(StringArray, nullable=True)
@@ -299,6 +313,9 @@ class Document(BaseModel):
         data["is_processing_successful"] = self.is_processing_successful
         data["can_be_searched"] = self.can_be_searched()
         data["do_kb_index_status"] = self.do_kb_index_status
+        # Per-satellite fan-out truth (audit D1)
+        data["neo4j_index_status"] = self.neo4j_index_status
+        data["do_kb_sync_status"] = self.do_kb_sync_status
 
         # Include content if requested
         if not include_content:

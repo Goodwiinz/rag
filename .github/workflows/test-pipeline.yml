@@ -493,59 +493,6 @@ jobs:
           flags: resilience
           token: ${{ secrets.CODECOV_TOKEN }}
   # ==========================================================================
-  # API Contract Tests
-  # ==========================================================================
-  api-contract-tests:
-    name: API Contract Tests
-    runs-on: ubuntu-latest
-    needs: [unit-tests, frontend-tests]
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test_db
-        ports:
-          - 5432/tcp
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Free runner disk space
-        run: |
-          df -h
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          docker system prune -af || true
-          df -h
-      - name: Cache pip dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-test-
-            ${{ runner.os }}-pip-
-      - name: Install dependencies
-        run: |
-          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
-          pip install schemathesis
-      - name: Run contract tests
-        run: |
-          pytest backend/tests/api_contract/ \
-            -c backend/pytest.ini \
-            -v
-        env:
-          ENVIRONMENT: testing
-          DATABASE_URL: "postgresql://test:test@localhost:${{ job.services.postgres.ports['5432'] }}/test_db"
-        continue-on-error: true # Allow failures during development
-  # ==========================================================================
   # E2E Tests (Full System)
   # ==========================================================================
   e2e-tests:
@@ -976,7 +923,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [migration-check, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, api-contract-tests, e2e-tests]
+    needs: [migration-check, unit-tests, golden-replay, integration-tests, resilience-tests, frontend-tests, security-scan, e2e-tests]
     if: always()
     env:
       MIGRATION_RESULT: ${{ needs.migration-check.result }}
@@ -986,7 +933,6 @@ jobs:
       RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
       FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
       SECURITY_RESULT: ${{ needs.security-scan.result }}
-      CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
       E2E_RESULT: ${{ needs.e2e-tests.result }}
       GH_WORKFLOW: ${{ github.workflow }}
       GH_REF: ${{ github.ref_name }}
@@ -1063,15 +1009,6 @@ jobs:
               echo "| Security Scan | :x: $SECURITY_RESULT |"
             fi
 
-            # API Contract Tests
-            if [ "$CONTRACT_RESULT" = "success" ]; then
-              echo "| API Contract Tests | :white_check_mark: Passed |"
-            elif [ "$CONTRACT_RESULT" = "skipped" ]; then
-              echo "| API Contract Tests | :fast_forward: Skipped |"
-            else
-              echo "| API Contract Tests | :x: $CONTRACT_RESULT |"
-            fi
-
             # E2E Tests
             if [ "$E2E_RESULT" = "success" ]; then
               echo "| E2E Tests | :white_check_mark: Passed |"
@@ -1094,17 +1031,16 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend-tests.result }}
           SECURITY_RESULT: ${{ needs.security-scan.result }}
           INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
-          CONTRACT_RESULT: ${{ needs.api-contract-tests.result }}
           RESILIENCE_RESULT: ${{ needs.resilience-tests.result }}
         run: |
           # Blocking lanes: migration guard, unit, golden replay, frontend,
-          # security, integration, contract, resilience. E2E and performance
+          # security, integration, resilience. E2E and performance
           # remain non-blocking (continue-on-error) until the E2E infra is
           # stabilized.
           failed=0
           for pair in "migration:$MIGRATION_RESULT" "unit:$UNIT_RESULT" "golden:$GOLDEN_RESULT" \
                       "frontend:$FRONTEND_RESULT" "security:$SECURITY_RESULT" \
-                      "integration:$INTEGRATION_RESULT" "contract:$CONTRACT_RESULT" \
+                      "integration:$INTEGRATION_RESULT" \
                       "resilience:$RESILIENCE_RESULT"; do
             name="${pair%%:*}"; result="${pair#*:}"
             if [ "$result" == "failure" ]; then

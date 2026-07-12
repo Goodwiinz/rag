@@ -93,7 +93,7 @@ async def test_main_done_carries_ids_in_canonical_mode():
             ),
         ),
         patch(
-            "src.api.agent.streaming._persist_user_message",
+            "src.api.agent.streaming._persist_user_message_guarded",
             new=AsyncMock(return_value=None),
         ),
         patch(
