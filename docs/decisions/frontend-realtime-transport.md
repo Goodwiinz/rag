@@ -25,8 +25,11 @@ were deleted in the C8 remediation PR.
    `useWebSocket` hook (`@/hooks/useWebSocket.ts`) and its
    `useDocumentProcessingUpdates` helper — consumed by document upload
    (`hooks/upload/useDocumentUpload.ts`), the processing dashboard, and the
-   realtime metrics cards. `websocketService.ts` is the thin auth-store wrapper
-   that initialises it. Authentication uses the `Sec-WebSocket-Protocol`
+   realtime metrics cards. The `RealtimeProcessingProvider`
+   (`components/realtime/RealtimeProcessingProvider.tsx`) constructs the
+   `WebSocketManager` from the authenticated Supabase session token +
+   `organization_id`, and the `useWebSocket` hook resolves that shared instance
+   (`getWebSocketManager()`). Authentication uses the `Sec-WebSocket-Protocol`
    header (`['auth', token]`), never a URL query param.
 
 3. **Topic subscription, not per-connection sockets.** Consumers subscribe to
@@ -51,7 +54,37 @@ These have real importers and their own domains; they are not part of the
 
 - `monitoringWebsocketService.ts` — admin monitoring feed (`MonitoringWebSocketClient`).
 - `realtimeWebSocketService.ts` — workspace realtime service (`useRealtimeProcessing`, `ConnectionManager`).
-- `realtime-websocket-service.ts` — realtime collaboration events.
 
 When these overlap enough to consolidate, fold them toward the canonical
 `WebSocketManager` rather than adding another parallel client.
+
+## Convergence status
+
+The goal is one canonical stack plus the small set of genuinely-used specialised
+clients above. Progress:
+
+- **Prior C8 remediation** — deleted `enhancedWebSocket.ts` and
+  `websocket-client.ts` (zero importers, no tests).
+- **Phase 1 (2026-07-12)** — deleted two more fully-dead parallel stacks, each
+  with zero live (non-excluded) importers and no tests. Both were already
+  quarantined in the tsconfig `exclude` list:
+  - `realtime-websocket-service.ts` — its only consumer was `store/realtime-store.ts`,
+    whose only consumer was the unmounted duplicate
+    `app/components/realtime/RealtimeStatusDashboard.tsx`. All three removed.
+    (Not to be confused with the **live** `realtimeWebSocketService.ts`, which
+    stays.) This corrected an earlier inaccuracy in this doc, which had listed
+    `realtime-websocket-service.ts` under "leave as-is (real importers)" — it had
+    none.
+  - `websocketService.ts` — an already-`@deprecated` standalone graph-updates
+    socket that never touched `WebSocketManager`; its only consumer was the
+    unmounted `components/graph/GraphWebSocketProvider.tsx`. Both removed.
+
+Remaining stacks and the order to fold them toward `WebSocketManager` (phase 2+,
+**not** done here — both are live and non-trivially consumed):
+
+1. `realtimeWebSocketService.ts` — workspace realtime service; consumed via
+   `useRealtimeProcessing` (NotificationCenter, RealtimeStatusDashboard,
+   PerformanceMonitor) and `ConnectionManager`. Migrate those consumers onto
+   `useWebSocket` topic subscriptions first (medium blast radius).
+2. `monitoringWebsocketService.ts` — admin monitoring feed; the largest client,
+   with its own auth/reconnect domain. Fold last.
