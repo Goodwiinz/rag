@@ -540,6 +540,21 @@ class Settings(BaseSettings):
     # (bounded work per beat tick).
     RETENTION_BATCH_SIZE: int = 500
     RETENTION_MAX_BATCHES: int = 20
+    # Audit P2.3 (D1): scheduled satellite reconciler. Satellite indexing
+    # (Neo4j KG / DO KB) is best-effort during ingestion; failures are
+    # recorded per-document (neo4j_index_status / do_kb_sync_status =
+    # 'failed') and the beat task src.tasks.reconcile_tasks picks them up.
+    # Two-stage safety: RECONCILER_ENABLED=true only REPORTS what it would
+    # re-drive; actual re-driving additionally requires RECONCILER_APPLY=true
+    # (default off — flip in values once report output looks sane).
+    RECONCILER_ENABLED: bool = True
+    RECONCILER_APPLY: bool = False
+    # Rate cap: at most this many documents re-driven (or listed, in
+    # report-only mode) per run. Neo4j re-drive re-runs spaCy extraction and
+    # DO KB re-drive re-uploads canonical text, so keep runs small.
+    RECONCILER_MAX_DOCS_PER_RUN: int = 25
+    # Page size for the org-scoped keyset iteration inside one run.
+    RECONCILER_BATCH_SIZE: int = 100
 
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn

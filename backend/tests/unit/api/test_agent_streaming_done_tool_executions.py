@@ -93,7 +93,7 @@ async def test_done_frame_carries_tool_executions():
             ),
         ),
         patch(
-            "src.api.agent.streaming._persist_user_message",
+            "src.api.agent.streaming._persist_user_message_guarded",
             new=AsyncMock(return_value=None),
         ),
         patch(

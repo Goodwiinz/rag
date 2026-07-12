@@ -36,6 +36,7 @@ celery_app = Celery(
         "src.tasks.research_tasks",
         "src.tasks.agent_run_tasks",
         "src.tasks.retention_tasks",
+        "src.tasks.reconcile_tasks",
     ],
 )
 
@@ -125,6 +126,12 @@ celery_app.conf.update(
         "retention-purge-append-only-events": {
             "task": "src.tasks.retention_tasks.purge_append_only_events",
             "schedule": 86400.0,  # daily
+        },
+        # Audit P2.3 (D1): satellite reconciler. Report-only by default
+        # (RECONCILER_APPLY=false); RECONCILER_ENABLED is the kill switch.
+        "reconcile-satellite-indexes": {
+            "task": "src.tasks.reconcile_tasks.reconcile_satellite_indexes",
+            "schedule": 1800.0,  # every 30 min; rate-capped per run
         },
     },
     task_default_retry_delay=60,

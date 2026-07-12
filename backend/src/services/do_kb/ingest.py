@@ -1,7 +1,11 @@
-"""Dual-write ingest: push existing Documents into the org's DO KB.
+"""Ingest: push existing Documents into the org's DO KB.
 
-Failure-isolated: every exception is swallowed and logged. The existing
-Qdrant write path remains the source of truth during Phase 2.
+DO KB is the retrieval backend (Qdrant was removed; PostgreSQL full-text is
+the always-on fallback). Failure-isolated: every exception is swallowed and
+logged — a KB outage must never fail ingestion. Callers on the ingestion path
+record the outcome in ``documents.do_kb_sync_status`` (audit D1) so a failed
+sync is visible and re-drivable by the satellite reconciler
+(``src.tasks.reconcile_tasks``) instead of silently dropped.
 
 Canonical Spaces key layout:
     documents/{organization_id}/{document_id}.{ext}
@@ -142,7 +146,11 @@ async def sync_document_to_kb(
     """Add the document to its organization's DO KB and persist the data source UUID.
 
     Returns the data source UUID on success, or None if skipped/failed.
-    Always swallows exceptions — Qdrant remains source of truth in Phase 2.
+    Always swallows exceptions — DO KB is best-effort by design (PostgreSQL
+    full-text search keeps working without it), so a KB failure must never
+    propagate into the caller's pipeline. Ingestion-path callers translate a
+    None return into ``documents.do_kb_sync_status='failed'`` for the
+    reconciler.
     """
     if not settings.DO_KB_ENABLED:
         return None

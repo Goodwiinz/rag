@@ -6,7 +6,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from celery import Task, current_app
@@ -28,6 +28,7 @@ from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph
 from src.services.processing.llm_entity_extraction import LLMEntityExtractionService
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
+from src.shared.enums import SatelliteSyncStatus
 from src.tasks.celery_app import celery_app
 from src.tasks.replay_guard import claim_job_for_processing
 
@@ -60,7 +61,9 @@ def _reset_pipeline_entities(db, document_id) -> int:
     )
 
 
-def _sync_document_to_kb_blocking(document) -> str | None:
+def _sync_document_to_kb_blocking(
+    document, *, trigger_indexing: bool = True
+) -> str | None:
     """Push a document to DO KB from a synchronous Celery task.
 
     DO KB (DigitalOcean Knowledge Base) is the retrieval backend after Qdrant
@@ -68,6 +71,10 @@ def _sync_document_to_kb_blocking(document) -> str | None:
     while these tasks hold a sync ``SessionLocal`` — bridge the sync-loaded ORM
     object into a fresh ``AsyncSessionLocal`` via ``merge()`` (synchronous in
     SQLAlchemy 2.0 — do NOT await), mirroring ``api/agent/tools_impl.py``.
+
+    ``trigger_indexing=False`` registers the data source without kicking the
+    org-level indexing job — the satellite reconciler uses it to batch one
+    kick per org instead of one per re-driven document.
 
     Returns the data-source uuid, or ``None`` when DO KB is disabled or the
     sync fails. Never raises — ingestion must not fail on a KB outage.
@@ -80,7 +87,9 @@ def _sync_document_to_kb_blocking(document) -> str | None:
         async with AsyncSessionLocal() as kb_db:
             # merge() is synchronous in SQLAlchemy 2.0; awaiting it raises.
             merged = kb_db.merge(document)
-            return await sync_document_to_kb(kb_db, merged)
+            return await sync_document_to_kb(
+                kb_db, merged, trigger_indexing=trigger_indexing
+            )
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -95,6 +104,88 @@ def _sync_document_to_kb_blocking(document) -> str | None:
         return None
     finally:
         loop.close()
+
+
+def _index_entities_to_graph(document, entities) -> int:
+    """Fan extracted entities out to the Neo4j knowledge graph, recording truth.
+
+    Audit D1 (P2.1): this fan-out is best-effort by design — a Neo4j outage
+    must never fail ingestion — but the outcome used to be a warn-log only, so
+    a graph-drifted document was indistinguishable from a healthy one. This
+    helper records the per-satellite outcome on the document instead:
+
+    - ``neo4j_index_status='completed'`` (+ ``neo4j_indexed_at``) only when
+      EVERY entity landed. ``create_entity_node`` swallows per-entity failures
+      and returns ``None`` (it never raises on a Neo4j outage), so a partial
+      or zero-indexed run is a real failure, not a success with a warn-log.
+    - ``neo4j_index_status='failed'`` on any exception or any missed entity —
+      the scheduled reconciler (``src.tasks.reconcile_tasks``) picks these up.
+
+    Also fixes the fan-out itself: the pipeline hands over ORM ``Entity`` rows
+    whose confidence column is ``confidence`` — the old inline code read
+    ``entity.confidence_score`` (an attribute that does not exist), so the
+    very first entity raised ``AttributeError`` and EVERY document's Neo4j
+    fan-out failed into the warn-log. The new status column would have exposed
+    that as 100% ``failed``; reading the real attribute makes success possible
+    again.
+
+    Never raises. Mutates ``document`` only; the caller owns the commit.
+    Returns the number of entities actually indexed.
+    """
+    kg_indexed = 0
+    try:
+        for entity in entities:
+            entity_id = knowledge_graph_service.create_entity_node(
+                entity_text=entity.name,
+                entity_type=(
+                    entity.entity_type.value
+                    if hasattr(entity.entity_type, "value")
+                    else str(entity.entity_type)
+                ),
+                document_id=str(document.id),
+                confidence=entity.confidence or 0.8,
+                organization_id=(
+                    str(document.organization_id) if document.organization_id else None
+                ),
+            )
+            if entity_id:
+                kg_indexed += 1
+        logger.info(
+            f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j "
+            f"for document {document.id}"
+        )
+        if kg_indexed == len(entities):
+            document.neo4j_index_status = SatelliteSyncStatus.COMPLETED.value
+            document.neo4j_indexed_at = datetime.now(timezone.utc)
+        else:
+            document.neo4j_index_status = SatelliteSyncStatus.FAILED.value
+    except Exception as e:
+        document.neo4j_index_status = SatelliteSyncStatus.FAILED.value
+        logger.warning(
+            f"Neo4j indexing failed for document {document.id}: {e}. "
+            "Entities are still available in PostgreSQL; marked "
+            "neo4j_index_status=failed for the reconciler."
+        )
+    return kg_indexed
+
+
+def _record_do_kb_sync_outcome(document, ds_uuid) -> None:
+    """Record the DO KB sync outcome on the document (audit D1 / P2.1).
+
+    Only meaningful when DO KB is enabled: ``sync_document_to_kb`` returns
+    ``None`` both when the feature is off (not an attempt — leave the column
+    alone) and when an enabled sync failed (record ``failed`` so the
+    reconciler can re-drive it). The ingestion call sites only invoke the sync
+    for documents with ``content_text``, so an enabled ``None`` here is always
+    a genuine failure (provisioning, canonical-text upload, data-source add,
+    or persist), never a nothing-to-sync skip.
+
+    Mutates ``document`` only; the caller owns the commit.
+    """
+    if ds_uuid:
+        document.do_kb_sync_status = SatelliteSyncStatus.COMPLETED.value
+    elif settings.DO_KB_ENABLED:
+        document.do_kb_sync_status = SatelliteSyncStatus.FAILED.value
 
 
 class ProcessingTask(Task):
@@ -287,54 +378,35 @@ def process_document_ingestion(self, job_id: str):
                 db.add(entity)
             db.commit()
 
-            # Index entities into Neo4j knowledge graph
+            # Index entities into Neo4j knowledge graph. Best-effort (a Neo4j
+            # outage never fails ingestion) but no longer silent: the helper
+            # records neo4j_index_status=completed/failed on the document
+            # (audit D1) so the reconciler can re-drive drifted rows. Stamp
+            # 'pending' first so a worker killed mid-fan-out is visible too.
             job.update_progress("Indexing knowledge graph", 60)
+            document.neo4j_index_status = SatelliteSyncStatus.PENDING.value
             db.commit()
 
-            try:
-                from src.services.knowledge_graph.knowledge_graph_service import (
-                    knowledge_graph_service,
-                )
-
-                kg_indexed = 0
-                for entity in entities:
-                    entity_id = knowledge_graph_service.create_entity_node(
-                        entity_text=entity.name,
-                        entity_type=(
-                            entity.entity_type.value
-                            if hasattr(entity.entity_type, "value")
-                            else str(entity.entity_type)
-                        ),
-                        document_id=str(document.id),
-                        confidence=entity.confidence_score or 0.8,
-                        organization_id=(
-                            str(document.organization_id)
-                            if document.organization_id
-                            else None
-                        ),
-                    )
-                    if entity_id:
-                        kg_indexed += 1
-                logger.info(
-                    f"Indexed {kg_indexed}/{len(entities)} entities into Neo4j for document {document.id}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Neo4j indexing failed for document {document.id}: {e}. "
-                    "Entities are still available in PostgreSQL."
-                )
+            _index_entities_to_graph(document, entities)
+            db.commit()
 
         # Step 3: Embedding Generation — push the document to DO KB, the
         # retrieval backend (replaces the dead Qdrant write). Idempotent and
         # gated by DO_KB_ENABLED; a None result (KB disabled/outage) is a clean
-        # no-op so ingestion still completes.
+        # no-op so ingestion still completes — but the outcome is recorded in
+        # do_kb_sync_status (audit D1) so a failed sync is reconcilable.
         job.update_progress("Generating embeddings", 75)
         db.commit()
 
         if document.content_text:
+            if settings.DO_KB_ENABLED:
+                # Visible in-flight marker; overwritten by the outcome below.
+                document.do_kb_sync_status = SatelliteSyncStatus.PENDING.value
+                db.commit()
             ds_uuid = _sync_document_to_kb_blocking(document)
             if ds_uuid:
                 document.is_embedded = True
+            _record_do_kb_sync_outcome(document, ds_uuid)
         db.commit()
 
         # Step 4: Generate Search Vector
@@ -607,7 +679,16 @@ def generate_embeddings(self, job_id: str):
         db.commit()
 
         # Push the document to DO KB (retrieval backend; replaces dead Qdrant).
+        if settings.DO_KB_ENABLED:
+            # Visible in-flight marker; overwritten by the outcome below.
+            document.do_kb_sync_status = SatelliteSyncStatus.PENDING.value
+            db.commit()
         ds_uuid = _sync_document_to_kb_blocking(document)
+
+        # Record the per-satellite outcome (audit D1): completed on success,
+        # failed when DO KB is enabled but the sync returned nothing, untouched
+        # when the feature is disabled (never attempted).
+        _record_do_kb_sync_outcome(document, ds_uuid)
 
         # Update document
         if ds_uuid:
@@ -620,9 +701,10 @@ def generate_embeddings(self, job_id: str):
 
             return {"do_kb_data_source_uuid": ds_uuid, "status": "success"}
         else:
-            # DO KB disabled or returned nothing — not a failure. Complete the
-            # job cleanly rather than raising (there is no other embedding
-            # backend now that Qdrant is gone).
+            # DO KB disabled or returned nothing — not a task failure. Complete
+            # the job cleanly rather than raising (there is no other embedding
+            # backend now that Qdrant is gone); do_kb_sync_status carries the
+            # truth for the reconciler when the KB is enabled.
             job.complete_job(
                 result={"status": "skipped", "reason": "do_kb_unavailable"}
             )
