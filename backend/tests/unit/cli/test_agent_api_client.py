@@ -4,14 +4,16 @@ import httpx
 import pytest
 
 
-def test_build_stream_headers_includes_auth_and_org() -> None:
+def test_build_stream_headers_includes_auth_no_org() -> None:
     from src.cli.agent_api_client import build_stream_headers
 
-    headers = build_stream_headers(token="tok", organization_id="org-1")
+    headers = build_stream_headers(token="tok")
 
     assert headers["Authorization"] == "Bearer tok"
-    assert headers["X-Organization-ID"] == "org-1"
     assert headers["Content-Type"] == "application/json"
+    # The backend derives org from the authenticated user; the dead
+    # X-Organization-ID header must not be sent.
+    assert "X-Organization-ID" not in headers
 
 
 def test_agent_api_client_default_timeout_is_streaming_safe(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,7 +70,6 @@ async def test_stream_message_yields_parsed_events_from_sse() -> None:
     client = AgentAPIClient(
         base_url="https://example.test",
         token="tok",
-        organization_id="org-1",
         http_client=httpx.AsyncClient(
             base_url="https://example.test",
             transport=httpx.MockTransport(handler),
@@ -89,7 +90,7 @@ async def test_stream_message_yields_parsed_events_from_sse() -> None:
     assert captured["method"] == "POST"
     assert captured["url"] == "https://example.test/api/v1/agent/stream"
     assert captured["headers"]["authorization"] == "Bearer tok"
-    assert captured["headers"]["x-organization-id"] == "org-1"
+    assert "x-organization-id" not in captured["headers"]
     assert captured["headers"]["content-type"] == "application/json"
     assert "hi" in captured["body"]
     assert events[0].type == "trace"
@@ -121,7 +122,6 @@ async def test_stream_confirm_yields_parsed_events_and_sends_confirmation_payloa
     client = AgentAPIClient(
         base_url="https://example.test",
         token="tok",
-        organization_id="org-1",
         http_client=httpx.AsyncClient(
             base_url="https://example.test",
             transport=httpx.MockTransport(handler),

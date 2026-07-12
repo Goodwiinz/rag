@@ -17,8 +17,6 @@ from src.middleware.multi_tenancy import (
     get_current_user_role,
     tenant_context_manager,
     validate_tenant_access,
-    TenantAwareQuery,
-    add_row_level_security_filters
 )
 from src.services.security import TenantService
 from src.services.security.tenant_service import check_tenant_permission
@@ -165,94 +163,6 @@ class TestTenantContextManager:
 
         # Context should still be cleared
         assert get_current_tenant_id() is None
-
-
-class TestTenantAwareQuery:
-    """Test tenant-aware query builder"""
-
-    @pytest.fixture
-    def mock_db(self):
-        """Create mock database session"""
-        db = Mock()
-        query = Mock()
-        db.query.return_value = query
-        query.filter.return_value = query
-        query.filter_by.return_value = query
-        query.first.return_value = None
-        query.all.return_value = []
-        return db
-
-    @pytest.fixture
-    def tenant_aware_query(self, mock_db):
-        """Create tenant-aware query instance"""
-        with tenant_context_manager("org-123", "user-456", "admin"):
-            return TenantAwareQuery(mock_db, Document)
-
-    def test_filter_by_tenant_adds_organization_filter(self, tenant_aware_query, mock_db):
-        """Test that filter_by_tenant adds organization filter"""
-        query = tenant_aware_query.filter_by_tenant()
-
-        # Should call query.filter with organization_id condition
-        mock_db.query.assert_called_once_with(Document)
-        query.filter.assert_called_once()
-
-    def test_get_with_tenant_filter(self, tenant_aware_query, mock_db):
-        """Test getting entity with tenant filter"""
-        entity_id = "doc-123"
-        tenant_aware_query.get_with_tenant_filter(entity_id)
-
-        # Should apply both tenant filter and ID filter
-        assert mock_db.query.called
-        assert mock_db.query.return_value.filter.call_count == 2
-
-    def test_create_with_tenant(self, tenant_aware_query, mock_db):
-        """Test creating entity with tenant context"""
-        entity_data = {"title": "Test Document", "content": "Test content"}
-        tenant_aware_query.create_with_tenant(**entity_data)
-
-        # Should add organization_id to entity data
-        mock_db.add.assert_called_once()
-        added_entity = mock_db.add.call_args[0][0]
-        assert hasattr(added_entity, 'organization_id')
-        assert added_entity.organization_id == "org-123"
-
-    def test_update_with_tenant_validation(self, tenant_aware_query, mock_db):
-        """Test updating entity with tenant validation"""
-        # Mock entity exists
-        mock_entity = Mock()
-        mock_entity.id = "doc-123"
-        tenant_aware_query.filter_by_tenant.return_value.filter.return_value.first.return_value = mock_entity
-
-        update_data = {"title": "Updated Document"}
-        result = tenant_aware_query.update_with_tenant_validation("doc-123", **update_data)
-
-        assert result == mock_entity
-        assert mock_entity.title == "Updated Document"
-
-    def test_update_with_tenant_validation_entity_not_found(self, tenant_aware_query):
-        """Test update when entity is not found for tenant"""
-        tenant_aware_query.filter_by_tenant.return_value.filter.return_value.first.return_value = None
-
-        with pytest.raises(PermissionDeniedException):
-            tenant_aware_query.update_with_tenant_validation("doc-123", title="Updated")
-
-    def test_delete_with_tenant_validation(self, tenant_aware_query, mock_db):
-        """Test deleting entity with tenant validation"""
-        # Mock entity exists
-        mock_entity = Mock()
-        tenant_aware_query.filter_by_tenant.return_value.filter.return_value.first.return_value = mock_entity
-
-        result = tenant_aware_query.delete_with_tenant_validation("doc-123")
-
-        assert result == mock_entity
-        mock_db.delete.assert_called_once_with(mock_entity)
-
-    def test_delete_with_tenant_validation_entity_not_found(self, tenant_aware_query):
-        """Test delete when entity is not found for tenant"""
-        tenant_aware_query.filter_by_tenant.return_value.filter.return_value.first.return_value = None
-
-        with pytest.raises(PermissionDeniedException):
-            tenant_aware_query.delete_with_tenant_validation("doc-123")
 
 
 class TestTenantService:
@@ -414,33 +324,6 @@ class TestTenantIsolation:
         """Test tenant access validation with no context"""
         assert validate_tenant_access("org-123") is False
 
-    def test_validate_cross_tenant_access_admin(self):
-        """Test cross-tenant access for admin users"""
-        with tenant_context_manager("org-123", "user-456", "admin"):
-            # Admins cannot access cross-tenant by default
-            assert validate_cross_tenant_access(["org-123", "org-456"]) is False
-
-    def test_validate_cross_tenant_access_super_admin(self):
-        """Test cross-tenant access for super admin users"""
-        with tenant_context_manager("org-123", "user-456", "super_admin"):
-            # Super admins can access cross-tenant
-            assert validate_cross_tenant_access(["org-123", "org-456"]) is True
-
-    def test_add_row_level_security_filters(self):
-        """Test adding row-level security filters to queries"""
-        # Create mock query and model
-        mock_query = Mock()
-        mock_model = Mock()
-        mock_model.organization_id = "org-field"
-
-        with tenant_context_manager("org-123", "user-456", "admin"):
-            filtered_query = add_row_level_security_filters(mock_query, mock_model)
-
-        # Should add organization filter
-        mock_query.filter.assert_called_once()
-        filter_call = mock_query.filter.call_args[0][0]
-        # This is a simplified test - in reality you'd check the filter expression
-
 
 class TestMultiTenancyIntegration:
     """Integration tests for multi-tenancy components"""
@@ -467,33 +350,6 @@ class TestMultiTenancyIntegration:
 
         # Verify context is cleared
         assert get_current_tenant_id() is None
-
-    def test_tenant_aware_query_builder_isolation(self):
-        """Test that tenant-aware query builder enforces isolation"""
-        mock_db = Mock()
-        mock_query = Mock()
-        mock_db.query.return_value = mock_query
-        mock_query.filter.return_value = mock_query
-        mock_query.first.return_value = None
-
-        # Query from organization 1
-        with tenant_context_manager("org-123", "user-456", "admin"):
-            query_builder = TenantAwareQuery(mock_db, Document)
-            query_builder.filter_by_tenant()
-
-            # Check that organization filter was applied
-            assert mock_query.filter.called
-
-        # Reset mock
-        mock_query.reset_mock()
-
-        # Query from organization 2
-        with tenant_context_manager("org-456", "user-789", "admin"):
-            query_builder = TenantAwareQuery(mock_db, Document)
-            query_builder.filter_by_tenant()
-
-            # Check that organization filter was applied again
-            assert mock_query.filter.called
 
 
 if __name__ == "__main__":

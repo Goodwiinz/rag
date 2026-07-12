@@ -32,7 +32,6 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake
 # Import backend modules
 from backend.src.api.websocket import router as websocket_v1_router
 from backend.src.api.websocket_v2 import router as websocket_v2_router
-from backend.src.monitoring.api.websocket_handlers import router as monitoring_router
 from backend.src.main import app
 from backend.src.services.websocket_manager import connection_manager
 from backend.src.models.user import User

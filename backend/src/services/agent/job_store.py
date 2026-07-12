@@ -141,6 +141,25 @@ async def close_redis() -> None:
 _projection_tasks: set = set()
 
 
+def _projection_enabled() -> bool:
+    """Whether to schedule the background agent_runs projection at all.
+
+    Disabled under ``ENVIRONMENT=testing``: pytest closes each test's event
+    loop as soon as the test returns, so a fire-and-forget task scheduled
+    here outlives its loop. With the CI sqlite database that leaves an
+    aiosqlite ``_connection_worker_thread`` (non-daemon) blocked on a future
+    whose loop is already closed — the worker process never exits and the
+    unit-test job hangs. Projection *scheduling* is pinned by tests that
+    monkeypatch this to True (with ``record_job_status`` mocked); the
+    projection body is covered against an explicit session in
+    test_agent_run_service.py.
+    """
+    try:
+        return get_settings().ENVIRONMENT != "testing"
+    except Exception:  # pragma: no cover — settings must never break writes
+        return True
+
+
 def _on_projection_done(task) -> None:
     """Drop a finished projection task and surface unexpected errors."""
     _projection_tasks.discard(task)
@@ -161,7 +180,12 @@ def schedule_run_projection(job_id: str, data: dict) -> None:
     *data* (the same dict the L1 cache holds) cannot race the background
     write. Never blocks and never raises: Redis stays authoritative — a
     skipped/failed projection only narrows the failover fallback.
+
+    No-op under ``ENVIRONMENT=testing`` (see ``_projection_enabled``) so no
+    background task can outlive a test's event loop.
     """
+    if not _projection_enabled():
+        return
     status = data.get("status")
     if not status:
         return

@@ -706,7 +706,7 @@ async def export_bibliography(
         # Fallback: build bibliography from Document metadata when no
         # Citation records exist (common for freshly ingested papers).
         if not citations and resolved_project_id:
-            from src.api.agent.tools_impl import _citations_from_documents
+            from src.services.agent.tools_impl import _citations_from_documents
 
             doc_stmt = select(Document).where(
                 Document.id.in_(document_ids),

@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -25,6 +25,8 @@ from src.models.organization import Organization
 from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
+from src.shared.enums import ApiDocumentStatus
+from src.shared.pagination import Page, PaginationParams
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -40,6 +42,58 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _list_files_filters(
+    organization: Organization,
+    document_type: Optional[DocumentType],
+    processing_status: Optional[str],
+    search: Optional[str],
+) -> List[ColumnElement]:
+    """Build the WHERE clause for the file list endpoint.
+
+    Repo rule (audit C10 / count-filter-drift): the count query and the result
+    query MUST apply the *same* filters. Both route through this single helper
+    so a predicate added to one can never silently drift from the other — a
+    drifted count over-reports ``total`` and manufactures phantom "next" pages.
+
+    Raises ``HTTPException(400)`` for an unknown ``processing_status`` (kept
+    here so count + results reject identically).
+    """
+    conditions: List[ColumnElement] = [
+        Document.organization_id == organization.id,
+        Document.is_deleted == False,  # noqa: E712
+    ]
+
+    if document_type:
+        conditions.append(Document.document_type == document_type)
+
+    if processing_status:
+        # This router emits public status names ('queued'/'indexed') in its
+        # upload response, so a client filtering by what it received sends those
+        # back. Comparing them raw against the ProcessingStatus enum column
+        # raised LookupError -> 500. Translate via the shared vocabulary (single
+        # source of truth), keeping the validated-enum injection-prevention
+        # pattern — only known values reach the query.
+        try:
+            mapped = ApiDocumentStatus.to_db(processing_status)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid processing_status: {processing_status}",
+            )
+        conditions.append(Document.processing_status == mapped)
+
+    if search:
+        escaped_search = _escape_like(search)
+        conditions.append(
+            or_(
+                Document.title.ilike(f"%{escaped_search}%"),
+                Document.filename.ilike(f"%{escaped_search}%"),
+            )
+        )
+
+    return conditions
+
+
 # Request/Response Models
 class FileUploadResponse(BaseModel):
     document_id: str
@@ -51,7 +105,7 @@ class FileUploadResponse(BaseModel):
     file_size_bytes: int
     file_size_mb: float
     mime_type: str
-    processing_status: str
+    processing_status: ApiDocumentStatus
     upload_timestamp: str
     created_at: str
     message: str
@@ -59,10 +113,15 @@ class FileUploadResponse(BaseModel):
 
 
 class FileListResponse(BaseModel):
+    # Wire-compatible shape (key ``files``, not ``items``): kept stable for
+    # existing consumers. ``has_more`` is additive and derived from ``total`` +
+    # the returned slice via ``Page.create`` — never hand-set, so it can't claim
+    # a page that doesn't exist.
     files: List[dict]
     total: int
     page: int
     size: int
+    has_more: bool
 
 
 class FileStatsResponse(BaseModel):
@@ -158,14 +217,8 @@ async def upload_file(
             is_public=is_public,
         )
 
-        # Map backend status to frontend expected status
-        status_mapping = {
-            "PENDING": "queued",
-            "PROCESSING": "processing",
-            "COMPLETED": "indexed",
-            "FAILED": "failed",
-        }
-        frontend_status = status_mapping.get(document.processing_status.value, "queued")
+        # Map backend status to the public API vocabulary
+        frontend_status = ApiDocumentStatus.from_db(document.processing_status)
 
         return FileUploadResponse(
             document_id=str(document.id),
@@ -190,8 +243,7 @@ async def upload_file(
 
 @router.get("/", response_model=FileListResponse)
 async def list_files(
-    page: int = 1,
-    size: int = 20,
+    pagination: PaginationParams = Depends(),
     document_type: Optional[DocumentType] = None,
     processing_status: Optional[str] = None,
     search: Optional[str] = None,
@@ -199,50 +251,19 @@ async def list_files(
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
-    """List files in the organization"""
+    """List files in the organization.
+
+    Pagination is validated by the shared ``PaginationParams`` dependency
+    (``page >= 1``, ``1 <= size <= 100`` — out-of-range fails closed with 422),
+    and the count + result queries share ``_list_files_filters`` so ``total``
+    and ``has_more`` can never drift (audit C10).
+    """
     try:
-        from sqlalchemy import or_
-
-        # Build conditions
-        conditions = [
-            Document.organization_id == organization.id,
-            Document.is_deleted == False,
-        ]
-
-        # Apply filters
-        if document_type:
-            conditions.append(Document.document_type == document_type)
-
-        if processing_status:
-            # This router emits frontend status names ('queued'/'indexed') in
-            # its upload response, so a client filtering by what it received
-            # sends those back. Comparing them raw against the ProcessingStatus
-            # enum column raised LookupError -> 500. Map like documents.py does.
-            frontend_to_backend = {
-                "queued": ProcessingStatus.PENDING,
-                "indexed": ProcessingStatus.COMPLETED,
-                "processing": ProcessingStatus.PROCESSING,
-                "failed": ProcessingStatus.FAILED,
-                "retrying": ProcessingStatus.RETRYING,
-                "pending": ProcessingStatus.PENDING,
-                "completed": ProcessingStatus.COMPLETED,
-            }
-            mapped = frontend_to_backend.get(processing_status.lower())
-            if not mapped:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid processing_status: {processing_status}",
-                )
-            conditions.append(Document.processing_status == mapped)
-
-        if search:
-            escaped_search = _escape_like(search)
-            conditions.append(
-                or_(
-                    Document.title.ilike(f"%{escaped_search}%"),
-                    Document.filename.ilike(f"%{escaped_search}%"),
-                )
-            )
+        # Single source of truth for the WHERE clause, applied identically to
+        # the count and the result query.
+        conditions = _list_files_filters(
+            organization, document_type, processing_status, search
+        )
 
         # Count total results
         count_stmt = select(func.count(Document.id)).where(*conditions)
@@ -250,16 +271,28 @@ async def list_files(
         total = count_result.scalar() or 0
 
         # Fetch documents with pagination
-        offset = (page - 1) * size
-        stmt = select(Document).where(*conditions).offset(offset).limit(size)
+        stmt = (
+            select(Document)
+            .where(*conditions)
+            .offset(pagination.offset)
+            .limit(pagination.size)
+        )
         result = await db.execute(stmt)
         documents = result.scalars().all()
 
-        return FileListResponse(
-            files=[doc.to_dict() for doc in documents],
+        # Page.create derives has_more from the true total + the returned slice.
+        page = Page.create(
+            items=[doc.to_dict() for doc in documents],
             total=total,
-            page=page,
-            size=size,
+            params=pagination,
+        )
+
+        return FileListResponse(
+            files=page.items,
+            total=page.total,
+            page=page.page,
+            size=page.size,
+            has_more=page.has_more,
         )
 
     except HTTPException:

@@ -269,38 +269,28 @@ class Document(BaseModel):
         return self.content_text[:max_length] + "..."
 
     def get_mapped_status(self) -> str:
-        """Get processing status mapped to frontend-compatible values"""
-        status_mapping = {
-            "pending": "queued",
-            "processing": "processing",
-            "completed": "indexed",
-            "failed": "failed",
-            "retrying": "processing",  # Map retrying to processing
-        }
-        backend_status = (
-            self.processing_status.value if self.processing_status else None
-        )
-        return status_mapping.get(backend_status, "queued")
+        """Get processing status mapped to the public API vocabulary.
+
+        Delegates to :class:`~src.shared.enums.ApiDocumentStatus` — the single
+        source of truth for the db->api status translation.
+        """
+        from src.shared.enums import ApiDocumentStatus
+
+        return ApiDocumentStatus.from_db(self.processing_status).value
 
     def to_dict(self, include_content: bool = False) -> dict:
         """Convert to dictionary"""
+        from src.shared.enums import ApiDocumentStatus
+
         data = super().to_dict()
 
         # Convert enum values
         data["document_type"] = self.document_type.value if self.document_type else None
 
-        # Map processing status to frontend-compatible lowercase values
-        status_mapping = {
-            "pending": "queued",
-            "processing": "processing",
-            "completed": "indexed",
-            "failed": "failed",
-            "retrying": "processing",
-        }
-        backend_status = (
-            self.processing_status.value if self.processing_status else None
-        )
-        data["processing_status"] = status_mapping.get(backend_status, "queued")
+        # Map processing status to the public API vocabulary
+        data["processing_status"] = ApiDocumentStatus.from_db(
+            self.processing_status
+        ).value
 
         # Add computed fields
         data["file_size_mb"] = self.file_size_mb

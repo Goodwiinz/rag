@@ -1,6 +1,7 @@
 import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
+import { parseErrorBody } from '@/utils/parseErrorBody';
 
 function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
   const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
@@ -67,17 +68,19 @@ export interface AgentStreamCallbacks {
 }
 
 /** Read the backend's error body so the user sees the real cause, not just
- * an HTTP number. FastAPI usually returns `{detail: "..."}`. */
+ * an HTTP number. The backend returns the structured envelope
+ * `{ error: { message, ... } }`; older paths may return `{detail: "..."}`. */
 async function readErrorBody(response: Response): Promise<string> {
   let backendMessage = '';
   try {
     const text = await response.text();
     if (text) {
       try {
-        const parsed = JSON.parse(text);
-        const raw = parsed?.detail || parsed?.error || parsed?.message || text;
+        const parsed = parseErrorBody(JSON.parse(text));
         backendMessage =
-          typeof raw === 'string' ? raw : raw?.message || JSON.stringify(raw);
+          parsed.message === 'Request failed'
+            ? text.slice(0, 500)
+            : parsed.message;
       } catch {
         backendMessage = text.slice(0, 500);
       }

@@ -261,4 +261,42 @@ describe('loadMessages (newest-first initial load)', () => {
     expect(useChatStore.getState().messages['thread-A']).toBeUndefined();
     expect(useChatStore.getState().isLoadingMessages).toBe(false);
   });
+
+  it('tracks which thread the pending initial load belongs to', async () => {
+    let resolveA!: (response: ChatMessageListResponse) => void;
+    const responseA = new Promise<ChatMessageListResponse>((resolve) => {
+      resolveA = resolve;
+    });
+    listMessagesMock.mockReturnValueOnce(responseA);
+
+    const loadA = useChatStore.getState().loadMessages('thread-A');
+    expect(useChatStore.getState().loadingThreadId).toBe('thread-A');
+    expect(useChatStore.getState().isLoadingMessages).toBe(true);
+
+    resolveA(makeResponse([makeMessage('a1')], false));
+    await loadA;
+
+    expect(useChatStore.getState().loadingThreadId).toBeNull();
+    expect(useChatStore.getState().isLoadingMessages).toBe(false);
+  });
+
+  it('clears the loading state when the user opens a new chat mid-load (no stranded flag)', async () => {
+    let resolveA!: (response: ChatMessageListResponse) => void;
+    const responseA = new Promise<ChatMessageListResponse>((resolve) => {
+      resolveA = resolve;
+    });
+    listMessagesMock.mockReturnValueOnce(responseA);
+
+    const loadA = useChatStore.getState().loadMessages('thread-A');
+    // "New chat" while thread-A's page is still in flight: the epoch bump
+    // makes the in-flight response stale, so nothing else will ever clear
+    // the loading flags — setCurrentThread(null) must clear them itself.
+    useChatStore.getState().setCurrentThread(null);
+
+    resolveA(makeResponse([makeMessage('a1')], false));
+    await loadA;
+
+    expect(useChatStore.getState().isLoadingMessages).toBe(false);
+    expect(useChatStore.getState().loadingThreadId).toBeNull();
+  });
 });

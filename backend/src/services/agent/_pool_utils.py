@@ -2,7 +2,7 @@
 
 Used by both the checkpointer (`AsyncPostgresSaver`) and the long-term
 memory store (`AsyncPostgresStore`). Centralises pool kwargs, keepalives,
-and the prod/staging hard-fail policy so the two callers stay in sync.
+and the durable-state hard-fail policy so the two callers stay in sync.
 
 Pool ownership lives here — checkpointer and memory store fetch the
 shared singleton via ``get_shared_langgraph_pool`` and never close it
@@ -117,23 +117,43 @@ async def close_shared_langgraph_pool() -> None:
         _shared_pool = None
 
 
-def require_durable_or_fallback(component: str, env: str, exc: Exception) -> None:
-    """Raise in production/staging; log-and-continue elsewhere.
+def require_durable_or_fallback(component: str, exc: Exception) -> None:
+    """Raise when durable agent state is required; log-and-continue otherwise.
 
     Callers use this when a Postgres-backed singleton (checkpointer, store)
-    fails to initialise: in prod/staging we must not silently degrade to a
-    non-durable in-memory backend, but in dev/test that fallback is fine.
+    fails to initialise. Whether the failure is fatal is keyed on
+    ``settings.require_durable_agent_state`` — durable state is required in
+    every environment except explicit local/CI throwaways (or when the
+    ``ALLOW_MEMORY_FALLBACK`` break-glass override is set) — NOT on a
+    hard-coded env-name allowlist. The previous ``("production",
+    "staging")`` gate never fired in the live ``ENVIRONMENT=dev``
+    deployment (those env names were retired in #442), so Postgres init
+    failures silently degraded HITL resume and long-term memory to
+    in-memory backends (audit finding X3).
+
+    Returning (instead of raising) is the signal that the caller may fall
+    back to its in-memory backend.
     """
-    if env in ("production", "staging"):
-        logger.error(
-            "%s UNAVAILABLE in %s — failing fast. "
-            "Set ENVIRONMENT=development to allow in-memory fallback. "
-            "Cause: %s",
-            component,
-            env,
-            exc,
-        )
-        raise RuntimeError(
-            f"{component} required in {env}; refusing to fall back to a "
-            "non-durable in-memory backend."
-        ) from exc
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    if not settings.require_durable_agent_state:
+        return
+
+    logger.error(
+        "%s UNAVAILABLE and durable agent state is required "
+        "(ENVIRONMENT=%s) — failing fast instead of degrading to an "
+        "in-memory backend. Set ALLOW_MEMORY_FALLBACK=true to permit the "
+        "non-durable fallback (breaks HITL resume + cross-restart memory). "
+        "Cause: %s",
+        component,
+        settings.ENVIRONMENT,
+        exc,
+    )
+    raise RuntimeError(
+        f"{component} failed to initialise and durable agent state is "
+        f"required (ENVIRONMENT={settings.ENVIRONMENT!r}); refusing to "
+        "fall back to a non-durable in-memory backend. Fix the Postgres "
+        "connection (see chained cause), or set ALLOW_MEMORY_FALLBACK=true "
+        "to accept losing HITL resume and long-term memory across restarts."
+    ) from exc

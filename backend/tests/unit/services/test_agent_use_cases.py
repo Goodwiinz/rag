@@ -311,7 +311,7 @@ class TestProjectContextAutoFill:
         }
 
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success"},
         ) as mock_exec:
@@ -344,7 +344,7 @@ class TestProjectContextAutoFill:
         }
 
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success"},
         ) as mock_exec:

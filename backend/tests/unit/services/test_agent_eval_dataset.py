@@ -190,7 +190,7 @@ def _mock_infra():
             new=AsyncMock(return_value={}),
         ),
         patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new=AsyncMock(
                 return_value={"results": [], "total": 0, "message": "Mocked tool result"}
             ),

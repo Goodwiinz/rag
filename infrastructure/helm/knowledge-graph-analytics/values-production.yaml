@@ -198,7 +198,12 @@ backend:
 
   healthCheck:
     enabled: true
+    # Process-alive path for liveness + startup.
     path: /health
+    livenessPath: /health
+    startupPath: /health
+    # Dependency-aware path for readiness (Postgres + Redis, cached ~5s).
+    readinessPath: /health/readiness
     # Startup probe gives the container time to load ML models (~5-8 min)
     startupProbe:
       initialDelaySeconds: 30
@@ -210,11 +215,12 @@ backend:
     periodSeconds: 15
     timeoutSeconds: 5
     failureThreshold: 3
-    # Readiness: can it serve traffic?
+    # Readiness: can it serve traffic? Slack floors (see template) so a
+    # transient dependency blip doesn't flap every pod out of the LB.
     readinessInitialDelaySeconds: 5
     readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 3
-    readinessFailureThreshold: 2
+    readinessTimeoutSeconds: 5
+    readinessFailureThreshold: 3
 
   # Init container only waits for PostgreSQL (managed DO DB)
   initContainers:
@@ -311,8 +317,9 @@ serviceAccount:
 rbac:
   create: false
 
-backup:
-  enabled: false
+# Note: no Neo4j backup/DR automation ships with this chart. See
+# docs/decisions/neo4j-dr.md — DR must be revisited before production
+# promotion (a managed snapshot/backup story is required for prod data).
 
 # Synthetic traffic is dev-only; never runs in production.
 syntheticTraffic:

@@ -21,12 +21,10 @@ This directory is the frontend's API client layer. Every call to the FastAPI bac
 | `citationService.ts`            | Citation save/list/delete for research documents.                                                                                                                                                   |
 | `threadSearchService.ts`        | Full-text search scoped to a thread's message history.                                                                                                                                              |
 | `websocket.ts`                  | `WebSocketManager` — connects with `Sec-WebSocket-Protocol: ['auth', token]` (not URL query param); handles reconnect up to 5 attempts. Used for document-processing and query-status push updates. |
-| `enhancedWebSocket.ts`          | Extended WebSocket manager with heartbeat, message queuing, and typed event bus.                                                                                                                    |
 | `websocketService.ts`           | Thin wrapper that initialises `WebSocketManager` from the auth store.                                                                                                                               |
 | `realtime-websocket-service.ts` | Realtime collaboration events over WebSocket.                                                                                                                                                       |
 | `realtimeWebSocketService.ts`   | Alternate realtime service used by workspace components.                                                                                                                                            |
 | `monitoringWebsocketService.ts` | Admin monitoring feed over WebSocket.                                                                                                                                                               |
-| `websocket-client.ts`           | Lower-level WebSocket client used by monitoring and diagnostics.                                                                                                                                    |
 | `analyticsService.ts`           | Usage and document analytics (`/api/v1/analytics/`).                                                                                                                                                |
 | `documentAnalyticsApi.ts`       | Document-level analytics calls distinct from general analytics.                                                                                                                                     |
 | `graphAnalyticsService.ts`      | Graph-specific analytics (centrality, communities) via the analytics backend.                                                                                                                       |
@@ -48,9 +46,12 @@ Headers attached to every authenticated request:
 
 ```
 Authorization: Bearer <supabase_access_token>
-X-Organization-ID: <org_id>          // when present
 Content-Type: application/json       // omitted for FormData
 ```
+
+The backend derives the tenant/organization from the authenticated user
+(`current_user`), so no `X-Organization-ID` header is sent — it was never read
+inbound.
 
 For `FormData` bodies (file upload), the client strips `Content-Type` so the browser sets `multipart/form-data` with its own boundary. Upload progress uses `XMLHttpRequest.upload.onprogress`; blob/inline-preview uses `fetchObjectUrl`, which returns an object URL the caller must revoke.
 

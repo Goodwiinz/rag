@@ -6,7 +6,6 @@ export function getCliAuthHeaders(): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${config.token}`,
-    'X-Organization-ID': config.organization_id,
   };
 }
 

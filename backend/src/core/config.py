@@ -19,6 +19,19 @@ def _generate_dev_secret() -> str:
     return secrets.token_urlsafe(32)
 
 
+# ``ENVIRONMENT`` values that mark an explicit local/CI throwaway process.
+# Only these environments may silently degrade LangGraph durability
+# (checkpointer / long-term memory store) to in-memory backends when the
+# Postgres init fails. Deliberately does NOT include ``dev``: the DOKS
+# ``dev`` deployment is a shared, long-lived environment (Supabase
+# Postgres, real users + synthetic traffic) where a silent MemorySaver /
+# InMemoryStore fallback breaks HITL resume and cross-restart memory
+# invisibly (system-design audit finding X3).
+MEMORY_FALLBACK_ENVIRONMENTS = frozenset(
+    {"development", "testing", "local", "test", "ci"}
+)
+
+
 def _longest_literal_hostname_run(pattern: str) -> int:
     """Longest contiguous literal hostname segment (project slug specificity)."""
     pattern = re.sub(r"\[[^\]]+\](?:[+*?]|\{[^}]+\})?", "", pattern)
@@ -64,6 +77,35 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = ""
 
+    # Break-glass override for durable agent state: when True, the LangGraph
+    # checkpointer / memory store may fall back to non-durable in-memory
+    # backends on Postgres init failure even in a shared environment.
+    # The fallback silently breaks HITL resume and cross-restart memory
+    # while chat_messages keep persisting — set this only to keep a
+    # deployment limping through a known Postgres outage (values flip, no
+    # image rebuild), and revert as soon as the outage is over.
+    ALLOW_MEMORY_FALLBACK: bool = False
+
+    @property
+    def require_durable_agent_state(self) -> bool:
+        """Whether agent state (checkpointer / memory store) must be durable.
+
+        True by default: any shared or deployed environment (``dev``,
+        ``staging``, ``production``, or anything unrecognised) must fail
+        loudly when the Postgres-backed checkpointer or memory store cannot
+        initialise, instead of silently degrading to in-memory state.
+
+        False only when the environment is an explicit local/CI throwaway
+        (``MEMORY_FALLBACK_ENVIRONMENTS``) or the ``ALLOW_MEMORY_FALLBACK``
+        break-glass override is set. Keyed on "is this a throwaway
+        process?", never on a hard-coded allowlist of strict env names —
+        the old ``("production", "staging")`` gate never fired in the live
+        ``ENVIRONMENT=dev`` deployment (audit finding X3).
+        """
+        if self.ALLOW_MEMORY_FALLBACK:
+            return False
+        return self.ENVIRONMENT.strip().lower() not in MEMORY_FALLBACK_ENVIRONMENTS
+
     # Canonical public URL of the frontend (e.g. https://www.goodwiinz.tech).
     # Used to build redirect targets like the CLI device-flow auth page.
     # Decoupled from CORS_ORIGINS so reordering the allowlist can't break login.
@@ -83,6 +125,11 @@ class Settings(BaseSettings):
         "Origin,"
         "X-Request-ID,"
         "X-Correlation-ID,"
+        # X-Organization-ID is never read inbound (org is derived from
+        # current_user). It is retained here only because agentChatService.ts
+        # still sends it on the SSE stream; dropping it from the allowlist while
+        # a browser sender remains would fail CORS preflight. Remove once that
+        # last sender stops emitting it.
         "X-Organization-ID,"
         "X-Client-Version,"
         "Cache-Control"
@@ -211,6 +258,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
     CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
+    # When True, a CLI-token revocation check that cannot reach the revocation
+    # store (Redis error / outage) DENIES the token (fail-closed) instead of
+    # the historical fail-open. This hardens against a Redis outage or failover
+    # silently un-revoking every revoked CLI token, at the cost of CLI auth
+    # availability while the store is unreachable. A plain miss (store reachable,
+    # no revoked-before cutoff for the user) still allows regardless of this
+    # flag. Default False preserves current behavior — flip to True to harden;
+    # rollback is a flag flip, no logic redeploy. (audit D7)
+    CLI_TOKEN_REVOCATION_FAIL_CLOSED: bool = False
 
     @model_validator(mode="after")
     def _enforce_debug_off_in_prod(self):
@@ -474,6 +530,13 @@ class Settings(BaseSettings):
     # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
     # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
     AGENT_DOKB_COHERE_RERANK: bool = False
+
+    # PaperQA2-style gather-evidence inside do_kb_retrieve: rerank-ordered
+    # chunks get per-chunk contextual relevance summaries + verbatim quotes
+    # from the lightweight LLM, enabling narrow-then-broad iteration within
+    # the existing tool-loop ceiling. Adds up to 5 lightweight LLM calls
+    # (~20s budget) per do_kb_retrieve call.
+    AGENT_ITERATIVE_RETRIEVAL: bool = False
 
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None

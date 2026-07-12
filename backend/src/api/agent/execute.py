@@ -47,6 +47,8 @@ from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
 from src.shared.enums import JobStatus
 
+from src.shared.enums import JobStatus
+
 from .jobs import (  # noqa: F401
     MAX_JOBS,
     _actor_fields,

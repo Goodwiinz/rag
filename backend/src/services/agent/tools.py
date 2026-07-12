@@ -1,7 +1,7 @@
 """LangGraph tool wrappers for agent tools.
 
 Each tool delegates to the existing implementation in
-``src.api.agent.execute`` and extracts ``db`` / ``current_user`` /
+``src.services.agent.tools_impl`` and extracts ``db`` / ``current_user`` /
 ``page_context`` from the LangGraph ``RunnableConfig.configurable`` dict.
 """
 
@@ -171,7 +171,7 @@ async def search_arxiv(
     academic publications, or scientific articles.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_search_arxiv
+    from src.services.agent.tools_impl import _tool_search_arxiv
 
     args: Dict[str, Any] = {
         "query": query,
@@ -196,7 +196,7 @@ async def ingest_arxiv_papers(
     target a different project.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_ingest_arxiv
+    from src.services.agent.tools_impl import _tool_ingest_arxiv
 
     db, current_user, page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""
@@ -220,7 +220,7 @@ async def search_documents(
 ) -> Dict[str, Any]:
     """Search the user's indexed documents by title or content."""
     config = config or {}
-    from src.api.agent.execute import _tool_search_documents
+    from src.services.agent.tools_impl import _tool_search_documents
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_search_documents(
@@ -239,9 +239,15 @@ async def do_kb_retrieve(
     top_k: int = 8,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
-    """Semantic retrieval over the organization's DigitalOcean Knowledge Base."""
+    """Semantic retrieval over the organization's DigitalOcean Knowledge Base.
+
+    When evidence mode is on, each chunk includes 'relevance' (0-10), a
+    'summary' of how it bears on the query, and a verbatim 'quote'. Cite
+    using the quote. If top relevance is below 5, call this tool again
+    with a narrower or broader reformulation instead of settling for weak
+    evidence."""
     config = config or {}
-    from src.api.agent.execute import _tool_do_kb_retrieve
+    from src.services.agent.tools_impl import _tool_do_kb_retrieve
 
     db, current_user, page_ctx = _get_context(config)
     # Forward active project_id so the retrieval result is scoped to the
@@ -268,7 +274,7 @@ async def add_document_to_project(
     project is inferred from the page context.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_add_document_to_project
+    from src.services.agent.tools_impl import _tool_add_document_to_project
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
@@ -295,7 +301,7 @@ async def create_project(
     If *workspace_id* is omitted, the user's first workspace is used.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_create_project
+    from src.services.agent.tools_impl import _tool_create_project
 
     db, current_user, _ = _get_context(config)
     args: Dict[str, Any] = {"name": name}
@@ -324,7 +330,7 @@ async def create_project_note(
     project is inferred from the page context.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_create_project_note
+    from src.services.agent.tools_impl import _tool_create_project_note
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
@@ -355,7 +361,7 @@ async def list_projects(
     over asking the user to provide a project_id.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_list_projects
+    from src.services.agent.tools_impl import _tool_list_projects
 
     db, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {
@@ -389,7 +395,7 @@ async def list_project_documents(
     ``has_more`` so subsequent calls can paginate when needed.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_list_project_documents
+    from src.services.agent.tools_impl import _tool_list_project_documents
 
     db, current_user, page_ctx = _get_context(config)
     resolved_pid = _resolve_project_id(project_id, page_ctx)
@@ -416,7 +422,7 @@ async def summarize_document(
     Use when the user asks for a summary or overview of a specific document.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_summarize_document
+    from src.services.agent.tools_impl import _tool_summarize_document
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_summarize_document(
@@ -436,7 +442,7 @@ async def compare_documents(
     between two or more documents.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_compare_documents
+    from src.services.agent.tools_impl import _tool_compare_documents
 
     _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
     safe_type = type if type in _COMPARISON_TYPES else "general"
@@ -458,7 +464,7 @@ async def extract_entities(
     or concepts mentioned in a document.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_extract_entities
+    from src.services.agent.tools_impl import _tool_extract_entities
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_extract_entities({"document_id": document_id}, db, current_user)
@@ -476,7 +482,7 @@ async def search_knowledge_graph(
     in the research corpus, or wants to explore entity relationships.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_search_knowledge_graph
+    from src.services.agent.tools_impl import _tool_search_knowledge_graph
 
     _db, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {"query": query}
@@ -500,7 +506,7 @@ async def explore_entity_neighborhood(
     First use search_knowledge_graph to find the entity_id.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_explore_entity_neighborhood
+    from src.services.agent.tools_impl import _tool_explore_entity_neighborhood
 
     _db, current_user, _page_ctx = _get_context(config)
     return await _tool_explore_entity_neighborhood(
@@ -527,7 +533,7 @@ async def find_entity_paths(
     First use search_knowledge_graph to find both entity IDs.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_find_entity_paths
+    from src.services.agent.tools_impl import _tool_find_entity_paths
 
     _db, current_user, _page_ctx = _get_context(config)
     return await _tool_find_entity_paths(
@@ -551,7 +557,7 @@ async def get_graph_stats(
     of the knowledge base, or wants an overview of what's in the graph.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_get_graph_stats
+    from src.services.agent.tools_impl import _tool_get_graph_stats
 
     _db, current_user, _page_ctx = _get_context(config)
     return await _tool_get_graph_stats({}, current_user)
@@ -570,7 +576,7 @@ async def create_draft(
     research around specific themes.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_create_draft
+    from src.services.agent.tools_impl import _tool_create_draft
 
     _DRAFT_STYLES = {"academic", "technical", "summary"}
     safe_style = style if style in _DRAFT_STYLES else "academic"
@@ -597,7 +603,7 @@ async def export_bibliography(
     for one or more documents. Supports bibtex, apa, ieee, and mla formats.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_export_bibliography
+    from src.services.agent.tools_impl import _tool_export_bibliography
 
     db, current_user, _page_ctx = _get_context(config)
     return await _tool_export_bibliography(
@@ -630,7 +636,7 @@ async def execute_code(
     persist between executions, so you can build on previous results.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_execute_code
+    from src.services.agent.tools_impl import _tool_execute_code
 
     configurable = config.get("configurable", {})
     thread_id = configurable.get("thread_id", "default")
@@ -675,7 +681,7 @@ async def search_external_database(
     available in the local document store.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_search_external_database
+    from src.services.agent.tools_impl import _tool_search_external_database
 
     args: Dict[str, Any] = {
         "query": query,
@@ -712,7 +718,7 @@ async def list_external_databases(
     ``domain`` to filter by category.
     """
     config = config or {}
-    from src.api.agent.execute import _tool_list_external_databases
+    from src.services.agent.tools_impl import _tool_list_external_databases
 
     args: Dict[str, Any] = {}
     safe_domain = _validate_connector_name(domain)
@@ -738,7 +744,7 @@ async def forget_memory(
     a summary of which memories were deleted.
     """
     config = config or {}
-    from src.api.agent.tools_impl import _tool_forget_memory
+    from src.services.agent.tools_impl import _tool_forget_memory
 
     _db, current_user, page_ctx = _get_context(config)
     user_id = str(current_user.id) if current_user else ""

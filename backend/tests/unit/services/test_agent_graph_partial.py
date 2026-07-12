@@ -493,7 +493,7 @@ class TestPartialExecution:
 
         # Mock execute_tool to avoid real API calls
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
@@ -678,7 +678,7 @@ class TestHumanInTheLoopFlow:
 
         # Now resume with confirmation
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ):
@@ -745,7 +745,7 @@ class TestHumanInTheLoopFlow:
         assert "__interrupt__" in result, "Research graph should pause with an interrupt"
 
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ) as mock_execute_tool:
@@ -862,7 +862,7 @@ class TestHumanInTheLoopFlow:
         mock_response = AIMessage(content="No papers found.")
         mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         with patch(
-            "src.api.agent.execute.execute_tool",
+            "src.services.agent.tools_impl.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):

@@ -140,4 +140,4 @@ async def test_async_main_uses_saved_auth_when_flags_are_missing(
 
     assert exit_code == 0
     assert captured_kwargs["token"] == "downloaded-token"
-    assert captured_kwargs["organization_id"] == "downloaded-org"
+    assert "organization_id" not in captured_kwargs

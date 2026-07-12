@@ -17,12 +17,30 @@ from src.shared.enums import JobStatus
 
 pytestmark = pytest.mark.unit
 
+# Captured at import time — before the autouse fixture below monkeypatches it —
+# so the environment-gate test can exercise the real implementation.
+_real_projection_enabled = js._projection_enabled
+
 
 @pytest.fixture(autouse=True)
 def _clean_store():
     js._l1.clear()
     yield
     js._l1.clear()
+
+
+@pytest.fixture(autouse=True)
+def _enable_projection(monkeypatch):
+    """Re-enable projection scheduling for these tests.
+
+    ``schedule_run_projection`` is a no-op under ENVIRONMENT=testing (a task
+    scheduled fire-and-forget outlives pytest's per-test event loop and, on
+    the CI sqlite DB, wedges a non-daemon aiosqlite thread — hanging the
+    suite). These tests pin the *scheduling* contract itself, with
+    ``record_job_status`` mocked and every task drained before the test
+    returns, so they opt back in explicitly.
+    """
+    monkeypatch.setattr(js, "_projection_enabled", lambda: True)
 
 
 async def _drain_projection_tasks():
@@ -78,6 +96,24 @@ async def test_cas_in_memory_projects_the_claimed_transition():
     assert outcome == "claimed"
     statuses = [call.args[1]["status"] for call in recorded.await_args_list]
     assert JobStatus.RUNNING in statuses
+
+
+@pytest.mark.asyncio
+async def test_schedule_is_noop_under_testing_environment(monkeypatch):
+    """Under ENVIRONMENT=testing the real gate must skip scheduling entirely.
+
+    Regression: a fire-and-forget projection task outliving pytest's per-test
+    event loop left a non-daemon aiosqlite worker thread blocked on a closed
+    loop, hanging the CI unit-test job.
+    """
+    monkeypatch.setattr(js, "_projection_enabled", _real_projection_enabled)
+    with patch(
+        "src.services.agent.agent_run_service.record_job_status", new=AsyncMock()
+    ) as recorded:
+        js.schedule_run_projection("job-env", {"status": "running", "user_id": "u"})
+        await _drain_projection_tasks()
+    recorded.assert_not_awaited()
+    assert not js._projection_tasks
 
 
 def test_schedule_is_noop_without_running_loop():

@@ -14,6 +14,7 @@ from .backfill import (
 from .backfill_model import DOKBBackfillProgress
 from .client import DOKnowledgeBaseClient, DOKnowledgeBaseError, get_do_kb_client
 from .ingest import (
+    canonical_text_key,
     sync_document_to_kb,
     sync_documents_to_kb,
     unsync_document_from_kb,
@@ -34,6 +35,7 @@ __all__ = [
     "ReprovisionResult",
     "RetrieveResult",
     "backfill_org",
+    "canonical_text_key",
     "ensure_kb_for_org",
     "get_do_kb_client",
     "iter_organizations_to_backfill",
