@@ -332,6 +332,13 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
     }
 
     with (
+        # The endpoint's validation read is Redis-first (get_job_fresh — P1.3
+        # cross-process freshness); the CAS's in-memory fallback still reads
+        # via get_job. Patch both to serve the Redis-only record.
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=AsyncMock(return_value=redis_job),
+        ),
         patch(
             "src.services.agent.job_store.get_job",
             new=AsyncMock(return_value=redis_job),

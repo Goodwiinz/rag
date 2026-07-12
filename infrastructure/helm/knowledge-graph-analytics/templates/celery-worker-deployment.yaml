@@ -40,7 +40,11 @@ spec:
             - --max-tasks-per-child=100
             - --max-memory-per-child=900000
             - -Q
-            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing
+            # agent_runs: AGENT_DISPATCH_BACKEND=celery turns (audit P1.3).
+            # Consuming the (empty) queue while the flag is "background" is
+            # free; without it here a values-level flag flip would enqueue
+            # turns nobody consumes.
+            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing,agent_runs
           envFrom:
             {{- if .Values.backend.envFrom }}
             {{- toYaml .Values.backend.envFrom | nindent 12 }}

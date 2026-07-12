@@ -1,0 +1,347 @@
+"""P1.4 sweepers — stale agent_runs + stuck processing_jobs (X1 recovery, D7).
+
+Contract under test:
+
+- stale non-terminal agent runs (no status write past the threshold, no live
+  lease) are marked FAILED with an explicit sweep error; terminal rows and
+  recently-updated rows are untouched; live-leased rows belong to another
+  worker; awaiting_confirmation gets the longer confirmable window; a run the
+  LIVE job store says finished is repaired, never failed.
+- stuck non-terminal processing_jobs rows past the threshold are failed;
+  terminal / recent / soft-deleted rows are untouched.
+- both sweepers are flag-gated by SWEEPERS_ENABLED.
+"""
+
+import uuid
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.models.agent_run import AgentRun
+from src.shared.enums import JobStatus
+from src.tasks import agent_run_tasks as agent_tasks
+
+pytestmark = pytest.mark.unit
+
+NOW = datetime.now(timezone.utc)
+STALE = NOW - timedelta(hours=1)  # past the 30-min default
+FRESH = NOW - timedelta(minutes=5)
+VERY_STALE = NOW - timedelta(hours=3)  # past the 2h awaiting window
+
+
+# ---------------------------------------------------------------------------
+# sweep_stale_agent_runs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def session_factory():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(AgentRun.__table__.create)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    yield factory
+    await engine.dispose()
+
+
+async def _seed(
+    session_factory,
+    *,
+    status: str,
+    updated_at: datetime,
+    lease_owner=None,
+    lease_expires_at=None,
+) -> str:
+    job_id = str(uuid.uuid4())
+    async with session_factory() as db:
+        db.add(
+            AgentRun(
+                job_id=job_id,
+                user_id=uuid.uuid4(),
+                status=status,
+                created_at=updated_at,
+                updated_at=updated_at,
+                lease_owner=lease_owner,
+                lease_expires_at=lease_expires_at,
+            )
+        )
+        await db.commit()
+    return job_id
+
+
+async def _status(session_factory, job_id):
+    async with session_factory() as db:
+        run = await db.get(AgentRun, job_id)
+        return run.status, run.error
+
+
+def _sweep(session_factory, get_job_fresh=None, set_job=None):
+    return (
+        patch("src.core.database.AsyncSessionLocal", session_factory),
+        patch(
+            "src.services.agent.job_store.get_job_fresh",
+            new=get_job_fresh or AsyncMock(return_value=None),
+        ),
+        patch("src.services.agent.job_store.set_job", new=set_job or AsyncMock()),
+    )
+
+
+@pytest.mark.asyncio
+async def test_stale_running_run_is_failed(session_factory):
+    stale_id = await _seed(session_factory, status="running", updated_at=STALE)
+    set_job = AsyncMock()
+    p1, p2, p3 = _sweep(session_factory, set_job=set_job)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result["failed"] == 1
+    status, error = await _status(session_factory, stale_id)
+    assert status == "failed"
+    assert "Swept as stale" in error
+    # No live job record existed → nothing to write to the live store.
+    set_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_terminal_and_recent_rows_untouched(session_factory):
+    done_id = await _seed(session_factory, status="completed", updated_at=VERY_STALE)
+    failed_id = await _seed(session_factory, status="failed", updated_at=VERY_STALE)
+    fresh_id = await _seed(session_factory, status="running", updated_at=FRESH)
+
+    p1, p2, p3 = _sweep(session_factory)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result["failed"] == 0
+    assert (await _status(session_factory, done_id))[0] == "completed"
+    assert (await _status(session_factory, failed_id))[0] == "failed"
+    assert (await _status(session_factory, fresh_id))[0] == "running"
+
+
+@pytest.mark.asyncio
+async def test_live_leased_row_belongs_to_its_worker(session_factory):
+    leased_id = await _seed(
+        session_factory,
+        status="running",
+        updated_at=STALE,
+        lease_owner="celery:other",
+        lease_expires_at=NOW + timedelta(minutes=5),
+    )
+    p1, p2, p3 = _sweep(session_factory)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result["failed"] == 0
+    assert (await _status(session_factory, leased_id))[0] == "running"
+
+
+@pytest.mark.asyncio
+async def test_expired_lease_is_reapable(session_factory):
+    """A crashed worker's expired execution lease must not protect the row."""
+    dead_id = await _seed(
+        session_factory,
+        status="running",
+        updated_at=STALE,
+        lease_owner="celery:crashed",
+        lease_expires_at=NOW - timedelta(minutes=20),
+    )
+    p1, p2, p3 = _sweep(session_factory)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result["failed"] == 1
+    assert (await _status(session_factory, dead_id))[0] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_awaiting_confirmation_respects_longer_window(session_factory):
+    parked_id = await _seed(
+        session_factory, status="awaiting_confirmation", updated_at=STALE
+    )
+    expired_id = await _seed(
+        session_factory, status="awaiting_confirmation", updated_at=VERY_STALE
+    )
+    p1, p2, p3 = _sweep(session_factory)
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    # 1h-old parked confirm is still confirmable (Redis TTL 1h) → untouched.
+    assert (await _status(session_factory, parked_id))[0] == "awaiting_confirmation"
+    # 3h-old parked confirm can never be confirmed again → swept.
+    assert (await _status(session_factory, expired_id))[0] == "failed"
+    assert result["failed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_live_store_terminal_repairs_instead_of_failing(session_factory):
+    """Projection missed the terminal write (fire-and-forget lost): the run
+    actually completed — repair the projection, don't fail a finished run."""
+    lagged_id = await _seed(session_factory, status="running", updated_at=STALE)
+    live = {"status": "completed", "user_id": "u", "error": None}
+    set_job = AsyncMock()
+    p1, p2, p3 = _sweep(
+        session_factory,
+        get_job_fresh=AsyncMock(return_value=live),
+        set_job=set_job,
+    )
+    with p1, p2, p3:
+        result = await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert result == {"scanned": 1, "failed": 0, "repaired": 1, "skipped": 0}
+    assert (await _status(session_factory, lagged_id))[0] == "completed"
+    set_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_failure_is_pushed_to_live_store_when_record_exists(session_factory):
+    """Pollers read Redis first — a swept run must stop them spinning."""
+    stale_id = await _seed(session_factory, status="running", updated_at=STALE)
+    live = {"status": "running", "user_id": "u", "request": {"thread_id": None}}
+    set_job = AsyncMock()
+    p1, p2, p3 = _sweep(
+        session_factory,
+        get_job_fresh=AsyncMock(return_value=live),
+        set_job=set_job,
+    )
+    with p1, p2, p3:
+        await agent_tasks._sweep_stale_agent_runs(lease_owner="sweeper:t")
+
+    assert (await _status(session_factory, stale_id))[0] == "failed"
+    written = set_job.await_args.args[1]
+    assert written["status"] == JobStatus.FAILED
+    assert "Swept as stale" in written["error"]
+    assert written["user_id"] == "u"  # ownership preserved (merge, not replace)
+
+
+def test_sweep_stale_agent_runs_gated_by_flag():
+    with (
+        patch.object(
+            agent_tasks,
+            "get_settings",
+            return_value=SimpleNamespace(SWEEPERS_ENABLED=False),
+        ),
+        patch.object(agent_tasks, "_run_coro") as run_coro,
+    ):
+        result = agent_tasks.sweep_stale_agent_runs()
+    assert result == {"skipped": "sweepers-disabled"}
+    run_coro.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# sweep_stuck_processing_jobs
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sync_session_factory():
+    from src.models.processing import ProcessingJob
+
+    engine = create_engine("sqlite:///:memory:")
+    ProcessingJob.__table__.create(engine)
+    factory = sessionmaker(bind=engine)
+    yield factory
+    engine.dispose()
+
+
+def _seed_processing_job(factory, *, status, updated_at, is_deleted=False):
+    from src.models.processing import JobType, ProcessingJob
+
+    job_id = uuid.uuid4()
+    with factory() as db:
+        db.add(
+            ProcessingJob(
+                id=job_id,
+                job_type=JobType.DOCUMENT_INGESTION,
+                status=status,
+                organization_id=uuid.uuid4(),
+                created_at=updated_at,
+                updated_at=updated_at,
+                is_deleted=is_deleted,
+            )
+        )
+        db.commit()
+    return job_id
+
+
+def _processing_settings(enabled=True, threshold=1800):
+    return SimpleNamespace(
+        SWEEPERS_ENABLED=enabled, PROCESSING_JOB_STUCK_AFTER_SECONDS=threshold
+    )
+
+
+def test_stuck_processing_jobs_swept_terminal_and_recent_untouched(
+    sync_session_factory,
+):
+    from src.models.processing import JobStatus as PJStatus
+    from src.models.processing import ProcessingJob
+    from src.tasks.processing_tasks import sweep_stuck_processing_jobs
+
+    naive_now = datetime.utcnow()
+    old = naive_now - timedelta(hours=1)
+    recent = naive_now - timedelta(minutes=5)
+
+    stuck_ids = {
+        _seed_processing_job(sync_session_factory, status=s, updated_at=old)
+        for s in (
+            PJStatus.PENDING,
+            PJStatus.QUEUED,
+            PJStatus.RUNNING,
+            PJStatus.RETRYING,
+        )
+    }
+    done_id = _seed_processing_job(
+        sync_session_factory, status=PJStatus.COMPLETED, updated_at=old
+    )
+    fresh_id = _seed_processing_job(
+        sync_session_factory, status=PJStatus.RUNNING, updated_at=recent
+    )
+    deleted_id = _seed_processing_job(
+        sync_session_factory, status=PJStatus.RUNNING, updated_at=old, is_deleted=True
+    )
+
+    with (
+        patch("src.tasks.processing_tasks.SessionLocal", sync_session_factory),
+        patch("src.core.config.get_settings", return_value=_processing_settings()),
+    ):
+        result = sweep_stuck_processing_jobs()
+
+    assert result == {"swept": 4}
+    with sync_session_factory() as db:
+        for job_id in stuck_ids:
+            job = db.get(ProcessingJob, job_id)
+            assert job.status is PJStatus.FAILED
+            assert "Swept as stuck" in job.error_message
+            assert job.error_type == "StuckJobSweep"
+            assert job.completed_at is not None
+        assert db.get(ProcessingJob, done_id).status is PJStatus.COMPLETED
+        assert db.get(ProcessingJob, fresh_id).status is PJStatus.RUNNING
+        assert db.get(ProcessingJob, deleted_id).status is PJStatus.RUNNING
+
+
+def test_processing_sweeper_gated_by_flag(sync_session_factory):
+    from src.models.processing import JobStatus as PJStatus
+    from src.models.processing import ProcessingJob
+    from src.tasks.processing_tasks import sweep_stuck_processing_jobs
+
+    old = datetime.utcnow() - timedelta(hours=2)
+    stuck_id = _seed_processing_job(
+        sync_session_factory, status=PJStatus.RUNNING, updated_at=old
+    )
+
+    with (
+        patch("src.tasks.processing_tasks.SessionLocal", sync_session_factory),
+        patch(
+            "src.core.config.get_settings",
+            return_value=_processing_settings(enabled=False),
+        ),
+    ):
+        result = sweep_stuck_processing_jobs()
+
+    assert result == {"skipped": "sweepers-disabled"}
+    with sync_session_factory() as db:
+        assert db.get(ProcessingJob, stuck_id).status is PJStatus.RUNNING

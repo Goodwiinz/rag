@@ -1043,6 +1043,93 @@ def kg_merge_entities_job(self, job_id: str):
         db.close()
 
 
+# Terminal ProcessingJob states (mirrors ProcessingJob.is_finished). Everything
+# else — PENDING, QUEUED, RUNNING, RETRYING — is non-terminal and sweepable.
+_TERMINAL_PROCESSING_STATUSES = frozenset(
+    {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+)
+_NON_TERMINAL_PROCESSING_STATUSES = [
+    status for status in JobStatus if status not in _TERMINAL_PROCESSING_STATUSES
+]
+
+
+@current_app.task(name="src.tasks.processing_tasks.sweep_stuck_processing_jobs")
+def sweep_stuck_processing_jobs() -> dict:
+    """Fail non-terminal processing_jobs rows that stopped making progress.
+
+    Audit P1.4b / D7: ``cleanup_old_jobs`` below only ever deletes TERMINAL
+    rows, so a job whose worker died (OOM-kill, pod eviction, crash between
+    status writes) sat in pending/queued/running/retrying forever, invisibly
+    "in progress" to the UI.
+
+    ``updated_at`` is bumped by every progress write, and Celery's hard time
+    limit is 600s — so a non-terminal row silent for
+    ``PROCESSING_JOB_STUCK_AFTER_SECONDS`` (default 30 min, ≥3× the max legal
+    task runtime) is definitively stuck and is marked FAILED with an explicit
+    sweep message. Conservative by design: mark-failed only, never re-enqueue
+    (the task may have partially executed). Known edge: with acks_late a
+    QUEUED row swept during an extreme (>30 min) broker backlog can still be
+    picked up later — its start_job/complete writes simply overwrite the
+    sweep, so the job self-heals; the sweep is logged either way.
+
+    Flag-gated by SWEEPERS_ENABLED (values-controllable kill switch).
+    """
+    from src.core.config import get_settings
+
+    settings_local = get_settings()
+    if not settings_local.SWEEPERS_ENABLED:
+        logger.info("sweep_stuck_processing_jobs: skipped (SWEEPERS_ENABLED=false)")
+        return {"skipped": "sweepers-disabled"}
+
+    threshold_seconds = settings_local.PROCESSING_JOB_STUCK_AFTER_SECONDS
+    # Naive-UTC cutoff matches this model's BaseModel timestamps
+    # (default/onupdate=datetime.utcnow) and cleanup_old_jobs' convention.
+    cutoff = datetime.utcnow() - timedelta(seconds=threshold_seconds)
+
+    db = SessionLocal()
+    try:
+        stuck_jobs = (
+            db.query(ProcessingJob)
+            .filter(
+                ProcessingJob.status.in_(_NON_TERMINAL_PROCESSING_STATUSES),
+                ProcessingJob.updated_at < cutoff,
+                ProcessingJob.is_deleted == False,  # noqa: E712
+            )
+            .limit(200)
+            .all()
+        )
+
+        for job in stuck_jobs:
+            prior_status = job.status.value if job.status else "unknown"
+            last_update = job.updated_at.isoformat() if job.updated_at else "unknown"
+            logger.warning(
+                "sweep_stuck_processing_jobs: failing job %s (type=%s, was=%s, "
+                "last update %s, threshold %ss)",
+                job.id,
+                job.job_type.value if job.job_type else "unknown",
+                prior_status,
+                last_update,
+                threshold_seconds,
+            )
+            job.fail_job(
+                f"Swept as stuck: status '{prior_status}' with no update since "
+                f"{last_update} (threshold {threshold_seconds}s; Celery hard "
+                "time limit is 600s)",
+                error_type="StuckJobSweep",
+            )
+
+        db.commit()
+        result = {"swept": len(stuck_jobs)}
+        logger.info("sweep_stuck_processing_jobs: %s", result)
+        return result
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Stuck-job sweep failed: {str(e)}")
+        raise
+    finally:
+        db.close()
+
+
 @current_app.task
 def cleanup_old_jobs():
     """Cleanup old processing jobs"""

@@ -174,6 +174,84 @@ async def get_run(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def get_run_by_idempotency_key(
+    db: AsyncSession,
+    idempotency_key: str,
+    *,
+    organization_id: Any,
+    user_id: Any,
+) -> Optional[AgentRun]:
+    """Tenant-scoped lookup of a run by its client idempotency key.
+
+    Used by the Celery dispatch path to resolve a retried /execute (same
+    ``client_message_id``) to the run it already created instead of enqueueing
+    the turn twice. Same mandatory null-safe org+user filter as ``get_run`` —
+    a key collision across tenants (malicious or otherwise) resolves to
+    nothing rather than another tenant's run.
+    """
+    stmt = select(AgentRun).where(
+        AgentRun.idempotency_key == idempotency_key,
+        AgentRun.organization_id == _coerce_uuid(organization_id),
+        AgentRun.user_id == _coerce_uuid(user_id),
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def claim_execution(
+    db: AsyncSession,
+    job_id: str,
+    *,
+    lease_owner: str,
+    lease_seconds: int,
+    now: Optional[datetime] = None,
+) -> str:
+    """One-shot execution claim for the Celery runner. Commits.
+
+    Returns ``"claimed"`` | ``"duplicate"`` | ``"missing"``.
+
+    Unlike ``claim_lease`` (the sweeper's renewable/expirable lease), this
+    claim succeeds at most ONCE per run: it requires ``status == running``
+    AND ``lease_owner IS NULL``. That single-statement condition is what makes
+    duplicate task deliveries safe:
+
+    - acks_late redelivery after a worker crash *mid-run*: the first delivery
+      already stamped ``lease_owner`` → duplicate no-ops (the sweeper reaps
+      the stuck row; we never auto re-run a turn whose tools may have already
+      produced side effects).
+    - redelivery after a crash *before* the claim: nothing ran, the lease is
+      still NULL → the redelivery legitimately claims and recovers the turn.
+    - a stale duplicate arriving while a HITL confirm-resume has the run
+      ``running`` again: ``lease_owner`` was stamped by the original
+      execution and is never cleared on a live run → no-ops.
+
+    The claim is intentionally never released; terminal status (not lease
+    state) is what ends a run's lifecycle.
+    """
+    now = now or _utcnow()
+    stmt = (
+        update(AgentRun)
+        .where(
+            AgentRun.job_id == job_id,
+            AgentRun.status == JobStatus.RUNNING.value,
+            AgentRun.lease_owner.is_(None),
+        )
+        .values(
+            lease_owner=lease_owner,
+            lease_expires_at=now + timedelta(seconds=lease_seconds),
+            updated_at=now,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    if result.rowcount:
+        return "claimed"
+    exists = (
+        await db.execute(select(AgentRun.job_id).where(AgentRun.job_id == job_id))
+    ).scalar_one_or_none()
+    return "missing" if exists is None else "duplicate"
+
+
 async def claim_lease(
     db: AsyncSession,
     job_id: str,
@@ -304,6 +382,29 @@ async def record_job_status(job_id: str, data: dict) -> None:
             job_id,
             exc_info=True,
         )
+
+
+async def claim_execution_safe(
+    job_id: str, *, lease_owner: str, lease_seconds: int
+) -> str:
+    """Own-session ``claim_execution`` for the Celery task. Never raises.
+
+    Returns the claim outcome, or ``"error"`` when Postgres is unreachable —
+    the caller must then NOT run the turn (without the claim there is no
+    duplicate-delivery protection) and should fail the job record instead.
+    """
+    try:
+        from src.core.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            return await claim_execution(
+                db, job_id, lease_owner=lease_owner, lease_seconds=lease_seconds
+            )
+    except Exception:
+        logger.warning(
+            "agent_runs execution claim failed for job %s", job_id, exc_info=True
+        )
+        return "error"
 
 
 async def get_run_fallback(
