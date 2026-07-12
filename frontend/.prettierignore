@@ -1,0 +1,4 @@
+# Auto-generated from backend/openapi.json via `pnpm generate:api-types`
+# (audit C5 REST contract ratchet). openapi-typescript owns this file's
+# formatting; letting Prettier rewrite it would make regeneration non-idempotent.
+src/types/generated/
