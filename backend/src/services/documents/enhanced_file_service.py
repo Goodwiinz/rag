@@ -1010,8 +1010,21 @@ class EnhancedFileService:
         custom_metadata: Dict[str, Any],
         validation_result: Dict[str, Any],
     ) -> Document:
-        """Process and store uploaded file with enhanced validation"""
+        """Process and store uploaded file with enhanced validation.
+
+        DEPRECATED: prefer :class:`FileService.upload_file` (async), the canonical
+        upload entry point wired to the live ``POST /files/upload`` endpoint. This
+        service backs the unregistered ``/api/v2/documents/upload`` router only.
+        See ``docs/decisions/upload-path.md``.
+        """
         document = None  # bound for the except cleanup if commit fails post-upload
+        # Track whether the document row durably committed. The storage object is
+        # committed BEFORE the DB rows, and the DB writes span two commits (row,
+        # then quota). If the SECOND commit fails, the row is already live, so a
+        # bare rollback + object-delete would strand a live PENDING row (whose
+        # checksum then blocks re-upload) with its backing object gone. Mirror
+        # FileService: reverse the committed row first, delete the object second.
+        document_committed = False
         try:
             basic = validation_result["basic_validation"]
             original_ext = Path(file.filename).suffix
@@ -1149,6 +1162,7 @@ class EnhancedFileService:
             self.db.add(document)
             self.db.commit()
             self.db.refresh(document)
+            document_committed = True
 
             # Atomically update organization storage usage
             self.db.execute(
@@ -1181,8 +1195,30 @@ class EnhancedFileService:
             # The storage object was uploaded BEFORE the failed commit, so a
             # rollback alone orphans it (and, with the org-scoped content-hash
             # dedup, a stale orphan can block re-uploading the same content).
-            # Best-effort delete the object before surfacing the error.
-            if document is not None:
+            #
+            # If the failure happened AFTER the document row committed (e.g. the
+            # quota update commit failed), the row is already live: rollback only
+            # discards the uncommitted quota change, leaving a PENDING row whose
+            # checksum blocks re-upload. Reverse that row first (soft-delete frees
+            # the checksum from uq_documents_org_checksum_live); only delete the
+            # object once the row is gone, so we never orphan a live row from its
+            # backing file. If the reversal itself fails, keep the object as a
+            # sweepable orphan. Mirrors FileService.upload_file.
+            reversal_ok = not document_committed
+            if document_committed and document is not None:
+                try:
+                    document.soft_delete()
+                    self.db.commit()
+                    reversal_ok = True
+                except Exception:
+                    self.db.rollback()
+                    logger.warning(
+                        "upload rollback: failed to reverse committed row for "
+                        "document %s; leaving storage object as a sweepable orphan",
+                        getattr(document, "id", None),
+                        exc_info=True,
+                    )
+            if reversal_ok and document is not None:
                 self._best_effort_delete_object(document)
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 
