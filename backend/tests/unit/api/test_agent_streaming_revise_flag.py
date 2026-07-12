@@ -104,7 +104,7 @@ _COMMON_PATCHES = [
         AsyncMock(return_value=object()),
     ),
     (
-        "src.api.agent.streaming._persist_user_message",
+        "src.api.agent.streaming._persist_user_message_guarded",
         AsyncMock(return_value=None),
     ),
     (
