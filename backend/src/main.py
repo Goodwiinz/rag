@@ -87,8 +87,6 @@ from src.api.research_engine import (
 )
 from src.api.search import (
     knowledge_graph_router,
-    multi_agent_search_router,
-    multi_agent_search_v2_router,
     search_quality_router,
     search_router,
 )
@@ -579,8 +577,6 @@ app.include_router(processing_router, prefix="/api/v1")
 app.include_router(knowledge_graph_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(search_quality_router, prefix="/api/v1")
-app.include_router(multi_agent_search_router, prefix="/api/v1")
-app.include_router(multi_agent_search_v2_router)  # Enhanced v2 multi-agent search
 app.include_router(evidence_router, prefix="/api/v1/evidence", tags=["evidence"])
 app.include_router(quality_metrics_router, prefix="/api/v1/analytics/quality")
 app.include_router(user_behavior_router, prefix="/api/v1/analytics/behavior")

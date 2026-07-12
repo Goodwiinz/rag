@@ -335,35 +335,6 @@ class KnowledgeGraphTest(PerformanceTestCase):
 
         self.results.append(result)
 
-class MultiAgentSearchTest(PerformanceTestCase):
-    """Multi-agent search load test"""
-
-    def __init__(self, config: LoadTestConfig):
-        super().__init__(config)
-        self.agent_workflows = [
-            'factual_lookup',
-            'reasoning',
-            'multimodal'
-        ]
-
-    async def _execute_user_action(self):
-        """Execute multi-agent search action"""
-        workflow = random.choice(self.agent_workflows)
-
-        payload = {
-            'query': f'Test query for {workflow} workflow',
-            'workflow_type': workflow,
-            'context': {
-                'user_preferences': {
-                    'response_format': 'detailed',
-                    'include_sources': True
-                }
-            }
-        }
-
-        result = await self.make_request('POST', '/api/v1/multi-agent/search', json=payload)
-        self.results.append(result)
-
 class AnalyticsTest(PerformanceTestCase):
     """Analytics and metrics load test"""
 
@@ -403,7 +374,6 @@ class LoadTestRunner:
             ('Basic Search', SearchTest),
             ('Hybrid Search', HybridSearchTest),
             ('Knowledge Graph', KnowledgeGraphTest),
-            ('Multi-Agent Search', MultiAgentSearchTest),
             ('Analytics', AnalyticsTest)
         ]
 
