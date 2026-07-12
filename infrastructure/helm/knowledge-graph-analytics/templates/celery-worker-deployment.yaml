@@ -49,16 +49,14 @@ spec:
             {{- if .Values.backend.envFrom }}
             {{- toYaml .Values.backend.envFrom | nindent 12 }}
             {{- end }}
+          # Shared backend.env merged with per-component overrides (e.g. a
+          # smaller DB pool budget than the request-serving backend) into a
+          # UNIQUE-by-name list, component value winning. A plain append would
+          # emit duplicate env names, which the kubelet tolerates (last wins)
+          # but ArgoCD's strategic-merge-patch rejects (env list is keyed by
+          # `name`) — breaking sync for the whole app. See mergedEnv helper.
           env:
-            {{- if .Values.backend.env }}
-            {{- toYaml .Values.backend.env | nindent 12 }}
-            {{- end }}
-            # Per-component env overrides (e.g. a smaller DB pool budget than the
-            # request-serving backend). Appended after the shared backend.env so
-            # duplicate keys win last (Kubernetes last-value-wins semantics).
-            {{- with .Values.celeryWorker.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
+            {{- include "knowledge-graph-analytics.mergedEnv" (dict "base" .Values.backend.env "override" .Values.celeryWorker.env) | nindent 12 }}
           resources:
             {{- if .Values.celeryWorker.resources }}
             {{- toYaml .Values.celeryWorker.resources | nindent 12 }}
