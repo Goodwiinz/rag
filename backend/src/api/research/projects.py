@@ -742,21 +742,21 @@ async def create_note(
         Created note
     """
     try:
+        # Authorization guard (raises 404 on unowned project). Kept in the
+        # adapter — the route and the agent tool verify ownership differently
+        # (see ProjectService.create_note docstring), so the shared service
+        # method stays persistence-only.
         await _get_project_with_auth(project_id, current_user, db)
 
-        note = ProjectNote(
-            project_id=project_id,
+        note = await ProjectService(db).create_note(
             user_id=current_user.id,
+            project_id=project_id,
             title=note_data.title,
             content=note_data.content,
-            linked_document_ids=note_data.linked_document_ids or [],
-            tags=note_data.tags or [],
-            is_pinned=note_data.is_pinned or False,
+            tags=note_data.tags,
+            linked_document_ids=note_data.linked_document_ids,
+            is_pinned=note_data.is_pinned,
         )
-
-        db.add(note)
-        await db.commit()
-        await db.refresh(note)
 
         logger.info(
             "note_created",

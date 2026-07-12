@@ -25,7 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.citation import Citation
 from src.models.collection import CollectionDocument
 from src.models.document import Document
-from src.models.project_note import ProjectNote
 from src.models.user import User
 
 from .tool_helpers import (
@@ -1419,12 +1418,15 @@ async def _tool_do_kb_retrieve(
         return {"chunks": [], "total": 0, "source": "do_kb", "reason": "disabled"}
 
     # Read kb_uuid from the org. Lazy import to keep cold-start light.
+    from src.services.do_kb.retrieval import (
+        DOKBRetrieveStatus,
+        resolve_org_kb_uuid,
+        retrieve_kb_chunks,
+    )
+
     kb_uuid: Optional[str] = None
     if db is not None:
-        from src.models.organization import Organization
-
-        org = await db.get(Organization, current_user.organization_id)
-        kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+        kb_uuid = await resolve_org_kb_uuid(db, current_user.organization_id)
 
     if not kb_uuid:
         return {
@@ -1434,37 +1436,17 @@ async def _tool_do_kb_retrieve(
             "reason": "not_provisioned",
         }
 
+    # Shared retrieve core (audit B2). This tool has no timeout and surfaces an
+    # error dict on failure; the 404-vs-transient logging lives in the shared
+    # helper. A non-DOKnowledgeBaseError propagates out of the helper and is
+    # caught by the broad except below, preserving the tool's error-dict path.
     try:
-        from src.services.do_kb import DOKnowledgeBaseError, get_do_kb_client
-
-        client = get_do_kb_client()
-        result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
-    except DOKnowledgeBaseError as exc:
-        # A 404 means the KB was deleted on DO's side (permanent — needs a human
-        # to re-provision). Log distinctly at ERROR with org_id so it doesn't
-        # blend into ordinary transient failures; other codes stay at WARNING.
-        # Still return an empty result so the agent falls back cleanly.
-        if exc.status_code == 404:
-            logger.error(
-                "do_kb_retrieve 404 — knowledge base deleted/missing on DO's "
-                "side; retrieval permanently degraded until re-provisioned "
-                "(org_id=%s, kb_uuid=%s)",
-                current_user.organization_id,
-                kb_uuid,
-            )
-        else:
-            logger.warning(
-                "do_kb_retrieve failed (status=%s, org_id=%s): %s",
-                exc.status_code,
-                current_user.organization_id,
-                exc,
-            )
-        return {
-            "chunks": [],
-            "total": 0,
-            "source": "do_kb",
-            "error": f"Retrieval failed: {exc}",
-        }
+        outcome = await retrieve_kb_chunks(
+            kb_uuid=kb_uuid,
+            query=query,
+            org_id=current_user.organization_id,
+            top_k=top_k,
+        )
     except Exception as exc:
         logger.warning("do_kb_retrieve failed: %s", exc)
         return {
@@ -1473,6 +1455,15 @@ async def _tool_do_kb_retrieve(
             "source": "do_kb",
             "error": f"Retrieval failed: {exc}",
         }
+
+    if outcome.status is not DOKBRetrieveStatus.SUCCESS:
+        return {
+            "chunks": [],
+            "total": 0,
+            "source": "do_kb",
+            "error": f"Retrieval failed: {outcome.error}",
+        }
+    result = outcome.result
 
     # Resolve storage-key document_ids back to real Document rows and
     # optionally filter by project membership.
@@ -1701,25 +1692,26 @@ async def _tool_create_project_note(
         return {"error": "project_id is required"}
 
     from src.core.database import AsyncSessionLocal
+    from src.services.research.project_service import ProjectService
 
     try:
         async with AsyncSessionLocal() as fresh_db:
-            # Verify project ownership (resolves UUID or name)
+            # Verify project ownership (resolves UUID or name). Kept in the
+            # adapter — the tool and the REST route authorize differently, so
+            # ProjectService.create_note stays persistence-only.
             project = await _verify_project_ownership(
                 project_id, fresh_db, current_user
             )
             if not project:
                 return {"error": "Project not found or access denied"}
 
-            note = ProjectNote(
-                project_id=project.id,
+            note = await ProjectService(fresh_db).create_note(
                 user_id=current_user.id,
+                project_id=project.id,
                 title=title,
                 content=content,
                 tags=tags or [],
             )
-            fresh_db.add(note)
-            await fresh_db.commit()
 
             return {
                 "status": "success",

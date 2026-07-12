@@ -302,53 +302,36 @@ async def _try_primary_do_kb_read(
             return None
 
         from src.core.database import AsyncSessionLocal
-        from src.models.organization import Organization
-        from src.services.do_kb import get_do_kb_client
+        from src.services.do_kb.retrieval import (
+            DOKBRetrieveStatus,
+            resolve_org_kb_uuid,
+            retrieve_kb_chunks,
+        )
 
         async with AsyncSessionLocal() as session:
-            org = await session.get(Organization, org_id)
-            kb_uuid = getattr(org, "do_kb_uuid", None) if org else None
+            kb_uuid = await resolve_org_kb_uuid(session, org_id)
             if not kb_uuid:
                 return None
 
-            from src.services.do_kb import DOKnowledgeBaseError
-
-            client = get_do_kb_client()
-            try:
-                result = await asyncio.wait_for(
-                    client.retrieve(kb_uuid=kb_uuid, query=query),
-                    timeout=_kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "do_kb retrieve timed out after %.1fs — falling back to hybrid search",
-                    _kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
-                )
+            # Shared retrieve core (audit B2): timeout wrap + 404/other logging
+            # live in ``retrieve_kb_chunks``; this node keeps its own telemetry
+            # + fallback-to-None semantics by mapping the outcome.
+            outcome = await retrieve_kb_chunks(
+                kb_uuid=kb_uuid,
+                query=query,
+                org_id=org_id,
+                timeout=_kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS,
+            )
+            if outcome.status is DOKBRetrieveStatus.TIMEOUT:
                 _record_do_kb_read("do_kb_timeout")
                 return None
-            except DOKnowledgeBaseError as exc:
-                # A 404 means the KB was deleted on DO's side (permanent — needs
-                # a human to re-provision). Log it at ERROR with the org_id so it
-                # surfaces distinctly from ordinary transient failures, which stay
-                # at WARNING. Still return None so the user gets a fallback answer.
-                if exc.status_code == 404:
-                    logger.error(
-                        "do_kb retrieve 404 — knowledge base deleted/missing on "
-                        "DO's side; retrieval permanently degraded to fallback "
-                        "until re-provisioned (org_id=%s, kb_uuid=%s)",
-                        org_id,
-                        kb_uuid,
-                    )
-                    _record_do_kb_read("do_kb_error_404")
-                else:
-                    logger.warning(
-                        "do_kb retrieve failed (status=%s) — falling back to "
-                        "hybrid search (org_id=%s)",
-                        exc.status_code,
-                        org_id,
-                    )
-                    _record_do_kb_read("do_kb_error_other")
+            if outcome.status is DOKBRetrieveStatus.ERROR_404:
+                _record_do_kb_read("do_kb_error_404")
                 return None
+            if outcome.status is DOKBRetrieveStatus.ERROR_OTHER:
+                _record_do_kb_read("do_kb_error_other")
+                return None
+            result = outcome.result
             if not result.chunks:
                 # KB is up and reachable, it just had no matches — a healthy
                 # outcome, distinct from an error. Fall back to hybrid search.
