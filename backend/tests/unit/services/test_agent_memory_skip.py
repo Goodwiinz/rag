@@ -28,10 +28,8 @@ class TestMemoryRetrievalFastPath:
             memmod, "get_memory_store", AsyncMock(return_value=MagicMock())
         )
 
-        user = MagicMock()
-        user.id = "user-mem-1"
         state = {"messages": [HumanMessage(content=query)]}
-        config = {"configurable": {"current_user": user}}
+        config = {"configurable": {"user_id": "user-mem-1"}}
 
         result = await memory_retrieval_node(state, config)
         return mock_search, result

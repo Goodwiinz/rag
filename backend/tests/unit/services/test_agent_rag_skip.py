@@ -76,7 +76,7 @@ class TestRagNodeFastPath:
         assert result.get("retrieved_contexts", []) == []
 
     async def test_rag_node_runs_search_for_retrieval_query(self):
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
 
         from langchain_core.messages import HumanMessage
 
@@ -88,11 +88,8 @@ class TestRagNodeFastPath:
             "retrieved_contexts": [],
             "thread_id": "t-2",
         }
-        mock_user = MagicMock()
-        mock_user.id = "user-test-1"
-        mock_user.organization_id = None
         mock_search = AsyncMock(return_value=[])
-        config = {"configurable": {"search_fn": mock_search, "current_user": mock_user}}
+        config = {"configurable": {"search_fn": mock_search, "user_id": "user-test-1"}}
 
         await rag_node(state, config)
 

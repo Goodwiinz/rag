@@ -2,7 +2,7 @@
 import asyncio
 import json
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from langchain_core.messages import AIMessage, ToolMessage
 
 
@@ -25,7 +25,7 @@ class TestErrorRecoveryWiring:
         # via arxiv_service to avoid 2x wall-clock amplification). Use
         # search_documents which still receives the outer retry_transient.
         tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc1"}
-        config = {"configurable": {"current_user": MagicMock(id="u1"), "db": None}}
+        config = {"configurable": {"user_id": "u1"}}
 
         with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
             result = await _execute_single_tool(tc, config, {})
@@ -42,7 +42,7 @@ class TestErrorRecoveryWiring:
             return {"error": "Document abc123 not found"}
 
         tc = {"name": "add_document_to_project", "args": {"document_id": "abc123"}, "id": "tc2"}
-        config = {"configurable": {"current_user": MagicMock(id="u1"), "db": None}}
+        config = {"configurable": {"user_id": "u1"}}
 
         with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
             result = await _execute_single_tool(tc, config, {})
@@ -70,7 +70,7 @@ class TestErrorRecoveryWiring:
         async def mock_execute_tool(**kwargs):
             return {"papers": [{"id": "1", "title": "Test Paper"}]}
 
-        config = {"configurable": {"current_user": MagicMock(id="u1"), "db": None}}
+        config = {"configurable": {"user_id": "u1"}}
 
         with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
             result = await tool_node(state, config)

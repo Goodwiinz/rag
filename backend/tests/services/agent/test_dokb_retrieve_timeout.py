@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import uuid
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -41,10 +42,9 @@ from src.services.agent._nodes_rag import _try_primary_do_kb_read
 # ---------------------------------------------------------------------------
 
 
-def _make_user(org_id: str = "org-abc") -> MagicMock:
-    user = MagicMock()
-    user.organization_id = org_id
-    return user
+# Ids-only signature (audit B8): scalar user/org ids; org must be a UUID.
+_USER_ID = str(uuid.uuid4())
+_ORG_ID = str(uuid.uuid4())
 
 
 def _make_chunk(text: str = "chunk text") -> MagicMock:
@@ -115,7 +115,8 @@ async def test_slow_do_kb_retrieve_returns_none_quickly():
     ):
         result = await _try_primary_do_kb_read(
             query="what is the capital of France?",
-            current_user=_make_user(),
+            user_id=_USER_ID,
+            organization_id=_ORG_ID,
         )
 
     # Must return None (triggering fallback) — not the slow chunk list
@@ -165,7 +166,8 @@ async def test_fast_do_kb_retrieve_returns_contexts():
     ):
         result = await _try_primary_do_kb_read(
             query="what is the capital of France?",
-            current_user=_make_user(),
+            user_id=_USER_ID,
+            organization_id=_ORG_ID,
         )
 
     assert result is not None

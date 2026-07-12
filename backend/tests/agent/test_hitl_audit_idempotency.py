@@ -21,7 +21,8 @@ from src.services.agent.subgraphs.writing_agent import writing_interrupt_node
 
 CONFIG = {
     "configurable": {
-        "current_user": None,
+        # Ids-only configurable (audit B8); empty user_id = anonymous actor.
+        "user_id": "",
         "thread_id": "thread-1",
     }
 }

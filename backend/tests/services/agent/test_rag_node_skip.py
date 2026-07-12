@@ -43,7 +43,7 @@ async def test_skip_for_hi_with_active_project():
     ):
         result = await rag_node(
             _state("hi", project_id=project_id),
-            config={"configurable": {"current_user": user}},
+            config={"configurable": {"user_id": str(user.id)}},
         )
 
     assert result["retrieved_contexts"] == []
@@ -62,7 +62,7 @@ async def test_skip_for_thanks_no_project():
     ):
         result = await rag_node(
             _state("thanks!"),
-            config={"configurable": {"current_user": user}},
+            config={"configurable": {"user_id": str(user.id)}},
         )
 
     assert result["retrieved_contexts"] == []
@@ -88,7 +88,7 @@ async def test_substantive_query_with_project_forwards_project_id():
                 "Find recent transformer architecture papers please",
                 project_id=project_id,
             ),
-            config={"configurable": {"current_user": user}},
+            config={"configurable": {"user_id": str(user.id)}},
         )
 
     mock_primary.assert_awaited_once()

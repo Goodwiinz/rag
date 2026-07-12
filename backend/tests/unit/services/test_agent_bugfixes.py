@@ -86,8 +86,8 @@ class TestToolLoopCounter:
 
         config = {
             "configurable": {
-                "current_user": Mock(id=uuid4()),
-                "db": AsyncMock(),
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
             }
         }
 
@@ -495,8 +495,8 @@ class TestGatherExceptionToolMessages:
 
         config = {
             "configurable": {
-                "current_user": Mock(id=uuid4()),
-                "db": AsyncMock(),
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
             }
         }
 
@@ -697,8 +697,8 @@ class TestFilteredToolNode:
 
         config = {
             "configurable": {
-                "current_user": Mock(id=uuid4()),
-                "db": AsyncMock(),
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
             }
         }
 
@@ -789,8 +789,8 @@ class TestFilteredToolNode:
 
         config = {
             "configurable": {
-                "current_user": Mock(id=uuid4()),
-                "db": AsyncMock(),
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
             }
         }
 

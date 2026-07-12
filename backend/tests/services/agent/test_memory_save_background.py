@@ -23,16 +23,11 @@ from src.services.agent._nodes_memory import _BACKGROUND_TASKS, memory_save_node
 _SLOW_DELAY = 5  # seconds — slow enough that inline execution would be obvious
 
 
-def _user() -> MagicMock:
-    u = MagicMock()
-    u.id = "user-bg-test"
-    return u
-
-
 def _config(thread_id: str = "thread-bg") -> dict:
+    # Ids-only configurable (audit B8)
     return {
         "configurable": {
-            "current_user": _user(),
+            "user_id": "user-bg-test",
             "thread_id": thread_id,
         }
     }

@@ -10,6 +10,7 @@ in-pod code runs.
 
 from __future__ import annotations
 
+import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -43,9 +44,10 @@ def kb_cfg():
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_success_emits_success_outcome(kb_cfg, monkeypatch):
-    user = MagicMock()
-    user.organization_id = "org-1"
-    user.id = "u-1"
+    # Ids-only signature (audit B8): scalar user/org ids, org must parse
+    # as a UUID or the read is skipped.
+    user_id = str(uuid.uuid4())
+    org_id = str(uuid.uuid4())
 
     org = MagicMock()
     org.do_kb_uuid = "kb-1"
@@ -77,7 +79,9 @@ async def test_success_emits_success_outcome(kb_cfg, monkeypatch):
             fake_resolve,
         ),
     ):
-        result = await _nodes_rag._try_primary_do_kb_read("q", user, project_id=None)
+        result = await _nodes_rag._try_primary_do_kb_read(
+            "q", user_id, org_id, project_id=None
+        )
 
     assert result is not None and len(result) == 1
     assert "success" in recorded
@@ -86,9 +90,10 @@ async def test_success_emits_success_outcome(kb_cfg, monkeypatch):
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_404_emits_error_outcome_and_returns_none(kb_cfg, monkeypatch):
-    user = MagicMock()
-    user.organization_id = "org-1"
-    user.id = "u-1"
+    # Ids-only signature (audit B8): scalar user/org ids, org must parse
+    # as a UUID or the read is skipped.
+    user_id = str(uuid.uuid4())
+    org_id = str(uuid.uuid4())
 
     org = MagicMock()
     org.do_kb_uuid = "kb-1"
@@ -106,7 +111,9 @@ async def test_404_emits_error_outcome_and_returns_none(kb_cfg, monkeypatch):
         patch("src.core.database.AsyncSessionLocal", _fake_session_ctx(org)),
         patch("src.services.do_kb.get_do_kb_client", return_value=client),
     ):
-        result = await _nodes_rag._try_primary_do_kb_read("q", user, project_id=None)
+        result = await _nodes_rag._try_primary_do_kb_read(
+            "q", user_id, org_id, project_id=None
+        )
 
     # Fallback preserved (None), and the 404 is observable.
     assert result is None
@@ -118,9 +125,10 @@ async def test_404_emits_error_outcome_and_returns_none(kb_cfg, monkeypatch):
 @pytest.mark.asyncio
 async def test_empty_kb_emits_do_kb_empty(kb_cfg, monkeypatch):
     """KB up but no matches is a healthy outcome, distinct from an error."""
-    user = MagicMock()
-    user.organization_id = "org-1"
-    user.id = "u-1"
+    # Ids-only signature (audit B8): scalar user/org ids, org must parse
+    # as a UUID or the read is skipped.
+    user_id = str(uuid.uuid4())
+    org_id = str(uuid.uuid4())
 
     org = MagicMock()
     org.do_kb_uuid = "kb-1"
@@ -136,7 +144,9 @@ async def test_empty_kb_emits_do_kb_empty(kb_cfg, monkeypatch):
         patch("src.core.database.AsyncSessionLocal", _fake_session_ctx(org)),
         patch("src.services.do_kb.get_do_kb_client", return_value=client),
     ):
-        result = await _nodes_rag._try_primary_do_kb_read("q", user, project_id=None)
+        result = await _nodes_rag._try_primary_do_kb_read(
+            "q", user_id, org_id, project_id=None
+        )
 
     assert result is None
     assert "do_kb_empty" in recorded

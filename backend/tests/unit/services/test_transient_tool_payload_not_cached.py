@@ -8,7 +8,7 @@ status="failed" (transient ⇒ error_increment 0, so it doesn't trip the error
 ceiling but is no longer a dedupe cache candidate).
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -23,7 +23,7 @@ async def test_transient_payload_error_marked_failed_not_completed():
     with patch("src.services.agent.graph._get_execute_tool", return_value=executor):
         result = await _execute_single_tool(
             {"name": "document_search", "args": {"q": "x"}, "id": "t1"},
-            {"configurable": {"current_user": Mock(id="u1")}},
+            {"configurable": {"user_id": "u1"}},
             {},
         )
 

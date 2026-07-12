@@ -97,13 +97,12 @@ def _make_state(user_msg: str) -> dict:
 
 
 def _make_config() -> dict:
-    """Build a minimal RunnableConfig with mocked user/db."""
-    user = Mock(id=uuid4(), organization_id=uuid4())
+    """Build a minimal ids-only RunnableConfig (audit B8)."""
     return {
         "configurable": {
             "thread_id": str(uuid4()),
-            "db": AsyncMock(),
-            "current_user": user,
+            "user_id": str(uuid4()),
+            "organization_id": str(uuid4()),
             "page_context": {"type": "unknown"},
         }
     }

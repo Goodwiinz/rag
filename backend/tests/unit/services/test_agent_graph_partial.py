@@ -37,12 +37,12 @@ def _make_initial_state(user_msg: str = "find papers on transformers") -> dict:
 
 
 def _make_config(thread_id: str | None = None) -> dict:
-    user = Mock(id=uuid4(), organization_id=uuid4())
+    # Ids-only configurable (audit B8) — never a live session / ORM user.
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid4()),
-            "db": AsyncMock(),
-            "current_user": user,
+            "user_id": str(uuid4()),
+            "organization_id": str(uuid4()),
             "page_context": {"type": "unknown"},
         }
     }
@@ -224,11 +224,11 @@ class TestIndividualNodes:
         project_id and replied "I'm not using any project yet"."""
         from src.services.agent.graph import rag_node
 
-        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "current_user": user,
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -253,11 +253,11 @@ class TestIndividualNodes:
         and the CLI still sends type='chat'."""
         from src.services.agent.graph import rag_node
 
-        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "current_user": user,
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -288,11 +288,11 @@ class TestIndividualNodes:
                 }
             ]
 
-        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "current_user": user,
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
                 "search_fn": mock_search,
             }
         }
@@ -323,11 +323,11 @@ class TestIndividualNodes:
         async def mock_search(query: str, user_id: str):
             return [{"document_id": "d1", "title": "T", "content": "c", "score": 0.9}]
 
-        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "current_user": user,
+                "user_id": str(uuid4()),
+                "organization_id": str(uuid4()),
                 "page_context": {"type": "unknown"},
                 "search_fn": mock_search,
             }

@@ -1531,10 +1531,15 @@ async def _run_agent_graph(
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,
+                # Ids only (audit B8): graph nodes/tools open their own
+                # tool_session() and re-load the user org-scoped — never
+                # smuggle the live AsyncSession / ORM User through config.
                 "configurable": {
                     "thread_id": request.thread_id or job_id,
-                    "db": db,
-                    "current_user": current_user,
+                    "user_id": str(current_user.id),
+                    "organization_id": str(
+                        getattr(current_user, "organization_id", "") or ""
+                    ),
                     "page_context": page_context,
                 },
                 # LangSmith run metadata — makes traces filterable per
@@ -1772,10 +1777,13 @@ async def _resume_agent_graph(
 
             config = {
                 "recursion_limit": RECURSION_LIMIT,
+                # Ids only (audit B8) — see _run_agent_graph's run config.
                 "configurable": {
                     "thread_id": resume_thread_id,
-                    "db": db,
-                    "current_user": current_user,
+                    "user_id": str(current_user.id),
+                    "organization_id": str(
+                        getattr(current_user, "organization_id", "") or ""
+                    ),
                     "page_context": (
                         _page_context_to_dict(original_request.page_context)
                         if original_request

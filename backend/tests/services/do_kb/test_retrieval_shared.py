@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -209,7 +210,9 @@ async def test_rag_node_delegates_to_shared_retrieve():
 
     from src.services.agent import _nodes_rag
 
-    user = SimpleNamespace(organization_id="org-1", id="u-1")
+    # Ids-only signature (audit B8): scalar ids; org must parse as a UUID.
+    user_id = str(uuid.uuid4())
+    org_uuid = uuid.uuid4()
 
     cfg = MagicMock()
     cfg.DO_KB_PRIMARY_READ = True
@@ -244,11 +247,13 @@ async def test_rag_node_delegates_to_shared_retrieve():
         patch("src.services.do_kb.retrieval.retrieve_kb_chunks", fake_retrieve),
         patch("src.services.do_kb.resolve.resolve_and_filter_chunks", fake_resolve),
     ):
-        out = await _nodes_rag._try_primary_do_kb_read("q", user, project_id=None)
+        out = await _nodes_rag._try_primary_do_kb_read(
+            "q", user_id, str(org_uuid), project_id=None
+        )
 
     fake_retrieve.assert_awaited_once()
     kwargs = fake_retrieve.await_args.kwargs
     assert kwargs["kb_uuid"] == "kb-1"
     assert kwargs["timeout"] == 4.0
-    assert kwargs["org_id"] == "org-1"
+    assert kwargs["org_id"] == org_uuid
     assert out is not None and len(out) == 1
