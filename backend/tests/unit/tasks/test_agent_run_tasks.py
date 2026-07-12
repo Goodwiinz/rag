@@ -245,15 +245,24 @@ async def test_fail_job_record_preserves_owner_and_projects(session_factory):
 # ---------------------------------------------------------------------------
 
 
-def test_run_coro_reuses_one_persistent_loop():
-    """Two sync→async hops must land on the SAME loop — loop-bound singletons
-    (checkpointer pool, redis client, async engine) survive across tasks."""
+def test_agent_tasks_route_through_shared_run_async_one_loop():
+    """The agent Celery task drives coroutines through the shared run_async
+    boundary, and two sync→async hops land on the SAME persistent loop — so the
+    loop-bound singletons (checkpointer pool, redis client, async engine) survive
+    across tasks. Consolidated onto ``_async_utils.run_async`` (was this module's
+    own ``_run_coro``); asserting the identity keeps the single-boundary contract
+    from silently regressing to a second bespoke loop."""
+    from src.tasks._async_utils import run_async as shared_run_async
+
+    # The module routes through the one shared helper (single loop + boundary).
+    assert tasks_mod.run_async is shared_run_async
+    assert not hasattr(tasks_mod, "_run_coro")
 
     async def _loop_id():
         return id(asyncio.get_running_loop())
 
-    first = tasks_mod._run_coro(_loop_id(), timeout=5)
-    second = tasks_mod._run_coro(_loop_id(), timeout=5)
+    first = tasks_mod.run_async(_loop_id(), timeout=5)
+    second = tasks_mod.run_async(_loop_id(), timeout=5)
     assert first == second
 
 

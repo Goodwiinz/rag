@@ -321,3 +321,78 @@ def test_delete_before_insert_and_row_tenancy(tmp_path, unconfigured_s3):
     row = db.added[0]
     assert row.organization_id == document.organization_id
     assert row.content_type == ContentType.IMAGE
+
+
+# ---------------------------------------------------------------------------
+# 9. Reclaim replay: run the figure step twice for the same doc against a REAL
+#    SQLite session. process_document_upload's stale-reclaim branch re-runs the
+#    whole multimodal pipeline, so the figure step's delete-before-insert must
+#    REPLACE the prior run's rows, never append — otherwise a reclaim duplicates
+#    figure rows (audit #1138). The other tests use a fake Session; this one
+#    persists to a real DB so "no duplicates" is an actual row count.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def sqlite_session():
+    """Sessionmaker over a fresh in-memory SQLite schema (real, committed rows)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import src.models  # noqa: F401  register every table on Base.metadata
+    from src.models.base import Base
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
+    try:
+        yield Session
+    finally:
+        engine.dispose()
+
+
+def test_reclaim_replay_does_not_duplicate_figure_rows(
+    tmp_path, unconfigured_s3, sqlite_session
+):
+    from src.models.document_processing import MultimodalContent
+
+    pdf_path = tmp_path / "two.pdf"
+    _make_pdf_two_figures(pdf_path)
+    document = _document(pdf_path)
+
+    def _figure_row_count(db) -> int:
+        return (
+            db.query(MultimodalContent)
+            .filter(
+                MultimodalContent.document_id == document.id,
+                MultimodalContent.organization_id == document.organization_id,
+                MultimodalContent.extraction_method == EXTRACTION_METHOD,
+            )
+            .count()
+        )
+
+    db = sqlite_session()
+    try:
+        # First pass — the original processing run.
+        first = extract_figures_for_document(db, document)
+        db.commit()
+        after_first = _figure_row_count(db)
+
+        # Second pass — a stale-reclaim replay of the SAME document.
+        second = extract_figures_for_document(db, document)
+        db.commit()
+        after_second = _figure_row_count(db)
+
+        assert first["figures_extracted"] == 2
+        assert after_first == 2
+        # Replaced, not appended: still 2 rows (would be 4 if it appended), and
+        # the result payload is byte-identical on replay.
+        assert after_second == after_first
+        assert second == first
+    finally:
+        db.close()

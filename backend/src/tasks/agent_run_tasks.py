@@ -26,27 +26,30 @@ state.
 Event-loop boundary: the agent stack caches loop-bound singletons (the
 LangGraph checkpointer's AsyncConnectionPool, the job store's Redis client,
 the SQLAlchemy async engine). A bare ``asyncio.run`` per task would strand
-them on a dead loop after the first task, so this module runs every coroutine
-on ONE persistent background event loop per worker process
-(``run_coroutine_threadsafe``) — the repo's sync-Celery→async-runner boundary
-done safely for a long-lived worker. Children are recycled every 100 tasks
-(``worker_max_tasks_per_child``), which also recycles the loop thread.
+them on a dead loop after the first task, so every coroutine here runs on the
+shared ``_async_utils.run_async`` boundary: ONE persistent background event
+loop per worker process (``run_coroutine_threadsafe`` on a daemon thread),
+created lazily and fork-safe via a PID guard. The same loop is reused across
+tasks, so the loop-bound singletons survive between turns. Children are
+recycled every 100 tasks (``worker_max_tasks_per_child``); a recycled child
+lazily recreates its own loop on first use. This module previously hosted its
+own bespoke ``_get_worker_loop``/``_run_coro`` pair; it was consolidated onto
+``run_async`` (its superset) so there is exactly one loop + one boundary
+implementation across all Celery tasks.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import socket
-import threading
 import uuid
-from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from src.core.config import get_settings
 from src.shared.enums import JobStatus
+from src.tasks._async_utils import run_async
 from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -59,38 +62,19 @@ _RUN_FUTURE_TIMEOUT_SECONDS = 420
 _SWEEP_FUTURE_TIMEOUT_SECONDS = 240
 
 # ---------------------------------------------------------------------------
-# Persistent worker event loop (one per process, lazy)
+# Sync→async boundary
 # ---------------------------------------------------------------------------
-
-_loop: Optional[asyncio.AbstractEventLoop] = None
-_loop_thread: Optional[threading.Thread] = None
-_loop_guard = threading.Lock()
-
-
-def _get_worker_loop() -> asyncio.AbstractEventLoop:
-    """Return the process's persistent agent event loop, starting it lazily."""
-    global _loop, _loop_thread
-    with _loop_guard:
-        if _loop is not None and not _loop.is_closed():
-            return _loop
-        loop = asyncio.new_event_loop()
-        thread = threading.Thread(
-            target=loop.run_forever, name="agent-run-loop", daemon=True
-        )
-        thread.start()
-        _loop, _loop_thread = loop, thread
-        logger.info("agent_run_tasks: started persistent worker event loop")
-        return loop
-
-
-def _run_coro(coro: Any, *, timeout: float) -> Any:
-    """Run *coro* on the persistent loop from sync Celery code."""
-    future = asyncio.run_coroutine_threadsafe(coro, _get_worker_loop())
-    try:
-        return future.result(timeout=timeout)
-    except FutureTimeoutError:
-        future.cancel()
-        raise
+#
+# Every coroutine below is driven from sync Celery code through the shared
+# ``run_async`` helper (imported above), which hosts ONE persistent, fork-safe
+# event loop per worker process (see the module docstring). This module used to
+# carry its own ``_get_worker_loop``/``_run_coro`` pair; it now routes through
+# ``run_async`` so there is a single loop and a single boundary implementation
+# across all Celery tasks. ``run_async`` is a strict superset of the old pair
+# (same persistent-loop + ``run_coroutine_threadsafe`` + timeout-cancel
+# semantics, plus a fork-safe PID guard), so the loop-reuse contract the agent
+# stack relies on — loop-bound checkpointer/Redis/engine singletons shared
+# across turns — is preserved.
 
 
 def _utcnow() -> datetime:
@@ -258,7 +242,7 @@ def run_agent_job(self, job_id: str, request_payload: dict, user_id: str) -> dic
     """Run one agent /execute turn on the worker (AGENT_DISPATCH_BACKEND=celery)."""
     lease_owner = f"celery:{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
     try:
-        return _run_coro(
+        return run_async(
             _execute_agent_job(
                 job_id, request_payload, user_id, lease_owner=lease_owner
             ),
@@ -270,7 +254,7 @@ def run_agent_job(self, job_id: str, request_payload: dict, user_id: str) -> dic
         # is never left spinning on "running".
         logger.exception("run_agent_job: wrapper failure for job %s", job_id)
         try:
-            _run_coro(
+            run_async(
                 _fail_job_record(
                     job_id,
                     "Agent execution failed on the worker. Please retry.",
@@ -467,7 +451,7 @@ def sweep_stale_agent_runs() -> dict:
         logger.info("sweep_stale_agent_runs: skipped (SWEEPERS_ENABLED=false)")
         return {"skipped": "sweepers-disabled"}
     lease_owner = f"sweeper:{socket.gethostname()}:{os.getpid()}"
-    return _run_coro(
+    return run_async(
         _sweep_stale_agent_runs(lease_owner=lease_owner),
         timeout=_SWEEP_FUTURE_TIMEOUT_SECONDS,
     )
