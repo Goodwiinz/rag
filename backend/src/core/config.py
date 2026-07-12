@@ -143,12 +143,6 @@ class Settings(BaseSettings):
         "Origin,"
         "X-Request-ID,"
         "X-Correlation-ID,"
-        # X-Organization-ID is never read inbound (org is derived from
-        # current_user). It is retained here only because agentChatService.ts
-        # still sends it on the SSE stream; dropping it from the allowlist while
-        # a browser sender remains would fail CORS preflight. Remove once that
-        # last sender stops emitting it.
-        "X-Organization-ID,"
         "X-Client-Version,"
         "Cache-Control"
     )
