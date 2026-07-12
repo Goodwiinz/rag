@@ -774,6 +774,9 @@ async def create_message(
     only for a deprecation window. New clients MUST use ``POST /api/v2/messages``
     with ``thread_id`` in the body. Slated for removal in a follow-up cleanup PR
     once the window closes.
+
+    See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+    date and criteria.
     """
     # Validate the path hierarchy (workspace/conversation/thread + soft-delete
     # filters) before delegating; the 403 for non-editors is this route's

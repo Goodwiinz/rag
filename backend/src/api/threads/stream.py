@@ -90,6 +90,9 @@ async def stream_thread_chat(
     The route is kept for a deprecation window (it is wire-visible); removal is a
     follow-up once the deprecated frontend client is deleted.
 
+    See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+    date and criteria.
+
     1. Persists the user message
     2. Optionally performs RAG retrieval
     3. Streams LLM tokens as SSE events

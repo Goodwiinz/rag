@@ -742,6 +742,9 @@ async def create_message(
     scripts, or synthetic traffic) and is kept only for a deprecation window.
     New clients MUST use ``POST /api/v2/messages`` with ``thread_id`` in the
     body. Slated for removal in a follow-up cleanup PR once the window closes.
+
+    See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+    date and criteria.
     """
     # Ensure thread_id matches
     if data.thread_id != thread_id:
