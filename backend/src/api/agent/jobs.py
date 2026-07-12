@@ -8,6 +8,7 @@ Manages the async job lifecycle for agent execution:
 
 import asyncio
 import logging
+import random
 import time
 import uuid as _uuid
 from collections import OrderedDict
@@ -399,8 +400,144 @@ def _seed_has_id(seed: List[Any], msg_id: str) -> bool:
     return any(getattr(m, "id", None) == msg_id for m in seed)
 
 
+# ---------------------------------------------------------------------------
+# Dual-store divergence guard (detection only — audit D3 / P2.6)
+# ---------------------------------------------------------------------------
+#
+# The chat_messages table and the LangGraph checkpoint are two independent
+# stores of the same conversation. Once BOTH are non-empty they can drift
+# permanently (a swallowed user-turn persist, a lost/rebuilt checkpoint), and
+# the drift is invisible: the agent answers from the checkpoint while the user
+# reads chat_messages. This guard *detects and logs* that drift at turn start;
+# it never repairs (re-seed repair is a follow-up) and never blocks a turn.
+
+# Healthy delta = chat_user_rows - checkpoint_human_count. The newest turn is
+# persisted (counted in chat_user_rows) BEFORE it is appended to the checkpoint,
+# so 1 is normal (DB has the pending turn the checkpoint hasn't accumulated yet)
+# and 0 is a benign idempotent retry (the turn is already in both). Anything
+# else is drift: delta < 0 → the checkpoint has turns chat_messages is missing
+# (the agent remembers what the user can't see); delta > 1 → the checkpoint
+# dropped persisted turns without reseeding.
+_DUALSTORE_MIN_HEALTHY_DELTA = 0
+_DUALSTORE_MAX_HEALTHY_DELTA = 1
+
+# Sampling: always run while a thread is short (drift is cheapest to catch early
+# and the COUNT is tiny), then 1-in-N so an established, hot thread pays the
+# extra COUNT only occasionally. Divergence is monotonic once it appears, so a
+# 1-in-N sample still surfaces it within a few turns.
+_DUALSTORE_DIVERGENCE_ALWAYS_BELOW = 3
+_DUALSTORE_DIVERGENCE_SAMPLE_N = 10
+
+
+def _should_check_divergence(checkpoint_human_count: int) -> bool:
+    """Sampling gate for the dual-store divergence check.
+
+    Always True for the first couple of populated-checkpoint turns; past that,
+    True 1-in-``_DUALSTORE_DIVERGENCE_SAMPLE_N`` of the time.
+    """
+    if checkpoint_human_count < _DUALSTORE_DIVERGENCE_ALWAYS_BELOW:
+        return True
+    return random.randrange(_DUALSTORE_DIVERGENCE_SAMPLE_N) == 0
+
+
+async def _chat_user_row_count(
+    db: AsyncSession, thread_id: str, *, owner_id: Optional[Any] = None
+) -> Optional[int]:
+    """Count persisted user-role rows for one thread (tenant-scoped).
+
+    Scoped to a single thread whose ownership was already verified upstream
+    (``build_graph_input_messages`` is only ever called with the resolved,
+    ownership-verified thread id), so the count is inherently tenant-safe. When
+    ``owner_id`` is supplied it additionally JOINs the workspace owner as
+    defense-in-depth. Returns ``None`` on a malformed thread id.
+    """
+    from uuid import UUID
+
+    from sqlalchemy import func, select
+
+    from src.models.chat_message import ChatMessage, MessageRole
+
+    try:
+        tid = UUID(thread_id)
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+    stmt = (
+        select(func.count())
+        .select_from(ChatMessage)
+        .where(
+            ChatMessage.thread_id == tid,
+            ChatMessage.role == MessageRole.USER,
+        )
+    )
+    if owner_id is not None:
+        from src.models.conversation import Conversation
+        from src.models.thread import Thread
+        from src.models.workspace import Workspace
+
+        stmt = (
+            stmt.join(Thread, ChatMessage.thread_id == Thread.id)
+            .join(Conversation, Thread.conversation_id == Conversation.id)
+            .join(Workspace, Conversation.workspace_id == Workspace.id)
+            .where(Workspace.owner_id == owner_id)
+        )
+    return int((await db.execute(stmt)).scalar_one())
+
+
+async def _detect_dualstore_divergence(
+    db: AsyncSession,
+    thread_id: str,
+    *,
+    checkpoint_human_count: int,
+    owner_id: Optional[Any] = None,
+) -> None:
+    """Log (never repair) chat/checkpoint divergence for a thread.
+
+    Compares the checkpoint's HumanMessage count against the persisted
+    ``chat_messages`` user-row count; a delta outside the healthy window
+    (see ``_DUALSTORE_*_HEALTHY_DELTA``) is logged as a structured WARN with
+    both counts and bumps ``agent_dualstore_divergence_detected_total``.
+    Detection only; never raises.
+    """
+    try:
+        user_rows = await _chat_user_row_count(db, thread_id, owner_id=owner_id)
+    except Exception:
+        logger.debug("dual-store divergence count query failed", exc_info=True)
+        return
+    if user_rows is None:
+        return
+
+    delta = user_rows - checkpoint_human_count
+    if _DUALSTORE_MIN_HEALTHY_DELTA <= delta <= _DUALSTORE_MAX_HEALTHY_DELTA:
+        return  # stores agree (within the expected pending-turn offset)
+
+    logger.warning(
+        "Agent dual-store divergence detected: LangGraph checkpoint human-count "
+        "and chat_messages user-row count disagree for this thread",
+        extra={
+            "thread_id": thread_id,
+            "checkpoint_human_count": checkpoint_human_count,
+            "chat_user_rows": user_rows,
+            "delta": delta,
+        },
+    )
+    try:
+        from src.services.agent.observability import (
+            agent_dualstore_divergence_detected_total,
+        )
+
+        agent_dualstore_divergence_detected_total.inc()
+    except Exception:
+        pass
+
+
 async def build_graph_input_messages(
-    db: AsyncSession, graph: Any, thread_id: str, request_messages: List[Any]
+    db: AsyncSession,
+    graph: Any,
+    thread_id: str,
+    request_messages: List[Any],
+    *,
+    current_user: Optional[User] = None,
 ) -> Optional[List[Any]]:
     """Assemble ``initial_state['messages']`` checkpoint-authoritatively.
 
@@ -418,6 +555,19 @@ async def build_graph_input_messages(
         return None
 
     count = await _checkpoint_human_count(graph, thread_id)
+
+    # Dual-store divergence guard (detection only — audit D3 / P2.6). Only a
+    # *populated* checkpoint (count > 0) can drift permanently; the empty case
+    # below self-heals by reseeding from the DB, so checking it would only emit
+    # false positives. Sampled to keep the extra COUNT off the hot path.
+    if count is not None and count > 0 and _should_check_divergence(count):
+        await _detect_dualstore_divergence(
+            db,
+            thread_id,
+            checkpoint_human_count=count,
+            owner_id=getattr(current_user, "id", None),
+        )
+
     if count is None or count > 0:
         # Populated checkpoint (append) OR a failed read (do NOT seed a possibly
         # live checkpoint — that would duplicate its turns). Either way, add only
@@ -897,6 +1047,80 @@ async def _persist_user_message(
     return inserted
 
 
+async def _persist_user_message_guarded(
+    db: AsyncSession,
+    current_user: User,
+    request: Any,  # AgentExecuteRequest
+) -> bool:
+    """Persist the user turn, retrying once, then loudly marking a failure.
+
+    The user row is one idempotent INSERT written BEFORE the LLM call so the
+    turn survives a later graph/stream failure. Historically its failure was
+    swallowed (warn-and-continue), so the LangGraph checkpoint could accumulate
+    a turn the ``chat_messages`` store never recorded — a permanent divergence
+    the user can't see (audit D3 / P2.6). This wrapper makes the persist
+    effectively non-optional: one retry, and on final failure a structured WARN
+    (thread_id + client_message_id) plus a
+    ``agent_dualstore_user_turn_persist_failures_total`` bump so the drop is
+    observable instead of silent.
+
+    Never raises — the caller still continues the turn (a durable-persist
+    failure must not abort a chat that can still stream an answer). Returns the
+    underlying insert result on success (``True`` inserted / ``False`` duplicate
+    or nothing to insert), or ``False`` when both attempts failed.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in (1, 2):
+        try:
+            return await _persist_user_message(db, current_user, request)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            # Roll the failed INSERT back so the retry (and the rest of the
+            # turn) runs on a clean session rather than an aborted transaction.
+            try:
+                await db.rollback()
+            except Exception:
+                logger.debug(
+                    "rollback after user-turn persist failure failed",
+                    exc_info=True,
+                )
+            if attempt == 1:
+                logger.info(
+                    "User-turn persist failed; retrying once",
+                    extra={"thread_id": getattr(request, "thread_id", None)},
+                )
+
+    # Both attempts failed: stamp an observable divergence marker so the lost
+    # turn surfaces on dashboards instead of vanishing silently.
+    cmid: Optional[str] = None
+    try:
+        last = next((m for m in reversed(request.messages) if m.role == "user"), None)
+        raw_cmid = getattr(last, "client_message_id", None) if last else None
+        cmid = str(raw_cmid) if raw_cmid is not None else None
+    except Exception:
+        cmid = None
+    logger.warning(
+        "User-turn persist failed after retry — chat_messages and the "
+        "LangGraph checkpoint may diverge for this thread",
+        extra={
+            "thread_id": getattr(request, "thread_id", None),
+            "client_message_id": cmid,
+        },
+        exc_info=last_exc,
+    )
+    try:
+        from src.services.agent.observability import (
+            agent_dualstore_user_turn_persist_failures_total,
+        )
+
+        agent_dualstore_user_turn_persist_failures_total.inc()
+    except Exception:
+        # Metrics are best-effort: never let a bookkeeping failure mask the
+        # real error (already logged above).
+        pass
+    return False
+
+
 async def _latest_user_client_message_id(
     db: AsyncSession,
     thread_id: str,
@@ -1201,7 +1425,9 @@ async def _run_agent_graph(
                     resolved_thread_id = str(thread_obj.id)
                     if request.thread_id != resolved_thread_id:
                         request.thread_id = resolved_thread_id
-                    await _persist_user_message(db, current_user, request)
+                    # Retry-once + observable-on-failure so a swallowed persist
+                    # can't silently diverge the two stores (audit D3 / P2.6).
+                    await _persist_user_message_guarded(db, current_user, request)
             except Exception:
                 logger.warning(
                     "Failed to persist user turn before agent graph run",
@@ -1233,7 +1459,11 @@ async def _run_agent_graph(
                     # Seed only from the ownership-verified thread id (set by
                     # _resolve_thread); never the raw client-supplied thread_id.
                     messages = await build_graph_input_messages(
-                        db, graph, resolved_thread_id or "", request.messages
+                        db,
+                        graph,
+                        resolved_thread_id or "",
+                        request.messages,
+                        current_user=current_user,
                     )
                 except Exception:
                     logger.warning(

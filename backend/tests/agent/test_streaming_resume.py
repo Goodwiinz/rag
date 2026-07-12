@@ -175,7 +175,7 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
             new=AsyncMock(return_value=(thread_obj, None)),
         ),
         patch(
-            "src.api.agent.streaming._persist_user_message",
+            "src.api.agent.streaming._persist_user_message_guarded",
             new=AsyncMock(return_value=None),
         ),
         patch(
