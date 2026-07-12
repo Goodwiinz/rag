@@ -9,6 +9,7 @@ for service-to-service communication.
 import asyncio
 import functools
 import hashlib
+import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -40,6 +41,8 @@ from ..cache.cache_keys import get_ab_testing_cache_key
 from ..core.config import settings
 from ..core.database import get_db
 from ..services.rbac_service import rbac_service
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # PERMISSIONS AND ROLES
@@ -178,13 +181,15 @@ async def get_current_user_from_token(
         return user
 
     except JWTError as e:
+        logger.error(f"JWT decoding error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {str(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
     except Exception as e:
+        logger.error(f"Authentication error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication error: {str(e)}",
+            detail="Authentication error",
         )
 
 
