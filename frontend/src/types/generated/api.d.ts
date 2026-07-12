@@ -8023,6 +8023,9 @@ export interface paths {
          *     scripts, or synthetic traffic) and is kept only for a deprecation window.
          *     New clients MUST use ``POST /api/v2/messages`` with ``thread_id`` in the
          *     body. Slated for removal in a follow-up cleanup PR once the window closes.
+         *
+         *     See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+         *     date and criteria.
          */
         post: operations["create_message_api_v2_threads__thread_id__messages_post"];
         delete?: never;
@@ -8125,6 +8128,9 @@ export interface paths {
          *     ``POST /api/v1/agent/stream`` (LangGraph agent). Do not add new callers.
          *     The route is kept for a deprecation window (it is wire-visible); removal is a
          *     follow-up once the deprecated frontend client is deleted.
+         *
+         *     See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+         *     date and criteria.
          *
          *     1. Persists the user message
          *     2. Optionally performs RAG retrieval
@@ -8423,6 +8429,9 @@ export interface paths {
          *     only for a deprecation window. New clients MUST use ``POST /api/v2/messages``
          *     with ``thread_id`` in the body. Slated for removal in a follow-up cleanup PR
          *     once the window closes.
+         *
+         *     See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
+         *     date and criteria.
          */
         post: operations["create_message_api_v2_workspaces__workspace_id__conversations__conversation_id__threads__thread_id__messages_post"];
         delete?: never;
