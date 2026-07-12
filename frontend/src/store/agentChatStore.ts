@@ -508,7 +508,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
       });
 
       try {
-        const { agentChatService } =
+        const { agentChatService, isTerminalJobStatus } =
           await import('@/services/agentChatService');
 
         // Try SSE streaming confirm first
@@ -843,7 +843,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
               });
               return;
             }
-            if (job.status === 'failed') {
+            // Any other terminal state (failed / error / cancelled / a
+            // completed job whose result payload is missing) — stop polling
+            // and surface the failure. The old hand-listed check only knew
+            // 'failed', so 'error' and 'cancelled' jobs spun for the full
+            // poll budget with a stuck spinner (audit C7).
+            if (isTerminalJobStatus(job.status)) {
               set((state) => {
                 const lastAsst = [...state.messages]
                   .reverse()

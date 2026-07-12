@@ -12,6 +12,46 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import to avoid a cycle
     from src.models.document import ProcessingStatus
 
 
+class JobStatus(StrEnum):
+    """Agent job lifecycle status — the wire contract for ``GET /agent/jobs/{id}``.
+
+    Single source of truth for every job-store status write (audit finding C7:
+    the backend previously wrote six untyped strings while the frontend typed
+    four). Members ARE the wire strings (``StrEnum``), so they JSON-serialize
+    and compare against raw Redis records transparently.
+
+    The historical ``failed``/``error`` split is collapsed: writers always
+    write ``FAILED``; ``"error"`` is accepted as an inbound alias when reading
+    records written by pre-collapse code (one-release transition, see
+    ``_missing_``).
+    """
+
+    RUNNING = "running"
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "JobStatus | None":
+        # Inbound alias for the one-release failed/error transition: records
+        # written before the collapse may still hold "error" in Redis (TTL 1h)
+        # or arrive from a not-yet-redeployed writer. Never written back.
+        if isinstance(value, str) and value.lower() == "error":
+            return cls.FAILED
+        return None
+
+    @property
+    def is_terminal(self) -> bool:
+        """True when the job can never transition again (stop polling)."""
+        return self in TERMINAL_JOB_STATUSES
+
+
+TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
+    {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+)
+
+
 class DocumentSortField(str, Enum):
     """
     Allowed sort fields for document queries.

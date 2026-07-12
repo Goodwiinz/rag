@@ -13,6 +13,7 @@ from .ab_testing import (
     Variant,
 )
 from .agent_hitl_audit import AgentHitlAudit
+from .agent_run import AgentRun
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
 # Audit models
@@ -122,6 +123,7 @@ __all__ = [
     # Base classes
     "Base",
     "AgentHitlAudit",
+    "AgentRun",
     "BaseModel",
     # User models
     "User",

@@ -46,8 +46,11 @@ from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
 
+from src.shared.enums import JobStatus
+
 from .jobs import (  # noqa: F401
     MAX_JOBS,
+    _actor_fields,
     _cleanup_jobs,
     _get_job,
     _get_latest_user_content,
@@ -122,7 +125,7 @@ def _validate_confirmable_job(job: dict, current_user: User) -> None:
     job_user_id = job.get("user_id")
     if not job_user_id or job_user_id != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.get("status") != "awaiting_confirmation":
+    if job.get("status") != JobStatus.AWAITING_CONFIRMATION:
         raise HTTPException(status_code=409, detail="Job is not awaiting confirmation")
 
 
@@ -232,7 +235,10 @@ class JobStartResponse(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    status: str
+    # Typed wire contract (audit C7): every status the backend can return is a
+    # JobStatus member; the legacy "error" alias is normalized to FAILED
+    # before this model is built (see get_job_status).
+    status: JobStatus
     result: Optional[dict] = None
     tool_executions: Optional[List[dict]] = None
     error: Optional[str] = None
@@ -340,9 +346,9 @@ async def execute_agent(
     _set_job(
         job_id,
         {
-            "status": "running",
+            "status": JobStatus.RUNNING,
             "tool_executions": [],
-            "user_id": str(current_user.id),
+            **_actor_fields(current_user),
             "request": request.model_dump(),
         },
     )
@@ -356,12 +362,32 @@ async def execute_agent(
     return JobStartResponse(job_id=job_id)
 
 
+def _normalized_job_status(raw: object) -> JobStatus:
+    """Coerce a stored job status to the typed wire contract.
+
+    Maps the legacy ``"error"`` alias to FAILED (one-release transition) and
+    degrades an unknown/corrupted value to FAILED with a log instead of a
+    response-validation 500 — pollers must always be able to stop.
+    """
+    try:
+        return JobStatus(raw)
+    except ValueError:
+        logger.warning("Unknown job status %r in stored record", raw)
+        return JobStatus.FAILED
+
+
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
     job_id: str = Path(pattern=r"^[0-9a-fA-F-]{36}$"),
     current_user: User = Depends(get_current_user),
 ):
-    """Poll for agent job status — checks L1 cache then Redis."""
+    """Poll for agent job status — L1 cache, then Redis, then Postgres.
+
+    The Postgres ``agent_runs`` projection is the failover path: when Redis
+    lost the record (failover/TTL) the poller previously got a hard 404 and
+    the run became untrackable (audit X1/D7). The projection carries only
+    status + error — result payloads still require the Redis record.
+    """
     # Try L1 first (fast path)
     job = _get_job(job_id)
     # Fall back to Redis L2 (survives restarts)
@@ -370,13 +396,28 @@ async def get_job_status(
 
         job = await _get_job_async_local(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        # Redis miss: fall back to the durable projection (tenancy-filtered —
+        # org + user must both match; a miss 404s without confirming existence).
+        from src.services.agent import agent_run_service
+
+        run = await agent_run_service.get_run_fallback(
+            job_id,
+            organization_id=getattr(current_user, "organization_id", None),
+            user_id=current_user.id,
+        )
+        if run is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return JobStatusResponse(
+            status=_normalized_job_status(run.status), error=run.error
+        )
     # Fail closed: a job record without an owner must not be readable. Every
     # write path stamps user_id; its absence means a corrupted/legacy record,
     # not a public one.
     if job.get("user_id") != str(current_user.id):
         raise HTTPException(status_code=404, detail="Job not found")
-    return JobStatusResponse(**job)
+    return JobStatusResponse(
+        **{**job, "status": _normalized_job_status(job.get("status"))}
+    )
 
 
 @router.post("/confirm/{job_id}")
@@ -406,7 +447,9 @@ async def confirm_agent_action(
     # only the CAS winner schedules a resume, so a destructive HITL tool can't
     # be executed twice. The transition self-resets when a multi-step resume
     # re-parks the job as awaiting_confirmation, so the next confirm still works.
-    result = await compare_and_set_status(job_id, "awaiting_confirmation", "running")
+    result = await compare_and_set_status(
+        job_id, JobStatus.AWAITING_CONFIRMATION, JobStatus.RUNNING
+    )
     if result == "missing":
         raise HTTPException(status_code=404, detail="Job not found")
     if result == "conflict":
@@ -418,7 +461,7 @@ async def confirm_agent_action(
     with _jobs_lock:
         cached = _jobs.get(job_id)
         if cached is not None:
-            cached["status"] = "running"
+            cached["status"] = JobStatus.RUNNING
 
     background_tasks.add_task(
         _resume_agent_graph,
@@ -426,7 +469,7 @@ async def confirm_agent_action(
         request.confirmed,
         current_user,
     )
-    return {"status": "running", "job_id": job_id}
+    return {"status": JobStatus.RUNNING, "job_id": job_id}
 
 
 @router.post("/stream")

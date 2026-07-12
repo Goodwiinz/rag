@@ -299,13 +299,58 @@ export interface ThreadMessagesResponse {
   total: number;
 }
 
+/**
+ * Agent job lifecycle status — mirror of backend `JobStatus`
+ * (backend/src/shared/enums.py).
+ *
+ * 'error' is the legacy alias for 'failed': the backend collapsed the split
+ * and normalizes it away on read, but a not-yet-redeployed backend (or a
+ * record written before the collapse) can still return it for one release.
+ * Treat it exactly like 'failed'.
+ */
+export type AgentJobStatus =
+  | 'running'
+  | 'awaiting_confirmation'
+  | 'completed'
+  | 'failed'
+  | 'error'
+  | 'cancelled';
+
+/**
+ * True when the job can never transition again — the poller must stop.
+ *
+ * Exhaustive over AgentJobStatus: adding a status without classifying it
+ * here is a compile error (`never` check in the default arm). Previously the
+ * poller hand-listed 'completed'/'failed' and spun for the full poll budget
+ * on 'error' and 'cancelled' jobs (audit C7).
+ */
+export function isTerminalJobStatus(status: AgentJobStatus): boolean {
+  switch (status) {
+    case 'completed':
+    case 'failed':
+    case 'error':
+    case 'cancelled':
+      return true;
+    case 'running':
+    case 'awaiting_confirmation':
+      return false;
+    default: {
+      // Compile-time exhaustiveness; at runtime an unknown status (from a
+      // newer backend) keeps polling until the caller's poll budget runs out.
+      const _exhaustive: never = status;
+      void _exhaustive;
+      return false;
+    }
+  }
+}
+
 class AgentChatService {
   async startJob(request: AgentExecuteRequest): Promise<{ job_id: string }> {
     return api.post<{ job_id: string }>('/agent/execute', request);
   }
 
   async pollJob(jobId: string): Promise<{
-    status: 'running' | 'completed' | 'failed' | 'awaiting_confirmation';
+    status: AgentJobStatus;
     result?: AgentExecuteResponse;
     tool_executions?: Array<{
       id: string;
