@@ -45,9 +45,7 @@ from src.models.workspace import Workspace
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_tool_executions
 from src.services.agent._sanitize import _sanitize_prompt_field
-from src.shared.enums import JobStatus
-
-from src.shared.enums import JobStatus
+from src.shared.enums import TERMINAL_STREAM_EVENTS, JobStatus
 
 from .jobs import (  # noqa: F401
     MAX_JOBS,
@@ -663,7 +661,11 @@ async def stream_agent(
 ):
     """Stream agent responses via Server-Sent Events.
 
-    SSE event types: token, tool_start, tool_end, rag_context, done, error
+    SSE event types are the ``AgentStreamEvent`` wire vocabulary
+    (``src/shared/enums.py`` — the single source of truth): token, tool_start,
+    tool_end, rag_context, plan, reflection, trace, usage, heartbeat,
+    confirmation, done, error. ``heartbeat`` is a payload-less keepalive; the
+    terminal frames are ``TERMINAL_STREAM_EVENTS`` (done, error, confirmation).
     """
     _allowed, _retry_after = await _agent_rate_limiter.check_rate_limit(
         str(current_user.id), prefix="agent_stream"
@@ -806,11 +808,9 @@ async def resume_stream(
                     ),
                     "",
                 )
-                if event_line in {
-                    "event: done",
-                    "event: error",
-                    "event: confirmation",
-                }:
+                # Terminal frames come from TERMINAL_STREAM_EVENTS (the enum,
+                # single source of truth) — no hand-listed literal set here.
+                if event_line.removeprefix("event: ") in TERMINAL_STREAM_EVENTS:
                     return
             if await request.is_disconnected():
                 return
