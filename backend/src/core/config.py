@@ -258,6 +258,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
     CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
+    # When True, a CLI-token revocation check that cannot reach the revocation
+    # store (Redis error / outage) DENIES the token (fail-closed) instead of
+    # the historical fail-open. This hardens against a Redis outage or failover
+    # silently un-revoking every revoked CLI token, at the cost of CLI auth
+    # availability while the store is unreachable. A plain miss (store reachable,
+    # no revoked-before cutoff for the user) still allows regardless of this
+    # flag. Default False preserves current behavior — flip to True to harden;
+    # rollback is a flag flip, no logic redeploy. (audit D7)
+    CLI_TOKEN_REVOCATION_FAIL_CLOSED: bool = False
 
     @model_validator(mode="after")
     def _enforce_debug_off_in_prod(self):
