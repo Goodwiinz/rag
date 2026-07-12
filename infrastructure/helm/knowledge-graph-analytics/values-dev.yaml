@@ -382,6 +382,34 @@ serviceAccount:
 # continuous LangSmith traces in rag-agent-dev while the dev agent is idle.
 # Runs every 20 min; set enabled: false to pause without code changes.
 # ──────────────────────────────────────────────
+# ──────────────────────────────────────────────
+# KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5)
+# ──────────────────────────────────────────────
+# OFF: the KEDA operator is not installed in rag-dev yet. Flipping enabled: true
+# here is the LAST step of the rollout — install KEDA first, ensure the
+# redis-credentials secret exposes REDIS_HOST/REDIS_PORT/REDIS_PASSWORD, then
+# flip. See docs/decisions/worker-autoscaling.md. When enabled, the plain
+# CPU/memory worker HPA above (celeryWorker.autoscaling) stops rendering — KEDA
+# owns scaling. Rollback = set enabled: false (plain HPA re-renders on next sync).
+keda:
+  enabled: false
+  # Uncomment/tune when enabling. Defaults live in values.yaml.
+  # minReplicaCount: 1
+  # maxReplicaCount: 5          # match celeryWorker.autoscaling.maxReplicas above
+  # pollingInterval: 30
+  # cooldownPeriod: 300
+  # redis:
+  #   authSecretName: redis-credentials
+  #   hostKey: REDIS_HOST
+  #   portKey: REDIS_PORT
+  #   passwordKey: REDIS_PASSWORD
+  #   enableTLS: "true"          # DO Managed Redis is rediss://
+  #   databaseIndex: "0"
+  # triggers:
+  #   - queue: celery
+  #     listLength: "10"
+  #   - queue: document_processing
+  #     listLength: "10"
 syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"

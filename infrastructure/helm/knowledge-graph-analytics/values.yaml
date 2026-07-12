@@ -553,3 +553,54 @@ syntheticTraffic:
   enabled: false
   schedule: "*/20 * * * *"
   args: ["--rotate"]
+
+# ──────────────────────────────────────────────
+# KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5)
+# ──────────────────────────────────────────────
+# SCAFFOLD, OFF by default. Renders templates/keda-scaledobject.yaml (a KEDA
+# ScaledObject + TriggerAuthentication) ONLY when enabled: true. Requires the
+# KEDA operator to be installed in the cluster first — see
+# docs/decisions/worker-autoscaling.md for the rationale (KEDA over
+# prometheus-adapter) and the full install/rollback checklist.
+#
+# When enabled=true the plain CPU/memory worker HPA (templates/hpa.yaml) is
+# suppressed (mutual exclusion) because KEDA reconciles its own HPA.
+keda:
+  enabled: false
+  # min/max mirror the plain worker HPA it replaces. Kept modest on purpose:
+  # queue-depth scaling reacts to backlog, not resource pressure.
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  # How often KEDA polls the Redis list length (seconds).
+  pollingInterval: 30
+  # Seconds of empty-queue before scaling back toward minReplicaCount.
+  cooldownPeriod: 300
+  # HPA scale-down stabilization; matches the conservative window of the plain
+  # worker HPA so long-running indexing/LLM tasks aren't interrupted.
+  scaleDownStabilizationSeconds: 600
+  redis:
+    # The existing secret carrying the DO Managed Redis connection. KEDA's redis
+    # scaler needs host/port/password as DISCRETE keys, NOT the full rediss://
+    # URL the app consumes via REDIS_URL — ensure the /redis Infisical folder
+    # exposes these keys (or point the *Key fields at the ones it has) before
+    # flipping enabled: true.
+    authSecretName: redis-credentials
+    hostKey: REDIS_HOST
+    portKey: REDIS_PORT
+    passwordKey: REDIS_PASSWORD
+    # DO Managed Redis is not created with an ACL username by default; leave
+    # empty to omit the username auth param. Set to a secret key to enable it.
+    usernameKey: ""
+    # DO Managed Redis uses rediss:// (TLS). "true" → KEDA enableTLS.
+    enableTLS: "true"
+    databaseIndex: "0"
+  # One redis-list trigger per queue that matters. KEDA scales on the MAX
+  # desired replicas across triggers, so a backlog on either queue scales up.
+  # listLength is the target items-per-replica (~10). Kept to the two hottest
+  # queues (celery default + document_processing) — add high_priority /
+  # agent_runs here if they develop their own backlog.
+  triggers:
+    - queue: celery
+      listLength: "10"
+    - queue: document_processing
+      listLength: "10"
