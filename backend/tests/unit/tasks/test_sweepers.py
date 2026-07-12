@@ -225,11 +225,11 @@ def test_sweep_stale_agent_runs_gated_by_flag():
             "get_settings",
             return_value=SimpleNamespace(SWEEPERS_ENABLED=False),
         ),
-        patch.object(agent_tasks, "_run_coro") as run_coro,
+        patch.object(agent_tasks, "run_async") as run_async_mock,
     ):
         result = agent_tasks.sweep_stale_agent_runs()
     assert result == {"skipped": "sweepers-disabled"}
-    run_coro.assert_not_called()
+    run_async_mock.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

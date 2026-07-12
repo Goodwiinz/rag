@@ -419,7 +419,15 @@ class MultimodalProcessingService:
     async def extract_figures(
         self, document: Document, job: ProcessingJob
     ) -> Dict[str, Any]:
-        """Extract embedded raster figures + caption heuristics (flag-gated)."""
+        """Extract embedded raster figures + caption heuristics (flag-gated).
+
+        Reclaim-safe: ``extract_figures_for_document`` is idempotent — it
+        delete-before-inserts its ``MultimodalContent`` rows scoped to
+        (document_id, organization_id, extraction_method), so a stale-reclaim
+        replay of ``process_document`` (see ``process_document_upload``) REPLACES
+        the prior run's figure rows rather than appending duplicates (audit
+        #1138). This is the only SQL-row-persisting step in the pipeline.
+        """
         from src.services.processing.figure_extraction_service import (
             extract_figures_for_document,
         )
@@ -843,7 +851,16 @@ class MultimodalProcessingService:
     async def extract_entities(
         self, document: Document, job: ProcessingJob
     ) -> Dict[str, Any]:
-        """Extract entities from document text"""
+        """Extract entities from document text.
+
+        Reclaim-safe by construction: this step returns transient ``Entity``
+        objects in its result payload and never ``db.add``s them, so a
+        stale-reclaim replay of ``process_document`` persists no duplicate
+        entity rows here. The row-persisting spaCy/regex entity pipeline lives
+        in ``processing_tasks.process_document_ingestion``, which is made
+        idempotent separately via ``_reset_pipeline_entities``
+        (delete-before-insert on the same document).
+        """
         try:
             if not self.entity_service:
                 self.entity_service = EntityExtractionService(self.db)
@@ -891,7 +908,14 @@ class MultimodalProcessingService:
     async def store_entities_in_knowledge_graph(
         self, document: Document, job: ProcessingJob
     ) -> Dict[str, Any]:
-        """Store extracted entities and relationships in the knowledge graph"""
+        """Store extracted entities and relationships in the knowledge graph.
+
+        Reclaim-safe: writes land in Neo4j via
+        ``knowledge_graph_service.create_entity`` / ``create_relationship``,
+        both of which MERGE on a canonical identity key (not CREATE), so a
+        stale-reclaim replay converges onto the same nodes/edges instead of
+        duplicating them. This step writes no SQL rows.
+        """
         try:
             import spacy
 
