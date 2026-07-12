@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.models import Collection, Workspace
+from src.models.project_note import ProjectNote
 from src.shared.research_schemas import ProjectCreate, ProjectUpdate
 
 logger = get_logger(__name__)
@@ -87,7 +88,9 @@ class ProjectService:
             "has_prev": skip > 0,
         }
 
-    async def create_project(self, user_id: UUID, project_data: ProjectCreate) -> Collection:
+    async def create_project(
+        self, user_id: UUID, project_data: ProjectCreate
+    ) -> Collection:
         """Create a project after ownership validation."""
         await self._ensure_workspace_owned(project_data.workspace_id, user_id)
 
@@ -109,6 +112,46 @@ class ProjectService:
         await self.db.commit()
         await self.db.refresh(project)
         return project
+
+    async def create_note(
+        self,
+        *,
+        user_id: UUID,
+        project_id: UUID,
+        title: str,
+        content: str,
+        tags: Optional[List[str]] = None,
+        linked_document_ids: Optional[List[Any]] = None,
+        is_pinned: bool = False,
+    ) -> ProjectNote:
+        """Persist a project note and return it (refreshed).
+
+        Single home for ``ProjectNote`` construction shared by the REST route
+        (``POST /projects/{id}/notes``) and the agent ``create_project_note``
+        tool — the two callers that previously each built the model
+        independently (audit finding B2).
+
+        Ownership of *project_id* MUST be verified by the caller first (the
+        route via ``_get_project_with_auth``; the tool via
+        ``_verify_project_ownership``). Those two guards differ deliberately —
+        the tool resolves a project *name* and excludes soft-deleted projects,
+        while the route takes an already-validated path UUID — so this method
+        stays persistence-only to preserve each caller's exact authorization
+        semantics rather than imposing a third policy.
+        """
+        note = ProjectNote(
+            project_id=project_id,
+            user_id=user_id,
+            title=title,
+            content=content,
+            linked_document_ids=linked_document_ids or [],
+            tags=tags or [],
+            is_pinned=is_pinned,
+        )
+        self.db.add(note)
+        await self.db.commit()
+        await self.db.refresh(note)
+        return note
 
     async def get_project_for_user(self, project_id: UUID, user_id: UUID) -> Collection:
         """Fetch one project owned by the user."""
@@ -139,7 +182,9 @@ class ProjectService:
         project_data: ProjectUpdate,
     ) -> Collection:
         """Update project fields with state-transition validation."""
-        project = await self.get_project_for_user(project_id=project_id, user_id=user_id)
+        project = await self.get_project_for_user(
+            project_id=project_id, user_id=user_id
+        )
 
         if project_data.research_status is not None:
             self._validate_status_transition(
@@ -174,7 +219,9 @@ class ProjectService:
 
     async def delete_project(self, user_id: UUID, project_id: UUID) -> None:
         """Delete project if owned by user."""
-        project = await self.get_project_for_user(project_id=project_id, user_id=user_id)
+        project = await self.get_project_for_user(
+            project_id=project_id, user_id=user_id
+        )
         await self.db.delete(project)
         await self.db.commit()
 
@@ -197,7 +244,9 @@ class ProjectService:
                 detail="Workspace not found or access denied",
             )
 
-    def _validate_status_transition(self, current_status: str, target_status: str) -> None:
+    def _validate_status_transition(
+        self, current_status: str, target_status: str
+    ) -> None:
         """Validate project research status transitions."""
         if current_status == target_status:
             return
