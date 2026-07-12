@@ -102,6 +102,15 @@ backend:
     # temporarily tolerate a broken Postgres, and revert after the outage.
     - name: ALLOW_MEMORY_FALLBACK
       value: "false"
+    # Satellite reconciler (audit D1): RECONCILER_ENABLED=true is the code
+    # default (report-only). APPLY=true arms actual re-drives of failed
+    # Neo4j/DO-KB syncs (rate-capped, org-scoped, idempotent cores from
+    # repair_kg/backfill_do_kb). Verified report-only output on dev first
+    # (2026-07-12: eligible=0 — arms forward-repair for new failures only;
+    # historical NULL-status docs are untouched by design). Rollback: flip
+    # to "false", values-only, no image rebuild.
+    - name: RECONCILER_APPLY
+      value: "true"
     - name: PYTHONPATH
       value: "/app"
     - name: LOG_LEVEL
