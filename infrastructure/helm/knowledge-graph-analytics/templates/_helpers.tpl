@@ -163,6 +163,59 @@ Return the environment name
 {{- end }}
 
 {{/*
+Merge the shared backend.env with a component's env overrides into a single
+env list whose names are UNIQUE (the component entry wins over a same-named
+backend entry).
+
+Why this exists: the kubelet tolerates duplicate env names at runtime (last
+value wins), but ArgoCD diffs via a Kubernetes strategic-merge-patch that
+uses `name` as the merge key for the env list. Two entries with the same
+`name` in one container make the patch construction fail
+("failed to construct strategic merge patch: The order in patch list ...")
+and ALL sync for the app stops. So every rendered container env must list
+each name exactly once.
+
+Ordering contract:
+  - backend.env positions are preserved; an overridden name keeps its slot
+    but takes the component's value/valueFrom.
+  - component-only names are appended after, in component order.
+  - when the component env is unset/empty this is a pure no-op and renders
+    identically to `toYaml .Values.backend.env` (pre-override behavior).
+
+Usage:
+  env:
+    {{- include "knowledge-graph-analytics.mergedEnv"
+          (dict "base" .Values.backend.env "override" .Values.celeryWorker.env)
+          | nindent 12 }}
+*/}}
+{{- define "knowledge-graph-analytics.mergedEnv" -}}
+{{- $base := .base | default (list) -}}
+{{- $override := .override | default (list) -}}
+{{- $overrideByName := dict -}}
+{{- range $override -}}
+{{- $_ := set $overrideByName .name . -}}
+{{- end -}}
+{{- $seen := dict -}}
+{{- $merged := list -}}
+{{- range $base -}}
+{{- if hasKey $overrideByName .name -}}
+{{- $merged = append $merged (index $overrideByName .name) -}}
+{{- else -}}
+{{- $merged = append $merged . -}}
+{{- end -}}
+{{- $_ := set $seen .name true -}}
+{{- end -}}
+{{- range $override -}}
+{{- if not (hasKey $seen .name) -}}
+{{- $merged = append $merged . -}}
+{{- end -}}
+{{- end -}}
+{{- if $merged -}}
+{{- toYaml $merged -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Return the resource limits for a given component
 */}}
 {{- define "knowledge-graph-analytics.resources" -}}
