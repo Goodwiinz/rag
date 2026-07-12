@@ -10,7 +10,7 @@ redis.call('CONFIG', 'SET', 'maxmemory', '256mb')
 redis.call('CONFIG', 'SET', 'maxmemory-policy', 'allkeys-lru')
 
 -- Security configuration
-redis.call('CONFIG', 'SET', 'requirepass', 'redis_password_123')
+redis.call('CONFIG', 'SET', 'requirepass', 'REDACTED')
 
 -- Performance configuration
 redis.call('CONFIG', 'SET', 'tcp-keepalive', '300')

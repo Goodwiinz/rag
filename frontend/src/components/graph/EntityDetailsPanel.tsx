@@ -93,7 +93,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
   if (error || !entityDetails) {
     return (
       <div className={`entity-details-panel ${className}`}>
-        <div className="p-4 text-(--nous-mars) text-center" role="alert">
+        <div className="p-4 text-[var(--nous-mars)] text-center" role="alert">
           <h3 className="text-lg font-semibold mb-2">
             Failed to load entity details
           </h3>
@@ -173,7 +173,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
               }) => (
                 <div
                   key={similarEntity.id}
-                  className="flex items-center justify-between p-2 bg-muted rounded hover:bg-accent cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+                  className="flex items-center justify-between p-2 bg-muted rounded hover:bg-accent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                   onClick={() => onRelatedEntityClick?.(similarEntity.id)}
                 >
                   <div>
@@ -211,7 +211,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
         relationships.map((relationship: GraphEdge) => (
           <div
             key={relationship.id}
-            className="border border-border rounded-lg p-3 hover:border-primary/50 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+            className="border border-border rounded-lg p-3 hover:border-primary/50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
             onClick={() => onRelationshipClick?.(relationship.id)}
           >
             <div className="flex items-center justify-between">
@@ -293,7 +293,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
       ) : (
         timeline.map((event: TimelineEvent, index: number) => (
           <div key={index} className="flex items-start space-x-3">
-            <div className="shrink-0 w-2 h-2 bg-primary rounded-full mt-2"></div>
+            <div className="flex-shrink-0 w-2 h-2 bg-primary rounded-full mt-2"></div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-foreground">
                 {event.type
@@ -321,7 +321,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 hover:bg-accent rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+            className="p-1 hover:bg-accent rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
             aria-label="Close panel"
           >
             <svg
@@ -357,7 +357,7 @@ export const EntityDetailsPanel: React.FC<EntityDetailsPanelProps> = ({
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key as any)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 ${
               activeTab === tab.key
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'

@@ -22,10 +22,6 @@ bridge (`scripts/loop_bridge.py`, storage `$LOOP_BRIDGE_DIR`, default
 `/home/clawdbot/.loop-bridge`) — flock-guarded, on the shared filesystem both
 agents see. Set `LOOP_AGENT` to your name (`clawd` / `zcode`).
 
-> **macOS**: the default bridge dir doesn't exist — always
-> `export LOOP_BRIDGE_DIR="$HOME/.loop-bridge" LOOP_AGENT=<name>` first.
-> The script also resolves paths relative to CWD; run it from the repo root.
-
 - **Before picking** a bug: `loop_bridge.py list` to see what the other loop holds.
 - **Before touching code** (right after you've chosen): `loop_bridge.py claim
 --branch <b> --area "<bug/subsystem>" --files <a,b>`. If it prints `CONFLICT`
@@ -46,9 +42,6 @@ gh pr list --repo Goodwiinz/rag --state open --author '@me'   # any green loop P
    (`gh pr merge <n> --squash --delete-branch`), sync `develop`, update memory, done.
    Only merge **loop-opened** PRs — never the Palette/Sentinel bot-fleet or
    unrelated human PRs without explicit consent.
-   In interactive Claude Code sessions the permission classifier blocks
-   self-merging PRs authored in the same session — expected; hand the merge
-   to the human with a status line instead of retrying.
 
 2. **Find ONE bug.** In priority order:
    - **Trace-driven** — a real failure in `rag-agent-dev` LangSmith traces from the
@@ -71,15 +64,8 @@ gh pr list --repo Goodwiinz/rag --state open --author '@me'   # any green loop P
    test that fails before / passes after. Match surrounding style (Black 88, isort,
    structlog; tenant scope mandatory — org from the authenticated user, never client
    input). `cd backend && python3 -m black <touched>`.
-   On a workstation with the main-repo venv (`backend/.venv`, py3.12,
-   includes `langgraph`), agent unit tests run locally through it
-   (`backend/.venv/bin/python -m pytest tests/unit/agent/...`). Only if a specific
-   import is missing fall back to standalone validation (`python3 -c ...`);
-   CI confirms either way.
-   Alembic gotcha: when adding a migration, parse `down_revision` as a
-   literal (it can be a TUPLE on merge migrations) before picking a chain
-   point — chain onto a leaf whose ancestry contains every column you
-   touch, never onto an already-merged internal node (PR #986 review).
+   Local env lacks `langgraph`/`spacy`/`libpq` — `tests/unit/` pytest fails locally
+   on those imports; validate test logic standalone (`python3 -c ...`), CI confirms.
 
 6. **Review before merge** (mandatory):
    - `pr-review-toolkit:code-reviewer` agent on the diff.

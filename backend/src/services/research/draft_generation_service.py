@@ -134,9 +134,7 @@ class DraftGenerationService:
             Generation status with task ID
         """
         # Use MD5 for non-security task ID generation (usedforsecurity=False)
-        task_id = hashlib.md5(
-            f"{project_id}:{time.time()}".encode(), usedforsecurity=False
-        ).hexdigest()[:12]
+        task_id = hashlib.md5(f"{project_id}:{time.time()}".encode(), usedforsecurity=False).hexdigest()[:12]
 
         # Initialize status
         _generation_status[task_id] = {
@@ -169,23 +167,6 @@ class DraftGenerationService:
             "message": "Draft generation started",
         }
 
-    @staticmethod
-    def _build_project_documents_query(project_id, document_ids):
-        """Build the document-fetch query, always constrained to the project's
-        collection. With document_ids, results are the intersection of those ids
-        and the project's documents — foreign/other-org ids are dropped rather
-        than read (tenant isolation)."""
-        from src.models.collection import CollectionDocument
-
-        query = (
-            select(Document)
-            .join(CollectionDocument, Document.id == CollectionDocument.document_id)
-            .where(CollectionDocument.collection_id == project_id)
-        )
-        if document_ids:
-            query = query.where(Document.id.in_(document_ids))
-        return query
-
     async def _generate_draft_async(
         self,
         task_id: str,
@@ -207,14 +188,18 @@ class DraftGenerationService:
                 task_id, DraftGenerationStatus.ANALYZING, 10, "Analyzing documents"
             )
 
-            # Get documents for the project. Always scope through the project's
-            # collection so a client-supplied document_ids list cannot pull in
-            # another org's (or another project's) documents — project_id is
-            # already verified as the caller's, and joining collection_documents
-            # drops any id not actually in this project. (Previously the
-            # document_ids branch fetched by id with no scope → cross-tenant
-            # document-content leak into the generated draft.)
-            docs_query = self._build_project_documents_query(project_id, document_ids)
+            # Get documents for the project
+            if document_ids:
+                docs_query = select(Document).where(Document.id.in_(document_ids))
+            else:
+                # Get all documents in project through collection_documents
+                from src.models.collection import CollectionDocument
+
+                docs_query = (
+                    select(Document)
+                    .join(CollectionDocument, Document.id == CollectionDocument.document_id)
+                    .where(CollectionDocument.collection_id == project_id)
+                )
 
             result = await self.db.execute(docs_query)
             documents = result.scalars().all()
@@ -433,9 +418,7 @@ class DraftGenerationService:
             title = doc.title or f"Untitled Document {idx}"
             doc_contexts.append(f'[Doc {idx}] "{title}" — {snippet}')
 
-        style_instruction = self._STYLE_PROMPTS.get(
-            style, self._STYLE_PROMPTS["academic"]
-        )
+        style_instruction = self._STYLE_PROMPTS.get(style, self._STYLE_PROMPTS["academic"])
         abstract_instruction = (
             "Include an Abstract section at the beginning."
             if include_abstract
@@ -660,9 +643,7 @@ Key takeaways include the importance of continued investigation and the potentia
             ]:
                 _generation_status[task_id]["status"] = DraftGenerationStatus.CANCELLED
                 _generation_status[task_id]["current_step"] = "Cancelled by user"
-                _generation_status[task_id][
-                    "updated_at"
-                ] = datetime.utcnow().isoformat()
+                _generation_status[task_id]["updated_at"] = datetime.utcnow().isoformat()
                 return True
         return False
 
@@ -851,17 +832,17 @@ Key takeaways include the importance of continued investigation and the potentia
                 "version": draft_a.version,
                 "word_count": draft_a.word_count,
                 "citation_count": draft_a.citation_count,
-                "created_at": (
-                    draft_a.created_at.isoformat() if draft_a.created_at else None
-                ),
+                "created_at": draft_a.created_at.isoformat()
+                if draft_a.created_at
+                else None,
             },
             "version_b": {
                 "version": draft_b.version,
                 "word_count": draft_b.word_count,
                 "citation_count": draft_b.citation_count,
-                "created_at": (
-                    draft_b.created_at.isoformat() if draft_b.created_at else None
-                ),
+                "created_at": draft_b.created_at.isoformat()
+                if draft_b.created_at
+                else None,
             },
             "word_count_diff": draft_b.word_count - draft_a.word_count,
             "citation_count_diff": draft_b.citation_count - draft_a.citation_count,

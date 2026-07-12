@@ -153,7 +153,7 @@ def invalid_tokens():
         "",  # Empty token
         "invalid_token",  # Random string
         "Bearer invalid_token",  # With Bearer prefix
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.wrong_signature",
+        "JWT_REDACTED",
         "a" * 1000,  # Very long token
         "null",
         "undefined",

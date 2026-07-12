@@ -20,7 +20,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import SQLAlchemyError
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
@@ -107,13 +106,6 @@ from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
 from src.middleware.security_headers import SecurityHeadersMiddleware
 from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
-from src.exceptions import RAGException
-from src.exceptions.analytics_exceptions import AnalyticsException
-from src.exceptions.error_handlers import (
-    analytics_exception_handler,
-    database_exception_handler,
-    rag_exception_handler,
-)
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -172,35 +164,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Multimodal RAG System...")
 
-    # Create database tables ONLY for a genuinely local dev DB. Any managed /
-    # deployed database (dev/staging/prod all set SUPABASE_DB_URL) is owned by the
-    # Alembic init container. Running create_all against a managed DB (a) grabs
-    # session-mode pooler connections on every worker boot and can exhaust
-    # Supabase's pool, and (b) races Alembic: create_all skips existing tables and
-    # never back-fills constraints added to a model later, permanently drifting the
-    # schema (this is how project_threads lost uq_project_thread). Fail-safe:
-    # require BOTH an explicit development ENVIRONMENT and the absence of
-    # SUPABASE_DB_URL, so a managed cluster can never trigger create_all even if
-    # ENVIRONMENT is misconfigured to "development".
-    # Third condition (audit M1): the engine host must be genuinely local (or
-    # SQLite, or explicitly forced via RUN_CREATE_ALL=1). Closes the residual
-    # gap where ENVIRONMENT is unset (defaults "development") and a managed
-    # non-Supabase DATABASE_URL is configured — that combination previously
-    # still ran create_all against the managed DB.
-    from src.core.database import should_run_create_all
-
+    # Create database tables only for local Docker Compose development.
+    # Any deployed cluster (dev/staging/production) relies on Alembic migrations —
+    # running create_all there grabs session-mode pooler connections on every worker
+    # boot and can exhaust Supabase's session-mode pool.
     environment = os.environ.get("ENVIRONMENT", "development")
-    supabase_db_url = os.environ.get("SUPABASE_DB_URL", "")
-    db_host = getattr(engine.url, "host", None)
-    is_sqlite = engine.url.get_backend_name().startswith("sqlite")
-    force_create_all = os.environ.get("RUN_CREATE_ALL", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    if should_run_create_all(
-        environment, supabase_db_url, db_host, is_sqlite, force_create_all
-    ):
+    if environment == "development":
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully")
@@ -212,12 +181,8 @@ async def lifespan(app: FastAPI):
                 raise
     else:
         logger.info(
-            "Skipping create_all (environment=%s, supabase_db_url_set=%s, "
-            "db_host=%s, forced=%s) — Alembic migrations are authoritative",
+            "Skipping create_all in %s (Alembic migrations are authoritative)",
             environment,
-            bool(supabase_db_url),
-            db_host,
-            force_create_all,
         )
 
     # Initialize field-level encryption (requires ENCRYPTION_MASTER_KEY env var).
@@ -749,21 +714,6 @@ async def general_exception_handler(request: Request, exc: Exception):
             }
         },
     )
-
-
-# Wire the application's own exception hierarchies to their structured handlers.
-# Registered explicitly rather than via
-# src.exceptions.error_handlers.setup_error_handlers(), which would also
-# re-register HTTPException / RequestValidationError / Exception and clobber the
-# handlers defined above. Starlette resolves handlers by walking the exception's
-# MRO, so these more-specific handlers take precedence over the generic
-# Exception handler for their own types — e.g. an analytics
-# PermissionDeniedException now returns 403 instead of a generic 500, and a
-# SQLAlchemyError returns a sanitized 500 instead of leaking DB internals in
-# non-production environments.
-app.add_exception_handler(RAGException, rag_exception_handler)
-app.add_exception_handler(AnalyticsException, analytics_exception_handler)
-app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 
 
 # Development server info — requires admin auth even in DEBUG mode

@@ -98,5 +98,5 @@ Enterprise-grade multimodal RAG system that retrieves, reasons, and generates ac
 
 ## Dev Users
 
-- Admin: admin@multimodal-rag.com / admin123
+- Admin: admin@multimodal-rag.com / REDACTED
 - Demo: demo@multimodal-rag.com / demo123

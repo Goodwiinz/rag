@@ -55,25 +55,25 @@ POSTGRES_CONFIG = {
     'host': 'localhost',
     'port': 5432,
     'user': 'raguser',
-    'password': 'rag_password_123',
+    'password': 'REDACTED',
     'database': 'ragdb'
 }
 
 NEO4J_CONFIG = {
     'uri': 'bolt://localhost:7687',
     'user': 'neo4j',
-    'password': 'neo4j_password_123'
+    'password': 'REDACTED'
 }
 
 QDRANT_CONFIG = {
     'url': 'http://localhost:6333',
-    'api_key': 'qdrant_api_key_123'
+    'api_key': 'REDACTED'
 }
 
 REDIS_CONFIG = {
     'host': 'localhost',
     'port': 6379,
-    'password': 'redis_password_123',
+    'password': 'REDACTED',
     'decode_responses': True
 }
 

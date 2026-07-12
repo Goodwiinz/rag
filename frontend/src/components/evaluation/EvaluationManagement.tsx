@@ -118,11 +118,11 @@ export const EvaluationManagement: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'text-(--nous-terra) bg-(--nous-terra)/10';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'running':
         return 'text-primary bg-primary/10';
       case 'failed':
-        return 'text-(--nous-mars) bg-(--nous-mars)/10';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
         return 'text-foreground bg-muted';
     }
@@ -166,7 +166,7 @@ export const EvaluationManagement: React.FC = () => {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-(--nous-mars)" role="alert">
+          <div className="text-center text-[var(--nous-mars)]" role="alert">
             <ExclamationTriangleIcon
               className="h-12 w-12 mx-auto mb-4"
               aria-hidden="true"
@@ -244,12 +244,12 @@ export const EvaluationManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Completed</p>
-                <p className="text-2xl font-bold text-(--nous-terra)">
+                <p className="text-2xl font-bold text-[var(--nous-terra)]">
                   {evaluationStats.completed}
                 </p>
               </div>
               <CheckCircleIcon
-                className="h-8 w-8 text-(--nous-terra)"
+                className="h-8 w-8 text-[var(--nous-terra)]"
                 aria-hidden="true"
               />
             </div>
@@ -276,12 +276,12 @@ export const EvaluationManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Failed</p>
-                <p className="text-2xl font-bold text-(--nous-mars)">
+                <p className="text-2xl font-bold text-[var(--nous-mars)]">
                   {evaluationStats.failed}
                 </p>
               </div>
               <ExclamationTriangleIcon
-                className="h-8 w-8 text-(--nous-mars)"
+                className="h-8 w-8 text-[var(--nous-mars)]"
                 aria-hidden="true"
               />
             </div>

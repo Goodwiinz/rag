@@ -114,23 +114,6 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onToolEnd).toHaveBeenCalledWith('search', 'ok', false);
   });
 
-  it('forwards per-turn token usage to onUsage', async () => {
-    global.fetch = fetchWith([
-      'event: usage\ndata: {"input_tokens":1234,"output_tokens":340}\n\n',
-      'event: done\ndata: {"status":"complete"}\n\n',
-    ]);
-    const onUsage = vi.fn();
-    await agentChatService.streamMessage(request, { onUsage });
-    expect(onUsage).toHaveBeenCalledWith(1234, 340);
-  });
-
-  it('defaults missing token counts to zero on the usage event', async () => {
-    global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
-    const onUsage = vi.fn();
-    await agentChatService.streamMessage(request, { onUsage });
-    expect(onUsage).toHaveBeenCalledWith(0, 0);
-  });
-
   it('skips malformed JSON data lines without aborting the stream', async () => {
     global.fetch = fetchWith([
       'event: token\ndata: {not json}\n\n',
@@ -141,48 +124,5 @@ describe('agentChatService.streamMessage SSE parsing', () => {
       onToken: (c) => tokens.push(c),
     });
     expect(tokens).toEqual(['after']);
-  });
-
-  it('flushes a trailing frame that ended without a final newline', async () => {
-    // The server's last chunk ends mid-frame (no trailing \n). Without
-    // the defensive buffer flush, the final done event is silently dropped.
-    global.fetch = fetchWith([
-      'event: token\ndata: {"content":"hello"}\n\n',
-      'event: done\ndata: {"status":"complete"}',
-    ]);
-    const tokens: string[] = [];
-    const done = vi.fn();
-    await agentChatService.streamMessage(request, {
-      onToken: (c) => tokens.push(c),
-      onDone: done,
-    });
-    expect(tokens).toEqual(['hello']);
-    expect(done).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('agentChatService.streamConfirm SSE parsing', () => {
-  const realFetch = global.fetch;
-  afterEach(() => {
-    global.fetch = realFetch;
-  });
-
-  const confirmRequest = { thread_id: 'thread-1', confirmed: true };
-
-  it('forwards per-turn token usage to onUsage on the confirm path', async () => {
-    global.fetch = fetchWith([
-      'event: usage\ndata: {"input_tokens":1234,"output_tokens":340}\n\n',
-      'event: done\ndata: {"status":"complete"}\n\n',
-    ]);
-    const onUsage = vi.fn();
-    await agentChatService.streamConfirm(confirmRequest, { onUsage });
-    expect(onUsage).toHaveBeenCalledWith(1234, 340);
-  });
-
-  it('defaults missing token counts to zero on the confirm usage event', async () => {
-    global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
-    const onUsage = vi.fn();
-    await agentChatService.streamConfirm(confirmRequest, { onUsage });
-    expect(onUsage).toHaveBeenCalledWith(0, 0);
   });
 });

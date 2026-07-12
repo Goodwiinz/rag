@@ -283,7 +283,7 @@ const AlertList: React.FC<AlertListProps> = ({
         key={alert.id}
         className={cn(
           'border rounded-lg p-4 transition-all duration-200',
-          'hover:shadow-xs cursor-pointer',
+          'hover:shadow-sm cursor-pointer',
           severityConfig.bgColor,
           severityConfig.borderColor,
           isAcknowledged && 'opacity-75'
@@ -295,7 +295,7 @@ const AlertList: React.FC<AlertListProps> = ({
           <div className="flex items-start space-x-3 flex-1">
             <severityConfig.icon
               className={cn(
-                'h-5 w-5 mt-0.5 shrink-0',
+                'h-5 w-5 mt-0.5 flex-shrink-0',
                 severityConfig.color
               )}
             />
@@ -443,7 +443,7 @@ const AlertList: React.FC<AlertListProps> = ({
   };
 
   return (
-    <Card className={cn('shadow-xs', className)}>
+    <Card className={cn('shadow-sm', className)}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

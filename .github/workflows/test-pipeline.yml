@@ -43,7 +43,7 @@ env:
   # Anon JWT is signed with the same secret gotrue verifies with HS256 —
   # see docker-compose.ci.yml gotrue service for the matching env.
   NEXT_PUBLIC_SUPABASE_URL: "http://localhost:8999"
-  SUPABASE_JWT_SECRET: "ci-test-supabase-jwt-secret-not-for-prod-use"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "JWT_REDACTED"
 defaults:
   run:
     shell: bash
@@ -562,46 +562,6 @@ jobs:
       # right layers). Distinct scopes keep the two images' caches separate.
       # The `docker system prune` above only clears the local daemon, not the
       # remote GHA store, so it does not defeat this.
-      - name: Generate CI Supabase JWTs
-        id: supabase-jwts
-        run: |
-          python - <<'PY'
-          import base64
-          import hashlib
-          import hmac
-          import json
-          import os
-
-          def b64url(data):
-              return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-          def jwt_for(role):
-              header = {"alg": "HS256", "typ": "JWT"}
-              payload = {
-                  "role": role,
-                  "iss": "supabase-demo",
-                  "iat": 0,
-                  "exp": 9999999999,
-              }
-              header_part = b64url(json.dumps(header, separators=(",", ":")).encode())
-              payload_part = b64url(json.dumps(payload, separators=(",", ":")).encode())
-              signing_input = f"{header_part}.{payload_part}"
-              signature = hmac.new(
-                  os.environ["SUPABASE_JWT_SECRET"].encode(),
-                  signing_input.encode(),
-                  hashlib.sha256,
-              ).digest()
-              return f"{signing_input}.{b64url(signature)}"
-
-          anon = jwt_for("anon")
-          service_role = jwt_for("service_role")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write(f"anon={anon}\n")
-              out.write(f"service_role={service_role}\n")
-          with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"NEXT_PUBLIC_SUPABASE_ANON_KEY={anon}\n")
-              env.write(f"SERVICE_ROLE_JWT={service_role}\n")
-          PY
       - name: Build backend image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
@@ -623,7 +583,7 @@ jobs:
           tags: rag-frontend:test
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ env.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ steps.supabase-jwts.outputs.anon }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_STATSIG_CLIENT_KEY=client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx
             NEXT_PUBLIC_AUTH_COOKIE_NAME=sb-nous-e2e
           cache-from: type=gha,scope=frontend-e2e
@@ -694,9 +654,9 @@ jobs:
             -e ENCRYPTION_MASTER_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
             -e CORS_ORIGINS=http://localhost:3000,http://frontend:3000 \
             -e ENABLE_AI_PROCESSING=false \
-            -e SEED_ADMIN_PASSWORD=admin123 \
+            -e SEED_ADMIN_PASSWORD=REDACTED \
             -e SEED_DEMO_PASSWORD=demo123 \
-            -e SEED_LAB_ADMIN_PASSWORD=admin123 \
+            -e SEED_LAB_ADMIN_PASSWORD=REDACTED \
             rag-backend:test
 
           # Start frontend with pre-built image
@@ -754,7 +714,7 @@ jobs:
         run: |
           docker exec \
             -e PYTHONPATH=/app \
-            -e SERVICE_ROLE_JWT=$SERVICE_ROLE_JWT \
+            -e SERVICE_ROLE_JWT=JWT_REDACTED \
             backend-e2e \
             python -c "
           import os, httpx
@@ -762,9 +722,9 @@ jobs:
           from src.models.user import User
 
           PASSWORDS = {
-              'admin@multimodal-rag.com': 'admin123',
+              'admin@multimodal-rag.com': 'REDACTED',
               'demo@multimodal-rag.com': 'demo123',
-              'lab-admin@multimodal-rag.com': 'admin123',
+              'lab-admin@multimodal-rag.com': 'REDACTED',
           }
           headers = {'Authorization': f\"Bearer {os.environ['SERVICE_ROLE_JWT']}\"}
           # GoTrue v2.151 IGNORES a client-supplied id on /admin/users and
@@ -796,57 +756,65 @@ jobs:
                       print(f'  app user id {u.id} -> {gid} (adopted gotrue id)')
               db.commit()
           "
-      - name: Set up pnpm for Playwright
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - name: Setup Node.js for Playwright
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          node-version: '20'
+      - name: Cache e2e node_modules
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: tests/e2e/node_modules
+          # No lockfile in tests/e2e (package.json only) — key on it directly.
+          key: ${{ runner.os }}-e2e-node-${{ hashFiles('tests/e2e/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-e2e-node-
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
-          # Key on pnpm-lock.yaml so browser cache invalidates when the locked
-          # @playwright/test/playwright version changes.
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('pnpm-lock.yaml') }}
+          # Key on package.json (not the @playwright/test semver RANGE) so a
+          # patch bump invalidates the cached browser binary.
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('tests/e2e/package.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-chromium-
       - name: Install Playwright dependencies
+        working-directory: tests/e2e
         run: |
-          pnpm config set fetch-retries 5
-          pnpm config set fetch-retry-mintimeout 20000
-          pnpm config set fetch-retry-maxtimeout 120000
-          pnpm install --frozen-lockfile --filter ./tests/e2e
+          npm install
           # Always run `playwright install` — do NOT gate it on the cache-hit.
-          # The locked workspace install keeps @playwright/test and the browser
-          # cache in sync; this command is a no-op when the matching browser is
-          # cached and re-downloads only on drift. --with-deps also installs OS
-          # libs (libnss/libatk/libgbm) absent on a fresh runner.
-          pnpm --dir tests/e2e exec playwright install --with-deps chromium
+          # The cache key hashes tests/e2e/package.json, which holds a semver
+          # RANGE, and there's no lockfile here, so `npm install` can resolve a
+          # newer @playwright/test patch (e.g. a bumped chrome-headless-shell
+          # build) WITHOUT changing package.json → exact cache-hit → the old
+          # gated logic skipped the install and left a stale browser binary,
+          # failing launch with "Executable doesn't exist". `playwright install`
+          # is a no-op when the cached browser already matches and re-downloads
+          # only on drift; --with-deps also installs the OS libs (libnss/libatk/
+          # libgbm) absent on a fresh runner.
+          npx playwright install --with-deps chromium
       - name: Run E2E Tests
         env:
           CI: true
           BASE_URL: http://localhost:3000
           API_BASE_URL: http://localhost:8000
           TEST_ADMIN_EMAIL: admin@multimodal-rag.com
-          TEST_ADMIN_PASSWORD: admin123
+          TEST_ADMIN_PASSWORD: REDACTED
           TEST_USER_EMAIL: demo@multimodal-rag.com
           TEST_USER_PASSWORD: demo123
           TEST_ORG_ADMIN_EMAIL: lab-admin@multimodal-rag.com
-          TEST_ORG_ADMIN_PASSWORD: admin123
+          TEST_ORG_ADMIN_PASSWORD: REDACTED
         run: |
+          cd tests/e2e
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "Running smoke tests for PR..."
-            pnpm --dir tests/e2e exec playwright test --grep "@smoke" --project=chromium --reporter=html,github
+            npx playwright test --grep "@smoke" --project=chromium --reporter=html,github
           else
             echo "Running full E2E tests..."
             # --max-failures: a systemic failure (stack misconfig, dead
             # selector everywhere) exits fast and REPORTS instead of burning
             # the whole job budget and getting killed as "cancelled".
-            pnpm --dir tests/e2e exec playwright test --project=chromium --reporter=html,github --max-failures=15
+            npx playwright test --project=chromium --reporter=html,github --max-failures=15
           fi
       - name: Upload E2E test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

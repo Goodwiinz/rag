@@ -94,7 +94,7 @@ class RAGEvaluator:
             )
         }
 
-    def authenticate(self, username: str = "admin", password: str = "admin123") -> bool:
+    def authenticate(self, username: str = "admin", password: str = "REDACTED") -> bool:
         """Authenticate with the RAG system"""
         try:
             response = self.session.post(

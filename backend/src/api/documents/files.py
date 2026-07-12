@@ -2,7 +2,6 @@
 File upload and management API endpoints
 """
 
-import logging
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -26,12 +25,6 @@ from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
 
 router = APIRouter(prefix="/files", tags=["files"])
-
-
-# Module-level logger: the except handlers in list_files / get_file_statistics /
-# cancel_upload reference `logger`; before this it existed only as a local inside
-# upload_file, so those error paths raised NameError and masked the real error.
-logger = logging.getLogger(__name__)
 
 
 def _escape_like(value: str) -> str:
@@ -88,6 +81,9 @@ async def upload_file(
     """Upload a file to the system"""
 
     # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
@@ -325,14 +321,6 @@ async def download_file(
 
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
-        # Verify the object exists before redirecting: a blind presign+302 for
-        # a missing object serves the storage provider's raw XML error (and
-        # bucket hostname) instead of a clean app 404, unlike the local branch.
-        if not helper.object_exists(bucket, key):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
         signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
         return RedirectResponse(url=signed_url, status_code=302)
 
@@ -344,13 +332,9 @@ async def download_file(
     if document.storage_backend == "s3" and document.storage_path:
         from src.core.s3_client import S3StorageHelper
 
-        s3_helper = S3StorageHelper()
-        if not s3_helper.object_exists(document.storage_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
-        signed_url = s3_helper.create_signed_url(document.storage_path, expires_in=3600)
+        signed_url = S3StorageHelper().create_signed_url(
+            document.storage_path, expires_in=3600
+        )
         return RedirectResponse(url=signed_url, status_code=302)
 
     # Local file path
@@ -412,7 +396,7 @@ async def update_file_metadata(
             document.is_public = is_public
 
         await db.commit()
-        await db.refresh(document)
+        db.refresh(document)
 
         return {
             "message": "File metadata updated successfully",
@@ -420,7 +404,7 @@ async def update_file_metadata(
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -511,11 +495,7 @@ async def get_file_metadata(
         )
 
     return {
-        # `document.metadata` is SQLAlchemy's reserved declarative MetaData
-        # registry, not the document's JSON metadata — returning it makes
-        # jsonable_encoder raise and the endpoint 500 on every call. The JSON
-        # column is `document_metadata`, exposed via get_metadata().
-        "metadata": document.get_metadata(),
+        "metadata": document.metadata,
         "file_info": {
             "id": str(document.id),
             "title": document.title,
@@ -632,7 +612,7 @@ async def cancel_upload(
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         logger.error(f"Failed to cancel upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -687,5 +667,5 @@ async def reprocess_file(
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

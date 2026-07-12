@@ -35,7 +35,7 @@ export function NewChatDialogDemo() {
         'Code review',
         'Documentation',
       ],
-      color: 'from-(--nous-sol) to-(--nous-helios)',
+      color: 'from-[var(--nous-sol)] to-[var(--nous-helios)]',
     },
     {
       id: 'writing',
@@ -77,7 +77,7 @@ export function NewChatDialogDemo() {
         'Citation management',
         'Methodology',
       ],
-      color: 'from-(--nous-helios) to-(--nous-sol)',
+      color: 'from-[var(--nous-helios)] to-[var(--nous-sol)]',
     },
     {
       id: 'design',
@@ -104,7 +104,7 @@ export function NewChatDialogDemo() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-background via-background to-muted p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold text-foreground">
@@ -119,7 +119,7 @@ export function NewChatDialogDemo() {
           <Button
             onClick={() => setIsOpen(true)}
             size="lg"
-            className="h-14 px-8 bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/25 transition-all duration-300"
+            className="h-14 px-8 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/25 transition-all duration-300"
           >
             <MessageSquarePlus className="h-5 w-5 mr-2" />
             Start New Chat
@@ -133,11 +133,11 @@ export function NewChatDialogDemo() {
               {chatHistory.map((chat, index) => (
                 <div
                   key={index}
-                  className="p-4 rounded-lg bg-background/50 backdrop-blur-xs border border-border/50"
+                  className="p-4 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50"
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className={`h-10 w-10 rounded-full bg-linear-to-br ${chat.assistant.color} flex items-center justify-center text-white font-semibold`}
+                      className={`h-10 w-10 rounded-full bg-gradient-to-br ${chat.assistant.color} flex items-center justify-center text-white font-semibold`}
                     >
                       {chat.assistant.name.slice(0, 2).toUpperCase()}
                     </div>

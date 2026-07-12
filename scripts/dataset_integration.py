@@ -131,7 +131,7 @@ class DatasetProcessor:
         if self.session:
             await self.session.close()
 
-    async def authenticate(self, username: str = "admin", password: str = "admin123") -> str:
+    async def authenticate(self, username: str = "admin", password: str = "REDACTED") -> str:
         """Authenticate with the RAG system"""
         async with self.session.post(
             f"{self.api_base_url}/auth/login",

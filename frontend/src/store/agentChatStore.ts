@@ -208,20 +208,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
               },
               onPlan: (steps: Array<Record<string, unknown>>) => {
                 set((state) => {
-                  const plan = steps.map((s) => ({
+                  state.currentPlan = steps.map((s) => ({
                     step: (s.step as number) ?? 0,
                     description: (s.description as string) ?? '',
                     tool: (s.tool as string) ?? '',
                     args_hint: (s.args_hint as Record<string, unknown>) ?? {},
                     depends_on: (s.depends_on as number[]) ?? [],
                   }));
-                  state.currentPlan = plan;
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].plan = plan;
-                  }
                 });
               },
               onRagContext: (contexts: Array<Record<string, unknown>>) => {

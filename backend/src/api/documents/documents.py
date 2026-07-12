@@ -1138,12 +1138,7 @@ async def reprocess_document(
         document.processing_started_at = None
         document.processing_completed_at = None
 
-        # Flush (not commit): keep the status reset and the new job in one
-        # transaction that is only committed AFTER the Celery enqueue succeeds.
-        # Committing here would strand the document in PENDING (losing its prior
-        # status) if the enqueue below fails — the except's rollback can't undo a
-        # commit.
-        await db.flush()
+        await db.commit()
 
         # Create new processing job
         from src.models.processing import JobPriority, JobType
@@ -1168,19 +1163,12 @@ async def reprocess_document(
         )
 
         db.add(processing_job)
-        # Flush to populate processing_job.id for the enqueue without persisting
-        # a PENDING/celery_task_id=NULL row yet.
-        await db.flush()
+        await db.commit()
 
         # Queue the job for processing
         from src.tasks.processing_tasks import process_document_ingestion
 
         process_document_ingestion.delay(str(processing_job.id))
-
-        # Commit once the task is actually enqueued. If .delay() raises (e.g.
-        # broker down), the except's rollback reverts both the status reset and
-        # the job insert — no orphaned job, document keeps its prior status.
-        await db.commit()
 
         return {
             "message": "Document queued for reprocessing",

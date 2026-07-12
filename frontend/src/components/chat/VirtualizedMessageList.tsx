@@ -9,13 +9,17 @@ import React, {
   useState,
 } from 'react';
 import { VariableSizeList as List } from 'react-window';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
-import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  CommandAction,
+  CommandOutput,
+} from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 
+const VIRTUALIZATION_THRESHOLD = 75;
 const OVERSCAN_COUNT = 5;
 const DEFAULT_ROW_HEIGHT = 120;
 const MEASURE_PADDING = 8;
@@ -106,29 +110,22 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
       {message.role === 'assistant' && isLast && !storeIsStreaming && (
         <InlineAgentSummary threadId={activeThreadId} />
       )}
-      {isLast &&
-      isLoading &&
-      !storeIsStreaming &&
-      message.role === 'assistant' ? (
-        <ChatBubble
-          message={message}
-          index={index}
-          modelName="NOUS"
-          isTyping
-          onRetry={() => onRegenerate(index)}
-          onCitationClick={onCitationClick}
-          thinkingLabel={thinkingLabel}
-        />
-      ) : (
-        <AuiMessageByIndex
-          index={index}
-          message={message}
-          onRetry={
-            message.role === 'assistant' ? () => onRegenerate(index) : undefined
-          }
-          onCitationClick={onCitationClick}
-        />
-      )}
+      <ChatBubble
+        message={message}
+        index={index}
+        modelName={message.role === 'assistant' ? 'NOUS' : undefined}
+        isTyping={
+          isLast &&
+          isLoading &&
+          !storeIsStreaming &&
+          message.role === 'assistant'
+        }
+        onRetry={
+          message.role === 'assistant' ? () => onRegenerate(index) : undefined
+        }
+        onCitationClick={onCitationClick}
+        thinkingLabel={thinkingLabel}
+      />
     </>
   );
 
@@ -288,7 +285,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
         <div className="flex justify-center py-2">
           <button
             onClick={onLoadOlder}
-            className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
+            className="text-xs font-medium text-[var(--nous-fg-2)] hover:text-[var(--nous-sol)] transition-colors"
           >
             Load older messages
           </button>
@@ -296,7 +293,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       )}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">
-          <span className="text-xs font-medium text-(--nous-fg-2)">
+          <span className="text-xs font-medium text-[var(--nous-fg-2)]">
             Loading older messages...
           </span>
         </div>

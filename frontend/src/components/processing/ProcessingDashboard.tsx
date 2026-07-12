@@ -222,15 +222,15 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
   const getStatusColor = useCallback((status: UploadQueueItem['status']) => {
     switch (status) {
       case 'completed':
-        return 'text-(--nous-terra) bg-(--nous-terra)/10';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'processing':
-        return 'text-(--nous-fg-accent-safe) bg-(--nous-sol)/10';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10';
       case 'pending':
-        return 'text-foreground bg-(--nous-bg-2)';
+        return 'text-foreground bg-[var(--nous-bg-2)]';
       case 'error':
-        return 'text-(--nous-mars) bg-(--nous-mars)/10';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-foreground bg-(--nous-bg-2)';
+        return 'text-foreground bg-[var(--nous-bg-2)]';
     }
   }, []);
 
@@ -269,11 +269,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Processing</p>
-              <p className="text-2xl font-bold text-(--nous-fg-accent-safe)">
+              <p className="text-2xl font-bold text-[var(--nous-fg-accent-safe)]">
                 {processingStats.processingFiles}
               </p>
             </div>
-            <ArrowPathIcon className="h-8 w-8 text-(--nous-fg-accent-safe) animate-spin" />
+            <ArrowPathIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)] animate-spin" />
           </div>
         </div>
 
@@ -281,11 +281,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Completed</p>
-              <p className="text-2xl font-bold text-(--nous-terra)">
+              <p className="text-2xl font-bold text-[var(--nous-terra)]">
                 {processingStats.completedFiles}
               </p>
             </div>
-            <CheckCircleIcon className="h-8 w-8 text-(--nous-terra)" />
+            <CheckCircleIcon className="h-8 w-8 text-[var(--nous-terra)]" />
           </div>
         </div>
 
@@ -293,11 +293,11 @@ export const ProcessingDashboard: React.FC<ProcessingDashboardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Failed</p>
-              <p className="text-2xl font-bold text-(--nous-mars)">
+              <p className="text-2xl font-bold text-[var(--nous-mars)]">
                 {processingStats.failedFiles}
               </p>
             </div>
-            <ExclamationTriangleIcon className="h-8 w-8 text-(--nous-mars)" />
+            <ExclamationTriangleIcon className="h-8 w-8 text-[var(--nous-mars)]" />
           </div>
         </div>
       </div>

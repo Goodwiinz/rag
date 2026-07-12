@@ -35,16 +35,6 @@ from src.services.evaluation.rag_evaluation_service import (
 logger = logging.getLogger(__name__)
 
 
-# Terminal EvaluationJob states for the acks_late idempotency guards below.
-_TERMINAL_EVAL_STATUSES = frozenset(
-    {
-        EvaluationStatus.COMPLETED.value,
-        EvaluationStatus.FAILED.value,
-        EvaluationStatus.CANCELLED.value,
-    }
-)
-
-
 class EvaluationTask(Task):
     """Base class for evaluation tasks"""
 
@@ -85,25 +75,6 @@ def run_rag_triad_evaluation(self, job_id: str):
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
 
-        # Idempotency guard for acks_late redelivery (mirrors
-        # processing_tasks.process_document_ingestion): a worker recycled after
-        # this job reached a terminal state but before the broker ack causes the
-        # message to be redelivered — re-running would re-incur paid LLM
-        # evaluation and append a duplicate set of EvaluationMetric rows.
-        # Placed BEFORE the dataset fetch so a dataset deleted after completion
-        # can't raise on redelivery and flip a terminal job to FAILED via
-        # on_failure.
-        if job.status in _TERMINAL_EVAL_STATUSES:
-            logger.info(
-                f"Evaluation job {job_id} already {job.status}; "
-                "skipping redelivered run"
-            )
-            return {
-                "status": job.status,
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
-
         # Get evaluation dataset
         dataset = (
             db.query(EvaluationDataset)
@@ -142,9 +113,9 @@ def run_rag_triad_evaluation(self, job_id: str):
                         query=question,
                         generated_answer="",  # Will be generated during evaluation
                         retrieved_context=contexts[i] if i < len(contexts) else [],
-                        reference_answer=(
-                            reference_answers[i] if i < len(reference_answers) else None
-                        ),
+                        reference_answer=reference_answers[i]
+                        if i < len(reference_answers)
+                        else None,
                         metadata={"item_index": i, "total_items": total_items},
                     )
 
@@ -220,33 +191,8 @@ def run_rag_triad_evaluation(self, job_id: str):
             successful_items = sum(1 for m in metrics_results if m.overall_score > 0.5)
             success_rate = (successful_items / len(metrics_results)) * 100
 
-            # Persist the processed/total counts so a partial run (some items
-            # hit the `except: continue` above and were dropped) is VISIBLE on
-            # the job — otherwise a job that only processed 2/10 items still
-            # reports COMPLETED with metrics averaged over the 2 survivors and
-            # no trace of the 8 failures. Keep COMPLETED (the partial metrics
-            # are still useful and failing the whole job would discard them),
-            # but record the degradation honestly.
-            failed_items = total_items - processed_items
-            job.dataset_size = total_items
-            job.update_progress(processed_items)
-
             # Complete job
             job.complete_job(overall_score=overall_score, success_rate=success_rate)
-            if failed_items > 0:
-                job.error_message = (
-                    f"Completed with partial results: {processed_items}/{total_items} "
-                    f"items processed, {failed_items} failed (see logs). Scores are "
-                    f"averaged over the {processed_items} processed items only."
-                )
-                logger.warning(
-                    "RAG Triad evaluation for job %s completed PARTIALLY: %d/%d "
-                    "items processed, %d failed",
-                    job_id,
-                    processed_items,
-                    total_items,
-                    failed_items,
-                )
             db.commit()
 
             logger.info(f"RAG Triad evaluation completed for job {job_id}")
@@ -259,7 +205,6 @@ def run_rag_triad_evaluation(self, job_id: str):
                 "job_id": job_id,
                 "processed_items": processed_items,
                 "total_items": total_items,
-                "failed_items": failed_items,
                 "overall_score": overall_score,
                 "success_rate": success_rate,
                 "duration_seconds": job.duration_seconds,
@@ -272,11 +217,6 @@ def run_rag_triad_evaluation(self, job_id: str):
 
     except Exception as e:
         logger.error(f"RAG Triad evaluation failed for job {job_id}: {str(e)}")
-
-        # Roll back first: a DB-origin failure poisons the session, so the
-        # fail_job + commit below would themselves throw and get swallowed,
-        # leaving the EvaluationJob stuck in RUNNING.
-        db.rollback()
 
         # Update job status
         try:
@@ -304,18 +244,6 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
 
         if not job:
             raise ValueError(f"Evaluation job {job_id} not found")
-
-        # Idempotency guard for acks_late redelivery — see run_rag_triad_evaluation.
-        if job.status in _TERMINAL_EVAL_STATUSES:
-            logger.info(
-                f"Evaluation job {job_id} already {job.status}; "
-                "skipping redelivered run"
-            )
-            return {
-                "status": job.status,
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
 
         # Start job
         job.start_job()
@@ -394,24 +322,12 @@ def run_batch_evaluation(self, job_id: str, queries: List[str]):
                     "overall_score": overall_score,
                     "success_rate": success_rate,
                 }
-            else:
-                # No query produced a metric (every item errored). Without this
-                # branch the job — already start_job()'d to RUNNING — was never
-                # completed or failed, leaving it stuck in RUNNING forever.
-                # Mirrors run_rag_triad_evaluation's empty-results handling.
-                job.fail_job("No queries were successfully evaluated")
-                db.commit()
-                raise ValueError("No queries were successfully evaluated")
 
         finally:
             loop.close()
 
     except Exception as e:
         logger.error(f"Batch evaluation failed for job {job_id}: {str(e)}")
-
-        # Roll back a possibly-poisoned session before writing fail state, else
-        # the commit below throws PendingRollbackError and the job stays RUNNING.
-        db.rollback()
 
         # Update job status
         try:
@@ -441,44 +357,11 @@ def run_real_time_evaluation(
     """
     db = SessionLocal()
     try:
-        # Idempotency guard for acks_late redelivery: unlike the job_id-based
-        # tasks above, this task CREATES its job — a redelivered message would
-        # create a second EvaluationJob and re-incur paid LLM evaluation. The
-        # Celery task id is stable across redeliveries of the same message, so
-        # stamp it into parameters and short-circuit when a job for this
-        # delivery already exists.
-        task_id = getattr(self.request, "id", None)
-        if task_id:
-            existing = (
-                db.query(EvaluationJob)
-                .filter(
-                    EvaluationJob.evaluation_type
-                    == EvaluationType.REAL_TIME_EVALUATION.value,
-                    EvaluationJob.parameters["celery_task_id"].as_string() == task_id,
-                )
-                .first()
-            )
-            if existing:
-                logger.info(
-                    f"Real-time evaluation for task {task_id} already exists "
-                    f"as job {existing.id} ({existing.status}); "
-                    "skipping redelivered run"
-                )
-                return {
-                    "status": existing.status,
-                    "job_id": str(existing.id),
-                    "skipped": "duplicate_delivery",
-                }
-
         # Create a temporary evaluation job for real-time evaluation
         job = EvaluationJob(
             name=f"Real-time Evaluation: {query[:50]}...",
             evaluation_type=EvaluationType.REAL_TIME_EVALUATION.value,
-            parameters={
-                "real_time": True,
-                "query": query,
-                "celery_task_id": task_id,
-            },
+            parameters={"real_time": True, "query": query},
             dataset_size=1,
             organization_id=organization_id,
         )
@@ -535,10 +418,6 @@ def run_real_time_evaluation(
 
     except Exception as e:
         logger.error(f"Real-time evaluation failed: {str(e)}")
-
-        # Roll back a possibly-poisoned session before writing fail state, else
-        # the commit below throws PendingRollbackError and the job stays RUNNING.
-        db.rollback()
 
         # Update job status
         try:
@@ -731,13 +610,9 @@ def generate_evaluation_report(job_id: str, report_type: str = "summary"):
 # Periodic tasks
 from celery.schedules import crontab
 
-# Merge (not assign) — a full `= {...}` is clobbered by the task module Celery
-# imports last; .update() lets every module's schedule coexist on the shared conf.
-current_app.conf.beat_schedule.update(
-    {
-        "cleanup-old-evaluations": {
-            "task": "src.tasks.evaluation_tasks.cleanup_old_evaluations",
-            "schedule": crontab(hour=3, minute=0),  # Run daily at 3 AM
-        },
-    }
-)
+current_app.conf.beat_schedule = {
+    "cleanup-old-evaluations": {
+        "task": "src.tasks.evaluation_tasks.cleanup_old_evaluations",
+        "schedule": crontab(hour=3, minute=0),  # Run daily at 3 AM
+    },
+}

@@ -89,11 +89,11 @@ export function StepCard({
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {/* Header */}
       <button
         type="button"
-        className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/40 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
@@ -146,7 +146,7 @@ export function StepCard({
               type="text"
               value={step.name}
               onChange={(e) => onChange({ ...step, name: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             />
           </div>
 
@@ -162,7 +162,7 @@ export function StepCard({
               id={`step-${index}-type`}
               value={step.type}
               onChange={(e) => onChange({ ...step, type: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             >
               <option value="search">Search</option>
               <option value="extract">Extract</option>
@@ -187,7 +187,7 @@ export function StepCard({
                 onChange({ ...step, description: e.target.value || undefined })
               }
               rows={2}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors"
               placeholder="What this step does"
             />
           </div>
@@ -206,7 +206,7 @@ export function StepCard({
               onChange={(e) => handleParamsChange(e.target.value)}
               rows={4}
               aria-invalid={!!paramsError}
-              className={`w-full px-3 py-2 rounded-lg bg-background border text-sm font-mono text-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
+              className={`w-full px-3 py-2 rounded-lg bg-background border text-sm font-mono text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
                 paramsError
                   ? 'border-destructive/50 focus:border-destructive'
                   : 'border-border focus:border-primary'
@@ -233,7 +233,7 @@ export function StepCard({
               onChange={(e) =>
                 onChange({ ...step, model_id: e.target.value || undefined })
               }
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             >
               <option value="">Default</option>
               {MODEL_OPTIONS.map((m) => (
@@ -253,7 +253,7 @@ export function StepCard({
               type="button"
               onClick={handleModeToggle}
               aria-pressed={step.mode === 'exploratory'}
-              className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${modeChip}`}
+              className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${modeChip}`}
             >
               {step.mode}
             </button>
@@ -311,7 +311,7 @@ export function StepCard({
                 })
               }
               placeholder="Optional seed for reproducibility"
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
             />
           </div>
 
@@ -321,7 +321,7 @@ export function StepCard({
               type="button"
               onClick={onMoveUp}
               disabled={index === 0}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Move step up"
             >
               <ArrowUp aria-hidden="true" className="h-4 w-4" />
@@ -330,7 +330,7 @@ export function StepCard({
               type="button"
               onClick={onMoveDown}
               disabled={index === totalSteps - 1}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Move step down"
             >
               <ArrowDown aria-hidden="true" className="h-4 w-4" />
@@ -339,7 +339,7 @@ export function StepCard({
             <button
               type="button"
               onClick={onRemove}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Remove step"
             >
               <Trash2 aria-hidden="true" className="h-4 w-4" />

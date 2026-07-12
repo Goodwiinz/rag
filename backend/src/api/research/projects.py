@@ -486,33 +486,6 @@ async def add_document_to_project(
                     task_count=len(extraction_task_ids),
                 )
 
-        # Capture the response payload from the ORM objects now, while they are
-        # fresh. The KG-queue block below rolls back on failure, which expires
-        # collection_doc/document; reading their attributes after that rollback
-        # would trigger an async lazy-load (MissingGreenlet) and falsely 500 a
-        # doc-add that already succeeded (committed above at db.commit()).
-        response = {
-            "id": str(collection_doc.id),
-            "project_id": str(project_id),
-            "document_id": str(document_id),
-            "added_at": (
-                collection_doc.created_at.isoformat()
-                if collection_doc.created_at
-                else None
-            ),
-            "sort_order": sort_order,
-            "document": {
-                "id": str(document.id),
-                "title": document.title or document.filename,
-                "filename": document.filename,
-                "status": document.processing_status,
-                "created_at": (
-                    document.created_at.isoformat() if document.created_at else None
-                ),
-            },
-            "extraction_task_ids": extraction_task_ids,
-        }
-
         # Auto-populate the knowledge graph: queue an entity-extraction job so
         # the project's knowledge tree reflects this document.
         kg_job_id: Optional[str] = None
@@ -533,12 +506,8 @@ async def add_document_to_project(
                     queue_name="entity_processing",
                 )
                 db.add(kg_job)
-                # Flush (not commit) so kg_job.id is populated for apply_async
-                # without persisting a PENDING row yet. If apply_async raises
-                # (e.g. broker down), the rollback below undoes this flush, so no
-                # orphaned PENDING/celery_task_id=NULL job is left behind. The
-                # single commit lands only once the task is actually enqueued.
-                await db.flush()
+                await db.commit()
+                await db.refresh(kg_job)
 
                 from src.tasks.processing_tasks import kg_extract_entities_job
 
@@ -567,8 +536,28 @@ async def add_document_to_project(
                     error=str(kg_error),
                 )
 
-        response["kg_job_id"] = kg_job_id
-        return response
+        return {
+            "id": str(collection_doc.id),
+            "project_id": str(project_id),
+            "document_id": str(document_id),
+            "added_at": (
+                collection_doc.created_at.isoformat()
+                if collection_doc.created_at
+                else None
+            ),
+            "sort_order": sort_order,
+            "document": {
+                "id": str(document.id),
+                "title": document.title or document.filename,
+                "filename": document.filename,
+                "status": document.processing_status,
+                "created_at": (
+                    document.created_at.isoformat() if document.created_at else None
+                ),
+            },
+            "extraction_task_ids": extraction_task_ids,
+            "kg_job_id": kg_job_id,
+        }
 
     except HTTPException:
         raise

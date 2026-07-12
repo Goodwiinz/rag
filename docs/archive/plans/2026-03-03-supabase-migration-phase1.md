@@ -328,7 +328,7 @@ cd /Users/goodwiinz/development/RAG_system/frontend
 npm run dev
 ```
 
-Navigate to `http://localhost:3000`, log in with `admin@multimodal-rag.com` / `admin123`. Verify the app loads normally.
+Navigate to `http://localhost:3000`, log in with `admin@multimodal-rag.com` / `REDACTED`. Verify the app loads normally.
 
 **Step 4: Stop the backend (Ctrl+C)**
 
@@ -584,7 +584,7 @@ curl http://localhost:8000/api/v1/health
 # Login
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email": "admin@multimodal-rag.com", "password": "admin123"}'
+  -d '{"email": "admin@multimodal-rag.com", "password": "REDACTED"}'
 
 # List documents (with token from login response)
 curl http://localhost:8000/api/v1/documents/ \

@@ -39,10 +39,10 @@ logger = logging.getLogger(__name__)
 from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent.job_store import _l1 as _jobs
 from src.services.agent.job_store import _l1_lock as _jobs_lock
-from src.services.agent.job_store import _write_to_redis_only
-from src.services.agent.job_store import delete_job as _delete_job_async
-from src.services.agent.job_store import get_job as _get_job_async
 from src.services.agent.job_store import set_job as _set_job_async
+from src.services.agent.job_store import get_job as _get_job_async
+from src.services.agent.job_store import delete_job as _delete_job_async
+from src.services.agent.job_store import _write_to_redis_only
 
 MAX_JOBS = 500
 
@@ -310,7 +310,6 @@ async def _resolve_project_for_thread(
         return None, None
 
     from sqlalchemy import select
-
     from src.models import Collection, ProjectThread
 
     scalar = getattr(thread_obj, "source_project_id", None)
@@ -503,11 +502,11 @@ async def _resolve_thread(
     from uuid import UUID
 
     from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
 
     from src.models.conversation import Conversation
     from src.models.thread import Thread, ThreadStatus
     from src.models.workspace import Workspace
+    from sqlalchemy.orm import selectinload
 
     AGENT_THREAD_MARKER = {"source": "agent"}
 
@@ -633,45 +632,6 @@ async def _persist_user_message(
     return inserted
 
 
-async def _latest_user_client_message_id(
-    db: AsyncSession,
-    thread_id: str,
-) -> Optional[str]:
-    """Return the ``client_message_id`` of the thread's latest user row.
-
-    The HITL confirm/resume path can't carry a fresh idempotency key (the
-    frontend only sends ``{thread_id, confirmed}``), so the resumed turn's
-    assistant row derives its key from the user row that started the turn —
-    a double-confirm then hits the assistant partial unique index and dedupes
-    instead of leaving a duplicate. Returns ``None`` when the user row
-    predates the idempotency column (legacy) or has no cmid.
-    """
-    from uuid import UUID
-
-    from sqlalchemy import select
-
-    from src.models.chat_message import ChatMessage, MessageRole
-
-    try:
-        tid = UUID(thread_id)
-    except (ValueError, TypeError, AttributeError):
-        return None
-
-    stmt = (
-        select(ChatMessage.client_message_id)
-        .where(
-            ChatMessage.thread_id == tid,
-            ChatMessage.role == MessageRole.USER,
-            ChatMessage.client_message_id.isnot(None),
-        )
-        .order_by(ChatMessage.created_at.desc())
-        .limit(1)
-    )
-    result = await db.execute(stmt)
-    cmid = result.scalar_one_or_none()
-    return str(cmid) if cmid is not None else None
-
-
 async def _persist_assistant_message(
     db: AsyncSession,
     *,
@@ -680,37 +640,15 @@ async def _persist_assistant_message(
     model_name: Optional[str],
     tool_executions_out: Optional[list],
     retrieved_contexts: Optional[list] = None,
-    latency_ms: Optional[int] = None,
-    stopped: bool = False,
-    client_message_id: Optional[str] = None,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
-) -> Optional[str]:
+) -> None:
     """Insert the assistant turn and bump ``thread.message_count`` by 1.
-
-    ``plan`` (planner steps) and ``token_usage``
-    ({input_tokens, output_tokens}) are per-turn provenance persisted as
-    JSONB so a page reload can rehydrate them; pass ``None`` when the turn
-    produced neither (they stay NULL, not empty containers).
 
     Commits independently of ``_persist_user_message``. A failure here
     after a successful user-row commit leaves the user message durable
     without its assistant counterpart — callers that depend on the old
     single-commit behavior must handle this.
-
-    When ``client_message_id`` is provided the insert is idempotent
-    against the assistant-role partial unique index (mirror of the
-    user-row index from v0a1b2c3d4e5) so an SSE retry/reconnect for the
-    same turn cannot duplicate the assistant row. On a dedup hit the
-    existing row id is returned and the thread stats are NOT re-bumped.
-
-    Returns the persisted (or pre-existing) message id, or ``None`` when
-    nothing was written.
     """
     from uuid import UUID
-
-    from sqlalchemy import select
-    from sqlalchemy.dialects.postgresql import insert
 
     from src.models.chat_message import ChatMessage, MessageRole
     from src.models.citation import Citation as CitationModel
@@ -732,59 +670,22 @@ async def _persist_assistant_message(
             for te in tool_executions_out
         ]
 
-    values = dict(
+    msg = ChatMessage(
         thread_id=UUID(thread_id),
         role=MessageRole.ASSISTANT,
         content=content,
         model_name=model_name,
         tool_executions=tool_exec_data,
-        latency_ms=latency_ms,
-        stopped=stopped,
-        client_message_id=client_message_id,
-        plan=plan,
-        token_usage=token_usage,
     )
-
-    if client_message_id is not None:
-        stmt = (
-            insert(ChatMessage)
-            .values(**values)
-            .on_conflict_do_nothing(
-                index_elements=["thread_id", "client_message_id"],
-                index_where=(
-                    ChatMessage.client_message_id.isnot(None)
-                    & (ChatMessage.role == MessageRole.ASSISTANT)
-                ),
-            )
-            .returning(ChatMessage.id)
-        )
-        inserted_id = (await db.execute(stmt)).scalar_one_or_none()
-        if inserted_id is None:
-            # Dedup hit: a retry of an already-persisted turn. Fetch the
-            # existing row id and leave thread stats/citations untouched.
-            existing = await db.execute(
-                select(ChatMessage.id).where(
-                    ChatMessage.thread_id == UUID(thread_id),
-                    ChatMessage.client_message_id == client_message_id,
-                    ChatMessage.role == MessageRole.ASSISTANT,
-                )
-            )
-            await db.commit()
-            existing_id = existing.scalar_one_or_none()
-            return str(existing_id) if existing_id is not None else None
-        msg_id = inserted_id
-    else:
-        msg = ChatMessage(**values)
-        db.add(msg)
-        await db.flush()
-        msg_id = msg.id
+    db.add(msg)
+    await db.flush()
 
     if retrieved_contexts:
         for ctx in retrieved_contexts:
             doc_id = ctx.get("document_id")
             db.add(
                 CitationModel(
-                    message_id=msg_id,
+                    message_id=msg.id,
                     document_id=UUID(doc_id) if doc_id else None,
                     external_reference_id=ctx.get("external_reference_id"),
                     document_title=ctx.get("title"),
@@ -800,22 +701,6 @@ async def _persist_assistant_message(
         thread.last_message_at = datetime.now(timezone.utc)
     await db.commit()
 
-    # Mirror chat_service.create_message's summarization trigger so
-    # server-canonical /chat threads get titles/summaries too. Celery-only
-    # (the task drives the sync ThreadSummarizationService in the worker);
-    # never let a broker hiccup break persistence.
-    if thread is not None and (thread.message_count or 0) >= 3:
-        try:
-            from src.tasks.summarize_thread_task import summarize_thread_task
-
-            summarize_thread_task.delay(thread_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Failed to queue summarization for thread %s: %s", thread_id, exc
-            )
-
-    return str(msg_id)
-
 
 async def _persist_assistant_message_safe(
     *,
@@ -824,12 +709,7 @@ async def _persist_assistant_message_safe(
     model_name: Optional[str],
     tool_executions_out: Optional[list],
     retrieved_contexts: Optional[list] = None,
-    latency_ms: Optional[int] = None,
-    stopped: bool = False,
-    client_message_id: Optional[str] = None,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
-) -> Optional[str]:
+) -> None:
     """Background-task-safe wrapper around ``_persist_assistant_message``.
 
     Opens its own ``AsyncSessionLocal()`` so it doesn't depend on the
@@ -842,18 +722,13 @@ async def _persist_assistant_message_safe(
     """
     try:
         async with AsyncSessionLocal() as db:
-            return await _persist_assistant_message(
+            await _persist_assistant_message(
                 db,
                 thread_id=thread_id,
                 content=content,
                 model_name=model_name,
                 tool_executions_out=tool_executions_out,
                 retrieved_contexts=retrieved_contexts,
-                latency_ms=latency_ms,
-                stopped=stopped,
-                client_message_id=client_message_id,
-                plan=plan,
-                token_usage=token_usage,
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -887,8 +762,6 @@ async def _persist_thread_messages(
     tool_executions_out: Optional[list] = None,
     retrieved_contexts: Optional[list] = None,
     create_if_missing: bool = True,
-    plan: Optional[list] = None,
-    token_usage: Optional[dict] = None,
 ) -> tuple[str, str]:
     """Persist thread & messages to the database (deprecated shim).
 
@@ -929,8 +802,6 @@ async def _persist_thread_messages(
         model_name=request.model,
         tool_executions_out=tool_executions_out,
         retrieved_contexts=retrieved_contexts,
-        plan=plan,
-        token_usage=token_usage,
     )
 
     return thread_id, conversation_id
@@ -941,36 +812,14 @@ async def _persist_thread_messages(
 # ---------------------------------------------------------------------------
 
 
-def _extract_pending_interrupt(snapshot: Any) -> Optional[Dict[str, Any]]:
-    """Return the first pending interrupt's confirmation payload, or None.
-
-    With a checkpointer attached (this graph always has one), LangGraph's
-    ``interrupt()`` does NOT raise ``GraphInterrupt`` to an ``ainvoke()``
-    caller — it pauses the graph and persists the pause to the checkpoint.
-    ``except GraphInterrupt`` around a plain ``ainvoke()`` call is therefore a
-    defensive fallback, not the reliable detection path (proven in
-    ``tests/unit/agent/test_interrupt_ainvoke_semantics.py``; a LangSmith
-    trace audit found create_project/ingest silently never triggered it).
-    The real signal is a pending task carrying ``.interrupts`` on the
-    checkpoint snapshot — the same mechanism streaming.py's SSE path
-    (its primary, working detection) and this module's pre-resume
-    ownership check already use.
-    """
-    pending_tasks = snapshot.tasks if snapshot else ()
-    for task in pending_tasks:
-        for intr in getattr(task, "interrupts", None) or ():
-            return getattr(intr, "value", {}) or {}
-    return None
-
-
 async def _run_agent_graph(
     job_id: str,
     request: Any,  # AgentExecuteRequest
     current_user: User,
 ):
     """Run the LangGraph agent graph in the background and update job status."""
-    from langchain_core.messages import HumanMessage
     from langgraph.errors import GraphInterrupt
+    from langchain_core.messages import HumanMessage
 
     from src.services.agent.checkpointer import get_checkpointer
     from src.services.agent.graph import compile_agent_graph
@@ -1094,27 +943,7 @@ async def _run_agent_graph(
 
                 async with asyncio.timeout(360):
                     final_state = await graph.ainvoke(initial_state, config=config)
-
-                # Primary interrupt detection — see _extract_pending_interrupt.
-                # ainvoke() returning without raising does NOT mean the turn
-                # completed; the graph may have paused at interrupt_node.
-                confirmation_details = _extract_pending_interrupt(
-                    await graph.aget_state(config)
-                )
-                if confirmation_details is not None:
-                    await _set_job_async(
-                        job_id,
-                        {
-                            "status": "awaiting_confirmation",
-                            "confirmation": confirmation_details,
-                            "tool_executions": [],
-                            "user_id": str(current_user.id),
-                            "request": request.model_dump(),
-                        },
-                    )
-                    return
             except GraphInterrupt as exc:
-                # Defensive fallback — see _extract_pending_interrupt docstring.
                 confirmation_details = extract_interrupt_confirmation(exc)
                 await _set_job_async(
                     job_id,
@@ -1162,24 +991,12 @@ async def _run_agent_graph(
                     # worker paths share the failure-metric bump on a
                     # bad commit — Task 5 of
                     # docs/plans/2026-05-13-agent-persist-perf.md.
-                    _job_in_tok, _job_out_tok = _sum_message_usage(
-                        final_state.get("messages")
-                    )
                     await _persist_assistant_message_safe(
                         thread_id=thread_id,
                         content=assistant_content,
                         model_name=request.model,
                         tool_executions_out=tool_executions_out,
                         retrieved_contexts=final_state.get("retrieved_contexts"),
-                        plan=final_state.get("plan") or None,
-                        token_usage=(
-                            {
-                                "input_tokens": _job_in_tok,
-                                "output_tokens": _job_out_tok,
-                            }
-                            if (_job_in_tok or _job_out_tok)
-                            else None
-                        ),
                     )
             except Exception as e:
                 logger.warning("Failed to persist thread", exc_info=e)
@@ -1377,27 +1194,6 @@ async def _resume_agent_graph(
                     Command(resume={"confirmed": confirmed}),
                     config=config,
                 )
-
-            # Primary interrupt detection (mirrors _run_agent_graph and the
-            # pre-resume check above) — a multi-step destructive flow can
-            # re-fire interrupt() during resume without raising GraphInterrupt.
-            confirmation_details = _extract_pending_interrupt(
-                await graph.aget_state(config)
-            )
-            if confirmation_details is not None:
-                await _set_job_async(
-                    job_id,
-                    {
-                        "status": "awaiting_confirmation",
-                        "confirmation": confirmation_details,
-                        "tool_executions": list(final_state.get("tool_executions", [])),
-                        "user_id": str(current_user.id),
-                        "request": (
-                            original_request.model_dump() if original_request else None
-                        ),
-                    },
-                )
-                return
 
             # Extract assistant content
             assistant_content = ""

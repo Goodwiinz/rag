@@ -30,12 +30,7 @@ async function getStreamAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export interface AgentExecuteRequest {
-  messages: Array<{
-    role: string;
-    content: string;
-    /** Idempotency key for the user turn (server-canonical persistence). */
-    client_message_id?: string;
-  }>;
+  messages: Array<{ role: string; content: string }>;
   page_context: {
     type: string;
     project_id?: string;
@@ -177,12 +172,7 @@ class AgentChatService {
         confirmation: Record<string, unknown>
       ) => void;
       onTrace?: (threadId: string) => void;
-      onUsage?: (inputTokens: number, outputTokens: number) => void;
-      onDone?: (payload?: {
-        thread_id?: string;
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) => void;
+      onDone?: () => void;
       onError?: (error: string) => void;
     },
     signal?: AbortSignal
@@ -237,77 +227,6 @@ class AgentChatService {
     let buffer = '';
     let eventType = '';
 
-    const dispatchData = (ev: string, dataLine: string): void => {
-      try {
-        const data = JSON.parse(dataLine.slice(6));
-        switch (ev) {
-          case 'token':
-            callbacks.onToken?.(data.content);
-            break;
-          case 'tool_start':
-            callbacks.onToolStart?.(data.tool, data.args);
-            break;
-          case 'tool_end':
-            callbacks.onToolEnd?.(
-              data.tool,
-              data.result,
-              Boolean(data.is_error)
-            );
-            break;
-          case 'rag_context':
-            callbacks.onRagContext?.(data.contexts);
-            break;
-          case 'plan':
-            callbacks.onPlan?.(data.steps, data.reasoning);
-            break;
-          case 'trace':
-            if (data.thread_id) {
-              callbacks.onTrace?.(data.thread_id);
-            }
-            break;
-          case 'reflection':
-            callbacks.onReflection?.(
-              data.passed,
-              data.issues,
-              data.round,
-              data.revising
-            );
-            break;
-          case 'confirmation':
-            callbacks.onConfirmation?.(data.thread_id, data.confirmation);
-            break;
-          case 'usage':
-            callbacks.onUsage?.(
-              Number(data.input_tokens) || 0,
-              Number(data.output_tokens) || 0
-            );
-            break;
-          case 'done':
-            // Server-canonical persistence: the done payload carries the
-            // persisted ids so the client can reconcile its optimistic
-            // bubbles instead of double-saving. Legacy servers send only
-            // {status} — the payload fields are simply undefined then.
-            callbacks.onDone?.(data);
-            break;
-          case 'error':
-            callbacks.onError?.(
-              typeof data.error === 'string'
-                ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
-            );
-            break;
-        }
-      } catch (err) {
-        console.warn(
-          '[Chat] Malformed SSE data line, skipping:',
-          dataLine,
-          err
-        );
-      }
-    };
-
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -326,18 +245,61 @@ class AgentChatService {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
-            dispatchData(eventType, line);
+            try {
+              const data = JSON.parse(line.slice(6));
+              switch (eventType) {
+                case 'token':
+                  callbacks.onToken?.(data.content);
+                  break;
+                case 'tool_start':
+                  callbacks.onToolStart?.(data.tool, data.args);
+                  break;
+                case 'tool_end':
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
+                  break;
+                case 'rag_context':
+                  callbacks.onRagContext?.(data.contexts);
+                  break;
+                case 'plan':
+                  callbacks.onPlan?.(data.steps, data.reasoning);
+                  break;
+                case 'trace':
+                  if (data.thread_id) {
+                    callbacks.onTrace?.(data.thread_id);
+                  }
+                  break;
+                case 'reflection':
+                  callbacks.onReflection?.(
+                    data.passed,
+                    data.issues,
+                    data.round,
+                    data.revising
+                  );
+                  break;
+                case 'confirmation':
+                  callbacks.onConfirmation?.(data.thread_id, data.confirmation);
+                  break;
+                case 'done':
+                  callbacks.onDone?.();
+                  break;
+                case 'error':
+                  callbacks.onError?.(
+                    typeof data.error === 'string'
+                      ? data.error
+                      : String(
+                          data.error?.message || JSON.stringify(data.error)
+                        )
+                  );
+                  break;
+              }
+            } catch {
+              // Skip malformed JSON
+            }
           }
-        }
-      }
-      // Defensive flush: if the server's final chunk ended without a
-      // trailing \n (the backend always \n\n-terminates, so this is
-      // rare), buffer holds an unprocessed data: line — process it so
-      // the last event isn't silently dropped.
-      if (buffer.trim() && eventType) {
-        const tail = buffer.trim();
-        if (tail.startsWith('data: ')) {
-          dispatchData(eventType, tail);
         }
       }
     } catch (err) {
@@ -354,11 +316,6 @@ class AgentChatService {
       onToken?: (content: string) => void;
       onToolStart?: (tool: string, args: Record<string, unknown>) => void;
       onToolEnd?: (tool: string, result: string, isError: boolean) => void;
-      onRagContext?: (contexts: Array<Record<string, unknown>>) => void;
-      onPlan?: (
-        steps: Array<Record<string, unknown>>,
-        reasoning: string
-      ) => void;
       onReflection?: (
         passed: boolean,
         issues: string[],
@@ -369,12 +326,7 @@ class AgentChatService {
         threadId: string,
         confirmation: Record<string, unknown>
       ) => void;
-      onUsage?: (inputTokens: number, outputTokens: number) => void;
-      onDone?: (payload?: {
-        thread_id?: string;
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) => void;
+      onDone?: () => void;
       onError?: (error: string) => void;
     },
     signal?: AbortSignal
@@ -427,76 +379,6 @@ class AgentChatService {
     let buffer = '';
     let eventType = '';
 
-    const dispatchData = (ev: string, dataLine: string): void => {
-      try {
-        const data = JSON.parse(dataLine.slice(6));
-        switch (ev) {
-          case 'token':
-            callbacks.onToken?.(data.content);
-            break;
-          case 'tool_start':
-            callbacks.onToolStart?.(data.tool, data.args);
-            break;
-          case 'tool_end':
-            callbacks.onToolEnd?.(
-              data.tool,
-              data.result,
-              Boolean(data.is_error)
-            );
-            break;
-          case 'rag_context':
-            // Post-confirm retrieval — without this the resumed turn's
-            // sources were silently dropped (sync-audit gap 2).
-            callbacks.onRagContext?.(data.contexts);
-            break;
-          case 'plan':
-            callbacks.onPlan?.(data.steps, data.reasoning ?? '');
-            break;
-          case 'trace':
-            break;
-          case 'reflection':
-            callbacks.onReflection?.(
-              data.passed,
-              data.issues,
-              data.round,
-              data.revising
-            );
-            break;
-          case 'confirmation':
-            callbacks.onConfirmation?.(data.thread_id, data.confirmation);
-            break;
-          case 'usage':
-            callbacks.onUsage?.(
-              Number(data.input_tokens) || 0,
-              Number(data.output_tokens) || 0
-            );
-            break;
-          case 'done':
-            // Server-canonical persistence: the done payload carries the
-            // persisted ids so the client can reconcile its optimistic
-            // bubbles instead of double-saving. Legacy servers send only
-            // {status} — the payload fields are simply undefined then.
-            callbacks.onDone?.(data);
-            break;
-          case 'error':
-            callbacks.onError?.(
-              typeof data.error === 'string'
-                ? data.error
-                : String(
-                    data.error?.message || JSON.stringify(data.error)
-                  )
-            );
-            break;
-        }
-      } catch (err) {
-        console.warn(
-          '[Chat] Malformed SSE data line, skipping:',
-          dataLine,
-          err
-        );
-      }
-    };
-
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -515,18 +397,52 @@ class AgentChatService {
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith('data: ') && eventType) {
-            dispatchData(eventType, line);
+            try {
+              const data = JSON.parse(line.slice(6));
+              switch (eventType) {
+                case 'token':
+                  callbacks.onToken?.(data.content);
+                  break;
+                case 'tool_start':
+                  callbacks.onToolStart?.(data.tool, data.args);
+                  break;
+                case 'tool_end':
+                  callbacks.onToolEnd?.(
+                    data.tool,
+                    data.result,
+                    Boolean(data.is_error)
+                  );
+                  break;
+                case 'trace':
+                  break;
+                case 'reflection':
+                  callbacks.onReflection?.(
+                    data.passed,
+                    data.issues,
+                    data.round,
+                    data.revising
+                  );
+                  break;
+                case 'confirmation':
+                  callbacks.onConfirmation?.(data.thread_id, data.confirmation);
+                  break;
+                case 'done':
+                  callbacks.onDone?.();
+                  break;
+                case 'error':
+                  callbacks.onError?.(
+                    typeof data.error === 'string'
+                      ? data.error
+                      : String(
+                          data.error?.message || JSON.stringify(data.error)
+                        )
+                  );
+                  break;
+              }
+            } catch {
+              // Skip malformed JSON
+            }
           }
-        }
-      }
-      // Defensive flush: if the server's final chunk ended without a
-      // trailing \n (the backend always \n\n-terminates, so this is
-      // rare), buffer holds an unprocessed data: line — process it so
-      // the last event isn't silently dropped.
-      if (buffer.trim() && eventType) {
-        const tail = buffer.trim();
-        if (tail.startsWith('data: ')) {
-          dispatchData(eventType, tail);
         }
       }
     } catch (err) {

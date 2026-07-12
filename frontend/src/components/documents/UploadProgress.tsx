@@ -198,7 +198,7 @@ export const UploadProgress: React.FC<UploadProgressProps> = ({
       {error && (
         <div role="alert" className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
           <div className="flex items-start space-x-2">
-            <ExclamationTriangleIcon className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <ExclamationTriangleIcon className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
             <div className="text-sm text-destructive">
               <p className="font-medium">Processing Error</p>
               <p className="mt-1">{error}</p>

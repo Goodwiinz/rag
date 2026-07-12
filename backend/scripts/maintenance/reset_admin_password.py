@@ -13,7 +13,7 @@ from core.security import get_password_hash
 from models.user import User
 
 def reset_admin_password():
-    """Reset admin user password to admin123"""
+    """Reset admin user password to REDACTED"""
     db = next(get_db())
 
     try:
@@ -25,7 +25,7 @@ def reset_admin_password():
             return False
 
         # Generate new password hash
-        new_password = "admin123"
+        new_password = "REDACTED"
         new_hash = get_password_hash(new_password)
 
         # Update password

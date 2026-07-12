@@ -17,7 +17,7 @@ export const CompareEvaluationsPage: React.FC = () => {
           Compare Evaluations
         </h1>
       </div>
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow p-6">
         <p className="text-foreground">
           Compare multiple evaluation results side-by-side.
         </p>

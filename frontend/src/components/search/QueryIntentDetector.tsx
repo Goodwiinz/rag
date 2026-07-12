@@ -47,58 +47,58 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
   const getIntentColor = (intentType: string) => {
     switch (intentType) {
       case 'factual_lookup':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'reasoning':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'summarization':
-        return 'bg-(--nous-terra)/15 text-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'comparison':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'exploration':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       default:
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
   const getComplexityColor = (complexity: string) => {
     switch (complexity) {
       case 'simple':
-        return 'bg-(--nous-terra)/15 text-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'moderate':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'complex':
-        return 'bg-(--nous-mars)/15 text-(--nous-mars)';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       default:
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
   const getTemporalColor = (temporal: string) => {
     switch (temporal) {
       case 'current':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'historical':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'future':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'timeless':
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
       default:
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
   const getDomainColor = (domain: string) => {
     switch (domain) {
       case 'general':
-        return 'bg-(--nous-terra)/15 text-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'technical':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'domain_expert':
-        return 'bg-(--nous-mars)/15 text-(--nous-mars)';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       default:
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
@@ -108,23 +108,23 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
       case 'person':
         return (
           <UserGroupIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'location':
         return (
-          <MapPinIcon className={cn(iconClass, 'text-(--nous-terra)')} />
+          <MapPinIcon className={cn(iconClass, 'text-[var(--nous-terra)]')} />
         );
       case 'date':
         return (
           <CalendarIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'organization':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-(--nous-corona)')}
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
           />
         );
       default:
@@ -138,23 +138,23 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
       case 'text':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'image':
         return (
-          <PhotoIcon className={cn(iconClass, 'text-(--nous-terra)')} />
+          <PhotoIcon className={cn(iconClass, 'text-[var(--nous-terra)]')} />
         );
       case 'audio':
         return (
           <MusicalNoteIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'video':
         return (
           <VideoCameraIcon
-            className={cn(iconClass, 'text-(--nous-corona)')}
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
           />
         );
       default:
@@ -224,7 +224,7 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
                   <span className="text-sm font-medium text-foreground">
                     Question Type:
                   </span>
-                  <Badge className="bg-(--nous-bg-3) text-foreground">
+                  <Badge className="bg-[var(--nous-bg-3)] text-foreground">
                     {intent.question_type.replace('_', ' ')}
                   </Badge>
                 </div>
@@ -241,7 +241,7 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
               {intent.modality_preference.map((modality) => (
                 <div
                   key={modality}
-                  className="flex items-center space-x-1 bg-(--nous-bg-3) rounded-full px-3 py-1"
+                  className="flex items-center space-x-1 bg-[var(--nous-bg-3)] rounded-full px-3 py-1"
                 >
                   {getModalityIcon(modality)}
                   <span className="text-sm font-medium text-foreground capitalize">
@@ -262,7 +262,7 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
                 {intent.entities.map((entity, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-(--nous-bg-2) rounded-lg"
+                    className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
                       {getEntityIcon(entity.type)}
@@ -294,12 +294,12 @@ const IntentDetail: React.FC<IntentDetailProps> = ({
                 {intent.keywords.map((keyword, index) => (
                   <div
                     key={index}
-                    className="flex items-center space-x-2 bg-(--nous-sol)/10 rounded-lg px-3 py-2"
+                    className="flex items-center space-x-2 bg-[var(--nous-sol)]/10 rounded-lg px-3 py-2"
                   >
-                    <span className="text-sm font-medium text-(--nous-fg-accent-safe)">
+                    <span className="text-sm font-medium text-[var(--nous-fg-accent-safe)]">
                       {keyword.term}
                     </span>
-                    <span className="text-xs text-(--nous-fg-accent-safe)">
+                    <span className="text-xs text-[var(--nous-fg-accent-safe)]">
                       {Math.round(keyword.importance * 100)}%
                     </span>
                   </div>
@@ -588,27 +588,27 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
   const getIntentIcon = () => {
     if (isAnalyzing) {
       return (
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--nous-sol) border-t-transparent" />
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
       );
     }
 
     switch (intent?.primary_intent) {
       case 'factual_lookup':
         return (
-          <DocumentTextIcon className="h-4 w-4 text-(--nous-fg-accent-safe)" />
+          <DocumentTextIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
         );
       case 'reasoning':
         return (
-          <LightBulbIcon className="h-4 w-4 text-(--nous-fg-accent-safe)" />
+          <LightBulbIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />
         );
       case 'summarization':
-        return <ChartBarIcon className="h-4 w-4 text-(--nous-terra)" />;
+        return <ChartBarIcon className="h-4 w-4 text-[var(--nous-terra)]" />;
       case 'comparison':
         return (
-          <AcademicCapIcon className="h-4 w-4 text-(--nous-corona)" />
+          <AcademicCapIcon className="h-4 w-4 text-[var(--nous-corona)]" />
         );
       case 'exploration':
-        return <SparklesIcon className="h-4 w-4 text-(--nous-fg-accent-safe)" />;
+        return <SparklesIcon className="h-4 w-4 text-[var(--nous-fg-accent-safe)]" />;
       default:
         return <DocumentTextIcon className="h-4 w-4 text-foreground" />;
     }
@@ -617,15 +617,15 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
   const getIntentColor = (intentType?: string) => {
     switch (intentType) {
       case 'factual_lookup':
-        return 'text-(--nous-fg-accent-safe)';
+        return 'text-[var(--nous-fg-accent-safe)]';
       case 'reasoning':
-        return 'text-(--nous-fg-accent-safe)';
+        return 'text-[var(--nous-fg-accent-safe)]';
       case 'summarization':
-        return 'text-(--nous-terra)';
+        return 'text-[var(--nous-terra)]';
       case 'comparison':
-        return 'text-(--nous-corona)';
+        return 'text-[var(--nous-corona)]';
       case 'exploration':
-        return 'text-(--nous-fg-accent-safe)';
+        return 'text-[var(--nous-fg-accent-safe)]';
       default:
         return 'text-foreground';
     }
@@ -638,7 +638,7 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
   return (
     <div className={cn('space-y-3', className)}>
       {/* Intent Summary */}
-      <div className="flex items-center justify-between p-3 bg-(--nous-bg-2) rounded-lg">
+      <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {getIntentIcon()}
           <div>
@@ -695,27 +695,27 @@ export const QueryIntentDetector: React.FC<QueryIntentDetectorProps> = ({
       {/* Quick Insights */}
       {intent && !loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-          <div className="flex items-center space-x-1 p-2 bg-(--nous-sol)/10 rounded">
-            <DocumentTextIcon className="h-3 w-3 text-(--nous-fg-accent-safe)" />
-            <span className="text-(--nous-fg-accent-safe) font-medium">
+          <div className="flex items-center space-x-1 p-2 bg-[var(--nous-sol)]/10 rounded">
+            <DocumentTextIcon className="h-3 w-3 text-[var(--nous-fg-accent-safe)]" />
+            <span className="text-[var(--nous-fg-accent-safe)] font-medium">
               {intent.entities.length} entities
             </span>
           </div>
-          <div className="flex items-center space-x-1 p-2 bg-(--nous-terra)/10 rounded">
-            <SparklesIcon className="h-3 w-3 text-(--nous-terra)" />
-            <span className="text-(--nous-terra) font-medium">
+          <div className="flex items-center space-x-1 p-2 bg-[var(--nous-terra)]/10 rounded">
+            <SparklesIcon className="h-3 w-3 text-[var(--nous-terra)]" />
+            <span className="text-[var(--nous-terra)] font-medium">
               {intent.keywords.length} keywords
             </span>
           </div>
-          <div className="flex items-center space-x-1 p-2 bg-(--nous-sol)/10 rounded">
-            <PhotoIcon className="h-3 w-3 text-(--nous-fg-accent-safe)" />
-            <span className="text-(--nous-fg-accent-safe) font-medium">
+          <div className="flex items-center space-x-1 p-2 bg-[var(--nous-sol)]/10 rounded">
+            <PhotoIcon className="h-3 w-3 text-[var(--nous-fg-accent-safe)]" />
+            <span className="text-[var(--nous-fg-accent-safe)] font-medium">
               {intent.modality_preference.length} modalities
             </span>
           </div>
-          <div className="flex items-center space-x-1 p-2 bg-(--nous-corona)/10 rounded">
-            <ClockIcon className="h-3 w-3 text-(--nous-corona)" />
-            <span className="text-(--nous-corona) font-medium">
+          <div className="flex items-center space-x-1 p-2 bg-[var(--nous-corona)]/10 rounded">
+            <ClockIcon className="h-3 w-3 text-[var(--nous-corona)]" />
+            <span className="text-[var(--nous-corona)] font-medium">
               {intent.question_type || 'statement'}
             </span>
           </div>

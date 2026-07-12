@@ -16,19 +16,19 @@ NC='\033[0m' # No Color
 POSTGRES_HOST="localhost"
 POSTGRES_PORT="5432"
 POSTGRES_USER="raguser"
-POSTGRES_PASSWORD="rag_password_123"
+POSTGRES_PASSWORD="REDACTED"
 POSTGRES_DB="ragdb"
 
 NEO4J_URI="bolt://localhost:7687"
 NEO4J_USER="neo4j"
-NEO4J_PASSWORD="neo4j_password_123"
+NEO4J_PASSWORD="REDACTED"
 
 QDRANT_URL="http://localhost:6333"
-QDRANT_API_KEY="qdrant_api_key_123"
+QDRANT_API_KEY="REDACTED"
 
 REDIS_HOST="localhost"
 REDIS_PORT="6379"
-REDIS_PASSWORD="redis_password_123"
+REDIS_PASSWORD="REDACTED"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -126,7 +126,7 @@ def main():
 
     client = QdrantClient(
         url="http://localhost:6333",
-        api_key="qdrant_api_key_123"
+        api_key="REDACTED"
     )
 
     collections_created = 0
@@ -181,7 +181,7 @@ def main():
     r = redis.Redis(
         host='localhost',
         port=6379,
-        password='redis_password_123',
+        password='REDACTED',
         decode_responses=True
     )
 

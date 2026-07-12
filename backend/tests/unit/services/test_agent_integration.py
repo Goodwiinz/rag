@@ -681,12 +681,7 @@ class TestSSEStreamPersistence:
         assert config["configurable"]["page_context"] == expected_context
 
     def test_stream_confirm_persists_resumed_messages(self, client):
-        """SSE /stream/confirm should persist the resumed assistant turn.
-
-        The confirm path persists ONLY the assistant row (the user row was
-        already persisted up-front on the original /stream request). It must
-        not re-insert the user row — that was the duplicate-user-message bug.
-        """
+        """SSE /stream/confirm should persist the resumed assistant turn."""
         from langchain_core.messages import AIMessage, HumanMessage
 
         thread_id = str(uuid4())
@@ -724,14 +719,10 @@ class TestSSEStreamPersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.api.agent.jobs._persist_assistant_message_safe",
+                "src.api.agent.streaming._persist_thread_messages",
                 new_callable=AsyncMock,
-                return_value="assistant-row-id",
-            ) as mock_persist_assistant,
-            patch(
-                "src.api.agent.jobs._persist_user_message",
-                new_callable=AsyncMock,
-            ) as mock_persist_user,
+                return_value=("thread-9", "conv-9"),
+            ) as mock_persist,
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -747,15 +738,15 @@ class TestSSEStreamPersistence:
 
         assert response.status_code == 200
         assert "event: done" in body
-        # Assistant row must be persisted (assistant-only — no user row).
-        mock_persist_assistant.assert_called_once()
-        assert mock_persist_assistant.call_args.kwargs["thread_id"] == thread_id
-        assert (
-            mock_persist_assistant.call_args.kwargs["content"]
-            == "The paper was ingested."
-        )
-        # The user row must NOT be re-persisted on the confirm path.
-        mock_persist_user.assert_not_called()
+        mock_persist.assert_called_once()
+
+        persisted_request = mock_persist.call_args.args[2]
+        assert isinstance(persisted_request, AgentExecuteRequest)
+        assert persisted_request.thread_id == thread_id
+        assert len(persisted_request.messages) == 1
+        assert persisted_request.messages[0].role == "user"
+        assert persisted_request.messages[0].content == "ingest this paper"
+        assert persisted_request.page_context.project_name == "Atlas"
 
     def test_stream_confirm_rejects_snapshot_without_user_id(self, client):
         """SSE /stream/confirm must not resume legacy ownerless checkpoints."""

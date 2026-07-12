@@ -21,7 +21,7 @@ def test_arxiv_api():
     print("\n1. Authenticating...")
     login_data = {
         "email": "admin@multimodal-rag.com",
-        "password": "admin123"
+        "password": "REDACTED"
     }
 
     try:

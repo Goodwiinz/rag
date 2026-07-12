@@ -142,7 +142,7 @@ export function WorkingFoldersPanel({
     >
       {totalFiles === 0 ? (
         <p
-          className="py-2 text-[11px] text-(--nous-fg-3)"
+          className="py-2 text-[11px] text-[var(--nous-fg-3)]"
           style={{
             fontFamily: 'var(--nous-font-mono)',
             letterSpacing: '0.04em',

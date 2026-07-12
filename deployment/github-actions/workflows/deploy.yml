@@ -215,7 +215,7 @@ jobs:
         helm install prometheus prometheus-community/kube-prometheus-stack \
           --namespace rag-system-${{ needs.prepare-deployment.outputs.environment }}-monitoring \
           --create-namespace \
-          --set grafana.adminPassword=admin123
+          --set grafana.adminPassword=REDACTED
 
     - name: Deploy logging stack
       run: |
@@ -326,7 +326,7 @@ jobs:
         helm install prometheus prometheus-community/kube-prometheus-stack \
           --namespace rag-system-${{ needs.prepare-deployment.outputs.environment }}-monitoring \
           --create-namespace \
-          --set grafana.adminPassword=admin123
+          --set grafana.adminPassword=REDACTED
 
     - name: Wait for monitoring stack
       run: |

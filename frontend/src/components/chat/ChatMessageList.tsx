@@ -11,7 +11,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
-import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import { VirtualizedMessageList } from '@/components/chat/VirtualizedMessageList';
 import { CommandOutputBubble } from '@/components/chat/CommandOutputBubble';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
@@ -187,31 +186,24 @@ export const ChatMessageList = React.memo(function ChatMessageList({
             {message.role === 'assistant' && isLast && !storeIsStreaming && (
               <InlineAgentSummary threadId={activeThreadId} />
             )}
-            {isLast &&
-            isLoading &&
-            !storeIsStreaming &&
-            message.role === 'assistant' ? (
-              <ChatBubble
-                message={message}
-                index={index}
-                modelName="NOUS"
-                isTyping
-                onRetry={() => onRegenerate(index)}
-                onCitationClick={onCitationClick}
-                thinkingLabel={thinkingLabel}
-              />
-            ) : (
-              <AuiMessageByIndex
-                index={index}
-                message={message}
-                onRetry={
-                  message.role === 'assistant'
-                    ? () => onRegenerate(index)
-                    : undefined
-                }
-                onCitationClick={onCitationClick}
-              />
-            )}
+            <ChatBubble
+              message={message}
+              index={index}
+              modelName={message.role === 'assistant' ? 'NOUS' : undefined}
+              isTyping={
+                isLast &&
+                isLoading &&
+                !storeIsStreaming &&
+                message.role === 'assistant'
+              }
+              onRetry={
+                message.role === 'assistant'
+                  ? () => onRegenerate(index)
+                  : undefined
+              }
+              onCitationClick={onCitationClick}
+              thinkingLabel={thinkingLabel}
+            />
           </>
         );
 
@@ -251,17 +243,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        role="region"
-        aria-label="Conversation transcript"
         className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar"
       >
-        <div className="max-w-(--nous-chat-col) mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
+        <div className="max-w-[var(--nous-chat-col)] mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {/* Load older messages indicator */}
           {hasMore && !isLoadingOlder && messages.length > 0 && (
             <div className="flex justify-center py-2">
               <button
                 onClick={onLoadOlder}
-                className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
+                className="text-xs font-medium text-[var(--nous-fg-2)] hover:text-[var(--nous-sol)] transition-colors"
               >
                 Load older messages
               </button>
@@ -269,7 +259,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           )}
           {isLoadingOlder && (
             <div className="flex justify-center py-2">
-              <span className="text-xs font-medium text-(--nous-fg-2)">
+              <span className="text-xs font-medium text-[var(--nous-fg-2)]">
                 Loading older messages...
               </span>
             </div>
@@ -376,7 +366,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.9 }}
               onClick={scrollToBottom}
-              className="flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-2 sm:px-4 sm:py-2 rounded-full bg-(--nous-sol) text-(--nous-erebus) text-xs font-semibold shadow-md hover:shadow-lg transition-all pointer-events-auto"
+              className="flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:gap-2 sm:px-4 sm:py-2 rounded-full bg-[var(--nous-sol)] text-[var(--nous-erebus)] text-xs font-semibold shadow-md hover:shadow-lg transition-all pointer-events-auto"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <ArrowDown className="w-4 h-4" />

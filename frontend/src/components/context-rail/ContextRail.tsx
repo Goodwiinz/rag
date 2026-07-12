@@ -42,7 +42,7 @@ export function ContextRail({
   return (
     <aside
       className={cn(
-        'flex flex-col gap-3 overflow-y-auto px-3 py-3 bg-(--nous-bg-1)',
+        'flex flex-col gap-3 overflow-y-auto px-3 py-3 bg-[var(--nous-bg-1)]',
         className
       )}
       aria-label="Chat context rail"

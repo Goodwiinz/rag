@@ -11,7 +11,7 @@ import { Spinner } from './spinner';
 //   - New `accent` variant = handoff "Accent action" (Sol gold + glow shadow).
 //   - New `nous-ghost` variant = hover fills with Aurum wash (handoff nav-ghost).
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -26,11 +26,11 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
         erebus:
-          'bg-(--nous-erebus) text-white hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(10,10,14,0.2)]',
+          'bg-[var(--nous-erebus)] text-white hover:-translate-y-px hover:shadow-[0_4px_12px_rgba(10,10,14,0.2)]',
         accent:
-          'bg-(--nous-sol) text-white hover:-translate-y-px hover:shadow-[0_8px_30px_rgba(212,160,57,0.3)]',
+          'bg-[var(--nous-sol)] text-white hover:-translate-y-px hover:shadow-[0_8px_30px_rgba(212,160,57,0.3)]',
         'nous-ghost':
-          'bg-transparent text-(--nous-fg-2) hover:bg-(--nous-aurum) hover:text-(--nous-fg-1)',
+          'bg-transparent text-[var(--nous-fg-2)] hover:bg-[var(--nous-aurum)] hover:text-[var(--nous-fg-1)]',
       },
       size: {
         default: 'h-10 px-4 py-2',

@@ -169,7 +169,7 @@ cd frontend && npm install && npm run dev
 
 **Prerequisites:** Node 18.17+, Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
 
-**Dev users:** `admin@multimodal-rag.com / admin123` · `demo@multimodal-rag.com / demo123`
+**Dev users:** `admin@multimodal-rag.com / REDACTED` · `demo@multimodal-rag.com / demo123`
 
 ---
 

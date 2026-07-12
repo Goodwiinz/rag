@@ -22,7 +22,7 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
   return (
     <li
       className={
-        'group flex items-center gap-3 py-2 -mx-1 px-1 rounded transition-colors hover:bg-(--nous-aurum)/30 dark:hover:bg-(--nous-ember)/30 ' +
+        'group flex items-center gap-3 py-2 -mx-1 px-1 rounded transition-colors hover:bg-[var(--nous-aurum)]/30 dark:hover:bg-[var(--nous-ember)]/30 ' +
         (isOffline ? 'opacity-55' : '')
       }
     >
@@ -30,16 +30,16 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
         className={
           'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ' +
           (isActive
-            ? 'bg-(--nous-aurum) dark:bg-(--nous-ember) border border-[rgba(212,160,57,0.25)]'
-            : 'bg-(--nous-bg-1) dark:bg-(--nous-nyx) border border-(--nous-border-1) dark:border-(--nous-shade)')
+            ? 'bg-[var(--nous-aurum)] dark:bg-[var(--nous-ember)] border border-[rgba(212,160,57,0.25)]'
+            : 'bg-[var(--nous-bg-1)] dark:bg-[var(--nous-nyx)] border border-[var(--nous-border-1)] dark:border-[var(--nous-shade)]')
         }
       >
         <span
           className={
             'h-4 w-4 ' +
             (isActive
-              ? 'text-(--nous-sol-safe) dark:text-(--nous-helios)'
-              : 'text-(--nous-fg-3)')
+              ? 'text-[var(--nous-sol-safe)] dark:text-[var(--nous-helios)]'
+              : 'text-[var(--nous-fg-3)]')
           }
         >
           {icon}
@@ -48,13 +48,13 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
 
       <div className="flex-1 min-w-0">
         <p
-          className="text-[13px] font-medium truncate text-(--nous-fg-1)"
+          className="text-[13px] font-medium truncate text-[var(--nous-fg-1)]"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           {name}
         </p>
         <p
-          className="text-[10px] mt-0.5 truncate text-(--nous-fg-3)"
+          className="text-[10px] mt-0.5 truncate text-[var(--nous-fg-3)]"
           style={{
             fontFamily: 'var(--nous-font-mono)',
             letterSpacing: '0.04em',
@@ -68,10 +68,10 @@ function ConnectorRow({ icon, name, status, detail }: ConnectorRowProps) {
         className={
           'w-1.5 h-1.5 rounded-full shrink-0 ' +
           (isActive
-            ? 'bg-(--nous-sol) dark:bg-(--nous-helios)'
+            ? 'bg-[var(--nous-sol)] dark:bg-[var(--nous-helios)]'
             : isOffline
-              ? 'bg-(--nous-fg-3)/40'
-              : 'bg-(--nous-fg-3)')
+              ? 'bg-[var(--nous-fg-3)]/40'
+              : 'bg-[var(--nous-fg-3)]')
         }
         style={
           isActive
@@ -101,7 +101,7 @@ export function ContextPanel({
       badge={`${activeCount}/${totalCount}`}
     >
       <div
-        className="text-[9px] uppercase mb-2 mt-1 text-(--nous-fg-3)"
+        className="text-[9px] uppercase mb-2 mt-1 text-[var(--nous-fg-3)]"
         style={{
           fontFamily: 'var(--nous-font-mono)',
           letterSpacing: '0.18em',

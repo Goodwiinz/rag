@@ -67,19 +67,14 @@ class QualityMetric(BaseModel):
     __tablename__ = "quality_metrics"
 
     # Metric information
-    # String, not Enum(MetricType): the search-analytics writer stores
-    # free-form metric-type labels (response_time, result_count,
-    # result_diversity, avg_relevance_score, freshness) that aren't members
-    # of the MetricType enum, so a native PG enum column rejected them and
-    # 500'd POST /metrics/search. The API response already types this as str.
-    metric_type = Column(String(50), nullable=False, index=True)
-    metric_name = Column(String(255), nullable=True, index=True)
-    value = Column(Float, nullable=True)
+    metric_type = Column(Enum(MetricType), nullable=False, index=True)
+    metric_name = Column(String(255), nullable=False, index=True)
+    value = Column(Float, nullable=False)
     unit = Column(String(50), nullable=True)  # e.g., "ms", "percentage", "count"
 
     # Evaluation context
-    evaluation_type = Column(Enum(EvaluationType), nullable=True)
-    scope = Column(Enum(MetricScope), nullable=True, index=True)
+    evaluation_type = Column(Enum(EvaluationType), nullable=False)
+    scope = Column(Enum(MetricScope), nullable=False, index=True)
     scope_id = Column(GUID(), nullable=True, index=True)  # ID of scoped entity
 
     # Evaluation details
@@ -109,31 +104,12 @@ class QualityMetric(BaseModel):
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=False)
     created_by_user_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
 
-    # Search-quality-metric fields (populated by
-    # QualityMetricsService.collect_search_metrics / read by the
-    # /analytics/quality endpoints). These duplicate value/unit/created_at with
-    # search-specific naming the API contract expects; the older
-    # evaluation-oriented columns above stay nullable so both row shapes coexist.
-    metric_value = Column(Float, nullable=True)
-    metric_unit = Column(String(50), nullable=True)
-    query = Column(Text, nullable=True)
-    search_type = Column(String(50), nullable=True)
-    search_query_id = Column(GUID(), nullable=True, index=True)
-    user_id = Column(GUID(), nullable=True, index=True)
-    measured_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=True, index=True
-    )
-    is_threshold_violation = Column(Boolean, nullable=True, default=False)
-
     # Relationships
     organization = relationship("Organization")
     created_by_user = relationship("User")
 
     def __repr__(self):
-        return (
-            f"<QualityMetric(name={self.metric_name}, value={self.value}, "
-            f"scope={self.scope.value if self.scope else None})>"
-        )
+        return f"<QualityMetric(name={self.metric_name}, value={self.value}, scope={self.scope.value})>"
 
     @property
     def is_within_threshold(self) -> bool:
@@ -282,9 +258,7 @@ class QualityMetric(BaseModel):
         data = super().to_dict()
 
         # Convert enum values
-        data["metric_type"] = getattr(
-            self.metric_type, "value", self.metric_type
-        )  # metric_type is a plain str column now; tolerate a legacy enum too
+        data["metric_type"] = self.metric_type.value if self.metric_type else None
         data["evaluation_type"] = (
             self.evaluation_type.value if self.evaluation_type else None
         )
@@ -307,9 +281,9 @@ class QualityMetric(BaseModel):
         cls, metric_type: MetricType, organization_id: Optional[uuid.UUID] = None
     ) -> list:
         """Get metrics by type"""
-        # metric_type is a plain str column; accept an enum arg for back-compat.
-        mt = getattr(metric_type, "value", metric_type)
-        query = cls.query.filter(cls.metric_type == mt, cls.is_deleted == False)
+        query = cls.query.filter(
+            cls.metric_type == metric_type, cls.is_deleted == False
+        )
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)
         return query.all()
@@ -385,7 +359,7 @@ class QualityMetric(BaseModel):
         result = query.first()
 
         return {
-            "metric_type": getattr(metric_type, "value", metric_type),
+            "metric_type": metric_type.value,
             "period_days": period_days,
             "average": float(result.average) if result.average else 0.0,
             "minimum": float(result.minimum) if result.minimum else 0.0,

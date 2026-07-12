@@ -141,7 +141,7 @@ export function ModelSelector({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-9998"
+              className="fixed inset-0 z-[9998]"
               onClick={() => setIsOpen(false)}
             />
           )}
@@ -155,7 +155,7 @@ export function ModelSelector({
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              className="fixed w-80 rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2) shadow-xl z-9999"
+              className="fixed w-80 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-xl z-[9999]"
               style={{
                 top: dropdownPos.top,
                 left: dropdownPos.left,
@@ -176,20 +176,20 @@ export function ModelSelector({
                       closeAndRefocus();
                     }}
                     className={cn(
-                      'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors outline-hidden',
+                      'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors outline-none',
                       model.id === selectedModelId
-                        ? 'bg-(--nous-sol)/10 border border-(--nous-sol)/30'
-                        : 'hover:bg-(--nous-sol)/5',
+                        ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
+                        : 'hover:bg-[var(--nous-sol)]/5',
                       idx === highlightedIndex &&
-                        'ring-1 ring-(--nous-sol)/40'
+                        'ring-1 ring-[var(--nous-sol)]/40'
                     )}
                   >
                     <Cpu
                       className={cn(
                         'w-4 h-4 mt-0.5',
                         model.id === selectedModelId
-                          ? 'text-(--nous-sol)'
-                          : 'text-(--nous-fg-3)'
+                          ? 'text-[var(--nous-sol)]'
+                          : 'text-[var(--nous-fg-3)]'
                       )}
                     />
                     <div className="flex-1 min-w-0">
@@ -198,27 +198,27 @@ export function ModelSelector({
                           className={cn(
                             'text-xs font-medium font-nous-mono',
                             model.id === selectedModelId
-                              ? 'text-(--nous-sol)'
-                              : 'text-(--nous-fg-1)'
+                              ? 'text-[var(--nous-sol)]'
+                              : 'text-[var(--nous-fg-1)]'
                           )}
                         >
                           {model.name}
                         </span>
                         {model.isCloud && (
-                          <span className="px-1.5 py-0.5 rounded bg-(--nous-sol)/20 text-(--nous-sol) text-[8px] uppercase">
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
                             Cloud
                           </span>
                         )}
                         {model.isFeatured && (
-                          <span className="px-1.5 py-0.5 rounded bg-(--nous-sol)/20 text-(--nous-sol) text-[8px] uppercase">
+                          <span className="px-1.5 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase">
                             Featured
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-(--nous-fg-3) mt-0.5 font-nous-mono">
+                      <p className="text-[10px] text-[var(--nous-fg-3)] mt-0.5 font-nous-mono">
                         {model.description}
                       </p>
-                      <div className="flex items-center gap-3 mt-1 text-[10px] text-(--nous-fg-3) font-nous-mono">
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-[var(--nous-fg-3)] font-nous-mono">
                         <span>PARAMS: {model.parameters}</span>
                         <span>RAM: {model.ram}</span>
                       </div>
@@ -250,30 +250,30 @@ export function ModelSelector({
         aria-controls="model-selector-listbox"
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200 whitespace-nowrap font-nous-mono',
-          'bg-(--nous-bg-2) border-(--nous-border-1)',
-          'hover:border-(--nous-sol)/30',
+          'bg-[var(--nous-bg-2)] border-[var(--nous-border-1)]',
+          'hover:border-[var(--nous-sol)]/30',
           'active:scale-[0.98]',
-          isOpen && 'border-(--nous-sol)/50 bg-(--nous-sol)/5',
+          isOpen && 'border-[var(--nous-sol)]/50 bg-[var(--nous-sol)]/5',
           isLoading && 'opacity-50 cursor-not-allowed'
         )}
       >
         <Cpu
           className={cn(
-            'w-3.5 h-3.5 shrink-0 transition-colors text-(--nous-sol)',
+            'w-3.5 h-3.5 shrink-0 transition-colors text-[var(--nous-sol)]',
             isOpen && 'animate-pulse'
           )}
         />
-        <span className="text-(--nous-fg-1) text-xs">
+        <span className="text-[var(--nous-fg-1)] text-xs">
           {selectedModel?.name || 'SELECT MODEL'}
         </span>
         {selectedModel?.isCloud && (
-          <span className="px-1 py-0.5 rounded bg-(--nous-sol)/20 text-(--nous-sol) text-[8px] uppercase shrink-0">
+          <span className="px-1 py-0.5 rounded bg-[var(--nous-sol)]/20 text-[var(--nous-sol)] text-[8px] uppercase shrink-0">
             Cloud
           </span>
         )}
         <ChevronDown
           className={cn(
-            'w-3 h-3 shrink-0 text-(--nous-fg-3) transition-transform',
+            'w-3 h-3 shrink-0 text-[var(--nous-fg-3)] transition-transform',
             isOpen && 'rotate-180'
           )}
         />

@@ -30,14 +30,6 @@
   --nous-helios-muted: rgba(232, 184, 74, 0.2);
   --nous-helios-glow: rgba(232, 184, 74, 0.12);
 
-  /* RGB triplets for arbitrary-alpha composition:
-     rgba(var(--nous-sol-rgb), 0.18). Use these instead of repeating the
-     literal channel values in components. */
-  --nous-sol-rgb: 212, 160, 57;
-  --nous-helios-rgb: 232, 184, 74;
-  --nous-erebus-rgb: 10, 10, 14;
-  --nous-mars-rgb: 239, 68, 68;
-
   /* Semantic fg/bg */
   --nous-fg-1: var(--nous-erebus);
   --nous-fg-2: var(--nous-titan);

@@ -22,75 +22,6 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-// Association rows as the backend actually returns them:
-// GET /projects/{id}/documents → {id: <association>, document_id, document:
-// {id, title, filename, ...}} — the document is nested, titles are NOT on
-// the row itself.
-const apiDocuments = {
-  documents: [
-    {
-      id: 'assoc-1',
-      project_id: 'p1',
-      document_id: 'doc-1',
-      sort_order: 0,
-      document: {
-        id: 'doc-1',
-        title: 'EHR-RAGp: Retrieval-Augmented Prototypes',
-        filename: 'ehr-ragp.pdf',
-        status: 'indexed',
-      },
-    },
-    {
-      id: 'assoc-2',
-      project_id: 'p1',
-      document_id: 'doc-2',
-      sort_order: 1,
-      document: {
-        id: 'doc-2',
-        title: null as unknown as string,
-        filename: 'untitled-upload.pdf',
-        status: 'indexed',
-      },
-    },
-  ],
-  total: 2,
-};
-
-// Notes come back snake_case (is_pinned) — no camelize layer in api-client.
-const apiNotes = {
-  notes: [
-    {
-      id: 'n1',
-      project_id: 'p1',
-      title: 'Paper notes',
-      content: '',
-      is_pinned: true,
-      created_at: '2026-07-03T00:00:00Z',
-      updated_at: '2026-07-03T00:00:00Z',
-    },
-  ],
-  total: 1,
-};
-
-const apiDrafts = {
-  drafts: [
-    {
-      id: 'dr1',
-      project_id: 'p1',
-      version: 2,
-      title: 'Draft 1',
-      themes: [],
-      word_count: 100,
-      citation_count: 0,
-      is_current: true,
-      created_at: '2026-07-03T00:00:00Z',
-    },
-  ],
-  total: 1,
-  skip: 0,
-  limit: 100,
-};
-
 describe('useProjectWorkingFolders', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -111,65 +42,39 @@ describe('useProjectWorkingFolders', () => {
     expect(result.current.isLoading).toBe(true);
   });
 
-  it('flattens nested document rows to {id: documentId, title}', async () => {
-    mockedProjectService.listProjectDocuments.mockResolvedValue(apiDocuments);
-    mockedProjectService.listProjectNotes.mockResolvedValue(apiNotes);
-    mockedProjectService.listDrafts.mockResolvedValue(apiDrafts);
+  it('returns fetched lists once all queries resolve', async () => {
+    mockedProjectService.listProjectDocuments.mockResolvedValue({
+      documents: [{ id: 'd1', title: 'Doc 1' }],
+      total: 1,
+    });
+    mockedProjectService.listProjectNotes.mockResolvedValue({
+      notes: [{ id: 'n1', title: 'Note 1', isPinned: false }],
+      total: 1,
+    });
+    mockedProjectService.listDrafts.mockResolvedValue({
+      drafts: [{ id: 'd1', title: 'Draft 1', version: 2 }],
+      total: 1,
+    });
     const { result } = renderHook(() => useProjectWorkingFolders('p1'), {
       wrapper,
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    // id must be the DOCUMENT id, not the association row id.
-    expect(result.current.documents?.[0]).toEqual({
-      id: 'doc-1',
-      title: 'EHR-RAGp: Retrieval-Augmented Prototypes',
-    });
-  });
-
-  it('falls back to the filename when the document has no title', async () => {
-    mockedProjectService.listProjectDocuments.mockResolvedValue(apiDocuments);
-    mockedProjectService.listProjectNotes.mockResolvedValue(apiNotes);
-    mockedProjectService.listDrafts.mockResolvedValue(apiDrafts);
-    const { result } = renderHook(() => useProjectWorkingFolders('p1'), {
-      wrapper,
-    });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.documents?.[1]).toEqual({
-      id: 'doc-2',
-      title: 'untitled-upload.pdf',
-    });
-  });
-
-  it('maps snake_case is_pinned to isPinned on notes', async () => {
-    mockedProjectService.listProjectDocuments.mockResolvedValue(apiDocuments);
-    mockedProjectService.listProjectNotes.mockResolvedValue(apiNotes);
-    mockedProjectService.listDrafts.mockResolvedValue(apiDrafts);
-    const { result } = renderHook(() => useProjectWorkingFolders('p1'), {
-      wrapper,
-    });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.notes?.[0]).toEqual({
-      id: 'n1',
-      title: 'Paper notes',
-      isPinned: true,
-    });
-    expect(result.current.drafts?.[0]).toEqual({
-      id: 'dr1',
-      title: 'Draft 1',
-      version: 2,
-    });
+    expect(result.current.documents).toHaveLength(1);
+    expect(result.current.notes).toHaveLength(1);
+    expect(result.current.drafts).toHaveLength(1);
   });
 
   it('one failing query does not block the other two', async () => {
     mockedProjectService.listProjectDocuments.mockRejectedValue(
       new Error('boom')
     );
-    mockedProjectService.listProjectNotes.mockResolvedValue(apiNotes);
+    mockedProjectService.listProjectNotes.mockResolvedValue({
+      notes: [{ id: 'n1', title: 'Note 1', isPinned: false }],
+      total: 1,
+    });
     mockedProjectService.listDrafts.mockResolvedValue({
       drafts: [],
       total: 0,
-      skip: 0,
-      limit: 100,
     });
     const { result } = renderHook(() => useProjectWorkingFolders('p1'), {
       wrapper,

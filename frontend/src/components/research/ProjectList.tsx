@@ -34,7 +34,7 @@ export function ProjectList({
           <button
             type="button"
             onClick={() => onViewModeChange('grid')}
-            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
               viewMode === 'grid'
                 ? 'bg-primary/10 text-primary'
                 : 'bg-card text-muted-foreground hover:text-foreground'
@@ -48,7 +48,7 @@ export function ProjectList({
           <button
             type="button"
             onClick={() => onViewModeChange('list')}
-            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+            className={`px-3 py-2 text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
               viewMode === 'list'
                 ? 'bg-primary/10 text-primary'
                 : 'bg-card text-muted-foreground hover:text-foreground'

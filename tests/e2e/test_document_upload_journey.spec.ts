@@ -51,7 +51,7 @@ const TEST_FILES = {
 
 const USERS = {
   REGULAR: { email: "user@test.com", password: "test123", role: "user" },
-  ADMIN: { email: "admin@test.com", password: "admin123", role: "admin" },
+  ADMIN: { email: "admin@test.com", password: "REDACTED", role: "admin" },
   VIEWER: { email: "viewer@test.com", password: "viewer123", role: "viewer" },
 };
 

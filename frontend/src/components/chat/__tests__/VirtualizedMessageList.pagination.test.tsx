@@ -53,11 +53,6 @@ vi.mock('../shared/ChatBubble', () => ({
 vi.mock('../shared/InlineAgentSummary', () => ({
   InlineAgentSummary: () => null,
 }));
-vi.mock('../aui/AuiMessage', () => ({
-  AuiMessageByIndex: ({ index }: { index: number }) => (
-    <div data-testid={`aui-message-${index}`} />
-  ),
-}));
 
 import { VirtualizedMessageList } from '../VirtualizedMessageList';
 

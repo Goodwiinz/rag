@@ -93,7 +93,7 @@ def create_admin_user(organization_id):
                 organization_id=organization_id,
                 is_active=True,
             )
-            admin_user.set_password("admin123")  # Change this in production!
+            admin_user.set_password("REDACTED")  # Change this in production!
             db.add(admin_user)
             db.commit()
             db.refresh(admin_user)

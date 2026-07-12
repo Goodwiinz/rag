@@ -2,7 +2,6 @@
 
 Endpoints:
 - Control plane: api.digitalocean.com/v2/gen-ai/knowledge_bases/...
-- Indexing jobs: api.digitalocean.com/v2/gen-ai/indexing_jobs/...
 - Retrieve plane: kbaas.do-ai.run/v1/{kb_uuid}/retrieve
 
 Bearer auth, exponential backoff on 429/5xx (3 attempts), 30s default timeout.
@@ -129,7 +128,7 @@ class DOKnowledgeBaseClient:
                     retry_after = _parse_retry_after(
                         response.headers.get("Retry-After")
                     )
-                    wait = retry_after if retry_after is not None else 2**attempt
+                    wait = retry_after if retry_after is not None else 2 ** attempt
                     logger.warning(
                         "do_kb retryable status",
                         extra={
@@ -155,21 +154,23 @@ class DOKnowledgeBaseClient:
                     "do_kb timeout",
                     extra={"url": url, "attempt": attempt + 1},
                 )
-                await asyncio.sleep(2**attempt)
+                await asyncio.sleep(2 ** attempt)
             except httpx.HTTPError as exc:
                 last_exc = exc
                 logger.warning(
                     "do_kb http error",
                     extra={"url": url, "attempt": attempt + 1, "error": str(exc)},
                 )
-                await asyncio.sleep(2**attempt)
+                await asyncio.sleep(2 ** attempt)
 
         if last_status is not None:
             raise DOKnowledgeBaseError(
                 f"DO KB request exhausted retries: HTTP {last_status}",
                 status_code=last_status,
             )
-        raise DOKnowledgeBaseError(f"DO KB request exhausted retries: {last_exc}")
+        raise DOKnowledgeBaseError(
+            f"DO KB request exhausted retries: {last_exc}"
+        )
 
     # ── Control plane ────────────────────────────────────────────────────────
 
@@ -207,16 +208,15 @@ class DOKnowledgeBaseClient:
         region: Optional[str] = None,
     ) -> DataSource:
         body: dict[str, Any] = {
-            "knowledge_base_uuid": kb_uuid,
             "spaces_data_source": {
                 "bucket_name": bucket,
                 "item_path": key,
                 "region": region or self._settings.DO_KB_REGION,
-            },
+            }
         }
         payload = await self._request(
             "POST",
-            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data_sources",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources",
             json_body=body,
         )
         ds_data = payload.get("knowledge_base_data_source", payload)
@@ -231,7 +231,7 @@ class DOKnowledgeBaseClient:
         """
         payload = await self._request(
             "GET",
-            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data_sources",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data-sources",
         )
         raw = (
             payload.get("knowledge_base_data_sources")
@@ -240,24 +240,11 @@ class DOKnowledgeBaseClient:
         )
         return [s for s in raw if isinstance(s, dict)]
 
-    async def delete_data_source(self, *, kb_uuid: str, ds_uuid: str) -> None:
-        """Delete a data source from the KB.
-
-        Used to remove a file that consistently fails to index (e.g. a PDF
-        that exceeds DO's processing time limit). The DO API returns 204 on
-        success; the ``_request`` wrapper handles retries on 429/5xx and
-        returns ``{}`` on an empty body.
-        """
-        await self._request(
-            "DELETE",
-            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/data_sources/{ds_uuid}",
-        )
-
     async def start_indexing(self, *, kb_uuid: str) -> IndexingJob:
         payload = await self._request(
             "POST",
-            f"{self._api_base}/v2/gen-ai/indexing_jobs",
-            json_body={"knowledge_base_uuid": kb_uuid},
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/indexing-jobs",
+            json_body={},
             timeout=self._settings.DO_KB_INDEXING_TIMEOUT_SECONDS,
         )
         job_data = payload.get("job", payload)
@@ -266,7 +253,7 @@ class DOKnowledgeBaseClient:
     async def get_indexing_job(self, *, kb_uuid: str, job_uuid: str) -> IndexingJob:
         payload = await self._request(
             "GET",
-            f"{self._api_base}/v2/gen-ai/indexing_jobs/{job_uuid}",
+            f"{self._api_base}/v2/gen-ai/knowledge_bases/{kb_uuid}/indexing-jobs/{job_uuid}",
         )
         job_data = payload.get("job", payload)
         return IndexingJob.model_validate(job_data)
@@ -290,23 +277,18 @@ class DOKnowledgeBaseClient:
         #   alpha: float 0-1 (lexical vs semantic balance)
         k = top_k if top_k is not None else self._settings.DO_KB_DEFAULT_TOP_K
         body: dict[str, Any] = {"query": query, "num_results": max(1, min(k, 100))}
-        resolved_alpha = (
-            alpha if alpha is not None else self._settings.DO_KB_RETRIEVE_ALPHA
-        )
+        resolved_alpha = alpha if alpha is not None else self._settings.DO_KB_RETRIEVE_ALPHA
         if resolved_alpha is not None:
             body["alpha"] = resolved_alpha
 
         resolved_reranking = (
-            reranking
-            if reranking is not None
+            reranking if reranking is not None
             else self._settings.DO_KB_RERANKING_ENABLED
         )
         if resolved_reranking is not None:
             body["reranking"] = resolved_reranking
 
-        resolved_search_type = (
-            search_type if search_type is not None else self._settings.DO_KB_SEARCH_TYPE
-        )
+        resolved_search_type = search_type if search_type is not None else self._settings.DO_KB_SEARCH_TYPE
         if resolved_search_type is not None:
             body["search_type"] = resolved_search_type
 

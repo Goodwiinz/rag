@@ -4,10 +4,6 @@ import type {
   ActivityStep,
   ChatPageMessage,
 } from '@/components/chat/shared/cloudMessageView';
-import {
-  summarizeToolArgs,
-  summarizeToolResult,
-} from '@/components/chat/shared/cloudMessageView';
 import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { buildThreadCreateRequest } from '@/components/chat/shared/threadCreation';
 import {
@@ -25,10 +21,6 @@ import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { toolLabel } from '@/components/context-rail/toolLabels';
 import { deriveAgentName, deriveTask } from '@/components/context-rail';
 import { Conversation as DBConversation, MessageRole } from '@/types/workspace';
-import type { CitationCreate } from '@/types/workspace';
-import type { PlanStep } from '@/types/agent-chat';
-import { normalizeCitation } from '@/utils/citationNormalizer';
-import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
@@ -36,55 +28,6 @@ import type { ChatMessage as DBChatMessage } from '@/types/workspace';
 
 // localStorage key for the workspace→agent thread map (see agentThreadMapRef).
 const AGENT_THREAD_MAP_KEY = 'nous.agentThreadMap.v1';
-
-// Server-canonical persistence cutover (PR 3/4 of the dual-persistence
-// consolidation). When on: the workspace thread id is sent as the agent
-// stream's thread_id (one thread, no localStorage mapping), the backend is
-// the only message writer (AGENT_CANONICAL_PERSISTENCE must be on
-// server-side too), and the frontend reconciles its optimistic bubbles via
-// the ids in the `done` event instead of double-saving.
-const SERVER_CANONICAL_CHAT =
-  process.env.NEXT_PUBLIC_SERVER_CANONICAL_CHAT === 'true';
-
-/**
- * Map a raw rag_context SSE item ({document_id, title, content, score} from
- * the agent's rag_node) onto the workspace CitationCreate schema so the
- * turn's sources persist with the assistant message. Snippet capped at the
- * backend Citation column limit.
- */
-export function toCitationCreate(ctx: Record<string, unknown>): CitationCreate {
-  const documentId =
-    (ctx.document_id as string | undefined) ??
-    (ctx.documentId as string | undefined);
-  const snippet =
-    (ctx.content as string | undefined) ??
-    (ctx.snippet as string | undefined) ??
-    '';
-  return {
-    ...(documentId ? { document_id: documentId } : {}),
-    ...(ctx.external_reference_id
-      ? { external_reference_id: ctx.external_reference_id as string }
-      : {}),
-    document_title:
-      (ctx.title as string | undefined) ??
-      (ctx.document_title as string | undefined),
-    snippet: snippet.slice(0, 2000),
-    ...(typeof ctx.score === 'number' ? { score: ctx.score } : {}),
-  };
-}
-
-// Agent tools that mutate project content shown in the Working folders rail
-// (sources/notes/drafts). A successful run of one of these must invalidate
-// the ['project', …] queries — useProjectWorkingFolders caches them for 5
-// minutes, so without this the rail misses documents/notes the agent just
-// created until a reload.
-const PROJECT_MUTATING_TOOLS = new Set([
-  'ingest_arxiv',
-  'add_document_to_project',
-  'create_project',
-  'create_project_note',
-  'create_draft',
-]);
 // Warn once per session when the map can't be persisted (quota/private mode).
 let warnedAgentMapWriteFailed = false;
 
@@ -185,16 +128,6 @@ export function useChatStreaming(
   // the backend mint a fresh unlinked one every session.
   const agentThreadMapRef = useRef<Record<string, string>>({});
   useEffect(() => {
-    if (SERVER_CANONICAL_CHAT) {
-      // One thread now — the mapping is obsolete. Clear the stale key once
-      // so old entries can't be misread if the flag is ever rolled back.
-      try {
-        window.localStorage.removeItem(AGENT_THREAD_MAP_KEY);
-      } catch {
-        // Storage unavailable — nothing to clear.
-      }
-      return;
-    }
     try {
       const stored = window.localStorage.getItem(AGENT_THREAD_MAP_KEY);
       if (stored) {
@@ -225,7 +158,6 @@ export function useChatStreaming(
   }, []);
   const rememberAgentThread = useCallback(
     (workspaceThreadId: string, agentThreadId: string) => {
-      if (SERVER_CANONICAL_CHAT) return; // one thread — nothing to map
       agentThreadMapRef.current[workspaceThreadId] = agentThreadId;
       try {
         window.localStorage.setItem(
@@ -250,11 +182,6 @@ export function useChatStreaming(
   // user abort finalizes the partial answer (tagged `stopped`) instead of
   // surfacing an error or an empty bubble. Reset once the turn is wrapped up.
   const stoppedByUserRef = useRef(false);
-  // Citations snapshot taken by handleStop the instant the user aborts —
-  // storeStopStreaming() clears streamingCitations synchronously, but the
-  // completion path still needs them to commit + persist the stopped answer's
-  // sources. Cleared once the turn is finalized.
-  const stopCitationsRef = useRef<Array<Record<string, unknown>>>([]);
   // Workspace thread id of the in-flight run, so Stop can close out the agent
   // activity indicator (the normal onDone never fires on abort).
   const activeRunThreadRef = useRef<string | null>(null);
@@ -273,26 +200,6 @@ export function useChatStreaming(
   const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
   const router = useRouter();
-  const queryClient = useQueryClient();
-
-  // Refetch the Working-folders queries once a project-mutating tool
-  // succeeds, so the rail shows agent-created sources/notes/drafts without
-  // waiting out the 5-minute staleTime.
-  const invalidateProjectDataForTool = useCallback(
-    (tool: string, isError: boolean) => {
-      if (isError || !PROJECT_MUTATING_TOOLS.has(tool)) return;
-      // Scope to the bound project so we don't invalidate every
-      // ['project', …] query (project list, unrelated project details,
-      // metadata). Fall back to broad invalidation when no project is
-      // bound (global chat has no narrower key to target).
-      void queryClient.invalidateQueries({
-        queryKey: boundProjectId
-          ? ['project', boundProjectId]
-          : ['project'],
-      });
-    },
-    [queryClient, boundProjectId]
-  );
 
   // ---- Effects ----
 
@@ -395,23 +302,9 @@ export function useChatStreaming(
 
       try {
         // Stream via Agent (LangGraph) backend
-        // Server-canonical: the workspace thread IS the agent thread — the
-        // legacy localStorage mapping only applies with the flag off.
-        const existingAgentThreadId = SERVER_CANONICAL_CHAT
-          ? currentThreadId || undefined
-          : currentThreadId
-            ? agentThreadMapRef.current[currentThreadId]
-            : undefined;
-        // Idempotency key for this user turn; the backend derives the
-        // assistant row's key from it (uuid5), so an SSE retry can't
-        // duplicate either row.
-        const turnClientMessageId = SERVER_CANONICAL_CHAT
-          ? crypto.randomUUID()
+        const existingAgentThreadId = currentThreadId
+          ? agentThreadMapRef.current[currentThreadId]
           : undefined;
-        // Persisted ids from the done event (server-canonical only).
-        let doneIds: {
-          assistant_message_id?: string | null;
-        } = {};
 
         console.log(
           '[Chat] Starting agent stream, workspace thread:',
@@ -428,13 +321,7 @@ export function useChatStreaming(
 
         // Per-turn step tracking — reset each send
         const turnSteps: ActivityStep[] = [];
-        // Structured plan snapshot for the committed message (the activity
-        // store only keeps flattened strings for the ContextRail).
-        let turnPlan: PlanStep[] = [];
         const toolStartTimes = new Map<string, number>();
-        // Per-turn LLM token usage, captured from the `usage` SSE event that
-        // fires just before `done`. Null until (and unless) it arrives.
-        let turnTokenUsage: { input: number; output: number } | null = null;
 
         // Set streaming state in store for UI
         useChatStore.setState({
@@ -461,16 +348,9 @@ export function useChatStreaming(
 
         await agentChatService.streamMessage(
           {
-            messages: newMessages.map((m, i) => ({
+            messages: newMessages.map((m) => ({
               role: m.role,
               content: m.content,
-              // Idempotency key rides on the user turn being sent (the last
-              // message) — server-canonical only.
-              ...(turnClientMessageId &&
-              i === newMessages.length - 1 &&
-              m.role === 'user'
-                ? { client_message_id: turnClientMessageId }
-                : {}),
             })),
             page_context: {
               type: boundProjectId ? 'project' : 'chat',
@@ -521,7 +401,6 @@ export function useChatStreaming(
                 tool,
                 label: toolLabel(tool),
                 status: 'running',
-                argsSummary: summarizeToolArgs(args),
               });
               useChatStore.setState({ streamingSteps: [...turnSteps] });
             },
@@ -532,7 +411,6 @@ export function useChatStreaming(
                   .getState()
                   .pushToolEnd(currentThreadId, tool, !isError);
               }
-              invalidateProjectDataForTool(tool, isError);
               // Update last matching running step for this tool
               const startTime = toolStartTimes.get(tool);
               const durationMs = startTime ? Date.now() - startTime : undefined;
@@ -545,7 +423,6 @@ export function useChatStreaming(
                   ...turnSteps[idx],
                   status: isError ? 'error' : 'done',
                   durationMs,
-                  resultSummary: summarizeToolResult(result),
                 };
               }
               useChatStore.setState({ streamingSteps: [...turnSteps] });
@@ -558,50 +435,22 @@ export function useChatStreaming(
               });
             },
             onPlan: (steps) => {
-              // Structured copy for the inline transcript plan — keeps
-              // tool/depends_on so status derivation works after commit.
-              turnPlan = (steps ?? [])
-                .filter(
-                  (st): st is Record<string, unknown> =>
-                    !!st && typeof st === 'object'
-                )
-                .map((st, i) => ({
-                  step: typeof st.step === 'number' ? st.step : i + 1,
-                  description: String(
-                    st.description ?? st.text ?? st.title ?? ''
-                  ),
-                  tool: typeof st.tool === 'string' ? st.tool : '',
-                  args_hint:
-                    st.args_hint && typeof st.args_hint === 'object'
-                      ? (st.args_hint as Record<string, unknown>)
-                      : {},
-                  depends_on: Array.isArray(st.depends_on)
-                    ? (st.depends_on as number[])
-                    : [],
-                }))
-                .filter((p) => p.description.length > 0);
               if (!currentThreadId) return;
-              // Backend emits `{steps: [...], reasoning: ...}` — step items
-              // may be plain strings or planner dicts with `description` and
-              // a `tool` hint ("N/A" for reasoning/respond steps). Keep the
-              // tool hint: the activity store marks a plan item done when its
-              // tool actually completes, instead of bulk-completing the whole
-              // plan at stream end.
+              // Coerce each plan step into a single human-readable string.
+              // Backend emits `{steps: [...], reasoning: ...}` — step items may
+              // be plain strings or objects with `description`/`text`/`title`.
               const items = (steps ?? [])
                 .map((step) => {
-                  if (typeof step === 'string') return { text: step };
+                  if (typeof step === 'string') return step;
                   if (step && typeof step === 'object') {
                     const s = step as Record<string, unknown>;
-                    return {
-                      text: String(
-                        s.description ?? s.text ?? s.title ?? s.step ?? ''
-                      ),
-                      tool: typeof s.tool === 'string' ? s.tool : undefined,
-                    };
+                    return String(
+                      s.description ?? s.text ?? s.title ?? s.step ?? ''
+                    );
                   }
-                  return { text: '' };
+                  return '';
                 })
-                .filter((item) => item.text.length > 0);
+                .filter((s) => s.length > 0);
               if (items.length > 0) {
                 useAgentActivityStore
                   .getState()
@@ -613,9 +462,6 @@ export function useChatStreaming(
               if (currentThreadId) {
                 rememberAgentThread(currentThreadId, threadId);
               }
-            },
-            onUsage: (inputTokens, outputTokens) => {
-              turnTokenUsage = { input: inputTokens, output: outputTokens };
             },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
@@ -637,11 +483,8 @@ export function useChatStreaming(
                 confirmation,
               });
             },
-            onDone: (payload) => {
+            onDone: () => {
               console.log('[Agent] Stream complete');
-              if (payload) {
-                doneIds = payload;
-              }
               if (currentThreadId) {
                 useAgentActivityStore
                   .getState()
@@ -724,32 +567,12 @@ export function useChatStreaming(
         const responseTimeMs = Date.now() - responseStart;
         const wasStopped = stoppedByUserRef.current;
         const finalTurnSteps = [...turnSteps];
-        // Capture the turn's RAG citations BEFORE the streaming state is
-        // cleared below — they are attached to the committed message (so
-        // inline [Doc N] refs keep resolving after the stream ends) and
-        // persisted with the assistant row (so they survive reload).
-        // On a user Stop, storeStopStreaming() has ALREADY wiped
-        // streamingCitations out-of-band — handleStop snapshots them into
-        // stopCitationsRef first, so a stopped RAG answer keeps its sources.
-        const liveCitations = useChatStore.getState().streamingCitations;
-        const turnCitations =
-          liveCitations.length > 0
-            ? liveCitations
-            : wasStopped
-              ? stopCitationsRef.current
-              : liveCitations;
-        stopCitationsRef.current = [];
         const finalAssistantMessage: ChatPageMessage = {
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
-          citations:
-            turnCitations.length > 0
-              ? turnCitations.map(normalizeCitation)
-              : undefined,
           toolExecutions:
             finalTurnSteps.length > 0 ? finalTurnSteps : undefined,
-          plan: turnPlan.length > 0 ? turnPlan : undefined,
           metadata: {
             responseTimeMs,
             ...(wasStopped ? { stopped: true } : {}),
@@ -758,10 +581,6 @@ export function useChatStreaming(
                   toolsUsed: finalTurnSteps.map((s) => s.label),
                 }
               : {}),
-            ...(turnCitations.length > 0
-              ? { sourcesCount: turnCitations.length }
-              : {}),
-            ...(turnTokenUsage ? { tokenUsage: turnTokenUsage } : {}),
           },
         };
         stoppedByUserRef.current = false;
@@ -778,18 +597,8 @@ export function useChatStreaming(
         const finalMessages = [...newMessages, finalAssistantMessage];
         setMessages(finalMessages);
 
-        // Save messages to workspace database for persistence.
-        // Server-canonical mode: the BACKEND already persisted both rows
-        // (user pre-stream, assistant before `done` — full fidelity incl.
-        // tool_executions), so the client only reconciles its optimistic
-        // bubble with the persisted id instead of double-writing a lower-
-        // fidelity copy.
-        if (SERVER_CANONICAL_CHAT) {
-          if (doneIds.assistant_message_id) {
-            finalAssistantMessage.id = doneIds.assistant_message_id;
-            setMessages([...newMessages, finalAssistantMessage]);
-          }
-        } else if (currentThreadId && isAuthenticated) {
+        // Save messages to workspace database for persistence
+        if (currentThreadId && isAuthenticated) {
           try {
             // Save user message
             const savedUserMessage = await workspaceService.createMessage({
@@ -799,18 +608,13 @@ export function useChatStreaming(
             });
             addMessageToStore(currentThreadId, savedUserMessage);
 
-            // Save assistant message. Citations ride along so provenance
-            // survives thread reload — the backend Citation rows round-trip
-            // through GET messages (dbMsg.citations → normalizeCitation).
+            // Save assistant message
             const savedAssistantMessage = await workspaceService.createMessage({
               thread_id: currentThreadId,
               content: finalAssistantMessage.content,
               role: MessageRole.ASSISTANT,
               latency_ms: responseTimeMs,
               ...(wasStopped ? { stopped: true } : {}),
-              ...(turnCitations.length > 0
-                ? { citations: turnCitations.map(toCitationCreate) }
-                : {}),
             });
             addMessageToStore(currentThreadId, {
               ...savedAssistantMessage,
@@ -882,7 +686,6 @@ export function useChatStreaming(
       boundProjectId,
       resolvedProjectName,
       rememberAgentThread,
-      invalidateProjectDataForTool,
     ]
   );
 
@@ -891,20 +694,13 @@ export function useChatStreaming(
     // the abort makes streamMessage resolve) keeps the partial answer and tags
     // it `stopped`, rather than wiping it here and racing the commit.
     stoppedByUserRef.current = true;
-    // Snapshot the turn's citations BEFORE storeStopStreaming() wipes
-    // streamingCitations — the completion path reads the store after the
-    // wipe and would otherwise commit + persist a stopped RAG answer with
-    // zero sources.
-    stopCitationsRef.current = useChatStore.getState().streamingCitations;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
 
     // Close out the agent activity indicator — onDone won't fire on abort.
-    // 'stopped', not 'done': a user abort must not strike through the
-    // remaining plan items as if they completed.
     const runThread = activeRunThreadRef.current;
     if (runThread) {
-      useAgentActivityStore.getState().finishRun(runThread, 'stopped');
+      useAgentActivityStore.getState().finishRun(runThread, 'done');
     }
 
     // The store-driven streaming path (used by the non-cloud chat) finalizes
@@ -921,14 +717,6 @@ export function useChatStreaming(
       useChatStore.setState({ isStreaming: true, streamingContent: '' });
 
       let confirmContent = '';
-      // Post-confirm retrieval contexts (the resumed turn can run RAG); the
-      // confirm parser previously dropped rag_context entirely, so a
-      // confirmed action's sources never reached the UI (sync-audit gap 2).
-      let confirmCitations: Array<Record<string, unknown>> = [];
-      // Token usage emitted by the confirm path (backend fires event: usage
-      // before done). Without capturing this, confirmed turns showed no token
-      // cost — inconsistent with the main stream.
-      let confirmTokenUsage: { input: number; output: number } | null = null;
       const confirmMessages = [...messages];
 
       const confirmAbort = new AbortController();
@@ -967,19 +755,6 @@ export function useChatStreaming(
                   tool,
                   !isError
                 );
-              // HITL-confirmed tools are exactly the mutating ones (ingest,
-              // create_note, create_draft) — refresh the rail here too.
-              invalidateProjectDataForTool(tool, isError);
-            },
-            onRagContext: (contexts) => {
-              confirmCitations = contexts;
-              useChatStore.setState({
-                streamingCitations: contexts,
-                isRetrievingRag: false,
-              });
-            },
-            onUsage: (inputTokens, outputTokens) => {
-              confirmTokenUsage = { input: inputTokens, output: outputTokens };
             },
             onReflection: (_passed, _issues, _round, revising) => {
               if (!revising) return;
@@ -987,29 +762,13 @@ export function useChatStreaming(
               pendingStreamContentRef.current = '';
               useChatStore.setState({ streamingContent: '' });
             },
-            onDone: (payload) => {
+            onDone: () => {
               if (confirmContent.trim()) {
                 const msg: ChatPageMessage = {
                   role: 'assistant',
                   content: confirmContent,
                   timestamp: Date.now(),
-                  ...(confirmCitations.length > 0
-                    ? { citations: confirmCitations.map(normalizeCitation) }
-                    : {}),
-                  ...(confirmTokenUsage
-                    ? {
-                        metadata: {
-                          tokenUsage: confirmTokenUsage,
-                        },
-                      }
-                    : {}),
                 };
-                // Server-canonical: stamp the persisted id onto the
-                // optimistic bubble so a reload reconciles with the row
-                // instead of re-fetching a duplicate. Mirrors handleSubmit.
-                if (payload?.assistant_message_id) {
-                  msg.id = payload.assistant_message_id;
-                }
                 setMessages([...confirmMessages, msg]);
               }
             },
@@ -1038,22 +797,13 @@ export function useChatStreaming(
       } finally {
         setPendingConfirmation(null);
         setIsConfirming(false);
-        // The confirm stream shares streamingRafRef/pendingStreamContentRef
-        // with handleSubmit's onToken throttle. A token that lands just
-        // before completion schedules a rAF that would otherwise fire AFTER
-        // this reset and resurrect stale streamingContent into the store.
-        if (streamingRafRef.current !== null) {
-          cancelAnimationFrame(streamingRafRef.current);
-          streamingRafRef.current = null;
-        }
-        pendingStreamContentRef.current = null;
         useChatStore.setState({
           isStreaming: false,
           streamingContent: '',
         });
       }
     },
-    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
+    [pendingConfirmation, messages, setMessages]
   );
 
   return {

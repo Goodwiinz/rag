@@ -40,16 +40,16 @@ export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: NOUS_EASE }}
-        className="w-full max-w-(--nous-chat-col)"
+        className="w-full max-w-[var(--nous-chat-col)]"
       >
         <h2
-          className="text-[1.625rem] font-semibold leading-tight tracking-[-0.02em] text-(--nous-fg-1)"
+          className="text-[1.625rem] font-semibold leading-tight tracking-[-0.02em] text-[var(--nous-fg-1)]"
           style={{ fontFamily: 'var(--nous-font-heading)' }}
         >
           What would you like to find out?
         </h2>
         <p
-          className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-(--nous-fg-2)"
+          className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-[var(--nous-fg-2)]"
           style={{ fontFamily: 'var(--nous-font-body)' }}
         >
           Ask a question and NOUS answers from your corpus, tracing every claim
@@ -57,19 +57,19 @@ export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
         </p>
 
         <p
-          className="mt-9 mb-2.5 text-xs font-medium text-(--nous-fg-3)"
+          className="mt-9 mb-2.5 text-xs font-medium text-[var(--nous-fg-3)]"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           Start with
         </p>
 
-        <ul className="overflow-hidden rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-2)">
+        <ul className="overflow-hidden rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           {STARTERS.map(({ icon: Icon, prompt }, idx) => (
             <li key={prompt}>
               <button
                 type="button"
                 onClick={() => onPromptSelect(prompt)}
-                className="group flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors duration-150 hover:bg-(--nous-sol-subtle) focus-visible:bg-(--nous-sol-subtle) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-inset"
+                className="group flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors duration-150 hover:bg-[var(--nous-sol-subtle)] focus-visible:bg-[var(--nous-sol-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 focus-visible:ring-inset"
                 style={{
                   borderTop:
                     idx === 0 ? undefined : '1px solid var(--nous-border-1)',
@@ -77,19 +77,19 @@ export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
               >
                 <span
                   aria-hidden
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-(--nous-radius-md) bg-(--nous-bg-3) text-(--nous-fg-3) transition-colors duration-150 group-hover:text-(--nous-sol) group-focus-visible:text-(--nous-sol)"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-3)] text-[var(--nous-fg-3)] transition-colors duration-150 group-hover:text-[var(--nous-sol)] group-focus-visible:text-[var(--nous-sol)]"
                 >
                   <Icon className="h-4 w-4" strokeWidth={1.8} />
                 </span>
                 <span
-                  className="flex-1 text-[0.9375rem] text-(--nous-fg-1)"
+                  className="flex-1 text-[0.9375rem] text-[var(--nous-fg-1)]"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   {prompt}
                 </span>
                 <CornerDownLeft
                   aria-hidden
-                  className="h-4 w-4 shrink-0 text-(--nous-fg-3) opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  className="h-4 w-4 shrink-0 text-[var(--nous-fg-3)] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
                   strokeWidth={1.8}
                 />
               </button>
@@ -98,7 +98,7 @@ export function WelcomeState({ onPromptSelect }: WelcomeStateProps) {
         </ul>
 
         <p
-          className="mt-4 text-xs text-(--nous-fg-3)"
+          className="mt-4 text-xs text-[var(--nous-fg-3)]"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           Press Enter to send, Shift + Enter for a new line.

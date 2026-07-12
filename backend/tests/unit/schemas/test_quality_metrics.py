@@ -17,7 +17,7 @@ from src.schemas.quality_metrics import (
     SessionCreate,
     QualityReportRequest,
     SystemHealthCheck,
-    AnalyticsExportRequest,
+    AnalyticsExportRequest
 )
 
 
@@ -35,9 +35,9 @@ class TestQualityMetricResponse:
             "search_type": "semantic",
             "measured_at": "2024-01-01T10:00:00Z",
             "is_threshold_violation": False,
-            "metadata": {"source": "test"},
+            "metadata": {"source": "test"}
         }
-
+        
         metric = QualityMetricResponse(**data)
         assert metric.id == "metric-123"
         assert metric.metric_type == "response_time"
@@ -53,32 +53,28 @@ class TestQualityMetricResponse:
             "metric_value": 0.95,
             "query": "search query",
             "search_type": "hybrid",
-            "measured_at": "2024-01-01T11:00:00Z",
+            "measured_at": "2024-01-01T11:00:00Z"
         }
-
+        
         metric = QualityMetricResponse(**data)
         assert metric.metric_unit is None
         assert metric.is_threshold_violation is False  # Default value
         assert metric.metadata is None
 
     def test_metric_response_required_fields(self):
-        """Only id + metric_type are required.
-
-        metric_value/query/search_type/measured_at map to now-nullable
-        quality_metrics columns, so they are Optional on the response — a
-        partially-populated row must serialize without a 500.
-        """
-        # Omitting id (required, no default) raises.
+        """Test that required fields are validated"""
         with pytest.raises(ValidationError) as exc_info:
-            QualityMetricResponse(metric_type="response_time")
-        assert "id" in str(exc_info.value)
-
-        # The search-metric fields are optional now — this must NOT raise.
-        resp = QualityMetricResponse(id="m-1", metric_type="response_time")
-        assert resp.metric_value is None
-        assert resp.query is None
-        assert resp.search_type is None
-        assert resp.measured_at is None
+            QualityMetricResponse(
+                metric_type="response_time",
+                metric_value=100.0
+                # Missing required fields
+            )
+        
+        error = exc_info.value
+        assert "id" in str(error)
+        assert "query" in str(error)
+        assert "search_type" in str(error)
+        assert "measured_at" in str(error)
 
 
 class TestQualityAlertResponse:
@@ -95,9 +91,9 @@ class TestQualityAlertResponse:
             "status": "active",
             "created_at": "2024-01-01T12:00:00Z",
             "acknowledged_at": "2024-01-01T12:30:00Z",
-            "resolved_at": None,
+            "resolved_at": None
         }
-
+        
         alert = QualityAlertResponse(**data)
         assert alert.id == "alert-789"
         assert alert.severity == "high"
@@ -113,9 +109,9 @@ class TestQualityAlertResponse:
             "title": "Test Alert",
             "message": "Test message",
             "status": "pending",
-            "created_at": "2024-01-01T13:00:00Z",
+            "created_at": "2024-01-01T13:00:00Z"
         }
-
+        
         alert = QualityAlertResponse(**data)
         assert alert.metric_type is None
         assert alert.acknowledged_at is None
@@ -135,9 +131,9 @@ class TestQualityThresholdCreate:
             "is_enabled": True,
             "alert_cooldown_minutes": 30,
             "search_type": "semantic",
-            "description": "Response time threshold",
+            "description": "Response time threshold"
         }
-
+        
         threshold = QualityThresholdCreate(**data)
         assert threshold.metric_type == "response_time"
         assert threshold.threshold_max == 1000.0
@@ -146,8 +142,10 @@ class TestQualityThresholdCreate:
 
     def test_threshold_create_defaults(self):
         """Test threshold create with default values"""
-        data = {"metric_type": "accuracy"}
-
+        data = {
+            "metric_type": "accuracy"
+        }
+        
         threshold = QualityThresholdCreate(**data)
         assert threshold.alert_severity == "medium"  # Default
         assert threshold.is_enabled is True  # Default
@@ -160,7 +158,7 @@ class TestQualityThresholdCreate:
         """Test that metric_type is required"""
         with pytest.raises(ValidationError) as exc_info:
             QualityThresholdCreate()
-
+        
         error = exc_info.value
         assert "metric_type" in str(error)
 
@@ -168,7 +166,7 @@ class TestQualityThresholdCreate:
         """Test that field descriptions exist"""
         schema = QualityThresholdCreate.model_json_schema()
         properties = schema["properties"]
-
+        
         assert "description" in properties["metric_type"]
         assert "Type of metric" in properties["metric_type"]["description"]
         assert "Alert severity level" in properties["alert_severity"]["description"]
@@ -188,9 +186,9 @@ class TestSearchEventCreate:
             "user_id": "user-456",
             "page_number": 1,
             "filters_applied": {"category": "documents"},
-            "sort_order": "relevance",
+            "sort_order": "relevance"
         }
-
+        
         event = SearchEventCreate(**data)
         assert event.session_id == "session-123"
         assert event.query == "test search query"
@@ -206,9 +204,9 @@ class TestSearchEventCreate:
             "query": "minimal query",
             "search_type": "keyword",
             "results_count": 5,
-            "response_time": 100.0,
+            "response_time": 100.0
         }
-
+        
         event = SearchEventCreate(**data)
         assert event.page_number == 1  # Default value
         assert event.user_id is None
@@ -223,12 +221,12 @@ class TestSearchEventCreate:
             "search_type": "semantic",
             "results_count": 10,
             "response_time": 200.0,
-            "page_number": 0,  # Invalid
+            "page_number": 0  # Invalid
         }
-
+        
         with pytest.raises(ValidationError) as exc_info:
             SearchEventCreate(**data)
-
+        
         error = exc_info.value
         assert "greater than or equal to 1" in str(error).lower()
 
@@ -236,7 +234,7 @@ class TestSearchEventCreate:
         """Test that all required fields are validated"""
         with pytest.raises(ValidationError) as exc_info:
             SearchEventCreate(session_id="test")
-
+        
         error = exc_info.value
         assert "query" in str(error)
         assert "search_type" in str(error)
@@ -256,9 +254,9 @@ class TestSearchEventUpdate:
             "dwell_time": 45.8,
             "user_rating": 4,
             "feedback_text": "Good results",
-            "is_bookmarked": True,
+            "is_bookmarked": True
         }
-
+        
         update = SearchEventUpdate(**data)
         assert update.clicked_results == 3
         assert update.clicked_result_ids == ["doc-1", "doc-2", "doc-3"]
@@ -282,19 +280,19 @@ class TestSearchEventUpdate:
         # Test clicked_results >= 0
         with pytest.raises(ValidationError):
             SearchEventUpdate(clicked_results=-1)
-
+        
         # Test time_to_first_click >= 0
         with pytest.raises(ValidationError):
             SearchEventUpdate(time_to_first_click=-1.0)
-
+        
         # Test dwell_time >= 0
         with pytest.raises(ValidationError):
             SearchEventUpdate(dwell_time=-5.0)
-
+        
         # Test user_rating range 1-5
         with pytest.raises(ValidationError):
             SearchEventUpdate(user_rating=0)
-
+        
         with pytest.raises(ValidationError):
             SearchEventUpdate(user_rating=6)
 
@@ -311,9 +309,9 @@ class TestQualityReportRequest:
             "metric_types": ["response_time", "accuracy"],
             "include_alerts": True,
             "include_recommendations": False,
-            "format": "pdf",
+            "format": "pdf"
         }
-
+        
         request = QualityReportRequest(**data)
         assert request.report_type == "weekly_summary"
         assert request.start_date == datetime(2024, 1, 1)
@@ -326,9 +324,9 @@ class TestQualityReportRequest:
         data = {
             "report_type": "daily",
             "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 1, 2),
+            "end_date": datetime(2024, 1, 2)
         }
-
+        
         request = QualityReportRequest(**data)
         assert request.metric_types is None
         assert request.include_alerts is True  # Default
@@ -339,7 +337,7 @@ class TestQualityReportRequest:
         """Test required fields validation"""
         with pytest.raises(ValidationError) as exc_info:
             QualityReportRequest(report_type="test")
-
+        
         error = exc_info.value
         assert "start_date" in str(error)
         assert "end_date" in str(error)
@@ -358,9 +356,9 @@ class TestSystemHealthCheck:
             "uptime": 86400.5,
             "dependencies": {"database": "healthy", "redis": "healthy"},
             "features": {"search": True, "analytics": True},
-            "metrics": {"cpu_usage": 45.2, "memory_usage": 67.8},
+            "metrics": {"cpu_usage": 45.2, "memory_usage": 67.8}
         }
-
+        
         health = SystemHealthCheck(**data)
         assert health.status == "healthy"
         assert health.service == "search-api"
@@ -372,7 +370,7 @@ class TestSystemHealthCheck:
         """Test that required fields are validated"""
         with pytest.raises(ValidationError) as exc_info:
             SystemHealthCheck(status="healthy")
-
+        
         error = exc_info.value
         assert "service" in str(error)
         assert "timestamp" in str(error)
@@ -388,9 +386,9 @@ class TestSystemHealthCheck:
             "timestamp": "2024-01-01T16:00:00Z",
             "dependencies": {},
             "features": {},
-            "metrics": {},
+            "metrics": {}
         }
-
+        
         health = SystemHealthCheck(**data)
         assert health.version is None
         assert health.uptime is None
@@ -407,9 +405,9 @@ class TestAnalyticsExportRequest:
             "end_date": datetime(2024, 1, 31),
             "format": "csv",
             "filters": {"user_type": "premium"},
-            "include_metadata": False,
+            "include_metadata": False
         }
-
+        
         export_req = AnalyticsExportRequest(**data)
         assert export_req.data_type == "search_events"
         assert export_req.format == "csv"
@@ -421,9 +419,9 @@ class TestAnalyticsExportRequest:
         data = {
             "data_type": "metrics",
             "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 1, 2),
+            "end_date": datetime(2024, 1, 2)
         }
-
+        
         export_req = AnalyticsExportRequest(**data)
         assert export_req.format == "csv"  # Default
         assert export_req.filters is None
@@ -441,7 +439,7 @@ class TestAlertAcknowledgmentRequest:
     def test_valid_acknowledgment_request(self):
         """Test creating a valid acknowledgment request"""
         data = {"note": "Acknowledged and investigating"}
-
+        
         ack = AlertAcknowledgmentRequest(**data)
         assert ack.note == "Acknowledged and investigating"
 
@@ -466,9 +464,9 @@ class TestSessionCreate:
             "user_id": "user-456",
             "user_agent": "Mozilla/5.0...",
             "ip_address": "192.168.1.100",
-            "referrer": "https://example.com",
+            "referrer": "https://example.com"
         }
-
+        
         session = SessionCreate(**data)
         assert session.session_id == "sess-123"
         assert session.user_id == "user-456"
@@ -479,7 +477,7 @@ class TestSessionCreate:
     def test_session_create_optional_fields(self):
         """Test session create with only required field"""
         data = {"session_id": "sess-789"}
-
+        
         session = SessionCreate(**data)
         assert session.session_id == "sess-789"
         assert session.user_id is None
@@ -491,6 +489,6 @@ class TestSessionCreate:
         """Test that session_id is required"""
         with pytest.raises(ValidationError) as exc_info:
             SessionCreate()
-
+        
         error = exc_info.value
         assert "session_id" in str(error)

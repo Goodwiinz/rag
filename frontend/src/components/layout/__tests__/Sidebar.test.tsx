@@ -46,7 +46,7 @@ describe('Sidebar', () => {
     });
     expect(toggleButton).toBeInTheDocument();
     expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
-    expect(toggleButton).toHaveClass('focus-visible:outline-hidden');
+    expect(toggleButton).toHaveClass('focus-visible:outline-none');
     expect(toggleButton).toHaveClass('focus-visible:ring-2');
   });
 

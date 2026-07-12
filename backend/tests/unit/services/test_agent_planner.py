@@ -1,7 +1,7 @@
 """Unit tests for the adaptive planner module.
 
-Tests plan generation (with folded-in complexity gating) and planner
-node behavior with mocked LLM calls.
+Tests complexity checking, plan generation, and planner node behavior
+with mocked LLM calls.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,7 +11,9 @@ from langchain_core.messages import HumanMessage
 
 from src.services.agent.planner import (
     AgentPlan,
+    ComplexityCheck,
     PlanStep,
+    check_complexity,
     generate_plan,
     make_planner_node,
 )
@@ -37,6 +39,60 @@ def _mock_llm_structured(return_value):
     structured = AsyncMock(return_value=return_value)
     mock_llm.with_structured_output.return_value.ainvoke = structured
     return mock_llm
+
+
+# ---------------------------------------------------------------------------
+# test_complexity_check_simple
+# ---------------------------------------------------------------------------
+
+
+class TestComplexityCheck:
+    # check_complexity is a thin prompt → LLM → step_count passthrough, so the
+    # contract under test is what gets SENT (prompt content, structured-output
+    # schema) and that the model's estimate is returned unmodified — not the
+    # numeric value we just told the mock to return.
+
+    async def test_complexity_prompt_carries_query_tools_and_context(self):
+        mock_llm = _mock_llm_structured(ComplexityCheck(step_count=1))
+
+        with patch(
+            "src.services.agent.planner._build_planner_llm", return_value=mock_llm
+        ):
+            result = await check_complexity(
+                "search for papers", TOOL_NAMES, PAGE_CONTEXT
+            )
+
+        # Structured output bound to the ComplexityCheck schema
+        mock_llm.with_structured_output.assert_called_once_with(ComplexityCheck)
+
+        # The single message sent must contain the query, every tool name,
+        # and the page context the estimate is supposed to be based on.
+        ainvoke = mock_llm.with_structured_output.return_value.ainvoke
+        (messages,), _ = ainvoke.call_args
+        assert len(messages) == 1 and isinstance(messages[0], HumanMessage)
+        prompt = messages[0].content
+        assert "search for papers" in prompt
+        for tool in TOOL_NAMES:
+            assert tool in prompt
+        assert "proj-123" in prompt
+
+        # And the model's estimate passes through unmodified.
+        assert result == 1
+
+    async def test_complexity_returns_model_estimate_verbatim(self):
+        mock_llm = _mock_llm_structured(ComplexityCheck(step_count=5))
+
+        with patch(
+            "src.services.agent.planner._build_planner_llm", return_value=mock_llm
+        ):
+            result = await check_complexity(
+                "Find transformer papers on arXiv, ingest them, "
+                "then create a literature review note summarizing the key findings",
+                TOOL_NAMES,
+                PAGE_CONTEXT,
+            )
+
+        assert result == 5
 
 
 # ---------------------------------------------------------------------------
@@ -93,33 +149,6 @@ class TestGeneratePlan:
             assert step.description
         assert result.reasoning
 
-    async def test_generate_plan_prompt_carries_query_tools_and_gating(self):
-        """The single planner prompt must carry the query, every tool name,
-        the page context, and the folded-in complexity gate (empty steps for
-        simple queries) — the old separate check_complexity call is gone."""
-        mock_llm = _mock_llm_structured(AgentPlan(steps=[]))
-
-        with patch(
-            "src.services.agent.planner._build_planner_llm", return_value=mock_llm
-        ):
-            result = await generate_plan(
-                "search for papers", TOOL_NAMES, PAGE_CONTEXT
-            )
-
-        ainvoke = mock_llm.with_structured_output.return_value.ainvoke
-        (messages,), _ = ainvoke.call_args
-        assert len(messages) == 1 and isinstance(messages[0], HumanMessage)
-        prompt = messages[0].content
-        assert "search for papers" in prompt
-        for tool in TOOL_NAMES:
-            assert tool in prompt
-        assert "proj-123" in prompt
-        # Complexity gating folded into the prompt
-        assert "FEWER" in prompt and "empty steps list" in prompt
-
-        # Empty plan passes through unmodified (node layer treats it as "simple").
-        assert result.steps == []
-
 
 # ---------------------------------------------------------------------------
 # test_planner_node_skips_if_plan_exists
@@ -141,13 +170,12 @@ class TestPlannerNode:
         assert result == {}
 
     async def test_planner_node_skips_simple_queries(self):
-        """Node should return empty dict when the plan comes back with <3 steps
-        (the model judged the query simple)."""
-        mock_llm = _mock_llm_structured(AgentPlan(steps=[]))
+        """Node should return empty dict when complexity step_count < 3."""
+        mock_llm_complexity = _mock_llm_structured(ComplexityCheck(step_count=2))
 
         with patch(
             "src.services.agent.planner._build_planner_llm",
-            return_value=mock_llm,
+            return_value=mock_llm_complexity,
         ):
             node_fn = make_planner_node(TOOL_NAMES)
 
@@ -190,12 +218,18 @@ class TestPlannerNode:
             reasoning="Multi-step research workflow",
         )
 
+        mock_llm_complexity = _mock_llm_structured(ComplexityCheck(step_count=5))
         mock_llm_plan = _mock_llm_structured(expected_plan)
+        build_calls = {"n": 0}
+
+        def _planner_llm_side_effect(*_args, **_kwargs):
+            build_calls["n"] += 1
+            return mock_llm_complexity if build_calls["n"] == 1 else mock_llm_plan
 
         with patch(
             "src.services.agent.planner._build_planner_llm",
-            return_value=mock_llm_plan,
-        ) as build_llm:
+            side_effect=_planner_llm_side_effect,
+        ):
             node_fn = make_planner_node(TOOL_NAMES)
 
             state = {
@@ -218,5 +252,3 @@ class TestPlannerNode:
         assert len(result["plan"]) == 3
         assert result["plan"][0]["tool"] == "search_arxiv"
         assert result["plan"][2]["depends_on"] == [2]
-        # Single planner LLM call — the old separate complexity check is gone.
-        build_llm.assert_called_once()

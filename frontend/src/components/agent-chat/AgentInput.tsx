@@ -52,7 +52,7 @@ export function AgentInput({
           placeholder={placeholder}
           disabled={disabled || isStreaming}
           rows={1}
-          className="flex-1 resize-none bg-muted/30 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary disabled:opacity-50"
+          className="flex-1 resize-none bg-muted/30 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
         />
         {isStreaming && onStop ? (
           <button

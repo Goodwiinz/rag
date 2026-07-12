@@ -20,7 +20,7 @@ export const EvaluationDetailsPage: React.FC = () => {
             Evaluation Not Found
           </h1>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-white rounded-lg shadow p-6">
           <p className="text-red-600">
             Evaluation ID is missing. Please select a valid evaluation.
           </p>
@@ -43,7 +43,7 @@ export const EvaluationDetailsPage: React.FC = () => {
         </h1>
         <p className="text-foreground">ID: {id}</p>
       </div>
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow p-6">
         <p className="text-foreground">
           View detailed evaluation results and metrics.
         </p>

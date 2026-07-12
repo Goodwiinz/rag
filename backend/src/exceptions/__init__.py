@@ -316,12 +316,22 @@ class WebSocketConnectionError(WebSocketException):
     error_code = "WEBSOCKET_CONNECTION_ERROR"
 
 
-# NOTE: Configuration errors live in ``src.exceptions.analytics_exceptions``
-# (``ConfigurationException(AnalyticsException)``), which is what RBAC/tenant
-# services actually raise. A second, unused ``ConfigurationException(RAGException)``
-# previously lived here and collided on the name — an IDE auto-import could pick
-# the wrong constructor and raise ``TypeError`` at runtime. Removed to keep the
-# name unambiguous across the package.
+# =============================================================================
+# Configuration Errors
+# =============================================================================
+
+
+class ConfigurationException(RAGException):
+    """Raised when configuration is invalid."""
+
+    error_code = "CONFIG_ERROR"
+    status_code = 500
+
+
+class MissingConfigException(ConfigurationException):
+    """Raised when required configuration is missing."""
+
+    error_code = "MISSING_CONFIG"
 
 
 # =============================================================================
@@ -373,4 +383,7 @@ __all__ = [
     "WebSocketException",
     "WebSocketAuthError",
     "WebSocketConnectionError",
+    # Configuration
+    "ConfigurationException",
+    "MissingConfigException",
 ]

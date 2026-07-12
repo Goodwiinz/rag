@@ -48,12 +48,12 @@ const PROGRESS_SIZES: Record<
 };
 
 const DEFAULT_COLORS = {
-  primary: 'bg-(--nous-sol)',
-  success: 'bg-(--nous-terra)',
-  warning: 'bg-(--nous-corona)',
-  error: 'bg-(--nous-mars)',
-  info: 'bg-(--nous-helios)',
-  gray: 'bg-(--nous-bg-3)',
+  primary: 'bg-[var(--nous-sol)]',
+  success: 'bg-[var(--nous-terra)]',
+  warning: 'bg-[var(--nous-corona)]',
+  error: 'bg-[var(--nous-mars)]',
+  info: 'bg-[var(--nous-helios)]',
+  gray: 'bg-[var(--nous-bg-3)]',
 };
 
 // Helper to get progress color based on percentage
@@ -75,7 +75,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
     progress,
     size = 'md',
     color,
-    backgroundColor = 'bg-(--nous-bg-2)',
+    backgroundColor = 'bg-[var(--nous-bg-2)]',
     showPercentage = true,
     showLabel = false,
     label,
@@ -119,7 +119,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
       'absolute top-0 left-0 h-full transition-all duration-300 ease-out',
       finalColor,
       striped &&
-        'bg-linear-to-r from-transparent via-white/20 to-transparent',
+        'bg-gradient-to-r from-transparent via-white/20 to-transparent',
       animated && striped && 'animate-pulse',
       indeterminate && 'animate-pulse'
     );
@@ -211,7 +211,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
         {clampedProgress === 100 && (
           <div className="flex items-center justify-center">
             <svg
-              className="w-5 h-5 text-(--nous-terra)"
+              className="w-5 h-5 text-[var(--nous-terra)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -223,7 +223,7 @@ export const ProcessingProgressBar: React.FC<ProcessingProgressBarProps> = memo(
                 d="M5 13l4 4L19 7"
               />
             </svg>
-            <span className="ml-1 text-sm text-(--nous-terra)">
+            <span className="ml-1 text-sm text-[var(--nous-terra)]">
               Complete
             </span>
           </div>

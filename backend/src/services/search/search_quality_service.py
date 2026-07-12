@@ -15,6 +15,7 @@ import numpy as np
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
 
+from src.core.database import get_db
 from src.models.document import Document, ProcessingStatus
 from src.models.search_schemas import (
     SearchQuery,
@@ -146,9 +147,9 @@ class SearchQualityService:
             )
 
         # Contextual precision
-        metrics[QualityMetricType.CONTEXTUAL_PRECISION] = (
-            self._calculate_contextual_precision(search_query, search_response.results)
-        )
+        metrics[
+            QualityMetricType.CONTEXTUAL_PRECISION
+        ] = self._calculate_contextual_precision(search_query, search_response.results)
 
         # Calculate overall score
         overall_score = self._calculate_overall_score(metrics)
@@ -390,43 +391,44 @@ class SearchQualityService:
     ) -> Dict[str, Any]:
         """Get quality analytics for a specific organization"""
         try:
-            # This would query a quality_metrics table
-            # For now, return mock analytics
+            with next(get_db()) as db:
+                # This would query a quality_metrics table
+                # For now, return mock analytics
 
-            analytics = {
-                "period_days": days,
-                "organization_id": organization_id,
-                "search_type": search_type.value if search_type else "all",
-                "total_evaluations": 0,
-                "average_metrics": {},
-                "trends": {},
-                "threshold_violations": [],
-                "top_improvements": [],
-            }
-
-            # Mock data for demonstration
-            if search_type is None or search_type == SearchType.HYBRID:
-                analytics["total_evaluations"] = 150
-                analytics["average_metrics"] = {
-                    "relevancy": 0.82,
-                    "precision": 0.75,
-                    "recall": 0.68,
-                    "f1_score": 0.71,
-                    "response_time": 1.45,
-                    "result_diversity": 0.73,
-                    "contextual_precision": 0.78,
-                    "user_satisfaction": 0.85,
+                analytics = {
+                    "period_days": days,
+                    "organization_id": organization_id,
+                    "search_type": search_type.value if search_type else "all",
+                    "total_evaluations": 0,
+                    "average_metrics": {},
+                    "trends": {},
+                    "threshold_violations": [],
+                    "top_improvements": [],
                 }
-                analytics["threshold_violations"] = [
-                    {"metric": "recall", "current_value": 0.68, "threshold": 0.7}
-                ]
-                analytics["top_improvements"] = [
-                    "Improve recall by expanding document indexing",
-                    "Optimize query understanding for complex questions",
-                    "Enhance result ranking for better relevance",
-                ]
 
-            return analytics
+                # Mock data for demonstration
+                if search_type is None or search_type == SearchType.HYBRID:
+                    analytics["total_evaluations"] = 150
+                    analytics["average_metrics"] = {
+                        "relevancy": 0.82,
+                        "precision": 0.75,
+                        "recall": 0.68,
+                        "f1_score": 0.71,
+                        "response_time": 1.45,
+                        "result_diversity": 0.73,
+                        "contextual_precision": 0.78,
+                        "user_satisfaction": 0.85,
+                    }
+                    analytics["threshold_violations"] = [
+                        {"metric": "recall", "current_value": 0.68, "threshold": 0.7}
+                    ]
+                    analytics["top_improvements"] = [
+                        "Improve recall by expanding document indexing",
+                        "Optimize query understanding for complex questions",
+                        "Enhance result ranking for better relevance",
+                    ]
+
+                return analytics
 
         except Exception as e:
             logger.error(f"Error getting quality analytics: {e}")

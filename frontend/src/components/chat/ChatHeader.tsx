@@ -70,14 +70,14 @@ export const ChatHeader = memo(function ChatHeader({
   };
 
   return (
-    <div className="bg-(--nous-bg-1) flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-(--nous-border-1) px-3 sm:px-4 z-40">
+    <div className="bg-[var(--nous-bg-1)] flex h-12 sm:h-14 shrink-0 items-center gap-2 sm:gap-3 border-b border-[var(--nous-border-1)] px-3 sm:px-4 z-40">
       {/* Left: sidebar trigger + mobile menu + breadcrumb */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
         {onMobileSidebarToggle && (
           <button
             type="button"
             onClick={onMobileSidebarToggle}
-            className="md:hidden h-9 w-9 shrink-0 flex items-center justify-center text-(--nous-fg-3) hover:text-(--nous-sol) hover:bg-(--nous-sol)/8 transition-all rounded-xl"
+            className="md:hidden h-9 w-9 shrink-0 flex items-center justify-center text-[var(--nous-fg-3)] hover:text-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/8 transition-all rounded-xl"
             aria-label="Toggle chat history"
           >
             <Menu className="w-5 h-5" />
@@ -86,7 +86,7 @@ export const ChatHeader = memo(function ChatHeader({
 
         {/* Mobile: show chat title */}
         <span
-          className="md:hidden text-[13px] font-medium text-(--nous-fg-1) truncate max-w-[160px]"
+          className="md:hidden text-[13px] font-medium text-[var(--nous-fg-1)] truncate max-w-[160px]"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
           {chatTitle}
@@ -96,9 +96,9 @@ export const ChatHeader = memo(function ChatHeader({
           className="hidden lg:flex items-center whitespace-nowrap"
           style={{ fontFamily: 'var(--nous-font-ui)' }}
         >
-          <span className="text-xs text-(--nous-fg-3)">
+          <span className="text-xs text-[var(--nous-fg-3)]">
             Dashboard /{' '}
-            <span className="text-(--nous-fg-1) font-medium">Chat</span>
+            <span className="text-[var(--nous-fg-1)] font-medium">Chat</span>
           </span>
         </div>
       </div>
@@ -109,7 +109,7 @@ export const ChatHeader = memo(function ChatHeader({
           <IconButton
             label="Copy all messages"
             icon={<ClipboardCopy className="w-4 h-4" />}
-            className="p-1.5 text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:bg-(--nous-sol)/8 rounded-lg transition-colors"
+            className="p-1.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-sol)]/8 rounded-lg transition-colors"
             onClick={onCopyAll}
           />
         )}
@@ -119,7 +119,7 @@ export const ChatHeader = memo(function ChatHeader({
             <IconButton
               label="Export chat"
               icon={<Download className="w-4 h-4" />}
-              className="p-1.5 text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:bg-(--nous-sol)/8 rounded-lg transition-colors"
+              className="p-1.5 text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)] hover:bg-[var(--nous-sol)]/8 rounded-lg transition-colors"
               onClick={() => setExportOpen((v) => !v)}
             />
             <AnimatePresence>
@@ -129,21 +129,21 @@ export const ChatHeader = memo(function ChatHeader({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -5 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-(--nous-border-1) bg-(--nous-bg-2) shadow-lg z-50 overflow-hidden p-1"
+                  className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-lg z-50 overflow-hidden p-1"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   <button
                     onClick={handleExportMarkdown}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--nous-fg-2)] hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)] focus-visible:bg-[var(--nous-sol)]/8 focus-visible:outline-none rounded-lg transition-colors"
                   >
-                    <FileText className="w-3.5 h-3.5 text-(--nous-fg-3)" />
+                    <FileText className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
                     Export as Markdown
                   </button>
                   <button
                     onClick={handleExportJson}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-(--nous-fg-2) hover:bg-(--nous-sol)/8 hover:text-(--nous-fg-1) focus-visible:bg-(--nous-sol)/8 focus-visible:outline-hidden rounded-lg transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--nous-fg-2)] hover:bg-[var(--nous-sol)]/8 hover:text-[var(--nous-fg-1)] focus-visible:bg-[var(--nous-sol)]/8 focus-visible:outline-none rounded-lg transition-colors"
                   >
-                    <FileJson className="w-3.5 h-3.5 text-(--nous-fg-3)" />
+                    <FileJson className="w-3.5 h-3.5 text-[var(--nous-fg-3)]" />
                     Export as JSON
                   </button>
                 </motion.div>
