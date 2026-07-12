@@ -21,6 +21,7 @@ from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent import stream_buffer as _stream_buffer
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.observability import record_token_usage
+from src.shared.enums import AgentStreamEvent
 
 from . import jobs as _jobs_mod
 from ._errors import client_safe_error, extract_interrupt_confirmation
@@ -467,7 +468,7 @@ async def stream_event_generator(
         await emitter.start(stream_thread_id)
 
         yield await emitter.emit(
-            "trace",
+            AgentStreamEvent.TRACE,
             build_trace_payload(
                 thread_id=config["configurable"]["thread_id"],
                 cli_session_id="",
@@ -580,7 +581,7 @@ async def stream_event_generator(
                                 (time.monotonic() - stream_started_at) * 1000
                             )
                             frame = await emitter.emit(
-                                "heartbeat",
+                                AgentStreamEvent.HEARTBEAT,
                                 {"elapsed_ms": elapsed_ms},
                                 buffer=False,
                             )
@@ -601,7 +602,7 @@ async def stream_event_generator(
                                 streamed_token = True
                                 streamed_parts.append(chunk.content)
                                 frame = await emitter.emit(
-                                    "token", {"content": chunk.content}
+                                    AgentStreamEvent.TOKEN, {"content": chunk.content}
                                 )
                                 if not client_disconnected:
                                     yield frame
@@ -615,7 +616,8 @@ async def stream_event_generator(
                             tool_input = event.get("data", {}).get("input", {})
                             args_preview = _tool_args_preview(tool_input)
                             frame = await emitter.emit(
-                                "tool_start", {"tool": name, "args": args_preview}
+                                AgentStreamEvent.TOOL_START,
+                                {"tool": name, "args": args_preview},
                             )
                             if not client_disconnected:
                                 yield frame
@@ -626,7 +628,7 @@ async def stream_event_generator(
                                 isinstance(output, dict) and bool(output.get("isError"))
                             ) or (getattr(output, "status", None) == "error")
                             frame = await emitter.emit(
-                                "tool_end",
+                                AgentStreamEvent.TOOL_END,
                                 {
                                     "tool": name,
                                     "result": _encode_tool_result(output),
@@ -642,7 +644,8 @@ async def stream_event_generator(
                                 contexts = output.get("retrieved_contexts", [])
                                 if contexts:
                                     frame = await emitter.emit(
-                                        "rag_context", {"contexts": contexts[:3]}
+                                        AgentStreamEvent.RAG_CONTEXT,
+                                        {"contexts": contexts[:3]},
                                     )
                                     if not client_disconnected:
                                         yield frame
@@ -653,7 +656,8 @@ async def stream_event_generator(
                                 plan_steps = output.get("plan", [])
                                 if plan_steps:
                                     frame = await emitter.emit(
-                                        "plan", {"steps": plan_steps, "reasoning": ""}
+                                        AgentStreamEvent.PLAN,
+                                        {"steps": plan_steps, "reasoning": ""},
                                     )
                                     if not client_disconnected:
                                         yield frame
@@ -675,7 +679,7 @@ async def stream_event_generator(
                                         and round_num < 2
                                     )
                                     frame = await emitter.emit(
-                                        "reflection",
+                                        AgentStreamEvent.REFLECTION,
                                         {
                                             "passed": passed,
                                             "issues": issues,
@@ -744,7 +748,7 @@ async def stream_event_generator(
 
                 thread_id = config["configurable"]["thread_id"]
                 frame = await emitter.emit(
-                    "confirmation",
+                    AgentStreamEvent.CONFIRMATION,
                     {"thread_id": thread_id, "confirmation": confirmation_details},
                 )
                 if not client_disconnected:
@@ -764,7 +768,9 @@ async def stream_event_generator(
             # Without this the client receives zero `token` events and renders an
             # empty response ("stream completed without any tokens").
             if not streamed_token and assistant_content:
-                frame = await emitter.emit("token", {"content": assistant_content})
+                frame = await emitter.emit(
+                    AgentStreamEvent.TOKEN, {"content": assistant_content}
+                )
                 if not client_disconnected:
                     yield frame
 
@@ -836,7 +842,7 @@ async def stream_event_generator(
             except Exception:  # never let metrics break the stream
                 logger.debug("record_token_usage failed", exc_info=True)
             frame = await emitter.emit(
-                "usage",
+                AgentStreamEvent.USAGE,
                 {
                     "input_tokens": turn_input_tokens,
                     "output_tokens": turn_output_tokens,
@@ -873,7 +879,7 @@ async def stream_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit("done", done_payload)
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
         if not client_disconnected:
             yield frame
         await emitter.finish()
@@ -914,14 +920,14 @@ async def stream_event_generator(
                 thread_id,
             )
             frame = await emitter.emit(
-                "error",
+                AgentStreamEvent.ERROR,
                 {"error": "Interrupt state could not be saved. Please retry."},
             )
             if not client_disconnected:
                 yield frame
         else:
             frame = await emitter.emit(
-                "confirmation",
+                AgentStreamEvent.CONFIRMATION,
                 {"thread_id": thread_id, "confirmation": confirmation_details},
             )
             if not client_disconnected:
@@ -939,7 +945,9 @@ async def stream_event_generator(
         if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
-        frame = await emitter.emit("error", {"error": client_safe_error(e)})
+        frame = await emitter.emit(
+            AgentStreamEvent.ERROR, {"error": client_safe_error(e)}
+        )
         if not client_disconnected:
             yield frame
         await emitter.finish()
@@ -1023,7 +1031,9 @@ async def stream_confirm_event_generator(
 
         # Verify thread exists
         if not current_snapshot or not current_snapshot.values:
-            yield await emitter.emit("error", {"error": "Thread not found"})
+            yield await emitter.emit(
+                AgentStreamEvent.ERROR, {"error": "Thread not found"}
+            )
             return
 
         # Verify thread ownership — checkpoints without an owner predate the
@@ -1036,7 +1046,9 @@ async def stream_confirm_event_generator(
                 snapshot_user_id,
                 current_user.id,
             )
-            yield await emitter.emit("error", {"error": "Thread not found"})
+            yield await emitter.emit(
+                AgentStreamEvent.ERROR, {"error": "Thread not found"}
+            )
             return
 
         page_context = _page_context_to_dict(
@@ -1077,7 +1089,7 @@ async def stream_confirm_event_generator(
                 # its claim mid-run; a crashed winner unblocks after TTL.
                 if not await _acquire_lock(redis_client, confirm_claim_key, ttl=330):
                     yield await emitter.emit(
-                        "error",
+                        AgentStreamEvent.ERROR,
                         {"error": "Confirmation already in progress"},
                     )
                     return
@@ -1132,7 +1144,7 @@ async def stream_confirm_event_generator(
         await emitter.start(request_body.thread_id)
 
         yield await emitter.emit(
-            "trace",
+            AgentStreamEvent.TRACE,
             build_trace_payload(
                 thread_id=request_body.thread_id,
                 cli_session_id="",
@@ -1230,7 +1242,9 @@ async def stream_confirm_event_generator(
                 if item["type"] == "keepalive":
                     elapsed_ms = int((time.monotonic() - stream_started_at) * 1000)
                     frame = await emitter.emit(
-                        "heartbeat", {"elapsed_ms": elapsed_ms}, buffer=False
+                        AgentStreamEvent.HEARTBEAT,
+                        {"elapsed_ms": elapsed_ms},
+                        buffer=False,
                     )
                     if not client_disconnected:
                         yield frame
@@ -1246,7 +1260,9 @@ async def stream_confirm_event_generator(
                     chunk = event.get("data", {}).get("chunk")
                     if chunk and hasattr(chunk, "content") and chunk.content:
                         streamed_parts.append(chunk.content)
-                        frame = await emitter.emit("token", {"content": chunk.content})
+                        frame = await emitter.emit(
+                            AgentStreamEvent.TOKEN, {"content": chunk.content}
+                        )
                         if not client_disconnected:
                             yield frame
                         tokens_emitted = True
@@ -1260,7 +1276,8 @@ async def stream_confirm_event_generator(
                     tool_input = event.get("data", {}).get("input", {})
                     args_preview = _tool_args_preview(tool_input)
                     frame = await emitter.emit(
-                        "tool_start", {"tool": name, "args": args_preview}
+                        AgentStreamEvent.TOOL_START,
+                        {"tool": name, "args": args_preview},
                     )
                     if not client_disconnected:
                         yield frame
@@ -1271,7 +1288,7 @@ async def stream_confirm_event_generator(
                         isinstance(output, dict) and bool(output.get("isError"))
                     ) or (getattr(output, "status", None) == "error")
                     frame = await emitter.emit(
-                        "tool_end",
+                        AgentStreamEvent.TOOL_END,
                         {
                             "tool": name,
                             "result": _encode_tool_result(output),
@@ -1287,7 +1304,8 @@ async def stream_confirm_event_generator(
                         plan_steps = output.get("plan", [])
                         if plan_steps:
                             frame = await emitter.emit(
-                                "plan", {"steps": plan_steps, "reasoning": ""}
+                                AgentStreamEvent.PLAN,
+                                {"steps": plan_steps, "reasoning": ""},
                             )
                             if not client_disconnected:
                                 yield frame
@@ -1305,7 +1323,7 @@ async def stream_confirm_event_generator(
                                 (not passed) and severity == "major" and round_num < 2
                             )
                             frame = await emitter.emit(
-                                "reflection",
+                                AgentStreamEvent.REFLECTION,
                                 {
                                     "passed": passed,
                                     "issues": issues,
@@ -1349,7 +1367,7 @@ async def stream_confirm_event_generator(
                 if confirmation_details:
                     break
             frame = await emitter.emit(
-                "confirmation",
+                AgentStreamEvent.CONFIRMATION,
                 {
                     "thread_id": request_body.thread_id,
                     "confirmation": confirmation_details,
@@ -1443,7 +1461,7 @@ async def stream_confirm_event_generator(
             except Exception:  # never let metrics break the stream
                 logger.debug("record_token_usage failed", exc_info=True)
             frame = await emitter.emit(
-                "usage",
+                AgentStreamEvent.USAGE,
                 {
                     "input_tokens": turn_input_tokens,
                     "output_tokens": turn_output_tokens,
@@ -1457,7 +1475,9 @@ async def stream_confirm_event_generator(
             # degraded / non-streamed node) — surface it so the client isn't
             # left with an empty response.
             tokens_emitted = True
-            frame = await emitter.emit("token", {"content": assistant_content})
+            frame = await emitter.emit(
+                AgentStreamEvent.TOKEN, {"content": assistant_content}
+            )
             if not client_disconnected:
                 yield frame
 
@@ -1466,7 +1486,7 @@ async def stream_confirm_event_generator(
                 getattr(te, "tool_name", str(te)) for te in tool_executions_out
             )
             frame = await emitter.emit(
-                "token", {"content": f"Done — completed: {names}."}
+                AgentStreamEvent.TOKEN, {"content": f"Done — completed: {names}."}
             )
             if not client_disconnected:
                 yield frame
@@ -1495,7 +1515,7 @@ async def stream_confirm_event_generator(
                     "client_message_id": assistant_cmid,
                 }
             )
-        frame = await emitter.emit("done", done_payload)
+        frame = await emitter.emit(AgentStreamEvent.DONE, done_payload)
         if not client_disconnected:
             yield frame
         await emitter.finish()
@@ -1520,7 +1540,9 @@ async def stream_confirm_event_generator(
         if persist_partial_stop is not None:
             with contextlib.suppress(Exception):
                 await persist_partial_stop()
-        frame = await emitter.emit("error", {"error": client_safe_error(e)})
+        frame = await emitter.emit(
+            AgentStreamEvent.ERROR, {"error": client_safe_error(e)}
+        )
         if not client_disconnected:
             yield frame
         await emitter.finish()

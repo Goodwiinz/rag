@@ -244,6 +244,52 @@ class ApiDocumentStatus(StrEnum):
             return None
 
 
+class AgentStreamEvent(StrEnum):
+    """Wire vocabulary for agent SSE frames — the single source of truth for
+    every ``event:`` name the agent stream emits (audit finding C1).
+
+    The backend previously spelled these 12 names as inline string literals at
+    ~40 ``emitter.emit(...)`` sites, the ``/stream`` docstring listed only 6,
+    the resume path hand-listed a terminal subset, and the frontend consumer
+    switch mirrored the list a fourth time — four copies that drifted. Members
+    ARE the wire strings (``StrEnum``), so ``emitter.emit(AgentStreamEvent.TOKEN,
+    ...)`` serializes byte-identically to the old literal ``"token"`` (zero wire
+    change). The frontend mirror lives in
+    ``frontend/src/services/agentStreamEvents.ts``; a contract test on each side
+    fails CI if a new emit literal (or switch case) drifts from this enum.
+
+    Values are the frozen wire contract — do NOT rename them.
+    """
+
+    TOKEN = "token"
+    TOOL_START = "tool_start"
+    TOOL_END = "tool_end"
+    RAG_CONTEXT = "rag_context"
+    PLAN = "plan"
+    REFLECTION = "reflection"
+    TRACE = "trace"
+    USAGE = "usage"
+    # Keepalive with no payload; the frontend intentionally drops it (see
+    # agentStreamEvents.ts). Every OTHER member must be handled by the consumer.
+    HEARTBEAT = "heartbeat"
+    CONFIRMATION = "confirmation"
+    DONE = "done"
+    ERROR = "error"
+
+
+# Terminal frames: after one of these the live stream ends and the resumable
+# buffer stops replaying (see ``resume_stream`` in api/agent/execute.py). A
+# ``confirmation`` frame is terminal for the stream even though the turn later
+# resumes via /stream/confirm — the socket that saw it is done.
+TERMINAL_STREAM_EVENTS: frozenset[AgentStreamEvent] = frozenset(
+    {
+        AgentStreamEvent.DONE,
+        AgentStreamEvent.ERROR,
+        AgentStreamEvent.CONFIRMATION,
+    }
+)
+
+
 class SatelliteSyncStatus(StrEnum):
     """Per-satellite fan-out outcome recorded on ``documents`` (audit D1).
 

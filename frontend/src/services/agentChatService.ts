@@ -2,6 +2,12 @@ import { api } from '@/services/api-client';
 import { createClient } from '@/lib/supabase/client';
 import { getPublicApiBaseUrl } from '@/utils/publicEndpoints';
 import { parseErrorBody } from '@/utils/parseErrorBody';
+import type { AgentStreamEvent } from '@/services/agentStreamEvents';
+
+// Re-export the wire-event union so consumers can import it alongside the
+// service. The event names live in agentStreamEvents.ts (the single frontend
+// mirror of backend `AgentStreamEvent`); see HANDLED_STREAM_EVENTS below.
+export type { AgentStreamEvent } from '@/services/agentStreamEvents';
 
 function agentStreamUrl(path: 'stream' | 'stream/confirm'): string {
   const base = getPublicApiBaseUrl('/api/v1').replace(/\/$/, '');
@@ -90,6 +96,30 @@ async function readErrorBody(response: Response): Promise<string> {
   }
   return backendMessage;
 }
+
+/**
+ * The SSE event names the consumer `switch (ev)` in `consumeSse` handles.
+ *
+ * MUST mirror the `case` labels in that switch — the contract test
+ * (agentStreamEvents.contract.test.ts) parses the actual switch and asserts it
+ * equals this set, and that this set equals every non-heartbeat
+ * `AGENT_STREAM_EVENTS` value. `heartbeat` is a keepalive we deliberately drop,
+ * so it is absent here. Add a new event to BOTH the switch and this set (and
+ * the backend enum) together, or CI fails.
+ */
+export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
+  'token',
+  'tool_start',
+  'tool_end',
+  'rag_context',
+  'plan',
+  'trace',
+  'reflection',
+  'confirmation',
+  'usage',
+  'done',
+  'error',
+]);
 
 /**
  * Shared SSE consume loop: reads `response.body`, parses `id:`/`event:`/
