@@ -177,11 +177,11 @@ FLOORS: dict[str, int] = {
     "src/models/quality.py": 35,
     "src/models/processing.py": 35,
     # 30-35% coverage
-    "src/api/agent/tools_impl.py": 34,
+    "src/services/agent/tools_impl.py": 34,
     "src/core/circuit_breaker.py": 34,
     "src/core/database.py": 33,
     "src/api/connectors/router.py": 33,
-    "src/api/agent/tool_helpers.py": 33,
+    "src/services/agent/tool_helpers.py": 33,
     "src/api/threads/conversations.py": 33,
     "src/api/research/chat.py": 33,
     "src/shared/utils.py": 33,

@@ -144,7 +144,7 @@ def _is_transient_failure(te: Any) -> bool:
 
 # Ingest result statuses that indicate the tool ran but produced no usable
 # documents (or only some of the requested ones). Mirror the constants in
-# ``src/api/agent/tools_impl.py`` so the reflection gate can detect when an
+# ``src/services/agent/tools_impl.py`` so the reflection gate can detect when an
 # AIMessage claims success despite the tool reporting zero/partial ingest.
 _INGEST_FAILURE_STATUSES = {"ingestion_failed", "ingestion_partial"}
 

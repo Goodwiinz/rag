@@ -120,7 +120,7 @@ def _mock_infra():
             ),
             # Mock tool execution (needs DB, external APIs)
             patch(
-                "src.api.agent.execute.execute_tool",
+                "src.services.agent.tools_impl.execute_tool",
                 new=AsyncMock(return_value={"results": [], "total": 0, "message": "Mocked tool result"}),
             ),
         ):
@@ -281,7 +281,7 @@ class TestAgentErrorResilience:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                "src.api.agent.execute.execute_tool",
+                "src.services.agent.tools_impl.execute_tool",
                 new=AsyncMock(side_effect=Exception("Service unavailable")),
             ),
         ):
