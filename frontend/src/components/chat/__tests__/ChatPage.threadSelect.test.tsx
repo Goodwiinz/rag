@@ -170,4 +170,40 @@ describe('ChatPage thread selection', () => {
 
     expect(screen.getByTestId('chat-runtime')).not.toBe(runtimeForThreadOne);
   });
+
+  it('remounts an empty thread runtime once when its transcript hydrates', () => {
+    const emptySession = {
+      ...mockUseChatSession(),
+      isLoadingMessages: true,
+      displayedMessages: [],
+    };
+    mockUseChatSession.mockReturnValue(emptySession);
+
+    const { rerender } = render(<ChatPage />);
+    const emptyRuntime = screen.getByTestId('chat-runtime');
+
+    mockUseChatSession.mockReturnValue({
+      ...emptySession,
+      isLoadingMessages: false,
+      displayedMessages: [
+        { role: 'assistant', content: 'Hydrated transcript', timestamp: 2 },
+      ],
+    });
+    rerender(<ChatPage />);
+
+    const hydratedRuntime = screen.getByTestId('chat-runtime');
+    expect(hydratedRuntime).not.toBe(emptyRuntime);
+
+    mockUseChatSession.mockReturnValue({
+      ...emptySession,
+      isLoadingMessages: false,
+      displayedMessages: [
+        { role: 'assistant', content: 'Hydrated transcript', timestamp: 2 },
+        { role: 'user', content: 'Same thread append', timestamp: 3 },
+      ],
+    });
+    rerender(<ChatPage />);
+
+    expect(screen.getByTestId('chat-runtime')).toBe(hydratedRuntime);
+  });
 });

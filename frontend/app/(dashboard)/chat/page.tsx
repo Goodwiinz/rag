@@ -855,6 +855,9 @@ function ChatPageContent() {
     prevActiveConfirmationRef.current = activeConfirmation;
   }, [activeConfirmation, chatInputRef]);
 
+  const runtimeHydrationPhase =
+    displayedMessages.length > 0 ? 'hydrated' : 'empty';
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">
       {/* Mobile sidebar backdrop + drawer */}
@@ -921,7 +924,7 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
-          key={activeThreadId ?? 'new'}
+          key={`${activeThreadId ?? 'new'}:${runtimeHydrationPhase}`}
           messages={displayedMessages}
           isRunning={isLoading || storeIsStreaming || !!activeConfirmation}
           isSendDisabled={!!activeConfirmation}
