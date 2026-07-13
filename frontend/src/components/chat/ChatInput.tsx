@@ -499,8 +499,15 @@ export function ChatInput({
             >
               <div className="flex items-center gap-0.5">
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--nous-bg-2)]"
                   style={{ color: 'var(--nous-fg-3)' }}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
                     e.currentTarget.style.color = 'var(--nous-sol-safe)';
@@ -527,8 +534,15 @@ export function ChatInput({
                   />
                 </label>
                 <label
-                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all"
+                  className="grid place-items-center w-11 h-11 rounded-md cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--nous-bg-2)]"
                   style={{ color: 'var(--nous-fg-3)' }}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'var(--nous-aurum)';
                     e.currentTarget.style.color = 'var(--nous-sol-safe)';
