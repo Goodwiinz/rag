@@ -12,8 +12,6 @@ import React from 'react';
 
 export interface WelcomeStateProps {
   onPromptSelect: (prompt: string) => void;
-  /** Accepted for API compatibility; the empty state renders the same regardless. */
-  selectedModel?: string;
 }
 
 interface Starter {

@@ -219,8 +219,6 @@ export interface UseChatStreamingReturn {
    * global single-flight `storeIsStreaming` the composer blocks on. */
   streamingThreadId: string | null;
   streamingTimestampRef: React.MutableRefObject<number>;
-  selectedModel: string;
-  setSelectedModel: (model: string) => void;
 }
 
 // ============================================
@@ -311,8 +309,6 @@ export function useChatStreaming(
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const streamingThreadId = useChatStore((state) => state.streamingThreadId);
-  const selectedModel = useChatStore((state) => state.selectedModel);
-  const setSelectedModel = useChatStore((state) => state.setSelectedModel);
 
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -955,7 +951,6 @@ export function useChatStreaming(
                 },
                 use_rag: enableRAG,
                 thread_id: existingAgentThreadId,
-                model: selectedModel,
               },
               streamCallbacks,
               signal
@@ -980,7 +975,6 @@ export function useChatStreaming(
       setCurrentThread,
       router,
       enableRAG,
-      selectedModel,
       boundProjectId,
       resolvedProjectName,
       runStreamTurn,
@@ -1420,7 +1414,5 @@ export function useChatStreaming(
     storeIsRetrievingRag,
     streamingThreadId,
     streamingTimestampRef,
-    selectedModel,
-    setSelectedModel,
   };
 }
