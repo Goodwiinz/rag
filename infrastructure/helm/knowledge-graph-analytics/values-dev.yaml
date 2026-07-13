@@ -127,6 +127,14 @@ backend:
       value: "1"
     - name: TIMEOUT
       value: "300"
+    # Durable agent dispatch (audit X1): route POST /agent/execute through the
+    # Celery `agent_runs` queue instead of request-local BackgroundTasks, so a
+    # pod kill after the job_id response no longer loses the run. Idempotency
+    # key + one-shot claim make redelivery safe; SSE streaming path unchanged.
+    # Rollback is instant: flip back to "background" (values-only, no rebuild).
+    # Requires the celery worker to consume the `agent_runs` queue (-Q).
+    - name: AGENT_DISPATCH_BACKEND
+      value: "celery"
     # Cap glibc per-thread arenas to reduce RSS bloat (default 8*CPU on
     # multi-core). Combined with WORKERS=1, cuts steady-state memory ~30-40%.
     - name: MALLOC_ARENA_MAX
