@@ -921,6 +921,7 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
+          key={activeThreadId ?? 'new'}
           messages={displayedMessages}
           isRunning={isLoading || storeIsStreaming || !!activeConfirmation}
           isSendDisabled={!!activeConfirmation}

@@ -23,6 +23,12 @@ vi.mock('@/components/chat/ChatMessageList', () => ({
   ChatMessageList: () => <div data-testid="chat-message-list" />,
 }));
 
+vi.mock('@/components/chat/aui/ChatRuntimeProvider', () => ({
+  ChatRuntimeProvider: ({ children }: { children: React.ReactNode }) => (
+    <section data-testid="chat-runtime">{children}</section>
+  ),
+}));
+
 vi.mock('@/components/chat/ChatSidebar', () => ({
   ChatSidebar: (props: { onSelect: (id: string) => void }) => (
     <button
@@ -139,5 +145,29 @@ describe('ChatPage thread selection', () => {
     expect(session.setMessages).not.toHaveBeenCalledWith([]);
     expect(session.setActiveConversationId).not.toHaveBeenCalled();
     expect(session.setCurrentThread).not.toHaveBeenCalled();
+  });
+
+  it('mounts a fresh assistant runtime when the active thread changes', () => {
+    const { rerender } = render(<ChatPage />);
+    const runtimeForThreadOne = screen.getByTestId('chat-runtime');
+    const threadOneSession = mockUseChatSession.mock.results[0]?.value;
+
+    rerender(<ChatPage />);
+    expect(screen.getByTestId('chat-runtime')).toBe(runtimeForThreadOne);
+
+    mockUseChatSession.mockReturnValue({
+      ...threadOneSession,
+      activeConversationId: 'thread-2',
+      activeConversationIdRef: { current: 'thread-2' },
+      currentThreadIdFromStore: 'thread-2',
+      activeThreadId: 'thread-2',
+      displayedMessages: [
+        { role: 'assistant', content: 'Second transcript', timestamp: 2 },
+      ],
+    });
+
+    rerender(<ChatPage />);
+
+    expect(screen.getByTestId('chat-runtime')).not.toBe(runtimeForThreadOne);
   });
 });
