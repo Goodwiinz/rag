@@ -2,7 +2,6 @@
 
 import { ComposerPrimitive } from '@assistant-ui/react';
 import { cn } from '@/lib/utils';
-import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import {
   SlashCommandMenu,
   SLASH_LISTBOX_ID,
@@ -30,9 +29,6 @@ interface ChatInputProps {
   onRAGToggle: (enabled: boolean) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onAttach?: (files: FileList) => void;
-  selectedModelId?: string;
-  onModelChange?: (id: string) => void;
-  // Phase-aware status pill (shown only while generating)
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
 }
@@ -71,8 +67,6 @@ export function ChatInput({
   onRAGToggle,
   inputRef,
   onAttach,
-  selectedModelId,
-  onModelChange,
   onCommand,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -286,7 +280,7 @@ export function ChatInput({
               'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
           }}
         >
-          {/* Top strip — live status, Ultra Thinking, model, counter */}
+          {/* Top strip — live status, Ultra Thinking, counter */}
           <div
             className="flex items-center justify-between gap-2 px-3 py-2 border-b"
             style={{
@@ -344,16 +338,6 @@ export function ChatInput({
                   Ultra Thinking
                 </span>
               </button>
-
-              {onModelChange && (
-                <div className="hidden sm:block">
-                  <ModelSelector
-                    models={AVAILABLE_MODELS}
-                    selectedModelId={selectedModelId}
-                    onModelChange={onModelChange}
-                  />
-                </div>
-              )}
             </div>
 
             <div

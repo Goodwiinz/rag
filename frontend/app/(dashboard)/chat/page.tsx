@@ -138,8 +138,6 @@ function ChatPageContent() {
     storeStreamingContent,
     storeIsRetrievingRag,
     streamingThreadId,
-    selectedModel,
-    setSelectedModel,
   } = useChatStreaming({
     messages,
     displayedMessages,
@@ -1012,10 +1010,7 @@ function ChatPageContent() {
             !isStreamingThisThread ? (
             <div className="flex-1 relative min-h-0">
               <div className="h-full overflow-y-auto overflow-x-hidden nous-scrollbar">
-                <WelcomeState
-                  onPromptSelect={handlePromptSelect}
-                  selectedModel="nous-agent"
-                />
+                <WelcomeState onPromptSelect={handlePromptSelect} />
               </div>
             </div>
           ) : (
@@ -1035,7 +1030,9 @@ function ChatPageContent() {
               onCitationClick={handleCitationClick}
               commandOutputs={commandOutputs}
               onCommandItemAction={handleCommandItemAction}
-              isRetrievingRag={isStreamingThisThread ? storeIsRetrievingRag : false}
+              isRetrievingRag={
+                isStreamingThisThread ? storeIsRetrievingRag : false
+              }
               onLoadOlder={
                 activeThreadId
                   ? () => loadOlderMessages(activeThreadId)
@@ -1054,7 +1051,6 @@ function ChatPageContent() {
             />
           )}
 
-
           {/* Input Area */}
           <ChatInput
             value={input}
@@ -1066,8 +1062,6 @@ function ChatPageContent() {
             onRAGToggle={setEnableRAG}
             inputRef={chatInputRef}
             onAttach={handleAttach}
-            selectedModelId={selectedModel}
-            onModelChange={setSelectedModel}
             onCommand={handleSlashCommand}
           />
         </ChatRuntimeProvider>

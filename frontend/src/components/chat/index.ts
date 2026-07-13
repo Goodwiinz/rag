@@ -20,12 +20,6 @@ export {
   CitationRenderer,
   default as CitationRendererComponent,
 } from './CitationRenderer';
-export {
-  ModelSelector,
-  AVAILABLE_MODELS,
-  default as ModelSelectorComponent,
-} from './ModelSelector';
-
 // Extracted components from chat page
 export {
   ModelLoadingProgress,
@@ -46,13 +40,9 @@ export {
 export type { ChatMetrics } from './ChatAnalytics';
 export type { ChatSettings } from './ChatSettings';
 export type { ModelLoadingProgressProps } from './ModelLoadingProgress';
-export type { Model, ExtendedModel } from './ModelSelector';
 export type { WelcomeStateProps } from './WelcomeState';
 export type { RAGToggleProps } from './RAGToggle';
-export type {
-  ChatBubbleProps,
-  ChatBubbleMessage,
-} from './shared/ChatBubble';
+export type { ChatBubbleProps, ChatBubbleMessage } from './shared/ChatBubble';
 export type { SearchComposerProps } from './shared/SearchComposer';
 export type { ChatMessageViewModel } from './shared/messageViewModel';
 export { ChatDialogs } from './ChatDialogs';

@@ -167,7 +167,6 @@ interface ChatState {
   shortcutsDialogOpen: boolean;
   copiedMessageId: string | null;
   sidebarCollapsed: boolean;
-  selectedModel: string;
 
   // Bulk selection state
   selectedThreadIds: Set<string>;
@@ -261,7 +260,6 @@ interface ChatActions {
 
   // UI actions
   setShortcutsDialogOpen: (open: boolean) => void;
-  setSelectedModel: (model: string) => void;
   setCopiedMessageId: (id: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
 
@@ -412,7 +410,6 @@ const initialState: ChatState = {
   shortcutsDialogOpen: false,
   copiedMessageId: null,
   sidebarCollapsed: false,
-  selectedModel: '',
   selectedThreadIds: new Set<string>(),
   isSelectMode: false,
   // Streaming state
@@ -1370,12 +1367,6 @@ export const useChatStore = create<ChatStore>()(
       setSidebarCollapsed: (collapsed) => {
         set((state) => {
           state.sidebarCollapsed = collapsed;
-        });
-      },
-
-      setSelectedModel: (model) => {
-        set((state) => {
-          state.selectedModel = model;
         });
       },
 
