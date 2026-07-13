@@ -62,9 +62,12 @@ function TranscriptSkeleton() {
   return (
     <div
       className="mx-auto max-w-(--nous-chat-col) space-y-8 p-6"
+      role="status"
+      aria-live="polite"
       aria-busy="true"
       aria-label="Loading conversation"
     >
+      <p className="nous-caption text-(--nous-fg-3)">Loading conversation</p>
       {[0, 1, 2].map((row) => (
         <div
           key={row}

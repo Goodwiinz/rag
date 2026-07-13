@@ -206,4 +206,19 @@ describe('ChatPage thread selection', () => {
 
     expect(screen.getByTestId('chat-runtime')).toBe(hydratedRuntime);
   });
+
+  it('announces the transcript loading state', () => {
+    mockUseChatSession.mockReturnValue({
+      ...mockUseChatSession(),
+      isLoadingMessages: true,
+      displayedMessages: [],
+    });
+
+    render(<ChatPage />);
+
+    expect(
+      screen.getByRole('status', { name: 'Loading conversation' })
+    ).toBeInTheDocument();
+    expect(screen.getByText('Loading conversation')).toBeVisible();
+  });
 });
