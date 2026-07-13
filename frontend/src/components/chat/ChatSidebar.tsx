@@ -68,6 +68,14 @@ interface DateSection {
   items: SidebarConversation[];
 }
 
+const SIDEBAR_PREVIEW_MAX_CHARS = 60;
+
+function truncatePreview(content: string): string {
+  return content.length > SIDEBAR_PREVIEW_MAX_CHARS
+    ? `${content.substring(0, SIDEBAR_PREVIEW_MAX_CHARS)}…`
+    : content;
+}
+
 function groupByDate(conversations: SidebarConversation[]): DateSection[] {
   const pinned: SidebarConversation[] = [];
   const today: SidebarConversation[] = [];
@@ -355,15 +363,13 @@ export const ChatSidebar = memo(function ChatSidebar({
               const timeStr = formatCompactTime(new Date(conv.updatedAt));
               const messageCount = conv.messageCount ?? conv.messages.length;
               const lastMessage = conv.messages[conv.messages.length - 1];
+              const previewSource = conv.previewText || lastMessage?.content;
               const snippet =
-                conv.previewText ||
-                (lastMessage?.content
-                  ? lastMessage.content.length > 60
-                    ? lastMessage.content.substring(0, 60) + '…'
-                    : lastMessage.content
+                previewSource
+                  ? truncatePreview(previewSource)
                   : messageCount > 0
                     ? `${messageCount} message${messageCount === 1 ? '' : 's'}`
-                    : 'No messages yet');
+                    : 'No messages yet';
 
               return (
                 <div key={conv.id} className="relative group/row">

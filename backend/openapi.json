@@ -11356,6 +11356,17 @@
             "title": "Last Message At",
             "type": "string"
           },
+          "last_message_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message Preview"
+          },
           "message_count": {
             "default": 0,
             "title": "Message Count",
@@ -11489,6 +11500,17 @@
             "format": "date-time",
             "title": "Last Message At",
             "type": "string"
+          },
+          "last_message_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message Preview"
           },
           "message_count": {
             "default": 0,

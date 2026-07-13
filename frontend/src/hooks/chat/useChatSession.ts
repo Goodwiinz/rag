@@ -41,7 +41,7 @@ function threadToConversation(
     updatedAt: new Date(thread.updated_at).getTime(),
     threadId: thread.id,
     conversationId,
-    previewText: thread.summary || undefined,
+    previewText: thread.last_message_preview || thread.summary || undefined,
     messageCount: thread.message_count,
   };
 }
@@ -128,9 +128,6 @@ export function useChatSession(): UseChatSessionReturn {
   const threadsListConvIdRef = useRef<string | null>(null);
   const threadsPageRef = useRef(1);
 
-  // Loading states
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-
   // ---- Refs ----
   const activeConversationIdRef = useRef<string | null>(null);
   // URL synchronization reads the latest list without subscribing its effect
@@ -165,7 +162,9 @@ export function useChatSession(): UseChatSessionReturn {
   const storeLoadingThreadId = useChatStore(
     (state) => state.loadingThreadId
   );
+  const storeError = useChatStore((state) => state.error);
   const messagePagination = useChatStore((state) => state.messagePagination);
+  const lastLoadingThreadIdRef = useRef<string | null>(null);
 
   // ---- Derived values ----
   const displayedMessages = useMemo(
@@ -240,6 +239,25 @@ export function useChatSession(): UseChatSessionReturn {
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, isInitializing, router]);
+
+  // The paginated store is the single uncached transcript loader. Preserve the
+  // old user-facing failure signal without starting a second detail request,
+  // and scope it to the thread whose load just completed.
+  useEffect(() => {
+    if (storeLoadingThreadId) {
+      lastLoadingThreadIdRef.current = storeLoadingThreadId;
+      return;
+    }
+
+    const completedThreadId = lastLoadingThreadIdRef.current;
+    lastLoadingThreadIdRef.current = null;
+    if (
+      storeError === 'Failed to load messages' &&
+      completedThreadId === activeThreadId
+    ) {
+      toast.error('Could not load this conversation. Please try again.');
+    }
+  }, [activeThreadId, storeError, storeLoadingThreadId]);
 
   // Store messages -> conversations sync
   useEffect(() => {
@@ -433,7 +451,7 @@ export function useChatSession(): UseChatSessionReturn {
         throw error;
       }
     },
-    [mapDbMessageToUiMessage, setCurrentThread]
+    [setCurrentThread]
   );
 
   // CX8: fetch the next page of threads for whichever conversation the
@@ -710,19 +728,16 @@ export function useChatSession(): UseChatSessionReturn {
   // Load messages when active conversation changes (lazy-load from API)
   useEffect(() => {
     if (!activeConversationId) {
-      setIsLoadingMessages(false);
       return;
     }
     const conv = conversations.find((c) => c.id === activeConversationId);
     if (!conv) {
-      setIsLoadingMessages(false);
       return;
     }
 
     // If messages already loaded (cached), use them directly
     if (conv.messages.length > 0) {
       setMessages(conv.messages);
-      setIsLoadingMessages(false);
       return;
     }
 
@@ -735,59 +750,17 @@ export function useChatSession(): UseChatSessionReturn {
     const storeMsgs = store.messages[activeConversationId];
     if (storeMsgs && storeMsgs.length > 0) {
       setMessages(mapStoreMessagesToChatMessages(storeMsgs));
-      setIsLoadingMessages(false);
       return;
     }
-    // ponytail: the fuller fix is to feed displayedMessages solely from the
-    // store and delete the local conversations[].messages cache. Until then we
-    // fall through to the getThread fetch below (which sets `messages`
-    // correctly) rather than skipping on the GLOBAL store.isLoadingMessages
-    // flag — that skip left local stale and is what caused the bleed; the rare
-    // redundant fetch it avoided is not worth the correctness bug.
 
-    // Neither the conversation cache nor the store has this thread: clear the
-    // PREVIOUS thread's transcript NOW, before the async fetch below. Leaving
-    // it in `messages` during the fetch window rendered thread A under thread
-    // B (length-based display merge) and let a send stream A's history as B's
-    // context — the remaining I1 bleed vector.
+    // Neither cache has this thread yet. setCurrentThread already started the
+    // paginated, epoch-guarded store load; clear the previous transcript and
+    // let activeThreadMessages hydrate displayedMessages when that one request
+    // completes. A second getThread request would fetch the full transcript,
+    // duplicate database work, and race the paginated source of truth.
     setMessages([]);
-
-    // Lazy-load messages for this thread using the thread detail endpoint
-    let cancelled = false;
-    setIsLoadingMessages(true);
-    (async () => {
-      try {
-        const threadDetail =
-          await workspaceService.getThread(activeConversationId);
-        if (cancelled) return;
-        const uiMessages = threadDetail.messages.map(mapDbMessageToUiMessage);
-        // Update conversation cache so subsequent switches are instant
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConversationId ? { ...c, messages: uiMessages } : c
-          )
-        );
-        setMessages(uiMessages);
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[Chat] Failed to load messages:', err);
-          // Without a signal the thread renders as the empty "start a
-          // conversation" welcome state — indistinguishable from a genuinely
-          // empty thread — so a transient 500 / expired session looks like
-          // data loss. Tell the user it failed so they can retry.
-          toast.error('Could not load this conversation. Please try again.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingMessages(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on thread selection, not conversation updates
-  }, [activeConversationId, mapDbMessageToUiMessage]);
+  }, [activeConversationId]);
 
   return {
     // State
@@ -801,7 +774,7 @@ export function useChatSession(): UseChatSessionReturn {
     dbConversation,
     isInitializing,
     initError,
-    isLoadingMessages: isLoadingMessages || isThreadLoadPending,
+    isLoadingMessages: isThreadLoadPending,
 
     // Refs
     activeConversationIdRef,

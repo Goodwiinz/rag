@@ -223,6 +223,7 @@ class ThreadResponse(ThreadBase, TimestampMixin):
     id: UUID
     conversation_id: UUID
     summary: Optional[str] = None
+    last_message_preview: Optional[str] = None
     status: ThreadStatus = ThreadStatus.ACTIVE
     last_message_at: datetime
     message_count: int = 0

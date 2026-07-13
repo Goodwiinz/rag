@@ -13762,6 +13762,8 @@ export interface components {
              * Format: date-time
              */
             last_message_at: string;
+            /** Last Message Preview */
+            last_message_preview?: string | null;
             /**
              * Message Count
              * @default 0
@@ -13830,6 +13832,8 @@ export interface components {
              * Format: date-time
              */
             last_message_at: string;
+            /** Last Message Preview */
+            last_message_preview?: string | null;
             /**
              * Message Count
              * @default 0

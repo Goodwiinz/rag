@@ -17,9 +17,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 const listThreadsMock = vi.fn();
+const listMessagesMock = vi.fn();
 vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
     listThreads: (...args: unknown[]) => listThreadsMock(...args),
+    listMessages: (...args: unknown[]) => listMessagesMock(...args),
   },
 }));
 
@@ -38,6 +40,7 @@ function makeThreads(count: number, startIndex: number): Thread[] {
       title: `Thread ${idx}`,
       status: ThreadStatus.ACTIVE,
       last_message_at: new Date().toISOString(),
+      last_message_preview: `Latest message ${idx}`,
       message_count: 0,
       token_count: 0,
       created_at: new Date().toISOString(),
@@ -63,6 +66,14 @@ function threadPage(
 describe('useChatSession sidebar thread pagination (CX8)', () => {
   beforeEach(() => {
     listThreadsMock.mockReset();
+    listMessagesMock.mockReset();
+    listMessagesMock.mockResolvedValue({
+      messages: [],
+      total: 0,
+      page: 1,
+      limit: 100,
+      has_more: false,
+    });
   });
 
   it('exposes hasMoreThreads from the first page and loadMoreThreads appends the next page', async () => {
@@ -76,6 +87,9 @@ describe('useChatSession sidebar thread pagination (CX8)', () => {
 
     expect(result.current.conversations).toHaveLength(50);
     expect(result.current.hasMoreThreads).toBe(true);
+    expect(result.current.conversations[0].previewText).toBe(
+      'Latest message 0'
+    );
 
     listThreadsMock.mockResolvedValueOnce(
       threadPage(makeThreads(50, 50), 2, 120)
@@ -94,6 +108,9 @@ describe('useChatSession sidebar thread pagination (CX8)', () => {
     const ids = result.current.conversations.map((c) => c.id);
     expect(new Set(ids).size).toBe(100);
     expect(result.current.hasMoreThreads).toBe(true);
+    expect(result.current.conversations[50].previewText).toBe(
+      'Latest message 50'
+    );
   });
 
   it('stops exposing hasMoreThreads once the last page is loaded', async () => {

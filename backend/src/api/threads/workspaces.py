@@ -59,6 +59,8 @@ from src.schemas.chat import (  # Workspace schemas; Conversation schemas; Threa
 
 logger = logging.getLogger(__name__)
 
+THREAD_PREVIEW_MAX_CHARS = 240
+
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
 
 # Standalone router for flat API paths (used by frontend)
@@ -648,22 +650,26 @@ async def list_threads(
 
     # Fetch threads
     offset = (page - 1) * limit
+    preview_expr = _last_message_preview_expression()
     stmt = (
-        select(Thread)
+        select(Thread, preview_expr)
         .where(*base_conditions)
         .order_by(Thread.last_message_at.desc())
         .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
-    threads = result.scalars().all()
+    thread_rows = result.all()
 
     return ThreadListResponse(
-        threads=[_thread_to_response(t) for t in threads],
+        threads=[
+            _thread_to_response(thread, last_message_preview=preview)
+            for thread, preview in thread_rows
+        ],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(threads)) < total,
+        has_more=(offset + len(thread_rows)) < total,
     )
 
 
@@ -1426,13 +1432,33 @@ def _conversation_to_response(
     )
 
 
-def _thread_to_response(thread: Thread) -> ThreadResponse:
+def _last_message_preview_expression():
+    """Latest non-deleted message excerpt for a thread-list row."""
+    return (
+        select(func.substr(ChatMessage.content, 1, THREAD_PREVIEW_MAX_CHARS))
+        .where(
+            ChatMessage.thread_id == Thread.id,
+            ChatMessage.is_deleted == False,
+            ChatMessage.role.in_([MessageRole.USER, MessageRole.ASSISTANT]),
+        )
+        .order_by(ChatMessage.created_at.desc())
+        .limit(1)
+        .correlate(Thread)
+        .scalar_subquery()
+        .label("last_message_preview")
+    )
+
+
+def _thread_to_response(
+    thread: Thread, last_message_preview: Optional[str] = None
+) -> ThreadResponse:
     """Convert Thread model to response schema"""
     return ThreadResponse(
         id=thread.id,
         conversation_id=thread.conversation_id,
         title=thread.title or thread.generate_title(),
         summary=thread.summary,
+        last_message_preview=last_message_preview,
         status=thread.status.value if thread.status else "active",
         last_message_at=thread.last_message_at,
         message_count=thread.message_count or 0,
@@ -2229,22 +2255,26 @@ async def list_threads_standalone(
 
     # Fetch threads
     offset = (page - 1) * limit
+    preview_expr = _last_message_preview_expression()
     stmt = (
-        select(Thread)
+        select(Thread, preview_expr)
         .where(*base_conditions)
         .order_by(Thread.last_message_at.desc())
         .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
-    threads = result.scalars().all()
+    thread_rows = result.all()
 
     return ThreadListResponse(
-        threads=[_thread_to_response(t) for t in threads],
+        threads=[
+            _thread_to_response(thread, last_message_preview=preview)
+            for thread, preview in thread_rows
+        ],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(threads)) < total,
+        has_more=(offset + len(thread_rows)) < total,
     )
 
 
