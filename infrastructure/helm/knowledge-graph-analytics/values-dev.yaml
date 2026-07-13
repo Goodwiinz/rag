@@ -111,6 +111,14 @@ backend:
     # to "false", values-only, no image rebuild.
     - name: RECONCILER_APPLY
       value: "true"
+    # Data retention (audit D5): RETENTION_ENABLED=true is the code default
+    # (dry-run). APPLY=true arms real deletes of soft-deleted threads >30d,
+    # synthetic threads >7d, and append-only events >180d — org-scoped,
+    # batch-capped. Dry-run verified on dev first (2026-07-13: 5 soft-deleted
+    # threads / 28 msgs / 62 checkpoints, 0 append-only rows, synthetic-thread
+    # backlog — all safe). Rollback: flip to "false", values-only.
+    - name: RETENTION_APPLY
+      value: "true"
     - name: PYTHONPATH
       value: "/app"
     - name: LOG_LEVEL
