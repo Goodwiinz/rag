@@ -376,6 +376,10 @@ function ChatPageContent() {
   // on desktop, where it's already closed and hidden.
   const handleSelectThread = useCallback(
     (id: string) => {
+      if (id === activeConversationIdRef.current) {
+        setMobileSidebarOpen(false);
+        return;
+      }
       // Clear the previous thread's messages BEFORE switching so the loading
       // skeleton shows instead of the old thread's transcript flashing while
       // the new one loads (fix/chat-loading-consistency).

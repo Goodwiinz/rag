@@ -133,6 +133,10 @@ export function useChatSession(): UseChatSessionReturn {
 
   // ---- Refs ----
   const activeConversationIdRef = useRef<string | null>(null);
+  // URL synchronization reads the latest list without subscribing its effect
+  // to conversation-cache writes, which are common during a thread handoff.
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
   const isHydratedRef = useRef(false);
 
   // ---- Auth ----
@@ -207,6 +211,9 @@ export function useChatSession(): UseChatSessionReturn {
   const searchParams = useSearchParams();
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
+  // Depend on the primitive value, not the search-params object: local state
+  // renders may change object identity before router.push updates ?thread=.
+  const threadFromUrl = searchParams.get('thread');
   const router = useRouter();
 
   // ---- Effects ----
@@ -257,18 +264,18 @@ export function useChatSession(): UseChatSessionReturn {
 
   // Handle thread switching from URL query param (single source of truth)
   useEffect(() => {
-    if (conversations.length === 0 || isInitializing) {
+    if (conversationsRef.current.length === 0 || isInitializing) {
       return;
     }
 
-    const threadFromUrl = searchParams.get('thread');
-
     if (threadFromUrl) {
       console.log('[Chat] Thread switch requested:', threadFromUrl);
-      const targetConv = conversations.find((c) => c.id === threadFromUrl);
+      const targetConv = conversationsRef.current.find(
+        (c) => c.id === threadFromUrl
+      );
 
       if (targetConv) {
-        if (targetConv.id !== activeConversationId) {
+        if (targetConv.id !== activeConversationIdRef.current) {
           setActiveConversationId(targetConv.id);
           activeConversationIdRef.current = targetConv.id;
           setMessages(targetConv.messages);
@@ -285,11 +292,20 @@ export function useChatSession(): UseChatSessionReturn {
       );
 
       let cancelled = false;
+      const activeThreadAtRequestStart = activeConversationIdRef.current;
 
       (async () => {
         try {
           const threadDetail = await workspaceService.getThread(threadFromUrl);
-          if (cancelled) return;
+          // A sidebar selection can happen before router.push replaces the old
+          // URL. Do not let this stale detail response overwrite that newer
+          // local selection while the query string is catching up.
+          if (
+            cancelled ||
+            activeConversationIdRef.current !== activeThreadAtRequestStart
+          ) {
+            return;
+          }
 
           const uiMessages = threadDetail.messages.map(mapDbMessageToUiMessage);
           setConversations((prev) =>
@@ -320,10 +336,8 @@ export function useChatSession(): UseChatSessionReturn {
       };
     }
   }, [
-    searchParams,
-    conversations,
+    threadFromUrl,
     isInitializing,
-    activeConversationId,
     mapDbMessageToUiMessage,
     setCurrentThread,
   ]);
