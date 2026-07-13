@@ -292,6 +292,10 @@ const MAX_REINIT_RETRIES = 3;
 // When exceeded, the oldest threads (by key insertion order) are evicted.
 const MAX_CACHED_THREADS = 50;
 
+// A thread selection only needs the recent context visible in the viewport.
+// Older messages remain available through explicit cursor pagination.
+const INITIAL_MESSAGE_PAGE_SIZE = 50;
+
 // Helper type for the recovery handler
 type RecoveryResult =
   | { shouldProceed: false }
@@ -1089,7 +1093,7 @@ export const useChatStore = create<ChatStore>()(
           // display order (oldest first, newest at the bottom). `has_more`
           // from a desc query means "older messages remain".
           const response = await workspaceService.listMessages(threadId, {
-            limit: 100,
+            limit: INITIAL_MESSAGE_PAGE_SIZE,
             order: 'desc',
           });
           const ordered = Array.isArray(response.messages)

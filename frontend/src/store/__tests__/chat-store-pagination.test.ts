@@ -224,7 +224,7 @@ describe('loadMessages (newest-first initial load)', () => {
     });
 
     expect(listMessagesMock).toHaveBeenCalledWith(THREAD, {
-      limit: 100,
+      limit: 50,
       order: 'desc',
     });
 
