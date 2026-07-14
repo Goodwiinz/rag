@@ -46,7 +46,7 @@ The status pill in `ChatInput` tracks three phases: `retrieving` (while `isRAGLo
 - `useAgentActivityStore` (`@/stores/agentActivityStore`): agent run steps, consumed by `InlineAgentSummary`.
 - `shared/cloudMessageView.ts`: `selectDisplayedMessages` reconciles optimistic local messages with the store's authoritative `ChatMessage[]` (prefers store when at least as long as local).
 - `shared/messageViewModel.ts`: maps search-result payloads to `ChatMessageViewModel[]` (used by search-page chat mode).
-- `shared/threadConversationState.ts`: `upsertConversationFromThreadDetail` — upserts a thread into the conversation list from a `ThreadDetail` API response.
+- `shared/threadConversationState.ts`: `upsertConversationFromThread` — upserts thread metadata plus an explicit bounded message page into the conversation list.
 
 ---
 

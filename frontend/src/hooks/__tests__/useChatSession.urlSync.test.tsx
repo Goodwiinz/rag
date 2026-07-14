@@ -9,6 +9,10 @@ const navigationMocks = vi.hoisted(() => ({
 }));
 
 const workspaceMocks = vi.hoisted(() => ({
+  getOrCreateDefaultWorkspace: vi.fn(),
+  getOrCreateDefaultConversation: vi.fn(),
+  listThreads: vi.fn(),
+  listConversations: vi.fn(),
   getThread: vi.fn(),
 }));
 
@@ -26,7 +30,8 @@ const chatStoreMocks = vi.hoisted(() => {
     <T,>(selector: (store: typeof state) => T) => selector(state),
     {
       getState: () => state,
-      setState: (partial: Partial<typeof state>) => Object.assign(state, partial),
+      setState: (partial: Partial<typeof state>) =>
+        Object.assign(state, partial),
     }
   );
   return { state, useStore };
@@ -38,7 +43,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: () => ({ isAuthenticated: false }),
+  useAuthStore: () => ({ isAuthenticated: true }),
 }));
 
 vi.mock('@/store/chat-store', () => ({
@@ -46,7 +51,7 @@ vi.mock('@/store/chat-store', () => ({
 }));
 
 vi.mock('@/services/workspaceService', () => ({
-  workspaceService: { getThread: workspaceMocks.getThread },
+  workspaceService: workspaceMocks,
 }));
 
 vi.mock('react-hot-toast', () => ({
@@ -63,9 +68,26 @@ describe('useChatSession URL synchronization', () => {
     );
     chatStoreMocks.state.currentThreadId = null;
     workspaceMocks.getThread.mockReset();
+    workspaceMocks.getOrCreateDefaultWorkspace.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+    });
+    workspaceMocks.getOrCreateDefaultConversation.mockResolvedValue({
+      id: 'conv-1',
+      title: 'New Chat',
+    });
+    workspaceMocks.listThreads.mockResolvedValue({
+      threads: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+      has_more: false,
+    });
+    workspaceMocks.listConversations.mockResolvedValue({ conversations: [] });
   });
 
   it('does not replay the initial URL thread while a sidebar selection is navigating', async () => {
+    workspaceMocks.getThread.mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useChatSession());
 
     await waitFor(() => expect(result.current.isInitializing).toBe(false));
@@ -165,9 +187,12 @@ describe('useChatSession URL synchronization', () => {
     navigationMocks.searchParams.get.mockImplementation((key: string) =>
       key === 'thread' ? 'thread-A' : null
     );
+    chatStoreMocks.state.setCurrentThread.mockClear();
     rerender();
     await waitFor(() =>
-      expect(workspaceMocks.getThread).toHaveBeenCalledWith('thread-A')
+      expect(workspaceMocks.getThread).toHaveBeenCalledWith('thread-A', {
+        includeMessages: false,
+      })
     );
 
     act(() => {
@@ -185,5 +210,52 @@ describe('useChatSession URL synchronization', () => {
     });
 
     expect(result.current.activeConversationId).toBe('thread-B');
+    expect(chatStoreMocks.state.setCurrentThread).not.toHaveBeenCalledWith(
+      'thread-A'
+    );
+  });
+
+  it('does not project legacy detail messages before the bounded store page loads', async () => {
+    navigationMocks.searchParams.get.mockReturnValue(null);
+    const { result, rerender } = renderHook(() => useChatSession());
+
+    await waitFor(() => expect(result.current.isInitializing).toBe(false));
+
+    workspaceMocks.getThread.mockResolvedValue({
+      id: 'thread-A',
+      conversation_id: 'conv-1',
+      title: 'A',
+      status: 'active',
+      last_message_at: '2026-07-14T12:00:00Z',
+      message_count: 1000,
+      token_count: 1000,
+      created_at: '2026-07-14T12:00:00Z',
+      updated_at: '2026-07-14T12:00:00Z',
+      messages: Array.from({ length: 1000 }, (_, index) => ({
+        id: `legacy-${index}`,
+        thread_id: 'thread-A',
+        role: 'user',
+        content: `legacy ${index}`,
+        token_count: 1,
+        citations: [],
+        attachments: [],
+        created_at: '2026-07-14T12:00:00Z',
+        updated_at: '2026-07-14T12:00:00Z',
+      })),
+    });
+    navigationMocks.searchParams.get.mockImplementation((key: string) =>
+      key === 'thread' ? 'thread-A' : null
+    );
+    rerender();
+
+    await waitFor(() =>
+      expect(chatStoreMocks.state.setCurrentThread).toHaveBeenCalledWith(
+        'thread-A'
+      )
+    );
+    expect(workspaceMocks.getThread).toHaveBeenCalledWith('thread-A', {
+      includeMessages: false,
+    });
+    expect(result.current.messages).toEqual([]);
   });
 });
