@@ -14,7 +14,10 @@ const chatStoreMocks = vi.hoisted(() => {
     currentThreadId: null as string | null,
     messages: {} as Record<string, []>,
     addMessageToStore: vi.fn(),
+    loadMessages: vi.fn(),
     loadOlderMessages: vi.fn(),
+    loadingThreadId: null as string | null,
+    error: null as string | null,
     messagePagination: {},
     isLoadingMessages: false,
     setCurrentThread: vi.fn(),
@@ -63,6 +66,7 @@ describe('useChatSession watchdog', () => {
     });
     workspaceMocks.listThreads.mockResolvedValue({ threads: [] });
     workspaceMocks.listConversations.mockResolvedValue({ conversations: [] });
+    chatStoreMocks.state.loadMessages.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -116,10 +120,10 @@ describe('useChatSession watchdog', () => {
       has_more: false,
     });
 
-    let resolveOldThread!: (thread: unknown) => void;
-    workspaceMocks.getThread.mockReturnValue(
+    let resolveOldMessages!: () => void;
+    chatStoreMocks.state.loadMessages.mockReturnValue(
       new Promise((resolve) => {
-        resolveOldThread = resolve;
+        resolveOldMessages = resolve;
       })
     );
 
@@ -147,18 +151,7 @@ describe('useChatSession watchdog', () => {
     });
 
     await act(async () => {
-      resolveOldThread({
-        id: 'thread-old',
-        conversation_id: 'conv-1',
-        title: 'Old thread',
-        messages: [
-          {
-            role: 'user',
-            content: 'old turn',
-            created_at: new Date().toISOString(),
-          },
-        ],
-      });
+      resolveOldMessages();
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -169,5 +162,6 @@ describe('useChatSession watchdog', () => {
       'new turn',
     ]);
     expect(chatStoreMocks.state.currentThreadId).toBe('thread-new');
+    expect(workspaceMocks.getThread).not.toHaveBeenCalled();
   });
 });
