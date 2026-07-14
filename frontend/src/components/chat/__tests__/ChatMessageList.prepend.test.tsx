@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeAll } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 // The AUI message bubble needs a ThreadRuntime provider that jsdom lacks; the
 // scroll-compensation logic under test is independent of bubble internals.
@@ -75,6 +75,47 @@ describe('ChatMessageList prepend scroll compensation', () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto' });
     expect(scrollIntoView).not.toHaveBeenCalledWith({ behavior: 'smooth' });
+  });
+
+  it('positions a cached thread even when the previous thread was scrolled up', async () => {
+    const scrollIntoView = Element.prototype.scrollIntoView as ReturnType<
+      typeof vi.fn
+    >;
+    const { container, rerender } = render(
+      <ChatMessageList
+        {...baseProps}
+        activeThreadId="thread-A"
+        messages={[msg('a1', 'user'), msg('a2', 'assistant')]}
+      />
+    );
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    scrollIntoView.mockClear();
+
+    const scroller = container.querySelector(
+      '[aria-label="Conversation transcript"]'
+    ) as HTMLElement;
+    Object.defineProperty(scroller, 'scrollHeight', {
+      configurable: true,
+      value: 1200,
+    });
+    Object.defineProperty(scroller, 'clientHeight', {
+      configurable: true,
+      value: 300,
+    });
+    scroller.scrollTop = 50;
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(screen.getByText('New messages')).toBeTruthy());
+
+    rerender(
+      <ChatMessageList
+        {...baseProps}
+        activeThreadId="thread-B"
+        messages={[msg('b1', 'user'), msg('b2', 'assistant')]}
+      />
+    );
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto' });
   });
 
   it('offsets scrollTop by the scrollHeight delta when older messages are prepended', () => {

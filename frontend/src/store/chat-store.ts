@@ -478,20 +478,25 @@ export const useChatStore = create<ChatStore>()(
 
       setCurrentThread: (threadId) => {
         messageLoadEpoch += 1;
+        const snapshot = get();
+        const hasCachedPage =
+          !!threadId &&
+          Object.prototype.hasOwnProperty.call(snapshot.messages, threadId) &&
+          !!snapshot.messagePagination[threadId];
         set((state) => {
           state.currentThreadId = threadId;
-          if (!threadId) {
-            // "New chat": no load follows, and the epoch bump above makes any
-            // in-flight response stale (it early-returns without touching
-            // state) — so the loading flags must be cleared here or they
-            // strand true forever.
+          if (!threadId || hasCachedPage) {
+            // No load follows for a new chat or a valid cached page. The epoch
+            // bump above makes any prior response stale, so clear its loading
+            // flags here rather than stranding them indefinitely.
             state.isLoadingMessages = false;
             state.loadingThreadId = null;
           }
         });
 
-        // Load messages for new thread
-        if (threadId) {
+        // Cached pages (including a known-empty thread) retain their cursor and
+        // loaded history. Explicit loadMessages remains available for refresh.
+        if (threadId && !hasCachedPage) {
           get().loadMessages(threadId);
         }
       },

@@ -70,6 +70,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const scrollRafRef = useRef<number | null>(null);
   const scheduledScrollThreadIdRef = useRef<string | null>(null);
   const positionedThreadIdRef = useRef<string | null>(null);
+  const scrollTickRef = useRef(false);
+  const scrollTickRafRef = useRef<number | null>(null);
+  const loadOlderTriggeredRef = useRef(false);
   const prevMessageCountRef = useRef(messages.length);
   const prevLastIdRef = useRef<string | undefined>(
     messages[messages.length - 1]?.id
@@ -107,6 +110,20 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     prevScrollHeightRef.current = container.scrollHeight;
     prevFirstIdRef.current = firstId;
   }, [messages, currentLastId]);
+
+  // The scroll container survives cached thread switches. Its transient UI
+  // guards must not: a previous thread's "scrolled away" state would block the
+  // new thread's initial positioning, and its load-older guard could suppress
+  // pagination in the newly selected thread.
+  useEffect(() => {
+    if (scrollTickRafRef.current !== null) {
+      cancelAnimationFrame(scrollTickRafRef.current);
+      scrollTickRafRef.current = null;
+    }
+    scrollTickRef.current = false;
+    loadOlderTriggeredRef.current = false;
+    setShowScrollButton(false);
+  }, [activeThreadId]);
 
   // Throttled auto-scroll: at most one scrollIntoView per animation frame.
   // `storeStreamingContent` is in the deps so the view follows tokens as the
@@ -171,9 +188,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     prevLastIdRef.current = currentLastId;
   }, [messages.length, currentLastId]);
 
-  const scrollTickRef = useRef(false);
-  const scrollTickRafRef = useRef<number | null>(null);
-  const loadOlderTriggeredRef = useRef(false);
   const handleScroll = useCallback(() => {
     if (scrollTickRef.current) return;
     scrollTickRef.current = true;

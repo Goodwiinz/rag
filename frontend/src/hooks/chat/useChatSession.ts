@@ -499,6 +499,11 @@ export function useChatSession(): UseChatSessionReturn {
     }, 15000);
 
     const initializeFromDb = async () => {
+      // Initialization may overlap a first send or sidebar selection. Only the
+      // selection that existed when this run began may be restored from warm
+      // data; a newer synchronous ref value owns the UI.
+      const selectionAtInitializationStart = activeConversationIdRef.current;
+
       if (!isAuthenticated) {
         console.log(
           '[Chat] Not authenticated, skipping database initialization'
@@ -554,6 +559,27 @@ export function useChatSession(): UseChatSessionReturn {
           setWorkspace(ws);
 
           if (warmData) {
+            // dbConversation is only needed for NEW-thread creation (post user
+            // action), so fetch it OFF the paint path. Start this regardless of
+            // whether warm transcript data still owns selection.
+            void workspaceService
+              .getOrCreateDefaultConversation(ws.id)
+              .then(setDbConversation)
+              .catch((e) =>
+                console.warn('[Chat] default conversation fetch failed', e)
+              );
+
+            if (
+              activeConversationIdRef.current !== selectionAtInitializationStart
+            ) {
+              isHydratedRef.current = true;
+              setInitError(null);
+              console.log(
+                '[Chat] Warm-start data ignored after newer thread selection'
+              );
+              return;
+            }
+
             const [threadListResponse, threadDetail] = warmData;
             // Map the warm-fetched transcript ONCE and seed it into the active
             // thread's conversation cache. Without this the lazy-load effect
@@ -586,16 +612,6 @@ export function useChatSession(): UseChatSessionReturn {
             isHydratedRef.current = true;
             setInitError(null);
 
-            // dbConversation is only needed for NEW-thread creation (post user
-            // action), so fetch it OFF the paint path — awaiting it here blocked
-            // first paint / isInitializing on an extra HTTP round-trip. The
-            // .catch is required: the call re-throws on 404.
-            void workspaceService
-              .getOrCreateDefaultConversation(ws.id)
-              .then(setDbConversation)
-              .catch((e) =>
-                console.warn('[Chat] default conversation fetch failed', e)
-              );
             console.log('[Chat] Warm-start initialization complete');
             return;
           }
