@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -95,6 +95,50 @@ async def test_order_desc_with_before_id_paginates_older(
     )
 
     assert [m.id for m in out] == [msgs[1].id, msgs[0].id]
+
+
+async def test_before_id_does_not_skip_equal_timestamp_rows(
+    db_session, thread_factory, user_factory
+):
+    """The UUID tie-breaker keeps rows sharing a timestamp pageable."""
+    user = await user_factory()
+    thread = await thread_factory(user=user)
+    timestamp = datetime.utcnow()
+
+    for value in (1, 2, 3):
+        message = ChatMessage(
+            id=UUID(int=value),
+            thread_id=thread.id,
+            user_id=user.id,
+            role=MessageRole.USER,
+            content=f"msg-{value}",
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        db_session.add(message)
+        db_session.info["_created"]["chat_messages"].append(message.id)
+    await db_session.commit()
+
+    service = ChatService(db_session)
+    first, _ = await service.list_messages(
+        thread_id=thread.id,
+        user_id=user.id,
+        limit=2,
+        order="desc",
+    )
+    second, _ = await service.list_messages(
+        thread_id=thread.id,
+        user_id=user.id,
+        limit=2,
+        before_id=first[-1].id,
+        order="desc",
+    )
+
+    assert [row.id for row in first + second] == [
+        UUID(int=3),
+        UUID(int=2),
+        UUID(int=1),
+    ]
 
 
 def test_route_accepts_order_query_param_and_forwards(test_app, monkeypatch):
