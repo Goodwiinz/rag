@@ -1,3 +1,14 @@
+/** One paper change emitted by the backend change tracker (serialized ChangeRecord). */
+export interface ArxivChangeRecord {
+  paper_id: string;
+  change_type: 'new' | 'updated' | 'deleted';
+  old_hash: string | null;
+  new_hash: string;
+  change_date: string;
+  fields_changed: string[];
+  metadata: Record<string, unknown>;
+}
+
 export interface TrackResult {
   status: string;
   timestamp: string;
@@ -7,9 +18,9 @@ export interface TrackResult {
     papers_found: number;
     changes_detected: number;
     changes_by_type: {
-      new: Array<any>;
-      updated: Array<any>;
-      deleted: Array<any>;
+      new: ArxivChangeRecord[];
+      updated: ArxivChangeRecord[];
+      deleted: ArxivChangeRecord[];
     };
     applied: boolean;
     summary: {
@@ -30,10 +41,42 @@ export interface StatsResult {
     deleted_papers: number;
     categories_tracked: number;
     top_categories: Array<[string, number]>;
-    recent_changes_week: any;
-    state_file_path: string;
+    recent_changes_week: Record<string, number>;
   };
 }
+
+/** A single extracted feature: either the value, or an error envelope when that feature failed. */
+export type ExtractionFeatureError = { error: string };
+
+/** A feature the backend cannot yet produce (e.g. topics, arXiv citations) — reported honestly, not fabricated. */
+export type ExtractionFeatureUnsupported = {
+  unsupported: string;
+  topics?: string[];
+  citations?: unknown[];
+  references?: unknown[];
+  citation_count?: number;
+};
+
+export interface ExtractionFeatures {
+  entities?: Array<Record<string, unknown>> | ExtractionFeatureError;
+  topics?:
+    | string[]
+    | ExtractionFeatureError
+    | ExtractionFeatureUnsupported;
+  keyphrases?: string[] | ExtractionFeatureError;
+  summary?: string | ExtractionFeatureError;
+  citations?:
+    | Array<Record<string, unknown>>
+    | ExtractionFeatureError
+    | ExtractionFeatureUnsupported;
+}
+
+/** Per-paper outcome. `partial` = some requested features failed; `failed` = all failed. */
+export type ExtractionStatus =
+  | 'completed'
+  | 'partial'
+  | 'failed'
+  | (string & {});
 
 export interface ExtractionResult {
   status: string;
@@ -42,14 +85,8 @@ export interface ExtractionResult {
   results: Array<{
     paper_id: string;
     title: string;
-    extraction_status: string;
-    features: {
-      entities?: any;
-      topics?: string[] | { error: string };
-      keyphrases?: string[] | { error: string };
-      summary?: string | { error: string };
-      citations?: any;
-    };
+    extraction_status: ExtractionStatus;
+    features: ExtractionFeatures;
     error?: string;
   }>;
 }

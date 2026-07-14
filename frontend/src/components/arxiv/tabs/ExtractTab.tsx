@@ -5,6 +5,33 @@ import React from 'react';
 import { ToggleSwitch } from '../ArxivControls';
 import { ExtractionResult } from '../arxivTypes';
 
+/** Compact, human-readable preview of an extracted feature value. */
+function formatFeatureValue(value: unknown): string {
+  if (value == null) {
+    return '—';
+  }
+  if (typeof value === 'string') {
+    return value.length > 240 ? `${value.slice(0, 240)}…` : value;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return 'none';
+    }
+    const preview = value
+      .slice(0, 6)
+      .map((item) =>
+        typeof item === 'string'
+          ? item
+          : ((item as Record<string, unknown>)?.name ??
+            (item as Record<string, unknown>)?.text ??
+            JSON.stringify(item))
+      )
+      .join(', ');
+    return value.length > 6 ? `${preview} +${value.length - 6} more` : preview;
+  }
+  return JSON.stringify(value);
+}
+
 interface ExtractTabProps {
   isAuthenticated: boolean;
   extractPaperIds: string;
@@ -315,7 +342,9 @@ export function ExtractTab({
 
                 <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1 nous-scrollbar">
                   {extractionResult.results.map((result) => {
-                    const featureKeys = Object.keys(result.features || {});
+                    const featureEntries = Object.entries(
+                      result.features || {}
+                    );
                     const hasFailed = result.extraction_status !== 'completed';
 
                     return (
@@ -355,17 +384,39 @@ export function ExtractTab({
                           </span>
                         </div>
 
-                        {!hasFailed && featureKeys.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {featureKeys.map((key) => (
-                              <span
-                                key={key}
-                                className="rounded border border-border bg-card px-2 py-0.5 text-xs text-muted-foreground"
-                              >
-                                {key}
-                              </span>
-                            ))}
-                          </div>
+                        {featureEntries.length > 0 && (
+                          <dl className="mt-2 space-y-1.5">
+                            {featureEntries.map(([key, value]) => {
+                              const featureError =
+                                value &&
+                                typeof value === 'object' &&
+                                !Array.isArray(value) &&
+                                'error' in value
+                                  ? (value as { error: string }).error
+                                  : null;
+
+                              return (
+                                <div
+                                  key={key}
+                                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                                >
+                                  <dt className="text-xs font-medium capitalize text-muted-foreground">
+                                    {key}
+                                  </dt>
+                                  <dd
+                                    className={cn(
+                                      'min-w-0 flex-1 text-xs',
+                                      featureError
+                                        ? 'text-(--nous-mars)'
+                                        : 'text-foreground'
+                                    )}
+                                  >
+                                    {featureError ?? formatFeatureValue(value)}
+                                  </dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
                         )}
 
                         {result.error && (

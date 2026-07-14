@@ -23,7 +23,10 @@ router = APIRouter()
 
 class ExtractionRequest(BaseModel):
     paper_ids: List[str] = Field(
-        ..., description="List of ArXiv paper IDs to extract features from"
+        ...,
+        description="List of ArXiv paper IDs to extract features from",
+        min_length=1,
+        max_length=50,
     )
     extract_entities: bool = Field(
         default=True, description="Extract entities and relationships"
@@ -43,19 +46,28 @@ class ExtractionResponse(BaseModel):
     status: str
     message: str
     processed_count: int
+    failed_count: int = 0
     results: List[Dict[str, Any]]
 
 
 def _get_organization_id(current_user: User) -> str:
-    """Resolve organization ID from the authenticated User with a deterministic fallback.
+    """Resolve organization ID from the authenticated User.
 
     ``get_current_user`` returns a ``User`` ORM object (organization eagerly
     loaded), NOT a dict — so this reads attributes, never ``.get()``.
+
+    Never fabricate an org id: a random UUID is an invalid FK and silently
+    defeats tenant isolation. Raise 403 instead.
     """
     organization_id = current_user.organization_id or (
         current_user.organization.id if current_user.organization else None
     )
-    return str(organization_id) if organization_id else str(uuid.uuid4())
+    if not organization_id:
+        raise HTTPException(
+            status_code=403,
+            detail="No organization associated with this account",
+        )
+    return str(organization_id)
 
 
 def _serialize_entities(entities: List[Any]) -> Dict[str, Any]:
@@ -119,6 +131,7 @@ async def extract_paper_features(
         async with ArXivIngestionService() as arxiv_service:
             extraction_results = []
             processed_count = 0
+            failed_count = 0
 
             for paper_id in request.paper_ids:
                 try:
@@ -188,7 +201,17 @@ async def extract_paper_features(
                     if request.extract_topics and text_content:
                         try:
                             topics = await _extract_topics_with_llm(text_content)
-                            extraction_result["features"]["topics"] = topics
+                            if topics:
+                                extraction_result["features"]["topics"] = topics
+                            else:
+                                # Real topic extraction is not yet implemented —
+                                # surface it honestly instead of fabricating.
+                                extraction_result["features"]["topics"] = {
+                                    "unsupported": (
+                                        "Topic extraction is not yet available"
+                                    ),
+                                    "topics": [],
+                                }
                         except Exception as e:
                             logger.error(
                                 f"Topic extraction failed for {paper_id}: {e}"
@@ -221,22 +244,58 @@ async def extract_paper_features(
                             )
                             extraction_result["features"]["summary"] = {"error": str(e)}
 
-                    # Extract citations
+                    # Extract citations. NOTE: the arXiv metadata parser does not
+                    # populate citations/references, so these are effectively
+                    # always empty. Report the feature as unsupported rather than
+                    # implying a real (empty) citation graph was extracted.
                     if request.extract_citations:
-                        citations = paper.get("citations", [])
-                        references = paper.get("references", [])
-                        extraction_result["features"]["citations"] = {
+                        citations = paper.get("citations", []) or []
+                        references = paper.get("references", []) or []
+                        citations_feature = {
                             "citations": citations,
                             "references": references,
                             "citation_count": len(citations),
                         }
+                        if not citations and not references:
+                            citations_feature["unsupported"] = (
+                                "Citation extraction is not available for arXiv "
+                                "metadata"
+                            )
+                        extraction_result["features"]["citations"] = citations_feature
 
-                    extraction_result["extraction_status"] = "completed"
+                    # Per-feature failure honesty: a paper is only "completed"
+                    # if every attempted feature succeeded. Any feature carrying
+                    # an {"error": ...} payload downgrades the paper to "partial"
+                    # (some features failed) or "failed" (all did). The
+                    # per-feature error stays in the payload so the client can
+                    # render exactly what broke.
+                    features = extraction_result["features"]
+                    attempted = list(features.keys())
+                    errored = [
+                        name
+                        for name, val in features.items()
+                        if isinstance(val, dict) and "error" in val
+                    ]
+                    if attempted and len(errored) == len(attempted):
+                        extraction_result["extraction_status"] = "failed"
+                    elif errored:
+                        extraction_result["extraction_status"] = "partial"
+                    else:
+                        extraction_result["extraction_status"] = "completed"
+
+                    if errored:
+                        extraction_result["errors"] = errored
+
                     extraction_results.append(extraction_result)
-                    processed_count += 1
+
+                    if extraction_result["extraction_status"] == "failed":
+                        failed_count += 1
+                    else:
+                        processed_count += 1
 
                 except Exception as e:
                     logger.error(f"Failed to process paper {paper_id}: {e}")
+                    failed_count += 1
                     extraction_results.append(
                         {
                             "paper_id": paper_id,
@@ -261,8 +320,12 @@ async def extract_paper_features(
 
             return ExtractionResponse(
                 status="success",
-                message=f"Successfully extracted features from {processed_count} papers",
+                message=(
+                    f"Extracted features from {processed_count} papers"
+                    + (f" ({failed_count} failed)" if failed_count else "")
+                ),
                 processed_count=processed_count,
+                failed_count=failed_count,
                 results=extraction_results,
             )
 
@@ -370,8 +433,9 @@ async def bulk_extract_features(
                 "paper_count": 0,
             }
 
-        # Extract paper IDs
-        paper_ids = [paper["id"] for paper in papers]
+        # Extract paper IDs, capped to the per-request maximum (each paper is a
+        # sequential ~3s arXiv call inside extract_paper_features).
+        paper_ids = [paper["id"] for paper in papers][:50]
 
         # Create extraction request
         extraction_request = ExtractionRequest(
@@ -408,13 +472,14 @@ async def bulk_extract_features(
 
 # Helper functions
 async def _extract_topics_with_llm(text: str, max_topics: int = 5) -> List[str]:
-    """Extract topics from text using LLM"""
-    try:
-        # This would use the configured LLM service
-        # For now, return placeholder
-        return ["Machine Learning", "Natural Language Processing", "Computer Vision"]
-    except Exception:
-        return []
+    """Extract topics from text using an LLM.
+
+    TODO(arxiv-audit): real LLM-backed topic extraction is not implemented yet.
+    Return an empty list rather than hard-coded placeholder topics — fabricated
+    topics were previously written to the knowledge graph as if they were real.
+    The caller treats an empty result as "unsupported" and writes nothing.
+    """
+    return []
 
 
 async def _extract_keyphrases(text: str, max_phrases: int = 10) -> List[str]:
@@ -506,7 +571,10 @@ async def _update_knowledge_graph_with_extractions(
             synced_count = 0
 
             for result in extraction_results:
-                if result.get("extraction_status") != "completed":
+                # Sync both fully-completed and partially-completed papers so a
+                # single failed feature does not discard the good ones. Only
+                # truly failed / unprocessed papers are skipped.
+                if result.get("extraction_status") not in ("completed", "partial"):
                     continue
 
                 paper_id = result.get("paper_id")
@@ -556,6 +624,10 @@ async def _update_knowledge_graph_with_extractions(
 
                     if isinstance(features.get("topics"), list):
                         for topic in features["topics"]:
+                            # Skip empty/placeholder topics — never write blanks
+                            # to the KG.
+                            if not topic or not str(topic).strip():
+                                continue
                             topic_request = CreateEntityRequest(
                                 entity_type=EntityType.CONCEPT,
                                 name=topic,

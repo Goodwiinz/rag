@@ -80,7 +80,6 @@ const statsResponse = {
       ['cs.LG', 41],
     ],
     recent_changes_week: {},
-    state_file_path: 'data/arxiv_change_state.json',
   },
 };
 
@@ -329,6 +328,52 @@ describe('ArxivManagement', () => {
       await screen.findByText(
         'BERT: Pre-training of Deep Bidirectional Transformers'
       )
+    ).toBeInTheDocument();
+
+    // Successful features render their VALUES, not just their names.
+    expect(
+      await screen.findByText(/transformers, sequence modeling/)
+    ).toBeInTheDocument();
+  });
+
+  it('surfaces per-feature errors and the partial status for a partial extraction', async () => {
+    mockApi.postWithLongTimeout.mockImplementation(async (url: string) => {
+      if (url === '/arxiv/extraction/extract-features') {
+        return {
+          status: 'success',
+          message: 'Extraction partially complete',
+          processed_count: 1,
+          results: [
+            {
+              paper_id: '1706.03762',
+              title: 'Attention Is All You Need',
+              extraction_status: 'partial',
+              features: {
+                topics: ['transformers'],
+                citations: { error: 'Citation parsing unavailable' },
+              },
+            },
+          ],
+        } as never;
+      }
+
+      throw new Error(`Unexpected endpoint: ${url}`);
+    });
+
+    render(<ArxivManagement />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Extract' }));
+    fireEvent.change(
+      screen.getByLabelText('Paper IDs (one per line or comma-separated)'),
+      { target: { value: '1706.03762' } }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Extract Features' }));
+
+    // The per-paper status badge shows "partial", and the failed feature's
+    // error is rendered instead of being silently dropped.
+    expect(await screen.findByText('partial')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Citation parsing unavailable')
     ).toBeInTheDocument();
   });
 
