@@ -143,7 +143,7 @@ if (isNewChat && !threadFromUrl) {
   if (urlConversation) {
     setActiveConversationId(urlConversation.id);
     activeConversationIdRef.current = urlConversation.id;
-    setMessages(urlConversation.messages);
+    setMessages([]);
     setCurrentThread(urlConversation.id);
   } else {
     // Leave selection empty. The URL metadata effect owns this target.
@@ -183,6 +183,11 @@ const restoreThreadId = isNewChat
 ```
 
 Use `restoreThreadId` everywhere the warm path currently uses `persistedThreadId`.
+Warm initialization is the sole owner while `isInitializing` is true: if the
+URL target is outside the sidebar page, this path performs exactly one
+metadata-only lookup and one bounded store load before the URL effect can run.
+After warm state commits, the URL effect sees the already-active conversation
+and performs no second request.
 
 **Step 5: Run the focused hook tests and verify GREEN**
 
@@ -295,6 +300,7 @@ export function upsertConversationFromThread<T extends ConversationStateItem>(
     updatedAt: new Date(thread.updated_at).getTime(),
     threadId: thread.id,
     conversationId: thread.conversation_id,
+    // Store-backed pages are ascending for display, so the final row is newest.
     previewText:
       messages[messages.length - 1]?.content ??
       thread.last_message_preview ??
@@ -556,6 +562,16 @@ Expected: TypeScript PASS, ESLint 0 errors, full frontend suite PASS.
 **Step 4: Run backend verification**
 
 ```bash
+ruff check \
+  backend/src/services/threads/chat_service.py \
+  backend/tests/api/threads/test_messages_order_param.py
+black --check --line-length 88 \
+  backend/src/services/threads/chat_service.py \
+  backend/tests/api/threads/test_messages_order_param.py
+isort --check-only --line-length 88 \
+  backend/src/services/threads/chat_service.py \
+  backend/tests/api/threads/test_messages_order_param.py
+mypy backend/src --ignore-missing-imports
 pytest \
   backend/tests/api/threads/test_messages_order_param.py \
   backend/tests/api/threads/test_messages_before_id_scoping.py \
@@ -563,7 +579,11 @@ pytest \
   -c backend/pytest.ini -q
 ```
 
-Expected: PASS. If this worktree still lacks pytest, run this in the repo's provisioned backend environment or CI; do not claim backend verification from static inspection alone.
+Expected: Ruff, Black, isort, and the pagination tests PASS. The repository's
+MyPy lane is currently non-blocking and has pre-existing errors; record its
+result and require no new error on the changed cursor lines. If this worktree
+still lacks pytest, run this in the repo's provisioned backend environment or
+CI; do not claim backend verification from static inspection alone.
 
 **Step 5: Perform the separate authenticated browser gate**
 

@@ -292,9 +292,19 @@ export function useChatSession(): UseChatSessionReturn {
 
       if (targetConv) {
         if (targetConv.id !== activeConversationIdRef.current) {
+          setConversations((previous) =>
+            previous.map((conversation) =>
+              conversation.id === targetConv.id
+                ? { ...conversation, messages: [] }
+                : conversation
+            )
+          );
           setActiveConversationId(targetConv.id);
           activeConversationIdRef.current = targetConv.id;
-          setMessages(targetConv.messages);
+          // The store owns transcript hydration. Clear any React-local
+          // projection before selecting so a stale conversation cache cannot
+          // flash ahead of the bounded page for this thread.
+          setMessages([]);
           // Also update the Zustand store so sidebar highlights correctly
           setCurrentThread(targetConv.id);
           console.log('[Chat] Switched to thread:', targetConv.title);
@@ -398,7 +408,7 @@ export function useChatSession(): UseChatSessionReturn {
           if (urlConversation) {
             setActiveConversationId(urlConversation.id);
             activeConversationIdRef.current = urlConversation.id;
-            setMessages(urlConversation.messages);
+            setMessages([]);
             setCurrentThread(urlConversation.id);
             console.log(
               '[Chat] Restored thread from URL param:',

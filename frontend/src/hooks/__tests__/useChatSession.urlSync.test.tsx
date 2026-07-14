@@ -156,6 +156,10 @@ describe('useChatSession URL synchronization', () => {
     await waitFor(() =>
       expect(result.current.activeConversationId).toBe('thread-A')
     );
+    expect(result.current.messages).toEqual([]);
+    expect(chatStoreMocks.state.setCurrentThread).toHaveBeenCalledWith(
+      'thread-A'
+    );
   });
 
   it('ignores stale URL detail when the sidebar selection changes during fetch', async () => {

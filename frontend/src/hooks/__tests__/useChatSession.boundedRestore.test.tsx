@@ -201,6 +201,11 @@ describe('useChatSession bounded restoration', () => {
         { includeMessages: false }
       )
     );
+    expect(workspaceMocks.getThread).toHaveBeenCalledTimes(1);
+    expect(chatStoreMocks.state.loadMessages).toHaveBeenCalledTimes(1);
+    expect(chatStoreMocks.state.loadMessages).toHaveBeenCalledWith(
+      'thread-deep-link'
+    );
     expect(workspaceMocks.getThread).not.toHaveBeenCalledWith(
       'thread-persisted',
       expect.anything()

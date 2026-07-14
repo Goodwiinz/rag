@@ -32,6 +32,8 @@ export function upsertConversationFromThread<T extends ConversationStateItem>(
     updatedAt: new Date(thread.updated_at).getTime(),
     threadId: thread.id,
     conversationId: thread.conversation_id,
+    // Store-backed pages use ascending display order, so the final row is the
+    // newest message and therefore the correct sidebar preview.
     previewText:
       messages[messages.length - 1]?.content ??
       thread.last_message_preview ??
