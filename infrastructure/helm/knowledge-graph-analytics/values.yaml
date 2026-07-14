@@ -579,19 +579,21 @@ keda:
   # worker HPA so long-running indexing/LLM tasks aren't interrupted.
   scaleDownStabilizationSeconds: 600
   redis:
-    # The existing secret carrying the DO Managed Redis connection. KEDA's redis
-    # scaler needs host/port/password as DISCRETE keys, NOT the full rediss://
-    # URL the app consumes via REDIS_URL — ensure the /redis Infisical folder
-    # exposes these keys (or point the *Key fields at the ones it has) before
-    # flipping enabled: true.
+    # host:port of the DO Managed Valkey (Redis-protocol) endpoint. NON-SECRET,
+    # so it is inlined into the ScaledObject trigger metadata as `address`
+    # (KEDA's redis scaler accepts host:port via the `address` param) rather
+    # than pulled from a secret. Set the real endpoint in values-<env>.yaml.
+    address: ""
+    # ACL username, NON-SECRET, also inlined into trigger metadata. DO Managed
+    # Valkey ships with the "default" user; leave empty to omit the param.
+    username: ""
+    # The ONLY secret KEDA needs: the Valkey password. Referenced as a single
+    # `password` secretTargetRef from the existing app secret — host/port/user
+    # above are values, NOT secret keys. Ensure passwordKey exists in
+    # authSecretName (Infisical-synced) before flipping enabled: true.
     authSecretName: redis-credentials
-    hostKey: REDIS_HOST
-    portKey: REDIS_PORT
     passwordKey: REDIS_PASSWORD
-    # DO Managed Redis is not created with an ACL username by default; leave
-    # empty to omit the username auth param. Set to a secret key to enable it.
-    usernameKey: ""
-    # DO Managed Redis uses rediss:// (TLS). "true" → KEDA enableTLS.
+    # DO Managed Valkey uses rediss:// (TLS). "true" → KEDA enableTLS.
     enableTLS: "true"
     databaseIndex: "0"
   # One redis-list trigger per queue that matters. KEDA scales on the MAX

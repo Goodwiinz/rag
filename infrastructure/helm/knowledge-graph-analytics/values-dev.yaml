@@ -417,24 +417,25 @@ serviceAccount:
 # CPU/memory worker HPA above (celeryWorker.autoscaling) stops rendering — KEDA
 # owns scaling. Rollback = set enabled: false (plain HPA re-renders on next sync).
 keda:
-  enabled: false
-  # Uncomment/tune when enabling. Defaults live in values.yaml.
-  # minReplicaCount: 1
-  # maxReplicaCount: 5          # match celeryWorker.autoscaling.maxReplicas above
-  # pollingInterval: 30
-  # cooldownPeriod: 300
-  # redis:
-  #   authSecretName: redis-credentials
-  #   hostKey: REDIS_HOST
-  #   portKey: REDIS_PORT
-  #   passwordKey: REDIS_PASSWORD
-  #   enableTLS: "true"          # DO Managed Redis is rediss://
-  #   databaseIndex: "0"
-  # triggers:
-  #   - queue: celery
-  #     listLength: "10"
-  #   - queue: document_processing
-  #     listLength: "10"
+  # ENABLED on dev: queue-depth worker autoscaling via the KEDA operator
+  # (installed in the cluster, keda ns). This SUPPRESSES the plain CPU/memory
+  # worker HPA (templates/hpa.yaml mutual exclusion) — KEDA reconciles its own.
+  # Requires REDIS_PASSWORD synced into the redis-credentials secret; if KEDA
+  # can't auth to Valkey, workers lose autoscaling. Rollback: enabled: false.
+  enabled: true
+  # min/max/polling/cooldown/scaleDown defaults live in values.yaml.
+  redis:
+    # DO Managed Valkey (Redis-protocol) endpoint — NON-SECRET host:port and
+    # username, inlined into the ScaledObject trigger metadata.
+    address: "rag-system-valkey-do-user-26519733-0.j.db.ondigitalocean.com:25061"
+    username: "default"
+    # Only the password is secret: pulled from the redis-credentials secret
+    # (Infisical-managed) under the REDIS_PASSWORD key.
+    authSecretName: redis-credentials
+    passwordKey: REDIS_PASSWORD
+    enableTLS: "true" # DO Managed Valkey is rediss://
+    databaseIndex: "0"
+  # triggers default to celery + document_processing (see values.yaml).
 syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"

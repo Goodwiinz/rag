@@ -1,9 +1,8 @@
 {{- /*
 KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5).
 
-SCAFFOLD, gated off by default (.Values.keda.enabled=false). Rendering is
-inert until KEDA is installed in the cluster AND the flag is flipped — see
-docs/decisions/worker-autoscaling.md for the rationale and install checklist.
+SCAFFOLD, gated by .Values.keda.enabled — see docs/decisions/worker-autoscaling.md
+for the rationale and install checklist.
 
 When enabled, this renders a KEDA ScaledObject that scales the worker on the
 depth of the Celery Redis lists (queues) directly — no Prometheus/metrics
@@ -11,11 +10,13 @@ adapter in the path. KEDA reconciles into its own HPA
 (keda-hpa-<scaledobject>), so the plain CPU/memory worker HPA in
 templates/hpa.yaml is suppressed while keda.enabled=true (mutual exclusion).
 
-Uses the existing DO Managed Redis connection via a TriggerAuthentication that
-references the same secret the worker already consumes (default
-`redis-credentials`). KEDA's redis scaler needs host/port/password as discrete
-values (NOT a full rediss:// URL), so the secret must expose those keys before
-enabling — see the install checklist. rediss:// TLS maps to `enableTLS`.
+Connection split: host/port (address) and username are NON-SECRET and are
+inlined into the trigger metadata from values (keda.redis.address /
+keda.redis.username). Only the password is a secret — the TriggerAuthentication
+references a single `password` key (keda.redis.passwordKey, default
+REDIS_PASSWORD) from keda.redis.authSecretName (default `redis-credentials`).
+So enabling KEDA needs exactly ONE new Infisical key: REDIS_PASSWORD.
+DO Managed Valkey uses rediss:// (TLS) → enableTLS "true".
 */ -}}
 {{- if and .Values.celeryWorker.enabled .Values.keda.enabled }}
 apiVersion: keda.sh/v1alpha1
@@ -27,20 +28,9 @@ metadata:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
 spec:
   secretTargetRef:
-    - parameter: host
-      name: {{ .Values.keda.redis.authSecretName }}
-      key: {{ .Values.keda.redis.hostKey }}
-    - parameter: port
-      name: {{ .Values.keda.redis.authSecretName }}
-      key: {{ .Values.keda.redis.portKey }}
     - parameter: password
       name: {{ .Values.keda.redis.authSecretName }}
-      key: {{ .Values.keda.redis.passwordKey }}
-    {{- if .Values.keda.redis.usernameKey }}
-    - parameter: username
-      name: {{ .Values.keda.redis.authSecretName }}
-      key: {{ .Values.keda.redis.usernameKey }}
-    {{- end }}
+      key: {{ .Values.keda.redis.passwordKey | default "REDIS_PASSWORD" }}
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -70,6 +60,10 @@ spec:
     {{- range .Values.keda.triggers }}
     - type: redis
       metadata:
+        address: {{ $.Values.keda.redis.address | quote }}
+        {{- if $.Values.keda.redis.username }}
+        username: {{ $.Values.keda.redis.username | quote }}
+        {{- end }}
         listName: {{ .queue | quote }}
         listLength: {{ .listLength | default "10" | quote }}
         enableTLS: {{ $.Values.keda.redis.enableTLS | default "true" | quote }}
