@@ -6,6 +6,7 @@ const workspaceMocks = vi.hoisted(() => ({
   getOrCreateDefaultConversation: vi.fn(),
   listThreads: vi.fn(),
   listConversations: vi.fn(),
+  getThread: vi.fn(),
 }));
 
 const chatStoreMocks = vi.hoisted(() => {
@@ -23,7 +24,11 @@ const chatStoreMocks = vi.hoisted(() => {
   });
   const useStore = Object.assign(
     <T,>(selector: (store: typeof state) => T) => selector(state),
-    { getState: () => state }
+    {
+      getState: () => state,
+      setState: (partial: Partial<typeof state>) =>
+        Object.assign(state, partial),
+    }
   );
   return { state, useStore };
 });
@@ -51,6 +56,7 @@ describe('useChatSession watchdog', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     chatStoreMocks.state.currentThreadId = null;
+    localStorage.clear();
     workspaceMocks.getOrCreateDefaultConversation.mockResolvedValue({
       id: 'conv-1',
       title: 'New Chat',
@@ -88,5 +94,80 @@ describe('useChatSession watchdog', () => {
 
     expect(result.current.isInitializing).toBe(false);
     expect(result.current.initError).toBeNull();
+  });
+
+  it('does not let late warm-start data replace a newer first-send selection', async () => {
+    localStorage.setItem('default-conversation-id', 'conv-1');
+    chatStoreMocks.state.currentThreadId = 'thread-old';
+    workspaceMocks.getOrCreateDefaultWorkspace.mockResolvedValue({
+      id: 'workspace-1',
+      name: 'Workspace',
+    });
+    workspaceMocks.listThreads.mockResolvedValue({
+      threads: [
+        {
+          id: 'thread-old',
+          conversation_id: 'conv-1',
+          title: 'Old thread',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      has_more: false,
+    });
+
+    let resolveOldThread!: (thread: unknown) => void;
+    workspaceMocks.getThread.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOldThread = resolve;
+      })
+    );
+
+    const { result } = renderHook(() => useChatSession());
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    act(() => {
+      result.current.setConversations([
+        {
+          id: 'thread-new',
+          title: 'New thread',
+          messages: [{ role: 'user', content: 'new turn', timestamp: 2 }],
+        } as never,
+      ]);
+      result.current.activeConversationIdRef.current = 'thread-new';
+      result.current.setActiveConversationId('thread-new');
+      chatStoreMocks.state.currentThreadId = 'thread-new';
+      result.current.setMessages([
+        { role: 'user', content: 'new turn', timestamp: 2 },
+      ]);
+    });
+
+    await act(async () => {
+      resolveOldThread({
+        id: 'thread-old',
+        conversation_id: 'conv-1',
+        title: 'Old thread',
+        messages: [
+          {
+            role: 'user',
+            content: 'old turn',
+            created_at: new Date().toISOString(),
+          },
+        ],
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.activeConversationId).toBe('thread-new');
+    expect(result.current.messages.map((message) => message.content)).toEqual([
+      'new turn',
+    ]);
+    expect(chatStoreMocks.state.currentThreadId).toBe('thread-new');
   });
 });

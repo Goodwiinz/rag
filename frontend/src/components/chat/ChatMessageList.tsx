@@ -68,6 +68,11 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollRafRef = useRef<number | null>(null);
+  const scheduledScrollThreadIdRef = useRef<string | null>(null);
+  const positionedThreadIdRef = useRef<string | null>(null);
+  const scrollTickRef = useRef(false);
+  const scrollTickRafRef = useRef<number | null>(null);
+  const loadOlderTriggeredRef = useRef(false);
   const prevMessageCountRef = useRef(messages.length);
   const prevLastIdRef = useRef<string | undefined>(
     messages[messages.length - 1]?.id
@@ -106,6 +111,20 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     prevFirstIdRef.current = firstId;
   }, [messages, currentLastId]);
 
+  // The scroll container survives cached thread switches. Its transient UI
+  // guards must not: a previous thread's "scrolled away" state would block the
+  // new thread's initial positioning, and its load-older guard could suppress
+  // pagination in the newly selected thread.
+  useEffect(() => {
+    if (scrollTickRafRef.current !== null) {
+      cancelAnimationFrame(scrollTickRafRef.current);
+      scrollTickRafRef.current = null;
+    }
+    scrollTickRef.current = false;
+    loadOlderTriggeredRef.current = false;
+    setShowScrollButton(false);
+  }, [activeThreadId]);
+
   // Throttled auto-scroll: at most one scrollIntoView per animation frame.
   // `storeStreamingContent` is in the deps so the view follows tokens as the
   // answer streams, but the rAF guard coalesces the per-token re-renders into
@@ -114,12 +133,34 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   // never fight a user reading history.
   useEffect(() => {
     if (showScrollButton) return;
-    if (scrollRafRef.current !== null) return;
+    if (!activeThreadId || messages.length === 0) return;
+
+    // A selected thread's first page should appear at its newest message
+    // immediately. Smooth-scrolling that initial batch makes the UI visibly
+    // traverse the whole transcript on every sidebar click. Keep smooth
+    // following only after this thread has already been positioned.
+    const isInitialThreadPosition =
+      positionedThreadIdRef.current !== activeThreadId;
+
+    // A rapid switch can happen before the previous frame runs. Replace that
+    // stale scheduled scroll so it cannot position the newly selected thread
+    // using the previous thread's lifecycle.
+    if (scrollRafRef.current !== null) {
+      if (scheduledScrollThreadIdRef.current === activeThreadId) return;
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+    }
+    scheduledScrollThreadIdRef.current = activeThreadId;
     scrollRafRef.current = requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({
+        behavior: isInitialThreadPosition ? 'auto' : 'smooth',
+      });
+      positionedThreadIdRef.current = activeThreadId;
+      scheduledScrollThreadIdRef.current = null;
       scrollRafRef.current = null;
     });
   }, [
+    activeThreadId,
     messages.length,
     isNewMessage,
     storeIsStreaming,
@@ -133,6 +174,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       if (scrollRafRef.current !== null) {
         cancelAnimationFrame(scrollRafRef.current);
       }
+      scheduledScrollThreadIdRef.current = null;
       // Also cancel a pending scroll-event throttle frame so its callback
       // (setShowScrollButton / onLoadOlder) can't fire after unmount.
       if (scrollTickRafRef.current !== null) {
@@ -146,9 +188,6 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     prevLastIdRef.current = currentLastId;
   }, [messages.length, currentLastId]);
 
-  const scrollTickRef = useRef(false);
-  const scrollTickRafRef = useRef<number | null>(null);
-  const loadOlderTriggeredRef = useRef(false);
   const handleScroll = useCallback(() => {
     if (scrollTickRef.current) return;
     scrollTickRef.current = true;

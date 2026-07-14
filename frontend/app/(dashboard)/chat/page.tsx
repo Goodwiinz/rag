@@ -62,9 +62,12 @@ function TranscriptSkeleton() {
   return (
     <div
       className="mx-auto max-w-(--nous-chat-col) space-y-8 p-6"
+      role="status"
+      aria-live="polite"
       aria-busy="true"
       aria-label="Loading conversation"
     >
+      <p className="nous-caption text-(--nous-fg-3)">Loading conversation</p>
       {[0, 1, 2].map((row) => (
         <div
           key={row}
@@ -374,6 +377,10 @@ function ChatPageContent() {
   // on desktop, where it's already closed and hidden.
   const handleSelectThread = useCallback(
     (id: string) => {
+      if (id === activeConversationIdRef.current) {
+        setMobileSidebarOpen(false);
+        return;
+      }
       // Clear the previous thread's messages BEFORE switching so the loading
       // skeleton shows instead of the old thread's transcript flashing while
       // the new one loads (fix/chat-loading-consistency).
@@ -849,6 +856,9 @@ function ChatPageContent() {
     prevActiveConfirmationRef.current = activeConfirmation;
   }, [activeConfirmation, chatInputRef]);
 
+  const runtimeHydrationPhase =
+    displayedMessages.length > 0 ? 'hydrated' : 'empty';
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-(--nous-bg-1)">
       {/* Mobile sidebar backdrop + drawer */}
@@ -915,6 +925,7 @@ function ChatPageContent() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative h-full min-w-0 overflow-hidden">
         <ChatRuntimeProvider
+          key={`${activeThreadId ?? 'new'}:${runtimeHydrationPhase}`}
           messages={displayedMessages}
           isRunning={isLoading || storeIsStreaming || !!activeConfirmation}
           isSendDisabled={!!activeConfirmation}

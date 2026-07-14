@@ -76,6 +76,7 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
       },
       currentThreadId: null,
       isLoadingMessages: false,
+      loadingThreadId: null,
     } as never);
   });
 
@@ -129,14 +130,8 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     expect(getThreadMock).not.toHaveBeenCalled();
   });
 
-  it('clears thread A locally while thread C fetches (store+cache miss window)', async () => {
-    // thread-C: not in the local cache, not in the store → the lazy getThread
-    // fetch runs. Pre-fix, local `messages` kept A's transcript for the whole
-    // fetch window — rendered as C, and streamed as C's history on a send.
-    let resolveFetch!: (v: unknown) => void;
-    getThreadMock.mockImplementation(
-      () => new Promise((resolve) => (resolveFetch = resolve))
-    );
+  it('clears thread A and waits for the single paginated store load on a cache miss', async () => {
+    getThreadMock.mockImplementation(() => new Promise(() => {}));
 
     const { result } = renderHook(() => useChatSession());
 
@@ -153,21 +148,35 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
 
     act(() => {
       result.current.setActiveConversationId('thread-C');
+      useChatStore.setState({
+        currentThreadId: 'thread-C',
+        isLoadingMessages: true,
+        loadingThreadId: 'thread-C',
+      } as never);
     });
 
-    // The fetch is in flight — A's transcript must ALREADY be gone.
-    expect(getThreadMock).toHaveBeenCalledWith('thread-C');
+    // The store page is in flight — A's transcript must already be gone, and
+    // the hook must not start a parallel full-detail getThread request.
+    expect(getThreadMock).not.toHaveBeenCalled();
     expect(result.current.messages).toEqual([]);
     expect(result.current.displayedMessages).toEqual([]);
+    expect(result.current.isLoadingMessages).toBe(true);
 
-    await act(async () => {
-      resolveFetch({
-        id: 'thread-C',
-        messages: [storeMsg('thread-C', 'c1', 'C one')],
-      });
+    act(() => {
+      useChatStore.setState({
+        messages: {
+          ...useChatStore.getState().messages,
+          'thread-C': [storeMsg('thread-C', 'c1', 'C one')],
+        },
+        isLoadingMessages: false,
+        loadingThreadId: null,
+      } as never);
     });
+
     await waitFor(() =>
-      expect(result.current.messages.map((m) => m.content)).toEqual(['C one'])
+      expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
+        'C one',
+      ])
     );
   });
 });

@@ -28,6 +28,8 @@ vi.mock('@/services/agentChatService', () => ({
 
 vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
+    getOrCreateDefaultWorkspace: vi.fn(),
+    getOrCreateDefaultConversation: vi.fn(),
     createThread: vi.fn(),
     createMessage: vi.fn().mockResolvedValue({ id: 'db-msg-1' }),
     listMessages: vi.fn(),
@@ -74,6 +76,7 @@ describe('useChatStreaming failed thread creation', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     toastErrorMock.mockReset();
+    vi.clearAllMocks();
   });
 
   it('rolls back the optimistic bubble, restores input, and toasts when thread creation fails', async () => {
@@ -106,6 +109,60 @@ describe('useChatStreaming failed thread creation', () => {
     // The user is told, and nothing was streamed.
     expect(toastErrorMock).toHaveBeenCalled();
     expect(streamMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('resolves the default conversation before first send when warm-start has not set it yet', async () => {
+    const { workspaceService } = await import('@/services/workspaceService');
+    vi.mocked(workspaceService.getOrCreateDefaultWorkspace).mockResolvedValueOnce(
+      { id: 'ws-1' } as never
+    );
+    vi.mocked(
+      workspaceService.getOrCreateDefaultConversation
+    ).mockResolvedValueOnce({ id: 'conv-1' } as never);
+    vi.mocked(workspaceService.createThread).mockResolvedValueOnce({
+      id: 'thread-new',
+      title: 'My first message',
+    } as never);
+    streamMessageMock.mockImplementation(
+      (
+        req: { thread_id?: string },
+        callbacks: {
+          onToken: (token: string) => void;
+          onDone: (payload?: unknown) => void;
+        }
+      ) => {
+        callbacks.onToken('answer');
+        callbacks.onDone({ thread_id: req.thread_id });
+        return Promise.resolve();
+      }
+    );
+
+    const params = makeParams({
+      messages: [],
+      displayedMessages: [],
+      activeConversationId: null,
+      dbConversation: null,
+    });
+    params.activeConversationIdRef.current = null;
+
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('my first message');
+    });
+
+    expect(workspaceService.getOrCreateDefaultWorkspace).toHaveBeenCalledOnce();
+    expect(
+      workspaceService.getOrCreateDefaultConversation
+    ).toHaveBeenCalledWith('ws-1');
+    expect(workspaceService.createThread).toHaveBeenCalledWith(
+      expect.objectContaining({ conversation_id: 'conv-1' })
+    );
+    expect(streamMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ thread_id: 'thread-new' }),
+      expect.anything(),
+      expect.anything()
+    );
   });
 });
 

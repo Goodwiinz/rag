@@ -290,6 +290,10 @@ const MAX_REINIT_RETRIES = 3;
 // When exceeded, the oldest threads (by key insertion order) are evicted.
 const MAX_CACHED_THREADS = 50;
 
+// A thread selection only needs the recent context visible in the viewport.
+// Older messages remain available through explicit cursor pagination.
+const INITIAL_MESSAGE_PAGE_SIZE = 50;
+
 // Helper type for the recovery handler
 type RecoveryResult =
   | { shouldProceed: false }
@@ -471,20 +475,25 @@ export const useChatStore = create<ChatStore>()(
 
       setCurrentThread: (threadId) => {
         messageLoadEpoch += 1;
+        const snapshot = get();
+        const hasCachedPage =
+          !!threadId &&
+          Object.prototype.hasOwnProperty.call(snapshot.messages, threadId) &&
+          !!snapshot.messagePagination[threadId];
         set((state) => {
           state.currentThreadId = threadId;
-          if (!threadId) {
-            // "New chat": no load follows, and the epoch bump above makes any
-            // in-flight response stale (it early-returns without touching
-            // state) — so the loading flags must be cleared here or they
-            // strand true forever.
+          if (!threadId || hasCachedPage) {
+            // No load follows for a new chat or a valid cached page. The epoch
+            // bump above makes any prior response stale, so clear its loading
+            // flags here rather than stranding them indefinitely.
             state.isLoadingMessages = false;
             state.loadingThreadId = null;
           }
         });
 
-        // Load messages for new thread
-        if (threadId) {
+        // Cached pages (including a known-empty thread) retain their cursor and
+        // loaded history. Explicit loadMessages remains available for refresh.
+        if (threadId && !hasCachedPage) {
           get().loadMessages(threadId);
         }
       },
@@ -1086,7 +1095,7 @@ export const useChatStore = create<ChatStore>()(
           // display order (oldest first, newest at the bottom). `has_more`
           // from a desc query means "older messages remain".
           const response = await workspaceService.listMessages(threadId, {
-            limit: 100,
+            limit: INITIAL_MESSAGE_PAGE_SIZE,
             order: 'desc',
           });
           const ordered = Array.isArray(response.messages)

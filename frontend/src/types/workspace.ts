@@ -141,6 +141,7 @@ export interface Thread {
   conversation_id: string;
   title?: string;
   summary?: string;
+  last_message_preview?: string;
   status: ThreadStatus;
   last_message_at: string;
   message_count: number;

@@ -838,8 +838,21 @@ export function useChatStreaming(
         useChatStore.getState().currentThreadId;
       let currentThreadId = currentConversationId;
 
-      if (!currentConversationId && dbConversation) {
+      if (!currentConversationId) {
         try {
+          // Warm-start resolves dbConversation off the paint path. A user can
+          // begin a fresh chat before that request settles, so recover it here
+          // before creating the thread instead of streaming with no thread ID.
+          let threadConversation = dbConversation;
+          if (!threadConversation) {
+            const defaultWorkspace =
+              await workspaceService.getOrCreateDefaultWorkspace();
+            threadConversation =
+              await workspaceService.getOrCreateDefaultConversation(
+                defaultWorkspace.id
+              );
+          }
+
           const dynamicTitle = generateConversationTitle(content);
           console.log(
             '[Chat] Creating new thread in database with title:',
@@ -847,7 +860,7 @@ export function useChatStreaming(
           );
           const newThread = await workspaceService.createThread(
             buildThreadCreateRequest({
-              conversationId: dbConversation.id,
+              conversationId: threadConversation.id,
               title: dynamicTitle,
               projectId: boundProjectId,
             })
@@ -869,7 +882,7 @@ export function useChatStreaming(
             createdAt: Date.now(),
             updatedAt: Date.now(),
             threadId: newThread.id,
-            conversationId: dbConversation.id,
+            conversationId: threadConversation.id,
           };
 
           setConversations((prev) => [newConv, ...prev]);

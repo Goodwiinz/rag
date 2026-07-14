@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ChatMessage } from '@/types/workspace';
 import { MessageRole } from '@/types/workspace';
 
+const toastMocks = vi.hoisted(() => ({ error: vi.fn() }));
+
 // ---- Mocks ----
 // Unauthenticated => useChatSession's init effect settles immediately, leaves
 // conversations empty and skips all DB fetches. We then drive state purely via
@@ -24,7 +26,7 @@ vi.mock('@/services/workspaceService', () => ({
 }));
 
 vi.mock('react-hot-toast', () => ({
-  default: { error: vi.fn(), success: vi.fn() },
+  default: { error: toastMocks.error, success: vi.fn() },
 }));
 
 import { useChatSession } from '@/hooks/chat/useChatSession';
@@ -61,7 +63,9 @@ describe('useChatSession thread-load scoping', () => {
       currentThreadId: null,
       isLoadingMessages: false,
       loadingThreadId: null,
+      error: null,
     } as never);
+    toastMocks.error.mockReset();
   });
 
   it('keeps the optimistic turn visible (no skeleton) while the just-created thread loads mid-send', async () => {
@@ -162,5 +166,41 @@ describe('useChatSession thread-load scoping', () => {
 
     expect(result.current.displayedMessages).toEqual([]);
     expect(result.current.isLoadingMessages).toBe(true);
+  });
+
+  it('surfaces a failed active-thread page load instead of presenting an empty conversation', async () => {
+    const { result } = renderHook(() => useChatSession());
+
+    act(() => {
+      result.current.setConversations([
+        {
+          id: 'thread-C',
+          title: 'C',
+          messages: [],
+          messageCount: 2,
+        } as never,
+      ]);
+      result.current.setActiveConversationId('thread-C');
+      useChatStore.setState({
+        currentThreadId: 'thread-C',
+        isLoadingMessages: true,
+        loadingThreadId: 'thread-C',
+        error: null,
+      } as never);
+    });
+
+    act(() => {
+      useChatStore.setState({
+        isLoadingMessages: false,
+        loadingThreadId: null,
+        error: 'Failed to load messages',
+      } as never);
+    });
+
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Could not load this conversation. Please try again.'
+      )
+    );
   });
 });

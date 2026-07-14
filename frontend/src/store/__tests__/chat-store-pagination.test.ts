@@ -209,6 +209,22 @@ describe('loadMessages (newest-first initial load)', () => {
     listMessagesMock.mockReset();
   });
 
+  it('reuses a valid cached page when selecting a thread', () => {
+    seedThread(['m1', 'm2', 'm3'], { hasMore: true });
+
+    act(() => {
+      useChatStore.getState().setCurrentThread(THREAD);
+    });
+
+    expect(useChatStore.getState().currentThreadId).toBe(THREAD);
+    expect(listMessagesMock).not.toHaveBeenCalled();
+    expect(useChatStore.getState().messagePagination[THREAD]).toEqual({
+      hasMore: true,
+      loadingOlder: false,
+      loadedCount: 3,
+    });
+  });
+
   it('requests the newest page (order=desc) and stores it in ascending display order', async () => {
     // Server returns newest-first ([m5, m4, m3]); the store reverses to
     // ascending so the newest message renders at the bottom.
@@ -224,7 +240,7 @@ describe('loadMessages (newest-first initial load)', () => {
     });
 
     expect(listMessagesMock).toHaveBeenCalledWith(THREAD, {
-      limit: 100,
+      limit: 50,
       order: 'desc',
     });
 
