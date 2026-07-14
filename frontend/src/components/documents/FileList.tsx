@@ -124,12 +124,18 @@ const FileListItem: React.FC<FileListItemProps> = ({
       tabIndex={0}
       className={cn(
         'group bg-card border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
         isSelected && 'ring-2 ring-primary bg-primary/5'
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
     >
       <div className="flex items-start space-x-3">
         {/* Checkbox */}
@@ -137,6 +143,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
           <div className="pt-1">
             <input
               type="checkbox"
+              aria-label={`Select ${document.title}`}
               checked={isSelected}
               onChange={(e) => {
                 e.stopPropagation();
