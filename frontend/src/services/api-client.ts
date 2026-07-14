@@ -259,6 +259,25 @@ export class APIClient {
     });
   }
 
+  /**
+   * POST for slow, non-idempotent operations (arXiv search/ingest/extract/track
+   * can each take minutes). Uses a 5-minute timeout and disables automatic
+   * retries: replaying a POST that already committed work server-side would
+   * duplicate ingests/extractions. Callers may still override `timeout` /
+   * `retries` explicitly via `options`.
+   */
+  async postWithLongTimeout<T>(
+    endpoint: string,
+    data?: unknown,
+    options: RequestConfig = {}
+  ): Promise<T> {
+    return this.post<T>(endpoint, data, {
+      timeout: 300000,
+      retries: 0,
+      ...options,
+    });
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,

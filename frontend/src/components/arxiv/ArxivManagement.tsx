@@ -183,14 +183,13 @@ export default function ArxivManagement() {
 
     try {
       setProgress(30);
-      const result = await api.post<TrackResult>(
+      const result = await api.postWithLongTimeout<TrackResult>(
         '/arxiv/tracking/track-categories',
         {
           categories: selectedCategories,
           days_back: daysBack,
           update_database: updateDatabase,
         },
-        { timeout: 300000 }
       );
 
       setProgress(75);
@@ -231,7 +230,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(40);
-      const results = await api.post<ArXivPaper[]>(
+      const results = await api.postWithLongTimeout<ArXivPaper[]>(
         '/arxiv/search',
         {
           query: searchQuery.trim(),
@@ -241,7 +240,6 @@ export default function ArxivManagement() {
               ? selectedCategories
               : null,
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -286,7 +284,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(45);
-      const result = await api.post<IngestionResult>(
+      const result = await api.postWithLongTimeout<IngestionResult>(
         '/arxiv/ingest',
         {
           paper_ids: selectedPaperIds,
@@ -294,7 +292,6 @@ export default function ArxivManagement() {
           extract_content: extractContentOnIngest,
           batch_size: Math.min(20, Math.max(1, selectedPaperIds.length)),
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -342,7 +339,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(35);
-      const result = await api.post<ExtractionResult>(
+      const result = await api.postWithLongTimeout<ExtractionResult>(
         '/arxiv/extraction/extract-features',
         {
           paper_ids: parsedExtractIds,
@@ -353,7 +350,6 @@ export default function ArxivManagement() {
           extract_summaries: extractSummaries,
           update_knowledge_graph: updateKG,
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
