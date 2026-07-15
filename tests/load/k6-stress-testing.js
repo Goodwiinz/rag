@@ -1,265 +1,249 @@
 /*
-Multimodal Enterprise RAG System - K6 Stress Testing
-Stress testing to find system limits and breaking points
-*/
+ * Multimodal Enterprise RAG System — K6 Maximum Stress Test (shared dev)
+ *
+ * Ramps to 400 virtual users against the CURRENT backend + Supabase contracts
+ * to locate the practical breaking point of shared dev. Intentionally
+ * disruptive: drive it only via tests/load/run-shared-dev-max.sh, which layers
+ * on Kubernetes monitoring, a rolling catastrophic-abort, and result capture.
+ *
+ * Auth model: Supabase owns identity. setup() mints confirmed test users with
+ * the service-role key, exchanges a password grant for each user's access
+ * token (a Supabase JWT), and RETURNS them — the only channel that crosses the
+ * k6 setup->VU VM boundary (module-level state does NOT). The backend validates
+ * the JWT and JIT-provisions a User+Organization on first call, so the tokens
+ * work for search/list/profile/upload with no backend registration route.
+ *
+ * Cleanup: test users are freshly minted, so every document they own belongs to
+ * this run. teardown() lists each user's documents and deletes them (cascade),
+ * then deletes the Supabase identities. Uploads are also tagged with the run id
+ * for attribution. Secrets, tokens and response bodies are never logged.
+ *
+ * Required env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY.
+ * Optional env: BASE_URL, RUN_ID, RESULTS_DIR, SETUP_USERS, PREFLIGHT=1.
+ */
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Rate, Trend } from 'k6/metrics';
-import { randomIntBetween, randomItem } from 'https://jslib.k6.io/k6-utils/1.1.0/index.js';
+import { Counter } from 'k6/metrics';
+import { randomItem, randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.1.0/index.js';
 
-// Custom metrics for stress testing
-export let errorRate = new Rate('errors');
-export let responseTime = new Trend('response_time');
-export let throughput = new Trend('throughput');
-export let concurrentUsers = new Trend('concurrent_users');
+// ---- Config (Supabase secrets are read but never logged) -------------------
+const SUPABASE_URL = __ENV.SUPABASE_URL;
+const SUPABASE_ANON_KEY = __ENV.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = __ENV.SUPABASE_SERVICE_ROLE_KEY;
 
-// Stress test configuration - gradual ramp up to find breaking point
-export let options = {
-  stages: [
-    { duration: '2m', target: 20 },   // Warm up
-    { duration: '5m', target: 50 },   // Moderate load
-    { duration: '5m', target: 100 },  // High load
-    { duration: '10m', target: 200 }, // Stress level
-    { duration: '5m', target: 300 },  // Extreme load
-    { duration: '5m', target: 400 },  // Breaking point attempt
-    { duration: '2m', target: 0 },    // Cool down
-  ],
-  thresholds: {
-    http_req_duration: ['p(95)<5000'], // More lenient for stress test
-    http_req_failed: ['rate<0.3'],     // Allow higher error rate
-    errors: ['rate<0.3'],
-    response_time: ['p(95)<5000'],
-  },
-  discardResponseBodies: true, // Improve performance under load
-  noConnectionReuse: false,    // Enable connection reuse
-  insecureSkipTLSVerify: true,  // Skip TLS verification if needed
+const BASE_URL = __ENV.BASE_URL || 'https://dev-api.gen-text.app';
+const RUN_ID = __ENV.RUN_ID || `local-${Date.now()}`;
+const RESULTS_DIR = __ENV.RESULTS_DIR || '/results';
+const PREFLIGHT = __ENV.PREFLIGHT === '1';
+const NUM_USERS = PREFLIGHT ? 1 : parseInt(__ENV.SETUP_USERS || '50', 10);
+
+// Full-literal route constants: single source of route truth, and lets the
+// python contract guard (test_k6_stress_contract.py) grep exact paths.
+const ROUTES = {
+  supabaseAdminUsers: `${SUPABASE_URL}/auth/v1/admin/users`,
+  supabaseToken: `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+  search: `${BASE_URL}/api/v1/search/`,
+  documents: `${BASE_URL}/api/v1/documents`,
+  me: `${BASE_URL}/api/v1/auth/me`,
+  upload: `${BASE_URL}/api/v1/files/upload`,
 };
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
-const API_PREFIX = '/api/v1';
-
-// Simplified test data for stress testing
 const SEARCH_QUERIES = [
-  'machine learning',
-  'artificial intelligence',
-  'data science',
-  'neural networks',
-  'deep learning',
-  'natural language processing',
-  'computer vision',
-  'algorithms',
-  'models',
-  'AI research'
+  'machine learning', 'artificial intelligence', 'data science',
+  'neural networks', 'deep learning', 'natural language processing',
+  'computer vision', 'algorithms', 'transformer models', 'AI research',
+];
+// vector-only search was Qdrant-backed and now returns 400 (Qdrant removed) —
+// use only hybrid + fulltext.
+const SEARCH_TYPES = ['hybrid', 'fulltext'];
+
+const FULL_STAGES = [
+  { duration: '2m', target: 20 },   // warm-up
+  { duration: '5m', target: 50 },   // moderate
+  { duration: '5m', target: 100 },  // high
+  { duration: '10m', target: 200 }, // stress
+  { duration: '5m', target: 300 },  // extreme
+  { duration: '5m', target: 400 },  // breaking-point attempt
+  { duration: '2m', target: 0 },    // cooldown
 ];
 
-const USERS = Array.from({ length: 50 }, (_, i) => ({
-  email: `stressuser${i + 1}@test.com`,
-  password: 'Password123!',
-  token: null
-}));
+// http_req_failed abort is a COARSE backstop only: k6 evaluates thresholds
+// against the CUMULATIVE metric, not a rolling 60s window — it fires when the
+// run-wide failure rate exceeds 50% after the first 60s and cannot un-fire once
+// tripped. The real rolling "50% for 60s" abort is the external monitor in
+// run-shared-dev-max.sh, which SIGINTs k6 on sustained failure or pod restart.
+const BASE_THRESHOLDS = {
+  http_req_duration: ['p(95)<5000'],
+  http_req_failed: [{ threshold: 'rate<0.5', abortOnFail: true, delayAbortEval: '60s' }],
+};
 
-// Track active virtual users
-let activeUsers = 0;
+export const options = PREFLIGHT
+  ? { vus: 1, iterations: 4, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true }
+  : { stages: FULL_STAGES, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true };
 
+const uploadsCreated = new Counter('uploads_created');
+
+// ---- Setup: mint + authenticate test identities ----------------------------
 export function setup() {
-  console.log('Setting up stress test environment...');
-
-  // Setup users (simplified for stress testing)
-  USERS.forEach((user, index) => {
-    try {
-      const registerResponse = http.post(`${BASE_URL}${API_PREFIX}/auth/register`, JSON.stringify({
-        email: user.email,
-        password: user.password,
-        first_name: `Stress${index}`,
-        last_name: `User${index}`,
-        organization_name: `Stress Test Organization ${index}`
-      }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (registerResponse.status === 201) {
-        const data = JSON.parse(registerResponse.body);
-        user.token = data.access_token;
-      } else if (registerResponse.status === 409) {
-        // User exists, try to login
-        const loginResponse = http.post(`${BASE_URL}${API_PREFIX}/auth/login`, JSON.stringify({
-          email: user.email,
-          password: user.password
-        }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (loginResponse.status === 200) {
-          const data = JSON.parse(loginResponse.body);
-          user.token = data.access_token;
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to setup user ${user.email}:`, error);
-    }
-  });
-
-  const validUsers = USERS.filter(u => u.token !== null);
-  console.log(`Setup complete. ${validUsers.length} users ready for stress test.`);
-
-  return { userCount: validUsers.length };
-}
-
-export default function(data) {
-  activeUsers++;
-  concurrentUsers.add(activeUsers);
-
-  // Select a random user with valid token
-  const validUsers = USERS.filter(u => u.token !== null);
-  if (validUsers.length === 0) {
-    console.error('No valid users available');
-    sleep(1);
-    return;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error(
+      'Missing required env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY'
+    );
   }
-
-  const user = randomItem(validUsers);
-  const headers = {
-    'Authorization': `Bearer ${user.token}`,
+  const adminHeaders = {
     'Content-Type': 'application/json',
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
   };
+  const users = [];
+  for (let i = 0; i < NUM_USERS; i++) {
+    const email = `stress-${RUN_ID}-${i}@example.com`;
+    const password = `Stress!${RUN_ID}-${i}`;
 
-  const startTime = Date.now();
+    const created = http.post(
+      ROUTES.supabaseAdminUsers,
+      JSON.stringify({ email, password, email_confirm: true }),
+      { headers: adminHeaders }
+    );
+    if (created.status !== 200 && created.status !== 201) continue;
 
-  // Stress test focuses on high-frequency operations
-  const operation = Math.random();
+    let userId;
+    try { userId = JSON.parse(created.body).id; } catch (e) { continue; }
+    if (!userId) continue;
 
-  try {
-    if (operation < 0.6) {
-      // 60% - Search operations (highest frequency)
-      performStressSearch(headers);
-    } else if (operation < 0.8) {
-      // 20% - Document listing
-      performStressDocumentList(headers);
-    } else if (operation < 0.95) {
-      // 15% - User operations
-      performStressUserOperations(headers);
-    } else {
-      // 5% - Document upload (minimal for stress test)
-      performStressDocumentUpload(headers);
-    }
-  } catch (error) {
-    console.error('Operation failed:', error);
-    errorRate.add(1);
+    const tokenRes = http.post(
+      ROUTES.supabaseToken,
+      JSON.stringify({ email, password }),
+      { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY } }
+    );
+    if (tokenRes.status !== 200) continue;
+
+    let token;
+    try { token = JSON.parse(tokenRes.body).access_token; } catch (e) { continue; }
+    if (token) users.push({ id: userId, email, token });
   }
 
-  const responseTimeMs = Date.now() - startTime;
-  responseTime.add(responseTimeMs);
-
-  // Minimal think time for stress test
-  sleep(randomIntBetween(0.1, 0.5));
-
-  activeUsers--;
+  if (users.length === 0) {
+    // Fail loudly so a zero-load run can never masquerade as a successful one.
+    throw new Error('setup authenticated 0 users — aborting');
+  }
+  console.log(`setup: ${users.length}/${NUM_USERS} identities ready (run ${RUN_ID})`);
+  return { runId: RUN_ID, users, documentIds: [] };
 }
 
-function performStressSearch(headers) {
-  const query = randomItem(SEARCH_QUERIES);
-  const searchTypes = ['hybrid', 'vector', 'fulltext'];
-  const searchType = randomItem(searchTypes);
+// ---- VU iteration ----------------------------------------------------------
+export default function (data) {
+  const user = PREFLIGHT ? data.users[0] : randomItem(data.users);
+  const authHeaders = { Authorization: `Bearer ${user.token}` };
 
-  const payload = {
-    query: query,
-    search_type: searchType,
-    max_results: randomIntBetween(5, 15),
-  };
+  // Preflight: deterministically exercise all four op classes (1 VU × 4 iters).
+  // Full run: approved 60/20/15/5 mix.
+  let op;
+  if (PREFLIGHT) {
+    op = __ITER % 4;
+  } else {
+    const r = Math.random();
+    op = r < 0.6 ? 0 : r < 0.8 ? 1 : r < 0.95 ? 2 : 3;
+  }
 
-  const response = http.post(`${BASE_URL}${API_PREFIX}/search/`, JSON.stringify(payload), {
-    headers: headers,
-    timeout: '10s',
-  });
+  if (op === 0) doSearch(authHeaders);
+  else if (op === 1) doDocumentList(authHeaders);
+  else if (op === 2) doProfile(authHeaders);
+  else doUpload(authHeaders);
 
-  throughput.add(1);
-
-  const success = check(response, {
-    'search status is 200': (r) => r.status === 200,
-    'search response time < 10s': (r) => r.timings.duration < 10000,
-  });
-
-  errorRate.add(!success);
+  sleep(randomIntBetween(1, 3) / 10); // 0.1–0.3s think time
 }
 
-function performStressDocumentList(headers) {
-  const page = randomIntBetween(1, 5);
-  const pageSize = randomIntBetween(10, 25);
-
-  const response = http.get(`${BASE_URL}${API_PREFIX}/documents?page=${page}&page_size=${pageSize}`, {
-    headers: headers,
-    timeout: '5s',
+function doSearch(authHeaders) {
+  const body = JSON.stringify({
+    query: randomItem(SEARCH_QUERIES),
+    search_type: randomItem(SEARCH_TYPES),
+    limit: randomIntBetween(5, 15),
   });
-
-  throughput.add(1);
-
-  const success = check(response, {
-    'document list status is 200': (r) => r.status === 200,
-    'document list response time < 5s': (r) => r.timings.duration < 5000,
-  });
-
-  errorRate.add(!success);
-}
-
-function performStressUserOperations(headers) {
-  const response = http.get(`${BASE_URL}${API_PREFIX}/users/profile`, {
-    headers: headers,
-    timeout: '3s',
-  });
-
-  throughput.add(1);
-
-  const success = check(response, {
-    'profile status is 200': (r) => r.status === 200,
-    'profile response time < 3s': (r) => r.timings.duration < 3000,
-  });
-
-  errorRate.add(!success);
-}
-
-function performStressDocumentUpload(headers) {
-  // Simplified document upload for stress test
-  const content = `Stress test document content - ${Date.now()}`.repeat(10);
-  const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
-
-  let body = `--${boundary}\r\n`;
-  body += 'Content-Disposition: form-data; name="file"; filename="stress_test.txt"\r\n';
-  body += 'Content-Type: text/plain\r\n\r\n';
-  body += content + '\r\n';
-  body += `--${boundary}\r\n`;
-  body += 'Content-Disposition: form-data; name="title"\r\n\r\n';
-  body += `Stress Test Document ${Date.now()}\r\n`;
-  body += `--${boundary}\r\n`;
-  body += 'Content-Disposition: form-data; name="tags"\r\n\r\n';
-  body += JSON.stringify(['stress-test']) + '\r\n';
-  body += `--${boundary}--\r\n`;
-
-  const uploadHeaders = {
-    'Authorization': headers.Authorization,
-    'Content-Type': `multipart/form-data; boundary=${boundary}`,
-  };
-
-  const response = http.post(`${BASE_URL}${API_PREFIX}/documents/upload`, body, {
-    headers: uploadHeaders,
+  const res = http.post(ROUTES.search, body, {
+    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+    tags: { name: 'search' },
     timeout: '30s',
   });
-
-  throughput.add(1);
-
-  const success = check(response, {
-    'upload status is 201 or 400': (r) => r.status === 201 || r.status === 400,
-    'upload response time < 30s': (r) => r.timings.duration < 30000,
-  });
-
-  errorRate.add(!success);
+  check(res, { 'search 200': (r) => r.status === 200 });
 }
 
+function doDocumentList(authHeaders) {
+  const res = http.get(`${ROUTES.documents}?page=${randomIntBetween(1, 5)}&size=20`, {
+    headers: authHeaders,
+    tags: { name: 'documents' },
+    timeout: '15s',
+  });
+  check(res, { 'documents 200': (r) => r.status === 200 });
+}
+
+function doProfile(authHeaders) {
+  const res = http.get(ROUTES.me, {
+    headers: authHeaders,
+    tags: { name: 'profile' },
+    timeout: '15s',
+  });
+  check(res, { 'profile 200': (r) => r.status === 200 });
+}
+
+function doUpload(authHeaders) {
+  const content = `stress ${RUN_ID} ${Date.now()} `.repeat(20);
+  const payload = {
+    // multipart: do NOT set Content-Type — k6 sets it with the boundary.
+    file: http.file(content, `stress-${RUN_ID}-${__VU}-${__ITER}.txt`, 'text/plain'),
+    title: `stress ${RUN_ID} ${__VU}-${__ITER}`,
+    tags: JSON.stringify(['stress-test', RUN_ID]),
+    custom_metadata: JSON.stringify({ run_id: RUN_ID }),
+  };
+  const res = http.post(ROUTES.upload, payload, {
+    headers: authHeaders,
+    tags: { name: 'upload' },
+    timeout: '60s',
+  });
+  const ok = check(res, { 'upload 200/201': (r) => r.status === 200 || r.status === 201 });
+  if (ok) uploadsCreated.add(1);
+}
+
+// ---- Teardown: run-scoped cleanup ------------------------------------------
 export function teardown(data) {
-  console.log('Stress test completed.');
-  console.log(`Peak concurrent users: ${concurrentUsers.max || 0}`);
-  console.log(`Average response time: ${responseTime.mean || 0}ms`);
-  console.log(`95th percentile response time: ${responseTime.p(95) || 0}ms`);
-  console.log(`Error rate: ${(errorRate.rate * 100).toFixed(2)}%`);
-  console.log(`Total requests processed: ${throughput.count || 0}`);
+  const adminHeaders = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  };
+  let deletedDocs = 0, residualDocs = 0, deletedUsers = 0, residualUsers = 0;
+
+  for (const user of data.users) {
+    const authHeaders = { Authorization: `Bearer ${user.token}` };
+    // Fresh users → every document they own was created by this run.
+    for (let page = 1; page <= 50; page++) {
+      const res = http.get(`${ROUTES.documents}?page=${page}&size=100`, { headers: authHeaders });
+      if (res.status !== 200) break;
+      let docs = [];
+      try { docs = JSON.parse(res.body).documents || []; } catch (e) { break; }
+      if (docs.length === 0) break;
+      for (const doc of docs) {
+        if (!doc.id) continue;
+        const del = http.del(`${ROUTES.documents}/${doc.id}?cascade=true`, null, { headers: authHeaders });
+        if (del.status === 200 || del.status === 204) deletedDocs++;
+        else residualDocs++;
+      }
+    }
+    const delUser = http.del(`${ROUTES.supabaseAdminUsers}/${user.id}`, null, { headers: adminHeaders });
+    if (delUser.status === 200 || delUser.status === 204) deletedUsers++;
+    else residualUsers++;
+  }
+  console.log(
+    `teardown run=${data.runId}: docs deleted=${deletedDocs} residual=${residualDocs}; ` +
+    `users deleted=${deletedUsers} residual=${residualUsers}`
+  );
+}
+
+// Machine-readable summary for post-run analysis (written into the mounted
+// results dir; stdout kept terse to avoid dumping response data).
+export function handleSummary(data) {
+  return {
+    [`${RESULTS_DIR}/summary.json`]: JSON.stringify(data, null, 2),
+    stdout: `\nStress run ${RUN_ID} complete — summary at ${RESULTS_DIR}/summary.json\n`,
+  };
 }
