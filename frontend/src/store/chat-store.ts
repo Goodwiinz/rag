@@ -129,6 +129,7 @@ interface ChatState {
   conversations: Record<string, Conversation[]>; // keyed by workspace_id
   threads: Record<string, Thread[]>; // keyed by conversation_id
   messages: Record<string, ChatMessage[]>; // keyed by thread_id
+  messageFreshness: Record<string, MessageFreshness>;
 
   // Reverse indexes for O(1) parent lookup (GOO-86 performance fix)
   conversationToWorkspace: Record<string, string>; // conversation_id -> workspace_id
@@ -245,6 +246,11 @@ interface ChatActions {
 
   // Message actions
   loadMessages: (threadId: string) => Promise<void>;
+  markMessagesStale: (threadId: string) => void;
+  refreshMessages: (
+    threadId: string,
+    expected?: RefreshExpectation
+  ) => Promise<boolean>;
   loadOlderMessages: (threadId: string) => Promise<void>;
   sendMessage: (
     content: string,
@@ -279,6 +285,13 @@ interface ChatActions {
 
 type ChatStore = ChatState & ChatActions;
 
+export type MessageFreshness = 'fresh' | 'stale' | 'refreshing';
+
+export interface RefreshExpectation {
+  persistedId?: string;
+  runtimeId?: string;
+}
+
 // ============================================================================
 // Initial State
 // ============================================================================
@@ -293,6 +306,37 @@ const MAX_CACHED_THREADS = 50;
 // A thread selection only needs the recent context visible in the viewport.
 // Older messages remain available through explicit cursor pagination.
 const INITIAL_MESSAGE_PAGE_SIZE = 50;
+
+function compareMessageOrder(left: ChatMessage, right: ChatMessage): number {
+  const timestampOrder = left.created_at.localeCompare(right.created_at);
+  return timestampOrder !== 0 ? timestampOrder : left.id.localeCompare(right.id);
+}
+
+function mergeNewestMessagePage(
+  existing: ChatMessage[],
+  canonicalNewestPage: ChatMessage[]
+): { messages: ChatMessage[]; retainedOlderCount: number } {
+  if (canonicalNewestPage.length === 0) {
+    return { messages: [], retainedOlderCount: 0 };
+  }
+
+  const canonical = [...canonicalNewestPage].sort(compareMessageOrder);
+  const boundary = canonical[0];
+  const canonicalIds = new Set(canonical.map((message) => message.id));
+  const retainedOlder = existing.filter(
+    (message) =>
+      !canonicalIds.has(message.id) && compareMessageOrder(message, boundary) < 0
+  );
+  const byId = new Map<string, ChatMessage>();
+  [...retainedOlder, ...canonical].forEach((message) => {
+    byId.set(message.id, message);
+  });
+
+  return {
+    messages: [...byId.values()].sort(compareMessageOrder),
+    retainedOlderCount: retainedOlder.length,
+  };
+}
 
 // Helper type for the recovery handler
 type RecoveryResult =
@@ -397,6 +441,7 @@ const initialState: ChatState = {
   conversations: {},
   threads: {},
   messages: {},
+  messageFreshness: {},
   // Reverse indexes for O(1) lookup
   conversationToWorkspace: {},
   threadToConversation: {},
@@ -429,9 +474,28 @@ const initialState: ChatState = {
 
 // Module-level abort controller (outside Immer state to avoid proxy issues)
 let _activeAbortController: AbortController | null = null;
-// Only the newest initial thread-message request may update the shared loading
-// state. A late response from a previously selected thread must be ignored.
-let messageLoadEpoch = 0;
+interface NewestPageRequest {
+  generation: number;
+  controller: AbortController;
+}
+
+// Request coordination stays outside Immer state because AbortController is
+// mutable and must never be proxied or persisted.
+const newestPageRequests = new Map<string, NewestPageRequest>();
+
+function abortNewestPageRequest(threadId: string): void {
+  const request = newestPageRequests.get(threadId);
+  if (!request) return;
+  request.controller.abort();
+  newestPageRequests.delete(threadId);
+}
+
+function abortAllNewestPageRequests(): void {
+  for (const request of newestPageRequests.values()) {
+    request.controller.abort();
+  }
+  newestPageRequests.clear();
+}
 
 // ============================================================================
 // Store
@@ -474,12 +538,14 @@ export const useChatStore = create<ChatStore>()(
       },
 
       setCurrentThread: (threadId) => {
-        messageLoadEpoch += 1;
         const snapshot = get();
         const hasCachedPage =
           !!threadId &&
           Object.prototype.hasOwnProperty.call(snapshot.messages, threadId) &&
           !!snapshot.messagePagination[threadId];
+        const freshness = threadId
+          ? snapshot.messageFreshness[threadId]
+          : undefined;
         set((state) => {
           state.currentThreadId = threadId;
           if (!threadId || hasCachedPage) {
@@ -491,10 +557,12 @@ export const useChatStore = create<ChatStore>()(
           }
         });
 
-        // Cached pages (including a known-empty thread) retain their cursor and
-        // loaded history. Explicit loadMessages remains available for refresh.
+        // Cached pages remain visible. A stale cache refreshes in the
+        // background; a fresh (or legacy unclassified) cache makes no request.
         if (threadId && !hasCachedPage) {
           get().loadMessages(threadId);
+        } else if (threadId && freshness === 'stale') {
+          void get().refreshMessages(threadId);
         }
       },
 
@@ -871,9 +939,16 @@ export const useChatStore = create<ChatStore>()(
       deleteThread: async (id) => {
         try {
           await workspaceService.deleteThread(id);
+          abortNewestPageRequest(id);
           set((state) => {
             // Use O(1) reverse index lookup (GOO-86)
             removeItemFromRecord(state.threads, id, state.threadToConversation);
+            for (const message of state.messages[id] || []) {
+              delete state.messageToThread[message.id];
+            }
+            delete state.messages[id];
+            delete state.messagePagination[id];
+            delete state.messageFreshness[id];
             if (state.currentThreadId === id) {
               state.currentThreadId = null;
             }
@@ -1042,6 +1117,11 @@ export const useChatStore = create<ChatStore>()(
 
         try {
           const response = await workspaceService.bulkDeleteThreads(threadIds);
+          for (const result of response.results) {
+            if (result.success) {
+              abortNewestPageRequest(result.thread_id);
+            }
+          }
 
           set((state) => {
             for (const result of response.results) {
@@ -1052,6 +1132,12 @@ export const useChatStore = create<ChatStore>()(
                   result.thread_id,
                   state.threadToConversation
                 );
+                for (const message of state.messages[result.thread_id] || []) {
+                  delete state.messageToThread[message.id];
+                }
+                delete state.messages[result.thread_id];
+                delete state.messagePagination[result.thread_id];
+                delete state.messageFreshness[result.thread_id];
               }
             }
 
@@ -1082,74 +1168,138 @@ export const useChatStore = create<ChatStore>()(
       // ========================================================================
 
       loadMessages: async (threadId) => {
-        const loadEpoch = ++messageLoadEpoch;
+        await get().refreshMessages(threadId);
+      },
+
+      markMessagesStale: (threadId) => {
         set((state) => {
-          state.isLoadingMessages = true;
-          state.loadingThreadId = threadId;
+          state.messageFreshness[threadId] = 'stale';
+        });
+      },
+
+      refreshMessages: async (threadId, expected) => {
+        const previous = newestPageRequests.get(threadId);
+        previous?.controller.abort();
+        const request: NewestPageRequest = {
+          generation: (previous?.generation ?? 0) + 1,
+          controller: new AbortController(),
+        };
+        newestPageRequests.set(threadId, request);
+
+        const snapshot = get();
+        const hasCachedPage =
+          Object.prototype.hasOwnProperty.call(snapshot.messages, threadId) &&
+          !!snapshot.messagePagination[threadId];
+        set((state) => {
+          state.messageFreshness[threadId] = 'refreshing';
           state.error = null;
+          if (!hasCachedPage) {
+            state.isLoadingMessages = true;
+            state.loadingThreadId = threadId;
+          }
         });
 
         try {
-          // Newest-first: fetch the most recent page (order=desc) so a long
-          // thread opens at its latest messages, then reverse into ascending
-          // display order (oldest first, newest at the bottom). `has_more`
-          // from a desc query means "older messages remain".
           const response = await workspaceService.listMessages(threadId, {
             limit: INITIAL_MESSAGE_PAGE_SIZE,
             order: 'desc',
+            signal: request.controller.signal,
           });
-          const ordered = Array.isArray(response.messages)
-            ? [...response.messages].reverse()
-            : [];
-          if (loadEpoch !== messageLoadEpoch) {
-            return;
+          if (newestPageRequests.get(threadId) !== request) {
+            return false;
           }
+          if (!Array.isArray(response.messages)) {
+            throw new Error('Invalid messages response');
+          }
+
+          const canonicalAscending = [...response.messages].reverse();
+          const expectationIds = [expected?.persistedId, expected?.runtimeId].filter(
+            (value): value is string => !!value
+          );
+          const expectationMet =
+            expectationIds.length === 0 ||
+            response.messages.some(
+              (message) =>
+                expectationIds.includes(message.id) ||
+                (!!message.client_message_id &&
+                  expectationIds.includes(message.client_message_id))
+            );
+          const evictedThreadIds: string[] = [];
+
+          newestPageRequests.delete(threadId);
           set((state) => {
-            state.messages[threadId] = ordered;
-            // Populate reverse index for O(1) lookup (GOO-86)
-            for (const msg of ordered) {
-              state.messageToThread[msg.id] = threadId;
+            const existing = state.messages[threadId] || [];
+            const existingPagination = state.messagePagination[threadId];
+            const { messages, retainedOlderCount } = mergeNewestMessagePage(
+              existing,
+              canonicalAscending
+            );
+
+            for (const message of existing) {
+              delete state.messageToThread[message.id];
             }
-
-            // Track pagination state for this thread
+            state.messages[threadId] = messages;
+            for (const message of messages) {
+              state.messageToThread[message.id] = threadId;
+            }
             state.messagePagination[threadId] = {
-              hasMore: ordered.length > 0 && response.has_more,
+              hasMore:
+                retainedOlderCount > 0 && existingPagination
+                  ? existingPagination.hasMore
+                  : messages.length > 0 && response.has_more,
               loadingOlder: false,
-              loadedCount: ordered.length,
+              loadedCount: messages.length,
             };
+            state.messageFreshness[threadId] = expectationMet
+              ? 'fresh'
+              : 'stale';
 
-            // Evict oldest cached threads when exceeding the cap (FIFO by key insertion order)
             const threadKeys = Object.keys(state.messages);
             if (threadKeys.length > MAX_CACHED_THREADS) {
-              const toEvict = threadKeys.slice(
-                0,
-                threadKeys.length - MAX_CACHED_THREADS
+              evictedThreadIds.push(
+                ...threadKeys.slice(
+                  0,
+                  threadKeys.length - MAX_CACHED_THREADS
+                )
               );
-              for (const key of toEvict) {
-                // Clean up reverse index entries for evicted messages
-                for (const msg of state.messages[key] || []) {
-                  delete state.messageToThread[msg.id];
+              for (const key of evictedThreadIds) {
+                for (const message of state.messages[key] || []) {
+                  delete state.messageToThread[message.id];
                 }
-                delete state.messagePagination[key];
-              }
-              for (const key of toEvict) {
                 delete state.messages[key];
+                delete state.messagePagination[key];
+                delete state.messageFreshness[key];
               }
             }
 
-            state.isLoadingMessages = false;
-            state.loadingThreadId = null;
+            if (state.loadingThreadId === threadId) {
+              state.isLoadingMessages = false;
+              state.loadingThreadId = null;
+            }
           });
+          evictedThreadIds.forEach(abortNewestPageRequest);
+          return expectationMet;
         } catch (error) {
-          console.error('[ChatStore] Error loading messages:', error);
-          if (loadEpoch !== messageLoadEpoch) {
-            return;
+          if (newestPageRequests.get(threadId) !== request) {
+            return false;
+          }
+          newestPageRequests.delete(threadId);
+          const isAbort =
+            error instanceof Error && error.name === 'AbortError';
+          if (!isAbort) {
+            console.error('[ChatStore] Error refreshing messages:', error);
           }
           set((state) => {
-            state.error = 'Failed to load messages';
-            state.isLoadingMessages = false;
-            state.loadingThreadId = null;
+            state.messageFreshness[threadId] = 'stale';
+            if (!isAbort) {
+              state.error = 'Failed to load messages';
+            }
+            if (state.loadingThreadId === threadId) {
+              state.isLoadingMessages = false;
+              state.loadingThreadId = null;
+            }
           });
+          return false;
         }
       },
 
@@ -1347,6 +1497,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       clearThread: (threadId) => {
+        abortNewestPageRequest(threadId);
         set((state) => {
           // Clean up reverse index entries for evicted messages
           for (const msg of state.messages[threadId] || []) {
@@ -1354,6 +1505,7 @@ export const useChatStore = create<ChatStore>()(
           }
           delete state.messages[threadId];
           delete state.messagePagination[threadId];
+          delete state.messageFreshness[threadId];
         });
       },
 
@@ -1513,7 +1665,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       reset: () => {
-        messageLoadEpoch += 1;
+        abortAllNewestPageRequests();
         set(initialState);
       },
 

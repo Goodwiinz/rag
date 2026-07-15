@@ -242,6 +242,7 @@ describe('loadMessages (newest-first initial load)', () => {
     expect(listMessagesMock).toHaveBeenCalledWith(THREAD, {
       limit: 50,
       order: 'desc',
+      signal: expect.any(AbortSignal),
     });
 
     const ids = useChatStore.getState().messages[THREAD].map((m) => m.id);
@@ -252,7 +253,7 @@ describe('loadMessages (newest-first initial load)', () => {
     );
   });
 
-  it('ignores a late initial-load response after a newer thread load begins', async () => {
+  it('allows independent thread loads to complete in either order', async () => {
     let resolveA!: (response: ChatMessageListResponse) => void;
     let resolveB!: (response: ChatMessageListResponse) => void;
     const responseA = new Promise<ChatMessageListResponse>((resolve) => {
@@ -274,7 +275,7 @@ describe('loadMessages (newest-first initial load)', () => {
     await loadA;
 
     expect(useChatStore.getState().messages['thread-B']).toHaveLength(1);
-    expect(useChatStore.getState().messages['thread-A']).toBeUndefined();
+    expect(useChatStore.getState().messages['thread-A']).toHaveLength(1);
     expect(useChatStore.getState().isLoadingMessages).toBe(false);
   });
 
