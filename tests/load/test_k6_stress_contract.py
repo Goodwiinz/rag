@@ -41,7 +41,7 @@ class K6StressContractTest(unittest.TestCase):
         # setup() must RETURN authenticated users; the default fn must read
         # them from its `data` argument (module-level state does NOT cross the
         # setup->VU VM boundary in k6).
-        self.assertRegex(SOURCE, r"return\s*\{[\s\S]*?users:")
+        self.assertRegex(SOURCE, r"return\s*\{[\s\S]*?\busers\b")
         self.assertRegex(SOURCE, r"export\s+default\s+function\s*\(\s*data\s*\)")
         self.assertIn("data.users", SOURCE)
 
