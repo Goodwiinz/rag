@@ -11,6 +11,10 @@ import unittest
 
 SOURCE = Path(__file__).with_name("k6-stress-testing.js").read_text()
 
+_RUNNER_PATH = Path(__file__).with_name("run-shared-dev-max.sh")
+# Empty string when absent → assertions fail cleanly (RED) instead of erroring.
+RUNNER = _RUNNER_PATH.read_text() if _RUNNER_PATH.exists() else ""
+
 
 class K6StressContractTest(unittest.TestCase):
     def test_uses_current_backend_routes(self) -> None:
@@ -49,6 +53,43 @@ class K6StressContractTest(unittest.TestCase):
         self.assertIn("run_id", SOURCE)      # uploads tagged with the run id
         self.assertIn("http.del", SOURCE)    # teardown deletes what it created
         self.assertIn("handleSummary", SOURCE)  # machine-readable summary out
+
+
+class RunnerSafetyContractTest(unittest.TestCase):
+    """Safety guard for the monitored runner (run-shared-dev-max.sh)."""
+
+    def test_targets_only_shared_dev(self) -> None:
+        self.assertIn("dev-api.gen-text.app", RUNNER)
+        self.assertIn("rag-dev", RUNNER)
+
+    def test_reads_supabase_credentials_secret(self) -> None:
+        self.assertIn("supabase-credentials", RUNNER)
+        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
+            self.assertIn(key, RUNNER)
+
+    def test_does_not_leak_secrets_via_docker_e_flag(self) -> None:
+        # Secrets go to the container via --env-file (hidden from `ps`), never
+        # `-e KEY=$VALUE` (which exposes values in the host process list).
+        self.assertIn("--env-file", RUNNER)
+        self.assertNotIn("-e SUPABASE", RUNNER)
+
+    def test_health_gating_and_restart_baseline(self) -> None:
+        self.assertIn("/health", RUNNER)
+        self.assertIn("/health/readiness", RUNNER)
+        self.assertIn("restartCount", RUNNER)
+
+    def test_strict_mode_and_traps(self) -> None:
+        self.assertIn("set -euo pipefail", RUNNER)
+        self.assertIn("trap", RUNNER)
+
+    def test_results_dir_and_modes(self) -> None:
+        self.assertIn("/tmp/rag-stress", RUNNER)
+        self.assertIn("--preflight", RUNNER)
+        self.assertIn("--full", RUNNER)
+
+    def test_full_requires_preflight_marker(self) -> None:
+        # --full must refuse to run without a successful preflight marker.
+        self.assertRegex(RUNNER, r"(?s)--full.*marker|marker.*--full|PREFLIGHT_MARKER")
 
 
 if __name__ == "__main__":
