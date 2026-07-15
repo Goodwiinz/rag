@@ -123,11 +123,20 @@ export function setup() {
       JSON.stringify({ email, password }),
       { headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY } }
     );
-    if (tokenRes.status !== 200) continue;
-
     let token;
-    try { token = JSON.parse(tokenRes.body).access_token; } catch (e) { continue; }
-    if (token) users.push({ id: userId, email, token });
+    if (tokenRes.status === 200) {
+      try { token = JSON.parse(tokenRes.body).access_token; } catch (e) { token = null; }
+    }
+    if (token) {
+      users.push({ id: userId, email, token });
+    } else {
+      // Compensating delete: never leak a created-but-unauthenticated identity.
+      // teardown only knows the users setup() returns, so an orphan here would
+      // survive the run. (Supabase rate-limits rapid password grants — the
+      // sleep below keeps that failure rate low.)
+      http.del(`${ROUTES.supabaseAdminUsers}/${userId}`, null, { headers: adminHeaders });
+    }
+    sleep(0.1);
   }
 
   if (users.length === 0) {
