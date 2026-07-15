@@ -28,6 +28,13 @@ function Probe() {
   );
 }
 
+function IdentityProbe() {
+  const ids = useThread((thread) =>
+    thread.messages.map((message) => message.id).join(',')
+  );
+  return <div data-testid="identity-probe">{ids}</div>;
+}
+
 function CancelProbe() {
   const runtime = useThreadRuntime();
   return (
@@ -70,5 +77,57 @@ describe('ChatRuntimeProvider', () => {
     await user.click(screen.getByRole('button', { name: 'cancel' }));
 
     await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps the runtime identity stable when an optimistic row becomes canonical', async () => {
+    const optimistic = makeChatPageMessage({
+      runtimeId: 'runtime-turn-1',
+      source: 'optimistic',
+      role: 'assistant',
+      content: 'Persisted answer',
+      timestamp: 2,
+    });
+    const canonical = makeChatPageMessage({
+      id: 'db-message-1',
+      runtimeId: 'runtime-turn-1',
+      source: 'canonical',
+      role: 'assistant',
+      content: 'Persisted answer',
+      timestamp: 2,
+    });
+
+    const { rerender } = render(
+      <ChatRuntimeProvider
+        messages={[optimistic]}
+        isRunning={false}
+        onSend={vi.fn()}
+        onCancel={vi.fn()}
+      >
+        <IdentityProbe />
+      </ChatRuntimeProvider>
+    );
+    expect(screen.getByTestId('identity-probe')).toHaveTextContent(
+      'runtime-turn-1'
+    );
+
+    rerender(
+      <ChatRuntimeProvider
+        messages={[canonical]}
+        isRunning={false}
+        onSend={vi.fn()}
+        onCancel={vi.fn()}
+      >
+        <IdentityProbe />
+      </ChatRuntimeProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('identity-probe')).toHaveTextContent(
+        'runtime-turn-1'
+      )
+    );
+    expect(screen.getByTestId('identity-probe')).not.toHaveTextContent(
+      'db-message-1'
+    );
   });
 });

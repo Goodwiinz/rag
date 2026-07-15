@@ -80,4 +80,16 @@ describe('ChatMessageList thread-switch remount', () => {
     expect(document.body.contains(node)).toBe(true);
     expect(screen.getByText('STABLE')).toBe(node);
   });
+
+  it('replaces every row when the same thread receives a same-count canonical page', () => {
+    const optimistic = msgs('OPTIMISTIC ANSWER');
+    const canonical = msgs('CANONICAL ANSWER');
+    const { rerender } = render(tree('thread-A', optimistic));
+
+    expect(screen.getByText('OPTIMISTIC ANSWER')).toBeInTheDocument();
+    rerender(tree('thread-A', canonical));
+
+    expect(screen.queryByText('OPTIMISTIC ANSWER')).not.toBeInTheDocument();
+    expect(screen.getByText('CANONICAL ANSWER')).toBeInTheDocument();
+  });
 });

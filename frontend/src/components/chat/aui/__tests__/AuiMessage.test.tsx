@@ -259,6 +259,56 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
 });
 
 describe('AuiMessageByIndex runtime-sync race', () => {
+  it('hands an optimistic row to its canonical replacement without a duplicate bubble', async () => {
+    const optimistic = makeChatPageMessage({
+      runtimeId: 'runtime-answer',
+      source: 'optimistic',
+      role: 'assistant',
+      content: 'Answer survives reconciliation.',
+      timestamp: 2,
+    });
+    const canonical = makeChatPageMessage({
+      id: 'db-answer',
+      runtimeId: 'runtime-answer',
+      source: 'canonical',
+      role: 'assistant',
+      content: 'Answer survives reconciliation.',
+      timestamp: 2,
+    });
+
+    const { rerender } = render(
+      <ChatRuntimeProvider
+        messages={[optimistic]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessages />
+      </ChatRuntimeProvider>
+    );
+    const originalBubble = document.querySelector('[data-role="assistant"]');
+
+    rerender(
+      <ChatRuntimeProvider
+        messages={[canonical]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessages />
+      </ChatRuntimeProvider>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Answer survives reconciliation.')
+      ).toHaveLength(1)
+    );
+    expect(document.querySelector('[data-role="assistant"]')).toBe(
+      originalBubble
+    );
+  });
+
   it('renders nothing instead of throwing when the runtime thread is behind the list', () => {
     // The external-store runtime syncs post-commit (useEffect), so the list
     // can render an index the runtime doesn't have yet — e.g. thread switch
