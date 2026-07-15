@@ -183,6 +183,7 @@ export function mapStoreMessagesToChatMessages(
 interface SelectDisplayedMessagesParams {
   localMessages: ChatPageMessage[];
   storeMessages?: ChatMessage[];
+  messageFreshness?: 'fresh' | 'stale' | 'refreshing';
 }
 
 /**
@@ -207,15 +208,6 @@ export function isThreadSwitchPending(params: {
   );
 }
 
-function shouldUseStoreMessages(
-  localMessages: ChatPageMessage[],
-  storeMessages: ChatMessage[]
-): boolean {
-  return (
-    storeMessages.length > 0 && storeMessages.length >= localMessages.length
-  );
-}
-
 /**
  * Carry in-memory turn provenance over to the server-mapped message.
  * plan / token_usage are persisted now, but the store page may have been
@@ -230,18 +222,14 @@ function mergeLocalProvenance(
 ): ChatPageMessage[] {
   if (localMessages.length === 0) return mapped;
 
-  const localById = new Map(
-    localMessages.filter((m) => m.id).map((m) => [m.id as string, m])
+  const localByRuntimeId = new Map(
+    localMessages
+      .filter((message) => !!message.runtimeId)
+      .map((message) => [message.runtimeId, message])
   );
 
   return mapped.map((message) => {
-    // Prefer id reconciliation (the done payload backfills the persisted
-    // id); fall back to role+content for optimistic messages without one.
-    const local =
-      (message.id ? localById.get(message.id) : undefined) ??
-      localMessages.find(
-        (l) => !l.id && l.role === message.role && l.content === message.content
-      );
+    const local = localByRuntimeId.get(message.runtimeId);
     if (!local) return message;
 
     const mergedMetadata =
@@ -273,93 +261,28 @@ function mergeLocalProvenance(
 export function selectDisplayedMessages({
   localMessages,
   storeMessages = [],
+  messageFreshness,
 }: SelectDisplayedMessagesParams): ChatPageMessage[] {
-  if (shouldUseStoreMessages(localMessages, storeMessages)) {
-    return mergeLocalProvenance(
-      mapStoreMessagesToChatMessages(storeMessages),
-      localMessages
-    );
-  }
-
-  return localMessages;
-}
-
-interface ConversationWithMessages {
-  id: string;
-  messages: ChatPageMessage[];
-  updatedAt: number;
-  previewText?: string;
-  messageCount?: number;
-}
-
-function messagesMatch(
-  left: ChatPageMessage[],
-  right: ChatPageMessage[]
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((message, index) => {
-      const other = right[index];
-      return (
-        message.id === other?.id &&
-        message.role === other?.role &&
-        message.content === other?.content &&
-        message.timestamp === other?.timestamp
-      );
-    })
+  const canonical = mergeLocalProvenance(
+    mapStoreMessagesToChatMessages(storeMessages),
+    localMessages
   );
-}
+  const canonicalRuntimeIds = new Set(
+    canonical.map((message) => message.runtimeId)
+  );
 
-export function syncConversationMessagesWithStore<
-  T extends ConversationWithMessages,
->(
-  conversations: T[],
-  threadId: string | null | undefined,
-  storeMessages: ChatMessage[] = []
-): T[] {
-  if (!threadId || storeMessages.length === 0) {
-    return conversations;
+  // A known-empty fresh page is authoritative. During initial/stale loads,
+  // however, the local projection is the only renderable transcript and must
+  // not disappear while the request is in flight.
+  if (canonical.length === 0 && messageFreshness !== 'fresh') {
+    return localMessages;
   }
 
-  const mappedMessages = mapStoreMessagesToChatMessages(storeMessages);
-
-  return conversations.map((conversation) => {
-    if (conversation.id !== threadId) {
-      return conversation;
-    }
-
-    // Don't clobber a fuller local cache with a partial store page — unless
-    // the store's tail is strictly NEWER than the cached tail. After FIFO
-    // eviction (chat-store MAX_CACHED_THREADS) a revisited thread reloads
-    // with only the latest page, which can be shorter than the stale cache;
-    // without the newer-tail escape this guard froze the sidebar cache on
-    // the pre-eviction copy forever.
-    const cachedTailTs =
-      conversation.messages[conversation.messages.length - 1]?.timestamp ?? 0;
-    const mappedTailTs =
-      mappedMessages[mappedMessages.length - 1]?.timestamp ?? 0;
-    if (
-      mappedMessages.length < conversation.messages.length &&
-      mappedTailTs <= cachedTailTs
-    ) {
-      return conversation;
-    }
-
-    if (messagesMatch(conversation.messages, mappedMessages)) {
-      return conversation;
-    }
-
-    return {
-      ...conversation,
-      messages: mappedMessages,
-      previewText: mappedMessages[mappedMessages.length - 1]?.content,
-      messageCount: Math.max(
-        conversation.messageCount ?? 0,
-        mappedMessages.length
-      ),
-      updatedAt:
-        mappedMessages[mappedMessages.length - 1]?.timestamp ??
-        conversation.updatedAt,
-    };
+  const overlays = localMessages.filter((message) => {
+    if (canonicalRuntimeIds.has(message.runtimeId)) return false;
+    if (message.source === 'local-only') return true;
+    return message.source === 'optimistic' && messageFreshness !== 'fresh';
   });
+
+  return [...canonical, ...overlays];
 }

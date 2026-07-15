@@ -3,9 +3,7 @@
 import {
   isThreadSwitchPending,
   mapDbMessageToChatPageMessage,
-  mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
-  syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
 import toast from 'react-hot-toast';
 
@@ -30,13 +28,12 @@ const THREADS_PAGE_SIZE = 50;
 // so the sidebar's ChatConversation shape can't drift between them.
 function threadToConversation(
   thread: Thread,
-  conversationId: string,
-  messages: ChatPageMessage[] = []
+  conversationId: string
 ): ChatConversation {
   return {
     id: thread.id,
     title: thread.title || 'New Chat',
-    messages,
+    messages: [],
     createdAt: new Date(thread.created_at).getTime(),
     updatedAt: new Date(thread.updated_at).getTime(),
     threadId: thread.id,
@@ -126,6 +123,9 @@ export function useChatSession(): UseChatSessionReturn {
   // to conversation-cache writes, which are common during a thread handoff.
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const localMessagesThreadIdRef = useRef<string | null>(null);
   const isHydratedRef = useRef(false);
 
   // ---- Auth ----
@@ -138,6 +138,9 @@ export function useChatSession(): UseChatSessionReturn {
   // background threads change (streaming elsewhere, FIFO eviction, etc.).
   const activeThreadMessages = useChatStore((state) =>
     activeThreadId ? (state.messages[activeThreadId] ?? null) : null
+  );
+  const activeMessageFreshness = useChatStore((state) =>
+    activeThreadId ? state.messageFreshness?.[activeThreadId] : undefined
   );
   const addMessageToStore = useChatStore((state) => state.addMessageToStore);
   const storeLoadOlderMessages = useChatStore(
@@ -154,8 +157,9 @@ export function useChatSession(): UseChatSessionReturn {
       selectDisplayedMessages({
         localMessages: messages,
         storeMessages: activeThreadMessages ?? [],
+        messageFreshness: activeMessageFreshness,
       }),
-    [messages, activeThreadMessages]
+    [messages, activeThreadMessages, activeMessageFreshness]
   );
 
   // Skeleton gate: only an uncached switch into the active thread counts as
@@ -235,23 +239,25 @@ export function useChatSession(): UseChatSessionReturn {
     }
   }, [activeThreadId, storeError, storeLoadingThreadId]);
 
-  // Store messages -> conversations sync
+  // Keep sidebar metadata current without copying the transcript into a
+  // second cache. Zustand is the sole canonical transcript owner.
   useEffect(() => {
-    if (!activeThreadId) {
-      return;
-    }
-
-    const activeStoreMessages = activeThreadMessages || [];
-
-    if (activeStoreMessages.length === 0) {
-      return;
-    }
-
+    if (!activeThreadId || !activeThreadMessages?.length) return;
+    const latest = activeThreadMessages[activeThreadMessages.length - 1];
     setConversations((prev) =>
-      syncConversationMessagesWithStore(
-        prev,
-        activeThreadId,
-        activeStoreMessages
+      prev.map((conversation) =>
+        conversation.id === activeThreadId
+          ? {
+              ...conversation,
+              messages: [],
+              previewText: latest.content,
+              messageCount: Math.max(
+                conversation.messageCount ?? 0,
+                activeThreadMessages.length
+              ),
+              updatedAt: new Date(latest.created_at).getTime(),
+            }
+          : conversation
       )
     );
   }, [activeThreadId, activeThreadMessages]);
@@ -562,16 +568,9 @@ export function useChatSession(): UseChatSessionReturn {
               return;
             }
 
-            const restoredMessages = mapStoreMessagesToChatMessages(
-              useChatStore.getState().messages[restoreThreadId] ?? []
-            );
             let uiConversations: ChatConversation[] =
               threadListResponse.threads.map((thread) =>
-                threadToConversation(
-                  thread,
-                  persistedConvId,
-                  thread.id === restoreThreadId ? restoredMessages : []
-                )
+                threadToConversation(thread, persistedConvId)
               );
             if (
               !threadListResponse.threads.some(
@@ -581,7 +580,7 @@ export function useChatSession(): UseChatSessionReturn {
               uiConversations = upsertConversationFromThread(
                 uiConversations,
                 restoreThread,
-                restoredMessages
+                []
               );
             }
             // CX8: warm-start also seeds the first page of the thread list.
@@ -589,7 +588,7 @@ export function useChatSession(): UseChatSessionReturn {
             threadsPageRef.current = 1;
             setHasMoreThreads(threadListResponse.has_more);
             setConversations(uiConversations);
-            setMessages(restoredMessages);
+            setMessages([]);
             // The bounded page and pagination record are already cached, so
             // this selection does not issue another message request.
             setCurrentThread(restoreThreadId);
@@ -725,43 +724,28 @@ export function useChatSession(): UseChatSessionReturn {
     };
   }, [isAuthenticated, loadThreadsFromDb, setCurrentThread]);
 
-  // Adopt the selected thread's transient/local projection. Zustand alone
-  // owns selection; this effect never changes it.
+  // React-local messages are an overlay only. Bind a just-created thread's
+  // optimistic turn to its new id, and clear the overlay on every real thread
+  // switch. Canonical rows render directly from Zustand.
   useEffect(() => {
     if (!activeThreadId) {
+      localMessagesThreadIdRef.current = null;
       setMessages([]);
       return;
     }
-    const conv = conversations.find((c) => c.id === activeThreadId);
-    if (!conv) {
+
+    if (localMessagesThreadIdRef.current === activeThreadId) {
       return;
     }
 
-    // If messages already loaded (cached), use them directly
-    if (conv.messages.length > 0) {
-      setMessages(conv.messages);
+    const isNewThreadHandoff =
+      localMessagesThreadIdRef.current === null &&
+      messagesRef.current.some((message) => message.source === 'optimistic');
+    localMessagesThreadIdRef.current = activeThreadId;
+    if (isNewThreadHandoff) {
       return;
     }
-
-    // The store is the per-thread source of truth. When it already holds THIS
-    // thread's messages, adopt them into local state — do NOT early-return
-    // leaving the PREVIOUS thread's transcript in `messages` (that stale copy
-    // both rendered here via the length-based display merge AND got streamed as
-    // the wrong thread's history by handleSubmit — the I1 bleed).
-    const store = useChatStore.getState();
-    const storeMsgs = store.messages[activeThreadId];
-    if (storeMsgs && storeMsgs.length > 0) {
-      setMessages(mapStoreMessagesToChatMessages(storeMsgs));
-      return;
-    }
-
-    // Neither cache has this thread yet. setCurrentThread already started the
-    // paginated, epoch-guarded store load; clear the previous transcript and
-    // let activeThreadMessages hydrate displayedMessages when that one request
-    // completes. A second getThread request would fetch the full transcript,
-    // duplicate database work, and race the paginated source of truth.
     setMessages([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger on thread selection, not conversation updates
   }, [activeThreadId]);
 
   return {

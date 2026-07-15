@@ -71,17 +71,24 @@ describe('useChatSession thread-load scoping', () => {
   it('keeps the optimistic turn visible (no skeleton) while the just-created thread loads mid-send', async () => {
     const { result } = renderHook(() => useChatSession());
 
-    // First send in a new chat: the send path creates the thread, registers
-    // the conversation with the optimistic user turn, and switches to it.
+    // First send in a new chat: the optimistic turn is the local overlay while
+    // conversation metadata deliberately carries no transcript copy.
     act(() => {
       result.current.setConversations([
         {
           id: 'thread-new',
           title: 'New chat',
-          messages: [
-            { role: 'user' as const, content: 'first message', timestamp: 1 },
-          ],
+          messages: [],
         } as never,
+      ]);
+      result.current.setMessages([
+        {
+          runtimeId: 'runtime-first',
+          source: 'optimistic',
+          role: 'user',
+          content: 'first message',
+          timestamp: 1,
+        },
       ]);
     });
     act(() => {

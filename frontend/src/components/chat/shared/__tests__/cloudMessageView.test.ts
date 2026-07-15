@@ -6,7 +6,6 @@ import {
   selectDisplayedMessages,
   summarizeToolArgs,
   summarizeToolResult,
-  syncConversationMessagesWithStore,
 } from '../cloudMessageView';
 
 describe('cloudMessageView', () => {
@@ -270,78 +269,6 @@ describe('cloudMessageView', () => {
       'persisted assistant',
     ]);
   });
-
-  it('syncs persisted cloud messages back into the sidebar conversation cache', () => {
-    const conversations = [
-      {
-        id: 'thread-1',
-        title: 'Thread 1',
-        messages: [],
-        updatedAt: 1,
-        messageCount: 2,
-      },
-      {
-        id: 'thread-2',
-        title: 'Thread 2',
-        messages: [],
-        updatedAt: 2,
-      },
-    ];
-
-    const result = syncConversationMessagesWithStore(
-      conversations,
-      'thread-1',
-      [
-        {
-          id: 'm-1',
-          role: 'user',
-          content: 'persisted user',
-          created_at: '2026-03-09T12:00:00Z',
-          citations: [],
-        } as any,
-        {
-          id: 'm-2',
-          role: 'assistant',
-          content: 'persisted assistant',
-          created_at: '2026-03-09T12:00:01Z',
-          citations: [],
-        } as any,
-      ]
-    );
-
-    expect(result[0].messages.map((message) => message.content)).toEqual([
-      'persisted user',
-      'persisted assistant',
-    ]);
-    expect(result[1]).toBe(conversations[1]);
-    expect(result[0].updatedAt).toBe(
-      new Date('2026-03-09T12:00:01Z').getTime()
-    );
-  });
-
-  it('preserves a larger authoritative thread count when only a message page is loaded', () => {
-    const result = syncConversationMessagesWithStore(
-      [
-        {
-          id: 'thread-1',
-          title: 'Thread 1',
-          messages: [],
-          updatedAt: 1,
-          messageCount: 120,
-        },
-      ],
-      'thread-1',
-      Array.from({ length: 100 }, (_, index) => ({
-        id: `m-${index}`,
-        role: index % 2 === 0 ? 'user' : 'assistant',
-        content: `message ${index}`,
-        created_at: `2026-03-09T12:${String(index).padStart(2, '0')}:00Z`,
-        citations: [],
-      })) as any
-    );
-
-    expect(result[0].messageCount).toBe(120);
-  });
 });
 
 describe('mapDbToolExecutions', () => {
@@ -444,49 +371,6 @@ describe('summarizeToolResult', () => {
   });
 });
 
-describe('syncConversationMessagesWithStore — post-eviction unfreeze', () => {
-  const conv = (messages: any[]) => [
-    {
-      id: 'thread-1',
-      title: 'Thread 1',
-      messages,
-      updatedAt: 1,
-      messageCount: messages.length,
-    },
-  ];
-  const dbMsg = (id: string, iso: string) =>
-    ({
-      id,
-      role: 'assistant',
-      content: `m-${id}`,
-      created_at: iso,
-      citations: [],
-    }) as any;
-
-  it('still ignores a shorter, not-newer store page (partial load)', () => {
-    const cached = [
-      { id: 'a', role: 'user' as const, content: 'a', timestamp: 1000 },
-      { id: 'b', role: 'assistant' as const, content: 'b', timestamp: 2000 },
-    ];
-    const result = syncConversationMessagesWithStore(conv(cached), 'thread-1', [
-      dbMsg('a', '1970-01-01T00:00:01Z'),
-    ]);
-    expect(result[0].messages).toBe(cached);
-  });
-
-  it('accepts a shorter store page whose tail is newer (post-eviction reload)', () => {
-    const cached = [
-      { id: 'a', role: 'user' as const, content: 'a', timestamp: 1000 },
-      { id: 'b', role: 'assistant' as const, content: 'b', timestamp: 2000 },
-    ];
-    const result = syncConversationMessagesWithStore(conv(cached), 'thread-1', [
-      dbMsg('c', '2026-03-09T12:00:00Z'),
-    ]);
-    expect(result[0].messages.map((m) => m.id)).toEqual(['c']);
-    expect(result[0].messageCount).toBe(2); // count stays monotonic
-  });
-});
-
 describe('selectDisplayedMessages local-provenance merge', () => {
   const storeMsg = (id: string, content: string) =>
     ({
@@ -512,6 +396,8 @@ describe('selectDisplayedMessages local-provenance merge', () => {
       localMessages: [
         {
           id: 'm-1',
+          runtimeId: 'm-1',
+          source: 'optimistic',
           role: 'assistant',
           content: 'Answer',
           timestamp: 1,
@@ -548,6 +434,8 @@ describe('selectDisplayedMessages local-provenance merge', () => {
       localMessages: [
         {
           id: 'm-1',
+          runtimeId: 'm-1',
+          source: 'optimistic',
           role: 'assistant',
           content: 'Answer',
           timestamp: 1,
@@ -560,10 +448,12 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     expect(result[0].toolExecutions).toEqual(toolExecutions);
   });
 
-  it('falls back to role+content matching for optimistic messages without ids', () => {
+  it('does not merge provenance by role and content when runtime ids differ', () => {
     const result = selectDisplayedMessages({
       localMessages: [
         {
+          runtimeId: 'optimistic-answer',
+          source: 'optimistic',
           role: 'assistant',
           content: 'Answer',
           timestamp: 1,
@@ -571,9 +461,12 @@ describe('selectDisplayedMessages local-provenance merge', () => {
         },
       ],
       storeMessages: [storeMsg('m-9', 'Answer')],
+      messageFreshness: 'fresh',
     });
 
-    expect(result[0].metadata?.tokenUsage).toEqual({ input: 10, output: 5 });
+    expect(result).toHaveLength(1);
+    expect(result[0].runtimeId).toBe('m-9');
+    expect(result[0].metadata?.tokenUsage).toBeUndefined();
   });
 
   it('leaves unmatched store messages untouched', () => {
@@ -593,6 +486,157 @@ describe('selectDisplayedMessages local-provenance merge', () => {
 
     expect(result[0].plan).toBeUndefined();
     expect(result[0].metadata?.tokenUsage).toBeUndefined();
+  });
+});
+
+describe('selectDisplayedMessages runtime-id overlays', () => {
+  const db = (id: string, runtimeId: string, content: string, second: number) =>
+    ({
+      id,
+      client_message_id: runtimeId,
+      role: second % 2 === 0 ? 'user' : 'assistant',
+      content,
+      created_at: `2026-07-15T00:00:${String(second).padStart(2, '0')}Z`,
+      citations: [],
+    }) as any;
+
+  const local = (
+    runtimeId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    timestamp: number,
+    source: 'canonical' | 'optimistic' | 'local-only' = 'optimistic'
+  ) => ({ runtimeId, source, role, content, timestamp });
+
+  it('retains an optimistic tail when a stale canonical page has equal length but divergent ids', () => {
+    const displayed = selectDisplayedMessages({
+      localMessages: [
+        local('runtime-old-user', 'user', 'Earlier question', 1, 'canonical'),
+        local(
+          'runtime-old-assistant',
+          'assistant',
+          'Earlier answer',
+          2,
+          'canonical'
+        ),
+        local('runtime-new-user', 'user', 'Find recent arXiv papers', 3),
+        local('runtime-new-assistant', 'assistant', 'Five papers', 4),
+      ],
+      storeMessages: [
+        db('old-user', 'runtime-old-user', 'Earlier question', 0),
+        db('old-assistant', 'runtime-old-assistant', 'Earlier answer', 1),
+        db('stale-user', 'runtime-stale-user', 'Stale question', 2),
+        db('stale-assistant', 'runtime-stale-assistant', 'Stale answer', 3),
+      ],
+      messageFreshness: 'stale',
+    });
+
+    expect(displayed.map((message) => message.runtimeId)).toEqual([
+      'runtime-old-user',
+      'runtime-old-assistant',
+      'runtime-stale-user',
+      'runtime-stale-assistant',
+      'runtime-new-user',
+      'runtime-new-assistant',
+    ]);
+  });
+
+  it('keeps a newer optimistic tail alongside a longer paginated canonical history', () => {
+    const storeMessages = Array.from({ length: 100 }, (_, index) =>
+      db(`m-${index}`, `runtime-${index}`, `message ${index}`, index)
+    );
+    const localMessages = [
+      ...storeMessages
+        .slice(50)
+        .map((message: any, index) =>
+          local(
+            message.client_message_id,
+            message.role,
+            message.content,
+            index,
+            'canonical'
+          )
+        ),
+      local('runtime-new-user', 'user', 'new question', 101),
+      local('runtime-new-assistant', 'assistant', 'new answer', 102),
+    ];
+
+    const displayed = selectDisplayedMessages({
+      localMessages,
+      storeMessages,
+      messageFreshness: 'refreshing',
+    });
+
+    expect(displayed).toHaveLength(102);
+    expect(displayed.slice(-2).map((message) => message.runtimeId)).toEqual([
+      'runtime-new-user',
+      'runtime-new-assistant',
+    ]);
+  });
+
+  it('keeps repeated identical prompts distinct by runtime id', () => {
+    const displayed = selectDisplayedMessages({
+      localMessages: [
+        local('prompt-1', 'user', 'repeat this', 1),
+        local('prompt-2', 'user', 'repeat this', 2),
+      ],
+      storeMessages: [],
+      messageFreshness: 'stale',
+    });
+
+    expect(displayed.map((message) => message.runtimeId)).toEqual([
+      'prompt-1',
+      'prompt-2',
+    ]);
+  });
+
+  it('replaces a matching optimistic runtime id with its canonical row once', () => {
+    const displayed = selectDisplayedMessages({
+      localMessages: [
+        {
+          ...local('runtime-1', 'assistant', 'Answer', 1),
+          metadata: { tokenUsage: { input: 10, output: 5 } },
+        },
+      ],
+      storeMessages: [db('persisted-1', 'runtime-1', 'Answer', 1)],
+      messageFreshness: 'refreshing',
+    });
+
+    expect(displayed).toHaveLength(1);
+    expect(displayed[0]).toMatchObject({
+      id: 'persisted-1',
+      runtimeId: 'runtime-1',
+      source: 'canonical',
+      metadata: { tokenUsage: { input: 10, output: 5 } },
+    });
+  });
+
+  it('drops unmatched optimistic rows only when canonical freshness is proven', () => {
+    const optimistic = local('pending', 'user', 'pending question', 2);
+    const error = local(
+      'local-error',
+      'assistant',
+      'Network error',
+      3,
+      'local-only'
+    );
+    const storeMessages = [db('persisted-1', 'canonical-1', 'Old answer', 1)];
+
+    expect(
+      selectDisplayedMessages({
+        localMessages: [optimistic, error],
+        storeMessages,
+        messageFreshness: 'stale',
+      }).map((message) => message.runtimeId)
+    ).toEqual(['canonical-1', 'pending', 'local-error']);
+
+    expect(
+      selectDisplayedMessages({
+        localMessages: [optimistic, error],
+        storeMessages,
+        messageFreshness: 'fresh',
+      }).map((message) => message.runtimeId)
+    ).toEqual(['canonical-1', 'local-error']);
   });
 });
 

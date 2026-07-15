@@ -394,10 +394,12 @@ export function useChatStreaming(
         )?.runtimeId;
       const reconcileUser = () =>
         turnThreadId
-          ? useChatStore.getState().refreshMessages(
-              turnThreadId,
-              userRuntimeId ? { runtimeId: userRuntimeId } : undefined
-            )
+          ? useChatStore
+              .getState()
+              .refreshMessages(
+                turnThreadId,
+                userRuntimeId ? { runtimeId: userRuntimeId } : undefined
+              )
           : Promise.resolve(false);
       const reconcileAssistant = (doneIds: {
         assistant_message_id?: string | null;
@@ -790,11 +792,21 @@ export function useChatStreaming(
         const finalMessages = [...newMessages, reconciledAssistantMessage];
         if (isTurnDisplayed()) setMessages(finalMessages);
 
-        // Update conversation
+        // Conversation state is sidebar metadata only. The transcript remains
+        // the Zustand canonical page plus this hook's local overlay.
         setConversations((prev) =>
           prev.map((conv) =>
             conv.id === currentConversationId
-              ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
+              ? {
+                  ...conv,
+                  messages: [],
+                  previewText: finalContent,
+                  messageCount: Math.max(
+                    conv.messageCount ?? 0,
+                    displayedMessages.length + 2
+                  ),
+                  updatedAt: Date.now(),
+                }
               : conv
           )
         );
@@ -839,7 +851,13 @@ export function useChatStreaming(
         activeRunThreadRef.current = null;
       }
     },
-    [setMessages, setConversations, enableRAG, invalidateProjectDataForTool]
+    [
+      setMessages,
+      setConversations,
+      enableRAG,
+      invalidateProjectDataForTool,
+      displayedMessages.length,
+    ]
   );
 
   const handleSubmit = useCallback(
@@ -870,8 +888,14 @@ export function useChatStreaming(
       // CX2: build the turn from the RECONCILED view (local ∪ store) — the
       // local array is empty during the lazy-load window after a thread
       // switch, and submitting from it silently dropped the whole history.
-      const history = displayedMessages;
-      const newMessages = [...history, userMessage];
+      const requestMessages = [...displayedMessages, userMessage];
+      // Local state contains only rows the canonical page has not yet
+      // absorbed. A retry/next send clears local-only error rows while keeping
+      // still-unreconciled optimistic identities visible.
+      const newMessages = [
+        ...messages.filter((message) => message.source === 'optimistic'),
+        userMessage,
+      ];
       setMessages(newMessages);
       setInput('');
       setIsLoading(true);
@@ -922,11 +946,13 @@ export function useChatStreaming(
           const newConv: ChatConversation = {
             id: newThread.id,
             title: newThread.title || dynamicTitle,
-            messages: newMessages,
+            messages: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
             threadId: newThread.id,
             conversationId: threadConversation.id,
+            previewText: content,
+            messageCount: 1,
           };
 
           setConversations((prev) => [newConv, ...prev]);
@@ -975,7 +1001,7 @@ export function useChatStreaming(
           start: (streamCallbacks, signal) =>
             agentChatService.streamMessage(
               {
-                messages: newMessages
+                messages: requestMessages
                   .filter((message) => message.source !== 'local-only')
                   .map((m, i, agentMessages) => ({
                     role: m.role,
@@ -1129,12 +1155,14 @@ export function useChatStreaming(
         pendingConfirmation.workspaceThreadId || null;
       const reconcileConfirmationUser = () =>
         confirmationThreadId
-          ? useChatStore.getState().refreshMessages(
-              confirmationThreadId,
-              pendingConfirmation.userRuntimeId
-                ? { runtimeId: pendingConfirmation.userRuntimeId }
-                : undefined
-            )
+          ? useChatStore
+              .getState()
+              .refreshMessages(
+                confirmationThreadId,
+                pendingConfirmation.userRuntimeId
+                  ? { runtimeId: pendingConfirmation.userRuntimeId }
+                  : undefined
+              )
           : Promise.resolve(false);
       const reconcileConfirmationAssistant = (done: {
         assistant_message_id?: string | null;
