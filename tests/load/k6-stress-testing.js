@@ -78,9 +78,15 @@ const BASE_THRESHOLDS = {
   http_req_failed: [{ threshold: 'rate<0.5', abortOnFail: true, delayAbortEval: '60s' }],
 };
 
+// Generous setup/teardown windows: setup mints + authenticates up to
+// SETUP_USERS identities (2 calls each) and teardown deletes every document
+// they created plus the identities — both far exceed k6's 60s defaults at the
+// 50-user max profile, and a killed teardown would strand data on shared dev.
+const LIFECYCLE = { setupTimeout: '300s', teardownTimeout: '900s' };
+
 export const options = PREFLIGHT
-  ? { vus: 1, iterations: 4, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true }
-  : { stages: FULL_STAGES, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true };
+  ? { vus: 1, iterations: 4, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true, ...LIFECYCLE }
+  : { stages: FULL_STAGES, thresholds: BASE_THRESHOLDS, insecureSkipTLSVerify: true, ...LIFECYCLE };
 
 const uploadsCreated = new Counter('uploads_created');
 
