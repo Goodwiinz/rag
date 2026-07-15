@@ -134,19 +134,33 @@ describe('useChatSession watchdog', () => {
       await Promise.resolve();
     });
 
+    // New-chat intent clears the old selection before the first optimistic
+    // turn is created; the newly-created thread then adopts that overlay.
+    act(() => {
+      chatStoreMocks.state.currentThreadId = null;
+      rerender();
+    });
     act(() => {
       result.current.setConversations([
         {
           id: 'thread-new',
           title: 'New thread',
-          messages: [{ role: 'user', content: 'new turn', timestamp: 2 }],
+          messages: [],
         } as never,
       ]);
+      result.current.setMessages([
+        {
+          runtimeId: 'runtime-new-turn',
+          source: 'optimistic',
+          role: 'user',
+          content: 'new turn',
+          timestamp: 2,
+        },
+      ]);
+    });
+    act(() => {
       chatStoreMocks.state.currentThreadId = 'thread-new';
       rerender();
-      result.current.setMessages([
-        { role: 'user', content: 'new turn', timestamp: 2 },
-      ]);
     });
 
     await act(async () => {

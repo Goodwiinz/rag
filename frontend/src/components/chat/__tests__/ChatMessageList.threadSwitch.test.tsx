@@ -92,4 +92,20 @@ describe('ChatMessageList thread-switch remount', () => {
     expect(screen.queryByText('OPTIMISTIC ANSWER')).not.toBeInTheDocument();
     expect(screen.getByText('CANONICAL ANSWER')).toBeInTheDocument();
   });
+
+  it('exposes stable runtime and persisted identities for browser reconciliation checks', () => {
+    const message = makeChatPageMessage({
+      id: 'db-answer',
+      runtimeId: 'runtime-answer',
+      source: 'canonical',
+      role: 'assistant',
+      content: 'IDENTIFIED',
+      timestamp: 2,
+    });
+    render(tree('thread-A', [message]));
+
+    expect(
+      document.querySelector('[data-runtime-id="runtime-answer"]')
+    ).toHaveAttribute('data-persisted-id', 'db-answer');
+  });
 });

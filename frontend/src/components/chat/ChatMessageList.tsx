@@ -276,6 +276,8 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           return (
             <motion.div
               key={message.runtimeId}
+              data-runtime-id={message.runtimeId}
+              data-persisted-id={message.id}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -288,7 +290,15 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           );
         }
 
-        return <div key={message.runtimeId}>{bubble}</div>;
+        return (
+          <div
+            key={message.runtimeId}
+            data-runtime-id={message.runtimeId}
+            data-persisted-id={message.id}
+          >
+            {bubble}
+          </div>
+        );
       }),
     [
       messages,

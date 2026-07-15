@@ -169,10 +169,16 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await result.current.handleConfirmation(true);
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      persistedId: 'confirm-assistant-1',
-      runtimeId: 'confirm-runtime-1',
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: 'confirm-assistant-1',
+        runtimeId: 'confirm-runtime-1',
+        diagnostic: expect.objectContaining({
+          terminalReason: 'confirmation-approved',
+        }),
+      })
+    );
     useChatStore.setState({ refreshMessages: actualRefresh });
 
     // Live: streamingSteps held both the carried step and the running tool.
@@ -290,9 +296,15 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await result.current.handleConfirmation(true);
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      runtimeId: userRuntimeId,
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        runtimeId: userRuntimeId,
+        diagnostic: expect.objectContaining({
+          terminalReason: 'confirmation-paused',
+        }),
+      })
+    );
     useChatStore.setState({ refreshMessages: actualRefresh });
 
     // The banner is re-armed for the nested action, carrying the settled
@@ -359,10 +371,16 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       content: 'partial resumed answer',
       metadata: { stopped: true },
     });
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      persistedId: undefined,
-      runtimeId: assistantRuntimeId,
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: undefined,
+        runtimeId: assistantRuntimeId,
+        diagnostic: expect.objectContaining({
+          terminalReason: 'confirmation-stopped',
+        }),
+      })
+    );
     useChatStore.setState({ refreshMessages: actualRefresh });
   });
 

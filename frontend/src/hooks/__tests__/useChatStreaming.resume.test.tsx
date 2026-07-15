@@ -166,10 +166,14 @@ describe('useChatStreaming stream resume on mount', () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      persistedId: 'resume-assistant-1',
-      runtimeId: 'resume-runtime-1',
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: 'resume-assistant-1',
+        runtimeId: 'resume-runtime-1',
+        diagnostic: expect.objectContaining({ terminalReason: 'done' }),
+      })
+    );
     useChatStore.setState({ refreshMessages: actualRefresh });
   });
 });

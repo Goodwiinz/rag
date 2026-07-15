@@ -41,31 +41,93 @@ test.describe('chat terminal reconciliation', () => {
 
     await composer.fill(prompt);
     await page.getByRole('button', { name: /^Send/ }).click();
-    await expect(
-      page.locator('[data-role="user"]').filter({ hasText: marker }).last()
-    ).toBeVisible();
+    const userIdentity = page.locator('[data-runtime-id]').filter({
+      has: page.locator('[data-role="user"]'),
+      hasText: marker,
+    });
+    await expect(userIdentity).toHaveCount(1);
+    await expect(userIdentity).toBeVisible();
 
     await expect
       .poll(() => assistantRows.count(), { timeout: 150_000 })
       .toBeGreaterThan(assistantCountBefore);
-    const completedAnswer = assistantRows.last();
-    await expect(completedAnswer).toContainText(marker, { timeout: 150_000 });
+    const completedAnswer = page.locator('[data-runtime-id]').filter({
+      has: page.locator('[data-role="assistant"]'),
+      hasText: marker,
+    });
+    await expect(completedAnswer).toHaveCount(1, { timeout: 150_000 });
+    await expect(completedAnswer).toContainText(marker);
     await expect(page.getByRole('button', { name: /^Send/ })).toBeEnabled({
       timeout: 30_000,
     });
+    const userRuntimeId = await userIdentity.getAttribute('data-runtime-id');
+    const assistantRuntimeId =
+      await completedAnswer.getAttribute('data-runtime-id');
+    const userPersistedId =
+      await userIdentity.getAttribute('data-persisted-id');
+    const assistantPersistedId =
+      await completedAnswer.getAttribute('data-persisted-id');
+    expect(userRuntimeId).toBeTruthy();
+    expect(assistantRuntimeId).toBeTruthy();
+    expect(userPersistedId).toBeTruthy();
+    expect(assistantPersistedId).toBeTruthy();
 
     // The original defect removed the optimistic answer after terminal state
     // reconciliation. It only reappeared after reload. Hold through the swap.
     await page.waitForTimeout(1_000);
     await expect(completedAnswer).toContainText(marker);
 
+    // Client-side selection reset and return: no page reload is allowed to
+    // recover the rows, and both identity layers must remain unchanged.
+    await page.getByRole('button', { name: /New chat/ }).click();
+    await page.waitForURL(/\/chat\?new=1/, { timeout: 30_000 });
+    await page.goBack();
+    await page.waitForURL(new RegExp(`thread=${threadId}`), {
+      timeout: 30_000,
+    });
+    await expect(
+      page.locator(`[data-runtime-id="${userRuntimeId}"]`)
+    ).toHaveAttribute('data-persisted-id', userPersistedId!);
+    await expect(
+      page.locator(`[data-runtime-id="${assistantRuntimeId}"]`)
+    ).toHaveAttribute('data-persisted-id', assistantPersistedId!);
+
     await page.reload();
     await expect(composer).toBeVisible({ timeout: 30_000 });
     await expect(
-      page.locator('[data-role="user"]').filter({ hasText: marker }).last()
-    ).toBeVisible({ timeout: 30_000 });
+      page.locator(`[data-runtime-id="${userRuntimeId}"]`)
+    ).toHaveAttribute('data-persisted-id', userPersistedId!, {
+      timeout: 30_000,
+    });
     await expect(
-      page.locator('[data-role="assistant"]').filter({ hasText: marker }).last()
+      page.locator(`[data-runtime-id="${assistantRuntimeId}"]`)
+    ).toHaveAttribute('data-persisted-id', assistantPersistedId!, {
+      timeout: 30_000,
+    });
+
+    // Complete a second turn while no transcript is selected. Returning to
+    // the owning thread must hydrate it without writing into the blank chat.
+    const backgroundMarker = `background-${Date.now()}`;
+    await composer.fill(
+      `Reply with this exact marker and no other text: ${backgroundMarker}`
+    );
+    await page.getByRole('button', { name: /^Send/ }).click();
+    await expect(
+      page.locator('[data-role="user"]').filter({ hasText: backgroundMarker })
+    ).toBeVisible();
+    await page.getByRole('button', { name: /New chat/ }).click();
+    await page.waitForURL(/\/chat\?new=1/, { timeout: 30_000 });
+    await expect(page.getByRole('button', { name: /^Send/ })).toBeEnabled({
+      timeout: 150_000,
+    });
+    await page.goBack();
+    await page.waitForURL(new RegExp(`thread=${threadId}`), {
+      timeout: 30_000,
+    });
+    await expect(
+      page.locator('[data-role="assistant"]').filter({
+        hasText: backgroundMarker,
+      })
     ).toBeVisible({ timeout: 30_000 });
   });
 });
