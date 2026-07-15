@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-beat
+  name: {{ .Release.Name }}-celery-beat
   labels:
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
     app.kubernetes.io/component: celery-beat

@@ -22,7 +22,7 @@ DO Managed Valkey uses rediss:// (TLS) → enableTLS "true".
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
-  name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker-redis-auth
+  name: {{ .Release.Name }}-celery-worker-redis-auth
   labels:
     app.kubernetes.io/component: celery-worker
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
@@ -35,7 +35,7 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
+  name: {{ .Release.Name }}-celery-worker
   labels:
     app.kubernetes.io/component: celery-worker
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
@@ -43,7 +43,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "knowledge-graph-analytics.fullname" . }}-celery-worker
+    name: {{ .Release.Name }}-celery-worker
   minReplicaCount: {{ .Values.keda.minReplicaCount | default 1 }}
   maxReplicaCount: {{ .Values.keda.maxReplicaCount | default 3 }}
   pollingInterval: {{ .Values.keda.pollingInterval | default 30 }}
@@ -69,6 +69,6 @@ spec:
         enableTLS: {{ $.Values.keda.redis.enableTLS | default "true" | quote }}
         databaseIndex: {{ $.Values.keda.redis.databaseIndex | default "0" | quote }}
       authenticationRef:
-        name: {{ include "knowledge-graph-analytics.fullname" $ }}-celery-worker-redis-auth
+        name: {{ $.Release.Name }}-celery-worker-redis-auth
     {{- end }}
 {{- end }}
