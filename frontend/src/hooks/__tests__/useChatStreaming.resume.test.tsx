@@ -9,6 +9,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -47,15 +48,24 @@ vi.mock('react-hot-toast', () => ({
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 import { useChatStore } from '@/store/chat-store';
+import { workspaceService } from '@/services/workspaceService';
 
 function makeParams() {
   const activeConversationIdRef = { current: 'thread-A' as string | null };
   return {
     messages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     displayedMessages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
@@ -75,7 +85,15 @@ describe('useChatStreaming stream resume on mount', () => {
   beforeEach(() => {
     resumeStreamMock.mockReset();
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
-    useChatStore.setState({ isStreaming: false });
+    useChatStore.getState().reset();
+    useChatStore.setState({
+      currentThreadId: 'thread-A',
+      isStreaming: false,
+    });
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
 
   it('resumes a stale running run from its streamSeq when not streaming', async () => {
@@ -119,5 +137,43 @@ describe('useChatStreaming stream resume on mount', () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
     });
     expect(resumeStreamMock).not.toHaveBeenCalled();
+  });
+
+  it('reconciles the owning thread after a resumed stream completes', async () => {
+    useAgentActivityStore.getState().startRun('thread-A', 'Agent', 'task');
+    resumeStreamMock.mockImplementation(
+      (
+        _threadId: string,
+        _seq: number,
+        callbacks: {
+          onToken: (content: string) => void;
+          onDone: (payload?: unknown) => void;
+        }
+      ) => {
+        callbacks.onToken('resumed answer');
+        callbacks.onDone({
+          assistant_message_id: 'resume-assistant-1',
+          client_message_id: 'resume-runtime-1',
+        });
+        return Promise.resolve({ resumed: true });
+      }
+    );
+    const actualRefresh = useChatStore.getState().refreshMessages;
+    const refreshSpy = vi.fn(actualRefresh);
+    useChatStore.setState({ refreshMessages: refreshSpy });
+
+    await act(async () => {
+      renderHook(() => useChatStreaming(makeParams()), { wrapper });
+    });
+
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: 'resume-assistant-1',
+        runtimeId: 'resume-runtime-1',
+        diagnostic: expect.objectContaining({ terminalReason: 'done' }),
+      })
+    );
+    useChatStore.setState({ refreshMessages: actualRefresh });
   });
 });

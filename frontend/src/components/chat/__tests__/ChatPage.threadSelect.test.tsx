@@ -20,7 +20,19 @@ vi.mock('@/components/chat/ChatHeader', () => ({
 }));
 
 vi.mock('@/components/chat/ChatMessageList', () => ({
-  ChatMessageList: () => <div data-testid="chat-message-list" />,
+  ChatMessageList: (props: {
+    onCommandItemAction?: (action: { type: 'open-thread'; id: string }) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="chat-command-open-thread"
+      onClick={() =>
+        props.onCommandItemAction?.({ type: 'open-thread', id: 'thread-2' })
+      }
+    >
+      Open command thread
+    </button>
+  ),
 }));
 
 vi.mock('@/components/chat/aui/ChatRuntimeProvider', () => ({
@@ -30,14 +42,33 @@ vi.mock('@/components/chat/aui/ChatRuntimeProvider', () => ({
 }));
 
 vi.mock('@/components/chat/ChatSidebar', () => ({
-  ChatSidebar: (props: { onSelect: (id: string) => void }) => (
-    <button
-      type="button"
-      data-testid="chat-sidebar-select-active"
-      onClick={() => props.onSelect('thread-1')}
-    >
-      Select active thread
-    </button>
+  ChatSidebar: (props: {
+    onSelect: (id: string) => void;
+    onNew: () => void;
+  }) => (
+    <>
+      <button
+        type="button"
+        data-testid="chat-sidebar-select-active"
+        onClick={() => props.onSelect('thread-1')}
+      >
+        Select active thread
+      </button>
+      <button
+        type="button"
+        data-testid="chat-sidebar-new"
+        onClick={props.onNew}
+      >
+        New chat
+      </button>
+      <button
+        type="button"
+        data-testid="chat-sidebar-select-other"
+        onClick={() => props.onSelect('thread-2')}
+      >
+        Select other thread
+      </button>
+    </>
   ),
 }));
 
@@ -98,6 +129,12 @@ describe('ChatPage thread selection', () => {
           ],
           updatedAt: 1,
         },
+        {
+          id: 'thread-2',
+          title: 'Thread 2',
+          messages: [],
+          updatedAt: 2,
+        },
       ],
       setConversations: vi.fn(),
       activeConversationId: 'thread-1',
@@ -145,6 +182,42 @@ describe('ChatPage thread selection', () => {
     expect(session.setMessages).not.toHaveBeenCalledWith([]);
     expect(session.setActiveConversationId).not.toHaveBeenCalled();
     expect(session.setCurrentThread).not.toHaveBeenCalled();
+  });
+
+  it('routes a sidebar selection only through the Zustand thread authority', () => {
+    render(<ChatPage />);
+
+    fireEvent.click(screen.getAllByTestId('chat-sidebar-select-other')[0]);
+
+    const session = mockUseChatSession.mock.results[0]?.value as {
+      setMessages: ReturnType<typeof vi.fn>;
+      setActiveConversationId: ReturnType<typeof vi.fn>;
+      setCurrentThread: ReturnType<typeof vi.fn>;
+    };
+
+    expect(session.setCurrentThread).toHaveBeenCalledWith('thread-2');
+    expect(session.setActiveConversationId).not.toHaveBeenCalled();
+    expect(session.setMessages).not.toHaveBeenCalled();
+  });
+
+  it('routes new-chat and command navigation through the same store authority', () => {
+    render(<ChatPage />);
+    const session = mockUseChatSession.mock.results[0]?.value as {
+      setMessages: ReturnType<typeof vi.fn>;
+      setActiveConversationId: ReturnType<typeof vi.fn>;
+      setCurrentThread: ReturnType<typeof vi.fn>;
+    };
+
+    fireEvent.click(screen.getAllByTestId('chat-sidebar-new')[0]);
+    expect(session.setCurrentThread).toHaveBeenCalledWith(null);
+    expect(session.setActiveConversationId).not.toHaveBeenCalled();
+    expect(session.setMessages).not.toHaveBeenCalled();
+
+    session.setCurrentThread.mockClear();
+    fireEvent.click(screen.getByTestId('chat-command-open-thread'));
+    expect(session.setCurrentThread).toHaveBeenCalledWith('thread-2');
+    expect(session.setActiveConversationId).not.toHaveBeenCalled();
+    expect(session.setMessages).not.toHaveBeenCalled();
   });
 
   it('mounts a fresh assistant runtime when the active thread changes', () => {

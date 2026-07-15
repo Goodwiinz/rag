@@ -57,6 +57,7 @@ type StreamCallbacks = {
 };
 
 function makeParams(activeConversationId = 'thread-A') {
+  useChatStore.setState({ currentThreadId: activeConversationId });
   return {
     messages: [] as ChatPageMessage[],
     // Required since CX2 (#1109) made handleSubmit build the turn from the

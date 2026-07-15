@@ -71,21 +71,28 @@ describe('useChatSession thread-load scoping', () => {
   it('keeps the optimistic turn visible (no skeleton) while the just-created thread loads mid-send', async () => {
     const { result } = renderHook(() => useChatSession());
 
-    // First send in a new chat: the send path creates the thread, registers
-    // the conversation with the optimistic user turn, and switches to it.
+    // First send in a new chat: the optimistic turn is the local overlay while
+    // conversation metadata deliberately carries no transcript copy.
     act(() => {
       result.current.setConversations([
         {
           id: 'thread-new',
           title: 'New chat',
-          messages: [
-            { role: 'user' as const, content: 'first message', timestamp: 1 },
-          ],
+          messages: [],
         } as never,
+      ]);
+      result.current.setMessages([
+        {
+          runtimeId: 'runtime-first',
+          source: 'optimistic',
+          role: 'user',
+          content: 'first message',
+          timestamp: 1,
+        },
       ]);
     });
     act(() => {
-      result.current.setActiveConversationId('thread-new');
+      useChatStore.setState({ currentThreadId: 'thread-new' });
     });
     await waitFor(() =>
       expect(result.current.messages.map((m) => m.content)).toEqual([
@@ -103,9 +110,9 @@ describe('useChatSession thread-load scoping', () => {
       } as never);
     });
 
-    expect(
-      result.current.displayedMessages.map((m) => m.content)
-    ).toEqual(['first message']);
+    expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
+      'first message',
+    ]);
     expect(result.current.isLoadingMessages).toBe(false);
   });
 
@@ -129,8 +136,6 @@ describe('useChatSession thread-load scoping', () => {
     // Switch into B exactly like the page does: clear local, point store at
     // B with its (always-refetching) initial page load in flight.
     act(() => {
-      result.current.setMessages([]);
-      result.current.setActiveConversationId('thread-B');
       useChatStore.setState({
         currentThreadId: 'thread-B',
         isLoadingMessages: true,
@@ -139,9 +144,10 @@ describe('useChatSession thread-load scoping', () => {
     });
 
     await waitFor(() =>
-      expect(
-        result.current.displayedMessages.map((m) => m.content)
-      ).toEqual(['B one', 'B two'])
+      expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
+        'B one',
+        'B two',
+      ])
     );
     expect(result.current.isLoadingMessages).toBe(false);
   });
@@ -155,8 +161,6 @@ describe('useChatSession thread-load scoping', () => {
       ]);
     });
     act(() => {
-      result.current.setMessages([]);
-      result.current.setActiveConversationId('thread-C');
       useChatStore.setState({
         currentThreadId: 'thread-C',
         isLoadingMessages: true,
@@ -180,7 +184,6 @@ describe('useChatSession thread-load scoping', () => {
           messageCount: 2,
         } as never,
       ]);
-      result.current.setActiveConversationId('thread-C');
       useChatStore.setState({
         currentThreadId: 'thread-C',
         isLoadingMessages: true,

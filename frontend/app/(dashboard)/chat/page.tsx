@@ -99,8 +99,6 @@ function ChatPageContent() {
   const {
     conversations,
     setConversations,
-    activeConversationId,
-    setActiveConversationId,
     messages,
     setMessages,
     workspace,
@@ -108,9 +106,7 @@ function ChatPageContent() {
     isInitializing,
     initError,
     isLoadingMessages,
-    activeConversationIdRef,
     isHydratedRef,
-    currentThreadIdFromStore,
     setCurrentThread,
     storeMessages,
     isAuthenticated,
@@ -147,11 +143,7 @@ function ChatPageContent() {
     setMessages,
     conversations,
     setConversations,
-    activeConversationId,
-    setActiveConversationId,
-    activeConversationIdRef,
     dbConversation,
-    setCurrentThread,
     enableRAG,
   });
 
@@ -168,7 +160,7 @@ function ChatPageContent() {
   // returning to the owning thread re-shows it.
   const activeConfirmation = confirmationBelongsToThread(
     pendingConfirmation,
-    activeConversationId
+    activeThreadId
   )
     ? pendingConfirmation
     : null;
@@ -190,10 +182,7 @@ function ChatPageContent() {
   } = useChatThreadActions({
     conversations,
     setConversations,
-    activeConversationId,
-    setActiveConversationId,
-    activeConversationIdRef,
-    setMessages,
+    activeThreadId,
     setCurrentThread,
   });
 
@@ -336,40 +325,37 @@ function ChatPageContent() {
 
   const handleRegenerate = useCallback(
     (assistantMessageIndex: number) => {
-      // Bug 1: bail BEFORE truncating messages if a stream is in flight.
-      // Otherwise `setMessages` clears the list but `handleSubmit`'s internal
-      // guard short-circuits, leaving the UI with no response.
+      // Bail before preparing a replacement turn if a stream is in flight;
+      // handleSubmit would otherwise reject it via its own single-flight guard.
       if (isLoading || storeIsStreaming) return;
-      const priorUser = [...displayedMessages]
-        .slice(0, assistantMessageIndex)
-        .reverse()
-        .find((m) => m.role === 'user');
-      if (!priorUser) return;
-      setMessages((prev) => prev.slice(0, assistantMessageIndex));
+      let priorUserIndex = -1;
+      for (let index = assistantMessageIndex - 1; index >= 0; index -= 1) {
+        if (displayedMessages[index]?.role === 'user') {
+          priorUserIndex = index;
+          break;
+        }
+      }
+      if (priorUserIndex < 0) return;
+      const priorUser = displayedMessages[priorUserIndex];
+      const regenerationHistory = displayedMessages.slice(0, priorUserIndex);
       setInput(priorUser.content);
       // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
       // its closure, and `setInput` above only schedules a state update — the
       // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
       const contentToSend = priorUser.content;
-      setTimeout(() => handleSubmit(contentToSend), 0);
+      setTimeout(
+        () => handleSubmit(contentToSend, regenerationHistory),
+        0
+      );
     },
-    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setMessages]
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming]
   );
 
   // Start a fresh chat — shared by the sidebar "new" button and the /new command
   const startNewChat = useCallback(() => {
-    setActiveConversationId(null);
-    activeConversationIdRef.current = null;
-    setMessages([]);
     setCurrentThread(null);
     router.push(getNewChatUrl());
-  }, [
-    router,
-    setActiveConversationId,
-    setMessages,
-    setCurrentThread,
-    activeConversationIdRef,
-  ]);
+  }, [router, setCurrentThread]);
 
   // Stable across renders so ChatSidebar's React.memo holds on every composer
   // keystroke (an inline closure re-rendered the sidebar per keystroke).
@@ -377,28 +363,15 @@ function ChatPageContent() {
   // on desktop, where it's already closed and hidden.
   const handleSelectThread = useCallback(
     (id: string) => {
-      if (id === activeConversationIdRef.current) {
+      if (id === activeThreadId) {
         setMobileSidebarOpen(false);
         return;
       }
-      // Clear the previous thread's messages BEFORE switching so the loading
-      // skeleton shows instead of the old thread's transcript flashing while
-      // the new one loads (fix/chat-loading-consistency).
-      setMessages([]);
-      setActiveConversationId(id);
-      activeConversationIdRef.current = id;
       setCurrentThread(id);
       router.push(getSelectedThreadUrl(id));
       setMobileSidebarOpen(false);
     },
-    [
-      router,
-      setMessages,
-      setActiveConversationId,
-      setCurrentThread,
-      activeConversationIdRef,
-      setMobileSidebarOpen,
-    ]
+    [router, setCurrentThread, activeThreadId, setMobileSidebarOpen]
   );
 
   // Regenerate the most recent assistant response (the /retry command)
@@ -603,7 +576,7 @@ function ChatPageContent() {
             key: c.id,
             label: c.title || 'Untitled',
             meta: c.updatedAt ? relativeTime(c.updatedAt) : undefined,
-            active: c.id === activeConversationId,
+            active: c.id === activeThreadId,
             action: { type: 'open-thread', id: c.id },
           }));
           appendOutput({
@@ -721,7 +694,7 @@ function ChatPageContent() {
       setInput,
       handleSubmit,
       conversations,
-      activeConversationId,
+      activeThreadId,
       appendOutput,
       patchOutput,
       fetchProjects,
@@ -734,11 +707,6 @@ function ChatPageContent() {
     (action: CommandAction) => {
       switch (action.type) {
         case 'open-thread':
-          // Same clear-before-switch as handleSelectThread: never paint the
-          // previous thread's local transcript under the new selection.
-          setMessages([]);
-          setActiveConversationId(action.id);
-          activeConversationIdRef.current = action.id;
           setCurrentThread(action.id);
           router.push(getSelectedThreadUrl(action.id));
           return;
@@ -774,10 +742,7 @@ function ChatPageContent() {
     },
     [
       router,
-      setMessages,
-      setActiveConversationId,
       setCurrentThread,
-      activeConversationIdRef,
       handleSetProjectContext,
       setInput,
       chatInputRef,
@@ -888,7 +853,7 @@ function ChatPageContent() {
             >
               <ChatSidebar
                 conversations={conversations}
-                activeId={activeConversationId}
+                activeId={activeThreadId}
                 onSelect={handleSelectThread}
                 onNew={() => {
                   startNewChat();
@@ -910,7 +875,7 @@ function ChatPageContent() {
       <div className="hidden md:block h-full shrink-0">
         <ChatSidebar
           conversations={conversations}
-          activeId={activeConversationId}
+          activeId={activeThreadId}
           onSelect={handleSelectThread}
           onNew={startNewChat}
           onRename={handleRenameThread}
@@ -936,7 +901,7 @@ function ChatPageContent() {
           <ChatHeader
             messages={displayedMessages}
             chatTitle={
-              conversations.find((c) => c.id === activeConversationId)?.title ||
+              conversations.find((c) => c.id === activeThreadId)?.title ||
               'Chat'
             }
             onCopyAll={() => {

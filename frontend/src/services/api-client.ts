@@ -41,6 +41,35 @@ export interface UploadOptions {
   metadata?: Record<string, string>;
 }
 
+function composeAbortSignals(signals: AbortSignal[]): {
+  signal: AbortSignal;
+  cleanup: () => void;
+} {
+  if (signals.length === 1) {
+    return { signal: signals[0], cleanup: () => undefined };
+  }
+
+  const controller = new AbortController();
+  const listeners = signals.map((source) => {
+    const relayAbort = () => controller.abort(source.reason);
+    if (source.aborted) {
+      relayAbort();
+    } else {
+      source.addEventListener('abort', relayAbort, { once: true });
+    }
+    return { source, relayAbort };
+  });
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      listeners.forEach(({ source, relayAbort }) => {
+        source.removeEventListener('abort', relayAbort);
+      });
+    },
+  };
+}
+
 // ============================================================================
 // Unified API Client
 // ============================================================================
@@ -141,13 +170,17 @@ export class APIClient {
         : `${this.baseURL}${endpoint}`;
 
     const controller = new AbortController();
+    const callerSignal = fetchOptions.signal;
+    const { signal, cleanup: cleanupAbortSignals } = composeAbortSignals(
+      callerSignal ? [callerSignal, controller.signal] : [controller.signal]
+    );
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers: this.mergeHeaders(fetchOptions.headers, fetchOptions.body),
-        signal: controller.signal,
+        signal,
       });
 
       clearTimeout(timeoutId);
@@ -167,7 +200,12 @@ export class APIClient {
     } catch (error) {
       clearTimeout(timeoutId);
 
-      // Handle abort error
+      // Caller cancellation is control flow, not a timeout or retryable error.
+      if (callerSignal?.aborted) {
+        throw error;
+      }
+
+      // Handle the API client's own timeout abort.
       if ((error as Error).name === 'AbortError') {
         throw new APIErrorClass({
           message: 'Request timeout',
@@ -188,6 +226,9 @@ export class APIClient {
       }
 
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
+      cleanupAbortSignals();
     }
   }
 

@@ -95,3 +95,28 @@ describe('workspaceService default workspace cache', () => {
     );
   });
 });
+
+describe('workspaceService message cancellation', () => {
+  afterEach(() => {
+    vi.doUnmock('@/services/api-client');
+  });
+
+  it('forwards the caller signal when listing messages', async () => {
+    vi.resetModules();
+    const get = vi.fn().mockResolvedValue({ messages: [], total: 0 });
+    vi.doMock('@/services/api-client', () => ({ api: { get } }));
+
+    const { workspaceService } = await import('@/services/workspaceService');
+    const controller = new AbortController();
+
+    await workspaceService.listMessages('thread-a', {
+      limit: 50,
+      signal: controller.signal,
+    });
+
+    expect(get).toHaveBeenCalledWith(
+      '/api/v2/threads/thread-a/messages?limit=50',
+      { signal: controller.signal }
+    );
+  });
+});

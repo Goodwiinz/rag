@@ -3,6 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { ChatRuntimeProvider } from '../ChatRuntimeProvider';
 import {
   AuiMessages,
@@ -25,10 +26,13 @@ function Thrower({
   return <>{children}</>;
 }
 
-function renderMessages(messages: ChatPageMessage[]) {
+function renderMessages(
+  messages: Array<Parameters<typeof makeChatPageMessage>[0]>
+) {
+  const completeMessages = messages.map(makeChatPageMessage);
   return render(
     <ChatRuntimeProvider
-      messages={messages}
+      messages={completeMessages}
       isRunning={false}
       onSend={noop}
       onCancel={noop}
@@ -42,11 +46,18 @@ describe('AuiMessage', () => {
   it('renders user and assistant text parts through MessagePrimitive.Parts', () => {
     renderMessages([
       { id: 'u1', role: 'user', content: 'What is RAG?', timestamp: 1 },
-      { id: 'a1', role: 'assistant', content: 'Retrieval augmented generation.', timestamp: 2 },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'Retrieval augmented generation.',
+        timestamp: 2,
+      },
     ]);
 
     expect(screen.getByText('What is RAG?')).toBeInTheDocument();
-    expect(screen.getByText('Retrieval augmented generation.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Retrieval augmented generation.')
+    ).toBeInTheDocument();
     expect(document.querySelector('[data-role="user"]')).toBeTruthy();
     expect(document.querySelector('[data-role="assistant"]')).toBeTruthy();
   });
@@ -103,7 +114,9 @@ describe('AuiMessage', () => {
       },
     ]);
 
-    expect(document.querySelector('[data-slot="tool-fallback-root"]')).toBeTruthy();
+    expect(
+      document.querySelector('[data-slot="tool-fallback-root"]')
+    ).toBeTruthy();
     expect(screen.getByText(/search_arxiv/)).toBeInTheDocument();
   });
 
@@ -131,7 +144,7 @@ describe('AuiMessage', () => {
 
 describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => {
   function renderByIndex(
-    messages: ChatPageMessage[],
+    messages: Array<Parameters<typeof makeChatPageMessage>[0]>,
     opts: {
       index?: number;
       onCitationClick?: (
@@ -141,17 +154,18 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
       ) => void;
     } = {}
   ) {
-    const index = opts.index ?? messages.length - 1;
+    const completeMessages = messages.map(makeChatPageMessage);
+    const index = opts.index ?? completeMessages.length - 1;
     return render(
       <ChatRuntimeProvider
-        messages={messages}
+        messages={completeMessages}
         isRunning={false}
         onSend={noop}
         onCancel={noop}
       >
         <AuiMessageByIndex
           index={index}
-          message={messages[index]}
+          message={completeMessages[index]}
           onCitationClick={opts.onCitationClick as never}
         />
       </ChatRuntimeProvider>
@@ -203,7 +217,11 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
           content: 'Cited answer.',
           timestamp: 2,
           citations: [
-            { documentId: 'd1', title: 'Attention Is All You Need', score: 0.92 },
+            {
+              documentId: 'd1',
+              title: 'Attention Is All You Need',
+              score: 0.92,
+            },
           ],
         },
       ],
@@ -241,16 +259,66 @@ describe('AuiAssistantMessage committed-path chrome (ChatBubble parity)', () => 
 });
 
 describe('AuiMessageByIndex runtime-sync race', () => {
+  it('hands an optimistic row to its canonical replacement without a duplicate bubble', async () => {
+    const optimistic = makeChatPageMessage({
+      runtimeId: 'runtime-answer',
+      source: 'optimistic',
+      role: 'assistant',
+      content: 'Answer survives reconciliation.',
+      timestamp: 2,
+    });
+    const canonical = makeChatPageMessage({
+      id: 'db-answer',
+      runtimeId: 'runtime-answer',
+      source: 'canonical',
+      role: 'assistant',
+      content: 'Answer survives reconciliation.',
+      timestamp: 2,
+    });
+
+    const { rerender } = render(
+      <ChatRuntimeProvider
+        messages={[optimistic]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessages />
+      </ChatRuntimeProvider>
+    );
+    const originalBubble = document.querySelector('[data-role="assistant"]');
+
+    rerender(
+      <ChatRuntimeProvider
+        messages={[canonical]}
+        isRunning={false}
+        onSend={noop}
+        onCancel={noop}
+      >
+        <AuiMessages />
+      </ChatRuntimeProvider>
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('Answer survives reconciliation.')
+      ).toHaveLength(1)
+    );
+    expect(document.querySelector('[data-role="assistant"]')).toBe(
+      originalBubble
+    );
+  });
+
   it('renders nothing instead of throwing when the runtime thread is behind the list', () => {
     // The external-store runtime syncs post-commit (useEffect), so the list
     // can render an index the runtime doesn't have yet — e.g. thread switch
     // or first send. Regression: useClientLookup "Index 0 out of bounds".
-    const staleMessage: ChatPageMessage = {
+    const staleMessage = makeChatPageMessage({
       id: 'a1',
       role: 'assistant',
       content: 'Not yet in runtime.',
       timestamp: 2,
-    };
+    });
 
     expect(() =>
       render(
@@ -277,12 +345,12 @@ describe('AuiMessageByIndex runtime-sync race', () => {
     // catch this: the throw originates in the child's store-driven update, not
     // the parent's render. Prod crash: "useClientLookup: Index 0 out of bounds
     // (length: 0)" on thread switch.
-    const msg: ChatPageMessage = {
+    const msg = makeChatPageMessage({
       id: 'a1',
       role: 'assistant',
       content: 'From thread A.',
       timestamp: 2,
-    };
+    });
 
     const { rerender } = render(
       <ChatRuntimeProvider

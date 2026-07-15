@@ -30,7 +30,6 @@ vi.mock('react-hot-toast', () => ({
 
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import { useChatStore } from '@/store/chat-store';
-import { mapStoreMessagesToChatMessages } from '@/components/chat/shared/cloudMessageView';
 
 function storeMsg(
   threadId: string,
@@ -59,9 +58,6 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     storeMsg('thread-A', 'a4', 'A four', MessageRole.ASSISTANT),
     storeMsg('thread-A', 'a5', 'A five'),
   ];
-  // A's local transcript, as it legitimately sits in `messages` after viewing A.
-  const threadAlocal = mapStoreMessagesToChatMessages(threadAStore);
-
   beforeEach(() => {
     getThreadMock.mockReset();
     // Store is the per-thread source of truth. Seed only B here; B is the
@@ -80,25 +76,23 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     } as never);
   });
 
-  it('adopts thread B into local messages on switch — no thread A bleed', async () => {
+  it('keeps canonical rows out of local overlay state on thread switches', async () => {
     const { result } = renderHook(() => useChatSession());
 
-    // thread-A has a populated local cache (user already viewed it) → landing on
-    // A takes the cached branch and sets local `messages` to A's 5. thread-B has
-    // NO local cache but IS in the store → switching to it hits the store-guard.
     act(() => {
       result.current.setConversations([
-        { id: 'thread-A', title: 'A', messages: threadAlocal } as never,
+        { id: 'thread-A', title: 'A', messages: [] } as never,
         { id: 'thread-B', title: 'B', messages: [] } as never,
       ]);
     });
 
-    // Land on A first: local messages become A's 5 (the previous transcript).
+    // Canonical store rows render directly; React-local state remains an
+    // optimistic/local-only overlay instead of becoming a second transcript.
     act(() => {
-      result.current.setActiveConversationId('thread-A');
+      useChatStore.setState({ currentThreadId: 'thread-A' });
     });
     await waitFor(() =>
-      expect(result.current.messages.map((m) => m.content)).toEqual([
+      expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
         'A one',
         'A two',
         'A three',
@@ -106,20 +100,16 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
         'A five',
       ])
     );
+    expect(result.current.messages).toEqual([]);
 
     // Switch A -> B. Store already has B (short). Pre-fix, the store-guard
     // early-returns WITHOUT calling setMessages, so local `messages` stays A's 5
     // and the length-based display merge renders A under B (the bleed).
     act(() => {
-      result.current.setActiveConversationId('thread-B');
+      useChatStore.setState({ currentThreadId: 'thread-B' });
     });
 
-    await waitFor(() =>
-      expect(result.current.messages.map((m) => m.content)).toEqual([
-        'B one',
-        'B two',
-      ])
-    );
+    await waitFor(() => expect(result.current.messages).toEqual([]));
 
     // Displayed (local+store merge) must also be B's 2, never A's 5.
     expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
@@ -137,17 +127,19 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
 
     act(() => {
       result.current.setConversations([
-        { id: 'thread-A', title: 'A', messages: threadAlocal } as never,
+        { id: 'thread-A', title: 'A', messages: [] } as never,
         { id: 'thread-C', title: 'C', messages: [] } as never,
       ]);
     });
     act(() => {
-      result.current.setActiveConversationId('thread-A');
+      useChatStore.setState({ currentThreadId: 'thread-A' });
     });
-    await waitFor(() => expect(result.current.messages).toHaveLength(5));
+    await waitFor(() =>
+      expect(result.current.displayedMessages).toHaveLength(5)
+    );
+    expect(result.current.messages).toEqual([]);
 
     act(() => {
-      result.current.setActiveConversationId('thread-C');
       useChatStore.setState({
         currentThreadId: 'thread-C',
         isLoadingMessages: true,

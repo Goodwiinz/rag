@@ -3,6 +3,9 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { v5 as uuidv5 } from 'uuid';
+import { useChatStore } from '@/store/chat-store';
+import { workspaceService } from '@/services/workspaceService';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -39,6 +42,7 @@ type StreamCallbacks = {
 };
 
 function makeParams() {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -60,16 +64,17 @@ describe('useChatStreaming server-canonical mode', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     createMessageMock.mockClear();
+    useChatStore.getState().reset();
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   it('reconciles the bubble id from the done payload and does not self-persist', async () => {
-    // Flag is a module-load-time const, so stub the env then import fresh.
-    vi.stubEnv('NEXT_PUBLIC_SERVER_CANONICAL_CHAT', 'true');
-    vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 
     streamMessageMock.mockImplementation(
@@ -96,8 +101,17 @@ describe('useChatStreaming server-canonical mode', () => {
     const calls = params.setMessages.mock.calls;
     const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
     const committed = lastArg[lastArg.length - 1];
+    const request = streamMessageMock.mock.calls[0][0] as {
+      messages: Array<{ client_message_id?: string }>;
+    };
+    const userRuntimeId = request.messages.at(-1)?.client_message_id;
     expect(committed.role).toBe('assistant');
     expect(committed.id).toBe('srv-assistant-1');
+    expect(userRuntimeId).toBeTruthy();
+    expect(committed.runtimeId).toBe(
+      uuidv5(`nous-assistant:${userRuntimeId}`, uuidv5.URL)
+    );
+    expect(committed.source).toBe('optimistic');
 
     // Canonical mode: the client must NOT double-write rows — the backend is
     // the sole writer.

@@ -11,6 +11,8 @@ function makeMessage(
 ): ChatPageMessage {
   return {
     id: 'm1',
+    runtimeId: 'runtime-m1',
+    source: 'canonical',
     role: 'assistant',
     content: 'Hello there',
     timestamp: 1720000000000,
@@ -22,7 +24,7 @@ describe('convertMessage', () => {
   it('converts a plain assistant message to a single text part', () => {
     const result = convertMessage(makeMessage());
 
-    expect(result.id).toBe('m1');
+    expect(result.id).toBe('runtime-m1');
     expect(result.role).toBe('assistant');
     expect(result.createdAt).toEqual(new Date(1720000000000));
     expect(result.content).toEqual([{ type: 'text', text: 'Hello there' }]);
@@ -58,7 +60,7 @@ describe('convertMessage', () => {
     expect(content).toHaveLength(3);
     expect(content[0]).toEqual({
       type: 'tool-call',
-      toolCallId: 'm1-tool-0',
+      toolCallId: 'runtime-m1-tool-0',
       toolName: 'search_documents',
       args: {},
       argsText: 'query: transformers',
@@ -66,7 +68,7 @@ describe('convertMessage', () => {
     });
     expect(content[1]).toEqual({
       type: 'tool-call',
-      toolCallId: 'm1-tool-1',
+      toolCallId: 'runtime-m1-tool-1',
       toolName: 'ingest_arxiv',
       args: {},
       argsText: 'id: 2401.00001',
@@ -98,6 +100,8 @@ describe('convertMessage', () => {
 
   it('emits an approval tool-call part for a pendingApproval message', () => {
     const msg: ChatPageMessage = {
+      runtimeId: 'approval-runtime-id',
+      source: 'local-only',
       role: 'assistant',
       content: '',
       timestamp: 1,
@@ -144,7 +148,7 @@ describe('convertMessage', () => {
     expect(part.argsText).toBe('query: rag');
   });
 
-  it('falls back to the timestamp for toolCallIds when the message has no id', () => {
+  it('keeps toolCallIds stable when a persisted id arrives later', () => {
     const steps: ActivityStep[] = [
       { tool: 'search_documents', label: 'Searching', status: 'running' },
     ];
@@ -153,7 +157,7 @@ describe('convertMessage', () => {
     );
     const content = result.content as Array<Record<string, unknown>>;
 
-    expect(content[0].toolCallId).toBe('1720000000000-tool-0');
+    expect(content[0].toolCallId).toBe('runtime-m1-tool-0');
   });
 
   it('returns referentially stable parts for the same steps array reference', () => {

@@ -127,27 +127,40 @@ describe('useChatSession watchdog', () => {
       })
     );
 
-    const { result } = renderHook(() => useChatSession());
+    const { result, rerender } = renderHook(() => useChatSession());
 
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
 
+    // New-chat intent clears the old selection before the first optimistic
+    // turn is created; the newly-created thread then adopts that overlay.
+    act(() => {
+      chatStoreMocks.state.currentThreadId = null;
+      rerender();
+    });
     act(() => {
       result.current.setConversations([
         {
           id: 'thread-new',
           title: 'New thread',
-          messages: [{ role: 'user', content: 'new turn', timestamp: 2 }],
+          messages: [],
         } as never,
       ]);
-      result.current.activeConversationIdRef.current = 'thread-new';
-      result.current.setActiveConversationId('thread-new');
-      chatStoreMocks.state.currentThreadId = 'thread-new';
       result.current.setMessages([
-        { role: 'user', content: 'new turn', timestamp: 2 },
+        {
+          runtimeId: 'runtime-new-turn',
+          source: 'optimistic',
+          role: 'user',
+          content: 'new turn',
+          timestamp: 2,
+        },
       ]);
+    });
+    act(() => {
+      chatStoreMocks.state.currentThreadId = 'thread-new';
+      rerender();
     });
 
     await act(async () => {
@@ -157,7 +170,7 @@ describe('useChatSession watchdog', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.activeConversationId).toBe('thread-new');
+    expect(result.current.activeThreadId).toBe('thread-new');
     expect(result.current.messages.map((message) => message.content)).toEqual([
       'new turn',
     ]);

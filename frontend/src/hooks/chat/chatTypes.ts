@@ -3,6 +3,8 @@ import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView'
 export interface ChatConversation {
   id: string;
   title: string;
+  /** Compatibility field for conversation consumers. Canonical transcripts
+   * live in chat-store; keep this empty rather than maintaining a second cache. */
   messages: ChatPageMessage[];
   modelId?: string;
   createdAt: number;

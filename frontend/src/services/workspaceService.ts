@@ -214,6 +214,7 @@ export const workspaceService = {
       offset?: number;
       before_id?: string;
       order?: 'asc' | 'desc';
+      signal?: AbortSignal;
     } = {}
   ): Promise<ChatMessageListResponse> {
     const params = new URLSearchParams();
@@ -231,7 +232,7 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/threads/${threadId}/messages${queryString ? `?${queryString}` : ''}`;
-    return api.get<ChatMessageListResponse>(url);
+    return api.get<ChatMessageListResponse>(url, { signal: options.signal });
   },
 
   async createMessage(data: ChatMessageCreate): Promise<ChatMessage> {

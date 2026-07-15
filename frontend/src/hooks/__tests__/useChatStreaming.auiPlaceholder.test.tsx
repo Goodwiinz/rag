@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -38,6 +39,7 @@ type StreamCallbacks = {
 };
 
 function makeParams(setMessages: (m: ChatPageMessage[]) => void) {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -59,21 +61,23 @@ describe('useChatStreaming in-flight placeholder', () => {
   beforeEach(() => streamMessageMock.mockReset());
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   it('adds a streaming placeholder at start and replaces it on done', async () => {
-    vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 
     // Resolve setMessages to concrete snapshots (the hook uses both array and
     // updater forms).
     let current: ChatPageMessage[] = [];
     const snapshots: ChatPageMessage[][] = [];
-    const setMessages = vi.fn((m: ChatPageMessage[] | ((p: ChatPageMessage[]) => ChatPageMessage[])) => {
-      current = typeof m === 'function' ? m(current) : m;
-      snapshots.push(current);
-    });
+    const setMessages = vi.fn(
+      (
+        m: ChatPageMessage[] | ((p: ChatPageMessage[]) => ChatPageMessage[])
+      ) => {
+        current = typeof m === 'function' ? m(current) : m;
+        snapshots.push(current);
+      }
+    );
 
     let sawPlaceholderDuringStream = false;
     streamMessageMock.mockImplementation(

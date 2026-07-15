@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -43,6 +44,7 @@ type StreamCallbacks = {
 };
 
 function makeParams() {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],

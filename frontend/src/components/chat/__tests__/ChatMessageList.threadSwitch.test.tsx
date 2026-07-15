@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { ChatMessageList } from '../ChatMessageList';
 import { ChatRuntimeProvider } from '../aui/ChatRuntimeProvider';
 import type { ChatPageMessage } from '../shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 vi.mock('../shared/ChatBubble', () => ({
   ChatBubble: ({ message }: any) => <div>{message.content}</div>,
@@ -26,8 +27,8 @@ const baseProps = {
 
 function msgs(content: string): ChatPageMessage[] {
   return [
-    { role: 'user', content: 'q', timestamp: 1 },
-    { role: 'assistant', content, timestamp: 2 },
+    makeChatPageMessage({ role: 'user', content: 'q', timestamp: 1 }),
+    makeChatPageMessage({ role: 'assistant', content, timestamp: 2 }),
   ];
 }
 
@@ -39,7 +40,11 @@ function tree(threadId: string, messages: ChatPageMessage[]) {
       onSend={() => {}}
       onCancel={() => {}}
     >
-      <ChatMessageList {...baseProps} activeThreadId={threadId} messages={messages} />
+      <ChatMessageList
+        {...baseProps}
+        activeThreadId={threadId}
+        messages={messages}
+      />
     </ChatRuntimeProvider>
   );
 }
@@ -74,5 +79,33 @@ describe('ChatMessageList thread-switch remount', () => {
 
     expect(document.body.contains(node)).toBe(true);
     expect(screen.getByText('STABLE')).toBe(node);
+  });
+
+  it('replaces every row when the same thread receives a same-count canonical page', () => {
+    const optimistic = msgs('OPTIMISTIC ANSWER');
+    const canonical = msgs('CANONICAL ANSWER');
+    const { rerender } = render(tree('thread-A', optimistic));
+
+    expect(screen.getByText('OPTIMISTIC ANSWER')).toBeInTheDocument();
+    rerender(tree('thread-A', canonical));
+
+    expect(screen.queryByText('OPTIMISTIC ANSWER')).not.toBeInTheDocument();
+    expect(screen.getByText('CANONICAL ANSWER')).toBeInTheDocument();
+  });
+
+  it('exposes stable runtime and persisted identities for browser reconciliation checks', () => {
+    const message = makeChatPageMessage({
+      id: 'db-answer',
+      runtimeId: 'runtime-answer',
+      source: 'canonical',
+      role: 'assistant',
+      content: 'IDENTIFIED',
+      timestamp: 2,
+    });
+    render(tree('thread-A', [message]));
+
+    expect(
+      document.querySelector('[data-runtime-id="runtime-answer"]')
+    ).toHaveAttribute('data-persisted-id', 'db-answer');
   });
 });

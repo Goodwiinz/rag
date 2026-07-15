@@ -36,6 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
+import { v5 as uuidv5 } from 'uuid';
 
 /**
  * Map a raw rag_context SSE item ({document_id, title, content, score} from
@@ -43,11 +44,6 @@ import { useProjectStore } from '@/store/projectStore';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
-// Stable id for the in-flight assistant placeholder path. One turn
-// streams at a time, so a constant is enough; the placeholder is always either
-// replaced by the committed message or removed at every stream exit.
-const STREAMING_PLACEHOLDER_ID = '__nous_streaming_placeholder__';
-
 /** Tool name + args preview from an interrupt's confirmation payload — flat
  * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
  * page-level banner's extractToolCall (P4). */
@@ -57,12 +53,10 @@ function extractConfirmationPreview(
   if (!confirmation) return { name: 'this action', args: {} };
   const flatName = confirmation.tool_name as string | undefined;
   const flatArgs = (confirmation.tool_args ?? confirmation.args) as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   if (flatName) return { name: flatName, args: flatArgs ?? {} };
   const tools = confirmation.tools as
-    | Array<{ name?: string; args?: Record<string, unknown> }>
-    | undefined;
+    Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
   const first = tools?.[0];
   if (first?.name) return { name: first.name, args: first.args ?? {} };
   return { name: 'this action', args: {} };
@@ -119,6 +113,9 @@ export interface PendingConfirmation {
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
+  /** Stable identities for reconciliation across the interrupt/resume split. */
+  userRuntimeId?: string;
+  assistantRuntimeId?: string;
 }
 
 /** Map raw planner SSE steps onto the structured inline-plan shape. */
@@ -192,11 +189,7 @@ export interface UseChatStreamingParams {
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
-  activeConversationId: string | null;
-  setActiveConversationId: React.Dispatch<React.SetStateAction<string | null>>;
-  activeConversationIdRef: React.MutableRefObject<string | null>;
   dbConversation: DBConversation | null;
-  setCurrentThread: (threadId: string | null) => void;
   enableRAG: boolean;
 }
 
@@ -204,7 +197,10 @@ export interface UseChatStreamingReturn {
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   isLoading: boolean;
-  handleSubmit: (contentOverride?: string) => Promise<void>;
+  handleSubmit: (
+    contentOverride?: string,
+    historyOverride?: ChatPageMessage[]
+  ) => Promise<void>;
   handleStop: () => void;
   pendingConfirmation: PendingConfirmation | null;
   isConfirming: boolean;
@@ -234,11 +230,7 @@ export function useChatStreaming(
     setMessages,
     conversations,
     setConversations,
-    activeConversationId,
-    setActiveConversationId,
-    activeConversationIdRef,
     dbConversation,
-    setCurrentThread,
     enableRAG,
   } = params;
 
@@ -302,6 +294,7 @@ export function useChatStreaming(
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  const hadPendingApprovalRef = useRef(false);
 
   // ---- Store bindings ----
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
@@ -309,6 +302,7 @@ export function useChatStreaming(
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const streamingThreadId = useChatStore((state) => state.streamingThreadId);
+  const activeThreadId = useChatStore((state) => state.currentThreadId);
 
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -365,6 +359,7 @@ export function useChatStreaming(
       currentThreadId: string | null;
       currentConversationId: string | null;
       newMessages: ChatPageMessage[];
+      assistantRuntimeId: string;
       /** Resume: a replay that yields no tokens (nothing buffered / 204)
        * must unwind quietly instead of rendering a "no response" bubble. */
       quietWhenEmpty?: boolean;
@@ -377,6 +372,7 @@ export function useChatStreaming(
         currentThreadId,
         currentConversationId,
         newMessages,
+        assistantRuntimeId,
         quietWhenEmpty,
         start,
       } = opts;
@@ -390,17 +386,61 @@ export function useChatStreaming(
       // ponytail: the global streaming bubble/flags still render on whatever
       // thread is displayed while a background turn streams — per-thread
       // streaming state is the upgrade path if that becomes noticeable.
-      const turnThreadId = activeConversationIdRef.current;
+      const turnThreadId = currentThreadId;
       const isTurnDisplayed = () =>
-        activeConversationIdRef.current === turnThreadId;
+        useChatStore.getState().currentThreadId === turnThreadId;
+      const userRuntimeId = [...newMessages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === 'user' && message.source !== 'local-only'
+        )?.runtimeId;
+      const reconciliationDiagnostic = (terminalReason: string) => ({
+        terminalReason,
+        localCount: newMessages.length,
+        completedInBackground: !isTurnDisplayed(),
+      });
+      const reconcileUser = (terminalReason: string) =>
+        turnThreadId
+          ? useChatStore.getState().refreshMessages(
+              turnThreadId,
+              userRuntimeId
+                ? {
+                    runtimeId: userRuntimeId,
+                    diagnostic: reconciliationDiagnostic(terminalReason),
+                  }
+                : undefined
+            )
+          : Promise.resolve(false);
+      const reconcileAssistant = (
+        doneIds: {
+          assistant_message_id?: string | null;
+          client_message_id?: string | null;
+        },
+        terminalReason: string
+      ) =>
+        turnThreadId
+          ? useChatStore.getState().refreshMessages(turnThreadId, {
+              persistedId: doneIds.assistant_message_id ?? undefined,
+              runtimeId: doneIds.client_message_id ?? assistantRuntimeId,
+              diagnostic: reconciliationDiagnostic(terminalReason),
+            })
+          : Promise.resolve(false);
+
+      if (turnThreadId) {
+        useChatStore.getState().markMessagesStale(turnThreadId);
+      }
+
+      // Persisted identities arrive with the terminal done event. Keep this
+      // outside the try block so abort/error reconciliation can fall back to
+      // the deterministic runtime identity when no done frame arrived.
+      let doneIds: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+        tool_executions?: Array<Record<string, unknown>>;
+      } = {};
 
       try {
-        // Persisted ids from the done event (server-canonical only).
-        let doneIds: {
-          assistant_message_id?: string | null;
-          tool_executions?: Array<Record<string, unknown>>;
-        } = {};
-
         let assistantContent = '';
         lastStreamedContentRef.current = '';
         let streamHadError = false;
@@ -439,7 +479,8 @@ export function useChatStreaming(
         // below.
         if (isTurnDisplayed()) {
           const placeholder: ChatPageMessage = {
-            id: STREAMING_PLACEHOLDER_ID,
+            runtimeId: assistantRuntimeId,
+            source: 'optimistic',
             role: 'assistant',
             content: '',
             timestamp: Date.now(),
@@ -578,6 +619,8 @@ export function useChatStreaming(
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
+                userRuntimeId,
+                assistantRuntimeId,
               });
             },
             onDone: (payload) => {
@@ -601,6 +644,8 @@ export function useChatStreaming(
               }
               // Show error as assistant message instead of blank bubble
               const errorMsg: ChatPageMessage = {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: `Stream error: ${error}`,
                 timestamp: Date.now(),
@@ -633,6 +678,9 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingThreadId: null,
           });
+          await reconcileUser(
+            streamHadConfirmation ? 'confirmation-paused' : 'stream-error'
+          );
           setIsLoading(false);
           return;
         }
@@ -647,6 +695,8 @@ export function useChatStreaming(
           // bubble for an answer the user chose not to wait for.
           if (!stoppedByUserRef.current && !quietWhenEmpty) {
             const emptyResponseMessage: ChatPageMessage = {
+              runtimeId: crypto.randomUUID(),
+              source: 'local-only',
               role: 'assistant',
               content:
                 '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
@@ -666,6 +716,11 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingThreadId: null,
           });
+          if (stoppedByUserRef.current) {
+            await reconcileAssistant(doneIds, 'stopped-before-token');
+          } else {
+            await reconcileUser('empty-response');
+          }
           setIsLoading(false);
           stoppedByUserRef.current = false;
           activeRunThreadRef.current = null;
@@ -706,6 +761,8 @@ export function useChatStreaming(
               : liveCitations;
         stopCitationsRef.current = [];
         const finalAssistantMessage: ChatPageMessage = {
+          runtimeId: assistantRuntimeId,
+          source: 'optimistic',
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
@@ -742,27 +799,35 @@ export function useChatStreaming(
         });
         lastStreamedContentRef.current = '';
 
-        const finalMessages = [...newMessages, finalAssistantMessage];
-        if (isTurnDisplayed()) setMessages(finalMessages);
-
         // The BACKEND is the sole message writer (server-canonical): it
         // persisted both rows (user pre-stream, assistant before `done` —
         // full fidelity incl. tool_executions), so the client only reconciles
         // its optimistic bubble with the persisted id.
-        if (doneIds.assistant_message_id) {
-          finalAssistantMessage.id = doneIds.assistant_message_id;
-          if (isTurnDisplayed())
-            setMessages([...newMessages, finalAssistantMessage]);
-        }
+        const reconciledAssistantMessage = doneIds.assistant_message_id
+          ? { ...finalAssistantMessage, id: doneIds.assistant_message_id }
+          : finalAssistantMessage;
+        const finalMessages = [...newMessages, reconciledAssistantMessage];
+        if (isTurnDisplayed()) setMessages(finalMessages);
 
-        // Update conversation
+        // Conversation state is sidebar metadata only. The transcript remains
+        // the Zustand canonical page plus this hook's local overlay.
         setConversations((prev) =>
           prev.map((conv) =>
             conv.id === currentConversationId
-              ? { ...conv, messages: finalMessages, updatedAt: Date.now() }
+              ? {
+                  ...conv,
+                  messages: [],
+                  previewText: finalContent,
+                  messageCount: Math.max(
+                    conv.messageCount ?? 0,
+                    displayedMessages.length + 2
+                  ),
+                  updatedAt: Date.now(),
+                }
               : conv
           )
         );
+        await reconcileAssistant(doneIds, wasStopped ? 'stopped' : 'done');
       } catch (err) {
         // A user stop should never read as a failure. (streamMessage already
         // swallows AbortError, but guard here too in case the abort surfaces.)
@@ -776,11 +841,18 @@ export function useChatStreaming(
             setMessages([
               ...newMessages,
               {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: errorMessage,
                 timestamp: Date.now(),
               },
             ]);
+        }
+        if (stoppedByUserRef.current) {
+          await reconcileAssistant(doneIds, 'abort');
+        } else {
+          await reconcileUser('exception');
         }
       } finally {
         submitLockRef.current = false;
@@ -797,16 +869,19 @@ export function useChatStreaming(
       }
     },
     [
-      activeConversationIdRef,
       setMessages,
       setConversations,
       enableRAG,
       invalidateProjectDataForTool,
+      displayedMessages.length,
     ]
   );
 
   const handleSubmit = useCallback(
-    async (contentOverride?: string) => {
+    async (
+      contentOverride?: string,
+      historyOverride?: ChatPageMessage[]
+    ) => {
       if (submitLockRef.current) return;
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
@@ -814,7 +889,17 @@ export function useChatStreaming(
       if (!content || isLoading || storeIsStreaming) return;
       submitLockRef.current = true;
 
+      // Create the idempotency/runtime identity before the optimistic bubble.
+      // The backend stores this on the user row and derives the assistant row's
+      // client id with the same UUIDv5 contract below.
+      const turnClientMessageId = crypto.randomUUID();
+      const assistantRuntimeId = uuidv5(
+        `nous-assistant:${turnClientMessageId}`,
+        uuidv5.URL
+      );
       const userMessage: ChatPageMessage = {
+        runtimeId: turnClientMessageId,
+        source: 'optimistic',
         role: 'user',
         content,
         timestamp: Date.now(),
@@ -823,8 +908,24 @@ export function useChatStreaming(
       // CX2: build the turn from the RECONCILED view (local ∪ store) — the
       // local array is empty during the lazy-load window after a thread
       // switch, and submitting from it silently dropped the whole history.
-      const history = displayedMessages;
-      const newMessages = [...history, userMessage];
+      const requestHistory = historyOverride ?? displayedMessages;
+      const requestMessages = [...requestHistory, userMessage];
+      // Local state contains only rows the canonical page has not yet
+      // absorbed. A retry/next send clears local-only error rows while keeping
+      // still-unreconciled optimistic identities visible. Regeneration passes
+      // an explicit history prefix, so optimistic rows after its cutoff must
+      // not leak back into the regenerated request or local overlay.
+      const retainedRuntimeIds = historyOverride
+        ? new Set(requestHistory.map((message) => message.runtimeId))
+        : null;
+      const newMessages = [
+        ...messages.filter(
+          (message) =>
+            message.source === 'optimistic' &&
+            (!retainedRuntimeIds || retainedRuntimeIds.has(message.runtimeId))
+        ),
+        userMessage,
+      ];
       setMessages(newMessages);
       setInput('');
       setIsLoading(true);
@@ -832,10 +933,7 @@ export function useChatStreaming(
       // Create new thread if needed (when no active conversation).
       // Read from ref first (synchronous, immune to React batching), then
       // state, then Zustand store as final fallback.
-      let currentConversationId =
-        activeConversationIdRef.current ||
-        activeConversationId ||
-        useChatStore.getState().currentThreadId;
+      let currentConversationId = useChatStore.getState().currentThreadId;
       let currentThreadId = currentConversationId;
 
       if (!currentConversationId) {
@@ -878,17 +976,17 @@ export function useChatStreaming(
           const newConv: ChatConversation = {
             id: newThread.id,
             title: newThread.title || dynamicTitle,
-            messages: newMessages,
+            messages: [],
             createdAt: Date.now(),
             updatedAt: Date.now(),
             threadId: newThread.id,
             conversationId: threadConversation.id,
+            previewText: content,
+            messageCount: 1,
           };
 
           setConversations((prev) => [newConv, ...prev]);
-          setActiveConversationId(newConv.id);
-          activeConversationIdRef.current = newConv.id;
-          setCurrentThread(newConv.id);
+          useChatStore.getState().setCurrentThread(newConv.id);
           queueMicrotask(() =>
             router.replace(getSelectedThreadUrl(newThread.id))
           );
@@ -911,11 +1009,6 @@ export function useChatStreaming(
       // Stream via Agent (LangGraph) backend.
       // The workspace thread IS the agent thread (server-canonical).
       const existingAgentThreadId = currentThreadId || undefined;
-      // Idempotency key for this user turn; the backend derives the
-      // assistant row's key from it (uuid5), so an SSE retry can't
-      // duplicate either row.
-      const turnClientMessageId = crypto.randomUUID();
-
       console.log(
         '[Chat] Starting agent stream, workspace thread:',
         currentThreadId,
@@ -934,20 +1027,23 @@ export function useChatStreaming(
           currentThreadId,
           currentConversationId,
           newMessages,
+          assistantRuntimeId,
           start: (streamCallbacks, signal) =>
             agentChatService.streamMessage(
               {
-                messages: newMessages.map((m, i) => ({
-                  role: m.role,
-                  content: m.content,
-                  // Idempotency key rides on the user turn being sent (the
-                  // last message) — server-canonical only.
-                  ...(turnClientMessageId &&
-                  i === newMessages.length - 1 &&
-                  m.role === 'user'
-                    ? { client_message_id: turnClientMessageId }
-                    : {}),
-                })),
+                messages: requestMessages
+                  .filter((message) => message.source !== 'local-only')
+                  .map((m, i, agentMessages) => ({
+                    role: m.role,
+                    content: m.content,
+                    // Idempotency key rides on the user turn being sent (the
+                    // last message) — server-canonical only.
+                    ...(turnClientMessageId &&
+                    i === agentMessages.length - 1 &&
+                    m.role === 'user'
+                      ? { client_message_id: turnClientMessageId }
+                      : {}),
+                  })),
                 page_context: {
                   type: boundProjectId ? 'project' : 'chat',
                   ...(boundProjectId && {
@@ -980,12 +1076,8 @@ export function useChatStreaming(
       messages,
       displayedMessages,
       setMessages,
-      activeConversationIdRef,
-      activeConversationId,
       dbConversation,
       setConversations,
-      setActiveConversationId,
-      setCurrentThread,
       router,
       enableRAG,
       boundProjectId,
@@ -1028,7 +1120,7 @@ export function useChatStreaming(
   // buffered stream and replay from the last seen seq through the exact
   // same callbacks/commit path as a live submit.
   useEffect(() => {
-    const threadId = activeConversationId;
+    const threadId = activeThreadId;
     if (!threadId || isLoading) return;
     if (useChatStore.getState().isStreaming) return;
     const run = useAgentActivityStore.getState().runs[threadId];
@@ -1043,6 +1135,7 @@ export function useChatStreaming(
       currentThreadId: threadId,
       currentConversationId: threadId,
       newMessages: messages,
+      assistantRuntimeId: `resume:${threadId}:${run.startedAt}`,
       quietWhenEmpty: true,
       start: async (streamCallbacks, signal) => {
         const res = await agentChatService.resumeStream(
@@ -1059,13 +1152,7 @@ export function useChatStreaming(
     });
     // storeIsStreaming is a dep so a thread with a stale run gets re-checked
     // once another thread's live stream ends (the guard above reads fresh).
-  }, [
-    activeConversationId,
-    isLoading,
-    messages,
-    runStreamTurn,
-    storeIsStreaming,
-  ]);
+  }, [activeThreadId, isLoading, messages, runStreamTurn, storeIsStreaming]);
 
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
@@ -1079,7 +1166,7 @@ export function useChatStreaming(
       if (
         !confirmationBelongsToThread(
           pendingConfirmation,
-          activeConversationIdRef.current
+          useChatStore.getState().currentThreadId
         )
       )
         return;
@@ -1092,8 +1179,46 @@ export function useChatStreaming(
       const isConfirmDisplayed = () =>
         confirmationBelongsToThread(
           pendingConfirmation,
-          activeConversationIdRef.current
+          useChatStore.getState().currentThreadId
         );
+      const confirmationThreadId =
+        pendingConfirmation.workspaceThreadId || null;
+      const confirmationDiagnostic = (terminalReason: string) => ({
+        terminalReason,
+        localCount: messages.length,
+        completedInBackground: !isConfirmDisplayed(),
+      });
+      const reconcileConfirmationUser = (terminalReason: string) =>
+        confirmationThreadId
+          ? useChatStore.getState().refreshMessages(
+              confirmationThreadId,
+              pendingConfirmation.userRuntimeId
+                ? {
+                    runtimeId: pendingConfirmation.userRuntimeId,
+                    diagnostic: confirmationDiagnostic(terminalReason),
+                  }
+                : undefined
+            )
+          : Promise.resolve(false);
+      const reconcileConfirmationAssistant = (
+        done: {
+          assistant_message_id?: string | null;
+          client_message_id?: string | null;
+        },
+        terminalReason: string
+      ) =>
+        confirmationThreadId
+          ? useChatStore.getState().refreshMessages(confirmationThreadId, {
+              persistedId: done.assistant_message_id ?? undefined,
+              runtimeId:
+                done.client_message_id ??
+                pendingConfirmation.assistantRuntimeId,
+              diagnostic: confirmationDiagnostic(terminalReason),
+            })
+          : Promise.resolve(false);
+      if (confirmationThreadId) {
+        useChatStore.getState().markMessagesStale(confirmationThreadId);
+      }
       setIsConfirming(true);
       const confirmStart = Date.now();
       // Track tool steps for the resumed turn exactly like handleSubmit —
@@ -1139,7 +1264,14 @@ export function useChatStreaming(
       // Set when onDone/onError committed a bubble — the post-stream abort
       // path below must not double-commit.
       let confirmCommitted = false;
+      let confirmHadError = false;
+      let confirmDoneIds: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      } = {};
       const confirmMessages = [...messages];
+      const confirmRuntimeId =
+        pendingConfirmation.assistantRuntimeId ?? crypto.randomUUID();
 
       const buildConfirmMessage = (
         content: string,
@@ -1147,6 +1279,8 @@ export function useChatStreaming(
       ): ChatPageMessage => {
         const allCitations = [...carriedCitations, ...resumeCitations];
         return {
+          runtimeId: confirmRuntimeId,
+          source: 'optimistic',
           role: 'assistant',
           content,
           timestamp: Date.now(),
@@ -1256,6 +1390,8 @@ export function useChatStreaming(
                 steps: confirmSteps.filter((s) => s.status !== 'running'),
                 plan: [...confirmPlan],
                 citations: [...carriedCitations, ...resumeCitations],
+                userRuntimeId: pendingConfirmation.userRuntimeId,
+                assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
               };
             },
             onUsage: (inputTokens, outputTokens) => {
@@ -1268,14 +1404,9 @@ export function useChatStreaming(
               useChatStore.setState({ streamingContent: '' });
             },
             onDone: (payload) => {
+              confirmDoneIds = payload ?? {};
               if (confirmContent.trim()) {
-                const msg = buildConfirmMessage(confirmContent, false);
-                // Server-canonical: stamp the persisted id onto the
-                // optimistic bubble so a reload reconciles with the row
-                // instead of re-fetching a duplicate. Mirrors handleSubmit.
-                if (payload?.assistant_message_id) {
-                  msg.id = payload.assistant_message_id;
-                }
+                const baseMessage = buildConfirmMessage(confirmContent, false);
                 // The done payload carries the graph state's tool executions
                 // (parsed results, real durations) for the WHOLE turn —
                 // richer than the live SSE summaries, and identical to what
@@ -1283,20 +1414,31 @@ export function useChatStreaming(
                 const serverSteps = mapDbToolExecutions(
                   payload?.tool_executions as DbToolExecution[] | undefined
                 );
-                if (serverSteps && serverSteps.length > 0) {
-                  msg.toolExecutions = serverSteps;
-                  msg.metadata = {
-                    ...msg.metadata,
-                    toolsUsed: serverSteps.map((s) => s.label),
-                  };
-                }
+                const msg: ChatPageMessage = {
+                  ...baseMessage,
+                  ...(payload?.assistant_message_id
+                    ? { id: payload.assistant_message_id }
+                    : {}),
+                  ...(serverSteps && serverSteps.length > 0
+                    ? {
+                        toolExecutions: serverSteps,
+                        metadata: {
+                          ...baseMessage.metadata,
+                          toolsUsed: serverSteps.map((s) => s.label),
+                        },
+                      }
+                    : {}),
+                };
                 confirmCommitted = true;
                 if (isConfirmDisplayed())
                   setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {
+              confirmHadError = true;
               const msg: ChatPageMessage = {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
@@ -1324,17 +1466,34 @@ export function useChatStreaming(
               buildConfirmMessage(confirmContent, true),
             ]);
         }
+        if (nestedConfirmation || confirmHadError) {
+          await reconcileConfirmationUser(
+            nestedConfirmation ? 'confirmation-paused' : 'confirmation-error'
+          );
+        } else {
+          await reconcileConfirmationAssistant(
+            confirmDoneIds,
+            stoppedByUserRef.current
+              ? 'confirmation-stopped'
+              : confirmed
+                ? 'confirmation-approved'
+                : 'confirmation-rejected'
+          );
+        }
       } catch (err) {
         const errorMessage =
           err instanceof Error
             ? err.message
             : 'Network error during confirmation';
         const msg: ChatPageMessage = {
+          runtimeId: crypto.randomUUID(),
+          source: 'local-only',
           role: 'assistant',
           content: `Confirmation failed: ${errorMessage}`,
           timestamp: Date.now(),
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+        await reconcileConfirmationUser('confirmation-exception');
       } finally {
         // Close out the agent activity rail — the interrupt left the run
         // "running" and neither onDone (confirm path) nor handleStop
@@ -1372,13 +1531,7 @@ export function useChatStreaming(
         });
       }
     },
-    [
-      pendingConfirmation,
-      messages,
-      setMessages,
-      invalidateProjectDataForTool,
-      activeConversationIdRef,
-    ]
+    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
   );
 
   // P4: mirror the active pending confirmation into an in-band approval
@@ -1388,9 +1541,11 @@ export function useChatStreaming(
   // onApproval=handleConfirmation). handleConfirmation/streamConfirm internals
   // are untouched.
   useEffect(() => {
+    if (!pendingConfirmation && !hadPendingApprovalRef.current) return;
+    hadPendingApprovalRef.current = pendingConfirmation !== null;
     const active = confirmationBelongsToThread(
       pendingConfirmation,
-      activeConversationId
+      activeThreadId
     )
       ? pendingConfirmation
       : null;
@@ -1403,6 +1558,8 @@ export function useChatStreaming(
       return [
         ...withoutApproval,
         {
+          runtimeId: `approval:${active.workspaceThreadId}:${active.threadId}`,
+          source: 'local-only',
           role: 'assistant' as const,
           content: '',
           timestamp: Date.now(),
@@ -1410,7 +1567,7 @@ export function useChatStreaming(
         },
       ];
     });
-  }, [pendingConfirmation, activeConversationId, setMessages]);
+  }, [pendingConfirmation, activeThreadId, setMessages]);
 
   return {
     input,

@@ -6,6 +6,8 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -20,6 +22,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const streamMessageMock = vi.fn();
+const listMessagesMock = vi.fn();
 vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     streamMessage: (...args: unknown[]) => streamMessageMock(...args),
@@ -31,16 +34,27 @@ vi.mock('@/services/workspaceService', () => ({
   workspaceService: {
     createThread: vi.fn(),
     createMessage: vi.fn().mockResolvedValue({ id: 'db-msg-1' }),
-    listMessages: vi.fn(),
+    listMessages: (...args: unknown[]) => listMessagesMock(...args),
   },
 }));
 
 const storeBacked2: ChatPageMessage[] = [
-  { role: 'user', content: 'first turn', timestamp: 1 },
-  { role: 'assistant', content: 'first reply', timestamp: 2 },
+  makeChatPageMessage({
+    id: 'first-user',
+    role: 'user',
+    content: 'first turn',
+    timestamp: 1,
+  }),
+  makeChatPageMessage({
+    id: 'first-assistant',
+    role: 'assistant',
+    content: 'first reply',
+    timestamp: 2,
+  }),
 ];
 
 function makeParams(overrides: Record<string, unknown> = {}) {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: storeBacked2,
@@ -60,6 +74,7 @@ function makeParams(overrides: Record<string, unknown> = {}) {
 describe('useChatStreaming submit history (CX2)', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
+    listMessagesMock.mockResolvedValue({ messages: [], has_more: false });
     streamMessageMock.mockImplementation(
       (_req: unknown, cb: { onDone?: (p?: unknown) => void }) => {
         cb.onDone?.({});
@@ -81,5 +96,71 @@ describe('useChatStreaming submit history (CX2)', () => {
       messages: unknown[];
     };
     expect(payload.messages).toHaveLength(3); // 2 history + new turn
+  });
+
+  it('uses an explicit truncated history for regeneration', async () => {
+    const laterTurn = [
+      ...storeBacked2,
+      makeChatPageMessage({
+        id: 'second-user',
+        role: 'user',
+        content: 'second turn',
+        timestamp: 3,
+      }),
+      makeChatPageMessage({
+        id: 'second-assistant',
+        role: 'assistant',
+        content: 'second reply',
+        timestamp: 4,
+      }),
+    ];
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+    const params = makeParams({ displayedMessages: laterTurn });
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('second turn', storeBacked2);
+    });
+
+    const payload = streamMessageMock.mock.calls[0][0] as {
+      messages: Array<{ content: string }>;
+    };
+    expect(payload.messages.map((message) => message.content)).toEqual([
+      'first turn',
+      'first reply',
+      'second turn',
+    ]);
+  });
+
+  it('keeps React-local state limited to the optimistic overlay', async () => {
+    streamMessageMock.mockImplementation(
+      (
+        _request: unknown,
+        callbacks: {
+          onToken: (content: string) => void;
+          onDone: (payload?: unknown) => void;
+        }
+      ) => {
+        callbacks.onToken('follow-up answer');
+        callbacks.onDone({ assistant_message_id: 'assistant-2' });
+        return Promise.resolve();
+      }
+    );
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('follow-up');
+    });
+
+    const arrayWrites = params.setMessages.mock.calls
+      .map((call) => call[0])
+      .filter((value): value is ChatPageMessage[] => Array.isArray(value));
+    const finalLocalOverlay = arrayWrites.at(-1)!;
+    expect(finalLocalOverlay.map((message) => message.content)).toEqual([
+      'follow-up',
+      'follow-up answer',
+    ]);
   });
 });

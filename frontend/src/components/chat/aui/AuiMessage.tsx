@@ -38,7 +38,12 @@ export type OnCitationClick = (
 
 function TextPart({ className }: { className?: string }) {
   return (
-    <p className={cn('whitespace-pre-wrap text-[14px] leading-relaxed', className)}>
+    <p
+      className={cn(
+        'whitespace-pre-wrap text-[14px] leading-relaxed',
+        className
+      )}
+    >
       <MessagePartPrimitive.Text />
       <MessagePartPrimitive.InProgress>
         <span
@@ -83,7 +88,9 @@ function MessageParts({
             if (assistant && assistantText !== undefined) {
               return <>{assistantText}</>;
             }
-            return <TextPart className={assistant ? 'font-serif' : undefined} />;
+            return (
+              <TextPart className={assistant ? 'font-serif' : undefined} />
+            );
           case 'image':
             return <ImagePart />;
           case 'file':
@@ -338,7 +345,11 @@ export function AuiAssistantMessage({
       citations={allCitations}
       onCitationClick={(citation) => {
         if (onCitationClick) {
-          onCitationClick(visibleCitations, citation, message.diagnosticsTraceId);
+          onCitationClick(
+            visibleCitations,
+            citation,
+            message.diagnosticsTraceId
+          );
         }
       }}
     />
@@ -495,7 +506,9 @@ export function AuiMessageByIndex({
   // resetKey settles the boundary when the runtime re-syncs: count changes on
   // grow/shrink, and message id changes on thread switch even when counts match.
   return (
-    <MessageByIndexBoundary resetKey={`${runtimeMessageCount}:${message?.id ?? index}`}>
+    <MessageByIndexBoundary
+      resetKey={`${runtimeMessageCount}:${message?.runtimeId ?? index}`}
+    >
       <ThreadPrimitive.MessageByIndex index={index} components={components} />
     </MessageByIndexBoundary>
   );

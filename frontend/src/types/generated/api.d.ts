@@ -9486,6 +9486,8 @@ export interface components {
              * @default []
              */
             citations: components["schemas"]["src__schemas__chat__CitationResponse"][];
+            /** Client Message Id */
+            client_message_id?: string | null;
             /** Content */
             content: string;
             /**

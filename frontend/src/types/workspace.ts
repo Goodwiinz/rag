@@ -248,6 +248,9 @@ export interface ChatMessageUpdate {
 
 export interface ChatMessage {
   id: string;
+  /** Stable client-generated identity used to reconcile optimistic and
+   * persisted messages. Null/absent for rows created before this contract. */
+  client_message_id?: string | null;
   thread_id: string;
   user_id?: string;
   content: string;
