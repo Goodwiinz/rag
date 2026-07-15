@@ -36,6 +36,7 @@ vi.mock('@/services/workspaceService', () => ({
 
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
+import { workspaceService } from '@/services/workspaceService';
 
 type StreamCallbacks = {
   onToken: (t: string) => void;
@@ -93,6 +94,10 @@ describe('useChatStreaming HITL confirm tool steps', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     streamConfirmMock.mockReset();
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
 
   it('tracks live streamingSteps during the confirm stream and commits toolExecutions', async () => {
@@ -117,6 +122,8 @@ describe('useChatStreaming HITL confirm tool steps', () => {
         cb.onToolEnd('ingest_arxiv_papers', 'ingested', false);
         cb.onToken('done ingesting');
         cb.onDone({
+          assistant_message_id: 'confirm-assistant-1',
+          client_message_id: 'confirm-runtime-1',
           tool_executions: [
             {
               id: 't1',
@@ -143,6 +150,9 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     );
 
     const params = makeParams();
+    const actualRefresh = useChatStore.getState().refreshMessages;
+    const refreshSpy = vi.fn(actualRefresh);
+    useChatStore.setState({ refreshMessages: refreshSpy });
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
     await act(async () => {
@@ -153,10 +163,17 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     expect(result.current.pendingConfirmation?.steps).toMatchObject([
       { tool: 'summarize_document', status: 'done' },
     ]);
+    refreshSpy.mockClear();
 
     await act(async () => {
       await result.current.handleConfirmation(true);
     });
+
+    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
+      persistedId: 'confirm-assistant-1',
+      runtimeId: 'confirm-runtime-1',
+    });
+    useChatStore.setState({ refreshMessages: actualRefresh });
 
     // Live: streamingSteps held both the carried step and the running tool.
     expect(stepsDuringConfirmStream[0]).toMatchObject([
@@ -259,14 +276,24 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     );
 
     const params = makeParams();
+    const actualRefresh = useChatStore.getState().refreshMessages;
+    const refreshSpy = vi.fn(actualRefresh);
+    useChatStore.setState({ refreshMessages: refreshSpy });
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
     await act(async () => {
       await result.current.handleSubmit('ingest then note');
     });
+    const userRuntimeId = result.current.pendingConfirmation?.userRuntimeId;
+    refreshSpy.mockClear();
     await act(async () => {
       await result.current.handleConfirmation(true);
     });
+
+    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
+      runtimeId: userRuntimeId,
+    });
+    useChatStore.setState({ refreshMessages: actualRefresh });
 
     // The banner is re-armed for the nested action, carrying the settled
     // steps from the first resume.
@@ -300,11 +327,17 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     );
 
     const params = makeParams();
+    const actualRefresh = useChatStore.getState().refreshMessages;
+    const refreshSpy = vi.fn(actualRefresh);
+    useChatStore.setState({ refreshMessages: refreshSpy });
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
     await act(async () => {
       await result.current.handleSubmit('ingest these');
     });
+    const assistantRuntimeId =
+      result.current.pendingConfirmation?.assistantRuntimeId;
+    refreshSpy.mockClear();
 
     let confirmPromise!: Promise<void>;
     act(() => {
@@ -326,6 +359,11 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       content: 'partial resumed answer',
       metadata: { stopped: true },
     });
+    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
+      persistedId: undefined,
+      runtimeId: assistantRuntimeId,
+    });
+    useChatStore.setState({ refreshMessages: actualRefresh });
   });
 
   it('CX1: a synchronous double-click on Approve only fires streamConfirm once', async () => {

@@ -182,6 +182,10 @@ describe('useChatStreaming thread-switch guard', () => {
     streamMessageMock.mockReset();
     useChatStore.getState().reset();
     useChatStore.setState({ currentThreadId: 'thread-A' });
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
 
   it('skips the final setMessages when the user switched threads mid-stream', async () => {

@@ -113,6 +113,9 @@ export interface PendingConfirmation {
   /** RAG citations retrieved before the interrupt — the interrupt exit
    * clears streamingCitations, so they must ride the confirmation. */
   citations?: Array<Record<string, unknown>>;
+  /** Stable identities for reconciliation across the interrupt/resume split. */
+  userRuntimeId?: string;
+  assistantRuntimeId?: string;
 }
 
 /** Map raw planner SSE steps onto the structured inline-plan shape. */
@@ -383,14 +386,44 @@ export function useChatStreaming(
       const turnThreadId = currentThreadId;
       const isTurnDisplayed = () =>
         useChatStore.getState().currentThreadId === turnThreadId;
+      const userRuntimeId = [...newMessages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === 'user' && message.source !== 'local-only'
+        )?.runtimeId;
+      const reconcileUser = () =>
+        turnThreadId
+          ? useChatStore.getState().refreshMessages(
+              turnThreadId,
+              userRuntimeId ? { runtimeId: userRuntimeId } : undefined
+            )
+          : Promise.resolve(false);
+      const reconcileAssistant = (doneIds: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      }) =>
+        turnThreadId
+          ? useChatStore.getState().refreshMessages(turnThreadId, {
+              persistedId: doneIds.assistant_message_id ?? undefined,
+              runtimeId: doneIds.client_message_id ?? assistantRuntimeId,
+            })
+          : Promise.resolve(false);
+
+      if (turnThreadId) {
+        useChatStore.getState().markMessagesStale(turnThreadId);
+      }
+
+      // Persisted identities arrive with the terminal done event. Keep this
+      // outside the try block so abort/error reconciliation can fall back to
+      // the deterministic runtime identity when no done frame arrived.
+      let doneIds: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+        tool_executions?: Array<Record<string, unknown>>;
+      } = {};
 
       try {
-        // Persisted ids from the done event (server-canonical only).
-        let doneIds: {
-          assistant_message_id?: string | null;
-          tool_executions?: Array<Record<string, unknown>>;
-        } = {};
-
         let assistantContent = '';
         lastStreamedContentRef.current = '';
         let streamHadError = false;
@@ -569,6 +602,8 @@ export function useChatStreaming(
                 // Snapshot NOW — the streamHadConfirmation exit below clears
                 // streamingCitations before the confirm stream starts.
                 citations: useChatStore.getState().streamingCitations,
+                userRuntimeId,
+                assistantRuntimeId,
               });
             },
             onDone: (payload) => {
@@ -626,6 +661,7 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingThreadId: null,
           });
+          await reconcileUser();
           setIsLoading(false);
           return;
         }
@@ -661,6 +697,11 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingThreadId: null,
           });
+          if (stoppedByUserRef.current) {
+            await reconcileAssistant(doneIds);
+          } else {
+            await reconcileUser();
+          }
           setIsLoading(false);
           stoppedByUserRef.current = false;
           activeRunThreadRef.current = null;
@@ -757,6 +798,7 @@ export function useChatStreaming(
               : conv
           )
         );
+        await reconcileAssistant(doneIds);
       } catch (err) {
         // A user stop should never read as a failure. (streamMessage already
         // swallows AbortError, but guard here too in case the abort surfaces.)
@@ -777,6 +819,11 @@ export function useChatStreaming(
                 timestamp: Date.now(),
               },
             ]);
+        }
+        if (stoppedByUserRef.current) {
+          await reconcileAssistant(doneIds);
+        } else {
+          await reconcileUser();
         }
       } finally {
         submitLockRef.current = false;
@@ -1078,6 +1125,32 @@ export function useChatStreaming(
           pendingConfirmation,
           useChatStore.getState().currentThreadId
         );
+      const confirmationThreadId =
+        pendingConfirmation.workspaceThreadId || null;
+      const reconcileConfirmationUser = () =>
+        confirmationThreadId
+          ? useChatStore.getState().refreshMessages(
+              confirmationThreadId,
+              pendingConfirmation.userRuntimeId
+                ? { runtimeId: pendingConfirmation.userRuntimeId }
+                : undefined
+            )
+          : Promise.resolve(false);
+      const reconcileConfirmationAssistant = (done: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      }) =>
+        confirmationThreadId
+          ? useChatStore.getState().refreshMessages(confirmationThreadId, {
+              persistedId: done.assistant_message_id ?? undefined,
+              runtimeId:
+                done.client_message_id ??
+                pendingConfirmation.assistantRuntimeId,
+            })
+          : Promise.resolve(false);
+      if (confirmationThreadId) {
+        useChatStore.getState().markMessagesStale(confirmationThreadId);
+      }
       setIsConfirming(true);
       const confirmStart = Date.now();
       // Track tool steps for the resumed turn exactly like handleSubmit —
@@ -1123,8 +1196,14 @@ export function useChatStreaming(
       // Set when onDone/onError committed a bubble — the post-stream abort
       // path below must not double-commit.
       let confirmCommitted = false;
+      let confirmHadError = false;
+      let confirmDoneIds: {
+        assistant_message_id?: string | null;
+        client_message_id?: string | null;
+      } = {};
       const confirmMessages = [...messages];
-      const confirmRuntimeId = crypto.randomUUID();
+      const confirmRuntimeId =
+        pendingConfirmation.assistantRuntimeId ?? crypto.randomUUID();
 
       const buildConfirmMessage = (
         content: string,
@@ -1243,6 +1322,8 @@ export function useChatStreaming(
                 steps: confirmSteps.filter((s) => s.status !== 'running'),
                 plan: [...confirmPlan],
                 citations: [...carriedCitations, ...resumeCitations],
+                userRuntimeId: pendingConfirmation.userRuntimeId,
+                assistantRuntimeId: pendingConfirmation.assistantRuntimeId,
               };
             },
             onUsage: (inputTokens, outputTokens) => {
@@ -1255,14 +1336,9 @@ export function useChatStreaming(
               useChatStore.setState({ streamingContent: '' });
             },
             onDone: (payload) => {
+              confirmDoneIds = payload ?? {};
               if (confirmContent.trim()) {
-                const msg = buildConfirmMessage(confirmContent, false);
-                // Server-canonical: stamp the persisted id onto the
-                // optimistic bubble so a reload reconciles with the row
-                // instead of re-fetching a duplicate. Mirrors handleSubmit.
-                if (payload?.assistant_message_id) {
-                  msg.id = payload.assistant_message_id;
-                }
+                const baseMessage = buildConfirmMessage(confirmContent, false);
                 // The done payload carries the graph state's tool executions
                 // (parsed results, real durations) for the WHOLE turn —
                 // richer than the live SSE summaries, and identical to what
@@ -1270,19 +1346,28 @@ export function useChatStreaming(
                 const serverSteps = mapDbToolExecutions(
                   payload?.tool_executions as DbToolExecution[] | undefined
                 );
-                if (serverSteps && serverSteps.length > 0) {
-                  msg.toolExecutions = serverSteps;
-                  msg.metadata = {
-                    ...msg.metadata,
-                    toolsUsed: serverSteps.map((s) => s.label),
-                  };
-                }
+                const msg: ChatPageMessage = {
+                  ...baseMessage,
+                  ...(payload?.assistant_message_id
+                    ? { id: payload.assistant_message_id }
+                    : {}),
+                  ...(serverSteps && serverSteps.length > 0
+                    ? {
+                        toolExecutions: serverSteps,
+                        metadata: {
+                          ...baseMessage.metadata,
+                          toolsUsed: serverSteps.map((s) => s.label),
+                        },
+                      }
+                    : {}),
+                };
                 confirmCommitted = true;
                 if (isConfirmDisplayed())
                   setMessages([...confirmMessages, msg]);
               }
             },
             onError: (error) => {
+              confirmHadError = true;
               const msg: ChatPageMessage = {
                 runtimeId: crypto.randomUUID(),
                 source: 'local-only',
@@ -1313,6 +1398,11 @@ export function useChatStreaming(
               buildConfirmMessage(confirmContent, true),
             ]);
         }
+        if (nestedConfirmation || confirmHadError) {
+          await reconcileConfirmationUser();
+        } else {
+          await reconcileConfirmationAssistant(confirmDoneIds);
+        }
       } catch (err) {
         const errorMessage =
           err instanceof Error
@@ -1326,6 +1416,7 @@ export function useChatStreaming(
           timestamp: Date.now(),
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+        await reconcileConfirmationUser();
       } finally {
         // Close out the agent activity rail — the interrupt left the run
         // "running" and neither onDone (confirm path) nor handleStop

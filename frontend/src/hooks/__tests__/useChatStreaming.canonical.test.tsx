@@ -5,6 +5,7 @@ import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { v5 as uuidv5 } from 'uuid';
 import { useChatStore } from '@/store/chat-store';
+import { workspaceService } from '@/services/workspaceService';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -63,6 +64,11 @@ describe('useChatStreaming server-canonical mode', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
     createMessageMock.mockClear();
+    useChatStore.getState().reset();
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
