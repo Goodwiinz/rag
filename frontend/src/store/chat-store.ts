@@ -290,6 +290,11 @@ export type MessageFreshness = 'fresh' | 'stale' | 'refreshing';
 export interface RefreshExpectation {
   persistedId?: string;
   runtimeId?: string;
+  diagnostic?: {
+    terminalReason: string;
+    localCount: number;
+    completedInBackground: boolean;
+  };
 }
 
 // ============================================================================
@@ -309,7 +314,9 @@ const INITIAL_MESSAGE_PAGE_SIZE = 50;
 
 function compareMessageOrder(left: ChatMessage, right: ChatMessage): number {
   const timestampOrder = left.created_at.localeCompare(right.created_at);
-  return timestampOrder !== 0 ? timestampOrder : left.id.localeCompare(right.id);
+  return timestampOrder !== 0
+    ? timestampOrder
+    : left.id.localeCompare(right.id);
 }
 
 function mergeNewestMessagePage(
@@ -325,7 +332,8 @@ function mergeNewestMessagePage(
   const canonicalIds = new Set(canonical.map((message) => message.id));
   const retainedOlder = existing.filter(
     (message) =>
-      !canonicalIds.has(message.id) && compareMessageOrder(message, boundary) < 0
+      !canonicalIds.has(message.id) &&
+      compareMessageOrder(message, boundary) < 0
   );
   const byId = new Map<string, ChatMessage>();
   [...retainedOlder, ...canonical].forEach((message) => {
@@ -340,8 +348,7 @@ function mergeNewestMessagePage(
 
 // Helper type for the recovery handler
 type RecoveryResult =
-  | { shouldProceed: false }
-  | { shouldProceed: true; triggerReinit: () => void };
+  { shouldProceed: false } | { shouldProceed: true; triggerReinit: () => void };
 
 /**
  * Helper to handle stale data recovery (404 errors) atomically.
@@ -360,9 +367,7 @@ function handleStaleDataRecovery(
   options: {
     clearWorkspaces?: boolean;
     loadingKey?:
-      | 'isLoadingConversations'
-      | 'isLoadingThreads'
-      | 'isLoadingMessages';
+      'isLoadingConversations' | 'isLoadingThreads' | 'isLoadingMessages';
   } = {}
 ): RecoveryResult {
   const { clearWorkspaces = true, loadingKey } = options;
@@ -1213,9 +1218,10 @@ export const useChatStore = create<ChatStore>()(
           }
 
           const canonicalAscending = [...response.messages].reverse();
-          const expectationIds = [expected?.persistedId, expected?.runtimeId].filter(
-            (value): value is string => !!value
-          );
+          const expectationIds = [
+            expected?.persistedId,
+            expected?.runtimeId,
+          ].filter((value): value is string => !!value);
           const expectationMet =
             expectationIds.length === 0 ||
             response.messages.some(
@@ -1257,10 +1263,7 @@ export const useChatStore = create<ChatStore>()(
             const threadKeys = Object.keys(state.messages);
             if (threadKeys.length > MAX_CACHED_THREADS) {
               evictedThreadIds.push(
-                ...threadKeys.slice(
-                  0,
-                  threadKeys.length - MAX_CACHED_THREADS
-                )
+                ...threadKeys.slice(0, threadKeys.length - MAX_CACHED_THREADS)
               );
               for (const key of evictedThreadIds) {
                 for (const message of state.messages[key] || []) {
@@ -1278,16 +1281,46 @@ export const useChatStore = create<ChatStore>()(
             }
           });
           evictedThreadIds.forEach(abortNewestPageRequest);
+          if (!expectationMet && expected?.diagnostic) {
+            console.warn('[ChatReconciliationInvariant]', {
+              threadId,
+              terminalReason: expected.diagnostic.terminalReason,
+              failureKind: 'expected-message-missing',
+              freshness: 'stale',
+              localCount: expected.diagnostic.localCount,
+              storeCount: get().messages[threadId]?.length ?? 0,
+              expectedPersistedId: expected.persistedId,
+              expectedRuntimeId: expected.runtimeId,
+              requestGeneration: request.generation,
+              completedInBackground: expected.diagnostic.completedInBackground,
+            });
+          }
           return expectationMet;
         } catch (error) {
           if (newestPageRequests.get(threadId) !== request) {
             return false;
           }
           newestPageRequests.delete(threadId);
-          const isAbort =
-            error instanceof Error && error.name === 'AbortError';
+          const isAbort = error instanceof Error && error.name === 'AbortError';
           if (!isAbort) {
-            console.error('[ChatStore] Error refreshing messages:', error);
+            if (expected?.diagnostic) {
+              console.warn('[ChatReconciliationInvariant]', {
+                threadId,
+                terminalReason: expected.diagnostic.terminalReason,
+                failureKind: 'refresh-failed',
+                freshness: 'stale',
+                localCount: expected.diagnostic.localCount,
+                storeCount: get().messages[threadId]?.length ?? 0,
+                expectedPersistedId: expected.persistedId,
+                expectedRuntimeId: expected.runtimeId,
+                requestGeneration: request.generation,
+                completedInBackground:
+                  expected.diagnostic.completedInBackground,
+                errorName: error instanceof Error ? error.name : 'unknown',
+              });
+            } else {
+              console.error('[ChatStore] Error refreshing messages:', error);
+            }
           }
           set((state) => {
             state.messageFreshness[threadId] = 'stale';

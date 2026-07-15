@@ -52,7 +52,7 @@ const response = (
   has_more: hasMore,
 });
 
-const deferred = <T,>() => {
+const deferred = <T>() => {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
@@ -80,9 +80,7 @@ describe('per-thread newest-page coordinator', () => {
     );
 
     const initialLoad = useChatStore.getState().loadMessages('thread-a');
-    const terminalRefresh = useChatStore
-      .getState()
-      .refreshMessages('thread-a');
+    const terminalRefresh = useChatStore.getState().refreshMessages('thread-a');
 
     expect(signals[0].aborted).toBe(true);
     expect(signals[1].aborted).toBe(false);
@@ -98,7 +96,10 @@ describe('per-thread newest-page coordinator', () => {
   });
 
   it('keeps requests for different threads independent', async () => {
-    const requests = new Map<string, ReturnType<typeof deferred<ChatMessageListResponse>>>();
+    const requests = new Map<
+      string,
+      ReturnType<typeof deferred<ChatMessageListResponse>>
+    >();
     const signals = new Map<string, AbortSignal>();
     listMessagesMock.mockImplementation(
       (threadId: string, options: { signal?: AbortSignal }) => {
@@ -150,16 +151,61 @@ describe('per-thread newest-page coordinator', () => {
   });
 
   it('leaves freshness stale when the expected persisted or runtime row is missing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     listMessagesMock.mockResolvedValue(response([makeMessage('m1')]));
     useChatStore.getState().markMessagesStale('thread-a');
 
     const found = await useChatStore.getState().refreshMessages('thread-a', {
       persistedId: 'missing-id',
       runtimeId: 'missing-runtime-id',
+      diagnostic: {
+        terminalReason: 'done',
+        localCount: 2,
+        completedInBackground: false,
+      },
     });
 
     expect(found).toBe(false);
     expect(useChatStore.getState().messageFreshness['thread-a']).toBe('stale');
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      '[ChatReconciliationInvariant]',
+      expect.objectContaining({
+        threadId: 'thread-a',
+        terminalReason: 'done',
+        freshness: 'stale',
+        localCount: 2,
+        storeCount: 1,
+        requestGeneration: 1,
+        completedInBackground: false,
+      })
+    );
+    warn.mockRestore();
+  });
+
+  it('does not warn when reconciliation is superseded', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const older = deferred<ChatMessageListResponse>();
+    const newer = deferred<ChatMessageListResponse>();
+    listMessagesMock
+      .mockReturnValueOnce(older.promise)
+      .mockReturnValueOnce(newer.promise);
+
+    const first = useChatStore.getState().refreshMessages('thread-a', {
+      runtimeId: 'runtime-1',
+      diagnostic: {
+        terminalReason: 'done',
+        localCount: 2,
+        completedInBackground: false,
+      },
+    });
+    const second = useChatStore.getState().refreshMessages('thread-a');
+    newer.resolve(response([makeMessage('m2')]));
+    older.resolve(response([makeMessage('m1')]));
+    await Promise.all([first, second]);
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('marks freshness fresh when an expected runtime row arrives', async () => {
@@ -218,7 +264,9 @@ describe('per-thread newest-page coordinator', () => {
     useChatStore.getState().clearThread('thread-a');
 
     expect(signal.aborted).toBe(true);
-    expect(useChatStore.getState().messageFreshness['thread-a']).toBeUndefined();
+    expect(
+      useChatStore.getState().messageFreshness['thread-a']
+    ).toBeUndefined();
     pending.resolve(response([]));
     await refresh;
     expect(useChatStore.getState().messages['thread-a']).toBeUndefined();
@@ -269,8 +317,12 @@ describe('per-thread newest-page coordinator', () => {
 
     expect(signal.aborted).toBe(true);
     expect(useChatStore.getState().messages['thread-a']).toBeUndefined();
-    expect(useChatStore.getState().messagePagination['thread-a']).toBeUndefined();
-    expect(useChatStore.getState().messageFreshness['thread-a']).toBeUndefined();
+    expect(
+      useChatStore.getState().messagePagination['thread-a']
+    ).toBeUndefined();
+    expect(
+      useChatStore.getState().messageFreshness['thread-a']
+    ).toBeUndefined();
     pending.resolve(response([]));
     await refresh;
   });
@@ -304,7 +356,9 @@ describe('per-thread newest-page coordinator', () => {
 
     expect(evictedSignal.aborted).toBe(true);
     expect(useChatStore.getState().messages['thread-0']).toBeUndefined();
-    expect(useChatStore.getState().messageFreshness['thread-0']).toBeUndefined();
+    expect(
+      useChatStore.getState().messageFreshness['thread-0']
+    ).toBeUndefined();
     pending.resolve(response([]));
     await evictedRefresh;
   });

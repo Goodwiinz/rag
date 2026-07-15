@@ -161,10 +161,7 @@ describe('useChatStreaming terminal reconciliation', () => {
 
   it('refreshes the owning thread after a same-thread completion', async () => {
     const params = makeParams();
-    const refreshSpy = vi.spyOn(
-      useChatStore.getState(),
-      'refreshMessages'
-    );
+    const refreshSpy = vi.spyOn(useChatStore.getState(), 'refreshMessages');
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
     await act(async () => {
@@ -185,10 +182,14 @@ describe('useChatStreaming terminal reconciliation', () => {
       QUERY,
       'Five recent papers',
     ]);
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      persistedId: 'new-assistant',
-      runtimeId: 'turn-client-id',
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: 'new-assistant',
+        runtimeId: 'turn-client-id',
+        diagnostic: expect.objectContaining({ terminalReason: 'done' }),
+      })
+    );
     refreshSpy.mockRestore();
   });
 
@@ -204,10 +205,7 @@ describe('useChatStreaming terminal reconciliation', () => {
         return Promise.resolve();
       }
     );
-    const refreshSpy = vi.spyOn(
-      useChatStore.getState(),
-      'refreshMessages'
-    );
+    const refreshSpy = vi.spyOn(useChatStore.getState(), 'refreshMessages');
     const { result } = renderHook(() => useChatStreaming(makeParams()), {
       wrapper,
     });
@@ -216,9 +214,15 @@ describe('useChatStreaming terminal reconciliation', () => {
       await result.current.handleSubmit('trigger an error');
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      runtimeId: userRuntimeId,
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        runtimeId: userRuntimeId,
+        diagnostic: expect.objectContaining({
+          terminalReason: 'stream-error',
+        }),
+      })
+    );
     refreshSpy.mockRestore();
   });
 
@@ -241,10 +245,7 @@ describe('useChatStreaming terminal reconciliation', () => {
         return Promise.resolve();
       }
     );
-    const refreshSpy = vi.spyOn(
-      useChatStore.getState(),
-      'refreshMessages'
-    );
+    const refreshSpy = vi.spyOn(useChatStore.getState(), 'refreshMessages');
     const { result } = renderHook(() => useChatStreaming(makeParams()), {
       wrapper,
     });
@@ -253,9 +254,15 @@ describe('useChatStreaming terminal reconciliation', () => {
       await result.current.handleSubmit('create a note');
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      runtimeId: userRuntimeId,
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        runtimeId: userRuntimeId,
+        diagnostic: expect.objectContaining({
+          terminalReason: 'confirmation-paused',
+        }),
+      })
+    );
     refreshSpy.mockRestore();
   });
 
@@ -275,10 +282,7 @@ describe('useChatStreaming terminal reconciliation', () => {
         });
       }
     );
-    const refreshSpy = vi.spyOn(
-      useChatStore.getState(),
-      'refreshMessages'
-    );
+    const refreshSpy = vi.spyOn(useChatStore.getState(), 'refreshMessages');
     const { result } = renderHook(() => useChatStreaming(makeParams()), {
       wrapper,
     });
@@ -295,10 +299,14 @@ describe('useChatStreaming terminal reconciliation', () => {
       await submission;
     });
 
-    expect(refreshSpy).toHaveBeenCalledWith('thread-A', {
-      persistedId: undefined,
-      runtimeId: uuidv5(`nous-assistant:${userRuntimeId}`, uuidv5.URL),
-    });
+    expect(refreshSpy).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({
+        persistedId: undefined,
+        runtimeId: uuidv5(`nous-assistant:${userRuntimeId}`, uuidv5.URL),
+        diagnostic: expect.objectContaining({ terminalReason: 'stopped' }),
+      })
+    );
     refreshSpy.mockRestore();
   });
 });

@@ -392,23 +392,35 @@ export function useChatStreaming(
           (message) =>
             message.role === 'user' && message.source !== 'local-only'
         )?.runtimeId;
-      const reconcileUser = () =>
+      const reconciliationDiagnostic = (terminalReason: string) => ({
+        terminalReason,
+        localCount: newMessages.length,
+        completedInBackground: !isTurnDisplayed(),
+      });
+      const reconcileUser = (terminalReason: string) =>
         turnThreadId
-          ? useChatStore
-              .getState()
-              .refreshMessages(
-                turnThreadId,
-                userRuntimeId ? { runtimeId: userRuntimeId } : undefined
-              )
+          ? useChatStore.getState().refreshMessages(
+              turnThreadId,
+              userRuntimeId
+                ? {
+                    runtimeId: userRuntimeId,
+                    diagnostic: reconciliationDiagnostic(terminalReason),
+                  }
+                : undefined
+            )
           : Promise.resolve(false);
-      const reconcileAssistant = (doneIds: {
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) =>
+      const reconcileAssistant = (
+        doneIds: {
+          assistant_message_id?: string | null;
+          client_message_id?: string | null;
+        },
+        terminalReason: string
+      ) =>
         turnThreadId
           ? useChatStore.getState().refreshMessages(turnThreadId, {
               persistedId: doneIds.assistant_message_id ?? undefined,
               runtimeId: doneIds.client_message_id ?? assistantRuntimeId,
+              diagnostic: reconciliationDiagnostic(terminalReason),
             })
           : Promise.resolve(false);
 
@@ -663,7 +675,9 @@ export function useChatStreaming(
             streamingSteps: [],
             streamingThreadId: null,
           });
-          await reconcileUser();
+          await reconcileUser(
+            streamHadConfirmation ? 'confirmation-paused' : 'stream-error'
+          );
           setIsLoading(false);
           return;
         }
@@ -700,9 +714,9 @@ export function useChatStreaming(
             streamingThreadId: null,
           });
           if (stoppedByUserRef.current) {
-            await reconcileAssistant(doneIds);
+            await reconcileAssistant(doneIds, 'stopped-before-token');
           } else {
-            await reconcileUser();
+            await reconcileUser('empty-response');
           }
           setIsLoading(false);
           stoppedByUserRef.current = false;
@@ -810,7 +824,7 @@ export function useChatStreaming(
               : conv
           )
         );
-        await reconcileAssistant(doneIds);
+        await reconcileAssistant(doneIds, wasStopped ? 'stopped' : 'done');
       } catch (err) {
         // A user stop should never read as a failure. (streamMessage already
         // swallows AbortError, but guard here too in case the abort surfaces.)
@@ -833,9 +847,9 @@ export function useChatStreaming(
             ]);
         }
         if (stoppedByUserRef.current) {
-          await reconcileAssistant(doneIds);
+          await reconcileAssistant(doneIds, 'abort');
         } else {
-          await reconcileUser();
+          await reconcileUser('exception');
         }
       } finally {
         submitLockRef.current = false;
@@ -1153,27 +1167,37 @@ export function useChatStreaming(
         );
       const confirmationThreadId =
         pendingConfirmation.workspaceThreadId || null;
-      const reconcileConfirmationUser = () =>
+      const confirmationDiagnostic = (terminalReason: string) => ({
+        terminalReason,
+        localCount: messages.length,
+        completedInBackground: !isConfirmDisplayed(),
+      });
+      const reconcileConfirmationUser = (terminalReason: string) =>
         confirmationThreadId
-          ? useChatStore
-              .getState()
-              .refreshMessages(
-                confirmationThreadId,
-                pendingConfirmation.userRuntimeId
-                  ? { runtimeId: pendingConfirmation.userRuntimeId }
-                  : undefined
-              )
+          ? useChatStore.getState().refreshMessages(
+              confirmationThreadId,
+              pendingConfirmation.userRuntimeId
+                ? {
+                    runtimeId: pendingConfirmation.userRuntimeId,
+                    diagnostic: confirmationDiagnostic(terminalReason),
+                  }
+                : undefined
+            )
           : Promise.resolve(false);
-      const reconcileConfirmationAssistant = (done: {
-        assistant_message_id?: string | null;
-        client_message_id?: string | null;
-      }) =>
+      const reconcileConfirmationAssistant = (
+        done: {
+          assistant_message_id?: string | null;
+          client_message_id?: string | null;
+        },
+        terminalReason: string
+      ) =>
         confirmationThreadId
           ? useChatStore.getState().refreshMessages(confirmationThreadId, {
               persistedId: done.assistant_message_id ?? undefined,
               runtimeId:
                 done.client_message_id ??
                 pendingConfirmation.assistantRuntimeId,
+              diagnostic: confirmationDiagnostic(terminalReason),
             })
           : Promise.resolve(false);
       if (confirmationThreadId) {
@@ -1427,9 +1451,18 @@ export function useChatStreaming(
             ]);
         }
         if (nestedConfirmation || confirmHadError) {
-          await reconcileConfirmationUser();
+          await reconcileConfirmationUser(
+            nestedConfirmation ? 'confirmation-paused' : 'confirmation-error'
+          );
         } else {
-          await reconcileConfirmationAssistant(confirmDoneIds);
+          await reconcileConfirmationAssistant(
+            confirmDoneIds,
+            stoppedByUserRef.current
+              ? 'confirmation-stopped'
+              : confirmed
+                ? 'confirmation-approved'
+                : 'confirmation-rejected'
+          );
         }
       } catch (err) {
         const errorMessage =
@@ -1444,7 +1477,7 @@ export function useChatStreaming(
           timestamp: Date.now(),
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
-        await reconcileConfirmationUser();
+        await reconcileConfirmationUser('confirmation-exception');
       } finally {
         // Close out the agent activity rail — the interrupt left the run
         // "running" and neither onDone (confirm path) nor handleStop
