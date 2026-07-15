@@ -370,6 +370,9 @@ class ChatMessageResponse(ChatMessageBase, TimestampMixin):
 
     id: UUID
     thread_id: UUID
+    # Stable client/runtime identity carried across optimistic rendering,
+    # persistence, and reload. Legacy rows predate this field and remain null.
+    client_message_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
     token_count: int = 0
     latency_ms: Optional[int] = None

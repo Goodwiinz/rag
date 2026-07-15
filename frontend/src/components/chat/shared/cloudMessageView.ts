@@ -94,6 +94,12 @@ export function mapDbToolExecutions(
 }
 
 export interface ChatPageMessage {
+  /** Stable identity for React/assistant-ui across optimistic persistence.
+   * Unlike `id`, this never changes when the server row arrives. */
+  runtimeId: string;
+  /** Provenance controls canonical reconciliation and history inclusion. */
+  source: 'canonical' | 'optimistic' | 'local-only';
+  /** Persisted database identity. Only use this for database operations. */
   id?: string;
   role: 'user' | 'assistant';
   content: string;
@@ -139,8 +145,12 @@ export function mapDbMessageToChatPageMessage(
   const hasMetadata = dbMsg.latency_ms || dbMsg.stopped || dbMsg.token_usage;
   return {
     id: dbMsg.id,
+    runtimeId: dbMsg.client_message_id ?? dbMsg.id,
+    source: 'canonical',
     role:
-      dbMsg.role === MessageRole.USER ? ('user' as const) : ('assistant' as const),
+      dbMsg.role === MessageRole.USER
+        ? ('user' as const)
+        : ('assistant' as const),
     content: dbMsg.content,
     timestamp: new Date(dbMsg.created_at).getTime(),
     citations: dbMsg.citations?.map(normalizeCitation),

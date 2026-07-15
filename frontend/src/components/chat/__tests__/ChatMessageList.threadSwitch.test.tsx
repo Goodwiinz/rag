@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { ChatMessageList } from '../ChatMessageList';
 import { ChatRuntimeProvider } from '../aui/ChatRuntimeProvider';
 import type { ChatPageMessage } from '../shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 vi.mock('../shared/ChatBubble', () => ({
   ChatBubble: ({ message }: any) => <div>{message.content}</div>,
@@ -26,8 +27,8 @@ const baseProps = {
 
 function msgs(content: string): ChatPageMessage[] {
   return [
-    { role: 'user', content: 'q', timestamp: 1 },
-    { role: 'assistant', content, timestamp: 2 },
+    makeChatPageMessage({ role: 'user', content: 'q', timestamp: 1 }),
+    makeChatPageMessage({ role: 'assistant', content, timestamp: 2 }),
   ];
 }
 
@@ -39,7 +40,11 @@ function tree(threadId: string, messages: ChatPageMessage[]) {
       onSend={() => {}}
       onCancel={() => {}}
     >
-      <ChatMessageList {...baseProps} activeThreadId={threadId} messages={messages} />
+      <ChatMessageList
+        {...baseProps}
+        activeThreadId={threadId}
+        messages={messages}
+      />
     </ChatRuntimeProvider>
   );
 }

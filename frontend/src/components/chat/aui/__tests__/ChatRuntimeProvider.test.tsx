@@ -5,11 +5,17 @@ import userEvent from '@testing-library/user-event';
 import { useThread, useThreadRuntime } from '@assistant-ui/react';
 
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { ChatRuntimeProvider } from '../ChatRuntimeProvider';
 
 const messages: ChatPageMessage[] = [
-  { id: 'u1', role: 'user', content: 'hi', timestamp: 1 },
-  { id: 'a1', role: 'assistant', content: 'hello', timestamp: 2 },
+  makeChatPageMessage({ id: 'u1', role: 'user', content: 'hi', timestamp: 1 }),
+  makeChatPageMessage({
+    id: 'a1',
+    role: 'assistant',
+    content: 'hello',
+    timestamp: 2,
+  }),
 ];
 
 function Probe() {

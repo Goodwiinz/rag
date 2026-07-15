@@ -9,6 +9,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -52,10 +53,18 @@ function makeParams() {
   const activeConversationIdRef = { current: 'thread-A' as string | null };
   return {
     messages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     displayedMessages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],

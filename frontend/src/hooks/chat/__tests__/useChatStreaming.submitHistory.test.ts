@@ -6,6 +6,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -36,8 +37,12 @@ vi.mock('@/services/workspaceService', () => ({
 }));
 
 const storeBacked2: ChatPageMessage[] = [
-  { role: 'user', content: 'first turn', timestamp: 1 },
-  { role: 'assistant', content: 'first reply', timestamp: 2 },
+  makeChatPageMessage({ role: 'user', content: 'first turn', timestamp: 1 }),
+  makeChatPageMessage({
+    role: 'assistant',
+    content: 'first reply',
+    timestamp: 2,
+  }),
 ];
 
 function makeParams(overrides: Record<string, unknown> = {}) {

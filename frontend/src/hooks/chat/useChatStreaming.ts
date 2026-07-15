@@ -36,6 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '@/store/projectStore';
+import { v5 as uuidv5 } from 'uuid';
 
 /**
  * Map a raw rag_context SSE item ({document_id, title, content, score} from
@@ -43,11 +44,6 @@ import { useProjectStore } from '@/store/projectStore';
  * turn's sources persist with the assistant message. Snippet capped at the
  * backend Citation column limit.
  */
-// Stable id for the in-flight assistant placeholder path. One turn
-// streams at a time, so a constant is enough; the placeholder is always either
-// replaced by the committed message or removed at every stream exit.
-const STREAMING_PLACEHOLDER_ID = '__nous_streaming_placeholder__';
-
 /** Tool name + args preview from an interrupt's confirmation payload — flat
  * (tool_name/tool_args) or the first entry of a `tools` list. Mirrors the
  * page-level banner's extractToolCall (P4). */
@@ -57,12 +53,10 @@ function extractConfirmationPreview(
   if (!confirmation) return { name: 'this action', args: {} };
   const flatName = confirmation.tool_name as string | undefined;
   const flatArgs = (confirmation.tool_args ?? confirmation.args) as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   if (flatName) return { name: flatName, args: flatArgs ?? {} };
   const tools = confirmation.tools as
-    | Array<{ name?: string; args?: Record<string, unknown> }>
-    | undefined;
+    Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
   const first = tools?.[0];
   if (first?.name) return { name: first.name, args: first.args ?? {} };
   return { name: 'this action', args: {} };
@@ -365,6 +359,7 @@ export function useChatStreaming(
       currentThreadId: string | null;
       currentConversationId: string | null;
       newMessages: ChatPageMessage[];
+      assistantRuntimeId: string;
       /** Resume: a replay that yields no tokens (nothing buffered / 204)
        * must unwind quietly instead of rendering a "no response" bubble. */
       quietWhenEmpty?: boolean;
@@ -377,6 +372,7 @@ export function useChatStreaming(
         currentThreadId,
         currentConversationId,
         newMessages,
+        assistantRuntimeId,
         quietWhenEmpty,
         start,
       } = opts;
@@ -439,7 +435,8 @@ export function useChatStreaming(
         // below.
         if (isTurnDisplayed()) {
           const placeholder: ChatPageMessage = {
-            id: STREAMING_PLACEHOLDER_ID,
+            runtimeId: assistantRuntimeId,
+            source: 'optimistic',
             role: 'assistant',
             content: '',
             timestamp: Date.now(),
@@ -601,6 +598,8 @@ export function useChatStreaming(
               }
               // Show error as assistant message instead of blank bubble
               const errorMsg: ChatPageMessage = {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: `Stream error: ${error}`,
                 timestamp: Date.now(),
@@ -647,6 +646,8 @@ export function useChatStreaming(
           // bubble for an answer the user chose not to wait for.
           if (!stoppedByUserRef.current && !quietWhenEmpty) {
             const emptyResponseMessage: ChatPageMessage = {
+              runtimeId: crypto.randomUUID(),
+              source: 'local-only',
               role: 'assistant',
               content:
                 '⚠ No response received from the agent. The stream completed without any tokens — check backend logs.',
@@ -706,6 +707,8 @@ export function useChatStreaming(
               : liveCitations;
         stopCitationsRef.current = [];
         const finalAssistantMessage: ChatPageMessage = {
+          runtimeId: assistantRuntimeId,
+          source: 'optimistic',
           role: 'assistant',
           content: finalContent,
           timestamp: Date.now(),
@@ -742,18 +745,15 @@ export function useChatStreaming(
         });
         lastStreamedContentRef.current = '';
 
-        const finalMessages = [...newMessages, finalAssistantMessage];
-        if (isTurnDisplayed()) setMessages(finalMessages);
-
         // The BACKEND is the sole message writer (server-canonical): it
         // persisted both rows (user pre-stream, assistant before `done` —
         // full fidelity incl. tool_executions), so the client only reconciles
         // its optimistic bubble with the persisted id.
-        if (doneIds.assistant_message_id) {
-          finalAssistantMessage.id = doneIds.assistant_message_id;
-          if (isTurnDisplayed())
-            setMessages([...newMessages, finalAssistantMessage]);
-        }
+        const reconciledAssistantMessage = doneIds.assistant_message_id
+          ? { ...finalAssistantMessage, id: doneIds.assistant_message_id }
+          : finalAssistantMessage;
+        const finalMessages = [...newMessages, reconciledAssistantMessage];
+        if (isTurnDisplayed()) setMessages(finalMessages);
 
         // Update conversation
         setConversations((prev) =>
@@ -776,6 +776,8 @@ export function useChatStreaming(
             setMessages([
               ...newMessages,
               {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: errorMessage,
                 timestamp: Date.now(),
@@ -814,7 +816,17 @@ export function useChatStreaming(
       if (!content || isLoading || storeIsStreaming) return;
       submitLockRef.current = true;
 
+      // Create the idempotency/runtime identity before the optimistic bubble.
+      // The backend stores this on the user row and derives the assistant row's
+      // client id with the same UUIDv5 contract below.
+      const turnClientMessageId = crypto.randomUUID();
+      const assistantRuntimeId = uuidv5(
+        `nous-assistant:${turnClientMessageId}`,
+        uuidv5.URL
+      );
       const userMessage: ChatPageMessage = {
+        runtimeId: turnClientMessageId,
+        source: 'optimistic',
         role: 'user',
         content,
         timestamp: Date.now(),
@@ -911,11 +923,6 @@ export function useChatStreaming(
       // Stream via Agent (LangGraph) backend.
       // The workspace thread IS the agent thread (server-canonical).
       const existingAgentThreadId = currentThreadId || undefined;
-      // Idempotency key for this user turn; the backend derives the
-      // assistant row's key from it (uuid5), so an SSE retry can't
-      // duplicate either row.
-      const turnClientMessageId = crypto.randomUUID();
-
       console.log(
         '[Chat] Starting agent stream, workspace thread:',
         currentThreadId,
@@ -934,20 +941,23 @@ export function useChatStreaming(
           currentThreadId,
           currentConversationId,
           newMessages,
+          assistantRuntimeId,
           start: (streamCallbacks, signal) =>
             agentChatService.streamMessage(
               {
-                messages: newMessages.map((m, i) => ({
-                  role: m.role,
-                  content: m.content,
-                  // Idempotency key rides on the user turn being sent (the
-                  // last message) — server-canonical only.
-                  ...(turnClientMessageId &&
-                  i === newMessages.length - 1 &&
-                  m.role === 'user'
-                    ? { client_message_id: turnClientMessageId }
-                    : {}),
-                })),
+                messages: newMessages
+                  .filter((message) => message.source !== 'local-only')
+                  .map((m, i, agentMessages) => ({
+                    role: m.role,
+                    content: m.content,
+                    // Idempotency key rides on the user turn being sent (the
+                    // last message) — server-canonical only.
+                    ...(turnClientMessageId &&
+                    i === agentMessages.length - 1 &&
+                    m.role === 'user'
+                      ? { client_message_id: turnClientMessageId }
+                      : {}),
+                  })),
                 page_context: {
                   type: boundProjectId ? 'project' : 'chat',
                   ...(boundProjectId && {
@@ -1043,6 +1053,7 @@ export function useChatStreaming(
       currentThreadId: threadId,
       currentConversationId: threadId,
       newMessages: messages,
+      assistantRuntimeId: `resume:${threadId}:${run.startedAt}`,
       quietWhenEmpty: true,
       start: async (streamCallbacks, signal) => {
         const res = await agentChatService.resumeStream(
@@ -1140,6 +1151,7 @@ export function useChatStreaming(
       // path below must not double-commit.
       let confirmCommitted = false;
       const confirmMessages = [...messages];
+      const confirmRuntimeId = crypto.randomUUID();
 
       const buildConfirmMessage = (
         content: string,
@@ -1147,6 +1159,8 @@ export function useChatStreaming(
       ): ChatPageMessage => {
         const allCitations = [...carriedCitations, ...resumeCitations];
         return {
+          runtimeId: confirmRuntimeId,
+          source: 'optimistic',
           role: 'assistant',
           content,
           timestamp: Date.now(),
@@ -1297,6 +1311,8 @@ export function useChatStreaming(
             },
             onError: (error) => {
               const msg: ChatPageMessage = {
+                runtimeId: crypto.randomUUID(),
+                source: 'local-only',
                 role: 'assistant',
                 content: `Confirmation error: ${error}`,
                 timestamp: Date.now(),
@@ -1330,6 +1346,8 @@ export function useChatStreaming(
             ? err.message
             : 'Network error during confirmation';
         const msg: ChatPageMessage = {
+          runtimeId: crypto.randomUUID(),
+          source: 'local-only',
           role: 'assistant',
           content: `Confirmation failed: ${errorMessage}`,
           timestamp: Date.now(),
@@ -1403,6 +1421,8 @@ export function useChatStreaming(
       return [
         ...withoutApproval,
         {
+          runtimeId: `approval:${active.workspaceThreadId}:${active.threadId}`,
+          source: 'local-only',
           role: 'assistant' as const,
           content: '',
           timestamp: Date.now(),

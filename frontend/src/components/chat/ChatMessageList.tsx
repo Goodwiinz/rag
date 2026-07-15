@@ -75,9 +75,9 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const loadOlderTriggeredRef = useRef(false);
   const prevMessageCountRef = useRef(messages.length);
   const prevLastIdRef = useRef<string | undefined>(
-    messages[messages.length - 1]?.id
+    messages[messages.length - 1]?.runtimeId
   );
-  const prevFirstIdRef = useRef<string | undefined>(messages[0]?.id);
+  const prevFirstIdRef = useRef<string | undefined>(messages[0]?.runtimeId);
   const prevScrollHeightRef = useRef(0);
 
   // Track which messages are "new" for entrance animation. Computed before the
@@ -85,7 +85,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   // to bottom) from a prepended older batch (preserve the user's scroll anchor).
   // "New" = length grew AND the tail id changed (append); a prepended older
   // batch grows the length but keeps the same tail id, so it is not "new".
-  const currentLastId = messages[messages.length - 1]?.id;
+  const currentLastId = messages[messages.length - 1]?.runtimeId;
   const isNewMessage =
     messages.length > prevMessageCountRef.current &&
     currentLastId !== prevLastIdRef.current;
@@ -98,7 +98,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const firstId = messages[0]?.id;
+    const firstId = messages[0]?.runtimeId;
     const isPrepend =
       messages.length > prevMessageCountRef.current &&
       currentLastId === prevLastIdRef.current &&
@@ -275,7 +275,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
         if (shouldAnimate) {
           return (
             <motion.div
-              key={message.id || `msg-${index}`}
+              key={message.runtimeId}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -288,7 +288,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
           );
         }
 
-        return <div key={message.id || `msg-${index}`}>{bubble}</div>;
+        return <div key={message.runtimeId}>{bubble}</div>;
       }),
     [
       messages,
@@ -314,16 +314,19 @@ export const ChatMessageList = React.memo(function ChatMessageList({
       >
         <div className="max-w-(--nous-chat-col) mx-auto pt-3 sm:pt-4 px-2 sm:px-4 pb-4 sm:pb-6">
           {/* Load older messages indicator */}
-          {!isVirtualized && hasMore && !isLoadingOlder && messages.length > 0 && (
-            <div className="flex justify-center py-2">
-              <button
-                onClick={onLoadOlder}
-                className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
-              >
-                Load older messages
-              </button>
-            </div>
-          )}
+          {!isVirtualized &&
+            hasMore &&
+            !isLoadingOlder &&
+            messages.length > 0 && (
+              <div className="flex justify-center py-2">
+                <button
+                  onClick={onLoadOlder}
+                  className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
+                >
+                  Load older messages
+                </button>
+              </div>
+            )}
           {!isVirtualized && isLoadingOlder && (
             <div className="flex justify-center py-2">
               <span className="text-xs font-medium text-(--nous-fg-2)">

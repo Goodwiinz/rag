@@ -108,10 +108,7 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
   const toolParts = message.toolExecutions?.length
     ? // Deterministic per-message fallback: a shared constant like 'local'
       // would collide across multiple id-less messages (duplicate toolCallIds).
-      toToolCallParts(
-        message.id ?? String(message.timestamp),
-        message.toolExecutions
-      )
+      toToolCallParts(message.runtimeId, message.toolExecutions)
     : [];
 
   // In-band HITL approval gate (P4): emit an approval tool-call part
@@ -121,19 +118,19 @@ export function convertMessage(message: ChatPageMessage): ThreadMessageLike {
     ? [
         {
           type: 'tool-call',
-          toolCallId: `${message.id ?? message.timestamp}-approval`,
+          toolCallId: `${message.runtimeId}-approval`,
           toolName: HITL_APPROVAL_TOOL,
           args: {
             toolName: message.pendingApproval.toolName,
             toolArgs: message.pendingApproval.args,
           } as unknown as Record<string, never>,
           argsText: '',
-          approval: { id: `${message.id ?? message.timestamp}-approval` },
+          approval: { id: `${message.runtimeId}-approval` },
         },
       ]
     : [];
   return {
-    id: message.id,
+    id: message.runtimeId,
     role: message.role,
     // Null-safe: a message may not have a timestamp yet (e.g. an optimistic
     // local insert before the server round-trip). `new Date(0)` would be a

@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 // The hook calls useQueryClient — provide one for renderHook.
 function wrapper({ children }: { children: ReactNode }) {
@@ -52,10 +53,18 @@ function makeParams(
   const activeConversationIdRef = { current: 'thread-A' as string | null };
   return {
     messages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     displayedMessages: [
-      { role: 'user', content: 'earlier question', timestamp: 1 },
+      makeChatPageMessage({
+        role: 'user',
+        content: 'earlier question',
+        timestamp: 1,
+      }),
     ] as ChatPageMessage[],
     setMessages: vi.fn(),
     conversations: [],
@@ -113,9 +122,9 @@ describe('useChatStreaming failed thread creation', () => {
 
   it('resolves the default conversation before first send when warm-start has not set it yet', async () => {
     const { workspaceService } = await import('@/services/workspaceService');
-    vi.mocked(workspaceService.getOrCreateDefaultWorkspace).mockResolvedValueOnce(
-      { id: 'ws-1' } as never
-    );
+    vi.mocked(
+      workspaceService.getOrCreateDefaultWorkspace
+    ).mockResolvedValueOnce({ id: 'ws-1' } as never);
     vi.mocked(
       workspaceService.getOrCreateDefaultConversation
     ).mockResolvedValueOnce({ id: 'conv-1' } as never);
@@ -200,6 +209,8 @@ describe('useChatStreaming thread-switch guard', () => {
     // Simulate the sidebar switching to thread B while the stream is in flight
     // (page.tsx onSelect mutates the ref synchronously).
     params.activeConversationIdRef.current = 'thread-B';
+    const { useChatStore } = await import('@/store/chat-store');
+    useChatStore.setState({ currentThreadId: 'thread-B' });
     params.setMessages.mockClear(); // ignore the optimistic user-bubble write
 
     await act(async () => {
@@ -210,6 +221,15 @@ describe('useChatStreaming thread-switch guard', () => {
     // The guard must prevent thread A's completion from writing into the
     // currently-displayed (thread B) message state.
     expect(params.setMessages).not.toHaveBeenCalled();
+
+    // Completion still belongs to thread A. The hook must reconcile A's
+    // canonical newest page even though A is no longer displayed, so a
+    // switch back does not require a hard refresh to recover the turn.
+    const { workspaceService } = await import('@/services/workspaceService');
+    expect(workspaceService.listMessages).toHaveBeenCalledWith(
+      'thread-A',
+      expect.objectContaining({ order: 'desc' })
+    );
   });
 
   it('still commits the final message when the thread did NOT change', async () => {

@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { v5 as uuidv5 } from 'uuid';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -96,8 +97,17 @@ describe('useChatStreaming server-canonical mode', () => {
     const calls = params.setMessages.mock.calls;
     const lastArg = calls[calls.length - 1][0] as ChatPageMessage[];
     const committed = lastArg[lastArg.length - 1];
+    const request = streamMessageMock.mock.calls[0][0] as {
+      messages: Array<{ client_message_id?: string }>;
+    };
+    const userRuntimeId = request.messages.at(-1)?.client_message_id;
     expect(committed.role).toBe('assistant');
     expect(committed.id).toBe('srv-assistant-1');
+    expect(userRuntimeId).toBeTruthy();
+    expect(committed.runtimeId).toBe(
+      uuidv5(`nous-assistant:${userRuntimeId}`, uuidv5.URL)
+    );
+    expect(committed.source).toBe('optimistic');
 
     // Canonical mode: the client must NOT double-write rows — the backend is
     // the sole writer.

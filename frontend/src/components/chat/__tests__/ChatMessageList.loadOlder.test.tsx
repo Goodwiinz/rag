@@ -5,6 +5,7 @@ import type React from 'react';
 import { ChatMessageList } from '../ChatMessageList';
 import { ChatRuntimeProvider } from '../aui/ChatRuntimeProvider';
 import type { ChatPageMessage } from '../shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 // Regression test carried over from fix/chat-loading-consistency (the host
 // double-render test file was retired with the legacy streaming path in #1100).
@@ -36,7 +37,10 @@ const baseProps = {
 };
 
 function renderList(
-  props: Omit<React.ComponentProps<typeof ChatMessageList>, 'activeThreadId'> & {
+  props: Omit<
+    React.ComponentProps<typeof ChatMessageList>,
+    'activeThreadId'
+  > & {
     activeThreadId?: string | null;
   }
 ) {
@@ -60,12 +64,14 @@ describe('ChatMessageList load-older controls', () => {
       storeIsStreaming: false,
       hasMore: true,
       onLoadOlder: () => {},
-      messages: Array.from({ length: 76 }, (_, index) => ({
-        id: `m-${index}`,
-        role: 'user' as const,
-        content: `message ${index}`,
-        timestamp: index,
-      })),
+      messages: Array.from({ length: 76 }, (_, index) =>
+        makeChatPageMessage({
+          id: `m-${index}`,
+          role: 'user',
+          content: `message ${index}`,
+          timestamp: index,
+        })
+      ),
     });
 
     expect(screen.getAllByText('Load older messages')).toHaveLength(1);

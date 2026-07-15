@@ -14,6 +14,7 @@ describe('cloudMessageView', () => {
     const result = mapStoreMessagesToChatMessages([
       {
         id: 'm-1',
+        client_message_id: 'runtime-m-1',
         role: 'assistant',
         content: 'Answer',
         created_at: '2026-03-09T12:00:00Z',
@@ -24,6 +25,22 @@ describe('cloudMessageView', () => {
     expect(result[0].role).toBe('assistant');
     expect(result[0].content).toBe('Answer');
     expect(result[0].citations?.[0].title).toBe('Doc 1');
+    expect(result[0].runtimeId).toBe('runtime-m-1');
+    expect(result[0].source).toBe('canonical');
+  });
+
+  it('falls back to the persisted id for legacy rows without a client id', () => {
+    const message = mapDbMessageToChatPageMessage({
+      id: 'legacy-message-id',
+      client_message_id: null,
+      role: 'user',
+      content: 'Legacy question',
+      created_at: '2026-03-09T12:00:00Z',
+      citations: [],
+    } as any);
+
+    expect(message.runtimeId).toBe('legacy-message-id');
+    expect(message.source).toBe('canonical');
   });
 
   it('carries the stopped flag and latency from a persisted message into metadata', () => {
@@ -271,22 +288,26 @@ describe('cloudMessageView', () => {
       },
     ];
 
-    const result = syncConversationMessagesWithStore(conversations, 'thread-1', [
-      {
-        id: 'm-1',
-        role: 'user',
-        content: 'persisted user',
-        created_at: '2026-03-09T12:00:00Z',
-        citations: [],
-      } as any,
-      {
-        id: 'm-2',
-        role: 'assistant',
-        content: 'persisted assistant',
-        created_at: '2026-03-09T12:00:01Z',
-        citations: [],
-      } as any,
-    ]);
+    const result = syncConversationMessagesWithStore(
+      conversations,
+      'thread-1',
+      [
+        {
+          id: 'm-1',
+          role: 'user',
+          content: 'persisted user',
+          created_at: '2026-03-09T12:00:00Z',
+          citations: [],
+        } as any,
+        {
+          id: 'm-2',
+          role: 'assistant',
+          content: 'persisted assistant',
+          created_at: '2026-03-09T12:00:01Z',
+          citations: [],
+        } as any,
+      ]
+    );
 
     expect(result[0].messages.map((message) => message.content)).toEqual([
       'persisted user',
@@ -506,7 +527,10 @@ describe('selectDisplayedMessages local-provenance merge', () => {
     });
 
     expect(result[0].plan).toEqual(plan);
-    expect(result[0].metadata?.tokenUsage).toEqual({ input: 1200, output: 300 });
+    expect(result[0].metadata?.tokenUsage).toEqual({
+      input: 1200,
+      output: 300,
+    });
     expect(result[0].metadata?.toolsUsed).toEqual(['Searching arXiv']);
     // Server latency stays canonical over the local estimate.
     expect(result[0].metadata?.responseTimeMs).toBe(2000);
@@ -514,7 +538,11 @@ describe('selectDisplayedMessages local-provenance merge', () => {
 
   it('keeps toolExecutions when the store row has none (legacy mode, M3)', () => {
     const toolExecutions = [
-      { tool: 'search_arxiv', label: 'Searching arXiv', status: 'done' as const },
+      {
+        tool: 'search_arxiv',
+        label: 'Searching arXiv',
+        status: 'done' as const,
+      },
     ];
     const result = selectDisplayedMessages({
       localMessages: [
@@ -593,9 +621,9 @@ describe('isThreadSwitchPending', () => {
   });
 
   it('is not pending when the in-flight load is for another thread', () => {
-    expect(isThreadSwitchPending({ ...base, loadingThreadId: 'thread-A' })).toBe(
-      false
-    );
+    expect(
+      isThreadSwitchPending({ ...base, loadingThreadId: 'thread-A' })
+    ).toBe(false);
   });
 
   it('is not pending with no load in flight', () => {
@@ -606,7 +634,11 @@ describe('isThreadSwitchPending', () => {
 
   it('is not pending with no active thread', () => {
     expect(
-      isThreadSwitchPending({ ...base, activeThreadId: null, loadingThreadId: null })
+      isThreadSwitchPending({
+        ...base,
+        activeThreadId: null,
+        loadingThreadId: null,
+      })
     ).toBe(false);
   });
 });

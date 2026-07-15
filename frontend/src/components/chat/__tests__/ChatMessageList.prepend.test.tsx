@@ -14,6 +14,7 @@ vi.mock('@/components/chat/shared/InlineAgentSummary', () => ({
 
 import { ChatMessageList } from '@/components/chat/ChatMessageList';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 beforeAll(() => {
   // jsdom lacks these
@@ -30,12 +31,8 @@ beforeAll(() => {
   }
 });
 
-const msg = (id: string, role: 'user' | 'assistant'): ChatPageMessage => ({
-  id,
-  role,
-  content: `content ${id}`,
-  timestamp: 1,
-});
+const msg = (id: string, role: 'user' | 'assistant'): ChatPageMessage =>
+  makeChatPageMessage({ id, role, content: `content ${id}`, timestamp: 1 });
 
 const baseProps = {
   activeThreadId: 't-1',
