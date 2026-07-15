@@ -9,7 +9,13 @@ export type StreamEvent =
   | { type: 'tool_end'; tool: string; isError: boolean; result: string }
   | { type: 'confirmation'; threadId: string; details: Record<string, unknown> }
   | { type: 'plan'; steps: string[]; reasoning: string }
-  | { type: 'reflection'; passed: boolean; issues: string[]; round: number }
+  | {
+      type: 'reflection';
+      passed: boolean;
+      issues: string[];
+      round: number;
+      revising: boolean;
+    }
   | { type: 'rag_context'; contexts: Array<Record<string, unknown>> }
   | {
       type: 'usage';
@@ -107,6 +113,7 @@ async function* _parseSseBody(
                 passed: data.passed ?? true,
                 issues: Array.isArray(data.issues) ? data.issues : [],
                 round: typeof data.round === 'number' ? data.round : 0,
+                revising: data.revising ?? false,
               };
             } else if (eventType === 'rag_context') {
               yield {

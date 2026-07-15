@@ -372,6 +372,12 @@ async function streamToTerminal(
             );
           }
         } else if (event.type === 'reflection') {
+          // A revising reflection means the agent is discarding the draft it
+          // just streamed and regenerating (backend: severity=major, round<2).
+          // Close the flawed draft block BEFORE the marker, then start a fresh
+          // writer so the revised answer doesn't concatenate onto the draft —
+          // the webapp clears streamingContent on the same `revising` signal.
+          if (event.revising) writer.abort();
           if (event.passed) {
             thinkingLineOut(
               `${c.green(glyph.check)} ${c.bold(`Reflection #${event.round}`)}`,
@@ -385,6 +391,7 @@ async function streamToTerminal(
               c.yellow(detail)
             );
           }
+          if (event.revising) writer = new ResponseWriter();
         } else if (event.type === 'rag_context') {
           if (event.contexts.length > 0) {
             collectedContexts.push(...event.contexts);
