@@ -2095,8 +2095,10 @@ export interface paths {
          * Get Tracking Statistics
          * @description Get statistics about the change tracking system (public endpoint)
          *
-         *     Returns information about tracked papers, change patterns, etc.
-         *     This endpoint is public and returns cached data only for fast response.
+         *     Returns only aggregate counts summed across all organizations. This endpoint
+         *     is unauthenticated, so it deliberately exposes NO per-tenant detail (no
+         *     titles, categories, or the internal state file path) to avoid leaking one
+         *     tenant's data to anonymous callers.
          */
         get: operations["get_tracking_statistics_api_v1_arxiv_tracking_stats_get"];
         put?: never;

@@ -6,9 +6,13 @@ when new papers are added or existing papers are modified.
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
+import os
+import tempfile
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,12 +22,17 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_async_session, get_db
-from src.models.document import Document, DocumentType
+from src.models.document import Document, DocumentType, ProcessingStatus
 from src.services.arxiv.arxiv_kg_integration import ArXivKnowledgeGraphIntegration
 from src.services.arxiv.arxiv_service import ArXivIngestionService
 from src.services.knowledge_graph import KnowledgeGraphService
 
 logger = logging.getLogger(__name__)
+
+# Serializes concurrent writes to the on-disk state file. Multiple category
+# scans can run at once (API + cron); a naive open("w") interleaves their
+# writes and corrupts the JSON.
+_STATE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -61,16 +70,32 @@ class ArXivChangeTracker:
     def __init__(self):
         self.state_file = Path("data/arxiv_change_state.json")
         self.state_file.parent.mkdir(exist_ok=True)
-        self.state: Dict[str, Dict] = {}
+        # Tracking state is partitioned per organization under the "__orgs__"
+        # key: self.state["__orgs__"][str(org_id)] = {paper_id: {...}}. A single
+        # global dict leaked one tenant's papers into another's history/stats.
+        self.state: Dict[str, Any] = {}
         self.load_state()
+
+    def _org_state(self, organization_id: Any) -> Dict[str, Dict]:
+        """Return the (mutable) per-organization tracking sub-dict, creating it
+        if absent. Every read/write of paper state must go through this so that
+        tenants never see each other's papers."""
+        return self.state.setdefault("__orgs__", {}).setdefault(
+            str(organization_id), {}
+        )
 
     def load_state(self):
         """Load previous tracking state from file"""
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r") as f:
-                    self.state = json.load(f)
-                logger.info(f"Loaded tracking state for {len(self.state)} papers")
+                    loaded = json.load(f)
+                # Tolerate empty / legacy (flat, un-partitioned) files without
+                # crashing. Legacy per-paper keys are simply ignored — new reads
+                # go through the "__orgs__" partition.
+                self.state = loaded if isinstance(loaded, dict) else {}
+                org_count = len(self.state.get("__orgs__", {}))
+                logger.info(f"Loaded tracking state for {org_count} organizations")
             except Exception as e:
                 logger.error(f"Failed to load state: {e}")
                 self.state = {}
@@ -78,10 +103,28 @@ class ArXivChangeTracker:
             logger.info("No previous state found, starting fresh")
 
     def save_state(self):
-        """Save current tracking state to file"""
+        """Save current tracking state to file atomically.
+
+        Writes to a temp file in the same directory then ``os.replace`` (atomic
+        on POSIX) under a module-level lock, so concurrent scans can never see a
+        half-written / corrupt state file.
+        """
         try:
-            with open(self.state_file, "w") as f:
-                json.dump(self.state, f, indent=2, default=str)
+            with _STATE_LOCK:
+                self.state_file.parent.mkdir(parents=True, exist_ok=True)
+                fd, tmp_path = tempfile.mkstemp(
+                    dir=str(self.state_file.parent), suffix=".tmp"
+                )
+                try:
+                    with os.fdopen(fd, "w") as f:
+                        json.dump(self.state, f, indent=2, default=str)
+                    os.replace(tmp_path, self.state_file)
+                except Exception:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                    raise
             logger.debug("Saved tracking state")
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
@@ -112,16 +155,44 @@ class ArXivChangeTracker:
         data_str = json.dumps(hash_data, sort_keys=True)
         return hashlib.sha256(data_str.encode()).hexdigest()
 
-    def detect_changes(self, papers: List[Dict[str, Any]]) -> List[ChangeRecord]:
+    def detect_changes(
+        self,
+        papers: List[Dict[str, Any]],
+        organization_id: Any,
+        tracked_categories: Optional[Set[str]] = None,
+        commit: bool = True,
+    ) -> List[ChangeRecord]:
         """
-        Detect changes between current papers and stored state
+        Detect changes between current papers and stored state, scoped to a
+        single organization.
+
+        Args:
+            papers: Papers returned by the current (partial, per-category,
+                date-windowed) arXiv scan.
+            organization_id: Tenant whose tracking state to compare against.
+            tracked_categories: The set of arXiv categories actually scanned in
+                this run. When provided, a stored paper missing from ``papers``
+                is only considered a deletion candidate if its stored
+                ``primary_category`` is within this set — papers from other
+                categories (or outside the date window) are simply not
+                observable by this scan and must NOT be treated as deleted.
+            commit: When False (dry run), operate on a deep copy of the org
+                state and do NOT mutate ``self.state`` / persist anything.
 
         Returns:
             List of change records
         """
-        changes = []
+        changes: List[ChangeRecord] = []
+
+        if commit:
+            org_state = self._org_state(organization_id)
+        else:
+            # Dry run: never touch the live state.
+            existing = self.state.get("__orgs__", {}).get(str(organization_id), {})
+            org_state = copy.deepcopy(existing)
+
         current_ids = {paper["id"] for paper in papers}
-        stored_ids = set(self.state.keys())
+        stored_ids = set(org_state.keys())
 
         # Find new papers
         new_ids = current_ids - stored_ids
@@ -140,7 +211,7 @@ class ArXivChangeTracker:
                 changes.append(change)
 
                 # Add to state
-                self.state[paper["id"]] = {
+                org_state[paper["id"]] = {
                     "hash": new_hash,
                     "last_seen": datetime.now(timezone.utc).isoformat(),
                     "paper_metadata": {
@@ -157,22 +228,22 @@ class ArXivChangeTracker:
         for paper in papers:
             if paper["id"] in common_ids:
                 # Paper is still in results — reset miss count
-                self.state[paper["id"]]["miss_count"] = 0
-                if "deleted" in self.state[paper["id"]]:
-                    del self.state[paper["id"]]["deleted"]
+                org_state[paper["id"]]["miss_count"] = 0
+                if "deleted" in org_state[paper["id"]]:
+                    del org_state[paper["id"]]["deleted"]
 
                 new_hash = self.compute_paper_hash(paper)
-                old_hash = self.state[paper["id"]]["hash"]
+                old_hash = org_state[paper["id"]]["hash"]
 
                 # Always update last_seen
-                self.state[paper["id"]]["last_seen"] = (
+                org_state[paper["id"]]["last_seen"] = (
                     datetime.now(timezone.utc).isoformat()
                 )
 
                 if new_hash != old_hash:
                     # Determine what changed
                     fields_changed = []
-                    stored_metadata = self.state[paper["id"]].get("paper_metadata", {})
+                    stored_metadata = org_state[paper["id"]].get("paper_metadata", {})
 
                     # Compare key fields
                     if paper.get("title", "") != stored_metadata.get("title", ""):
@@ -201,8 +272,8 @@ class ArXivChangeTracker:
                     changes.append(change)
 
                     # Update state
-                    self.state[paper["id"]]["hash"] = new_hash
-                    self.state[paper["id"]]["paper_metadata"] = {
+                    org_state[paper["id"]]["hash"] = new_hash
+                    org_state[paper["id"]]["paper_metadata"] = {
                         "title": paper.get("title", ""),
                         "authors": paper.get("authors", [])[:5],
                         "primary_category": paper.get("primary_category"),
@@ -210,31 +281,45 @@ class ArXivChangeTracker:
 
         # Track missing papers — increment miss_count instead of instant deletion.
         # Only mark as deleted after DELETION_MISS_THRESHOLD consecutive misses.
+        #
+        # The scan is a partial, date-windowed, per-category query, so a stored
+        # paper absent from `papers` is NOT necessarily deleted — it may simply
+        # belong to a category we didn't scan or fall outside the date window.
+        # When `tracked_categories` is given, only papers whose stored
+        # primary_category is in that set are observable enough to be deletion
+        # candidates.
         missing_ids = stored_ids - current_ids
         for paper_id in missing_ids:
-            if "deleted" in self.state[paper_id]:
+            data = org_state[paper_id]
+            if "deleted" in data:
                 # Already deleted, skip
                 continue
 
-            miss_count = self.state[paper_id].get("miss_count", 0) + 1
-            self.state[paper_id]["miss_count"] = miss_count
+            if tracked_categories is not None:
+                stored_category = (data.get("paper_metadata", {}) or {}).get(
+                    "primary_category"
+                )
+                if stored_category not in tracked_categories:
+                    # Not covered by this scan — cannot conclude deletion.
+                    continue
+
+            miss_count = data.get("miss_count", 0) + 1
+            data["miss_count"] = miss_count
 
             if miss_count >= self.DELETION_MISS_THRESHOLD:
                 change = ChangeRecord(
                     paper_id=paper_id,
                     change_type="deleted",
-                    old_hash=self.state[paper_id]["hash"],
+                    old_hash=data["hash"],
                     new_hash="",
                     change_date=datetime.now(timezone.utc),
                     fields_changed=[],
-                    metadata=self.state[paper_id].get("paper_metadata", {}),
+                    metadata=data.get("paper_metadata", {}),
                 )
                 changes.append(change)
 
                 # Mark as deleted in state (keep record)
-                self.state[paper_id]["deleted"] = (
-                    datetime.now(timezone.utc).isoformat()
-                )
+                data["deleted"] = datetime.now(timezone.utc).isoformat()
                 logger.info(
                     f"Paper {paper_id} marked deleted after {miss_count} consecutive misses"
                 )
@@ -247,10 +332,20 @@ class ArXivChangeTracker:
         return changes
 
     async def apply_changes(
-        self, changes: List[ChangeRecord], update_kg: bool = True
+        self,
+        changes: List[ChangeRecord],
+        organization_id: Any,
+        user_id: Optional[Any] = None,
+        update_kg: bool = True,
     ) -> Dict[str, int]:
         """
-        Apply changes to database and knowledge graph
+        Apply changes to database and knowledge graph, scoped to a tenant.
+
+        Args:
+            changes: Detected change records to apply.
+            organization_id: Tenant owning every created/updated Document.
+            user_id: User to attribute created documents to (uploaded_by).
+            update_kg: Whether to sync the knowledge graph.
 
         Returns:
             Summary of applied changes
@@ -264,7 +359,9 @@ class ArXivChangeTracker:
                         # Handle new paper
                         paper = await self._fetch_paper_details(change.paper_id)
                         if paper:
-                            await self._ingest_new_paper(db, paper, update_kg)
+                            await self._ingest_new_paper(
+                                db, paper, organization_id, user_id, update_kg
+                            )
                             summary["new"] += 1
                             logger.info(f"Added new paper: {change.paper_id}")
 
@@ -273,7 +370,7 @@ class ArXivChangeTracker:
                         paper = await self._fetch_paper_details(change.paper_id)
                         if paper:
                             await self._update_existing_paper(
-                                db, paper, change.fields_changed
+                                db, paper, change.fields_changed, organization_id
                             )
                             if update_kg:
                                 await self._update_knowledge_graph(paper)
@@ -284,7 +381,9 @@ class ArXivChangeTracker:
 
                     elif change.change_type == "deleted":
                         # Handle deleted paper
-                        await self._mark_paper_deleted(db, change.paper_id)
+                        await self._mark_paper_deleted(
+                            db, change.paper_id, organization_id
+                        )
                         summary["deleted"] += 1
                         logger.info(f"Marked paper as deleted: {change.paper_id}")
 
@@ -309,33 +408,64 @@ class ArXivChangeTracker:
             logger.error(f"Failed to fetch paper {paper_id}: {e}")
             return None
 
+    @staticmethod
+    def _paper_metadata(paper: Dict[str, Any]) -> Dict[str, Any]:
+        """Build the document_metadata payload for an arXiv paper.
+
+        The arXiv id lives in document_metadata (the Document model has no
+        external_id column); dedup/lookup keys on it.
+        """
+        return {
+            "arxiv_id": paper["id"],
+            "source": "arxiv",
+            "authors": paper.get("authors", []),
+            "categories": paper.get("categories", []),
+            "primary_category": paper.get("primary_category"),
+            "published": paper.get("published"),
+            "doi": paper.get("doi"),
+            "arxiv_url": paper.get("arxiv_url"),
+            "pdf_url": paper.get("pdf_url"),
+        }
+
+    @staticmethod
+    def _paper_lookup_stmt(paper_id: str, organization_id: Any):
+        """Tenant-scoped lookup by the arxiv_id stored in document_metadata."""
+        return select(Document).where(
+            Document.organization_id == organization_id,
+            Document.document_metadata["arxiv_id"].astext == paper_id,
+        )
+
     async def _ingest_new_paper(
-        self, db: AsyncSession, paper: Dict[str, Any], update_kg: bool
+        self,
+        db: AsyncSession,
+        paper: Dict[str, Any],
+        organization_id: Any,
+        user_id: Optional[Any],
+        update_kg: bool,
     ):
-        """Ingest a new paper into the database"""
-        # Check if paper already exists
-        stmt = select(Document).where(Document.external_id == paper["id"])
-        result = await db.execute(stmt)
+        """Ingest a new paper into the database (tenant-scoped)."""
+        # Check if paper already exists for this organization
+        result = await db.execute(
+            self._paper_lookup_stmt(paper["id"], organization_id)
+        )
         existing = result.scalar_one_or_none()
 
         if not existing:
-            # Create new document record
+            # Create new document record using the real Document columns.
+            pdf_url = paper.get("pdf_url") or ""
             doc = Document(
-                title=paper.get("title", ""),
-                content=paper.get("abstract", ""),
-                external_id=paper["id"],
-                source="arxiv",
-                document_type=DocumentType.RESEARCH_PAPER,
-                metadata={
-                    "authors": paper.get("authors", []),
-                    "categories": paper.get("categories", []),
-                    "primary_category": paper.get("primary_category"),
-                    "published": paper.get("published"),
-                    "doi": paper.get("doi"),
-                    "arxiv_url": paper.get("arxiv_url"),
-                    "pdf_url": paper.get("pdf_url"),
-                },
-                processing_status="indexed",
+                title=paper.get("title", "") or "",
+                filename=f"{paper['id']}.pdf",
+                file_path=pdf_url,
+                file_size_bytes=0,
+                mime_type="application/pdf",
+                document_type=DocumentType.PDF,
+                content_text=paper.get("abstract", "") or "",
+                document_metadata=self._paper_metadata(paper),
+                processing_status=ProcessingStatus.COMPLETED,
+                organization_id=organization_id,
+                uploaded_by_user_id=user_id,
+                is_public=False,
             )
             db.add(doc)
             await db.commit()
@@ -360,23 +490,30 @@ class ArXivChangeTracker:
                     )
 
     async def _update_existing_paper(
-        self, db: AsyncSession, paper: Dict[str, Any], changed_fields: List[str]
+        self,
+        db: AsyncSession,
+        paper: Dict[str, Any],
+        changed_fields: List[str],
+        organization_id: Any,
     ):
-        """Update an existing paper in the database"""
-        stmt = select(Document).where(Document.external_id == paper["id"])
-        result = await db.execute(stmt)
+        """Update an existing paper in the database (tenant-scoped)."""
+        result = await db.execute(
+            self._paper_lookup_stmt(paper["id"], organization_id)
+        )
         doc = result.scalar_one_or_none()
 
         if doc:
             # Update fields that changed
             if "title" in changed_fields:
-                doc.title = paper.get("title", doc.title)
+                doc.title = paper.get("title", doc.title) or doc.title
             if "abstract" in changed_fields:
-                doc.content = paper.get("abstract", doc.content)
+                doc.content_text = paper.get("abstract", doc.content_text)
 
-            # Update metadata
-            doc.metadata.update(
+            # Copy-update-reassign so SQLAlchemy detects the JSON mutation.
+            md = dict(doc.document_metadata or {})
+            md.update(
                 {
+                    "arxiv_id": paper["id"],
                     "authors": paper.get("authors", []),
                     "categories": paper.get("categories", []),
                     "primary_category": paper.get("primary_category"),
@@ -385,6 +522,7 @@ class ArXivChangeTracker:
                     "last_updated": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            doc.document_metadata = md
 
             await db.commit()
 
@@ -397,27 +535,43 @@ class ArXivChangeTracker:
         except Exception as e:
             logger.warning(f"Failed to update KG for paper {paper['id']}: {e}")
 
-    async def _mark_paper_deleted(self, db: AsyncSession, paper_id: str):
-        """Mark a paper as deleted in the database"""
-        stmt = select(Document).where(Document.external_id == paper_id)
-        result = await db.execute(stmt)
+    async def _mark_paper_deleted(
+        self, db: AsyncSession, paper_id: str, organization_id: Any
+    ):
+        """Soft-mark a paper as deleted in the database (tenant-scoped).
+
+        There is no "deleted" ProcessingStatus — record the soft-delete via a
+        metadata flag and leave processing_status untouched.
+        """
+        result = await db.execute(
+            self._paper_lookup_stmt(paper_id, organization_id)
+        )
         doc = result.scalar_one_or_none()
 
         if doc:
-            # Soft delete by updating metadata
-            doc.metadata["deleted"] = True
-            doc.metadata["deleted_date"] = datetime.now(timezone.utc).isoformat()
-            doc.processing_status = "deleted"
+            # Copy-update-reassign so SQLAlchemy detects the JSON mutation.
+            md = dict(doc.document_metadata or {})
+            md["deleted"] = True
+            md["deleted_date"] = datetime.now(timezone.utc).isoformat()
+            doc.document_metadata = md
             await db.commit()
 
     async def track_category_changes(
-        self, categories: List[str], days_back: int = 7, update_db: bool = True
+        self,
+        categories: List[str],
+        organization_id: Any,
+        user_id: Optional[Any] = None,
+        days_back: int = 7,
+        update_db: bool = True,
     ) -> Dict[str, Any]:
         """
-        Track changes for specific categories over a time period
+        Track changes for specific categories over a time period, scoped to a
+        single organization.
 
         Args:
             categories: List of arXiv categories to track
+            organization_id: Tenant owning tracking state + created documents
+            user_id: User to attribute created documents to
             days_back: How many days back to look for changes
             update_db: Whether to apply changes to database
 
@@ -448,8 +602,14 @@ class ArXivChangeTracker:
 
         logger.info(f"Total unique papers: {len(unique_papers)}")
 
-        # Detect changes
-        changes = self.detect_changes(unique_papers)
+        # Detect changes — restrict deletion candidates to the scanned
+        # categories, and never mutate persisted state on a dry run.
+        changes = self.detect_changes(
+            unique_papers,
+            organization_id=organization_id,
+            tracked_categories=set(categories),
+            commit=update_db,
+        )
 
         # Group changes by type
         changes_by_type = {}
@@ -466,7 +626,12 @@ class ArXivChangeTracker:
 
         # Apply changes if requested
         if update_db and changes:
-            summary = await self.apply_changes(changes, update_kg=True)
+            summary = await self.apply_changes(
+                changes,
+                organization_id=organization_id,
+                user_id=user_id,
+                update_kg=True,
+            )
             logger.info(f"Applied changes: {summary}")
         else:
             summary = {
@@ -487,12 +652,13 @@ class ArXivChangeTracker:
         }
 
     async def get_change_history(
-        self, paper_id: Optional[str] = None
+        self, organization_id: Any, paper_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Get change history for papers
+        Get change history for papers within a single organization.
 
         Args:
+            organization_id: Tenant whose tracking state to read
             paper_id: Specific paper ID to get history for, or None for all
 
         Returns:
@@ -500,15 +666,16 @@ class ArXivChangeTracker:
         """
         changes = []
 
-        for pid, data in self.state.items():
+        org_state = self.state.get("__orgs__", {}).get(str(organization_id), {})
+        for pid, data in org_state.items():
             if paper_id and pid != paper_id:
                 continue
 
             record = {
                 "paper_id": pid,
-                "current_hash": data["hash"],
-                "last_seen": data["last_seen"],
-                "deleted": data.get("deleted", False),
+                "current_hash": data.get("hash", ""),
+                "last_seen": data.get("last_seen", ""),
+                "deleted": bool(data.get("deleted", False)),
                 "miss_count": data.get("miss_count", 0),
                 "metadata": data.get("paper_metadata", {}),
             }
@@ -516,12 +683,14 @@ class ArXivChangeTracker:
 
         return changes
 
-    async def cleanup_old_state(self, days: int = 90):
-        """Clean up state records for papers not seen in specified days"""
+    async def cleanup_old_state(self, organization_id: Any, days: int = 90):
+        """Clean up state records for papers not seen in specified days,
+        scoped to a single organization."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
+        org_state = self._org_state(organization_id)
         to_remove = []
-        for paper_id, data in self.state.items():
+        for paper_id, data in org_state.items():
             last_seen = datetime.fromisoformat(data["last_seen"])
             # Convert last_seen to timezone-aware if it's naive
             if last_seen.tzinfo is None:
@@ -530,7 +699,7 @@ class ArXivChangeTracker:
                 to_remove.append(paper_id)
 
         for paper_id in to_remove:
-            del self.state[paper_id]
+            del org_state[paper_id]
             logger.info(f"Removed stale state for {paper_id}")
 
         if to_remove:
@@ -543,15 +712,27 @@ class ArXivChangeTracker:
 change_tracker = ArXivChangeTracker()
 
 
-async def track_arxiv_changes(categories: List[str] = None, days_back: int = 1):
+async def track_arxiv_changes(
+    organization_id: Any,
+    user_id: Optional[Any] = None,
+    categories: List[str] = None,
+    days_back: int = 1,
+):
     """
-    Convenience function to track arXiv changes
+    Convenience function to track arXiv changes for a single organization.
 
     Args:
+        organization_id: Tenant owning tracking state + created documents
+        user_id: User to attribute created documents to
         categories: Categories to track (defaults to popular categories)
         days_back: Days to look back for changes
     """
     if categories is None:
         categories = ["cs.AI", "cs.LG", "cs.CV", "quant-ph", "stat.ML"]
 
-    return await change_tracker.track_category_changes(categories, days_back)
+    return await change_tracker.track_category_changes(
+        categories,
+        organization_id=organization_id,
+        user_id=user_id,
+        days_back=days_back,
+    )

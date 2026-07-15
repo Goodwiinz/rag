@@ -187,6 +187,13 @@ export function IngestTab({
                 onCheckedChange={onDownloadPdfsChange}
                 label="Download source PDF"
               />
+              {extractContentOnIngest && !downloadPdfs && (
+                <p className="px-1 font-(family-name:--nous-font-body) text-xs leading-relaxed text-muted-foreground">
+                  Without the source PDF, only the abstract is stored. Enable
+                  “Download source PDF” to extract and index the paper&apos;s full
+                  text.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

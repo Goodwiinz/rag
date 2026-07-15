@@ -9,6 +9,7 @@ import {
   ArrowRight,
   BarChart3,
   Brain,
+  Loader2,
   LogIn,
   Search,
   TrendingUp,
@@ -183,14 +184,13 @@ export default function ArxivManagement() {
 
     try {
       setProgress(30);
-      const result = await api.post<TrackResult>(
+      const result = await api.postWithLongTimeout<TrackResult>(
         '/arxiv/tracking/track-categories',
         {
           categories: selectedCategories,
           days_back: daysBack,
           update_database: updateDatabase,
         },
-        { timeout: 300000 }
       );
 
       setProgress(75);
@@ -231,7 +231,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(40);
-      const results = await api.post<ArXivPaper[]>(
+      const results = await api.postWithLongTimeout<ArXivPaper[]>(
         '/arxiv/search',
         {
           query: searchQuery.trim(),
@@ -241,7 +241,6 @@ export default function ArxivManagement() {
               ? selectedCategories
               : null,
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -286,7 +285,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(45);
-      const result = await api.post<IngestionResult>(
+      const result = await api.postWithLongTimeout<IngestionResult>(
         '/arxiv/ingest',
         {
           paper_ids: selectedPaperIds,
@@ -294,7 +293,6 @@ export default function ArxivManagement() {
           extract_content: extractContentOnIngest,
           batch_size: Math.min(20, Math.max(1, selectedPaperIds.length)),
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -342,7 +340,7 @@ export default function ArxivManagement() {
 
     try {
       setProgress(35);
-      const result = await api.post<ExtractionResult>(
+      const result = await api.postWithLongTimeout<ExtractionResult>(
         '/arxiv/extraction/extract-features',
         {
           paper_ids: parsedExtractIds,
@@ -353,7 +351,6 @@ export default function ArxivManagement() {
           extract_summaries: extractSummaries,
           update_knowledge_graph: updateKG,
         },
-        { timeout: 300000 }
       );
 
       setProgress(100);
@@ -417,9 +414,11 @@ export default function ArxivManagement() {
             </div>
 
             <p className="font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
-              {isGuest
-                ? 'Search and statistics stay open without signing in. Queueing ingestion, running extraction, and scanning categories need an authenticated workspace.'
-                : 'Tracking, ingestion, and extraction are all available in this workspace session.'}
+              {isAuthLoading
+                ? 'Checking your session…'
+                : isGuest
+                  ? 'Search and statistics stay open without signing in. Queueing ingestion, running extraction, and scanning categories need an authenticated workspace.'
+                  : 'Tracking, ingestion, and extraction are all available in this workspace session.'}
             </p>
           </div>
         </section>
@@ -427,16 +426,27 @@ export default function ArxivManagement() {
         <aside className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-5">
             <p className="text-sm font-medium text-foreground">
-              {isGuest ? 'Discovery mode' : 'Workspace mode'}
+              {isAuthLoading
+                ? 'Checking session…'
+                : isGuest
+                  ? 'Discovery mode'
+                  : 'Workspace mode'}
             </p>
             <p className="mt-2 font-(family-name:--nous-font-body) text-sm leading-relaxed text-muted-foreground">
-              {isGuest
-                ? 'Public search and statistics are available now. Sign in to import papers, run extraction, and check for new papers.'
-                : 'Search, import, extraction, and new-paper checks are all available in this session.'}
+              {isAuthLoading
+                ? 'Confirming your workspace access. Import, extraction, and new-paper checks unlock once your session is verified.'
+                : isGuest
+                  ? 'Public search and statistics are available now. Sign in to import papers, run extraction, and check for new papers.'
+                  : 'Search, import, extraction, and new-paper checks are all available in this session.'}
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {isGuest ? (
+              {isAuthLoading ? (
+                <span className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Verifying session…
+                </span>
+              ) : isGuest ? (
                 <Link
                   href="/login"
                   className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"

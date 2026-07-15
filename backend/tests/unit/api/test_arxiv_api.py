@@ -1,5 +1,7 @@
 """Unit tests for the public and protected ArXiv API surface."""
 
+import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from src.core.dependencies import get_current_user
@@ -48,7 +50,12 @@ def test_tracking_surfaces_upstream_rate_limits_as_service_unavailable(
     test_app, test_client
 ) -> None:
     """Category scans should return a controlled error when arXiv rate limits us."""
-    test_app.dependency_overrides[get_current_user] = lambda: {"id": "user-1"}
+    # get_current_user returns a User object with an organization; tracking now
+    # resolves the org from it (and 403s if absent), so the override must carry
+    # an organization_id — not a bare dict.
+    test_app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id="user-1", organization_id=str(uuid.uuid4()), organization=None
+    )
 
     try:
         with patch(

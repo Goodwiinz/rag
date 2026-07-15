@@ -1741,12 +1741,16 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 20,
+            "minItems": 1,
             "title": "Categories",
             "type": "array"
           },
           "days_back": {
             "default": 1,
             "description": "Number of days to look back",
+            "maximum": 30.0,
+            "minimum": 1.0,
             "title": "Days Back",
             "type": "integer"
           },
@@ -5095,6 +5099,8 @@
             "items": {
               "type": "string"
             },
+            "maxItems": 50,
+            "minItems": 1,
             "title": "Paper Ids",
             "type": "array"
           },
@@ -19550,6 +19556,8 @@
             "schema": {
               "default": 100,
               "description": "Maximum number of records to return",
+              "maximum": 500,
+              "minimum": 1,
               "title": "Limit",
               "type": "integer"
             }
@@ -19585,7 +19593,7 @@
     },
     "/api/v1/arxiv/tracking/stats": {
       "get": {
-        "description": "Get statistics about the change tracking system (public endpoint)\n\nReturns information about tracked papers, change patterns, etc.\nThis endpoint is public and returns cached data only for fast response.",
+        "description": "Get statistics about the change tracking system (public endpoint)\n\nReturns only aggregate counts summed across all organizations. This endpoint\nis unauthenticated, so it deliberately exposes NO per-tenant detail (no\ntitles, categories, or the internal state file path) to avoid leaking one\ntenant's data to anonymous callers.",
         "operationId": "get_tracking_statistics_api_v1_arxiv_tracking_stats_get",
         "responses": {
           "200": {
@@ -19613,6 +19621,8 @@
             "schema": {
               "default": 1,
               "description": "Days to look back",
+              "maximum": 30,
+              "minimum": 1,
               "title": "Days Back",
               "type": "integer"
             }
