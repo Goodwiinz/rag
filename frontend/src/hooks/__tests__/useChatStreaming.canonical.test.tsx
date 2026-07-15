@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { v5 as uuidv5 } from 'uuid';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -40,6 +41,7 @@ type StreamCallbacks = {
 };
 
 function makeParams() {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -64,13 +66,9 @@ describe('useChatStreaming server-canonical mode', () => {
   });
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   it('reconciles the bubble id from the done payload and does not self-persist', async () => {
-    // Flag is a module-load-time const, so stub the env then import fresh.
-    vi.stubEnv('NEXT_PUBLIC_SERVER_CANONICAL_CHAT', 'true');
-    vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 
     streamMessageMock.mockImplementation(

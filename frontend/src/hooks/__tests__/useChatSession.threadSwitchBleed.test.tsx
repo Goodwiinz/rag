@@ -95,7 +95,7 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
 
     // Land on A first: local messages become A's 5 (the previous transcript).
     act(() => {
-      result.current.setActiveConversationId('thread-A');
+      useChatStore.setState({ currentThreadId: 'thread-A' });
     });
     await waitFor(() =>
       expect(result.current.messages.map((m) => m.content)).toEqual([
@@ -111,7 +111,7 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     // early-returns WITHOUT calling setMessages, so local `messages` stays A's 5
     // and the length-based display merge renders A under B (the bleed).
     act(() => {
-      result.current.setActiveConversationId('thread-B');
+      useChatStore.setState({ currentThreadId: 'thread-B' });
     });
 
     await waitFor(() =>
@@ -142,12 +142,11 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
       ]);
     });
     act(() => {
-      result.current.setActiveConversationId('thread-A');
+      useChatStore.setState({ currentThreadId: 'thread-A' });
     });
     await waitFor(() => expect(result.current.messages).toHaveLength(5));
 
     act(() => {
-      result.current.setActiveConversationId('thread-C');
       useChatStore.setState({
         currentThreadId: 'thread-C',
         isLoadingMessages: true,

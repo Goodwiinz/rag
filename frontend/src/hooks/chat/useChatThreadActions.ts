@@ -1,6 +1,5 @@
 import toast from 'react-hot-toast';
 
-import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { getNewChatUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { workspaceService } from '@/services/workspaceService';
@@ -35,10 +34,7 @@ export interface BulkDeleteDialogState {
 export interface UseChatThreadActionsParams {
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
-  activeConversationId: string | null;
-  setActiveConversationId: React.Dispatch<React.SetStateAction<string | null>>;
-  activeConversationIdRef: React.MutableRefObject<string | null>;
-  setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
+  activeThreadId: string | null;
   setCurrentThread: (threadId: string | null) => void;
 }
 
@@ -49,10 +45,7 @@ export interface UseChatThreadActionsParams {
 export function useChatThreadActions({
   conversations,
   setConversations,
-  activeConversationId,
-  setActiveConversationId,
-  activeConversationIdRef,
-  setMessages,
+  activeThreadId,
   setCurrentThread,
 }: UseChatThreadActionsParams) {
   const router = useRouter();
@@ -117,10 +110,7 @@ export function useChatThreadActions({
     try {
       await workspaceService.deleteThread(threadId);
       setConversations((prev) => prev.filter((c) => c.id !== threadId));
-      if (activeConversationId === threadId) {
-        setActiveConversationId(null);
-        activeConversationIdRef.current = null;
-        setMessages([]);
+      if (activeThreadId === threadId) {
         setCurrentThread(null);
         router.push(getNewChatUrl());
       }
@@ -130,13 +120,10 @@ export function useChatThreadActions({
     }
   }, [
     deleteDialog,
-    activeConversationId,
+    activeThreadId,
     router,
     setCurrentThread,
     setConversations,
-    setActiveConversationId,
-    activeConversationIdRef,
-    setMessages,
   ]);
 
   const handleBulkDeleteThreads = useCallback((ids: string[]) => {
@@ -149,10 +136,7 @@ export function useChatThreadActions({
     try {
       await workspaceService.bulkDeleteThreads(ids);
       setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
-      if (activeConversationId && ids.includes(activeConversationId)) {
-        setActiveConversationId(null);
-        activeConversationIdRef.current = null;
-        setMessages([]);
+      if (activeThreadId && ids.includes(activeThreadId)) {
         setCurrentThread(null);
         router.push(getNewChatUrl());
       }
@@ -164,13 +148,10 @@ export function useChatThreadActions({
     }
   }, [
     bulkDeleteDialog,
-    activeConversationId,
+    activeThreadId,
     router,
     setCurrentThread,
     setConversations,
-    setActiveConversationId,
-    activeConversationIdRef,
-    setMessages,
   ]);
 
   return {

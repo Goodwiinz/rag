@@ -186,11 +186,7 @@ export interface UseChatStreamingParams {
   setMessages: React.Dispatch<React.SetStateAction<ChatPageMessage[]>>;
   conversations: ChatConversation[];
   setConversations: React.Dispatch<React.SetStateAction<ChatConversation[]>>;
-  activeConversationId: string | null;
-  setActiveConversationId: React.Dispatch<React.SetStateAction<string | null>>;
-  activeConversationIdRef: React.MutableRefObject<string | null>;
   dbConversation: DBConversation | null;
-  setCurrentThread: (threadId: string | null) => void;
   enableRAG: boolean;
 }
 
@@ -228,11 +224,7 @@ export function useChatStreaming(
     setMessages,
     conversations,
     setConversations,
-    activeConversationId,
-    setActiveConversationId,
-    activeConversationIdRef,
     dbConversation,
-    setCurrentThread,
     enableRAG,
   } = params;
 
@@ -296,6 +288,7 @@ export function useChatStreaming(
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  const hadPendingApprovalRef = useRef(false);
 
   // ---- Store bindings ----
   const storeStopStreaming = useChatStore((state) => state.stopStreaming);
@@ -303,6 +296,7 @@ export function useChatStreaming(
   const storeStreamingContent = useChatStore((state) => state.streamingContent);
   const storeIsRetrievingRag = useChatStore((state) => state.isRetrievingRag);
   const streamingThreadId = useChatStore((state) => state.streamingThreadId);
+  const activeThreadId = useChatStore((state) => state.currentThreadId);
 
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -386,9 +380,9 @@ export function useChatStreaming(
       // ponytail: the global streaming bubble/flags still render on whatever
       // thread is displayed while a background turn streams — per-thread
       // streaming state is the upgrade path if that becomes noticeable.
-      const turnThreadId = activeConversationIdRef.current;
+      const turnThreadId = currentThreadId;
       const isTurnDisplayed = () =>
-        activeConversationIdRef.current === turnThreadId;
+        useChatStore.getState().currentThreadId === turnThreadId;
 
       try {
         // Persisted ids from the done event (server-canonical only).
@@ -798,13 +792,7 @@ export function useChatStreaming(
         activeRunThreadRef.current = null;
       }
     },
-    [
-      activeConversationIdRef,
-      setMessages,
-      setConversations,
-      enableRAG,
-      invalidateProjectDataForTool,
-    ]
+    [setMessages, setConversations, enableRAG, invalidateProjectDataForTool]
   );
 
   const handleSubmit = useCallback(
@@ -844,10 +832,7 @@ export function useChatStreaming(
       // Create new thread if needed (when no active conversation).
       // Read from ref first (synchronous, immune to React batching), then
       // state, then Zustand store as final fallback.
-      let currentConversationId =
-        activeConversationIdRef.current ||
-        activeConversationId ||
-        useChatStore.getState().currentThreadId;
+      let currentConversationId = useChatStore.getState().currentThreadId;
       let currentThreadId = currentConversationId;
 
       if (!currentConversationId) {
@@ -898,9 +883,7 @@ export function useChatStreaming(
           };
 
           setConversations((prev) => [newConv, ...prev]);
-          setActiveConversationId(newConv.id);
-          activeConversationIdRef.current = newConv.id;
-          setCurrentThread(newConv.id);
+          useChatStore.getState().setCurrentThread(newConv.id);
           queueMicrotask(() =>
             router.replace(getSelectedThreadUrl(newThread.id))
           );
@@ -990,12 +973,8 @@ export function useChatStreaming(
       messages,
       displayedMessages,
       setMessages,
-      activeConversationIdRef,
-      activeConversationId,
       dbConversation,
       setConversations,
-      setActiveConversationId,
-      setCurrentThread,
       router,
       enableRAG,
       boundProjectId,
@@ -1038,7 +1017,7 @@ export function useChatStreaming(
   // buffered stream and replay from the last seen seq through the exact
   // same callbacks/commit path as a live submit.
   useEffect(() => {
-    const threadId = activeConversationId;
+    const threadId = activeThreadId;
     if (!threadId || isLoading) return;
     if (useChatStore.getState().isStreaming) return;
     const run = useAgentActivityStore.getState().runs[threadId];
@@ -1070,13 +1049,7 @@ export function useChatStreaming(
     });
     // storeIsStreaming is a dep so a thread with a stale run gets re-checked
     // once another thread's live stream ends (the guard above reads fresh).
-  }, [
-    activeConversationId,
-    isLoading,
-    messages,
-    runStreamTurn,
-    storeIsStreaming,
-  ]);
+  }, [activeThreadId, isLoading, messages, runStreamTurn, storeIsStreaming]);
 
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
@@ -1090,7 +1063,7 @@ export function useChatStreaming(
       if (
         !confirmationBelongsToThread(
           pendingConfirmation,
-          activeConversationIdRef.current
+          useChatStore.getState().currentThreadId
         )
       )
         return;
@@ -1103,7 +1076,7 @@ export function useChatStreaming(
       const isConfirmDisplayed = () =>
         confirmationBelongsToThread(
           pendingConfirmation,
-          activeConversationIdRef.current
+          useChatStore.getState().currentThreadId
         );
       setIsConfirming(true);
       const confirmStart = Date.now();
@@ -1390,13 +1363,7 @@ export function useChatStreaming(
         });
       }
     },
-    [
-      pendingConfirmation,
-      messages,
-      setMessages,
-      invalidateProjectDataForTool,
-      activeConversationIdRef,
-    ]
+    [pendingConfirmation, messages, setMessages, invalidateProjectDataForTool]
   );
 
   // P4: mirror the active pending confirmation into an in-band approval
@@ -1406,9 +1373,11 @@ export function useChatStreaming(
   // onApproval=handleConfirmation). handleConfirmation/streamConfirm internals
   // are untouched.
   useEffect(() => {
+    if (!pendingConfirmation && !hadPendingApprovalRef.current) return;
+    hadPendingApprovalRef.current = pendingConfirmation !== null;
     const active = confirmationBelongsToThread(
       pendingConfirmation,
-      activeConversationId
+      activeThreadId
     )
       ? pendingConfirmation
       : null;
@@ -1430,7 +1399,7 @@ export function useChatStreaming(
         },
       ];
     });
-  }, [pendingConfirmation, activeConversationId, setMessages]);
+  }, [pendingConfirmation, activeThreadId, setMessages]);
 
   return {
     input,

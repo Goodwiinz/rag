@@ -84,7 +84,10 @@ describe('useChatStreaming stream resume on mount', () => {
   beforeEach(() => {
     resumeStreamMock.mockReset();
     useAgentActivityStore.setState({ runs: {}, currentThreadId: null });
-    useChatStore.setState({ isStreaming: false });
+    useChatStore.setState({
+      currentThreadId: 'thread-A',
+      isStreaming: false,
+    });
   });
 
   it('resumes a stale running run from its streamSeq when not streaming', async () => {

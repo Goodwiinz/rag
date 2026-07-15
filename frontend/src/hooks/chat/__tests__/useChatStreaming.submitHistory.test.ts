@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -46,6 +47,7 @@ const storeBacked2: ChatPageMessage[] = [
 ];
 
 function makeParams(overrides: Record<string, unknown> = {}) {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: storeBacked2,

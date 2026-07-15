@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { useChatStore } from '@/store/chat-store';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -39,6 +40,7 @@ type Cb = {
 };
 
 function makeParams(setMessages: (m: unknown) => void) {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -63,18 +65,17 @@ describe('useChatStreaming in-band HITL approval', () => {
   });
   afterEach(() => {
     vi.unstubAllEnvs();
-    vi.resetModules();
   });
 
   it('synthesizes an in-band approval message, and handleConfirmation routes to streamConfirm', async () => {
-    vi.resetModules();
     const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
 
     let current: ChatPageMessage[] = [];
     const setMessages = vi.fn((m: unknown) => {
-      current = typeof m === 'function'
-        ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
-        : (m as ChatPageMessage[]);
+      current =
+        typeof m === 'function'
+          ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
+          : (m as ChatPageMessage[]);
     });
 
     streamMessageMock.mockImplementation((_r: unknown, cb: Cb) => {

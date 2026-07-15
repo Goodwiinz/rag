@@ -46,11 +46,12 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 import { useChatStreaming } from '@/hooks/chat/useChatStreaming';
+import { useChatStore } from '@/store/chat-store';
+import { workspaceService } from '@/services/workspaceService';
 
 function makeParams(
   overrides: Partial<Parameters<typeof useChatStreaming>[0]> = {}
 ) {
-  const activeConversationIdRef = { current: 'thread-A' as string | null };
   return {
     messages: [
       makeChatPageMessage({
@@ -69,13 +70,7 @@ function makeParams(
     setMessages: vi.fn(),
     conversations: [],
     setConversations: vi.fn(),
-    activeConversationId: 'thread-A',
-    setActiveConversationId: vi.fn(),
-    activeConversationIdRef,
     dbConversation: null, // no thread creation path; thread-A already exists
-    isAuthenticated: true,
-    setCurrentThread: vi.fn(),
-    addMessageToStore: vi.fn(),
     enableRAG: false,
     ...overrides,
   };
@@ -86,6 +81,12 @@ describe('useChatStreaming failed thread creation', () => {
     streamMessageMock.mockReset();
     toastErrorMock.mockReset();
     vi.clearAllMocks();
+    useChatStore.getState().reset();
+    useChatStore.setState({ currentThreadId: 'thread-A' });
+    vi.mocked(workspaceService.listMessages).mockResolvedValue({
+      messages: [],
+      has_more: false,
+    } as never);
   });
 
   it('rolls back the optimistic bubble, restores input, and toasts when thread creation fails', async () => {
@@ -102,7 +103,7 @@ describe('useChatStreaming failed thread creation', () => {
       activeConversationId: null,
       dbConversation: { id: 'conv-1' } as never,
     });
-    params.activeConversationIdRef.current = null;
+    useChatStore.setState({ currentThreadId: null });
 
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
@@ -152,7 +153,7 @@ describe('useChatStreaming failed thread creation', () => {
       activeConversationId: null,
       dbConversation: null,
     });
-    params.activeConversationIdRef.current = null;
+    useChatStore.setState({ currentThreadId: null });
 
     const { result } = renderHook(() => useChatStreaming(params), { wrapper });
 
@@ -172,12 +173,15 @@ describe('useChatStreaming failed thread creation', () => {
       expect.anything(),
       expect.anything()
     );
+    expect(useChatStore.getState().currentThreadId).toBe('thread-new');
   });
 });
 
 describe('useChatStreaming thread-switch guard', () => {
   beforeEach(() => {
     streamMessageMock.mockReset();
+    useChatStore.getState().reset();
+    useChatStore.setState({ currentThreadId: 'thread-A' });
   });
 
   it('skips the final setMessages when the user switched threads mid-stream', async () => {
@@ -208,8 +212,6 @@ describe('useChatStreaming thread-switch guard', () => {
 
     // Simulate the sidebar switching to thread B while the stream is in flight
     // (page.tsx onSelect mutates the ref synchronously).
-    params.activeConversationIdRef.current = 'thread-B';
-    const { useChatStore } = await import('@/store/chat-store');
     useChatStore.setState({ currentThreadId: 'thread-B' });
     params.setMessages.mockClear(); // ignore the optimistic user-bubble write
 

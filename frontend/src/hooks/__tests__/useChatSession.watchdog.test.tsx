@@ -127,7 +127,7 @@ describe('useChatSession watchdog', () => {
       })
     );
 
-    const { result } = renderHook(() => useChatSession());
+    const { result, rerender } = renderHook(() => useChatSession());
 
     await act(async () => {
       await Promise.resolve();
@@ -142,9 +142,8 @@ describe('useChatSession watchdog', () => {
           messages: [{ role: 'user', content: 'new turn', timestamp: 2 }],
         } as never,
       ]);
-      result.current.activeConversationIdRef.current = 'thread-new';
-      result.current.setActiveConversationId('thread-new');
       chatStoreMocks.state.currentThreadId = 'thread-new';
+      rerender();
       result.current.setMessages([
         { role: 'user', content: 'new turn', timestamp: 2 },
       ]);
@@ -157,7 +156,7 @@ describe('useChatSession watchdog', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.activeConversationId).toBe('thread-new');
+    expect(result.current.activeThreadId).toBe('thread-new');
     expect(result.current.messages.map((message) => message.content)).toEqual([
       'new turn',
     ]);

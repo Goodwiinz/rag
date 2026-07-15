@@ -67,6 +67,11 @@ describe('useChatSession URL synchronization', () => {
       key === 'thread' ? 'thread-A' : null
     );
     chatStoreMocks.state.currentThreadId = null;
+    chatStoreMocks.state.setCurrentThread.mockImplementation(
+      (threadId: string | null) => {
+        chatStoreMocks.state.currentThreadId = threadId;
+      }
+    );
     workspaceMocks.getThread.mockReset();
     workspaceMocks.getOrCreateDefaultWorkspace.mockResolvedValue({
       id: 'workspace-1',
@@ -88,9 +93,12 @@ describe('useChatSession URL synchronization', () => {
 
   it('does not replay the initial URL thread while a sidebar selection is navigating', async () => {
     workspaceMocks.getThread.mockReturnValue(new Promise(() => undefined));
-    const { result } = renderHook(() => useChatSession());
+    const { result, rerender } = renderHook(() => useChatSession());
 
     await waitFor(() => expect(result.current.isInitializing).toBe(false));
+    expect(result.current).not.toHaveProperty('activeConversationId');
+    expect(result.current).not.toHaveProperty('setActiveConversationId');
+    expect(result.current).not.toHaveProperty('activeConversationIdRef');
 
     act(() => {
       result.current.setConversations([
@@ -105,24 +113,20 @@ describe('useChatSession URL synchronization', () => {
           messages: [{ role: 'user', content: 'B message', timestamp: 2 }],
         } as never,
       ]);
-      result.current.activeConversationIdRef.current = 'thread-A';
-      result.current.setActiveConversationId('thread-A');
-      result.current.setMessages([
-        { role: 'user', content: 'A message', timestamp: 1 },
-      ]);
+      chatStoreMocks.state.setCurrentThread('thread-A');
+      rerender();
     });
 
-    expect(result.current.activeConversationId).toBe('thread-A');
+    expect(result.current.activeThreadId).toBe('thread-A');
 
-    // handleSelectThread updates the ref and local state synchronously, while
-    // router.push has not yet updated useSearchParams (which still reports A).
+    // handleSelectThread updates the store synchronously, while router.push
+    // has not yet updated useSearchParams (which still reports A).
     act(() => {
-      result.current.activeConversationIdRef.current = 'thread-B';
-      result.current.setMessages([]);
-      result.current.setActiveConversationId('thread-B');
+      chatStoreMocks.state.setCurrentThread('thread-B');
+      rerender();
     });
 
-    expect(result.current.activeConversationId).toBe('thread-B');
+    expect(result.current.activeThreadId).toBe('thread-B');
   });
 
   it('applies a real thread query change after initialization', async () => {
@@ -144,8 +148,8 @@ describe('useChatSession URL synchronization', () => {
           messages: [{ role: 'user', content: 'B message', timestamp: 2 }],
         } as never,
       ]);
-      result.current.activeConversationIdRef.current = 'thread-B';
-      result.current.setActiveConversationId('thread-B');
+      chatStoreMocks.state.setCurrentThread('thread-B');
+      rerender();
     });
 
     navigationMocks.searchParams.get.mockImplementation((key: string) =>
@@ -154,9 +158,8 @@ describe('useChatSession URL synchronization', () => {
     rerender();
 
     await waitFor(() =>
-      expect(result.current.activeConversationId).toBe('thread-A')
+      expect(chatStoreMocks.state.currentThreadId).toBe('thread-A')
     );
-    expect(result.current.messages).toEqual([]);
     expect(chatStoreMocks.state.setCurrentThread).toHaveBeenCalledWith(
       'thread-A'
     );
@@ -182,8 +185,8 @@ describe('useChatSession URL synchronization', () => {
           messages: [{ role: 'user', content: 'B message', timestamp: 2 }],
         } as never,
       ]);
-      result.current.activeConversationIdRef.current = 'thread-C';
-      result.current.setActiveConversationId('thread-C');
+      chatStoreMocks.state.setCurrentThread('thread-C');
+      rerender();
     });
 
     // URL navigation requests uncached A, then the user selects cached B
@@ -200,8 +203,8 @@ describe('useChatSession URL synchronization', () => {
     );
 
     act(() => {
-      result.current.activeConversationIdRef.current = 'thread-B';
-      result.current.setActiveConversationId('thread-B');
+      chatStoreMocks.state.setCurrentThread('thread-B');
+      rerender();
     });
 
     await act(async () => {
@@ -213,7 +216,7 @@ describe('useChatSession URL synchronization', () => {
       await Promise.resolve();
     });
 
-    expect(result.current.activeConversationId).toBe('thread-B');
+    expect(result.current.activeThreadId).toBe('thread-B');
     expect(chatStoreMocks.state.setCurrentThread).not.toHaveBeenCalledWith(
       'thread-A'
     );

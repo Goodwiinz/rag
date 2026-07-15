@@ -51,6 +51,7 @@ type StreamCallbacks = {
 };
 
 function makeParams() {
+  useChatStore.setState({ currentThreadId: 'thread-A' });
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -191,7 +192,16 @@ describe('useChatStreaming HITL confirm tool steps', () => {
   it('carries pre-interrupt plan + citations into the committed confirm message', async () => {
     streamMessageMock.mockImplementation(
       (_req: unknown, cb: StreamCallbacks) => {
-        cb.onPlan([{ step: 1, description: 'Ingest the papers', tool: 'ingest_arxiv_papers' }], '');
+        cb.onPlan(
+          [
+            {
+              step: 1,
+              description: 'Ingest the papers',
+              tool: 'ingest_arxiv_papers',
+            },
+          ],
+          ''
+        );
         cb.onRagContext([{ document_id: 'doc-1', content: 'ctx' }]);
         cb.onConfirmation('agent-thread-1', { tool: 'ingest_arxiv_papers' });
         cb.onDone({});
