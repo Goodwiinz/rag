@@ -815,7 +815,24 @@ export function useChatStreaming(
         useChatStore.getState().currentThreadId;
       let currentThreadId = currentConversationId;
 
-      if (!currentConversationId && dbConversation) {
+      let threadConversation = dbConversation;
+      if (!currentConversationId && !threadConversation) {
+        try {
+          // Warm-start now fetches dbConversation off the paint path. If the
+          // user starts a brand-new chat before that background request
+          // resolves, recover the default conversation here so the first send
+          // still creates a workspace thread instead of falling through to the
+          // backend's separate auto-created "Agent Chat" thread.
+          const workspace = await workspaceService.getOrCreateDefaultWorkspace();
+          threadConversation = await workspaceService.getOrCreateDefaultConversation(
+            workspace.id
+          );
+        } catch (error) {
+          console.error('[Chat] Failed to resolve default conversation:', error);
+        }
+      }
+
+      if (!currentConversationId && threadConversation) {
         try {
           const dynamicTitle = generateConversationTitle(content);
           console.log(
@@ -824,7 +841,7 @@ export function useChatStreaming(
           );
           const newThread = await workspaceService.createThread(
             buildThreadCreateRequest({
-              conversationId: dbConversation.id,
+              conversationId: threadConversation.id,
               title: dynamicTitle,
               projectId: boundProjectId,
             })
@@ -846,7 +863,7 @@ export function useChatStreaming(
             createdAt: Date.now(),
             updatedAt: Date.now(),
             threadId: newThread.id,
-            conversationId: dbConversation.id,
+            conversationId: threadConversation.id,
           };
 
           setConversations((prev) => [newConv, ...prev]);
