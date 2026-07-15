@@ -141,6 +141,12 @@ backend:
       value: "2"
     - name: CORS_ORIGINS
       value: "https://dev-app.gen-text.app,http://localhost:3000,http://127.0.0.1:3000,https://goodwiinz.tech,https://www.goodwiinz.tech"
+    # Canonical frontend host for CLI-auth device-login approval links.
+    # Set explicitly so the browser_url doesn't ride on CORS_ORIGINS[0] (still
+    # dev-app.gen-text.app) — the frontend now lives at goodwiinz.tech. See
+    # backend/src/api/auth/cli_auth.py::_frontend_base_url.
+    - name: FRONTEND_BASE_URL
+      value: "https://goodwiinz.tech"
     # CORS_ORIGIN_REGEX: defined in Infisical `/app` (env=dev) → synced into
     # the `app-secrets` K8s Secret, exposed via envFrom above. Set the regex
     # there to the project-specific Vercel slug (e.g.
