@@ -197,7 +197,10 @@ export interface UseChatStreamingReturn {
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   isLoading: boolean;
-  handleSubmit: (contentOverride?: string) => Promise<void>;
+  handleSubmit: (
+    contentOverride?: string,
+    historyOverride?: ChatPageMessage[]
+  ) => Promise<void>;
   handleStop: () => void;
   pendingConfirmation: PendingConfirmation | null;
   isConfirming: boolean;
@@ -875,7 +878,10 @@ export function useChatStreaming(
   );
 
   const handleSubmit = useCallback(
-    async (contentOverride?: string) => {
+    async (
+      contentOverride?: string,
+      historyOverride?: ChatPageMessage[]
+    ) => {
       if (submitLockRef.current) return;
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
@@ -902,12 +908,22 @@ export function useChatStreaming(
       // CX2: build the turn from the RECONCILED view (local ∪ store) — the
       // local array is empty during the lazy-load window after a thread
       // switch, and submitting from it silently dropped the whole history.
-      const requestMessages = [...displayedMessages, userMessage];
+      const requestHistory = historyOverride ?? displayedMessages;
+      const requestMessages = [...requestHistory, userMessage];
       // Local state contains only rows the canonical page has not yet
       // absorbed. A retry/next send clears local-only error rows while keeping
-      // still-unreconciled optimistic identities visible.
+      // still-unreconciled optimistic identities visible. Regeneration passes
+      // an explicit history prefix, so optimistic rows after its cutoff must
+      // not leak back into the regenerated request or local overlay.
+      const retainedRuntimeIds = historyOverride
+        ? new Set(requestHistory.map((message) => message.runtimeId))
+        : null;
       const newMessages = [
-        ...messages.filter((message) => message.source === 'optimistic'),
+        ...messages.filter(
+          (message) =>
+            message.source === 'optimistic' &&
+            (!retainedRuntimeIds || retainedRuntimeIds.has(message.runtimeId))
+        ),
         userMessage,
       ];
       setMessages(newMessages);

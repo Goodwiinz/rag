@@ -291,6 +291,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
       await result.current.handleSubmit('ingest then note');
     });
     const userRuntimeId = result.current.pendingConfirmation?.userRuntimeId;
+    expect(userRuntimeId).toBeDefined();
     refreshSpy.mockClear();
     await act(async () => {
       await result.current.handleConfirmation(true);
@@ -349,6 +350,7 @@ describe('useChatStreaming HITL confirm tool steps', () => {
     });
     const assistantRuntimeId =
       result.current.pendingConfirmation?.assistantRuntimeId;
+    expect(assistantRuntimeId).toBeDefined();
     refreshSpy.mockClear();
 
     let confirmPromise!: Promise<void>;

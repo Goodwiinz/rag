@@ -325,24 +325,30 @@ function ChatPageContent() {
 
   const handleRegenerate = useCallback(
     (assistantMessageIndex: number) => {
-      // Bug 1: bail BEFORE truncating messages if a stream is in flight.
-      // Otherwise `setMessages` clears the list but `handleSubmit`'s internal
-      // guard short-circuits, leaving the UI with no response.
+      // Bail before preparing a replacement turn if a stream is in flight;
+      // handleSubmit would otherwise reject it via its own single-flight guard.
       if (isLoading || storeIsStreaming) return;
-      const priorUser = [...displayedMessages]
-        .slice(0, assistantMessageIndex)
-        .reverse()
-        .find((m) => m.role === 'user');
-      if (!priorUser) return;
-      setMessages((prev) => prev.slice(0, assistantMessageIndex));
+      let priorUserIndex = -1;
+      for (let index = assistantMessageIndex - 1; index >= 0; index -= 1) {
+        if (displayedMessages[index]?.role === 'user') {
+          priorUserIndex = index;
+          break;
+        }
+      }
+      if (priorUserIndex < 0) return;
+      const priorUser = displayedMessages[priorUserIndex];
+      const regenerationHistory = displayedMessages.slice(0, priorUserIndex);
       setInput(priorUser.content);
       // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
       // its closure, and `setInput` above only schedules a state update — the
       // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
       const contentToSend = priorUser.content;
-      setTimeout(() => handleSubmit(contentToSend), 0);
+      setTimeout(
+        () => handleSubmit(contentToSend, regenerationHistory),
+        0
+      );
     },
-    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setMessages]
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming]
   );
 
   // Start a fresh chat — shared by the sidebar "new" button and the /new command

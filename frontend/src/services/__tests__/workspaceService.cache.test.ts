@@ -97,6 +97,10 @@ describe('workspaceService default workspace cache', () => {
 });
 
 describe('workspaceService message cancellation', () => {
+  afterEach(() => {
+    vi.doUnmock('@/services/api-client');
+  });
+
   it('forwards the caller signal when listing messages', async () => {
     vi.resetModules();
     const get = vi.fn().mockResolvedValue({ messages: [], total: 0 });
@@ -114,7 +118,5 @@ describe('workspaceService message cancellation', () => {
       '/api/v2/threads/thread-a/messages?limit=50',
       { signal: controller.signal }
     );
-
-    vi.doUnmock('@/services/api-client');
   });
 });

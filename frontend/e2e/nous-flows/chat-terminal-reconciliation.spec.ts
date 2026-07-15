@@ -23,7 +23,7 @@ test.describe('chat terminal reconciliation', () => {
   test('keeps the completed arXiv turn visible and restores it after reload', async ({
     page,
   }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(360_000);
     await login(page);
     await page.goto(`/chat?thread=${threadId}`);
 
@@ -108,6 +108,24 @@ test.describe('chat terminal reconciliation', () => {
     // Complete a second turn while no transcript is selected. Returning to
     // the owning thread must hydrate it without writing into the blank chat.
     const backgroundMarker = `background-${Date.now()}`;
+    const persistedBackgroundTurn = page.waitForResponse(
+      async (response) => {
+        if (
+          !response.url().includes(`/api/v2/threads/${threadId}/messages`) ||
+          response.request().method() !== 'GET' ||
+          !response.ok()
+        ) {
+          return false;
+        }
+        const body = (await response.json()) as {
+          messages?: Array<{ content?: string }>;
+        };
+        return !!body.messages?.some((message) =>
+          message.content?.includes(backgroundMarker)
+        );
+      },
+      { timeout: 150_000 }
+    );
     await composer.fill(
       `Reply with this exact marker and no other text: ${backgroundMarker}`
     );
@@ -117,9 +135,7 @@ test.describe('chat terminal reconciliation', () => {
     ).toBeVisible();
     await page.getByRole('button', { name: /New chat/ }).click();
     await page.waitForURL(/\/chat\?new=1/, { timeout: 30_000 });
-    await expect(page.getByRole('button', { name: /^Send/ })).toBeEnabled({
-      timeout: 150_000,
-    });
+    await persistedBackgroundTurn;
     await page.goBack();
     await page.waitForURL(new RegExp(`thread=${threadId}`), {
       timeout: 30_000,

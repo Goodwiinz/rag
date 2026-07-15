@@ -1177,8 +1177,16 @@ export const useChatStore = create<ChatStore>()(
       },
 
       markMessagesStale: (threadId) => {
+        // A new optimistic turn supersedes any pre-turn newest-page request.
+        // If that older response committed, it could mark the pre-turn page
+        // fresh and hide the optimistic overlay before terminal reconciliation.
+        abortNewestPageRequest(threadId);
         set((state) => {
           state.messageFreshness[threadId] = 'stale';
+          if (state.loadingThreadId === threadId) {
+            state.isLoadingMessages = false;
+            state.loadingThreadId = null;
+          }
         });
       },
 
@@ -1262,8 +1270,16 @@ export const useChatStore = create<ChatStore>()(
 
             const threadKeys = Object.keys(state.messages);
             if (threadKeys.length > MAX_CACHED_THREADS) {
+              const protectedThreadIds = new Set(
+                [state.currentThreadId, threadId].filter(
+                  (id): id is string => !!id
+                )
+              );
+              const excess = threadKeys.length - MAX_CACHED_THREADS;
               evictedThreadIds.push(
-                ...threadKeys.slice(0, threadKeys.length - MAX_CACHED_THREADS)
+                ...threadKeys
+                  .filter((key) => !protectedThreadIds.has(key))
+                  .slice(0, excess)
               );
               for (const key of evictedThreadIds) {
                 for (const message of state.messages[key] || []) {

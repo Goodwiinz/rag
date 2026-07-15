@@ -273,6 +273,7 @@ git commit -m "fix(chat): preserve stable message runtime ids"
 - Modify: `frontend/src/hooks/chat/useChatSession.ts:489-811`
 - Modify: `frontend/src/hooks/chat/useChatStreaming.ts:183-250`
 - Modify: `frontend/src/hooks/chat/useChatStreaming.ts:363-400`
+- Modify: `frontend/src/hooks/chat/useChatThreadActions.ts`
 - Modify: `frontend/app/(dashboard)/chat/page.tsx:90-200`
 - Modify: `frontend/app/(dashboard)/chat/page.tsx:348-405`
 - Modify: `frontend/app/(dashboard)/chat/page.tsx:724-780`
@@ -324,6 +325,7 @@ Run the Step 2 command plus `src/hooks/__tests__/useChatStreaming.threadScope.te
 
 ```bash
 git add frontend/src/hooks/chat/useChatSession.ts frontend/src/hooks/chat/useChatStreaming.ts \
+  frontend/src/hooks/chat/useChatThreadActions.ts \
   'frontend/app/(dashboard)/chat/page.tsx' frontend/src/hooks/__tests__/useChatSession.urlSync.test.tsx \
   frontend/src/hooks/__tests__/useChatSession.boundedRestore.test.tsx \
   frontend/src/components/chat/__tests__/ChatPage.threadSelect.test.tsx \

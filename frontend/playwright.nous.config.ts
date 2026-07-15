@@ -5,7 +5,8 @@
  */
 import { defineConfig, devices } from '@playwright/test';
 
-const externalBaseUrl = process.env.BASE_URL;
+const externalBaseUrl = process.env.BASE_URL?.trim() || undefined;
+const localBaseUrl = 'http://localhost:3000';
 
 export default defineConfig({
   testDir: './e2e/nous-flows',
@@ -40,7 +41,7 @@ export default defineConfig({
   outputDir: 'test-results',
 
   use: {
-    baseURL: externalBaseUrl ?? 'http://localhost:3000',
+    baseURL: externalBaseUrl ?? localBaseUrl,
     actionTimeout: 15_000,
     navigationTimeout: 20_000,
     screenshot: 'only-on-failure',
@@ -64,7 +65,7 @@ export default defineConfig({
     ? undefined
     : {
         command: 'corepack pnpm@10.18.2 run dev',
-        url: 'http://localhost:3000',
+        url: localBaseUrl,
         reuseExistingServer: true,
         timeout: 30_000,
       },

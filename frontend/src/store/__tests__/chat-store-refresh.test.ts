@@ -95,6 +95,38 @@ describe('per-thread newest-page coordinator', () => {
     ).toEqual(['m2']);
   });
 
+  it('invalidates an in-flight refresh when a new optimistic turn marks the thread stale', async () => {
+    const pending = deferred<ChatMessageListResponse>();
+    let signal!: AbortSignal;
+    useChatStore.setState({
+      messages: { 'thread-a': [makeMessage('optimistic')] },
+      messagePagination: {
+        'thread-a': { hasMore: false, loadingOlder: false, loadedCount: 1 },
+      },
+    });
+    listMessagesMock.mockImplementation(
+      (_threadId: string, options: { signal?: AbortSignal }) => {
+        signal = options.signal!;
+        return pending.promise;
+      }
+    );
+
+    const refresh = useChatStore.getState().refreshMessages('thread-a');
+    useChatStore.getState().markMessagesStale('thread-a');
+
+    expect(signal.aborted).toBe(true);
+    expect(useChatStore.getState().messageFreshness['thread-a']).toBe('stale');
+
+    pending.resolve(response([]));
+    await refresh;
+
+    expect(useChatStore.getState().messages['thread-a']).toHaveLength(1);
+    expect(useChatStore.getState().messages['thread-a'][0].id).toBe(
+      'optimistic'
+    );
+    expect(useChatStore.getState().messageFreshness['thread-a']).toBe('stale');
+  });
+
   it('keeps requests for different threads independent', async () => {
     const requests = new Map<
       string,
@@ -361,5 +393,29 @@ describe('per-thread newest-page coordinator', () => {
     ).toBeUndefined();
     pending.resolve(response([]));
     await evictedRefresh;
+  });
+
+  it('never evicts the currently displayed transcript when the cache exceeds its cap', async () => {
+    useChatStore.setState({
+      currentThreadId: 'thread-0',
+      messages: { 'thread-0': [makeMessage('m0', 'thread-0')] },
+      messagePagination: {
+        'thread-0': { hasMore: false, loadingOlder: false, loadedCount: 1 },
+      },
+      messageFreshness: { 'thread-0': 'fresh' },
+    });
+    listMessagesMock.mockImplementation((threadId: string) =>
+      Promise.resolve(
+        response([makeMessage(`m${threadId.slice(7)}`, threadId)])
+      )
+    );
+
+    for (let index = 1; index <= 50; index += 1) {
+      await useChatStore.getState().loadMessages(`thread-${index}`);
+    }
+
+    expect(useChatStore.getState().messages['thread-0']?.[0].id).toBe('m0');
+    expect(useChatStore.getState().messageFreshness['thread-0']).toBe('fresh');
+    expect(Object.keys(useChatStore.getState().messages)).toHaveLength(50);
   });
 });

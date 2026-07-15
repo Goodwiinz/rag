@@ -98,6 +98,40 @@ describe('useChatStreaming submit history (CX2)', () => {
     expect(payload.messages).toHaveLength(3); // 2 history + new turn
   });
 
+  it('uses an explicit truncated history for regeneration', async () => {
+    const laterTurn = [
+      ...storeBacked2,
+      makeChatPageMessage({
+        id: 'second-user',
+        role: 'user',
+        content: 'second turn',
+        timestamp: 3,
+      }),
+      makeChatPageMessage({
+        id: 'second-assistant',
+        role: 'assistant',
+        content: 'second reply',
+        timestamp: 4,
+      }),
+    ];
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+    const params = makeParams({ displayedMessages: laterTurn });
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('second turn', storeBacked2);
+    });
+
+    const payload = streamMessageMock.mock.calls[0][0] as {
+      messages: Array<{ content: string }>;
+    };
+    expect(payload.messages.map((message) => message.content)).toEqual([
+      'first turn',
+      'first reply',
+      'second turn',
+    ]);
+  });
+
   it('keeps React-local state limited to the optimistic overlay', async () => {
     streamMessageMock.mockImplementation(
       (
