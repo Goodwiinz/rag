@@ -1100,10 +1100,11 @@ class ChatService:
         (strict). Used by clients (CLI, web) to delta-fetch only rows newer
         than their last-seen timestamp.
 
-        ``order`` controls the sort direction by ``created_at``: ``"asc"``
-        (oldest first, default for backward compatibility) or ``"desc"``
-        (newest first, used by the web client for newest-first pagination).
-        ``before_id`` filtering works identically with either sort order.
+        ``order`` controls the sort direction by the stable
+        ``(created_at, id)`` tuple: ``"asc"`` (oldest first, default for
+        backward compatibility) or ``"desc"`` (newest first, used by the web
+        client for newest-first pagination). ``before_id`` filtering works
+        identically with either sort order.
         """
         # Verify thread access
         thread = await self.get_thread(thread_id, user_id)
@@ -1127,7 +1128,15 @@ class ChatService:
             before_result = await self.db.execute(before_stmt)
             before_msg = before_result.scalars().first()
             if before_msg:
-                base_conditions.append(ChatMessage.created_at < before_msg.created_at)
+                base_conditions.append(
+                    or_(
+                        ChatMessage.created_at < before_msg.created_at,
+                        and_(
+                            ChatMessage.created_at == before_msg.created_at,
+                            ChatMessage.id < before_msg.id,
+                        ),
+                    )
+                )
 
         if since is not None:
             base_conditions.append(ChatMessage.created_at > since)
@@ -1138,6 +1147,11 @@ class ChatService:
         total = count_result.scalar() or 0
 
         # Fetch messages
+        ordering = (
+            (ChatMessage.created_at.asc(), ChatMessage.id.asc())
+            if order == "asc"
+            else (ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        )
         stmt = (
             select(ChatMessage)
             .options(
@@ -1147,11 +1161,7 @@ class ChatService:
                 ),
             )
             .where(*base_conditions)
-            .order_by(
-                ChatMessage.created_at.asc()
-                if order == "asc"
-                else ChatMessage.created_at.desc()
-            )
+            .order_by(*ordering)
             .offset(offset)
             .limit(limit)
         )
