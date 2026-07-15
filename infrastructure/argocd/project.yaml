@@ -64,6 +64,9 @@ spec:
     # InfisicalSecret CRDs created by the Helm chart
     - group: secrets.infisical.com
       kind: "*"
+    # KEDA ScaledObject + TriggerAuthentication (worker autoscaling, finding X5)
+    - group: keda.sh
+      kind: "*"
 
   # Orphaned resource monitoring
   orphanedResources:
