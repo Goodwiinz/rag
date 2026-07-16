@@ -34,6 +34,24 @@ The signature — CPU *dropping* while readiness fails, latency queueing to the 
 - Out-of-band: **12 orphaned Supabase users** (created-but-unauthenticated in setup) were found and deleted; re-verified **0 `stress-` users remain**.
 - Harness fixed so this can't recur: setup now compensating-deletes any user it can't obtain a token for, and throttles 0.1 s between identities.
 
+## Follow-up: capped characterization run (`capped-20260715-223225`)
+
+A second run with **stepped holds at 10 / 20 / 30 / 40 VUs** (45 s each, monitor-guarded, `--out json` for per-level percentiles) sharpened the result. It aborted **during the 20-VU hold** (first readiness failure 22:34:13, sustained fail → abort 22:34:55).
+
+**Breaking point refined to ≈ 20 *sustained* concurrent users** — lower than the ramp-based ~40–50, because a sustained hold saturates the bottleneck where a brief ramp-through does not.
+
+p95 latency by endpoint (from `metrics.json`, in-hold samples):
+
+| Sustained VUs | search | documents | profile | upload |
+|---|---|---|---|---|
+| 10 | 3.4 s | 3.5 s | 2.5 s | 7.7 s |
+| 20 | **30.0 s (timeout)** | 15.0 s | 14.1 s | 9.6 s |
+| 30 | — (system already collapsing / aborted) |
+
+- **Sharp cliff between 10 and 20 VUs**; **search hits the 30 s timeout ceiling first** (it is 60% of traffic and runs the sync DB path).
+- Backend CPU at collapse was only **~280 m** (of a 1000 m limit), memory flat ~1.6 GiB — **confirms the failure is contention/queueing, not CPU or memory**. This is consistent evidence for the connection-pool hypothesis, though backend logs still haven't been read to name the exact resource.
+- Cleanup clean: teardown deleted 14 docs + 20 users, residual 0; **0 orphan users** (the compensating-delete fix held — no out-of-band sweep needed this time).
+
 ## Caveats
 
-Single run; the 100–400 VU stages were never exercised (correctly aborted). Per-endpoint latency percentiles were not captured (no per-tag thresholds → k6 emits no tagged submetrics); only aggregate `http_req_duration` is available. Executed via local k6 (Docker unavailable) with an inline monitor equivalent to `run-shared-dev-max.sh`'s abort logic.
+Two runs, both aborted before the upper VU stages (correctly). Per-level percentiles above come from the capped run's 45 s holds at 10 and 20 VUs (small n at 20 for upload). Root cause remains a hypothesis until backend logs / pool metrics are read. Executed via local k6 v2.1.0 (Docker unavailable) with an inline monitor equivalent to `run-shared-dev-max.sh`'s abort logic.
