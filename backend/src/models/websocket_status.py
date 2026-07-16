@@ -3,7 +3,7 @@ WebSocket Status Update models for real-time processing updates and notification
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from enum import Enum as PyEnum
 from typing import Any, Dict, List, Optional

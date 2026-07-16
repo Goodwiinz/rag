@@ -23,6 +23,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from .base import Base
+from .organization import Organization
+from .user import User
 
 
 class PermissionCategory(str, Enum):

@@ -1,3 +1,14 @@
+# Pre-commit invokes the SAME repository-owned commands CI runs — never
+# its own pinned mirror copies (those drifted years behind the CI pins:
+# black 23.11 vs 26.5, flake8 vs ruff, eslint 8 vs 9).
+# scripts/ci/check_tool_versions.py fails CI if a mirror hook returns.
+#
+# The Python hooks expect the backend virtualenv's tools on PATH
+# (ruff/black/isort — the same pins CI installs). MyPy is CI-owned:
+# it blocks added files only, so a staged-file hook would be stricter
+# than the gate and stall commits on legacy debt. Staged-file
+# scoping mirrors CI's blocking changed-file quality gate; full-tree
+# debt stays in CI's advisory lanes until it reaches zero.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -9,50 +20,28 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  - repo: https://github.com/psf/black
-    rev: 23.11.0
-    hooks:
-      - id: black
-        language_version: python3
-        files: ^backend/
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        files: ^backend/
-        args: ["--profile", "black"]
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
-    hooks:
-      - id: flake8
-        files: ^backend/
-        args: [--max-line-length=88, --extend-ignore=E203,W503]
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        files: ^backend/
-        additional_dependencies: [types-all]
-        args: [--ignore-missing-imports]
-
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v8.55.0
-    hooks:
-      - id: eslint
-        files: ^frontend/
-        types: [file]
-        types_or: [javascript, jsx, ts, tsx]
-        additional_dependencies:
-          - eslint@8.55.0
-          - "@typescript-eslint/eslint-plugin@5.62.0"
-          - "@typescript-eslint/parser@5.62.0"
-
-  # Rejects placeholder / empty directory docs. Stdlib Python, no deps.
   - repo: local
     hooks:
+      - id: ruff
+        name: ruff on staged backend files (same command as CI)
+        entry: python3 -m ruff check
+        language: system
+        files: ^backend/.*\.py$
+      - id: black
+        name: black --check on staged backend files (same command as CI)
+        entry: python3 -m black --check
+        language: system
+        files: ^backend/.*\.py$
+      - id: isort
+        name: isort --check-only on staged backend files (same command as CI)
+        entry: python3 -m isort --check-only
+        language: system
+        files: ^backend/.*\.py$
+      - id: eslint
+        name: eslint on staged frontend files (same config as CI)
+        entry: bash -c 'cd frontend && pnpm exec eslint "${@#frontend/}"' --
+        language: system
+        files: ^frontend/(app|src)/.*\.(ts|tsx|js|jsx)$
       - id: gitleaks
         name: gitleaks secret scan
         entry: gitleaks git --staged --redact --config .gitleaks.toml
