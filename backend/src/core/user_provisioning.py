@@ -60,10 +60,14 @@ async def _resolve_or_create_org(
         # their OWN organization instead of funneling everyone into one
         # shared "Default Organization" — two org-less users must never
         # collapse into the same tenant scope (organization_id is what all
-        # tenant filtering keys off). The name is deterministic on user_id
-        # so re-provisioning (or a concurrent duplicate) the same user
-        # resolves back to the same org, matching the org_id branch above.
-        org_name = f"user-{str(token_data.user_id)[:8]} Organization"
+        # tenant filtering keys off). The FULL user_id is the org identity
+        # here (the name is what we select on, unlike the org_id branch
+        # where the PK is identity), so it must not be truncated — two ids
+        # sharing a prefix would otherwise co-mingle. A full UUID name
+        # (~54 chars) fits Organization.name (String(255), unique). Name is
+        # deterministic on user_id so re-provisioning (or a concurrent
+        # duplicate) resolves back to the same org.
+        org_name = f"user-{token_data.user_id} Organization"
         result = await db.execute(
             select(Organization).where(Organization.name == org_name)
         )

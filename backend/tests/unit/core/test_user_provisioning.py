@@ -191,6 +191,25 @@ async def test_org_less_users_never_comingle_in_shared_org():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_org_less_users_sharing_id_prefix_get_distinct_orgs():
+    """Lock: the org-less fallback name is the org's IDENTITY (we select on
+    it), so it must use the FULL user_id, not a truncated prefix. Two ids
+    sharing their first 8 chars but otherwise different must NOT co-mingle."""
+    db = _fake_db_with_org_table()
+
+    user_a = await ensure_user_and_org(
+        db, _token(user_id="019f69a1-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    )
+    user_b = await ensure_user_and_org(
+        db, _token(user_id="019f69a1-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+    )
+
+    assert user_a.organization_id is not None
+    assert user_a.organization_id != user_b.organization_id
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_org_less_user_provisioned_twice_resolves_same_org():
     """Idempotency: re-provisioning (or a concurrent duplicate request for)
     the SAME org-less user_id must resolve back to the same organization,
