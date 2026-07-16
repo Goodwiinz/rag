@@ -11,6 +11,7 @@ import {
 import { workspaceService } from '@/services/workspaceService';
 import type { ChatSliceCreator } from '../types';
 import { removeItemFromRecord } from '../recordIndex';
+import { abortNewestPageRequest } from '../requestCoordinator';
 import { handleStaleDataRecovery } from './workspaceSlice';
 
 export interface ConversationSlice {
@@ -39,7 +40,17 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
       const response = await workspaceService.listConversations(workspaceId);
       set((state) => {
         state.conversations[workspaceId] = response.conversations;
-        // Populate reverse index for O(1) lookup (GOO-86)
+        // Rebuild (not just append to) the reverse index for this workspace:
+        // conversations deleted on the server would otherwise leave stale
+        // entries pointing at a list they're no longer in.
+        const returnedIds = new Set(response.conversations.map((c) => c.id));
+        for (const [convId, wsId] of Object.entries(
+          state.conversationToWorkspace
+        )) {
+          if (wsId === workspaceId && !returnedIds.has(convId)) {
+            delete state.conversationToWorkspace[convId];
+          }
+        }
         for (const conv of response.conversations) {
           state.conversationToWorkspace[conv.id] = workspaceId;
         }
@@ -136,6 +147,18 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
   deleteConversation: async (id) => {
     try {
       await workspaceService.deleteConversation(id);
+      // Cascade: the conversation's threads (and their message caches) are
+      // unreachable once it's gone — deleting only the conversation row used
+      // to orphan cached threads/messages/pagination/freshness and their
+      // reverse-index entries, and left descendant requests in flight.
+      const snapshot = get();
+      const threadIds = new Set([
+        ...(snapshot.threads[id] || []).map((t) => t.id),
+        ...Object.keys(snapshot.threadToConversation).filter(
+          (threadId) => snapshot.threadToConversation[threadId] === id
+        ),
+      ]);
+      threadIds.forEach(abortNewestPageRequest);
       set((state) => {
         // Use O(1) reverse index lookup (GOO-86)
         removeItemFromRecord(
@@ -143,6 +166,19 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
           id,
           state.conversationToWorkspace
         );
+        for (const threadId of threadIds) {
+          for (const message of state.messages[threadId] || []) {
+            delete state.messageToThread[message.id];
+          }
+          delete state.messages[threadId];
+          delete state.messagePagination[threadId];
+          delete state.messageFreshness[threadId];
+          delete state.threadToConversation[threadId];
+          if (state.currentThreadId === threadId) {
+            state.currentThreadId = null;
+          }
+        }
+        delete state.threads[id];
         if (state.currentConversationId === id) {
           state.currentConversationId = null;
           state.currentThreadId = null;

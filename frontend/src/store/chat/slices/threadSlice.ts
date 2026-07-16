@@ -33,11 +33,22 @@ export interface ThreadSlice {
   bulkDeleteThreads: () => Promise<BulkThreadResponse | null>;
 }
 
+// Identity for in-flight loadThreads calls, keyed by conversation. Module
+// scope (outside Immer) like requestCoordinator. A superseded request —
+// same conversation re-loaded (A → B → A) — must not commit a stale thread
+// list, set a stale error, or fire stale-data recovery over the newer load's
+// state. Unique token objects (not counters): the latest request deletes its
+// entry on settle, and object identity can't be recycled the way a reset
+// counter can, so a slow request from an earlier cycle can never match.
+const loadThreadsRequestTokens = new Map<string, object>();
+
 export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
   set,
   get
 ) => ({
   loadThreads: async (conversationId) => {
+    const requestToken = {};
+    loadThreadsRequestTokens.set(conversationId, requestToken);
     set((state) => {
       state.isLoadingThreads = true;
       state.error = null;
@@ -49,6 +60,9 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
         conversationId
       );
       const response = await workspaceService.listThreads(conversationId);
+      if (loadThreadsRequestTokens.get(conversationId) !== requestToken) {
+        return; // superseded by a newer load — the newer request owns state
+      }
       console.log(
         '[ChatStore] Loaded threads:',
         response.threads.length,
@@ -63,11 +77,27 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
         state.isLoadingThreads = false;
       });
     } catch (error) {
+      if (loadThreadsRequestTokens.get(conversationId) !== requestToken) {
+        return; // superseded — no stale error, no stale-data recovery
+      }
       console.error('[ChatStore] Error loading threads:', error);
 
       // Handle 404 - conversation not found (stale data)
       const err = error as { response?: { status?: number } };
       if (err?.response?.status === 404) {
+        // A late 404 for a conversation the user has already navigated away
+        // from must not nuke the (valid) current selection — only recover
+        // when the failed load still targets the current conversation.
+        if (get().currentConversationId !== conversationId) {
+          console.warn(
+            '[ChatStore] Ignoring stale 404 for superseded conversation:',
+            conversationId
+          );
+          set((state) => {
+            state.isLoadingThreads = false;
+          });
+          return;
+        }
         console.warn(
           '[ChatStore] Conversation not found (404) - clearing stale data'
         );
@@ -86,6 +116,12 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
         state.error = 'Failed to load threads';
         state.isLoadingThreads = false;
       });
+    } finally {
+      // Bound the map: the latest request removes its entry on settle. Any
+      // still-in-flight older request already fails the token check.
+      if (loadThreadsRequestTokens.get(conversationId) === requestToken) {
+        loadThreadsRequestTokens.delete(conversationId);
+      }
     }
   },
 
@@ -332,11 +368,15 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
           }
         }
 
-        // Clear current thread if it was deleted
-        if (
-          state.currentThreadId &&
-          threadIds.includes(state.currentThreadId)
-        ) {
+        // Clear current thread only if its delete actually SUCCEEDED — a
+        // failed delete leaves the thread alive server-side and still
+        // validly selected (clearing on requested ids deselected it anyway).
+        const deletedIds = new Set(
+          response.results
+            .filter((result) => result.success)
+            .map((result) => result.thread_id)
+        );
+        if (state.currentThreadId && deletedIds.has(state.currentThreadId)) {
           state.currentThreadId = null;
         }
 

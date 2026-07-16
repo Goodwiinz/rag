@@ -43,6 +43,10 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
       return;
     }
 
+    // Single-ownership: starting a new stream supersedes — and must abort —
+    // any previous one. Overwriting the controller without aborting left the
+    // old stream running detached, racing this stream's state writes.
+    activeAbortController?.abort();
     const controller = new AbortController();
     setActiveAbortController(controller);
 
@@ -66,6 +70,11 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
         { useRag },
         controller.signal
       )) {
+        // A buffered event can arrive after a newer stream took ownership —
+        // drop it rather than writing into the new stream's state.
+        if (activeAbortController !== controller) {
+          break;
+        }
         switch (event.type) {
           case 'message_start':
             set((state) => {
@@ -104,6 +113,12 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
         }
       }
     } catch (err) {
+      // A superseded stream (a newer streamMessage took ownership, or
+      // stopStreaming already cleaned up) must not touch state that now
+      // belongs to the newer stream.
+      if (activeAbortController !== controller) {
+        return;
+      }
       // Silently catch AbortError (user clicked stop)
       const isAbort = err instanceof Error && err.name === 'AbortError';
       if (!isAbort) {
@@ -126,7 +141,11 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
       });
       setActiveAbortController(null);
     } finally {
-      setActiveAbortController(null);
+      // Only release the controller we still own — unconditionally nulling
+      // here used to clear a newer stream's controller.
+      if (activeAbortController === controller) {
+        setActiveAbortController(null);
+      }
     }
   },
 

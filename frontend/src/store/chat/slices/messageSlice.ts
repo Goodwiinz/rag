@@ -43,6 +43,16 @@ export interface MessageSlice {
   clearThread: (threadId: string) => void;
 }
 
+// Identity for in-flight older-page loads. Module-scope (outside Immer) for
+// the same reason as requestCoordinator's newestPageRequests. A commit may
+// only apply if the thread's cache survived (pagination still present), this
+// request is still the acknowledged one (loadingOlder still true — a cache
+// rebuilt by refreshMessages starts back at false), and no newer
+// loadOlderMessages superseded it (token identity). Unique token objects
+// (not counters): the latest request deletes its entry on settle, and object
+// identity can't be recycled the way a reset counter can.
+const olderPageRequestTokens = new Map<string, object>();
+
 function compareMessageOrder(left: ChatMessage, right: ChatMessage): number {
   const timestampOrder = left.created_at.localeCompare(right.created_at);
   return timestampOrder !== 0
@@ -268,6 +278,8 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       if (!state.messagePagination[threadId]) return;
       state.messagePagination[threadId].loadingOlder = true;
     });
+    const requestToken = {};
+    olderPageRequestTokens.set(threadId, requestToken);
 
     try {
       // Cursor pagination: ask for messages strictly OLDER than the oldest
@@ -298,6 +310,18 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       const olderAscending = [...response.messages].reverse();
 
       set((state) => {
+        // Commit-phase guard: the thread cache may have been invalidated
+        // (clearThread/deleteThread/eviction) or rebuilt while this request
+        // was in flight — committing then would resurrect a deleted cache or
+        // splice a stale page into a fresh one.
+        const currentPagination = state.messagePagination[threadId];
+        if (
+          !currentPagination ||
+          !currentPagination.loadingOlder ||
+          olderPageRequestTokens.get(threadId) !== requestToken
+        ) {
+          return;
+        }
         const existing = state.messages[threadId] || [];
         // De-dup against already-loaded messages: overlapping pages (e.g.
         // a message inserted between fetches) must not produce duplicates.
@@ -326,14 +350,34 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
     } catch (error) {
       console.error('[ChatStore] Error loading older messages:', error);
       set((state) => {
+        // Same guard as the commit: a superseded request failing against an
+        // invalidated/rebuilt cache must not surface a global error for a
+        // view that no longer owns it.
+        const currentPagination = state.messagePagination[threadId];
+        if (
+          !currentPagination ||
+          !currentPagination.loadingOlder ||
+          olderPageRequestTokens.get(threadId) !== requestToken
+        ) {
+          return;
+        }
         state.error = 'Failed to load older messages';
       });
     } finally {
       set((state) => {
-        if (state.messagePagination[threadId]) {
+        // Same guard as the commit: don't clear a flag that now belongs to a
+        // newer request against a rebuilt cache.
+        if (
+          state.messagePagination[threadId] &&
+          olderPageRequestTokens.get(threadId) === requestToken
+        ) {
           state.messagePagination[threadId].loadingOlder = false;
         }
       });
+      // Bound the map: the latest request removes its entry on settle.
+      if (olderPageRequestTokens.get(threadId) === requestToken) {
+        olderPageRequestTokens.delete(threadId);
+      }
     }
   },
 

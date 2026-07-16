@@ -154,6 +154,14 @@ export function ChatSurface({
 
   const isBusy = isLoading || storeIsStreaming || !!activeConfirmation;
 
+  // While the session can't accept a turn (unauthenticated, still
+  // initializing, or failed to initialize) every submission path must be
+  // inert — the transcript already renders the matching state, but the
+  // composer callbacks used to fire anyway and start work against a session
+  // that can't own it.
+  const isSessionInteractive =
+    isAuthenticated && !isInitializing && !initError;
+
   const runtimeHydrationPhase =
     displayedMessages.length > 0 ? 'hydrated' : 'empty';
 
@@ -260,8 +268,10 @@ export function ChatSurface({
           key={`${activeThreadId ?? 'new'}:${runtimeHydrationPhase}`}
           messages={displayedMessages}
           isRunning={isBusy}
-          isSendDisabled={!!activeConfirmation}
-          onSend={handleSubmit}
+          isSendDisabled={!!activeConfirmation || !isSessionInteractive}
+          onSend={(text) => {
+            if (isSessionInteractive) void handleSubmit(text);
+          }}
           onCancel={handleStop}
           onApproval={handleConfirmation}
         >
@@ -293,7 +303,9 @@ export function ChatSurface({
             storeStreamingContent={storeStreamingContent}
             storeIsRetrievingRag={storeIsRetrievingRag}
             onPromptSelect={setInput}
-            onRegenerate={handleRegenerate}
+            onRegenerate={(index) => {
+              if (isSessionInteractive) handleRegenerate(index);
+            }}
             onCitationClick={handleCitationClick}
             onCommandItemAction={handleCommandItemAction}
             onLoadOlder={loadOlderMessages}
@@ -303,14 +315,18 @@ export function ChatSurface({
           <ChatInput
             value={input}
             onChange={setInput}
-            onSubmit={submitMessage}
+            onSubmit={() => {
+              if (isSessionInteractive) submitMessage();
+            }}
             onStop={handleStop}
             isLoading={isBusy}
             enableRAG={enableRAG}
             onRAGToggle={setEnableRAG}
             inputRef={chatInputRef}
             onAttach={handleAttach}
-            onCommand={handleSlashCommand}
+            onCommand={(id) => {
+              if (isSessionInteractive) handleSlashCommand(id);
+            }}
           />
         </ChatRuntimeProvider>
 
