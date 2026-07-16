@@ -432,7 +432,11 @@ class ArXivChangeTracker:
         """Tenant-scoped lookup by the arxiv_id stored in document_metadata."""
         return select(Document).where(
             Document.organization_id == organization_id,
-            Document.document_metadata["arxiv_id"].astext == paper_id,
+            # .as_string(), NOT .astext — document_metadata is the generic
+            # sqlalchemy.JSON type, whose comparator has no astext (that's the
+            # postgres-dialect JSONB type). astext raises AttributeError at
+            # statement-build time.
+            Document.document_metadata["arxiv_id"].as_string() == paper_id,
         )
 
     async def _ingest_new_paper(
