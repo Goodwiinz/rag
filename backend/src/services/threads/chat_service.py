@@ -90,13 +90,22 @@ class ChatService:
         """Create a new workspace.
 
         Delegates to ``workspace_service.create_workspace`` with
-        ``enforce_org_match=False`` — this class's pre-4.3 behavior trusted
-        ``data.organization_id`` verbatim with no cross-org guard (the
-        router-inline create endpoint has always enforced the guard; see
-        ``workspace_service.create_workspace``'s docstring).
+        ``enforce_org_match=True``. Pre-4.3, this class trusted
+        ``data.organization_id`` verbatim with no cross-org guard even though
+        the router-inline create endpoint has always enforced it — a
+        pre-existing tenant gap on the ``conversations.py`` create endpoint
+        this class backs, closed here rather than preserved via a flag (see
+        ``workspace_service.create_workspace``'s docstring). Raises
+        ``PermissionError`` on a cross-org request, same as the router-inline
+        endpoint; the caller maps that to a 403.
         """
+        org_result = await self.db.execute(
+            select(User.organization_id).where(User.id == owner_id)
+        )
+        user_organization_id = org_result.scalar_one_or_none()
+
         workspace = await workspace_service.create_workspace(
-            self.db, data, owner_id, None, enforce_org_match=False
+            self.db, data, owner_id, user_organization_id, enforce_org_match=True
         )
         logger.info(f"Created workspace: {workspace.id} - {workspace.name}")
         return workspace
@@ -130,10 +139,12 @@ class ChatService:
     ) -> Tuple[List[Workspace], int]:
         """List workspaces accessible to user.
 
-        Delegates with ``filter_deleted_memberships=False`` — this class's
-        pre-4.3 behavior did not exclude a soft-deleted ``WorkspaceMember``
-        row, so a removed member still saw the workspace listed (the
-        router-inline endpoint has always filtered it out).
+        Delegates with ``filter_deleted_memberships=True``. Pre-4.3, this
+        class did not exclude a soft-deleted ``WorkspaceMember`` row, so a
+        removed member still saw the workspace listed on the
+        ``conversations.py`` list endpoint this class backs, even though the
+        router-inline endpoint has always filtered it out — a pre-existing
+        tenant gap closed here rather than preserved via a flag.
         """
         workspaces, total = await workspace_service.list_workspaces(
             self.db,
@@ -141,7 +152,7 @@ class ChatService:
             include_archived=include_archived,
             limit=limit,
             offset=offset,
-            filter_deleted_memberships=False,
+            filter_deleted_memberships=True,
         )
         return workspaces, total
 

@@ -7,18 +7,25 @@ and ``ChatService``'s workspace methods both called into this module's
 predecessor logic independently; this is now the one implementation.
 
 Divergence flags (see docs/plans/2026-07-15-maintainability-foundation.md
-Task 4.3 + its 2026-07-16 amendment A2): the router and ``ChatService`` diverged
-on two workspace concerns. Router semantics are canonical for the endpoints the
-router serves; ``ChatService``'s own (pre-4.3) callers keep their observed
-behavior via an explicit flag defaulting to the old value:
+Task 4.3 + its 2026-07-16 amendment A2): the router and ``ChatService``
+diverged on two workspace concerns pre-4.3. Router semantics were always
+canonical for the endpoints the router serves; ``ChatService``'s own callers
+initially kept the old (unsafe) observed behavior via an explicit flag
+defaulting to that old value. A follow-up tenant-gap fix (see
+``chat_service.py``'s ``create_workspace``/``list_workspaces``) switched
+``ChatService`` onto the router-safe value for both — no in-repo caller
+passes the old default anymore; it remains only for API compatibility:
 
 - ``enforce_org_match`` (create): router raises on a cross-org create
-  request; old ``ChatService.create_workspace`` trusted the caller's
-  ``organization_id`` verbatim. Default ``False`` (old).
+  request; ``ChatService.create_workspace`` used to trust the caller's
+  ``organization_id`` verbatim (this was a pre-existing tenant gap on the
+  ``conversations.py`` endpoint it backs) and now enforces the same guard.
+  Default stays ``False`` for API compatibility only.
 - ``filter_deleted_memberships`` (list): router excludes a workspace the
-  caller was removed from (soft-deleted ``WorkspaceMember`` row); old
-  ``ChatService.list_workspaces`` did not filter it, so a removed member
-  still saw the workspace. Default ``False`` (old).
+  caller was removed from (soft-deleted ``WorkspaceMember`` row);
+  ``ChatService.list_workspaces`` used to not filter it, so a removed member
+  still saw the workspace (another pre-existing tenant gap), and now filters
+  it too. Default stays ``False`` for API compatibility only.
 
 Workspace member management (add/update/remove) has no ``ChatService``
 duplicate to reconcile — it was router-only before this split — so those
@@ -59,8 +66,10 @@ async def create_workspace(
 
     Raises ``PermissionError`` when ``enforce_org_match=True`` and the
     request's ``organization_id`` doesn't match the caller's own org (the
-    router turns this into a 403). With ``enforce_org_match=False`` (the old
-    ``ChatService`` default), ``data.organization_id`` is trusted verbatim.
+    router turns this into a 403). Every current caller — the router-inline
+    endpoint and, since the tenant-gap fix, ``ChatService`` — passes ``True``;
+    ``enforce_org_match=False`` (trusting ``data.organization_id`` verbatim)
+    has no remaining in-repo caller and is kept only for API compatibility.
     """
     if enforce_org_match:
         if data.organization_id is not None and str(data.organization_id) != str(
@@ -109,6 +118,12 @@ async def list_workspaces(
 
     Always eager-loads members/conversations/collections — the count fields
     every ``WorkspaceResponse`` renders.
+
+    Every current caller — the router-inline endpoint and, since the
+    tenant-gap fix, ``ChatService`` — passes ``filter_deleted_memberships=
+    True``; the ``False`` default (a removed member still sees the
+    workspace) has no remaining in-repo caller and is kept only for API
+    compatibility.
     """
     base_conditions = [
         WorkspaceMember.user_id == user_id,
