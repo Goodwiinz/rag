@@ -107,7 +107,11 @@ const makeMessage = (id: string, threadId: string): ChatMessage => ({
   updated_at: iso,
 });
 
-const pagination = () => ({
+const pagination = (): {
+  hasMore: boolean;
+  loadingOlder: boolean;
+  loadedCount: number;
+} => ({
   hasMore: false,
   loadingOlder: false,
   loadedCount: 1,
@@ -231,7 +235,7 @@ describe('bulkDeleteThreads success-based currentThreadId clearing', () => {
     vi.clearAllMocks();
   });
 
-  const seed = () => {
+  const seed = (): void => {
     useChatStore.setState({
       currentConversationId: 'conv-a',
       currentThreadId: 't1',
@@ -298,7 +302,7 @@ describe('loadThreads stale-404 recovery guard', () => {
     vi.clearAllMocks();
   });
 
-  const notFound = () =>
+  const notFound = (): Error =>
     Object.assign(new Error('Not Found'), { response: { status: 404 } });
 
   it('ignores a late 404 for a conversation the user has already navigated away from', async () => {

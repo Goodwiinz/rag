@@ -9,7 +9,7 @@
  */
 
 import { render } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatSurface } from '@/components/chat/ChatSurface';
@@ -95,7 +95,17 @@ const makeSession = (
     ...overrides,
   }) as unknown as UseChatSessionReturn;
 
-const makeProps = (session: UseChatSessionReturn) => {
+type MockFn = ReturnType<typeof vi.fn>;
+
+const makeProps = (
+  session: UseChatSessionReturn
+): {
+  handleSubmit: MockFn;
+  submitMessage: MockFn;
+  handleSlashCommand: MockFn;
+  handleRegenerate: MockFn;
+  props: ComponentProps<typeof ChatSurface>;
+} => {
   const handleSubmit = vi.fn();
   const submitMessage = vi.fn();
   const handleSlashCommand = vi.fn();
@@ -170,7 +180,7 @@ const makeProps = (session: UseChatSessionReturn) => {
   };
 };
 
-const fireAllSubmissionPaths = () => {
+const fireAllSubmissionPaths = (): void => {
   runtimeProps.onSend('hello');
   inputProps.onSubmit();
   inputProps.onCommand?.('new');
