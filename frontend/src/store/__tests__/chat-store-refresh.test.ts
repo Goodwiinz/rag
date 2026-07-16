@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { enableMapSet } from 'immer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -393,6 +393,68 @@ describe('per-thread newest-page coordinator', () => {
     ).toBeUndefined();
     pending.resolve(response([]));
     await evictedRefresh;
+  });
+
+  it('rejects a stale response after rapidly switching through three threads before any of them settle', async () => {
+    // setCurrentThread on three different (uncached) threads in quick
+    // succession, each kicking off its own per-thread newest-page request,
+    // none of which has resolved yet. Only the last-selected thread should
+    // end up owning isLoadingMessages/loadingThreadId once things settle —
+    // an earlier thread's resolution must not strand or resurrect them.
+    const pending = new Map<
+      string,
+      ReturnType<typeof deferred<ChatMessageListResponse>>
+    >();
+    listMessagesMock.mockImplementation((threadId: string) => {
+      const request = deferred<ChatMessageListResponse>();
+      pending.set(threadId, request);
+      return request.promise;
+    });
+
+    act(() => {
+      useChatStore.getState().setCurrentThread('thread-a');
+      useChatStore.getState().setCurrentThread('thread-b');
+      useChatStore.getState().setCurrentThread('thread-c');
+    });
+
+    expect(useChatStore.getState().currentThreadId).toBe('thread-c');
+    expect(useChatStore.getState().loadingThreadId).toBe('thread-c');
+    expect(useChatStore.getState().isLoadingMessages).toBe(true);
+
+    // The abandoned thread-a request resolves late — it must populate its
+    // own thread's cache but never touch the now-current thread-c's loading
+    // flags or messages.
+    pending.get('thread-a')!.resolve(response([makeMessage('a1', 'thread-a')]));
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages['thread-a']?.map((m) => m.id)
+      ).toEqual(['a1'])
+    );
+
+    expect(useChatStore.getState().currentThreadId).toBe('thread-c');
+    expect(useChatStore.getState().loadingThreadId).toBe('thread-c');
+    expect(useChatStore.getState().isLoadingMessages).toBe(true);
+    expect(
+      useChatStore.getState().messages['thread-a']?.map((m) => m.id)
+    ).toEqual(['a1']);
+    expect(useChatStore.getState().messages['thread-c']).toBeUndefined();
+
+    // thread-c finally resolves — it, and only it, clears the loading flags.
+    pending.get('thread-c')!.resolve(response([makeMessage('c1', 'thread-c')]));
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages['thread-c']?.map((m) => m.id)
+      ).toEqual(['c1'])
+    );
+    expect(useChatStore.getState().isLoadingMessages).toBe(false);
+    expect(useChatStore.getState().loadingThreadId).toBeNull();
+
+    pending.get('thread-b')!.resolve(response([makeMessage('b1', 'thread-b')]));
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages['thread-b']?.map((m) => m.id)
+      ).toEqual(['b1'])
+    );
   });
 
   it('never evicts the currently displayed transcript when the cache exceeds its cap', async () => {
