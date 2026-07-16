@@ -27,7 +27,10 @@ interface PipelineStore {
 
 // Identity for the in-flight pipeline fetch. Module scope (outside the store)
 // — unique token objects, not counters; see chat/slices/threadSlice.ts for
-// the full rationale.
+// the full rationale. Boundary: this guards CROSS-slot supersession (a fetch/
+// reset for another project invalidates in-flight work). Two overlapping
+// mutations for the SAME project both pass — last response wins; no
+// per-mutation ordering (ledger RS-B2, accepted).
 let pipelineRequestToken: object | null = null;
 
 export const usePipelineStore = create<PipelineStore>((set, get) => ({
