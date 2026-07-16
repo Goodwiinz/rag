@@ -1019,6 +1019,11 @@ def kg_merge_entities_job(self, job_id: str):
         if not groups:
             raise ValueError("No groups provided for merge job")
 
+        # Tenant scope for every KG read/write below. Entity ids are org-validated
+        # at enqueue, but the KG service itself is only tenant-safe when the org
+        # is passed through.
+        job_org_id = str(job.organization_id) if job.organization_id else None
+
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
 
@@ -1046,8 +1051,13 @@ def kg_merge_entities_job(self, job_id: str):
 
             try:
                 for duplicate_id in duplicate_ids:
+                    # Scope every KG read/write to the job's org: get_relationships
+                    # and delete_entity are otherwise unscoped and would
+                    # read/DETACH DELETE any entity by id across tenants, and a
+                    # re-pointed edge created without organization_id lands
+                    # org-less, regressing edge-level tenancy.
                     relationships = knowledge_graph_service.get_relationships(
-                        duplicate_id
+                        duplicate_id, organization_id=job_org_id
                     )
                     for rel in relationships:
                         create_request = CreateRelationshipRequest(
@@ -1074,6 +1084,7 @@ def kg_merge_entities_job(self, job_id: str):
                             evidence=rel.evidence or [],
                             metadata=rel.metadata or {},
                             source_document_id=rel.source_document_id,
+                            organization_id=job_org_id,
                         )
                         try:
                             knowledge_graph_service.create_relationship(create_request)
@@ -1087,7 +1098,9 @@ def kg_merge_entities_job(self, job_id: str):
                                 exc_info=True,
                             )
 
-                    knowledge_graph_service.delete_entity(duplicate_id)
+                    knowledge_graph_service.delete_entity(
+                        duplicate_id, organization_id=job_org_id
+                    )
 
                 success_count += 1
             except Exception as merge_error:

@@ -2538,12 +2538,10 @@ class KnowledgeGraphService:
         Returns a SearchResponse-compatible object so the search API can treat
         knowledge-graph search identically to fulltext/vector search.
         """
-        from src.models.search_schemas import (
-            SearchResponse,
-            SearchResult as SearchResultModel,
-            SearchType as SearchTypeEnum,
-        )
         from src.models.document import DocumentType
+        from src.models.search_schemas import SearchResponse
+        from src.models.search_schemas import SearchResult as SearchResultModel
+        from src.models.search_schemas import SearchType as SearchTypeEnum
 
         start_time = time.time()
 
@@ -2565,8 +2563,15 @@ class KnowledgeGraphService:
         query_text = search_request.query if search_request else ""
         limit = getattr(search_request, "limit", 20)
 
+        # Pass organization_id directly, not only the derived doc-id list: if the
+        # doc-id lookup above threw, source_document_ids is None and passing only
+        # that would run unscoped across all tenants. The indexed organization_id
+        # equality is the primary scope.
         entities = self.search_entities(
-            query_text, limit=limit, source_document_ids=source_document_ids
+            query_text,
+            limit=limit,
+            source_document_ids=source_document_ids,
+            organization_id=organization_id,
         )
 
         results = []

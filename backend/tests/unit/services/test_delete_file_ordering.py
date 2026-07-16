@@ -42,6 +42,9 @@ def _owner():
 @pytest.mark.asyncio
 async def test_commits_before_physical_delete():
     svc = _svc()
+    # Satellite (DO KB / Neo4j) cleanup is exercised in its own test — stub it
+    # here so these ordering tests stay focused on the DB→object sequence.
+    svc._cleanup_satellites_on_delete = AsyncMock()
     order = []
     svc.db.commit = AsyncMock(side_effect=lambda: order.append("commit"))
     svc.delete_physical_file = MagicMock(side_effect=lambda d: order.append("physical"))
@@ -56,6 +59,7 @@ async def test_commits_before_physical_delete():
 @pytest.mark.asyncio
 async def test_physical_delete_failure_does_not_rollback():
     svc = _svc()
+    svc._cleanup_satellites_on_delete = AsyncMock()
     svc.db.commit = AsyncMock()
     svc.db.rollback = AsyncMock()
     svc.delete_physical_file = MagicMock(side_effect=RuntimeError("s3 down"))
@@ -66,6 +70,27 @@ async def test_physical_delete_failure_does_not_rollback():
     assert await svc.delete_file(doc, user) is True
     svc.db.commit.assert_awaited_once()
     svc.db.rollback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cascades_entity_and_satellite_cleanup():
+    """delete_file must reap the document's Entity/ProcessingJob rows (in-txn,
+    before commit) and its DO KB + Neo4j satellites (post-commit) — otherwise
+    this second delete surface orphans them (unlike documents.delete_document)."""
+    svc = _svc()
+    svc.db.commit = AsyncMock()
+    svc.delete_physical_file = MagicMock()
+    svc._cleanup_satellites_on_delete = AsyncMock()
+
+    doc, user = _doc(), _owner()
+    assert await svc.delete_file(doc, user) is True
+
+    # Two soft-delete UPDATEs (Entity + ProcessingJob) + the quota revert ran
+    # against the session before the single commit.
+    assert svc.db.execute.await_count >= 3
+    svc.db.commit.assert_awaited_once()
+    # Satellite cleanup fired after the commit, exactly once.
+    svc._cleanup_satellites_on_delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
