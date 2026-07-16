@@ -3372,10 +3372,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Evaluation Report
+         * Trigger Evaluation Report
          * @description Generate a report for an evaluation job
          */
-        post: operations["generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post"];
+        post: operations["trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -20309,7 +20309,7 @@ export interface operations {
             };
         };
     };
-    generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post: {
+    trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post: {
         parameters: {
             query?: never;
             header?: never;

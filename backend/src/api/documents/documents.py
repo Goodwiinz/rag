@@ -40,7 +40,7 @@ def validate_uuid(value: str, field_name: str = "id") -> str:
 
 from src.core.dependencies import get_current_organization, get_current_user
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.entity import Entity
+from src.models.entity import Entity, EntityType
 from src.models.organization import Organization
 from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
@@ -736,10 +736,21 @@ async def get_document_entities(
         conditions = [Entity.document_id == document_id, Entity.is_deleted == False]
 
         if entity_type:
-            conditions.append(Entity.entity_type == entity_type)
+            # Coerce to the EntityType enum — comparing the Enum column to a
+            # raw string raises LookupError at execute for unknown values.
+            try:
+                entity_type_member = EntityType(entity_type.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Unknown entity_type '{entity_type}'",
+                )
+            conditions.append(Entity.entity_type == entity_type_member)
 
         if min_confidence > 0:
-            conditions.append(Entity.confidence_score >= min_confidence)
+            # Column is Entity.confidence — Entity.confidence_score does not
+            # exist and raised AttributeError at statement-build time.
+            conditions.append(Entity.confidence >= min_confidence)
 
         # Count total entities
         count_stmt = select(func.count(Entity.id)).where(*conditions)
@@ -760,9 +771,13 @@ async def get_document_entities(
                     id=str(entity.id),
                     name=entity.name,
                     entity_type=entity.entity_type.value,
-                    confidence_score=entity.confidence_score,
+                    # ORM attrs are `confidence` and `properties` —
+                    # `entity.confidence_score` raised AttributeError, and
+                    # `entity.metadata` resolves to SQLAlchemy's declarative
+                    # MetaData registry, not row data.
+                    confidence_score=entity.confidence,
                     extraction_method=entity.extraction_method.value,
-                    metadata=entity.metadata,
+                    metadata=entity.properties,
                 )
             )
 
@@ -770,6 +785,9 @@ async def get_document_entities(
             document_id=document_id, entities=entity_responses, total_entities=total
         )
 
+    except HTTPException:
+        # Deliberate 4xx (e.g. unknown entity_type) — don't rewrap as a 500.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
