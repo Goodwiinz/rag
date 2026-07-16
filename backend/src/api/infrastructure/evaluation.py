@@ -556,8 +556,13 @@ async def list_evaluation_comparisons(
 
 
 # Report endpoints
+# NOTE: the endpoint must NOT be named `generate_evaluation_report` — that
+# rebinds the module global imported from evaluation_tasks, so the
+# `generate_evaluation_report.delay(...)` call below would resolve to this
+# endpoint function (no .delay → AttributeError inside BackgroundTasks,
+# swallowed post-response) and reports would never be generated.
 @router.post("/jobs/{job_id}/reports/{report_type}", response_model=Dict[str, Any])
-async def generate_evaluation_report(
+async def trigger_evaluation_report(
     job_id: str,
     report_type: str,
     background_tasks: BackgroundTasks,
