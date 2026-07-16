@@ -62,6 +62,13 @@ const deferred = <T>() => {
   return { promise, resolve, reject };
 };
 
+// Task 5.5 mutation-verified two guards this suite covers: the stale-response
+// rejection (REQUEST-IDENTITY, `aborts and supersedes an older newest-page
+// request for the same thread` below) and the terminal-reconciliation
+// expectation check (`leaves freshness stale when the expected persisted or
+// runtime row is missing` below). See docs/testing/chat-mutation-checks.md
+// items 1 and 2 for the exact guard lines, disable/restore commands, and the
+// assertion each mutation breaks.
 describe('per-thread newest-page coordinator', () => {
   beforeEach(() => {
     act(() => useChatStore.getState().reset());

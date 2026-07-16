@@ -120,6 +120,12 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     expect(getThreadMock).not.toHaveBeenCalled();
   });
 
+  // Task 5.5 mutation-verified: the `isLoadingMessages` value this test reads
+  // gates on `isThreadSwitchPending` (`src/components/chat/shared/
+  // cloudMessageView.ts`) — true only while the active thread's initial page
+  // is loading and nothing is renderable yet. Forcing that guard to `false`
+  // fails this test's `expect(result.current.isLoadingMessages).toBe(true)`
+  // assertion (see docs/testing/chat-mutation-checks.md item 6).
   it('clears thread A and waits for the single paginated store load on a cache miss', async () => {
     getThreadMock.mockImplementation(() => new Promise(() => {}));
 
