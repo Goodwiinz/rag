@@ -16,6 +16,7 @@ it serializes writers, so the unique-violation window never opens.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -112,20 +113,139 @@ async def test_happy_path_creates_org_and_user_with_org_id():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_happy_path_creates_default_org_without_org_id():
+async def test_happy_path_creates_per_user_org_without_org_id():
     db = _session(
-        execute_results=[None, None],  # user missing, default org missing
+        execute_results=[None, None],  # user missing, per-user org missing
         flush_side_effects=[None, None],
     )
 
-    user = await ensure_user_and_org(db, _token(organization_id=None))
+    user = await ensure_user_and_org(db, _token(user_id="user-1", organization_id=None))
 
     assert isinstance(user, User)
-    # First added object is the default Organization.
+    # First added object is the per-user fallback Organization, not a
+    # shared "Default Organization".
     added_org = db.add.call_args_list[0].args[0]
     assert isinstance(added_org, Organization)
-    assert added_org.name == "Default Organization"
+    assert added_org.name == "user-user-1 Organization"
     db.rollback.assert_not_called()
+
+
+def _fake_db_with_org_table():
+    """A stateful fake ``AsyncSession`` backed by a real in-memory dict of
+    Organizations keyed by name, so two *sequential* ``ensure_user_and_org``
+    calls see each other's already-flushed rows — the way two sequential
+    real requests against the same DB would.
+
+    ``_session``'s canned-list ``execute_results`` can't model this: it
+    returns whatever's next in its list regardless of what was actually
+    queried, so it can't distinguish "second org-less user's lookup hits
+    the same shared name" from "hits a different per-user name" — which is
+    exactly the distinction AU1 hinges on. This fake introspects the
+    ``select()`` statement (entity + the literal being compared) instead of
+    replaying a fixed sequence.
+    """
+    orgs_by_name: dict[str, Organization] = {}
+    added: list = []
+
+    db = AsyncMock()
+    db.rollback = AsyncMock()
+    db.add = MagicMock(side_effect=added.append)
+
+    async def _execute(stmt):
+        entity = stmt.column_descriptions[0]["entity"]
+        if entity is User:
+            return _result(None)  # every user in this test is new
+        # Organization lookup — always a single `.name == <literal>` filter
+        # on the org-less path.
+        name = stmt.whereclause.right.value
+        return _result(orgs_by_name.get(name))
+
+    async def _flush():
+        obj = added[-1]
+        if isinstance(obj, Organization) and getattr(obj, "id", None) is None:
+            obj.id = uuid.uuid4()
+            orgs_by_name[obj.name] = obj
+
+    db.execute = AsyncMock(side_effect=_execute)
+    db.flush = AsyncMock(side_effect=_flush)
+    return db
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_org_less_users_never_comingle_in_shared_org():
+    """AU1 regression test: two DIFFERENT org-less users, provisioned
+    sequentially against the SAME org table (as two real requests hitting
+    the same DB would be), must land in DIFFERENT organizations. Pre-fix,
+    both funnel into one shared "Default Organization" row and this fails."""
+    db = _fake_db_with_org_table()
+
+    user_a = await ensure_user_and_org(db, _token(user_id="user-aaaaaaaa"))
+    user_b = await ensure_user_and_org(db, _token(user_id="user-bbbbbbbb"))
+
+    assert isinstance(user_a, User)
+    assert isinstance(user_b, User)
+    assert user_a.organization_id is not None
+    assert user_a.organization_id != user_b.organization_id
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_org_less_users_sharing_id_prefix_get_distinct_orgs():
+    """Lock: the org-less fallback name is the org's IDENTITY (we select on
+    it), so it must use the FULL user_id, not a truncated prefix. Two ids
+    sharing their first 8 chars but otherwise different must NOT co-mingle."""
+    db = _fake_db_with_org_table()
+
+    user_a = await ensure_user_and_org(
+        db, _token(user_id="019f69a1-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    )
+    user_b = await ensure_user_and_org(
+        db, _token(user_id="019f69a1-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+    )
+
+    assert user_a.organization_id is not None
+    assert user_a.organization_id != user_b.organization_id
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_org_less_user_provisioned_twice_resolves_same_org():
+    """Idempotency: re-provisioning (or a concurrent duplicate request for)
+    the SAME org-less user_id must resolve back to the same organization,
+    via the deterministic per-user org name + IntegrityError refetch guard."""
+    existing_org = SimpleNamespace(id="org-existing", name="user-user-1 Organization")
+    db = _session(
+        execute_results=[None, existing_org],  # user missing, org already exists
+        flush_side_effects=[None],  # user flush ok (org was reused, not flushed)
+    )
+
+    user = await ensure_user_and_org(db, _token(user_id="user-1", organization_id=None))
+
+    assert isinstance(user, User)
+    assert user.organization_id == "org-existing"
+    db.add.assert_called_once()  # only the User was added; org was reused
+    db.flush.await_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_app_metadata_organization_id_honored():
+    """A token that DOES carry an org claim (Supabase app_metadata or CLI
+    token) must place the user in THAT org, not a per-user fallback."""
+    existing_org = SimpleNamespace(id="org-claimed")
+    db = _session(
+        execute_results=[None, existing_org],
+        flush_side_effects=[None],  # user flush ok (org was reused, not flushed)
+    )
+
+    user = await ensure_user_and_org(
+        db, _token(user_id="user-1", organization_id="org-claimed")
+    )
+
+    assert isinstance(user, User)
+    assert user.organization_id == "org-claimed"
+    db.add.assert_called_once()  # org already existed, only User added
 
 
 # ---------------------------------------------------------------------------
@@ -155,8 +275,9 @@ async def test_org_race_refetches_concurrently_created_org():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_default_org_race_refetches_by_name():
-    """No org_id: the default-org creation races and is refetched by name."""
+async def test_org_less_fallback_org_race_refetches_by_name():
+    """No org_id: the per-user fallback org creation races and is refetched
+    by its deterministic name, same guard pattern as the org_id branch."""
     concurrent_org = SimpleNamespace(id="org-default")
     db = _session(
         execute_results=[None, None, concurrent_org],

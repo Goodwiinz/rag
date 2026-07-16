@@ -29,13 +29,7 @@ import type {
 // View-model-aware shapes: these narrow/relax the generated contract (JSONB
 // passthrough fields typed concretely, spuriously-required defaulted fields
 // relaxed back to optional) — see the comments in types/workspace.ts.
-// ChatCompletionRequest/ChatCompletionResponse stay handwritten entirely:
-// they belong to the legacy v1 chat/completions route, not the v2 one this
-// service calls (no generated schema exists for the latter) — see the note
-// in types/workspace.ts.
 import type {
-  ChatCompletionRequest,
-  ChatCompletionResponse,
   ChatMessage,
   ChatMessageCreate,
   ChatMessageListResponse,
@@ -347,18 +341,6 @@ export const workspaceService = {
     });
   },
 
-  // ============================================================================
-  // Chat Completion (AI-powered)
-  // ============================================================================
-
-  async sendChatCompletion(
-    data: ChatCompletionRequest
-  ): Promise<ChatCompletionResponse> {
-    return api.post<ChatCompletionResponse>(
-      `${API_PREFIX}/chat/completions`,
-      data
-    );
-  },
 
   // ============================================================================
   // Helper: Get or Create Default Workspace

@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "4bfb0c5"
+    tag: "3de0257"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -441,7 +441,7 @@ keda:
     passwordKey: REDIS_PASSWORD
     enableTLS: "true" # DO Managed Valkey is rediss://
     databaseIndex: "0"
-  # triggers default to celery + document_processing (see values.yaml).
+    # triggers default to celery + document_processing (see values.yaml).
 syntheticTraffic:
   enabled: true
   schedule: "*/20 * * * *"

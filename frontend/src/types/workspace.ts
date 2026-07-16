@@ -249,46 +249,6 @@ export type CollectionDetail = ApiCollectionDetail;
 export type CollectionListResponse = ApiCollectionListResponse;
 
 // ============================================================================
-// Chat Completion Types
-//
-// NOT adopted from the generated contract: `workspaceService.sendChatCompletion`
-// POSTs `/api/v2/chat/completions`, but the OpenAPI schema's `ChatCompletionRequest`/
-// `ChatCompletionResponse` belong to the unrelated legacy `/api/v1/chat/completions`
-// route (`backend/src/api/research/chat.py`, mounted at `/api/v1` in main.py) — a
-// completely different message/field shape. No generated schema exists for the v2
-// route this service actually calls, so these stay handwritten.
-// ============================================================================
-
-export interface ChatCompletionRequest {
-  thread_id: string;
-  message: string;
-  use_rag?: boolean;
-  collection_ids?: string[];
-  search_type?: string;
-  top_k?: number;
-  model?: string;
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-}
-
-export interface ChatCompletionResponse {
-  message: ChatMessage;
-  usage: Record<string, number>;
-  sources_used: number;
-  search_latency_ms?: number;
-  generation_latency_ms?: number;
-}
-
-export interface StreamingChatChunk {
-  chunk_type: 'content' | 'citation' | 'done' | 'error';
-  content?: string;
-  citation?: Citation;
-  message_id?: string;
-  error?: string;
-}
-
-// ============================================================================
 // Search Types
 // ============================================================================
 

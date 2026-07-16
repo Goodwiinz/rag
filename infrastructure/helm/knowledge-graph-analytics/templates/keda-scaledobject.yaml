@@ -60,7 +60,10 @@ spec:
     {{- range .Values.keda.triggers }}
     - type: redis
       metadata:
-        address: {{ $.Values.keda.redis.address | quote }}
+        {{- /* required: an empty address renders a ScaledObject that fails at
+             runtime AFTER the plain worker HPA is suppressed — workers would
+             be left with no autoscaler. Fail at template time instead. */}}
+        address: {{ required "keda.redis.address (host:port) must be set when keda.enabled=true" $.Values.keda.redis.address | quote }}
         {{- if $.Values.keda.redis.username }}
         username: {{ $.Values.keda.redis.username | quote }}
         {{- end }}
