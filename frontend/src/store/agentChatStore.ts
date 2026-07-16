@@ -159,12 +159,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
           try {
             let streamedContent = '';
-            // Ownership check for every terminal/side-effecting callback: a
-            // superseded generation (stopGeneration, or a fresh sendMessage
-            // started after it) must not have its late events mutate state
-            // that a newer generation now owns. onToken already guards via
-            // its own controller's aborted flag; the rest previously had no
-            // guard at all.
+            // Ownership check for EVERY stream callback: a superseded or
+            // already-completed generation (stopGeneration, thread switch,
+            // its own onDone releasing the slot) must not have late events
+            // mutate state a newer generation now owns. Identity subsumes
+            // the old signal.aborted check — a normally-completed stream
+            // never aborts its own signal, so a trailing token frame after
+            // onDone slipped past the abort flag.
             const isCurrentGeneration = (): boolean =>
               (get() as unknown as AgentChatStore)._abortController ===
               abortController;
@@ -172,7 +173,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
               requestPayload,
               {
                 onToken: (content: string) => {
-                  if (abortController.signal.aborted) return;
+                  if (!isCurrentGeneration()) return;
                   streamedContent += content;
                   set((state) => {
                     const idx = state.messages.findIndex(
@@ -766,6 +767,12 @@ export const useAgentChatStore = create<AgentChatStore>()(
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
             if (abortController.signal.aborted) return;
             const run = await agentChatService.getDurableRunStatus(jobId);
+            // Re-check AFTER the network await: selectThread/newThread can
+            // abort + swap the transcript while the poll was in flight, and
+            // the branches below resolve "last assistant message" from
+            // CURRENT state — without this, thread A's result writes into
+            // thread B's message.
+            if (!isCurrentGeneration()) return;
 
             if (run.status === 'COMPLETED' && run.output) {
               const result = run.output as Record<string, unknown>;
@@ -824,6 +831,8 @@ export const useAgentChatStore = create<AgentChatStore>()(
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
             if (abortController.signal.aborted) return;
             const job = await agentChatService.pollJob(jobId);
+            // Same post-await re-check as the durable loop above.
+            if (!isCurrentGeneration()) return;
 
             if (job.status === 'completed' && job.result) {
               set((state) => {

@@ -650,6 +650,103 @@ describe('agentChatStore', () => {
       releaseConfirm?.();
       await confirmPromise;
     });
+
+    it('drops a trailing token frame arriving after onDone', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamMessage).mockImplementationOnce(
+        async (_req, callbacks) => {
+          callbacks.onToken?.('hello');
+          callbacks.onDone?.();
+          // A normally-completed generation never aborts its own signal —
+          // onDone only releases ownership. A trailing token frame must be
+          // dropped by the ownership check, not the (never-set) abort flag.
+          callbacks.onToken?.(' trailing');
+        }
+      );
+
+      useAgentChatStore.setState({ inputValue: 'hi' });
+      await useAgentChatStore.getState().sendMessage();
+
+      const assistant = useAgentChatStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('hello');
+    });
+
+    it('durable poll completion after a thread switch does not write into the new thread', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      vi.mocked(agentChatService.streamConfirm).mockRejectedValueOnce(
+        new Error('sse down')
+      );
+      let resolvePoll!: (value: {
+        status: string;
+        output: Record<string, unknown>;
+      }) => void;
+      vi.mocked(agentChatService.getDurableRunStatus).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvePoll = resolve;
+          }) as never
+      );
+
+      useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
+        messages: [
+          {
+            id: 'a-assistant',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmation: {
+          jobId: 'run-42',
+          waitTokenId: 'wait-7',
+          tools: [{ name: 'ingest_arxiv', args: {} }],
+          message: 'Confirm?',
+        },
+      });
+
+      vi.useFakeTimers();
+      try {
+        const confirmPromise = useAgentChatStore.getState().confirmAction(true);
+        // Past the 3s poll sleep — confirmAction is now suspended inside the
+        // getDurableRunStatus network await.
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(agentChatService.getDurableRunStatus).toHaveBeenCalledWith(
+          'run-42'
+        );
+
+        // Switch threads while that await is in flight.
+        serviceMocks.getThreadMessages.mockResolvedValueOnce({
+          messages: [
+            {
+              id: 'b1',
+              role: 'assistant',
+              content: 'thread B message',
+              created_at: new Date().toISOString(),
+            },
+          ],
+        });
+        useAgentChatStore.getState().selectThread('thread-B');
+        await useAgentChatStore.getState().loadThreadMessages('thread-B');
+
+        const before = useAgentChatStore.getState().messages;
+        expect(before.map((m) => m.content)).toEqual(['thread B message']);
+
+        // Thread A's poll result lands late — it must not touch thread B's
+        // last assistant message.
+        resolvePoll({
+          status: 'COMPLETED',
+          output: { result: { message: 'ingested' } },
+        });
+        await confirmPromise;
+
+        expect(useAgentChatStore.getState().messages).toEqual(before);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('reset', () => {
