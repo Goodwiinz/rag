@@ -109,6 +109,41 @@ async def test_same_org_admin_allowed(monkeypatch):
     assert result.total_searches == 2
 
 
+async def test_same_org_non_admin_peer_forbidden(monkeypatch):
+    # Intra-tenant horizontal authz: a same-org, non-admin caller must NOT read
+    # a *different* user's behavior analytics (top_queries etc). The org check
+    # alone is insufficient — this pins the role/self gate.
+    svc = AsyncMock(return_value=_metrics())
+    monkeypatch.setattr(ub.user_behavior_service, "analyze_user_behavior", svc)
+    caller = SimpleNamespace(id="a", role=UserRole.USER, organization_id="org-A")
+    with pytest.raises(HTTPException) as ei:
+        await ub.get_user_behavior_analytics(
+            user_id="t",  # a different user in the same org
+            days_back=30,
+            current_user=caller,
+            db=_db_returning_target("org-A"),
+        )
+    assert ei.value.status_code == 403
+    svc.assert_not_awaited()
+
+
+async def test_same_org_non_admin_reads_self_allowed(monkeypatch):
+    # A non-admin may read their OWN behavior analytics.
+    monkeypatch.setattr(
+        ub.user_behavior_service,
+        "analyze_user_behavior",
+        AsyncMock(return_value=_metrics()),
+    )
+    caller = SimpleNamespace(id="target", role=UserRole.USER, organization_id="org-A")
+    result = await ub.get_user_behavior_analytics(
+        user_id="target",  # own id
+        days_back=30,
+        current_user=caller,
+        db=_db_returning_target("org-A"),
+    )
+    assert result.user_id == "target"
+
+
 # ---- track_user_interaction: caller org passed into the lookup -------------
 
 
