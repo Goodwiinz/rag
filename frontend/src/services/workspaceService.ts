@@ -5,8 +5,6 @@
 
 import {
   BulkThreadResponse,
-  ChatCompletionRequest,
-  ChatCompletionResponse,
   ChatMessage,
   ChatMessageCreate,
   ChatMessageListResponse,
@@ -314,19 +312,6 @@ export const workspaceService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ document_ids: documentIds }),
     });
-  },
-
-  // ============================================================================
-  // Chat Completion (AI-powered)
-  // ============================================================================
-
-  async sendChatCompletion(
-    data: ChatCompletionRequest
-  ): Promise<ChatCompletionResponse> {
-    return api.post<ChatCompletionResponse>(
-      `${API_PREFIX}/chat/completions`,
-      data
-    );
   },
 
   // ============================================================================

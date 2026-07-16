@@ -345,39 +345,6 @@ export interface CollectionListResponse {
 }
 
 // ============================================================================
-// Chat Completion Types
-// ============================================================================
-
-export interface ChatCompletionRequest {
-  thread_id: string;
-  message: string;
-  use_rag?: boolean;
-  collection_ids?: string[];
-  search_type?: string;
-  top_k?: number;
-  model?: string;
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-}
-
-export interface ChatCompletionResponse {
-  message: ChatMessage;
-  usage: Record<string, number>;
-  sources_used: number;
-  search_latency_ms?: number;
-  generation_latency_ms?: number;
-}
-
-export interface StreamingChatChunk {
-  chunk_type: 'content' | 'citation' | 'done' | 'error';
-  content?: string;
-  citation?: Citation;
-  message_id?: string;
-  error?: string;
-}
-
-// ============================================================================
 // Search Types
 // ============================================================================
 
