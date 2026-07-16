@@ -101,6 +101,15 @@ const linkingThreadTokens = new Map<string, object>();
 const unlinkingThreadTokens = new Map<string, object>();
 const savingToNoteTokens = new Map<string, object>();
 
+// The chat store's thread→project binding mirror is THREAD-keyed and
+// single-valued, and both link and unlink mutate it — so they share ONE
+// token map keyed by thread id. Without it, a slow link(projA, threadX)
+// resolving after a faster link(projB, threadX) (or after an unlink) would
+// re-point the chat-rail binding at a stale project. Guards ONLY the
+// setThreadProjectBinding mirror call; linkedThreads data commits stay
+// unconditional (each backend result is individually valid).
+const threadBindingTokens = new Map<string, object>();
+
 export const useProjectChatStore = create<ProjectChatState>()(
   immer((set, get) => ({
     ...initialState,
@@ -178,9 +187,12 @@ export const useProjectChatStore = create<ProjectChatState>()(
           set((state) => {
             state.startingChat[projectId] = false;
           });
-          // Refresh threads list
-          await get().fetchProjectThreads(projectId);
         }
+        // Refresh threads list unconditionally — an older-but-successful
+        // call still created a real thread that must appear in the list.
+        // fetchProjectThreads has its own supersession guard, so a stale
+        // refresh can't clobber a newer one.
+        await get().fetchProjectThreads(projectId);
 
         return response;
       } catch (error: any) {
@@ -217,6 +229,8 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
       const requestToken = {};
       linkingThreadTokens.set(projectId, requestToken);
+      const bindingToken = {};
+      threadBindingTokens.set(request.thread_id, bindingToken);
 
       set((state) => {
         state.linkingThread[projectId] = true;
@@ -252,10 +266,14 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
         // Mirror into the chat store's thread row — the chat rail and the
         // agent page_context derive the binding from source_project_id, so a
-        // link made from the project page must be visible there too.
-        useChatStore
-          .getState()
-          .setThreadProjectBinding(response.thread_id, projectId);
+        // link made from the project page must be visible there too. Only
+        // the most recent link/unlink for this THREAD may write the mirror
+        // (see threadBindingTokens).
+        if (threadBindingTokens.get(request.thread_id) === bindingToken) {
+          useChatStore
+            .getState()
+            .setThreadProjectBinding(response.thread_id, projectId);
+        }
 
         return response;
       } catch (error: any) {
@@ -276,6 +294,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         if (linkingThreadTokens.get(projectId) === requestToken) {
           linkingThreadTokens.delete(projectId);
         }
+        if (threadBindingTokens.get(request.thread_id) === bindingToken) {
+          threadBindingTokens.delete(request.thread_id);
+        }
       }
     },
 
@@ -294,6 +315,8 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
       const requestToken = {};
       unlinkingThreadTokens.set(projectId, requestToken);
+      const bindingToken = {};
+      threadBindingTokens.set(threadId, bindingToken);
 
       set((state) => {
         state.unlinkingThread[projectId] = true;
@@ -325,8 +348,11 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
         // Clear the chat store's copy too. Without this the chat rail keeps
         // showing the removed project and the agent keeps receiving its
-        // project_id until a full reload.
-        useChatStore.getState().setThreadProjectBinding(threadId, null);
+        // project_id until a full reload. Only the most recent link/unlink
+        // for this THREAD may write the mirror (see threadBindingTokens).
+        if (threadBindingTokens.get(threadId) === bindingToken) {
+          useChatStore.getState().setThreadProjectBinding(threadId, null);
+        }
       } catch (error: any) {
         console.error(
           '[ProjectChatStore] unlinkThreadFromProject failed:',
@@ -341,6 +367,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
       } finally {
         if (unlinkingThreadTokens.get(projectId) === requestToken) {
           unlinkingThreadTokens.delete(projectId);
+        }
+        if (threadBindingTokens.get(threadId) === bindingToken) {
+          threadBindingTokens.delete(threadId);
         }
       }
     },

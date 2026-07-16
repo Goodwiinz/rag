@@ -10,11 +10,14 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Mocked } from 'vitest';
+import type { Mock, Mocked } from 'vitest';
 import { act } from '@testing-library/react';
 import { useProjectChatStore } from '../projectChatStore';
 import { projectChatService } from '@/services/projectChatService';
-import type { ProjectThread } from '@/types/project-chat';
+import type {
+  ProjectThread,
+  StartChatFromProjectResponse,
+} from '@/types/project-chat';
 
 vi.mock('@/services/projectChatService', () => ({
   projectChatService: {
@@ -23,6 +26,22 @@ vi.mock('@/services/projectChatService', () => ({
     linkThreadToProject: vi.fn(),
     unlinkThreadFromProject: vi.fn(),
     saveThreadToNote: vi.fn(),
+  },
+}));
+
+// Mock the chat store so the cross-store binding mirror
+// (setThreadProjectBinding) is observable.
+const { mockSetThreadProjectBinding } = vi.hoisted(
+  (): { mockSetThreadProjectBinding: Mock } => ({
+    mockSetThreadProjectBinding: vi.fn(),
+  })
+);
+
+vi.mock('@/store/chat-store', () => ({
+  useChatStore: {
+    getState: (): { setThreadProjectBinding: Mock } => ({
+      setThreadProjectBinding: mockSetThreadProjectBinding,
+    }),
   },
 }));
 
@@ -93,5 +112,104 @@ describe('projectChatStore mutation race guards (RS-C4)', () => {
     // The stale error must not clobber the newer call's completed state.
     expect(useProjectChatStore.getState().errors[projectId]).toBeNull();
     expect(useProjectChatStore.getState().linkingThread[projectId]).toBe(false);
+  });
+
+  it('does not let a stale link response point the chat-rail binding at the wrong project (thread-keyed ABA)', async () => {
+    let resolveFirst!: (thread: ProjectThread) => void;
+    let resolveSecond!: (thread: ProjectThread) => void;
+
+    mockService.linkThreadToProject
+      .mockReturnValueOnce(
+        new Promise<ProjectThread>((res) => {
+          resolveFirst = res;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<ProjectThread>((res) => {
+          resolveSecond = res;
+        })
+      );
+
+    const { linkThreadToProject } = useProjectChatStore.getState();
+    // Same thread, two different projects — the binding is thread-keyed and
+    // single-valued, so only the most recent call may write the mirror.
+    const first = linkThreadToProject('proj-a', { thread_id: 'thread-x' });
+    const second = linkThreadToProject('proj-b', { thread_id: 'thread-x' });
+
+    resolveSecond(
+      createMockProjectThread({ project_id: 'proj-b', thread_id: 'thread-x' })
+    );
+    await act(async () => {
+      await second;
+    });
+    expect(mockSetThreadProjectBinding).toHaveBeenLastCalledWith(
+      'thread-x',
+      'proj-b'
+    );
+
+    // The stale first response must not re-point the binding at proj-a.
+    resolveFirst(
+      createMockProjectThread({ project_id: 'proj-a', thread_id: 'thread-x' })
+    );
+    await act(async () => {
+      await first;
+    });
+
+    expect(mockSetThreadProjectBinding).toHaveBeenLastCalledWith(
+      'thread-x',
+      'proj-b'
+    );
+  });
+
+  it('still refreshes the thread list when an older successful startChatFromProject settles after being superseded', async () => {
+    const projectId = 'proj-1';
+    let resolveFirst!: (response: StartChatFromProjectResponse) => void;
+    let resolveSecond!: (response: StartChatFromProjectResponse) => void;
+
+    mockService.startChatFromProject
+      .mockReturnValueOnce(
+        new Promise<StartChatFromProjectResponse>((res) => {
+          resolveFirst = res;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise<StartChatFromProjectResponse>((res) => {
+          resolveSecond = res;
+        })
+      );
+    mockService.listProjectThreads.mockResolvedValue({
+      threads: [],
+      total: 0,
+    });
+
+    const { startChatFromProject } = useProjectChatStore.getState();
+    const first = startChatFromProject(projectId, { initial_message: 'a' });
+    const second = startChatFromProject(projectId, { initial_message: 'b' });
+
+    resolveSecond({
+      thread_id: 't-2',
+      conversation_id: 'c-2',
+      project_thread_id: 'pt-2',
+      document_scope: [],
+    });
+    await act(async () => {
+      await second;
+    });
+    expect(mockService.listProjectThreads).toHaveBeenCalledTimes(1);
+
+    // The older call ALSO succeeded — its thread exists server-side and must
+    // still appear in the list, so the refresh runs even though the call's
+    // ephemeral-flag token was evicted (fetchProjectThreads has its own
+    // supersession guard).
+    resolveFirst({
+      thread_id: 't-1',
+      conversation_id: 'c-1',
+      project_thread_id: 'pt-1',
+      document_scope: [],
+    });
+    await act(async () => {
+      await first;
+    });
+    expect(mockService.listProjectThreads).toHaveBeenCalledTimes(2);
   });
 });
