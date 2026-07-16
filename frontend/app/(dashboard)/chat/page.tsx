@@ -7,24 +7,11 @@ import { ChatMessageList } from '@/components/chat/ChatMessageList';
 import { ChatRuntimeProvider } from '@/components/chat/aui/ChatRuntimeProvider';
 import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  getNewChatUrl,
-  getSelectedThreadUrl,
-} from '@/components/chat/shared/chatNavigation';
-import { enhancedDocumentService } from '@/services/enhancedDocumentService';
-import toast from 'react-hot-toast';
-import { Citation } from '@/utils/citationParser';
+import { getSelectedThreadUrl } from '@/components/chat/shared/chatNavigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-} from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useChatSession } from '@/hooks/chat/useChatSession';
 import {
   useChatStreaming,
@@ -32,30 +19,10 @@ import {
   type PendingConfirmation,
 } from '@/hooks/chat/useChatStreaming';
 import { useChatThreadActions } from '@/hooks/chat/useChatThreadActions';
-import {
-  SLASH_COMMANDS,
-  type SlashCommandId,
-} from '@/components/chat/slashCommands';
-import type {
-  CommandAction,
-  CommandOutput,
-  CommandOutputItem,
-} from '@/components/chat/commandOutput';
-import { useProjectStore } from '@/store/projectStore';
-import { documentService } from '@/services/documentService';
-import { projectService } from '@/services/projectService';
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString();
-}
+import { useSlashCommands } from '@/hooks/chat/useSlashCommands';
+import { useCitationPanel } from '@/hooks/chat/useCitationPanel';
+import { useChatDrawer } from '@/hooks/chat/useChatDrawer';
+import { useChatComposerActions } from '@/hooks/chat/useChatComposerActions';
 
 // Shared loading skeleton for cold-load + thread-switch (on-brand bubble rows).
 function TranscriptSkeleton() {
@@ -186,20 +153,26 @@ function ChatPageContent() {
     setCurrentThread,
   });
 
-  // Mobile sidebar drawer state
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  // Mobile sidebar drawer state + WCAG focus/Escape/Tab-trap behavior
+  // (extracted hook)
+  const {
+    isOpen: mobileSidebarOpen,
+    closeDrawer,
+    toggleDrawer,
+    drawerRef,
+    handleDrawerKeyDown,
+  } = useChatDrawer();
 
-  // Citation panel state
-  const [isCitationPanelOpen, setIsCitationPanelOpen] = useState(false);
-  const [citationPanelCitations, setCitationPanelCitations] = useState<
-    Citation[]
-  >([]);
-  const [activeCitationId, setActiveCitationId] = useState<string | undefined>(
-    undefined
-  );
-  const [citationTraceId, setCitationTraceId] = useState<string | undefined>(
-    undefined
-  );
+  // Citation panel state + coordination (extracted hook)
+  const {
+    isCitationPanelOpen,
+    setIsCitationPanelOpen,
+    citationPanelCitations,
+    activeCitationId,
+    citationTraceId,
+    handleCitationClick,
+    handleCiteSource,
+  } = useCitationPanel({ setInput, chatInputRef });
 
   const router = useRouter();
 
@@ -225,137 +198,21 @@ function ChatPageContent() {
     };
   }, [setInput, chatInputRef]);
 
-  // Open the citation panel for a synthetic citation handed over from the
-  // layout's ContextRail (document/external preview clicks). The rail lives
-  // in the layout component, so it cannot reach this page's panel state
-  // directly — same window-event idiom as 'populate-chat-input'.
-  useEffect(() => {
-    const handleOpenCitationPanel = (event: CustomEvent<Citation>) => {
-      const citation = event.detail;
-      if (!citation?.title) return;
-      setCitationPanelCitations([citation]);
-      setActiveCitationId(citation.documentId || citation.externalReferenceId);
-      setCitationTraceId(undefined);
-      setIsCitationPanelOpen(true);
-    };
-
-    window.addEventListener(
-      'open-citation-panel',
-      handleOpenCitationPanel as EventListener
-    );
-    return () => {
-      window.removeEventListener(
-        'open-citation-panel',
-        handleOpenCitationPanel as EventListener
-      );
-    };
-  }, []);
-
-  const handleCitationClick = useCallback(
-    (citations: Citation[], clickedCitation: Citation, traceId?: string) => {
-      setCitationPanelCitations(citations);
-      setActiveCitationId(
-        clickedCitation.documentId || clickedCitation.externalReferenceId
-      );
-      setCitationTraceId(traceId);
-      setIsCitationPanelOpen(true);
-    },
-    []
-  );
-
-  // Insert a reference to a source into the composer (the panel "Cite" action).
-  const handleCiteSource = useCallback(
-    (citation: Citation) => {
-      setInput((cur) =>
-        cur ? `${cur} "${citation.title}"` : `"${citation.title}" `
-      );
-      chatInputRef.current?.focus();
-      setIsCitationPanelOpen(false);
-    },
-    [setInput, chatInputRef]
-  );
-
   const handlePromptSelect = (prompt: string) => {
     setInput(prompt);
   };
 
-  // Upload files selected via the Paperclip attach control.
-  // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
-  // attach endpoint exists yet. Each upload is isolated via .catch so one
-  // failure does not cancel others.
-  const handleAttach = useCallback(
-    async (files: FileList) => {
-      if (!workspace) {
-        console.warn('[Chat] Cannot attach: no workspace');
-        toast.error('No workspace available — attachment was not uploaded.');
-        return;
-      }
-      const uploads = Array.from(files).map((file) =>
-        enhancedDocumentService
-          .uploadDocument(file, {
-            title: file.name,
-            processing_priority: 'normal',
-          })
-          .then((result) => {
-            console.log(
-              '[Chat] Uploaded',
-              file.name,
-              '→',
-              result.response.document_id
-            );
-            return { file, ok: true as const };
-          })
-          .catch((err) => {
-            console.error('[Chat] Upload failed for', file.name, err);
-            return { file, ok: false as const };
-          })
-      );
-      const results = await Promise.all(uploads);
-      const failed = results.filter((r) => !r.ok);
-      if (failed.length > 0) {
-        toast.error(
-          failed.length === 1
-            ? `Upload failed for ${failed[0].file.name}.`
-            : `Upload failed for ${failed.length} of ${results.length} files.`
-        );
-      }
-    },
-    [workspace]
-  );
-
-  const handleRegenerate = useCallback(
-    (assistantMessageIndex: number) => {
-      // Bail before preparing a replacement turn if a stream is in flight;
-      // handleSubmit would otherwise reject it via its own single-flight guard.
-      if (isLoading || storeIsStreaming) return;
-      let priorUserIndex = -1;
-      for (let index = assistantMessageIndex - 1; index >= 0; index -= 1) {
-        if (displayedMessages[index]?.role === 'user') {
-          priorUserIndex = index;
-          break;
-        }
-      }
-      if (priorUserIndex < 0) return;
-      const priorUser = displayedMessages[priorUserIndex];
-      const regenerationHistory = displayedMessages.slice(0, priorUserIndex);
-      setInput(priorUser.content);
-      // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
-      // its closure, and `setInput` above only schedules a state update — the
-      // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
-      const contentToSend = priorUser.content;
-      setTimeout(
-        () => handleSubmit(contentToSend, regenerationHistory),
-        0
-      );
-    },
-    [displayedMessages, handleSubmit, isLoading, storeIsStreaming]
-  );
-
-  // Start a fresh chat — shared by the sidebar "new" button and the /new command
-  const startNewChat = useCallback(() => {
-    setCurrentThread(null);
-    router.push(getNewChatUrl());
-  }, [router, setCurrentThread]);
+  // Composer actions — attach, retry, regenerate, submit (extracted hook).
+  // Delegates persistence/streaming to useChatStreaming's handleSubmit.
+  const { handleAttach, handleRegenerate, retryLast, submit } =
+    useChatComposerActions({
+      workspace,
+      setInput,
+      handleSubmit,
+      isLoading,
+      storeIsStreaming,
+      displayedMessages,
+    });
 
   // Stable across renders so ChatSidebar's React.memo holds on every composer
   // keystroke (an inline closure re-rendered the sidebar per keystroke).
@@ -364,450 +221,36 @@ function ChatPageContent() {
   const handleSelectThread = useCallback(
     (id: string) => {
       if (id === activeThreadId) {
-        setMobileSidebarOpen(false);
+        closeDrawer();
         return;
       }
       setCurrentThread(id);
       router.push(getSelectedThreadUrl(id));
-      setMobileSidebarOpen(false);
+      closeDrawer();
     },
-    [router, setCurrentThread, activeThreadId, setMobileSidebarOpen]
+    [router, setCurrentThread, activeThreadId, closeDrawer]
   );
 
-  // Regenerate the most recent assistant response (the /retry command)
-  const retryLast = useCallback(() => {
-    const lastAssistantIdx = [...displayedMessages]
-      .map((m, i) => ({ role: m.role, i }))
-      .reverse()
-      .find((x) => x.role === 'assistant')?.i;
-    if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
-  }, [displayedMessages, handleRegenerate]);
-
-  // ---- CLI slash-command output (ephemeral, in-chat) ----
-  // Lives in page state, never in the message arrays, so it is never sent to
-  // the agent or persisted. Cleared on thread change (effect below) and on send.
-  const [commandOutputs, setCommandOutputs] = useState<CommandOutput[]>([]);
-  const fetchProjects = useProjectStore((s) => s.fetchProjects);
-
-  useEffect(() => {
-    setCommandOutputs([]);
-  }, [activeThreadId]);
-
-  const appendOutput = useCallback((o: CommandOutput) => {
-    setCommandOutputs((prev) => [...prev, o]);
-  }, []);
-
-  const patchOutput = useCallback(
-    (id: string, patch: Partial<CommandOutput>) => {
-      setCommandOutputs((prev) =>
-        prev.map((o) => (o.id === id ? { ...o, ...patch } : o))
-      );
-    },
-    []
-  );
-
-  // Bind the chat to a project via the same ?projectId= param the context rail
-  // uses (the streaming hook reads it into page_context).
-  const handleSetProjectContext = useCallback(
-    (projectId: string) => {
-      const params = new URLSearchParams(window.location.search);
-      params.set('projectId', projectId);
-      router.replace(`/chat?${params.toString()}`);
-    },
-    [router]
-  );
-
-  // Project-scoped memory commands. `/remember <fact>` saves a durable fact the
-  // agent recalls across every thread in the project; `/memories` lists them
-  // (tap a row to delete). The active project is the one the chat is bound to
-  // (?projectId=), falling back to the selected project in the store.
-  const runMemoryCommand = useCallback(
-    (kind: 'remember' | 'memories', content: string) => {
-      const now = Date.now();
-      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
-      const projectId =
-        new URLSearchParams(window.location.search).get('projectId') ||
-        useProjectStore.getState().currentProject?.id ||
-        null;
-
-      if (!projectId) {
-        appendOutput({
-          id: outId,
-          command: `/${kind}`,
-          timestamp: now,
-          status: 'ready',
-          lines: ['No project in context.'],
-          note: 'Set one with /projects, then try again.',
-        });
-        return;
-      }
-
-      if (kind === 'remember') {
-        const fact = content.trim();
-        if (!fact) {
-          appendOutput({
-            id: outId,
-            command: '/remember',
-            timestamp: now,
-            status: 'ready',
-            lines: ['Usage: /remember <fact>'],
-            note: 'e.g. /remember Always cite sources in APA style.',
-          });
-          return;
-        }
-        appendOutput({
-          id: outId,
-          command: '/remember',
-          timestamp: now,
-          status: 'loading',
-          lines: [],
-        });
-        void (async () => {
-          try {
-            await projectService.createMemory(projectId, fact, 'remember');
-            patchOutput(outId, {
-              status: 'ready',
-              lines: [`Saved to project memory: ${fact}`],
-              note: 'NOUS recalls this across every thread in this project.',
-            });
-          } catch {
-            patchOutput(outId, {
-              status: 'ready',
-              lines: ['Could not save memory.'],
-            });
-          }
-        })();
-        return;
-      }
-
-      // kind === 'memories'
-      appendOutput({
-        id: outId,
-        command: '/memories',
-        timestamp: now,
-        status: 'loading',
-        items: [],
-      });
-      void (async () => {
-        try {
-          const res = await projectService.listMemories(projectId);
-          const items: CommandOutputItem[] = (res.memories ?? []).map((m) => ({
-            key: m.id,
-            label: m.content,
-            meta: m.source === 'remember' ? 'remembered' : m.source,
-            action: { type: 'delete-memory', id: m.id, projectId },
-          }));
-          patchOutput(outId, {
-            status: 'ready',
-            items,
-            emptyText: 'No project memory yet.',
-            note: items.length ? 'Tap a memory to delete it.' : undefined,
-          });
-        } catch {
-          patchOutput(outId, {
-            status: 'ready',
-            items: [],
-            emptyText: 'Could not load memory.',
-          });
-        }
-      })();
-    },
-    [appendOutput, patchOutput]
-  );
-
-  // Run a slash command. Output prints into the chat transcript, CLI-style;
-  // nothing navigates away (except /new, which starts a fresh chat).
-  const handleSlashCommand = useCallback(
-    (id: SlashCommandId) => {
-      const now = Date.now();
-      const outId = `cmd-${now}-${Math.random().toString(36).slice(2, 8)}`;
-      switch (id) {
-        case 'new':
-          startNewChat();
-          return;
-        case 'retry':
-          retryLast();
-          return;
-        case 'clear':
-          setCommandOutputs([]);
-          setInput('');
-          return;
-        case 'summarize':
-        case 'keypoints':
-        case 'gaps':
-        case 'timeline': {
-          // Synthesis commands SEND a real, citation-asking research query over
-          // the current project sources (unlike /threads, which only prints
-          // in-chat output). Mirror submitMessage by clearing ephemeral command
-          // output first, then dispatch the templated prompt through the same
-          // send path retryLast/handleRegenerate use: setInput so the composer
-          // reflects what was sent, then a deferred handleSubmit(template) so it
-          // doesn't read the stale pre-setInput value from its closure.
-          const SYNTHESIS_TEMPLATES: Record<
-            'summarize' | 'keypoints' | 'gaps' | 'timeline',
-            string
-          > = {
-            summarize:
-              'Summarize the key findings across my sources, with citations.',
-            keypoints:
-              'List the key points from my sources as concise bullets, each with a citation.',
-            gaps: 'What gaps, open questions, or contradictions appear across my sources? Cite them.',
-            timeline:
-              'Build a chronological timeline of the developments described in my sources, with citations.',
-          };
-          const template = SYNTHESIS_TEMPLATES[id];
-          setCommandOutputs([]);
-          setInput(template);
-          setTimeout(() => handleSubmit(template), 0);
-          return;
-        }
-        case 'help':
-          appendOutput({
-            id: outId,
-            command: '/help',
-            timestamp: now,
-            status: 'ready',
-            lines: SLASH_COMMANDS.map((c) => `${c.label.padEnd(10)}${c.title}`),
-            note: 'Type / in the message box to autocomplete.',
-          });
-          return;
-        case 'threads': {
-          const items: CommandOutputItem[] = conversations.map((c) => ({
-            key: c.id,
-            label: c.title || 'Untitled',
-            meta: c.updatedAt ? relativeTime(c.updatedAt) : undefined,
-            active: c.id === activeThreadId,
-            action: { type: 'open-thread', id: c.id },
-          }));
-          appendOutput({
-            id: outId,
-            command: '/threads',
-            timestamp: now,
-            status: 'ready',
-            items,
-            emptyText: 'No threads yet.',
-            note: items.length ? 'Tap a thread to open it.' : undefined,
-          });
-          return;
-        }
-        case 'projects':
-          appendOutput({
-            id: outId,
-            command: '/projects',
-            timestamp: now,
-            status: 'loading',
-            items: [],
-          });
-          void (async () => {
-            try {
-              await fetchProjects({ limit: 20, project_status: 'active' });
-              const { projects, currentProject } = useProjectStore.getState();
-              const items: CommandOutputItem[] = projects.map((p) => ({
-                key: p.id,
-                label: p.name,
-                meta: `${p.document_count ?? 0} ${
-                  (p.document_count ?? 0) === 1 ? 'paper' : 'papers'
-                }`,
-                active: p.id === currentProject?.id,
-                action: { type: 'set-project', id: p.id, name: p.name },
-              }));
-              patchOutput(outId, {
-                status: 'ready',
-                items,
-                emptyText: 'No active projects.',
-                note: items.length
-                  ? 'Tap a project to use it as context.'
-                  : undefined,
-              });
-            } catch {
-              patchOutput(outId, {
-                status: 'ready',
-                items: [],
-                emptyText: 'Could not load projects.',
-              });
-            }
-          })();
-          return;
-        case 'papers':
-          appendOutput({
-            id: outId,
-            command: '/papers',
-            timestamp: now,
-            status: 'loading',
-            items: [],
-          });
-          void (async () => {
-            try {
-              // api.get() returns the raw body, so getDocuments resolves to
-              // { documents, pagination } directly (its APIResponse<> type
-              // annotation is wrong). Read .documents, not .data.documents.
-              const res = (await documentService.getDocuments(
-                1,
-                10
-              )) as unknown as {
-                documents?: Array<{
-                  id: string;
-                  title?: string;
-                  filename: string;
-                  processing_status?: string;
-                }>;
-              };
-              const docs = res?.documents ?? [];
-              const items: CommandOutputItem[] = docs.map((d) => ({
-                key: d.id,
-                label: d.title || d.filename,
-                meta: d.processing_status,
-                action: {
-                  type: 'cite-paper',
-                  id: d.id,
-                  title: d.title || d.filename,
-                },
-              }));
-              patchOutput(outId, {
-                status: 'ready',
-                items,
-                emptyText: 'No papers found.',
-                note: items.length
-                  ? 'Tap a paper to reference it in your message.'
-                  : undefined,
-              });
-            } catch {
-              patchOutput(outId, {
-                status: 'ready',
-                items: [],
-                emptyText: 'Could not load papers.',
-              });
-            }
-          })();
-          return;
-        case 'remember':
-          runMemoryCommand('remember', '');
-          return;
-        case 'memories':
-          runMemoryCommand('memories', '');
-          return;
-      }
-    },
-    [
-      startNewChat,
-      retryLast,
-      setInput,
-      handleSubmit,
-      conversations,
-      activeThreadId,
-      appendOutput,
-      patchOutput,
-      fetchProjects,
-      runMemoryCommand,
-    ]
-  );
-
-  // A tap on a clickable command-output row.
-  const handleCommandItemAction = useCallback(
-    (action: CommandAction) => {
-      switch (action.type) {
-        case 'open-thread':
-          setCurrentThread(action.id);
-          router.push(getSelectedThreadUrl(action.id));
-          return;
-        case 'set-project':
-          handleSetProjectContext(action.id);
-          setCommandOutputs([
-            {
-              id: `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              command: '/projects',
-              timestamp: Date.now(),
-              status: 'ready',
-              lines: [`Project context set: ${action.name}`],
-            },
-          ]);
-          return;
-        case 'cite-paper':
-          setInput((cur) =>
-            cur ? `${cur} "${action.title}"` : `"${action.title}" `
-          );
-          chatInputRef.current?.focus();
-          return;
-        case 'delete-memory':
-          void (async () => {
-            try {
-              await projectService.deleteMemory(action.projectId, action.id);
-            } catch {
-              /* best-effort; re-list reflects the true state either way */
-            }
-            runMemoryCommand('memories', '');
-          })();
-          return;
-      }
-    },
-    [
-      router,
-      setCurrentThread,
-      handleSetProjectContext,
-      setInput,
-      chatInputRef,
-      runMemoryCommand,
-    ]
-  );
-
-  // Clear ephemeral command output when a real message is sent. Slash commands
-  // that carry an argument (`/remember <fact>`) never open the autocomplete
-  // menu — they look like a normal message — so they're intercepted here on
-  // send instead of being dispatched to the agent.
-  const submitMessage = useCallback(() => {
-    const raw = input.trim();
-    const memMatch = raw.match(/^\/(remember|memories)\b\s*([\s\S]*)$/i);
-    if (memMatch) {
-      setInput('');
-      runMemoryCommand(
-        memMatch[1].toLowerCase() as 'remember' | 'memories',
-        memMatch[2]
-      );
-      return;
-    }
-    setCommandOutputs([]);
-    handleSubmit();
-  }, [input, setInput, handleSubmit, runMemoryCommand]);
-
-  // Mobile drawer: focus in on open, return focus on close, Escape to close.
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const drawerOpenerRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    if (mobileSidebarOpen) {
-      drawerOpenerRef.current = document.activeElement as HTMLElement | null;
-      drawerRef.current?.focus();
-      const onKey = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setMobileSidebarOpen(false);
-      };
-      window.addEventListener('keydown', onKey);
-      return () => window.removeEventListener('keydown', onKey);
-    }
-    drawerOpenerRef.current?.focus?.();
-  }, [mobileSidebarOpen]);
-
-  // Trap Tab focus inside the open mobile drawer (role=dialog aria-modal) so
-  // keyboard focus can't wander behind it. Wraps at the focusable boundaries.
-  // ponytail: Tab-wrap alone satisfies WCAG 2.4.3/4.1.2; the fuller fix is
-  // `inert` on the main content for screen-reader virtual-cursor escape — add
-  // that only if SR escape is reported.
-  const handleDrawerKeyDown = useCallback((e: ReactKeyboardEvent) => {
-    if (e.key !== 'Tab') return;
-    const root = drawerRef.current;
-    if (!root) return;
-    const focusables = root.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }, []);
+  // Slash-command execution, project-context wiring, and the /new command
+  // the command vocabulary triggers (extracted hook). /retry and the plain
+  // send path delegate to useChatComposerActions.
+  const {
+    commandOutputs,
+    handleSlashCommand,
+    handleCommandItemAction,
+    submitMessage,
+    startNewChat,
+  } = useSlashCommands({
+    input,
+    setInput,
+    handleSubmit,
+    submit,
+    retryLast,
+    conversations,
+    activeThreadId,
+    setCurrentThread,
+    chatInputRef,
+  });
 
   // Return focus to the composer when a HITL confirmation resolves — the
   // in-band Approve/Deny part just unmounted, so without this focus would drop
@@ -836,7 +279,7 @@ function ChatPageContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              onClick={() => setMobileSidebarOpen(false)}
+              onClick={closeDrawer}
             />
             <motion.div
               ref={drawerRef}
@@ -857,7 +300,7 @@ function ChatPageContent() {
                 onSelect={handleSelectThread}
                 onNew={() => {
                   startNewChat();
-                  setMobileSidebarOpen(false);
+                  closeDrawer();
                 }}
                 onRename={handleRenameThread}
                 onDelete={handleDeleteThread}
@@ -910,7 +353,7 @@ function ChatPageContent() {
                 .join('\n\n');
               navigator.clipboard.writeText(text).catch(() => {});
             }}
-            onMobileSidebarToggle={() => setMobileSidebarOpen((v) => !v)}
+            onMobileSidebarToggle={toggleDrawer}
           />
 
           {/* Messages Area */}
