@@ -385,6 +385,24 @@ jobs:
           AZURE_OPENAI_CHAT_API_VERSION: "2024-02-01"
           AZURE_OPENAI_ENDPOINT: "https://example.invalid"
           AZURE_OPENAI_API_KEY: "test-key-not-real"
+      # The TypeScript half of the contract: regenerate api.d.ts from the
+      # (now-verified) snapshot and fail if EITHER committed artifact drifts.
+      # Without this, backend/openapi.json could be regenerated while the
+      # frontend types silently lag a contract change behind.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify generated TypeScript is in sync with the snapshot
+        run: |
+          pnpm --dir frontend generate:api-types
+          git diff --exit-code -- backend/openapi.json frontend/src/types/generated/api.d.ts
 
   # ==========================================================================
   # Security Scan

@@ -120,6 +120,12 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
     expect(getThreadMock).not.toHaveBeenCalled();
   });
 
+  // Task 5.5 mutation-verified: the `isLoadingMessages` value this test reads
+  // gates on `isThreadSwitchPending` (`src/components/chat/shared/
+  // cloudMessageView.ts`) — true only while the active thread's initial page
+  // is loading and nothing is renderable yet. Forcing that guard to `false`
+  // fails this test's `expect(result.current.isLoadingMessages).toBe(true)`
+  // assertion (see docs/testing/chat-mutation-checks.md item 6).
   it('clears thread A and waits for the single paginated store load on a cache miss', async () => {
     getThreadMock.mockImplementation(() => new Promise(() => {}));
 
@@ -170,5 +176,61 @@ describe('useChatSession thread-switch transcript bleed (I1)', () => {
         'C one',
       ])
     );
+  });
+
+  it('rejects a stale cache-miss load when the user rapidly switches away and back before it resolves', async () => {
+    // A -> C (cache miss, hangs forever) -> B (cached), all in rapid
+    // succession — the transcript must land on B, and C's eventual
+    // resolution must never overwrite what is currently displayed.
+    getThreadMock.mockImplementation(() => new Promise(() => {}));
+
+    const { result } = renderHook(() => useChatSession());
+
+    act(() => {
+      result.current.setConversations([
+        { id: 'thread-A', title: 'A', messages: [] } as never,
+        { id: 'thread-B', title: 'B', messages: [] } as never,
+        { id: 'thread-C', title: 'C', messages: [] } as never,
+      ]);
+    });
+
+    act(() => {
+      useChatStore.setState({ currentThreadId: 'thread-A' });
+    });
+    await waitFor(() =>
+      expect(result.current.displayedMessages).toHaveLength(5)
+    );
+
+    // Rapid-fire: switch into the uncached thread C, then immediately away
+    // to the already-cached thread B, without awaiting C's (never
+    // resolving) fetch in between.
+    act(() => {
+      useChatStore.setState({
+        currentThreadId: 'thread-C',
+        isLoadingMessages: true,
+        loadingThreadId: 'thread-C',
+      } as never);
+    });
+    act(() => {
+      useChatStore.setState({ currentThreadId: 'thread-B' });
+    });
+
+    await waitFor(() =>
+      expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
+        'B one',
+        'B two',
+      ])
+    );
+    // B was already cached, so no parallel getThread request was needed for
+    // either the abandoned C switch or the landed B switch.
+    expect(getThreadMock).not.toHaveBeenCalled();
+
+    // If C's long-hanging fetch were to resolve now, it targets a thread
+    // that is no longer selected — nothing observes it, so the display
+    // must still be B's.
+    expect(result.current.displayedMessages.map((m) => m.content)).toEqual([
+      'B one',
+      'B two',
+    ]);
   });
 });

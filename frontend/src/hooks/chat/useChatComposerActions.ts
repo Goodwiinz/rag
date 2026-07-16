@@ -1,0 +1,143 @@
+import { useCallback } from 'react';
+import toast from 'react-hot-toast';
+
+import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import { enhancedDocumentService } from '@/services/enhancedDocumentService';
+import type { Workspace } from '@/types/workspace';
+
+// ============================================
+// HOOK PARAMS
+// ============================================
+
+export interface UseChatComposerActionsParams {
+  workspace: Workspace | null;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
+  handleSubmit: (
+    contentOverride?: string,
+    historyOverride?: ChatPageMessage[]
+  ) => Promise<void>;
+  isLoading: boolean;
+  storeIsStreaming: boolean;
+  displayedMessages: ChatPageMessage[];
+}
+
+export interface UseChatComposerActionsReturn {
+  handleAttach: (files: FileList) => Promise<void>;
+  handleRegenerate: (assistantMessageIndex: number) => void;
+  retryLast: () => void;
+  /** Bare submit — clears nothing, just forwards to the streaming path.
+   * Callers that need to clear ephemeral output first (useSlashCommands)
+   * wrap this rather than calling handleSubmit directly. */
+  submit: () => void;
+}
+
+// ============================================
+// HOOK
+// ============================================
+
+/**
+ * Composer-level actions: attach, retry, regenerate, and submit. Delegates
+ * all persistence/streaming to the existing useChatStreaming/store path
+ * (handleSubmit) — this hook only coordinates which turn gets (re)sent and
+ * uploads files, it never calls a second create-message endpoint.
+ */
+export function useChatComposerActions({
+  workspace,
+  setInput,
+  handleSubmit,
+  isLoading,
+  storeIsStreaming,
+  displayedMessages,
+}: UseChatComposerActionsParams): UseChatComposerActionsReturn {
+  // Upload files selected via the Paperclip attach control.
+  // Uses enhancedDocumentService (v1 /files/upload) since no workspace-scoped
+  // attach endpoint exists yet. Each upload is isolated via .catch so one
+  // failure does not cancel others.
+  const handleAttach = useCallback(
+    async (files: FileList) => {
+      if (!workspace) {
+        console.warn('[Chat] Cannot attach: no workspace');
+        toast.error('No workspace available — attachment was not uploaded.');
+        return;
+      }
+      const uploads = Array.from(files).map((file) =>
+        enhancedDocumentService
+          .uploadDocument(file, {
+            title: file.name,
+            processing_priority: 'normal',
+          })
+          .then((result) => {
+            console.log(
+              '[Chat] Uploaded',
+              file.name,
+              '→',
+              result.response.document_id
+            );
+            return { file, ok: true as const };
+          })
+          .catch((err) => {
+            console.error('[Chat] Upload failed for', file.name, err);
+            return { file, ok: false as const };
+          })
+      );
+      const results = await Promise.all(uploads);
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        toast.error(
+          failed.length === 1
+            ? `Upload failed for ${failed[0].file.name}.`
+            : `Upload failed for ${failed.length} of ${results.length} files.`
+        );
+      }
+    },
+    [workspace]
+  );
+
+  // Regenerate a specific assistant turn — re-sends its prior user message
+  // with the history truncated to just before it. Shared by the /retry
+  // command and the ChatMessageList "Regenerate" action.
+  const handleRegenerate = useCallback(
+    (assistantMessageIndex: number) => {
+      // Bail before preparing a replacement turn if a stream is in flight;
+      // handleSubmit would otherwise reject it via its own single-flight guard.
+      if (isLoading || storeIsStreaming) return;
+      let priorUserIndex = -1;
+      for (let index = assistantMessageIndex - 1; index >= 0; index -= 1) {
+        if (displayedMessages[index]?.role === 'user') {
+          priorUserIndex = index;
+          break;
+        }
+      }
+      if (priorUserIndex < 0) return;
+      const priorUser = displayedMessages[priorUserIndex];
+      const regenerationHistory = displayedMessages.slice(0, priorUserIndex);
+      setInput(priorUser.content);
+      // Bug 2: pass the content explicitly. `handleSubmit` reads `input` from
+      // its closure, and `setInput` above only schedules a state update — the
+      // deferred `handleSubmit` would otherwise see the stale pre-setInput value.
+      const contentToSend = priorUser.content;
+      setTimeout(() => handleSubmit(contentToSend, regenerationHistory), 0);
+    },
+    [displayedMessages, handleSubmit, isLoading, storeIsStreaming, setInput]
+  );
+
+  // Regenerate the most recent assistant response (the /retry command).
+  const retryLast = useCallback(() => {
+    const lastAssistantIdx = [...displayedMessages]
+      .map((m, i) => ({ role: m.role, i }))
+      .reverse()
+      .find((x) => x.role === 'assistant')?.i;
+    if (lastAssistantIdx !== undefined) handleRegenerate(lastAssistantIdx);
+  }, [displayedMessages, handleRegenerate]);
+
+  const submit = useCallback(() => {
+    handleSubmit();
+  }, [handleSubmit]);
+
+  return {
+    handleAttach,
+    handleRegenerate,
+    retryLast,
+    submit,
+  };
+}

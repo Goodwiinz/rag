@@ -19,11 +19,33 @@ vi.mock('@/components/chat', () => ({
 vi.mock('@/components/chat/ChatDialogs', () => ({ ChatDialogs: () => null }));
 vi.mock('@/components/chat/ChatHeader', () => ({ ChatHeader: () => null }));
 vi.mock('@/components/chat/ChatMessageList', () => ({
-  ChatMessageList: ({ messages }: { messages: ChatPageMessage[] }) => (
+  ChatMessageList: ({
+    messages,
+    isLoading,
+    storeIsStreaming,
+    storeStreamingContent,
+    isRetrievingRag,
+  }: {
+    messages: ChatPageMessage[];
+    isLoading?: boolean;
+    storeIsStreaming?: boolean;
+    storeStreamingContent?: string;
+    isRetrievingRag?: boolean;
+  }) => (
     <div>
       {messages.map((message) => (
         <p key={`${message.role}:${message.content}`}>{message.content}</p>
       ))}
+      <span data-testid="is-loading">{String(isLoading ?? false)}</span>
+      <span data-testid="store-is-streaming">
+        {String(storeIsStreaming ?? false)}
+      </span>
+      <span data-testid="store-streaming-content">
+        {storeStreamingContent ?? ''}
+      </span>
+      <span data-testid="is-retrieving-rag">
+        {String(isRetrievingRag ?? false)}
+      </span>
     </div>
   ),
 }));
@@ -35,21 +57,23 @@ vi.mock('@/components/chat/ChatSidebar', () => ({ ChatSidebar: () => null }));
 vi.mock('@/hooks/chat/useChatSession', () => ({
   useChatSession: () => mockUseChatSession(),
 }));
+const mockUseChatStreaming = vi.fn();
+const DEFAULT_STREAMING_STATE = {
+  input: '',
+  setInput: vi.fn(),
+  isLoading: false,
+  handleSubmit: vi.fn(),
+  handleStop: vi.fn(),
+  pendingConfirmation: null,
+  handleConfirmation: vi.fn(),
+  chatInputRef: { current: null },
+  storeIsStreaming: false,
+  storeStreamingContent: '',
+  storeIsRetrievingRag: false,
+  streamingThreadId: null,
+};
 vi.mock('@/hooks/chat/useChatStreaming', () => ({
-  useChatStreaming: () => ({
-    input: '',
-    setInput: vi.fn(),
-    isLoading: false,
-    handleSubmit: vi.fn(),
-    handleStop: vi.fn(),
-    pendingConfirmation: null,
-    handleConfirmation: vi.fn(),
-    chatInputRef: { current: null },
-    storeIsStreaming: false,
-    storeStreamingContent: '',
-    storeIsRetrievingRag: false,
-    streamingThreadId: null,
-  }),
+  useChatStreaming: () => mockUseChatStreaming(),
   confirmationBelongsToThread: () => false,
 }));
 vi.mock('@/hooks/chat/useChatThreadActions', () => ({
@@ -127,7 +151,10 @@ function session(
 }
 
 describe('ChatPage completed-turn persistence', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseChatStreaming.mockReturnValue(DEFAULT_STREAMING_STATE);
+  });
 
   it('keeps a completed turn visible while an equal-length canonical cache is stale', () => {
     const localMessages: ChatPageMessage[] = [
@@ -180,5 +207,108 @@ describe('ChatPage completed-turn persistence', () => {
 
     expect(screen.getByText(QUERY)).toBeVisible();
     expect(screen.getByText('Five recent papers')).toBeVisible();
+  });
+
+  it('renders straight from server-canonical history on a fresh reload with no local overlay', () => {
+    const canonicalHistory = [
+      persisted('m1', 'user', 'Earlier question', '2026-07-15T00:00:00Z'),
+      persisted(
+        'm2',
+        'assistant',
+        'Earlier answer',
+        '2026-07-15T00:00:01Z'
+      ),
+      persisted('m3', 'user', QUERY, '2026-07-15T00:00:02Z'),
+      persisted(
+        'm4',
+        'assistant',
+        'Five recent papers',
+        '2026-07-15T00:00:03Z'
+      ),
+    ];
+    // A fresh page load: the store is the only source, there is no local
+    // optimistic overlay to reconcile against.
+    mockUseChatSession.mockReturnValue(session([], canonicalHistory));
+
+    render(<ChatPage />);
+
+    expect(screen.getByText('Earlier question')).toBeVisible();
+    expect(screen.getByText('Earlier answer')).toBeVisible();
+    expect(screen.getByText(QUERY)).toBeVisible();
+    expect(screen.getByText('Five recent papers')).toBeVisible();
+  });
+
+  it('does not surface another thread’s in-flight stream on the active thread (CX5)', () => {
+    mockUseChatSession.mockReturnValue(
+      session(
+        [
+          makeChatPageMessage({
+            id: 'u1',
+            role: 'user',
+            content: 'Hello',
+            timestamp: 1,
+          }),
+        ],
+        []
+      )
+    );
+    mockUseChatStreaming.mockReturnValue({
+      ...DEFAULT_STREAMING_STATE,
+      isLoading: true,
+      storeIsStreaming: true,
+      storeStreamingContent: 'Partial answer on a different thread…',
+      storeIsRetrievingRag: true,
+      // session()'s activeThreadId is 'thread-A' — this turn belongs to a
+      // background thread, so none of its streaming state may bleed in.
+      streamingThreadId: 'thread-B',
+    });
+
+    render(<ChatPage />);
+
+    expect(screen.getByTestId('is-loading')).toHaveTextContent('false');
+    expect(screen.getByTestId('store-is-streaming')).toHaveTextContent(
+      'false'
+    );
+    expect(screen.getByTestId('store-streaming-content')).toHaveTextContent(
+      ''
+    );
+    expect(screen.getByTestId('is-retrieving-rag')).toHaveTextContent(
+      'false'
+    );
+  });
+
+  it('surfaces the streaming placeholder only while the active thread is the one streaming', () => {
+    mockUseChatSession.mockReturnValue(
+      session(
+        [
+          makeChatPageMessage({
+            id: 'u1',
+            role: 'user',
+            content: 'Hello',
+            timestamp: 1,
+          }),
+        ],
+        []
+      )
+    );
+    mockUseChatStreaming.mockReturnValue({
+      ...DEFAULT_STREAMING_STATE,
+      isLoading: true,
+      storeIsStreaming: true,
+      storeStreamingContent: 'Partial answer…',
+      storeIsRetrievingRag: true,
+      streamingThreadId: 'thread-A',
+    });
+
+    render(<ChatPage />);
+
+    expect(screen.getByTestId('is-loading')).toHaveTextContent('true');
+    expect(screen.getByTestId('store-is-streaming')).toHaveTextContent(
+      'true'
+    );
+    expect(screen.getByTestId('store-streaming-content')).toHaveTextContent(
+      'Partial answer…'
+    );
+    expect(screen.getByTestId('is-retrieving-rag')).toHaveTextContent('true');
   });
 });

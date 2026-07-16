@@ -3,30 +3,38 @@
  * Communicates with backend /api/v2/workspaces/* endpoints
  */
 
-import {
-  BulkThreadResponse,
+// Pure passthrough shapes: sourced directly from the generated OpenAPI
+// contract, no view-model narrowing needed (see types/workspace.ts for the
+// handful that DO need narrowing, imported below).
+import type {
+  ApiBulkThreadResponse,
+  ApiCollection,
+  ApiCollectionCreate,
+  ApiCollectionDetail,
+  ApiCollectionListResponse,
+  ApiCollectionUpdate,
+  ApiConversation,
+  ApiConversationCreate,
+  ApiConversationListResponse,
+  ApiConversationUpdate,
+  ApiMessageUpdate,
+  ApiThread,
+  ApiThreadCreate,
+  ApiThreadList,
+  ApiThreadUpdate,
+  ApiWorkspace,
+  ApiWorkspaceDetail,
+  ApiWorkspaceUpdate,
+} from '@/types/api/workspace-contract';
+// View-model-aware shapes: these narrow/relax the generated contract (JSONB
+// passthrough fields typed concretely, spuriously-required defaulted fields
+// relaxed back to optional) — see the comments in types/workspace.ts.
+import type {
   ChatMessage,
   ChatMessageCreate,
   ChatMessageListResponse,
-  ChatMessageUpdate,
-  Collection,
-  CollectionCreate,
-  CollectionDetail,
-  CollectionListResponse,
-  CollectionUpdate,
-  Conversation,
-  ConversationCreate,
-  ConversationListResponse,
-  ConversationUpdate,
-  Thread,
-  ThreadCreate,
   ThreadDetail,
-  ThreadListResponse,
-  ThreadUpdate,
-  Workspace,
   WorkspaceCreate,
-  WorkspaceDetail,
-  WorkspaceUpdate,
 } from '@/types/workspace';
 import { api } from '@/services/api-client';
 
@@ -53,23 +61,25 @@ export function clearWorkspaceServiceCache(): void {
 
 export const workspaceService = {
   // Workspace CRUD
-  async listWorkspaces(): Promise<Workspace[]> {
-    return api.get<Workspace[]>(`${API_PREFIX}/workspaces`);
+  async listWorkspaces(): Promise<ApiWorkspace[]> {
+    return api.get<ApiWorkspace[]>(`${API_PREFIX}/workspaces`);
   },
 
-  async createWorkspace(data: WorkspaceCreate): Promise<Workspace> {
-    return api.post<Workspace>(`${API_PREFIX}/workspaces`, data);
+  async createWorkspace(data: WorkspaceCreate): Promise<ApiWorkspace> {
+    return api.post<ApiWorkspace>(`${API_PREFIX}/workspaces`, data);
   },
 
-  async getWorkspace(workspaceId: string): Promise<WorkspaceDetail> {
-    return api.get<WorkspaceDetail>(`${API_PREFIX}/workspaces/${workspaceId}`);
+  async getWorkspace(workspaceId: string): Promise<ApiWorkspaceDetail> {
+    return api.get<ApiWorkspaceDetail>(
+      `${API_PREFIX}/workspaces/${workspaceId}`
+    );
   },
 
   async updateWorkspace(
     workspaceId: string,
-    data: WorkspaceUpdate
-  ): Promise<Workspace> {
-    return api.patch<Workspace>(
+    data: ApiWorkspaceUpdate
+  ): Promise<ApiWorkspace> {
+    return api.patch<ApiWorkspace>(
       `${API_PREFIX}/workspaces/${workspaceId}`,
       data
     );
@@ -86,7 +96,7 @@ export const workspaceService = {
   async listConversations(
     workspaceId: string,
     options: { page?: number; limit?: number; search?: string } = {}
-  ): Promise<ConversationListResponse> {
+  ): Promise<ApiConversationListResponse> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
@@ -94,27 +104,29 @@ export const workspaceService = {
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/workspaces/${workspaceId}/conversations${queryString ? `?${queryString}` : ''}`;
-    return api.get<ConversationListResponse>(url);
+    return api.get<ApiConversationListResponse>(url);
   },
 
-  async createConversation(data: ConversationCreate): Promise<Conversation> {
-    return api.post<Conversation>(
+  async createConversation(
+    data: ApiConversationCreate
+  ): Promise<ApiConversation> {
+    return api.post<ApiConversation>(
       `${API_PREFIX}/workspaces/${data.workspace_id}/conversations`,
       data
     );
   },
 
-  async getConversation(conversationId: string): Promise<Conversation> {
-    return api.get<Conversation>(
+  async getConversation(conversationId: string): Promise<ApiConversation> {
+    return api.get<ApiConversation>(
       `${API_PREFIX}/conversations/${conversationId}`
     );
   },
 
   async updateConversation(
     conversationId: string,
-    data: ConversationUpdate
-  ): Promise<Conversation> {
-    return api.patch<Conversation>(
+    data: ApiConversationUpdate
+  ): Promise<ApiConversation> {
+    return api.patch<ApiConversation>(
       `${API_PREFIX}/conversations/${conversationId}`,
       data
     );
@@ -131,18 +143,18 @@ export const workspaceService = {
   async listThreads(
     conversationId: string,
     options: { page?: number; limit?: number } = {}
-  ): Promise<ThreadListResponse> {
+  ): Promise<ApiThreadList> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/conversations/${conversationId}/threads${queryString ? `?${queryString}` : ''}`;
-    return api.get<ThreadListResponse>(url);
+    return api.get<ApiThreadList>(url);
   },
 
-  async createThread(data: ThreadCreate): Promise<Thread> {
-    return api.post<Thread>(`${API_PREFIX}/threads`, data);
+  async createThread(data: ApiThreadCreate): Promise<ApiThread> {
+    return api.post<ApiThread>(`${API_PREFIX}/threads`, data);
   },
 
   async getThread(
@@ -157,43 +169,58 @@ export const workspaceService = {
     );
   },
 
-  async updateThread(threadId: string, data: ThreadUpdate): Promise<Thread> {
-    return api.patch<Thread>(`${API_PREFIX}/threads/${threadId}`, data);
+  async updateThread(
+    threadId: string,
+    data: ApiThreadUpdate
+  ): Promise<ApiThread> {
+    return api.patch<ApiThread>(`${API_PREFIX}/threads/${threadId}`, data);
   },
 
   async deleteThread(threadId: string): Promise<void> {
     await api.delete(`${API_PREFIX}/threads/${threadId}`);
   },
 
-  async regenerateThreadSummary(threadId: string): Promise<Thread> {
-    return api.post<Thread>(`${API_PREFIX}/threads/${threadId}/summarize`);
+  async regenerateThreadSummary(threadId: string): Promise<ApiThread> {
+    return api.post<ApiThread>(`${API_PREFIX}/threads/${threadId}/summarize`);
   },
 
   // ============================================================================
   // Bulk Thread Operations
   // ============================================================================
 
-  async bulkResolveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.post<BulkThreadResponse>(`${API_PREFIX}/threads/bulk/resolve`, {
-      thread_ids: threadIds,
-    });
+  async bulkResolveThreads(
+    threadIds: string[]
+  ): Promise<ApiBulkThreadResponse> {
+    return api.post<ApiBulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk/resolve`,
+      {
+        thread_ids: threadIds,
+      }
+    );
   },
 
-  async bulkArchiveThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.post<BulkThreadResponse>(`${API_PREFIX}/threads/bulk/archive`, {
-      thread_ids: threadIds,
-    });
+  async bulkArchiveThreads(
+    threadIds: string[]
+  ): Promise<ApiBulkThreadResponse> {
+    return api.post<ApiBulkThreadResponse>(
+      `${API_PREFIX}/threads/bulk/archive`,
+      {
+        thread_ids: threadIds,
+      }
+    );
   },
 
-  async bulkSummarizeThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.post<BulkThreadResponse>(
+  async bulkSummarizeThreads(
+    threadIds: string[]
+  ): Promise<ApiBulkThreadResponse> {
+    return api.post<ApiBulkThreadResponse>(
       `${API_PREFIX}/threads/bulk/summarize`,
       { thread_ids: threadIds }
     );
   },
 
-  async bulkDeleteThreads(threadIds: string[]): Promise<BulkThreadResponse> {
-    return api.request<BulkThreadResponse>(`${API_PREFIX}/threads/bulk`, {
+  async bulkDeleteThreads(threadIds: string[]): Promise<ApiBulkThreadResponse> {
+    return api.request<ApiBulkThreadResponse>(`${API_PREFIX}/threads/bulk`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ thread_ids: threadIds }),
@@ -243,7 +270,7 @@ export const workspaceService = {
 
   async updateMessage(
     messageId: string,
-    data: ChatMessageUpdate
+    data: ApiMessageUpdate
   ): Promise<ChatMessage> {
     return api.patch<ChatMessage>(`${API_PREFIX}/messages/${messageId}`, data);
   },
@@ -259,31 +286,31 @@ export const workspaceService = {
   async listCollections(
     workspaceId: string,
     options: { page?: number; limit?: number } = {}
-  ): Promise<CollectionListResponse> {
+  ): Promise<ApiCollectionListResponse> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
     if (options.limit) params.append('limit', options.limit.toString());
 
     const queryString = params.toString();
     const url = `${API_PREFIX}/workspaces/${workspaceId}/collections${queryString ? `?${queryString}` : ''}`;
-    return api.get<CollectionListResponse>(url);
+    return api.get<ApiCollectionListResponse>(url);
   },
 
-  async createCollection(data: CollectionCreate): Promise<Collection> {
-    return api.post<Collection>(`${API_PREFIX}/collections`, data);
+  async createCollection(data: ApiCollectionCreate): Promise<ApiCollection> {
+    return api.post<ApiCollection>(`${API_PREFIX}/collections`, data);
   },
 
-  async getCollection(collectionId: string): Promise<CollectionDetail> {
-    return api.get<CollectionDetail>(
+  async getCollection(collectionId: string): Promise<ApiCollectionDetail> {
+    return api.get<ApiCollectionDetail>(
       `${API_PREFIX}/collections/${collectionId}`
     );
   },
 
   async updateCollection(
     collectionId: string,
-    data: CollectionUpdate
-  ): Promise<Collection> {
-    return api.patch<Collection>(
+    data: ApiCollectionUpdate
+  ): Promise<ApiCollection> {
+    return api.patch<ApiCollection>(
       `${API_PREFIX}/collections/${collectionId}`,
       data
     );
@@ -296,8 +323,8 @@ export const workspaceService = {
   async addDocumentsToCollection(
     collectionId: string,
     documentIds: string[]
-  ): Promise<Collection> {
-    return api.post<Collection>(
+  ): Promise<ApiCollection> {
+    return api.post<ApiCollection>(
       `${API_PREFIX}/collections/${collectionId}/documents`,
       { document_ids: documentIds }
     );
@@ -314,12 +341,13 @@ export const workspaceService = {
     });
   },
 
+
   // ============================================================================
   // Helper: Get or Create Default Workspace
   // ============================================================================
 
-  async getOrCreateDefaultWorkspace(): Promise<Workspace> {
-    const cacheWorkspace = (ws: Workspace) => {
+  async getOrCreateDefaultWorkspace(): Promise<ApiWorkspace> {
+    const cacheWorkspace = (ws: ApiWorkspace) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem(WS_CACHE_KEY, JSON.stringify(ws));
         localStorage.setItem(WS_CACHE_AT_KEY, String(Date.now()));
@@ -346,7 +374,9 @@ export const workspaceService = {
         Date.now() - Number(cachedAt) < WS_CACHE_TTL_MS
       ) {
         try {
-          const cachedWorkspace = JSON.parse(cachedJson) as Partial<Workspace>;
+          const cachedWorkspace = JSON.parse(
+            cachedJson
+          ) as Partial<ApiWorkspace>;
 
           if (cachedWorkspace.id) {
             try {
@@ -430,7 +460,7 @@ export const workspaceService = {
 
   async getOrCreateDefaultConversation(
     workspaceId: string
-  ): Promise<Conversation> {
+  ): Promise<ApiConversation> {
     const cacheConversationId = (id: string) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('default-conversation-id', id);
