@@ -1,0 +1,466 @@
+/**
+ * Message actions: load/refresh/paginate/send/delete, plus the coupled
+ * `messages` / `messagePagination` / `messageFreshness` triple and the
+ * terminal-reconciliation + stale-response guards (see recon
+ * `chatfe.store.guards` — REQUEST-IDENTITY, EXPECTATION RECONCILIATION,
+ * OPTIMISTIC-SUPERSEDES-REFRESH). Kept as one slice deliberately: these three
+ * state pieces and the request-identity check must never drift apart.
+ *
+ * Split out of chat-store.ts (Task 5.4) with no behavior change.
+ */
+import { ChatMessage, ChatMessageUpdate } from '@/types/workspace';
+import { workspaceService } from '@/services/workspaceService';
+import type { ChatSliceCreator, RefreshExpectation } from '../types';
+import { removeItemFromRecord } from '../recordIndex';
+import {
+  MAX_CACHED_THREADS,
+  INITIAL_MESSAGE_PAGE_SIZE,
+} from '../initialState';
+import {
+  abortNewestPageRequest,
+  newestPageRequests,
+  type NewestPageRequest,
+} from '../requestCoordinator';
+
+export interface MessageSlice {
+  loadMessages: (threadId: string) => Promise<void>;
+  markMessagesStale: (threadId: string) => void;
+  refreshMessages: (
+    threadId: string,
+    expected?: RefreshExpectation
+  ) => Promise<boolean>;
+  loadOlderMessages: (threadId: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    threadId?: string
+  ) => Promise<ChatMessage | null>;
+  addMessageToStore: (threadId: string, message: ChatMessage) => void;
+  updateMessageFeedback: (
+    id: string,
+    data: ChatMessageUpdate
+  ) => Promise<ChatMessage | null>;
+  deleteMessage: (id: string) => Promise<boolean>;
+  clearThread: (threadId: string) => void;
+}
+
+function compareMessageOrder(left: ChatMessage, right: ChatMessage): number {
+  const timestampOrder = left.created_at.localeCompare(right.created_at);
+  return timestampOrder !== 0
+    ? timestampOrder
+    : left.id.localeCompare(right.id);
+}
+
+function mergeNewestMessagePage(
+  existing: ChatMessage[],
+  canonicalNewestPage: ChatMessage[]
+): { messages: ChatMessage[]; retainedOlderCount: number } {
+  if (canonicalNewestPage.length === 0) {
+    return { messages: [], retainedOlderCount: 0 };
+  }
+
+  const canonical = [...canonicalNewestPage].sort(compareMessageOrder);
+  const boundary = canonical[0];
+  const canonicalIds = new Set(canonical.map((message) => message.id));
+  const retainedOlder = existing.filter(
+    (message) =>
+      !canonicalIds.has(message.id) &&
+      compareMessageOrder(message, boundary) < 0
+  );
+  const byId = new Map<string, ChatMessage>();
+  [...retainedOlder, ...canonical].forEach((message) => {
+    byId.set(message.id, message);
+  });
+
+  return {
+    messages: [...byId.values()].sort(compareMessageOrder),
+    retainedOlderCount: retainedOlder.length,
+  };
+}
+
+export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
+  set,
+  get
+) => ({
+  loadMessages: async (threadId) => {
+    await get().refreshMessages(threadId);
+  },
+
+  markMessagesStale: (threadId) => {
+    // A new optimistic turn supersedes any pre-turn newest-page request.
+    // If that older response committed, it could mark the pre-turn page
+    // fresh and hide the optimistic overlay before terminal reconciliation.
+    abortNewestPageRequest(threadId);
+    set((state) => {
+      state.messageFreshness[threadId] = 'stale';
+      if (state.loadingThreadId === threadId) {
+        state.isLoadingMessages = false;
+        state.loadingThreadId = null;
+      }
+    });
+  },
+
+  refreshMessages: async (threadId, expected) => {
+    const previous = newestPageRequests.get(threadId);
+    previous?.controller.abort();
+    const request: NewestPageRequest = {
+      generation: (previous?.generation ?? 0) + 1,
+      controller: new AbortController(),
+    };
+    newestPageRequests.set(threadId, request);
+
+    const snapshot = get();
+    const hasCachedPage =
+      Object.prototype.hasOwnProperty.call(snapshot.messages, threadId) &&
+      !!snapshot.messagePagination[threadId];
+    set((state) => {
+      state.messageFreshness[threadId] = 'refreshing';
+      state.error = null;
+      if (!hasCachedPage) {
+        state.isLoadingMessages = true;
+        state.loadingThreadId = threadId;
+      }
+    });
+
+    try {
+      const response = await workspaceService.listMessages(threadId, {
+        limit: INITIAL_MESSAGE_PAGE_SIZE,
+        order: 'desc',
+        signal: request.controller.signal,
+      });
+      if (newestPageRequests.get(threadId) !== request) {
+        return false;
+      }
+      if (!Array.isArray(response.messages)) {
+        throw new Error('Invalid messages response');
+      }
+
+      const canonicalAscending = [...response.messages].reverse();
+      const expectationIds = [
+        expected?.persistedId,
+        expected?.runtimeId,
+      ].filter((value): value is string => !!value);
+      const expectationMet =
+        expectationIds.length === 0 ||
+        response.messages.some(
+          (message) =>
+            expectationIds.includes(message.id) ||
+            (!!message.client_message_id &&
+              expectationIds.includes(message.client_message_id))
+        );
+      const evictedThreadIds: string[] = [];
+
+      newestPageRequests.delete(threadId);
+      set((state) => {
+        const existing = state.messages[threadId] || [];
+        const existingPagination = state.messagePagination[threadId];
+        const { messages, retainedOlderCount } = mergeNewestMessagePage(
+          existing,
+          canonicalAscending
+        );
+
+        for (const message of existing) {
+          delete state.messageToThread[message.id];
+        }
+        state.messages[threadId] = messages;
+        for (const message of messages) {
+          state.messageToThread[message.id] = threadId;
+        }
+        state.messagePagination[threadId] = {
+          hasMore:
+            retainedOlderCount > 0 && existingPagination
+              ? existingPagination.hasMore
+              : messages.length > 0 && response.has_more,
+          loadingOlder: false,
+          loadedCount: messages.length,
+        };
+        state.messageFreshness[threadId] = expectationMet ? 'fresh' : 'stale';
+
+        const threadKeys = Object.keys(state.messages);
+        if (threadKeys.length > MAX_CACHED_THREADS) {
+          const protectedThreadIds = new Set(
+            [state.currentThreadId, threadId].filter(
+              (id): id is string => !!id
+            )
+          );
+          const excess = threadKeys.length - MAX_CACHED_THREADS;
+          evictedThreadIds.push(
+            ...threadKeys
+              .filter((key) => !protectedThreadIds.has(key))
+              .slice(0, excess)
+          );
+          for (const key of evictedThreadIds) {
+            for (const message of state.messages[key] || []) {
+              delete state.messageToThread[message.id];
+            }
+            delete state.messages[key];
+            delete state.messagePagination[key];
+            delete state.messageFreshness[key];
+          }
+        }
+
+        if (state.loadingThreadId === threadId) {
+          state.isLoadingMessages = false;
+          state.loadingThreadId = null;
+        }
+      });
+      evictedThreadIds.forEach(abortNewestPageRequest);
+      if (!expectationMet && expected?.diagnostic) {
+        console.warn('[ChatReconciliationInvariant]', {
+          threadId,
+          terminalReason: expected.diagnostic.terminalReason,
+          failureKind: 'expected-message-missing',
+          freshness: 'stale',
+          localCount: expected.diagnostic.localCount,
+          storeCount: get().messages[threadId]?.length ?? 0,
+          expectedPersistedId: expected.persistedId,
+          expectedRuntimeId: expected.runtimeId,
+          requestGeneration: request.generation,
+          completedInBackground: expected.diagnostic.completedInBackground,
+        });
+      }
+      return expectationMet;
+    } catch (error) {
+      if (newestPageRequests.get(threadId) !== request) {
+        return false;
+      }
+      newestPageRequests.delete(threadId);
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      if (!isAbort) {
+        if (expected?.diagnostic) {
+          console.warn('[ChatReconciliationInvariant]', {
+            threadId,
+            terminalReason: expected.diagnostic.terminalReason,
+            failureKind: 'refresh-failed',
+            freshness: 'stale',
+            localCount: expected.diagnostic.localCount,
+            storeCount: get().messages[threadId]?.length ?? 0,
+            expectedPersistedId: expected.persistedId,
+            expectedRuntimeId: expected.runtimeId,
+            requestGeneration: request.generation,
+            completedInBackground: expected.diagnostic.completedInBackground,
+            errorName: error instanceof Error ? error.name : 'unknown',
+          });
+        } else {
+          console.error('[ChatStore] Error refreshing messages:', error);
+        }
+      }
+      set((state) => {
+        state.messageFreshness[threadId] = 'stale';
+        if (!isAbort) {
+          state.error = 'Failed to load messages';
+        }
+        if (state.loadingThreadId === threadId) {
+          state.isLoadingMessages = false;
+          state.loadingThreadId = null;
+        }
+      });
+      return false;
+    }
+  },
+
+  loadOlderMessages: async (threadId) => {
+    const pagination = get().messagePagination[threadId];
+    if (!pagination || !pagination.hasMore || pagination.loadingOlder) {
+      return;
+    }
+
+    set((state) => {
+      if (!state.messagePagination[threadId]) return;
+      state.messagePagination[threadId].loadingOlder = true;
+    });
+
+    try {
+      // Cursor pagination: ask for messages strictly OLDER than the oldest
+      // one currently loaded (display index 0), newest-first. Offset-based
+      // paging against an ascending list would walk toward NEWER messages
+      // and scramble order — before_id is the only correct "load older".
+      const oldestLoaded = get().messages[threadId]?.[0];
+      if (!oldestLoaded) {
+        return;
+      }
+      const response = await workspaceService.listMessages(threadId, {
+        limit: 100,
+        order: 'desc',
+        before_id: oldestLoaded.id,
+      });
+
+      // Runtime validation: a malformed payload must not corrupt the
+      // message list. Bail out (the finally block clears loadingOlder).
+      if (!response.messages || !Array.isArray(response.messages)) {
+        console.error(
+          '[ChatStore] Invalid response.messages in loadOlderMessages'
+        );
+        return;
+      }
+
+      // desc response is newest→oldest; reverse to ascending so it slots in
+      // front of the existing list in chronological order.
+      const olderAscending = [...response.messages].reverse();
+
+      set((state) => {
+        const existing = state.messages[threadId] || [];
+        // De-dup against already-loaded messages: overlapping pages (e.g.
+        // a message inserted between fetches) must not produce duplicates.
+        const existingIds = new Set(existing.map((m) => m.id));
+        const newMessages = olderAscending.filter(
+          (m) => !existingIds.has(m.id)
+        );
+        // Prepend the older batch at the front, preserving newest-at-the-end
+        // display order.
+        state.messages[threadId] = [...newMessages, ...existing];
+        // Populate reverse index for new messages
+        for (const msg of newMessages) {
+          if (!state.messageToThread[msg.id]) {
+            state.messageToThread[msg.id] = threadId;
+          }
+        }
+        state.messagePagination[threadId] = {
+          // Empty page (or none new) means we've reached the start — stop,
+          // even if the server still reports has_more, to avoid re-fetching
+          // the same cursor forever.
+          hasMore: response.messages.length > 0 && response.has_more,
+          loadingOlder: false,
+          loadedCount: pagination.loadedCount + newMessages.length,
+        };
+      });
+    } catch (error) {
+      console.error('[ChatStore] Error loading older messages:', error);
+      set((state) => {
+        state.error = 'Failed to load older messages';
+      });
+    } finally {
+      set((state) => {
+        if (state.messagePagination[threadId]) {
+          state.messagePagination[threadId].loadingOlder = false;
+        }
+      });
+    }
+  },
+
+  sendMessage: async (content, threadId) => {
+    const state = get();
+    const targetThreadId = threadId || state.currentThreadId;
+
+    if (!targetThreadId) {
+      console.error('[ChatStore] No thread selected for sending message');
+      return null;
+    }
+
+    set((state) => {
+      state.isSendingMessage = true;
+      state.error = null;
+    });
+
+    try {
+      const message = await workspaceService.createMessage({
+        thread_id: targetThreadId,
+        content,
+      });
+
+      set((state) => {
+        if (!state.messages[targetThreadId]) {
+          state.messages[targetThreadId] = [];
+        }
+        state.messages[targetThreadId].push(message);
+        // Populate reverse index (GOO-86)
+        state.messageToThread[message.id] = targetThreadId;
+        state.isSendingMessage = false;
+      });
+
+      return message;
+    } catch (error) {
+      console.error('[ChatStore] Error sending message:', error);
+      set((state) => {
+        state.error = 'Failed to send message';
+        state.isSendingMessage = false;
+      });
+      return null;
+    }
+  },
+
+  // Add message directly to store without API call
+  // Used when page.tsx saves messages with citations through its own flow
+  addMessageToStore: (threadId, message) => {
+    set((state) => {
+      if (!state.messages[threadId]) {
+        state.messages[threadId] = [];
+      }
+      // Check if message already exists to prevent duplicates
+      const existingIndex = state.messages[threadId].findIndex(
+        (m) => m.id === message.id
+      );
+      if (existingIndex === -1) {
+        state.messages[threadId].push(message);
+        state.messageToThread[message.id] = threadId;
+        console.log(
+          '[ChatStore] Added message to store:',
+          message.id,
+          'with',
+          message.citations?.length || 0,
+          'citations'
+        );
+      } else {
+        // Update existing message (e.g., when citations are added later)
+        state.messages[threadId][existingIndex] = message;
+        console.log(
+          '[ChatStore] Updated message in store:',
+          message.id,
+          'with',
+          message.citations?.length || 0,
+          'citations'
+        );
+      }
+    });
+  },
+
+  updateMessageFeedback: async (id, data) => {
+    try {
+      const message = await workspaceService.updateMessage(id, data);
+      set((state) => {
+        const threadId = message.thread_id;
+        const messages = state.messages[threadId] || [];
+        const index = messages.findIndex((m) => m.id === id);
+        if (index !== -1) {
+          state.messages[threadId][index] = message;
+        }
+      });
+      return message;
+    } catch (error) {
+      console.error('[ChatStore] Error updating message feedback:', error);
+      set((state) => {
+        state.error = 'Failed to update message feedback';
+      });
+      return null;
+    }
+  },
+
+  deleteMessage: async (id) => {
+    try {
+      await workspaceService.deleteMessage(id);
+      set((state) => {
+        // Use O(1) reverse index lookup (GOO-86)
+        removeItemFromRecord(state.messages, id, state.messageToThread);
+      });
+      return true;
+    } catch (error) {
+      console.error('[ChatStore] Error deleting message:', error);
+      set((state) => {
+        state.error = 'Failed to delete message';
+      });
+      return false;
+    }
+  },
+
+  clearThread: (threadId) => {
+    abortNewestPageRequest(threadId);
+    set((state) => {
+      // Clean up reverse index entries for evicted messages
+      for (const msg of state.messages[threadId] || []) {
+        delete state.messageToThread[msg.id];
+      }
+      delete state.messages[threadId];
+      delete state.messagePagination[threadId];
+      delete state.messageFreshness[threadId];
+    });
+  },
+});

@@ -22,16 +22,34 @@ vi.mock('@/components/chat/ChatHeader', () => ({
 vi.mock('@/components/chat/ChatMessageList', () => ({
   ChatMessageList: (props: {
     onCommandItemAction?: (action: { type: 'open-thread'; id: string }) => void;
+    onLoadOlder?: () => void;
+    hasMore?: boolean;
+    isLoadingOlder?: boolean;
+    messages?: Array<{ role: string; content: string }>;
   }) => (
-    <button
-      type="button"
-      data-testid="chat-command-open-thread"
-      onClick={() =>
-        props.onCommandItemAction?.({ type: 'open-thread', id: 'thread-2' })
-      }
-    >
-      Open command thread
-    </button>
+    <div>
+      <button
+        type="button"
+        data-testid="chat-command-open-thread"
+        onClick={() =>
+          props.onCommandItemAction?.({ type: 'open-thread', id: 'thread-2' })
+        }
+      >
+        Open command thread
+      </button>
+      <button
+        type="button"
+        data-testid="load-older"
+        onClick={() => props.onLoadOlder?.()}
+      >
+        Load older
+      </button>
+      <span data-testid="has-more">{String(props.hasMore ?? false)}</span>
+      <span data-testid="is-loading-older">
+        {String(props.isLoadingOlder ?? false)}
+      </span>
+      <span data-testid="message-count">{props.messages?.length ?? 0}</span>
+    </div>
   ),
 }));
 
@@ -293,5 +311,79 @@ describe('ChatPage thread selection', () => {
       screen.getByRole('status', { name: 'Loading conversation' })
     ).toBeInTheDocument();
     expect(screen.getByText('Loading conversation')).toBeVisible();
+  });
+
+  it('shows the welcome state for a brand-new thread, then the transcript once the first message lands', () => {
+    const emptySession = {
+      ...mockUseChatSession(),
+      activeConversationId: null,
+      activeThreadId: null,
+      dbConversation: null,
+      isLoadingMessages: false,
+      displayedMessages: [],
+    };
+    mockUseChatSession.mockReturnValue(emptySession);
+
+    const { rerender } = render(<ChatPage />);
+    expect(screen.getByTestId('welcome-state')).toBeInTheDocument();
+    expect(screen.queryByTestId('chat-command-open-thread')).not.toBeInTheDocument();
+
+    mockUseChatSession.mockReturnValue({
+      ...emptySession,
+      activeConversationId: 'thread-new',
+      activeThreadId: 'thread-new',
+      displayedMessages: [
+        {
+          role: 'user',
+          content: 'What is retrieval-augmented generation?',
+          timestamp: 1,
+        },
+      ],
+    });
+    rerender(<ChatPage />);
+
+    expect(screen.queryByTestId('welcome-state')).not.toBeInTheDocument();
+    expect(screen.getByTestId('chat-command-open-thread')).toBeInTheDocument();
+    expect(screen.getByTestId('message-count')).toHaveTextContent('1');
+  });
+
+  it('exposes pagination state without ever replacing the displayed transcript', () => {
+    const loadOlderMessages = vi.fn();
+    const baseSession = {
+      ...mockUseChatSession(),
+      activeThreadId: 'thread-1',
+      displayedMessages: [
+        { role: 'assistant', content: 'Existing transcript', timestamp: 1 },
+      ],
+      loadOlderMessages,
+    };
+    mockUseChatSession.mockReturnValue({
+      ...baseSession,
+      messagePagination: {
+        'thread-1': { hasMore: true, loadingOlder: false, loadedCount: 20 },
+      },
+    });
+
+    const { rerender } = render(<ChatPage />);
+
+    expect(screen.getByTestId('has-more')).toHaveTextContent('true');
+    expect(screen.getByTestId('is-loading-older')).toHaveTextContent('false');
+    expect(screen.getByTestId('message-count')).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByTestId('load-older'));
+    expect(loadOlderMessages).toHaveBeenCalledWith('thread-1');
+
+    // The fetch is now in flight — the flag flips but the already-displayed
+    // transcript is never cleared or replaced while older rows load.
+    mockUseChatSession.mockReturnValue({
+      ...baseSession,
+      messagePagination: {
+        'thread-1': { hasMore: true, loadingOlder: true, loadedCount: 20 },
+      },
+    });
+    rerender(<ChatPage />);
+
+    expect(screen.getByTestId('is-loading-older')).toHaveTextContent('true');
+    expect(screen.getByTestId('message-count')).toHaveTextContent('1');
   });
 });
