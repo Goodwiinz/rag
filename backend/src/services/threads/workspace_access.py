@@ -94,8 +94,9 @@ async def get_workspace(
         select(Workspace)
         .options(*options)
         .where(
-            Workspace.id == workspace_id, Workspace.is_deleted == False
-        )  # noqa: E712
+            Workspace.id == workspace_id,
+            Workspace.is_deleted == False,  # noqa: E712
+        )
     )
     result = await db.execute(stmt)
     workspace = result.scalars().first()
@@ -221,8 +222,8 @@ async def get_message(
     """
     conditions = [
         ChatMessage.id == message_id,
-        ChatMessage.is_deleted == False,
-    ]  # noqa: E712
+        ChatMessage.is_deleted == False,  # noqa: E712
+    ]
     if thread_id is not None:
         conditions.append(ChatMessage.thread_id == thread_id)
 

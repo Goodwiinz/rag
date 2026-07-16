@@ -89,7 +89,10 @@ async def create_workspace(
     # Re-fetch with full eager load — the response/presenter reads
     # member/conversation/collection counts immediately after create.
     created = await workspace_access.get_workspace(db, workspace.id, owner_id)
-    assert created is not None  # just created + owner-member; always accessible
+    if created is None:
+        raise RuntimeError(
+            "Workspace lookup failed immediately after creation"
+        )  # pragma: no cover
     return created
 
 
@@ -109,8 +112,8 @@ async def list_workspaces(
     """
     base_conditions = [
         WorkspaceMember.user_id == user_id,
-        Workspace.is_deleted == False,
-    ]  # noqa: E712
+        Workspace.is_deleted == False,  # noqa: E712
+    ]
     if filter_deleted_memberships:
         base_conditions.append(WorkspaceMember.is_deleted == False)  # noqa: E712
     if not include_archived:

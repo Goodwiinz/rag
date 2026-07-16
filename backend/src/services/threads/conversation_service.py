@@ -67,7 +67,10 @@ async def create_conversation(
     created = await workspace_access.get_conversation(
         db, conversation.id, user_id, load_threads=True
     )
-    assert created is not None
+    if created is None:
+        raise RuntimeError(
+            "Conversation lookup failed immediately after creation"
+        )  # pragma: no cover
     return created
 
 

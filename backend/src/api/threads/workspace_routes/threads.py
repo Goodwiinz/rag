@@ -107,6 +107,7 @@ async def list_threads(
         db,
         conversation_id,
         current_user.id,
+        workspace_id=workspace_id,
         status_filter=status_enum,
         limit=limit,
         offset=offset,
