@@ -157,11 +157,11 @@ async def websocket_connect_v2_secure(
     Secure WebSocket connection endpoint with comprehensive features.
 
     SECURITY: Authentication is performed via headers, NOT URL parameters.
+    A present-but-disallowed Origin header is rejected (CSWSH hardening).
 
     Authentication Methods (in priority order):
     1. Authorization header: `Authorization: Bearer <token>`
     2. Sec-WebSocket-Protocol: `auth, <token>` (browser workaround)
-    3. Cookie: `access_token=<token>` (session-based auth)
 
     Features:
     - Secure JWT authentication (no token in URL)
