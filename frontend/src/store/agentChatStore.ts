@@ -33,7 +33,14 @@ let threadLoadEpoch = 0;
 let loadThreadsToken: object | null = null;
 
 interface AgentChatStore extends AgentChatState, AgentChatActions {
-  /** Internal: AbortController for current polling loop */
+  /**
+   * Internal: single ownership slot shared by sendMessage AND confirmAction —
+   * whoever holds the live generation's controller owns the streaming state.
+   * Invariant: every callback that writes shared state re-checks ownership
+   * via a captured-identity closure (isCurrentGeneration) before writing;
+   * every supersession path (stopGeneration/selectThread/newThread/confirm
+   * takeover) aborts the old controller BEFORE reassigning this slot.
+   */
   _abortController: AbortController | null;
   reset: () => void;
 }
@@ -540,6 +547,10 @@ export const useAgentChatStore = create<AgentChatStore>()(
       const targetMessageId =
         [...get().messages].reverse().find((m) => m.role === 'assistant')?.id ??
         null;
+      // The thread-id clause is defense-in-depth: today every thread switch
+      // also nulls _abortController synchronously, so the identity check
+      // alone would catch it — kept in case controller-nulling and
+      // thread-switch ever decouple.
       const isCurrentGeneration = (): boolean =>
         (get() as unknown as AgentChatStore)._abortController ===
           abortController && get().activeThreadId === confirmThreadId;
@@ -771,7 +782,11 @@ export const useAgentChatStore = create<AgentChatStore>()(
             // abort + swap the transcript while the poll was in flight, and
             // the branches below resolve "last assistant message" from
             // CURRENT state — without this, thread A's result writes into
-            // thread B's message.
+            // thread B's message. (Unlike the SSE branch, the poll branches
+            // deliberately do NOT anchor to the captured targetMessageId: a
+            // same-thread reload can replace message ids, so once thread
+            // identity is confirmed, "current last assistant" is the only
+            // stable anchor.)
             if (!isCurrentGeneration()) return;
 
             if (run.status === 'COMPLETED' && run.output) {
