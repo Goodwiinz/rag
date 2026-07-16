@@ -2538,12 +2538,10 @@ class KnowledgeGraphService:
         Returns a SearchResponse-compatible object so the search API can treat
         knowledge-graph search identically to fulltext/vector search.
         """
-        from src.models.search_schemas import (
-            SearchResponse,
-            SearchResult as SearchResultModel,
-            SearchType as SearchTypeEnum,
-        )
         from src.models.document import DocumentType
+        from src.models.search_schemas import SearchResponse
+        from src.models.search_schemas import SearchResult as SearchResultModel
+        from src.models.search_schemas import SearchType as SearchTypeEnum
 
         start_time = time.time()
 
