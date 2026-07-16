@@ -73,12 +73,15 @@ def _is_structural(entry: str) -> bool:
 def _load_jsonc(path: Path) -> dict:
     raw = path.read_text(encoding="utf-8")
     try:
-        return json.loads(raw)
+        loaded = json.loads(raw)
     except json.JSONDecodeError:
         # tolerate // comments and trailing commas (tsconfig is JSONC)
         no_comments = re.sub(r"^\s*//.*$", "", raw, flags=re.MULTILINE)
         no_trailing = re.sub(r",(\s*[}\]])", r"\1", no_comments)
-        return json.loads(no_trailing)
+        loaded = json.loads(no_trailing)
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return loaded
 
 
 def _glob_to_regex(pattern: str) -> re.Pattern[str]:
@@ -106,9 +109,7 @@ def _glob_to_regex(pattern: str) -> re.Pattern[str]:
 
 def _production_exclusions(tsconfig: dict) -> list[str]:
     return sorted(
-        entry
-        for entry in tsconfig.get("exclude", [])
-        if not _is_structural(entry)
+        entry for entry in tsconfig.get("exclude", []) if not _is_structural(entry)
     )
 
 

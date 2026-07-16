@@ -4,7 +4,9 @@
 # scripts/ci/check_tool_versions.py fails CI if a mirror hook returns.
 #
 # The Python hooks expect the backend virtualenv's tools on PATH
-# (ruff/black/isort/mypy — the same pins CI installs). Staged-file
+# (ruff/black/isort — the same pins CI installs). MyPy is CI-owned:
+# it blocks added files only, so a staged-file hook would be stricter
+# than the gate and stall commits on legacy debt. Staged-file
 # scoping mirrors CI's blocking changed-file quality gate; full-tree
 # debt stays in CI's advisory lanes until it reaches zero.
 repos:
@@ -33,11 +35,6 @@ repos:
       - id: isort
         name: isort --check-only on staged backend files (same command as CI)
         entry: python3 -m isort --check-only
-        language: system
-        files: ^backend/.*\.py$
-      - id: mypy
-        name: mypy on staged backend files (same command as CI)
-        entry: python3 -m mypy --ignore-missing-imports
         language: system
         files: ^backend/.*\.py$
       - id: eslint

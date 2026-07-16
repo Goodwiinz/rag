@@ -476,25 +476,29 @@ class TenantService:
                     "used": organization.storage_used_gb,
                     "limit": organization.storage_limit_gb,
                     "percentage": organization.storage_percentage_used,
-                    "status": "ok"
-                    if organization.storage_percentage_used < 90
-                    else "warning",
+                    "status": (
+                        "ok" if organization.storage_percentage_used < 90 else "warning"
+                    ),
                 },
                 "users": {
                     "used": user_count,
                     "limit": limits.get("max_users", "unlimited"),
-                    "status": "ok"
-                    if limits.get("max_users") is None
-                    or user_count < limits.get("max_users")
-                    else "exceeded",
+                    "status": (
+                        "ok"
+                        if limits.get("max_users") is None
+                        or user_count < limits.get("max_users")
+                        else "exceeded"
+                    ),
                 },
                 "documents": {
                     "used": document_count,
                     "limit": limits.get("max_documents", "unlimited"),
-                    "status": "ok"
-                    if limits.get("max_documents") is None
-                    or document_count < limits.get("max_documents")
-                    else "exceeded",
+                    "status": (
+                        "ok"
+                        if limits.get("max_documents") is None
+                        or document_count < limits.get("max_documents")
+                        else "exceeded"
+                    ),
                 },
             },
             "overall_status": "ok",

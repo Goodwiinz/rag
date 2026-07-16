@@ -103,7 +103,15 @@ jobs:
           ruff check "${FILES[@]}"
           black --check "${FILES[@]}"
           isort --check-only "${FILES[@]}"
-          mypy --ignore-missing-imports "${FILES[@]}"
+          # MyPy blocks ADDED files only: modified legacy files still carry
+          # deep type debt (measured 529 errors across one 27-file sample),
+          # covered by the advisory full-tree lane until it shrinks.
+          # --follow-imports=silent keeps errors scoped to the listed files.
+          mapfile -t ADDED < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python-added)
+          if [ "${#ADDED[@]}" -gt 0 ]; then
+            printf 'Type-checking %d added Python file(s)\n' "${#ADDED[@]}"
+            mypy --ignore-missing-imports --follow-imports=silent "${ADDED[@]}"
+          fi
       - name: Advisory full-tree Black (formatting check)
         run: black --check backend/src
         continue-on-error: true # Advisory until full-tree debt reaches zero

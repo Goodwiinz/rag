@@ -4,9 +4,6 @@ Enhanced RAG Query model with comprehensive answer tracking and 30-day retention
 
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index
-from sqlalchemy.orm import relationship, selectinload, joinedload
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from enum import Enum as PyEnum
 from typing import Any, Dict, List, Optional
 
@@ -24,7 +21,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import joinedload, relationship, selectinload
 
 from .base import GUID, BaseModel
 
@@ -198,18 +195,18 @@ class RAGQuery(BaseModel):
 
     # Indexes for performance
     __table_args__ = (
-        Index('idx_rag_queries_user_session', 'user_id', 'session_id'),
-        Index('idx_rag_queries_org_type', 'organization_id', 'query_type'),
-        Index('idx_rag_queries_quality', 'overall_quality_score', 'faithfulness_score'),
-        Index('idx_rag_queries_created', 'created_at'),
-        Index('idx_rag_queries_expires', 'expires_at'),
-        Index('idx_rag_queries_cache', 'cache_key', 'cache_hit'),
+        Index("idx_rag_queries_user_session", "user_id", "session_id"),
+        Index("idx_rag_queries_org_type", "organization_id", "query_type"),
+        Index("idx_rag_queries_quality", "overall_quality_score", "faithfulness_score"),
+        Index("idx_rag_queries_created", "created_at"),
+        Index("idx_rag_queries_expires", "expires_at"),
+        Index("idx_rag_queries_cache", "cache_key", "cache_hit"),
         # Additional performance indexes
-        Index('idx_rag_queries_user_created', 'user_id', 'created_at'),
-        Index('idx_rag_queries_org_created', 'organization_id', 'created_at'),
-        Index('idx_rag_queries_rating_helpful', 'user_rating', 'was_helpful'),
-        Index('idx_rag_queries_confidence_type', 'answer_confidence', 'answer_type'),
-        Index('idx_rag_queries_performance', 'total_duration_ms', 'cache_hit'),
+        Index("idx_rag_queries_user_created", "user_id", "created_at"),
+        Index("idx_rag_queries_org_created", "organization_id", "created_at"),
+        Index("idx_rag_queries_rating_helpful", "user_rating", "was_helpful"),
+        Index("idx_rag_queries_confidence_type", "answer_confidence", "answer_type"),
+        Index("idx_rag_queries_performance", "total_duration_ms", "cache_hit"),
     )
 
     def __repr__(self):
@@ -376,9 +373,9 @@ class RAGQuery(BaseModel):
             {
                 "query_type": self.query_type.value if self.query_type else None,
                 "answer_type": self.answer_type.value if self.answer_type else None,
-                "quality_rating": self.quality_rating.value
-                if self.quality_rating
-                else None,
+                "quality_rating": (
+                    self.quality_rating.value if self.quality_rating else None
+                ),
             }
         )
 
@@ -410,42 +407,52 @@ class RAGQuery(BaseModel):
     @classmethod
     def get_with_user_and_org(cls, query_id):
         """Get query with user and organization eagerly loaded"""
-        return cls.query.options(
-            joinedload(cls.user),
-            joinedload(cls.organization)
-        ).filter(cls.id == query_id).first()
+        return (
+            cls.query.options(joinedload(cls.user), joinedload(cls.organization))
+            .filter(cls.id == query_id)
+            .first()
+        )
 
     @classmethod
     def get_with_feedback(cls, query_id):
         """Get query with feedback events and metrics loaded"""
-        return cls.query.options(
-            joinedload(cls.user),
-            selectinload(cls.feedback_events),
-            selectinload(cls.quality_metrics)
-        ).filter(cls.id == query_id).first()
+        return (
+            cls.query.options(
+                joinedload(cls.user),
+                selectinload(cls.feedback_events),
+                selectinload(cls.quality_metrics),
+            )
+            .filter(cls.id == query_id)
+            .first()
+        )
 
     @classmethod
     def get_user_queries_with_details(cls, user_id, limit=50):
         """Get user queries with organization loaded to avoid N+1"""
-        return cls.query.options(
-            joinedload(cls.organization),
-            selectinload(cls.quality_metrics)
-        ).filter(
-            cls.user_id == user_id,
-            cls.is_deleted == False
-        ).order_by(cls.created_at.desc()).limit(limit).all()
+        return (
+            cls.query.options(
+                joinedload(cls.organization), selectinload(cls.quality_metrics)
+            )
+            .filter(cls.user_id == user_id, cls.is_deleted == False)
+            .order_by(cls.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
     @classmethod
-    def get_active_queries(cls, organization_id: Optional[uuid.UUID] = None, limit: int = 100) -> List:
+    def get_active_queries(
+        cls, organization_id: Optional[uuid.UUID] = None, limit: int = 100
+    ) -> List:
         """Get active (non-expired) queries with user info loaded"""
-        query = cls.query.options(
-            joinedload(cls.user),
-            joinedload(cls.organization)
-        ).filter(
-            cls.expires_at > datetime.utcnow(),
-            cls.marked_for_deletion == False,
-            cls.is_deleted == False,
-        ).order_by(cls.created_at.desc())
+        query = (
+            cls.query.options(joinedload(cls.user), joinedload(cls.organization))
+            .filter(
+                cls.expires_at > datetime.utcnow(),
+                cls.marked_for_deletion == False,
+                cls.is_deleted == False,
+            )
+            .order_by(cls.created_at.desc())
+        )
 
         if organization_id:
             query = query.filter(cls.organization_id == organization_id)

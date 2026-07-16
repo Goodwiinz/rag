@@ -17,15 +17,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = REPO_ROOT / "scripts" / "ci" / "check_tool_versions.py"
 
-WORKFLOW_SNIPPET = textwrap.dedent(
-    """
+WORKFLOW_SNIPPET = textwrap.dedent("""
     jobs:
       lint-backend:
         steps:
           - name: Install lint tools (current pins)
             run: pip install ruff==0.15.15 black==26.5.1 isort==5.13.2 mypy==1.7.1
-    """
-)
+    """)
 
 
 def _run(root: Path) -> subprocess.CompletedProcess[str]:
@@ -40,9 +38,7 @@ def _make_root(tmp_path: Path, precommit: str) -> Path:
     root = tmp_path / "project"
     workflow_dir = root / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
-    (workflow_dir / "test-pipeline.yml").write_text(
-        WORKFLOW_SNIPPET, encoding="utf-8"
-    )
+    (workflow_dir / "test-pipeline.yml").write_text(WORKFLOW_SNIPPET, encoding="utf-8")
     (root / ".pre-commit-config.yaml").write_text(
         textwrap.dedent(precommit), encoding="utf-8"
     )

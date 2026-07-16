@@ -22,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -84,8 +84,10 @@ def main() -> int:
         for violation in violations:
             print(f"  {violation}")
         return 1
-    print("OK: pre-commit uses repository-owned commands only; CI pins are "
-          f"{', '.join(f'{t}=={v}' for t, v in sorted(pins.items()))}.")
+    print(
+        "OK: pre-commit uses repository-owned commands only; CI pins are "
+        f"{', '.join(f'{t}=={v}' for t, v in sorted(pins.items()))}."
+    )
     return 0
 
 

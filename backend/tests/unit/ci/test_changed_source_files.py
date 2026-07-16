@@ -114,9 +114,7 @@ class TestBaseSelection:
         base = _base_sha(repo)
         _write(repo, "backend/src/new.py")
         _commit_all(repo)
-        result = _run(
-            repo, "--kind", "python", env_extra={"GITHUB_EVENT_BEFORE": base}
-        )
+        result = _run(repo, "--kind", "python", env_extra={"GITHUB_EVENT_BEFORE": base})
         assert result.returncode == 0
         assert result.stdout.splitlines() == ["backend/src/new.py"]
 
@@ -171,6 +169,30 @@ class TestClassification:
         result = _run(repo, "--base", base, "--kind", "frontend")
         assert result.returncode == 0
         assert result.stdout.strip() == ""
+
+
+class TestAddedDetection:
+    def test_added_python_files_are_distinguished(self, repo: Path) -> None:
+        base = _base_sha(repo)
+        _write(repo, "backend/src/brand_new.py")
+        (repo / "backend/src/existing.py").write_text("changed\n", encoding="utf-8")
+        _commit_all(repo)
+        result = _run(repo, "--base", base, "--kind", "python-added")
+        assert result.returncode == 0
+        assert result.stdout.splitlines() == ["backend/src/brand_new.py"]
+
+    def test_json_output_includes_added_subset(self, repo: Path) -> None:
+        base = _base_sha(repo)
+        _write(repo, "backend/src/brand_new.py")
+        (repo / "backend/src/existing.py").write_text("changed\n", encoding="utf-8")
+        _commit_all(repo)
+        result = _run(repo, "--base", base)
+        payload = json.loads(result.stdout)
+        assert payload["python_added"] == ["backend/src/brand_new.py"]
+        assert sorted(payload["python"]) == [
+            "backend/src/brand_new.py",
+            "backend/src/existing.py",
+        ]
 
 
 class TestGitEdgeCases:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -42,7 +43,7 @@ def _make_root(
     *,
     exclude: list[str],
     baseline: list[str],
-    files: list[str] = (),
+    files: Sequence[str] = (),
 ) -> Path:
     root = tmp_path / "project"
     frontend = root / "frontend"
@@ -91,6 +92,7 @@ def test_fails_on_exclusion_missing_from_baseline(tmp_path: Path) -> None:
     result = _run(root)
     assert result.returncode == 1
     assert "src/sneaky/New.tsx" in result.stdout
+
 
 def test_structural_exclusions_never_need_baseline(tmp_path: Path) -> None:
     root = _make_root(tmp_path, exclude=[], baseline=[])

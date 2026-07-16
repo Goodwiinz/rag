@@ -41,9 +41,7 @@ def _fail(message: str) -> "None":
 
 
 def _git(*args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
     if result.returncode != 0:
         _fail(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout
@@ -79,15 +77,14 @@ def _resolve_base(explicit: str | None) -> str:
     return verify.stdout.strip()
 
 
-def _changed_paths(base: str) -> list[str]:
+def _changed_paths(base: str) -> list[tuple[str, str]]:
+    """Return (status, path) pairs changed since merge-base(base, HEAD)."""
     merge_base = _git("merge-base", base, "HEAD").strip()
     # -z: NUL separators (spaces/renames safe); -M: detect renames;
     # ACMR: added/copied/modified/renamed — deletions excluded.
-    raw = _git(
-        "diff", "--name-status", "-z", "-M", "--diff-filter=ACMR", merge_base
-    )
+    raw = _git("diff", "--name-status", "-z", "-M", "--diff-filter=ACMR", merge_base)
     fields = raw.split("\0")
-    paths: list[str] = []
+    entries: list[tuple[str, str]] = []
     i = 0
     while i < len(fields):
         status = fields[i]
@@ -98,34 +95,43 @@ def _changed_paths(base: str) -> list[str]:
             # rename/copy: old path, then new path — keep the new one
             if i + 2 >= len(fields) + 1:
                 break
-            paths.append(fields[i + 2])
+            entries.append((status[0], fields[i + 2]))
             i += 3
         else:
             if i + 1 >= len(fields):
                 break
-            paths.append(fields[i + 1])
+            entries.append((status[0], fields[i + 1]))
             i += 2
-    return paths
+    return entries
 
 
-def classify(paths: list[str]) -> dict[str, list[str]]:
+def classify(entries: list[tuple[str, str]]) -> dict[str, list[str]]:
     python: list[str] = []
+    python_added: list[str] = []
     frontend: list[str] = []
-    for path in paths:
+    for status, path in entries:
         if any(path.startswith(prefix) for prefix in GENERATED_PREFIXES):
             continue
         if path.endswith(".py"):
             python.append(path)
+            if status == "A":
+                python_added.append(path)
         elif path.startswith("frontend/") and path.endswith(FRONTEND_SUFFIXES):
             frontend.append(path)
-    return {"python": sorted(python), "frontend": sorted(frontend)}
+    return {
+        "python": sorted(python),
+        "python_added": sorted(python_added),
+        "frontend": sorted(frontend),
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", help="base ref to diff against")
     parser.add_argument(
-        "--kind", choices=("python", "frontend", "all"), default="all"
+        "--kind",
+        choices=("python", "python-added", "frontend", "all"),
+        default="all",
     )
     args = parser.parse_args()
 
@@ -134,7 +140,7 @@ def main() -> None:
     if args.kind == "all":
         print(json.dumps(groups, indent=2))
     else:
-        for path in groups[args.kind]:
+        for path in groups[args.kind.replace("-", "_")]:
             print(path)
 
 
