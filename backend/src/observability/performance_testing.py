@@ -172,6 +172,7 @@ class PerformanceTestRunner:
         semaphore = asyncio.Semaphore(test_config.concurrent_users)
 
         async def make_tracked_request():
+            nonlocal successful_requests, failed_requests
             async with semaphore:
                 result = await self._make_request(test_config)
                 if result["success"]:

@@ -4,6 +4,7 @@ Real-time Analytics API routes
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import (

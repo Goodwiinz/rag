@@ -59,6 +59,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history: the changed-file ratchet diffs against the PR base
+          # (or push `before`) via merge-base, which a shallow clone breaks.
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
@@ -73,15 +77,42 @@ jobs:
         run: ruff check backend/src --output-format=github
       - name: Directory docs lint (blocking — carried from the fast lane)
         run: python3 scripts/docs/check_dir_docs.py
-      - name: Run Black (formatting check)
+      # Blocking ratchet: changed Python files must pass the full formatter/
+      # type gauntlet. New or touched code cannot add debt; the untouched
+      # tree is covered by the advisory full-tree lanes below until their
+      # debt reaches zero.
+      - name: Changed-file quality gate (blocking)
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before || '' }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'develop' }}
+        run: |
+          BASE_FLAG=()
+          ZEROS="0000000000000000000000000000000000000000"
+          if [ -z "$PR_BASE_SHA" ] && { [ -z "$GITHUB_EVENT_BEFORE" ] || [ "$GITHUB_EVENT_BEFORE" = "$ZEROS" ]; }; then
+            # workflow_dispatch or first push of a new branch: ratchet
+            # against the default branch instead of failing.
+            BASE_FLAG=(--base "origin/${DEFAULT_BRANCH}")
+          fi
+          mapfile -t FILES < <(python3 scripts/ci/changed_source_files.py "${BASE_FLAG[@]}" --kind python)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No changed Python files; nothing to ratchet."
+            exit 0
+          fi
+          printf 'Ratcheting %d changed Python file(s)\n' "${#FILES[@]}"
+          ruff check "${FILES[@]}"
+          black --check "${FILES[@]}"
+          isort --check-only "${FILES[@]}"
+          mypy --ignore-missing-imports "${FILES[@]}"
+      - name: Advisory full-tree Black (formatting check)
         run: black --check backend/src
-        continue-on-error: true # Allow failures during gradual adoption
-      - name: Run isort (import sorting)
+        continue-on-error: true # Advisory until full-tree debt reaches zero
+      - name: Advisory full-tree isort (import sorting)
         run: isort --check-only backend/src
-        continue-on-error: true # Allow failures during gradual adoption
-      - name: Run MyPy (type checking)
+        continue-on-error: true # Advisory until full-tree debt reaches zero
+      - name: Advisory full-tree MyPy (type checking)
         run: mypy backend/src --ignore-missing-imports
-        continue-on-error: true # Allow failures during gradual adoption
+        continue-on-error: true # Advisory until full-tree debt reaches zero
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
@@ -90,6 +121,10 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history: the quality ratchet diffs against the PR base
+          # (or push `before`) via merge-base, which a shallow clone breaks.
+          fetch-depth: 0
       - name: Set up pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - name: Set up Node.js
@@ -102,9 +137,33 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Run type check
         run: pnpm run type-check
-      - name: Run linting
+      # Blocking ratchet: one full ESLint JSON run feeds the comparator,
+      # which rejects errors/new warnings in changed files and any growth
+      # of the global totals recorded in frontend/quality-baseline.json.
+      # The tsconfig exclusion ratchet blocks new type-check debt the
+      # same way. Untouched legacy debt stays visible in the advisory
+      # lane below until it reaches zero.
+      - name: Frontend quality ratchet (blocking)
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before || '' }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'develop' }}
+        run: |
+          BASE="$PR_BASE_SHA"
+          ZEROS="0000000000000000000000000000000000000000"
+          if [ -z "$BASE" ]; then
+            if [ -n "$GITHUB_EVENT_BEFORE" ] && [ "$GITHUB_EVENT_BEFORE" != "$ZEROS" ]; then
+              BASE="$GITHUB_EVENT_BEFORE"
+            else
+              BASE="origin/${DEFAULT_BRANCH}"
+            fi
+          fi
+          pnpm exec eslint app src --format json --output-file /tmp/eslint-report.json || true
+          node ../scripts/ci/check_frontend_quality.mjs --report /tmp/eslint-report.json --base "$BASE"
+          python3 ../scripts/ci/check_tsconfig_exclusions.py --base "$BASE"
+      - name: Advisory full lint (human-readable)
         run: pnpm run lint
-        continue-on-error: true # Allow warnings during gradual adoption
+        continue-on-error: true # Advisory until full-tree debt reaches zero
   # ==========================================================================
   # Alembic Migration Guard (Fast - No DB, No App Deps)
   # ==========================================================================

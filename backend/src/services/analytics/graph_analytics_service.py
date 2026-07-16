@@ -23,7 +23,9 @@ from src.core.database import get_async_session
 from src.models.analytics.graph_analytics import (
     CentralityAnalysis,
     CentralityRanking,
+    CommunityMetricData,
     CommunityMetrics,
+    EdgeMetricData,
     EdgeMetrics,
     EdgeType,
     GraphAlgorithmType,
@@ -31,6 +33,7 @@ from src.models.analytics.graph_analytics import (
     GraphAnalysisResponse,
     GraphAnalyticsResult,
     GraphStatistics,
+    NodeMetricData,
     NodeMetrics,
     NodeType,
     PathAnalysisRequest,

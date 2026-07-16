@@ -17,10 +17,13 @@ from sqlalchemy.orm import selectinload
 
 from src.core.database import get_async_session
 from src.models.document import Document, DocumentType, ProcessingStatus
-from src.models.processing import JobStatus, JobType, ProcessingJob
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.models.websocket_status import UpdateType
 from src.services.base import BaseService
-from src.services.infrastructure.status_update_service import status_update_service
+from src.services.infrastructure.status_update_service import (
+    ProcessingProgress,
+    status_update_service,
+)
 from src.services.websocket.websocket_manager import (
     MessageType,
     Priority,

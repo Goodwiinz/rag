@@ -3,6 +3,7 @@ Enhanced RAG Query model with comprehensive answer tracking and 30-day retention
 """
 
 import uuid
+from datetime import datetime, timedelta
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Enum, ForeignKey, Text, JSON, Index
 from sqlalchemy.orm import relationship, selectinload, joinedload
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID

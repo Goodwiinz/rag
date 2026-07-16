@@ -16,6 +16,7 @@ from src.exceptions.analytics_exceptions import (
     InsufficientDataException,
     PermissionDeniedException,
 )
+from src.middleware.multi_tenancy import get_current_user_role
 from src.models.document import Document
 from src.models.organization import Organization, StorageTier
 from src.models.user import User
