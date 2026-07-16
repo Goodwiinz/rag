@@ -69,6 +69,15 @@ async def test_create_thread_not_found_vs_forbidden(db_session, user_factory):
         )
     ) is None
 
+    # Non-member targeting a real conversation is indistinguishable from
+    # not-found: the access funnel fails closed with None (404 path).
+    outsider = await user_factory()
+    assert (
+        await thread_service.create_thread(
+            db_session, ThreadCreate(conversation_id=conv.id, title="t"), outsider.id
+        )
+    ) is None
+
 
 async def test_create_thread_rejects_mismatched_workspace_id(db_session, user_factory):
     owner = await user_factory()

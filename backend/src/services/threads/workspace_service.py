@@ -13,19 +13,19 @@ canonical for the endpoints the router serves; ``ChatService``'s own callers
 initially kept the old (unsafe) observed behavior via an explicit flag
 defaulting to that old value. A follow-up tenant-gap fix (see
 ``chat_service.py``'s ``create_workspace``/``list_workspaces``) switched
-``ChatService`` onto the router-safe value for both — no in-repo caller
-passes the old default anymore; it remains only for API compatibility:
+``ChatService`` onto the router-safe value for both, after which the
+defaults here were flipped fail-closed — passing the permissive value now
+requires an explicit, justified opt-out:
 
 - ``enforce_org_match`` (create): router raises on a cross-org create
   request; ``ChatService.create_workspace`` used to trust the caller's
-  ``organization_id`` verbatim (this was a pre-existing tenant gap on the
+  ``organization_id`` verbatim (a pre-existing tenant gap on the
   ``conversations.py`` endpoint it backs) and now enforces the same guard.
-  Default stays ``False`` for API compatibility only.
 - ``filter_deleted_memberships`` (list): router excludes a workspace the
   caller was removed from (soft-deleted ``WorkspaceMember`` row);
-  ``ChatService.list_workspaces`` used to not filter it, so a removed member
-  still saw the workspace (another pre-existing tenant gap), and now filters
-  it too. Default stays ``False`` for API compatibility only.
+  ``ChatService.list_workspaces`` used to not filter it, so a removed
+  member still saw the workspace (another pre-existing tenant gap), and
+  now filters it too.
 
 Workspace member management (add/update/remove) has no ``ChatService``
 duplicate to reconcile — it was router-only before this split — so those
@@ -60,16 +60,15 @@ async def create_workspace(
     owner_id: UUID,
     user_organization_id: Optional[UUID],
     *,
-    enforce_org_match: bool = False,
+    enforce_org_match: bool = True,
 ) -> Workspace:
     """Create a workspace + its owner membership row.
 
-    Raises ``PermissionError`` when ``enforce_org_match=True`` and the
-    request's ``organization_id`` doesn't match the caller's own org (the
-    router turns this into a 403). Every current caller — the router-inline
-    endpoint and, since the tenant-gap fix, ``ChatService`` — passes ``True``;
-    ``enforce_org_match=False`` (trusting ``data.organization_id`` verbatim)
-    has no remaining in-repo caller and is kept only for API compatibility.
+    Raises ``PermissionError`` when ``enforce_org_match=True`` (the
+    fail-closed default) and the request's ``organization_id`` doesn't match
+    the caller's own org — the router turns this into a 403. Passing
+    ``False`` trusts ``data.organization_id`` verbatim; no in-repo caller
+    does, and any new one must justify it explicitly.
     """
     if enforce_org_match:
         if data.organization_id is not None and str(data.organization_id) != str(
@@ -112,18 +111,16 @@ async def list_workspaces(
     include_archived: bool = False,
     limit: int = 50,
     offset: int = 0,
-    filter_deleted_memberships: bool = False,
+    filter_deleted_memberships: bool = True,
 ) -> Tuple[List[Workspace], int]:
     """List workspaces the caller is a member of.
 
     Always eager-loads members/conversations/collections — the count fields
     every ``WorkspaceResponse`` renders.
 
-    Every current caller — the router-inline endpoint and, since the
-    tenant-gap fix, ``ChatService`` — passes ``filter_deleted_memberships=
-    True``; the ``False`` default (a removed member still sees the
-    workspace) has no remaining in-repo caller and is kept only for API
-    compatibility.
+    ``filter_deleted_memberships=True`` (the fail-closed default) excludes
+    workspaces the caller was removed from. Passing ``False`` shows them;
+    no in-repo caller does, and any new one must justify it explicitly.
     """
     base_conditions = [
         WorkspaceMember.user_id == user_id,
