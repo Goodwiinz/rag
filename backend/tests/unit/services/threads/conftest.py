@@ -7,7 +7,6 @@ in ``backend/tests/api/threads/``.
 """
 
 from tests.db.conftest import (  # noqa: F401
-    _engine,
     db_session,
     organization_factory,
     thread_factory,

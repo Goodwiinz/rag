@@ -10,7 +10,6 @@ are unchanged: they already delegate to the canonical
 are out of scope for this task.
 """
 
-from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID
 

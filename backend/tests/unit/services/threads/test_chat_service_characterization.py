@@ -23,7 +23,6 @@ from src.models.thread import Thread
 from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.schemas.chat import (
-    ChatMessageUpdate,
     ConversationCreate,
     ThreadCreate,
     WorkspaceCreate,

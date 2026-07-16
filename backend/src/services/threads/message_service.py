@@ -32,7 +32,7 @@ duplicated:
 """
 
 from datetime import datetime
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
