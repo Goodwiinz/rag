@@ -99,3 +99,39 @@ def test_committed_snapshot_is_canonical_and_structurally_valid():
     assert str(document.get("openapi", "")).startswith("3.")
     assert document.get("paths"), "snapshot has no paths"
     assert "components" in document
+
+
+def test_contract_job_verifies_generated_typescript() -> None:
+    """The openapi-contract CI job must regenerate and diff BOTH committed
+    artifacts — the Python schema snapshot and the generated TypeScript —
+    so frontend types can never silently drift from the app contract."""
+    import yaml
+
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "test-pipeline.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["openapi-contract"]
+    steps = job["steps"]
+
+    def step_runs(fragment: str) -> bool:
+        return any(fragment in (step.get("run") or "") for step in steps)
+
+    uses = [step.get("uses", "") for step in steps]
+    assert any(u.startswith("pnpm/action-setup") for u in uses), (
+        "openapi-contract must set up pnpm to run the TypeScript generator"
+    )
+    node_steps = [s for s in steps if s.get("uses", "").startswith("actions/setup-node")]
+    assert node_steps, "openapi-contract must set up Node"
+    node_version = str(node_steps[0].get("with", {}).get("node-version", ""))
+    assert "NODE_VERSION" in node_version or node_version == "24", (
+        f"openapi-contract Node must be the canonical 24, got {node_version!r}"
+    )
+    assert step_runs("pnpm install --frozen-lockfile"), (
+        "openapi-contract must install from the root pnpm-lock.yaml"
+    )
+    assert step_runs("generate:api-types"), (
+        "openapi-contract must regenerate frontend/src/types/generated/api.d.ts"
+    )
+    assert step_runs(
+        "git diff --exit-code -- backend/openapi.json "
+        "frontend/src/types/generated/api.d.ts"
+    ), "openapi-contract must fail on drift in EITHER committed artifact"

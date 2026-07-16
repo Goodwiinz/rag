@@ -172,6 +172,7 @@
     "type-check": "tsc --noEmit",
     "validate": "pnpm lint && pnpm type-check && pnpm test",
     "generate:api-types": "openapi-typescript ../backend/openapi.json -o src/types/generated/api.d.ts",
+    "check:api-types": "pnpm generate:api-types && git diff --exit-code -- ../backend/openapi.json src/types/generated/api.d.ts",
     "capture": "node scripts/capture.js",
     "cli": "tsx cli/index.ts"
   },
