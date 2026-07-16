@@ -38,6 +38,23 @@ export interface UseChatThreadActionsParams {
   setCurrentThread: (threadId: string | null) => void;
 }
 
+export interface UseChatThreadActionsReturn {
+  renameDialog: RenameDialogState;
+  setRenameDialog: React.Dispatch<React.SetStateAction<RenameDialogState>>;
+  deleteDialog: DeleteDialogState;
+  setDeleteDialog: React.Dispatch<React.SetStateAction<DeleteDialogState>>;
+  bulkDeleteDialog: BulkDeleteDialogState;
+  setBulkDeleteDialog: React.Dispatch<
+    React.SetStateAction<BulkDeleteDialogState>
+  >;
+  handleRenameThread: (threadId: string) => Promise<void>;
+  commitRename: () => Promise<void>;
+  handleDeleteThread: (threadId: string) => void;
+  commitDeleteThread: () => Promise<void>;
+  handleBulkDeleteThreads: (ids: string[]) => void;
+  commitBulkDelete: () => Promise<void>;
+}
+
 // ============================================
 // HOOK
 // ============================================
@@ -47,7 +64,7 @@ export function useChatThreadActions({
   setConversations,
   activeThreadId,
   setCurrentThread,
-}: UseChatThreadActionsParams) {
+}: UseChatThreadActionsParams): UseChatThreadActionsReturn {
   const router = useRouter();
 
   // Dialog state for rename/delete — replaces window.prompt/confirm
