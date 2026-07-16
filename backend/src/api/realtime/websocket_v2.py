@@ -276,13 +276,17 @@ async def websocket_connect_v2_secure(
         }
     )
 
-    # Establish connection using secure authenticated method
+    # Establish connection using secure authenticated method. Stamp the
+    # token's own exp (naive UTC, from TokenData — see security.verify_token)
+    # onto the connection so the heartbeat monitor can close it once the
+    # token expires (AU4), instead of trusting the connect-time check forever.
     connection_id = await connection_manager.connect_authenticated(
         websocket=websocket,
         user_id=user_id,
         organization_id=organization_id,
         client_info=client_info_dict,
         subprotocol=subprotocol,
+        expires_at=user_payload.get("exp"),
     )
 
     if not connection_id:
