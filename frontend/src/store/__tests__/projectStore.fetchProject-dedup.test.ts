@@ -82,4 +82,43 @@ describe('projectStore.fetchProject dedup', () => {
     await fetchProject('p2');
     expect(mockService.getProject).toHaveBeenCalledTimes(3);
   });
+
+  it('issues a fresh request after a rejected first call (in-flight slot cleared on rejection)', async () => {
+    mockService.getProject.mockRejectedValueOnce(new Error('network down'));
+    const { fetchProject } = useProjectStore.getState();
+
+    // fetchProject catches internally and never rethrows, so this resolves.
+    await fetchProject('p1');
+    expect(useProjectStore.getState().error).toBe('network down');
+
+    mockService.getProject.mockResolvedValueOnce(project('p1'));
+    await fetchProject('p1');
+
+    expect(mockService.getProject).toHaveBeenCalledTimes(2);
+    expect(useProjectStore.getState().currentProject?.id).toBe('p1');
+  });
+
+  it('drops a stale commit from a slower earlier fetch superseded by a different project (RS-C2b)', async () => {
+    let resolveA!: (p: Project) => void;
+    mockService.getProject
+      .mockReturnValueOnce(
+        new Promise<Project>((r) => {
+          resolveA = r;
+        })
+      )
+      .mockResolvedValueOnce(project('p2'));
+
+    const { fetchProject } = useProjectStore.getState();
+    const first = fetchProject('p1'); // slow
+    const second = fetchProject('p2'); // fast, resolves + commits first
+
+    await second;
+    expect(useProjectStore.getState().currentProject?.id).toBe('p2');
+
+    // p1's late response must not clobber p2's already-committed state.
+    resolveA(project('p1'));
+    await first;
+
+    expect(useProjectStore.getState().currentProject?.id).toBe('p2');
+  });
 });

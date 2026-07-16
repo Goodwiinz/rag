@@ -84,6 +84,23 @@ const initialState = {
 // result of a newer fetch (or a just-completed link/unlink refresh).
 const fetchThreadsSeq: Record<string, number> = {};
 
+// Per-action, per-project identity tokens (RS-C4): two overlapping calls to
+// the SAME mutation action for the SAME project (double-click, retry) must
+// only let the most-recently-started call's settle-time write to the
+// per-project flag/error state win — a stale call's catch/success writing
+// startingChat/linkingThread/unlinkingThread/savingToNote/errors after a
+// newer call already completed would clobber it. Four separate maps (one
+// per action), not one map keyed `action:projectId` — avoids string-
+// composition key bugs and keeps each action self-contained, matching the
+// fetchThreadsSeq convention above. Data commits derived from the response
+// (linkedThreads adds/removals) are NOT gated — they reflect genuine
+// backend state regardless of call ordering; only the ephemeral per-project
+// UI flags/errors are ownership-guarded.
+const startingChatTokens = new Map<string, object>();
+const linkingThreadTokens = new Map<string, object>();
+const unlinkingThreadTokens = new Map<string, object>();
+const savingToNoteTokens = new Map<string, object>();
+
 export const useProjectChatStore = create<ProjectChatState>()(
   immer((set, get) => ({
     ...initialState,
@@ -143,6 +160,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         return null;
       }
 
+      const requestToken = {};
+      startingChatTokens.set(projectId, requestToken);
+
       set((state) => {
         state.startingChat[projectId] = true;
         state.errors[projectId] = null;
@@ -154,21 +174,28 @@ export const useProjectChatStore = create<ProjectChatState>()(
           request
         );
 
-        set((state) => {
-          state.startingChat[projectId] = false;
-        });
-
-        // Refresh threads list
-        await get().fetchProjectThreads(projectId);
+        if (startingChatTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.startingChat[projectId] = false;
+          });
+          // Refresh threads list
+          await get().fetchProjectThreads(projectId);
+        }
 
         return response;
       } catch (error: any) {
         console.error('[ProjectChatStore] startChatFromProject failed:', error);
-        set((state) => {
-          state.errors[projectId] = error?.message || 'Failed to start chat';
-          state.startingChat[projectId] = false;
-        });
+        if (startingChatTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.errors[projectId] = error?.message || 'Failed to start chat';
+            state.startingChat[projectId] = false;
+          });
+        }
         return null;
+      } finally {
+        if (startingChatTokens.get(projectId) === requestToken) {
+          startingChatTokens.delete(projectId);
+        }
       }
     },
 
@@ -188,6 +215,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         return null;
       }
 
+      const requestToken = {};
+      linkingThreadTokens.set(projectId, requestToken);
+
       set((state) => {
         state.linkingThread[projectId] = true;
         state.errors[projectId] = null;
@@ -201,15 +231,24 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
         // Optimistic update - add to local state immediately. Re-linking is
         // idempotent on the backend (returns the existing link), so replace
-        // any prior entry for this thread instead of duplicating it.
+        // any prior entry for this thread instead of duplicating it. This
+        // reflects genuine backend state regardless of call ordering, so
+        // it's committed unconditionally (unlike the ephemeral flag below).
         set((state) => {
           const existing = state.linkedThreads[projectId] ?? [];
           state.linkedThreads[projectId] = [
             response,
             ...existing.filter((t) => t.thread_id !== response.thread_id),
           ];
-          state.linkingThread[projectId] = false;
         });
+        // The "linking in flight" flag belongs to whichever call is most
+        // recent — a stale call clearing it could hide a still-in-flight
+        // newer call's spinner.
+        if (linkingThreadTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.linkingThread[projectId] = false;
+          });
+        }
 
         // Mirror into the chat store's thread row — the chat rail and the
         // agent page_context derive the binding from source_project_id, so a
@@ -226,11 +265,17 @@ export const useProjectChatStore = create<ProjectChatState>()(
         // workspace, 404, 500, network) — record its message so the UI can
         // surface the actual cause instead of a generic fallback.
         console.error('[ProjectChatStore] linkThreadToProject failed:', error);
-        set((state) => {
-          state.errors[projectId] = error?.message || 'Failed to link thread';
-          state.linkingThread[projectId] = false;
-        });
+        if (linkingThreadTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.errors[projectId] = error?.message || 'Failed to link thread';
+            state.linkingThread[projectId] = false;
+          });
+        }
         return null;
+      } finally {
+        if (linkingThreadTokens.get(projectId) === requestToken) {
+          linkingThreadTokens.delete(projectId);
+        }
       }
     },
 
@@ -247,6 +292,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         return;
       }
 
+      const requestToken = {};
+      unlinkingThreadTokens.set(projectId, requestToken);
+
       set((state) => {
         state.unlinkingThread[projectId] = true;
         state.errors[projectId] = null;
@@ -255,7 +303,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
       try {
         await projectChatService.unlinkThreadFromProject(projectId, threadId);
 
-        // Optimistic update - remove from local state immediately
+        // Optimistic update - remove from local state immediately. Reflects
+        // genuine backend state regardless of call ordering, so it's
+        // committed unconditionally (unlike the ephemeral flag below).
         set((state) => {
           const threads = state.linkedThreads[projectId];
           if (threads) {
@@ -263,8 +313,15 @@ export const useProjectChatStore = create<ProjectChatState>()(
               (t) => t.thread_id !== threadId
             );
           }
-          state.unlinkingThread[projectId] = false;
         });
+        // The "unlinking in flight" flag belongs to whichever call is most
+        // recent — a stale call clearing it could hide a still-in-flight
+        // newer call's spinner.
+        if (unlinkingThreadTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.unlinkingThread[projectId] = false;
+          });
+        }
 
         // Clear the chat store's copy too. Without this the chat rail keeps
         // showing the removed project and the agent keeps receiving its
@@ -275,10 +332,16 @@ export const useProjectChatStore = create<ProjectChatState>()(
           '[ProjectChatStore] unlinkThreadFromProject failed:',
           error
         );
-        set((state) => {
-          state.errors[projectId] = error?.message || 'Failed to unlink thread';
-          state.unlinkingThread[projectId] = false;
-        });
+        if (unlinkingThreadTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.errors[projectId] = error?.message || 'Failed to unlink thread';
+            state.unlinkingThread[projectId] = false;
+          });
+        }
+      } finally {
+        if (unlinkingThreadTokens.get(projectId) === requestToken) {
+          unlinkingThreadTokens.delete(projectId);
+        }
       }
     },
 
@@ -298,6 +361,9 @@ export const useProjectChatStore = create<ProjectChatState>()(
         return null;
       }
 
+      const requestToken = {};
+      savingToNoteTokens.set(projectId, requestToken);
+
       set((state) => {
         state.savingToNote[projectId] = true;
         state.errors[projectId] = null;
@@ -309,19 +375,27 @@ export const useProjectChatStore = create<ProjectChatState>()(
           request
         );
 
-        set((state) => {
-          state.savingToNote[projectId] = false;
-        });
+        if (savingToNoteTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.savingToNote[projectId] = false;
+          });
+        }
 
         return response;
       } catch (error: any) {
         console.error('[ProjectChatStore] saveThreadToNote failed:', error);
-        set((state) => {
-          state.errors[projectId] =
-            error?.message || 'Failed to save thread to note';
-          state.savingToNote[projectId] = false;
-        });
+        if (savingToNoteTokens.get(projectId) === requestToken) {
+          set((state) => {
+            state.errors[projectId] =
+              error?.message || 'Failed to save thread to note';
+            state.savingToNote[projectId] = false;
+          });
+        }
         return null;
+      } finally {
+        if (savingToNoteTokens.get(projectId) === requestToken) {
+          savingToNoteTokens.delete(projectId);
+        }
       }
     },
 
