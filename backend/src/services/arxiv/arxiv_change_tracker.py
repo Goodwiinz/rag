@@ -364,6 +364,9 @@ class ArXivChangeTracker:
                             )
                             summary["new"] += 1
                             logger.info(f"Added new paper: {change.paper_id}")
+                        else:
+                            summary["errors"] += 1
+                            self._revert_change_state(organization_id, change)
 
                     elif change.change_type == "updated":
                         # Handle updated paper
@@ -378,6 +381,9 @@ class ArXivChangeTracker:
                             logger.info(
                                 f"Updated paper: {change.paper_id}, changed fields: {change.fields_changed}"
                             )
+                        else:
+                            summary["errors"] += 1
+                            self._revert_change_state(organization_id, change)
 
                     elif change.change_type == "deleted":
                         # Handle deleted paper
@@ -389,12 +395,35 @@ class ArXivChangeTracker:
 
                 except Exception as e:
                     summary["errors"] += 1
+                    self._revert_change_state(organization_id, change)
                     logger.error(f"Error applying change for {change.paper_id}: {e}")
 
         # Save updated state
         self.save_state()
 
         return summary
+
+    def _revert_change_state(self, organization_id: Any, change: ChangeRecord):
+        """Undo detect_changes' state write for a change that failed to apply.
+
+        detect_changes stamps the new hash into state BEFORE apply runs, and
+        apply_changes ends with save_state() regardless of per-paper failures.
+        Without this revert, a transient failure (arXiv 429 was the observed
+        case, Sentry JAVASCRIPT-NEXTJS-48/49) persisted the new hash anyway, so
+        the next scan saw "no change" and the paper was silently never
+        ingested/updated. Reverting makes the next scan re-emit the change.
+        """
+        org_state = self._org_state(organization_id)
+        data = org_state.get(change.paper_id)
+        if data is None:
+            return
+        if change.change_type == "new":
+            org_state.pop(change.paper_id, None)
+        elif change.change_type == "updated" and change.old_hash:
+            data["hash"] = change.old_hash
+        elif change.change_type == "deleted":
+            # Keep miss_count at threshold so the next scan re-emits deletion.
+            data.pop("deleted", None)
 
     async def _fetch_paper_details(self, paper_id: str) -> Optional[Dict[str, Any]]:
         """Fetch full paper details from arXiv"""
@@ -405,7 +434,10 @@ class ArXivChangeTracker:
                 )
                 return results[0] if results else None
         except Exception as e:
-            logger.error(f"Failed to fetch paper {paper_id}: {e}")
+            # arXiv 429s are expected transients (retried on the next scan via
+            # _revert_change_state) — warning, not Sentry-error spam.
+            log = logger.warning if "429" in str(e) else logger.error
+            log(f"Failed to fetch paper {paper_id}: {e}")
             return None
 
     @staticmethod
