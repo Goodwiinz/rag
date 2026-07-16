@@ -46,10 +46,13 @@ services:
   # Target Application Frontend
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     ports:
-      - "3000:80"
+      - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://backend:8000
       - REACT_APP_ENVIRONMENT=security-testing
@@ -247,18 +250,24 @@ services:
     profiles:
       - sast-advanced
 
-  # npm Audit for Frontend Dependencies
+  # Dependency Audit for Frontend Dependencies
   npm-audit:
-    image: node:18-alpine
+    image: node:24-alpine
     command: |
       sh -c "
-        cd /app/frontend
-        npm install
-        npm audit --audit-level moderate --json > /reports/npm-audit-report.json
-        npm audit --audit-level moderate > /reports/npm-audit-report.txt
+        cd /app
+        corepack enable
+        corepack prepare pnpm@10.18.2 --activate
+        pnpm install --frozen-lockfile --filter multimodal-rag-frontend...
+        pnpm audit --audit-level moderate --json > /reports/npm-audit-report.json
+        pnpm audit --audit-level moderate > /reports/npm-audit-report.txt
       "
     volumes:
-      - ./frontend:/app/frontend
+      - ./package.json:/app/package.json:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
+      - ./frontend/package.json:/app/frontend/package.json:ro
+      - ./tests/e2e/package.json:/app/tests/e2e/package.json:ro
       - ./security/reports:/reports
     profiles:
       - dependency-scan

@@ -9,15 +9,16 @@
     "tests/e2e"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=frontend",
-    "build:frontend": "npm run build --workspace=frontend",
-    "start": "npm run start --workspace=frontend",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "test:e2e": "npm run test:e2e --workspace=tests/e2e",
-    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
-    "install:all": "npm install",
+    "dev": "pnpm --filter multimodal-rag-frontend dev",
+    "build": "pnpm --filter multimodal-rag-frontend build",
+    "build:frontend": "pnpm --filter multimodal-rag-frontend build",
+    "start": "pnpm --filter multimodal-rag-frontend start",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter ./tests/e2e test:e2e",
+    "validate": "pnpm --filter multimodal-rag-frontend validate",
+    "clean": "pnpm -r --if-present clean && rm -rf node_modules",
+    "install:all": "pnpm install",
     "trigger:dev": "pnpm dlx trigger.dev@4.4.6 dev",
     "trigger:deploy": "pnpm dlx trigger.dev@4.4.6 deploy"
   },
@@ -25,8 +26,7 @@
     "@trigger.dev/sdk": "4.4.6"
   },
   "engines": {
-    "node": "24.x",
-    "npm": ">=9.6.7"
+    "node": "24.x"
   },
   "repository": {
     "type": "git",
@@ -40,22 +40,5 @@
     "nextjs"
   ],
   "author": "",
-  "license": "MIT",
-  "overrides": {
-    "@isaacs/brace-expansion": "^5.0.1",
-    "jsonpath": "^1.2.0",
-    "@modelcontextprotocol/sdk": "^1.26.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "hono": "4.12.25",
-      "form-data": "4.0.6",
-      "ws": "8.21.0",
-      "dompurify": "3.4.11",
-      "systeminformation": "5.31.6",
-      "js-yaml": "4.2.0",
-      "protobufjs": "7.6.3",
-      "postcss": "8.5.10"
-    }
-  }
+  "license": "MIT"
 }

@@ -133,7 +133,7 @@ build_and_push_images() {
 
     # Build frontend image
     log_info "Building frontend image..."
-    docker build -f frontend/Dockerfile.production -t multimodal-rag/frontend:latest .
+    docker build -f frontend/Dockerfile.prod -t multimodal-rag/frontend:latest .
     docker push multimodal-rag/frontend:latest
 
     log_success "Docker images built and pushed successfully."

@@ -322,7 +322,7 @@ main() {
 
     # Analyze Dockerfiles
     analyze_dockerfile "$PROJECT_ROOT/backend/Dockerfile.production"
-    analyze_dockerfile "$PROJECT_ROOT/frontend/Dockerfile.production"
+    analyze_dockerfile "$PROJECT_ROOT/frontend/Dockerfile.prod"
 
     # Run Docker Bench Security
     run_docker_bench_security
