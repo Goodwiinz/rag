@@ -1,0 +1,2081 @@
+{
+  "tsconfigProductionExclusions": [
+    "app/components/AppNavbar.tsx",
+    "src/components/analytics/AnalyticsProvider.tsx",
+    "src/components/documents/DocumentLibrary.tsx",
+    "src/components/graph/ResponsiveGraphLayout.tsx",
+    "src/components/layout/AppLayout.tsx",
+    "src/components/layout/Header.tsx",
+    "src/components/layout/Sidebar.tsx",
+    "src/components/monitoring/PerformanceMetricsDashboard.tsx",
+    "src/components/monitoring/SystemOverviewDashboard.tsx",
+    "src/components/optimized/OptimizedDocumentList.tsx",
+    "src/components/processing/ConnectionManager.tsx",
+    "src/components/processing/NotificationCenter.tsx",
+    "src/components/processing/PerformanceMonitor.tsx",
+    "src/components/processing/RealtimeStatusDashboard.tsx",
+    "src/components/realtime/DocumentProcessingCard.tsx",
+    "src/components/realtime/DocumentProcessingDashboard.tsx",
+    "src/components/realtime/ProcessingProgressBar.tsx",
+    "src/components/realtime/RealtimeProcessingDashboard.tsx",
+    "src/components/realtime/RealtimeProcessingProvider.tsx",
+    "src/components/realtime/VirtualizedDocumentList.tsx",
+    "src/components/search/QueryRewriter.tsx",
+    "src/components/search/ResultAggregator.tsx",
+    "src/components/ui/enhanced-new-chat-dialog.tsx",
+    "src/components/ui/shadcn-io/**/*",
+    "src/examples/**/*",
+    "src/hooks/analytics/**/*",
+    "src/hooks/useAnalyticsTracking.ts",
+    "src/hooks/useDocuments.ts",
+    "src/hooks/useRealtimeProcessing.ts",
+    "src/hooks/useWebSocketConnection.ts",
+    "src/lib/analytics.ts",
+    "src/lib/thread-hooks.ts",
+    "src/page-components/**/*",
+    "src/providers/WebSocketProvider.tsx",
+    "src/services/analytics/**/*",
+    "src/services/graphAnalyticsService.ts",
+    "src/services/graphService.ts",
+    "src/services/monitoringWebsocketService.ts",
+    "src/services/searchService.ts",
+    "src/store/realtimeProcessingStore.ts",
+    "src/stores/analytics/**/*",
+    "src/stores/graphStore.ts",
+    "src/stores/monitoringStore.ts",
+    "src/trigger/**/*",
+    "src/utils/analytics/**/*"
+  ],
+  "eslint": {
+    "errors": 207,
+    "warnings": 2743,
+    "byFile": {
+      "app/(auth)/forgot-password/page.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "app/(auth)/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(auth)/login/page.tsx": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "app/(auth)/register/page.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "app/(auth)/reset-password/page.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "app/(auth)/verify-email/page.tsx": {
+        "errors": 3,
+        "warnings": 0
+      },
+      "app/(dashboard)/analytics/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/analytics/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/chat/[id]/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/chat/chat-layout-client.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "app/(dashboard)/chat/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/chat/new/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/chat/page.tsx": {
+        "errors": 1,
+        "warnings": 12
+      },
+      "app/(dashboard)/dashboard-layout-client.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/dashboard/page.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "app/(dashboard)/design-system/page.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "app/(dashboard)/diagnostics/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/diagnostics/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/documents/[id]/page.tsx": {
+        "errors": 1,
+        "warnings": 6
+      },
+      "app/(dashboard)/documents/components/DocumentFilters.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/documents/components/DocumentList.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "app/(dashboard)/documents/components/DocumentStats.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "app/(dashboard)/documents/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/documents/page.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "app/(dashboard)/documents/upload/page.tsx": {
+        "errors": 1,
+        "warnings": 17
+      },
+      "app/(dashboard)/entities/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/entities/page.tsx": {
+        "errors": 3,
+        "warnings": 25
+      },
+      "app/(dashboard)/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/notifications/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/projects/[id]/page.tsx": {
+        "errors": 3,
+        "warnings": 11
+      },
+      "app/(dashboard)/projects/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/projects/page.tsx": {
+        "errors": 1,
+        "warnings": 7
+      },
+      "app/(dashboard)/quality-metrics-demo/page.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "app/(dashboard)/research-engine/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/research-engine/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/research-engine/projects/[id]/blueprint/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/research-engine/projects/[id]/graph/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/research-engine/runs/[id]/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/research/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/search/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(dashboard)/search/page.tsx": {
+        "errors": 4,
+        "warnings": 7
+      },
+      "app/(dashboard)/settings/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(public)/arxiv/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(public)/arxiv/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/(public)/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/api/trigger/agent/execute/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/api/trigger/agent/runs/[runId]/confirm/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/api/trigger/agent/runs/[runId]/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/api/trigger/documents/batch/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/api/webhooks/github/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/auth/callback/route.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/components/AppNavbar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/components/Navigation.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "app/components/nous/nous-agent-status-card.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/components/nous/nous-chat-composer.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "app/components/nous/nous-nav.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/components/nous/nous-source-card.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/components/Pagination.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "app/components/realtime/DocumentProgressVisualizer.tsx": {
+        "errors": 0,
+        "warnings": 21
+      },
+      "app/documents/components/DocumentList.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "app/global-error.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/layout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/not-found.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "app/page.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/providers.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "app/statsig-provider.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/__tests__/testUtils.tsx": {
+        "errors": 0,
+        "warnings": 38
+      },
+      "src/components/agent-chat/AgentCitationBadge.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/AgentContextBar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/AgentFAB.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/AgentInput.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/agent-chat/AgentMarkdownRenderer.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/agent-chat/AgentMessageItem.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/AgentPanel.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/agent-chat/AgentPanelHeader.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/AgentSidebar.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/agent-chat/AgentThreadList.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/ConfirmationCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/agent-chat/GlobalAgentChat.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/agent-chat/ToolExecutionCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/analytics/AnalyticsChart.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/analytics/AnalyticsDashboard.tsx": {
+        "errors": 1,
+        "warnings": 14
+      },
+      "src/components/analytics/AnalyticsOverview.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/analytics/AnalyticsProvider.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/analytics/AnalyticsTable.tsx": {
+        "errors": 0,
+        "warnings": 17
+      },
+      "src/components/arxiv/__tests__/ArxivManagement.test.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/arxiv/ArxivManagement.tsx": {
+        "errors": 1,
+        "warnings": 16
+      },
+      "src/components/arxiv/arxivTypes.ts": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/arxiv/tabs/ExtractTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/arxiv/tabs/IngestTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/arxiv/tabs/StatsTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/arxiv/tabs/TrackingTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/assistant-ui/tool-fallback.tsx": {
+        "errors": 0,
+        "warnings": 14
+      },
+      "src/components/auth/PendingEmailConfirmation.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat-widget/__tests__/ChatContextBar.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat-widget/ChatContextBar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat-widget/ChatMessageItem.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat-widget/ChatPanel.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/chat-widget/ChatPanelInput.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat-widget/ProjectChatWidget.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/__tests__/ChatInput-attach.test.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/chat/__tests__/ChatInput-streaming.test.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/chat/__tests__/ChatInput-voice.test.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/chat/__tests__/ChatMessageList.loadOlder.test.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/chat/__tests__/ChatMessageList.prepend.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/__tests__/ChatMessageList.threadSwitch.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/__tests__/ChatPage.turnPersistence.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/__tests__/ChatSidebar.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/__tests__/renderWithChatRuntime.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/__tests__/VirtualizedMessageList.pagination.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/chat/aui/__tests__/AuiMessage.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/aui/__tests__/ChatRuntimeProvider.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/aui/__tests__/HitlApprovalToolUI.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/aui/AuiMessage.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/chat/aui/HitlApprovalToolUI.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/ChatAnalytics.tsx": {
+        "errors": 4,
+        "warnings": 15
+      },
+      "src/components/chat/ChatDialogs.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/ChatHeader.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/ChatInput.tsx": {
+        "errors": 2,
+        "warnings": 2
+      },
+      "src/components/chat/ChatSettings.tsx": {
+        "errors": 1,
+        "warnings": 34
+      },
+      "src/components/chat/ChatSidebar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/CitationLink.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/CitationPanel.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/chat/CitationPreview.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/CitationRenderer.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/CommandOutputBubble.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/ModelLoadingProgress.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/RAGToggle.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/shared/__tests__/cloudMessageView.test.ts": {
+        "errors": 0,
+        "warnings": 19
+      },
+      "src/components/chat/shared/__tests__/threadConversationState.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/shared/ChatBubble.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/chat/shared/InlineAgentSummary.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/shared/SearchComposer.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/chat/SlashCommandMenu.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/chat/useSlashCommandMenu.ts": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "src/components/chat/WelcomeState.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/citations/__tests__/BibliographyExport.test.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/citations/__tests__/CitationGraph.test.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/citations/__tests__/CitationPreview.test.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/citations/BibliographyExport.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/citations/CitationEditModal.tsx": {
+        "errors": 1,
+        "warnings": 7
+      },
+      "src/components/citations/CitationErrorBoundary.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/citations/CitationGraph.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/citations/CitationGraphControls.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/citations/CitationGraphSkeleton.tsx": {
+        "errors": 2,
+        "warnings": 0
+      },
+      "src/components/citations/CitationList.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/citations/CitationNodeDetails.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/citations/CitationPreview.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/__tests__/AgentActivityPanel.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/AgentActivityPanel.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/AllCitationsPanel.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/CollapsibleCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/ContextPanel.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/context-rail/ContextRail.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/folder-tree/FileRow.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/folder-tree/FolderNode.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/folder-tree/FolderTree.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/hooks/__tests__/useProjectWorkingFolders.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/ProgressPanel.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/ProjectBindingCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/ProjectPickerPopover.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/context-rail/RelatedResultsPanel.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/context-rail/WorkingFoldersPanel.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/dashboard/DashboardCharts.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/dashboard/KeyboardShortcuts.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/dashboard/QuickSearch.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/demo/NewChatDialogDemo.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/diagnostics/__tests__/RetrievalDiagnosticsDashboard.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/diagnostics/RetrievalDiagnosticsDashboard.tsx": {
+        "errors": 3,
+        "warnings": 14
+      },
+      "src/components/documents/__tests__/DocumentTable.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/BatchUploadManager.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/documents/CropExtractOverlay.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/documents/DocumentCard.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/documents/DocumentLibrary.tsx": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/components/documents/DocumentMetadataEditor.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "src/components/documents/DocumentMetadataTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/DocumentOverviewTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/DocumentPreview.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/components/documents/DocumentPreviewTab.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/documents/DocumentTable.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/documents/DocumentTablesTab.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/DocumentUploader.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/documents/DocumentUploadZone.tsx": {
+        "errors": 0,
+        "warnings": 19
+      },
+      "src/components/documents/ErrorDisplay.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/FileList.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/components/documents/IntegrityDetail.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/documents/MathDisplay.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/documents/ProcessingStatus.tsx": {
+        "errors": 1,
+        "warnings": 6
+      },
+      "src/components/documents/UploadProgress.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/entities/__tests__/DocumentEntityExtractor.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/entities/__tests__/EntityMergeTool.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/entities/BulkOperations.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/entities/DocumentEntityExtractor.tsx": {
+        "errors": 1,
+        "warnings": 6
+      },
+      "src/components/entities/EntityDetail.tsx": {
+        "errors": 1,
+        "warnings": 6
+      },
+      "src/components/entities/EntityErrorBoundary.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/entities/EntityFilters.tsx": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/components/entities/EntityForm.tsx": {
+        "errors": 1,
+        "warnings": 14
+      },
+      "src/components/entities/EntityGraph.tsx": {
+        "errors": 0,
+        "warnings": 47
+      },
+      "src/components/entities/EntityList.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/entities/EntityMergeTool.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/components/entities/EntitySearch.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/entities/GraphAnalyticsDashboard.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/entities/GraphHealthMonitor.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "src/components/entities/KeyboardShortcutsDialog.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/entities/NeighborhoodExplorer.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "src/components/entities/PathFinder.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/entities/RelationshipForm.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/components/evidence/__tests__/EvidenceBreakdown.test.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/evidence/__tests__/EvidenceMeter.test.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/evidence/ConfidenceIndicator.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/evidence/EvidenceBreakdown.tsx": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/components/evidence/EvidenceMeter.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/evidence/StanceBadge.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/export/ExportDialog.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/graph/EntityComparison.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/graph/EntityDetails.tsx": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/components/graph/EntityDetailsPanel.tsx": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/components/graph/EntityRelationshipDisplay.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/components/graph/EntityTimeline.tsx": {
+        "errors": 0,
+        "warnings": 21
+      },
+      "src/components/graph/EntityTypeFilter.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/graph/GraphAccessibilityProvider.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/graph/GraphCentralityMetrics.tsx": {
+        "errors": 3,
+        "warnings": 16
+      },
+      "src/components/graph/GraphExportReporting.tsx": {
+        "errors": 1,
+        "warnings": 17
+      },
+      "src/components/graph/GraphInsightsDashboard.tsx": {
+        "errors": 7,
+        "warnings": 19
+      },
+      "src/components/graph/GraphLayout.ts": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/components/graph/GraphPerformanceOptimizer.tsx": {
+        "errors": 3,
+        "warnings": 19
+      },
+      "src/components/graph/GraphRecommendations.tsx": {
+        "errors": 2,
+        "warnings": 18
+      },
+      "src/components/graph/KnowledgeGraph.tsx": {
+        "errors": 2,
+        "warnings": 8
+      },
+      "src/components/graph/PathFinding.tsx": {
+        "errors": 0,
+        "warnings": 20
+      },
+      "src/components/graph/ResponsiveGraphLayout.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/InteractiveKnowledgeGraph.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/landing/CapabilitiesSection.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/landing/FooterSection.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/landing/HeroSection.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/layout/__tests__/DiagnosticsPage.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/layout/AppRail.tsx": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/components/layout/AppSidebar.tsx": {
+        "errors": 4,
+        "warnings": 6
+      },
+      "src/components/layout/GlobalJobCenter.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/layout/Header.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/layout/MobileTabBar.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/layout/PageHeader.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/layout/Sidebar.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/layout/sidebar/SidebarToggle.tsx": {
+        "errors": 1,
+        "warnings": 4
+      },
+      "src/components/layout/SidebarLayout.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/layout/SimpleLayout.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/llm-chat/ChatInput.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/llm-chat/ChatMessage.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/llm-chat/ChatMessageActions.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/llm-chat/CodeBlock.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/llm-chat/KeyboardShortcutsDialog.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/llm-chat/MarkdownRenderer.tsx": {
+        "errors": 0,
+        "warnings": 19
+      },
+      "src/components/Logo.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/metrics/QualityMetricsCard.tsx": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/components/metrics/RAGTriadMetricsDisplay.tsx": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/components/metrics/RealTimeMetrics.tsx": {
+        "errors": 1,
+        "warnings": 10
+      },
+      "src/components/monitoring/AlertList.tsx": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/components/monitoring/MetricCard.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/monitoring/PerformanceMetricsDashboard.tsx": {
+        "errors": 8,
+        "warnings": 14
+      },
+      "src/components/monitoring/StatusGrid.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/monitoring/SystemOverviewDashboard.stories.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/monitoring/SystemOverviewDashboard.tsx": {
+        "errors": 16,
+        "warnings": 11
+      },
+      "src/components/notifications/BellPopover.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/notifications/NotificationCard.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/notifications/NotificationList.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/optimized/OptimizedDocumentList.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/preview/MultimodalViewer.stories.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/preview/MultimodalViewer.tsx": {
+        "errors": 5,
+        "warnings": 14
+      },
+      "src/components/processing/__tests__/ErrorBoundary.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/processing/ConnectionManager.tsx": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/components/processing/DocumentProgressVisualizer.tsx": {
+        "errors": 2,
+        "warnings": 11
+      },
+      "src/components/processing/ErrorBoundary.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/components/processing/NotificationCenter.tsx": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/components/processing/PerformanceMonitor.tsx": {
+        "errors": 3,
+        "warnings": 4
+      },
+      "src/components/processing/ProcessingDashboard.stories.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/processing/ProcessingDashboard.tsx": {
+        "errors": 4,
+        "warnings": 5
+      },
+      "src/components/processing/RealtimeStatusDashboard.tsx": {
+        "errors": 0,
+        "warnings": 18
+      },
+      "src/components/realtime/DocumentProcessingDashboard.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/realtime/ErrorDisplay.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/realtime/RealtimeProcessingDashboard.stories.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/components/realtime/RealtimeProcessingDashboard.tsx": {
+        "errors": 1,
+        "warnings": 15
+      },
+      "src/components/realtime/RealtimeProcessingProvider.tsx": {
+        "errors": 6,
+        "warnings": 9
+      },
+      "src/components/realtime/VirtualizedDocumentList.tsx": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/components/research-engine/BlueprintEditor.tsx": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/components/research-engine/CreateProjectModal.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/research-engine/EvidenceMap.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/research-engine/ProjectCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research-engine/ResearchDashboard.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/research-engine/RunView.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/research-engine/SourceSelector.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/research-engine/StepCard.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/research-engine/StepProgress.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/research-engine/TemplateSelector.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/research/__tests__/DraftViewer.test.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/research/__tests__/InsertPreview.test.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/research/__tests__/WriterToolbar.test.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/research/CellCitation.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/ColumnEditor.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/research/CreateProjectModal.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/research/DocumentList.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/research/DraftComparison.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/research/DraftExportModal.tsx": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/components/research/DraftGenerationProgress.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/DraftGenerator.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/DraftViewer.tsx": {
+        "errors": 3,
+        "warnings": 0
+      },
+      "src/components/research/ExtractionMatrix.tsx": {
+        "errors": 1,
+        "warnings": 11
+      },
+      "src/components/research/LinkThreadModal.tsx": {
+        "errors": 2,
+        "warnings": 7
+      },
+      "src/components/research/NoteEditor.tsx": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "src/components/research/NoteList.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/OutlineDialog.tsx": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/components/research/ProjectCard.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/ProjectChatTab.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/components/research/ProjectDetail.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/ProjectHeader.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/ProjectKnowledgeTree.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/research/ProjectList.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/ResearchErrorBoundary.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/components/research/ResearchPipeline.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/research/SaveToNoteModal.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/research/StartChatModal.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/research/steps/CollectStep.tsx": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "src/components/research/steps/DraftStep.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/research/steps/ExportStep.tsx": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "src/components/research/ThreadCard.tsx": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/components/research/ToneToolbar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/research/WriterToolbar.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/search/__tests__/ResultsPanel.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/search/HybridSearchOrchestrator.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/search/QueryIntentDetector.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/search/QueryPerformanceMonitor.tsx": {
+        "errors": 1,
+        "warnings": 11
+      },
+      "src/components/search/QueryProcessor.tsx": {
+        "errors": 2,
+        "warnings": 9
+      },
+      "src/components/search/QueryRewriter.tsx": {
+        "errors": 1,
+        "warnings": 10
+      },
+      "src/components/search/ResultAggregator.tsx": {
+        "errors": 1,
+        "warnings": 25
+      },
+      "src/components/search/ResultsPanel.tsx": {
+        "errors": 1,
+        "warnings": 4
+      },
+      "src/components/search/SearchInterface.tsx": {
+        "errors": 1,
+        "warnings": 14
+      },
+      "src/components/search/ThreadMessageSearch.tsx": {
+        "errors": 1,
+        "warnings": 8
+      },
+      "src/components/security/SecurityComplianceChecker.tsx": {
+        "errors": 0,
+        "warnings": 15
+      },
+      "src/components/ui/__tests__/enhanced-new-chat-dialog.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/agent-plan.tsx": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "src/components/ui/alert-dialog.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/ui/breadcrumb.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/ui/carousel.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/ui/collapsible.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/confirm-dialog.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/components/ui/dialog.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/ui/dropdown-menu.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/EmptyState.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/enhanced-new-chat-dialog.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/ui/form-field.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/ui/new-chat-dialog.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/shadcn-io/navbar-02/index.tsx": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/components/ui/sheet.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/components/ui/sidebar.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/components/ui/skeleton.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/ui/theme-toggle.tsx": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/components/ui/typography.tsx": {
+        "errors": 0,
+        "warnings": 12
+      },
+      "src/components/ui/underline-animation.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/components/upload/DocumentUploadWizard.stories.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/components/upload/DocumentUploadWizard.tsx": {
+        "errors": 4,
+        "warnings": 12
+      },
+      "src/contexts/sidebar-context.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/examples/DocumentUploadWithAnalytics.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/hooks/__tests__/useAnalytics.test.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/hooks/__tests__/useChatStreaming.auiApproval.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.auiPlaceholder.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.canonical.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.confirmToolSteps.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.doneToolExecutions.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.resume.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.storeReconciliation.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.threadScope.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useChatStreaming.threadSwitch.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/__tests__/useDocuments.test.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/__tests__/useKeyboardShortcuts.test.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/analytics/index.ts": {
+        "errors": 3,
+        "warnings": 16
+      },
+      "src/hooks/analytics/useAnalyticsContext.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/hooks/analytics/useDashboards.ts": {
+        "errors": 0,
+        "warnings": 30
+      },
+      "src/hooks/analytics/useGraphData.ts": {
+        "errors": 0,
+        "warnings": 28
+      },
+      "src/hooks/analytics/useMetrics.ts": {
+        "errors": 2,
+        "warnings": 23
+      },
+      "src/hooks/analytics/useReports.ts": {
+        "errors": 1,
+        "warnings": 31
+      },
+      "src/hooks/chat/__tests__/useChatStreaming.submitHistory.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/chat/useChatSession.ts": {
+        "errors": 5,
+        "warnings": 1
+      },
+      "src/hooks/chat/useChatStreaming.ts": {
+        "errors": 1,
+        "warnings": 9
+      },
+      "src/hooks/chat/useChatThreadActions.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/upload/useDocumentUpload.stories.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/hooks/upload/useDocumentUpload.ts": {
+        "errors": 1,
+        "warnings": 1
+      },
+      "src/hooks/use-mobile.tsx": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/hooks/use-toast.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/useAnalytics.ts": {
+        "errors": 0,
+        "warnings": 33
+      },
+      "src/hooks/useAnalyticsTracking.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/hooks/useChatPersistence.ts": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/hooks/useCitationsForThread.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/useDocumentProcessingStatus.ts": {
+        "errors": 1,
+        "warnings": 2
+      },
+      "src/hooks/useDocuments.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/useEvidenceMeter.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/useKeyboardShortcuts.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/useNewChatDialog.ts": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/hooks/useNotificationBridge.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/hooks/useOptimisticUpload.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/hooks/usePageContext.ts": {
+        "errors": 1,
+        "warnings": 0
+      },
+      "src/hooks/usePerformanceMonitoring.ts": {
+        "errors": 0,
+        "warnings": 28
+      },
+      "src/hooks/useProcessingStatus.ts": {
+        "errors": 2,
+        "warnings": 1
+      },
+      "src/hooks/useProjectChat.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/hooks/useRealtimeProcessing.ts": {
+        "errors": 1,
+        "warnings": 7
+      },
+      "src/hooks/useSidebarToggle.ts": {
+        "errors": 2,
+        "warnings": 7
+      },
+      "src/hooks/useWebSocket.ts": {
+        "errors": 3,
+        "warnings": 14
+      },
+      "src/hooks/useWebSocketConnection.ts": {
+        "errors": 1,
+        "warnings": 3
+      },
+      "src/integration/__tests__/monitoring-store.test.ts": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/lib/analytics.ts": {
+        "errors": 0,
+        "warnings": 27
+      },
+      "src/lib/supabase/middleware.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/lib/thread-hooks.ts": {
+        "errors": 2,
+        "warnings": 3
+      },
+      "src/lib/utils.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/page-components/auth/LoginPage.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/page-components/DashboardPage.tsx": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/page-components/Documents.tsx": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/page-components/error/NotFoundPage.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/page-components/Login.tsx": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/page-components/Register.tsx": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/providers/WebSocketProvider.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/security/frontendSecurity.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/services/__tests__/agentChatService.nestedConfirmation.contract.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/agentChatService.orgHeader.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/agentChatService.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/api-client.auth.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/services/__tests__/api-client.long-timeout.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/enhancedDocumentService.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/realtimeWebSocketService.test.ts": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/services/__tests__/streamingService.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/__tests__/workspaceService.cache.test.ts": {
+        "errors": 2,
+        "warnings": 2
+      },
+      "src/services/analytics/analyticsApi.ts": {
+        "errors": 0,
+        "warnings": 19
+      },
+      "src/services/analytics/index.ts": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/services/analytics/websocketService.ts": {
+        "errors": 1,
+        "warnings": 5
+      },
+      "src/services/analyticsService.ts": {
+        "errors": 0,
+        "warnings": 20
+      },
+      "src/services/api-client.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/citationService.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/services/documentAnalyticsApi.ts": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/services/documentService.ts": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/services/enhancedDocumentService.ts": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/services/entityService.ts": {
+        "errors": 0,
+        "warnings": 16
+      },
+      "src/services/featureFlags.tsx": {
+        "errors": 0,
+        "warnings": 21
+      },
+      "src/services/graphAnalyticsService.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/services/graphService.ts": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/services/loggingService.ts": {
+        "errors": 0,
+        "warnings": 39
+      },
+      "src/services/mockDocumentService.ts": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/services/monitoringWebsocketService.ts": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/services/projectService.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/ragService.ts": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/services/realtimeWebSocketService.ts": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/services/researchEngineService.ts": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/services/scispaceService.ts": {
+        "errors": 0,
+        "warnings": 17
+      },
+      "src/services/searchService.ts": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/services/uploadService.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/services/websocket.ts": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/services/workspaceService.ts": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/store/__tests__/auth-store-signout.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/store/__tests__/chat-store-bulk-operations.test.ts": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/store/__tests__/chat-store-pagination.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/store/__tests__/chat-store-refresh.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/store/__tests__/projectChatStore.test.ts": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/store/__tests__/sidebar-store.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/store/agentChatStore.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/store/chat-store.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/store/citationStore.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/store/notificationStore.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/store/projectChatStore.ts": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "src/store/realtimeProcessingStore.ts": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/store/sidebar-store.ts": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/stores/__tests__/agentActivityStore.test.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/stores/agentActivityStore.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/stores/analytics/analyticsStore.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/stores/analytics/graphStore.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/stores/analytics/index.ts": {
+        "errors": 0,
+        "warnings": 6
+      },
+      "src/stores/analytics/realtimeStore.ts": {
+        "errors": 0,
+        "warnings": 4
+      },
+      "src/stores/analyticsStore.new.ts": {
+        "errors": 0,
+        "warnings": 11
+      },
+      "src/stores/analyticsStore.ts": {
+        "errors": 0,
+        "warnings": 8
+      },
+      "src/stores/enhancedGraphStore.ts": {
+        "errors": 0,
+        "warnings": 22
+      },
+      "src/stores/graphStore.ts": {
+        "errors": 0,
+        "warnings": 24
+      },
+      "src/stores/monitoringStore.ts": {
+        "errors": 0,
+        "warnings": 46
+      },
+      "src/test/a11y.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/test/factories.ts": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/test/test-utils.tsx": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/theme/useTheme.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/trigger/example.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/types/analytics.ts": {
+        "errors": 0,
+        "warnings": 3
+      },
+      "src/types/api.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/types/auth.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/types/document.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/types/entity.ts": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/types/evaluation.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/types/graph-api.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/types/knowledge-graph.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/types/monitoring.ts": {
+        "errors": 0,
+        "warnings": 13
+      },
+      "src/types/research.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/types/search.ts": {
+        "errors": 0,
+        "warnings": 7
+      },
+      "src/types/ui.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/types/upload.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/types/workspace.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/utils/__tests__/apiBaseUrlResolution.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/utils/__tests__/errorTracking.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/utils/__tests__/publicEndpoints.test.ts": {
+        "errors": 0,
+        "warnings": 2
+      },
+      "src/utils/analytics/dataTransformers.ts": {
+        "errors": 0,
+        "warnings": 10
+      },
+      "src/utils/analytics/formatUtils.ts": {
+        "errors": 0,
+        "warnings": 9
+      },
+      "src/utils/analytics/index.ts": {
+        "errors": 0,
+        "warnings": 25
+      },
+      "src/utils/errorTracking.ts": {
+        "errors": 0,
+        "warnings": 34
+      },
+      "src/utils/fileValidation.ts": {
+        "errors": 0,
+        "warnings": 1
+      },
+      "src/utils/performance.ts": {
+        "errors": 1,
+        "warnings": 42
+      },
+      "src/utils/performanceMonitoring.ts": {
+        "errors": 0,
+        "warnings": 43
+      }
+    }
+  },
+  "coverage": {
+    "lines": 19.36,
+    "statements": 19.36,
+    "functions": 52.19,
+    "branches": 76.31
+  }
+}

@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,12 @@ from src.models.search_schemas import (
 
 from .cohere_rerank_service import cohere_rerank_service
 from .fulltext_search_service import fulltext_search_service
+
+if TYPE_CHECKING:
+    # Only for the return-type annotation below — the runtime import stays
+    # deferred inside search_with_diagnostics() so the diagnostics module is
+    # only loaded when that diagnostic path actually runs.
+    from src.services.diagnostics.retrieval_diagnostics import RetrievalTrace
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CANONICAL_NODE = "24"
 CANONICAL_PNPM = "pnpm@10.18.2"
@@ -43,9 +42,7 @@ def _workspace_overrides() -> dict[str, str]:
 
     overrides: dict[str, str] = {}
     for line in block.group("body").splitlines():
-        entry = re.match(
-            r"^\s{2}(?P<name>[\w-]+):\s*['\"]?(?P<value>[^'\"\s#]+)", line
-        )
+        entry = re.match(r"^\s{2}(?P<name>[\w-]+):\s*['\"]?(?P<value>[^'\"\s#]+)", line)
         if entry:
             overrides[entry.group("name")] = entry.group("value")
     return overrides
@@ -77,10 +74,7 @@ def _build_reference_surface_paths(root: Path) -> tuple[Path, ...]:
         )
         is_shell = path.suffix == ".sh"
         is_bake = path.match("docker-bake*.hcl")
-        is_compose = (
-            path.suffix in {".yml", ".yaml"}
-            and "compose" in path.name.lower()
-        )
+        is_compose = path.suffix in {".yml", ".yaml"} and "compose" in path.name.lower()
         if is_workflow or is_shell or is_bake or is_compose:
             candidates.append(path)
     return tuple(sorted(candidates))
@@ -103,9 +97,7 @@ def _cached_frontend_dockerfile_references(
     references: list[tuple[Path, tuple[str, ...]]] = []
     for surface in _build_reference_surface_paths(root):
         contents = _executable_reference_text(surface.read_text(encoding="utf-8"))
-        matches = sorted(
-            set(re.findall(r"\bfrontend/Dockerfile(?:[.\w-]*)", contents))
-        )
+        matches = sorted(set(re.findall(r"\bfrontend/Dockerfile(?:[.\w-]*)", contents)))
         if matches:
             references.append((surface, tuple(matches)))
     return tuple(references)
@@ -123,9 +115,9 @@ def _frontend_dockerfile_references(root: Path) -> dict[Path, set[str]]:
 def _active_frontend_dockerfiles() -> tuple[Path, ...]:
     references = _frontend_dockerfile_references(REPO_ROOT)
     relative_paths = set().union(*references.values()) if references else set()
-    assert relative_paths, (
-        "no executable build surface references a frontend Dockerfile"
-    )
+    assert (
+        relative_paths
+    ), "no executable build surface references a frontend Dockerfile"
     missing = sorted(
         path for path in relative_paths if not (REPO_ROOT / path).is_file()
     )
@@ -247,8 +239,10 @@ def _json_or_shell_command(body: str) -> tuple[str, list[str]] | None:
             decoded = json.loads(body)
         except json.JSONDecodeError:
             return None
-        if isinstance(decoded, list) and decoded and all(
-            isinstance(item, str) for item in decoded
+        if (
+            isinstance(decoded, list)
+            and decoded
+            and all(isinstance(item, str) for item in decoded)
         ):
             return decoded[0].rsplit("/", 1)[-1], decoded[1:]
         return None
@@ -300,13 +294,13 @@ def _docker_tool_violations(contents: str) -> list[str]:
         commands: list[tuple[str, list[str]]] = []
         if instruction == "RUN":
             if body.lstrip().startswith("["):
-                command = _json_or_shell_command(body)
-                commands = [command] if command else []
+                parsed = _json_or_shell_command(body)
+                commands = [parsed] if parsed else []
             else:
                 commands = _shell_commands(body)
         if instruction in {"CMD", "ENTRYPOINT"}:
-            command = _json_or_shell_command(body)
-            commands = [command] if command else []
+            parsed = _json_or_shell_command(body)
+            commands = [parsed] if parsed else []
         commands = _expanded_shell_commands(body, commands)
         for command, args in commands:
             non_option_args = [
@@ -335,7 +329,7 @@ def _node_assignment_value(raw_value: str) -> str:
     value = raw_value.strip().rstrip("\\").strip()
     if value.startswith("${{") and "}}" in value:
         return value[: value.index("}}") + 2]
-    if value[:1] in {"\"", "'"}:
+    if value[:1] in {'"', "'"}:
         quote = value[0]
         closing = value.find(quote, 1)
         if closing != -1:
@@ -712,17 +706,17 @@ def test_active_dockerfile_discovery_covers_executable_build_surfaces() -> None:
 def test_nvmrc_declares_canonical_node() -> None:
     actual = (REPO_ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
 
-    assert actual == CANONICAL_NODE, (
-        f".nvmrc declares Node {actual!r}; expected {CANONICAL_NODE!r}"
-    )
+    assert (
+        actual == CANONICAL_NODE
+    ), f".nvmrc declares Node {actual!r}; expected {CANONICAL_NODE!r}"
 
 
 def test_root_package_declares_canonical_pnpm() -> None:
     actual = _json("package.json").get("packageManager")
 
-    assert actual == CANONICAL_PNPM, (
-        f"package.json packageManager is {actual!r}; expected {CANONICAL_PNPM!r}"
-    )
+    assert (
+        actual == CANONICAL_PNPM
+    ), f"package.json packageManager is {actual!r}; expected {CANONICAL_PNPM!r}"
 
 
 def test_frontend_package_declares_canonical_pnpm() -> None:
@@ -737,9 +731,9 @@ def test_frontend_package_declares_canonical_pnpm() -> None:
 def test_root_package_declares_canonical_node_engine() -> None:
     actual = _json("package.json").get("engines", {}).get("node")
 
-    assert actual == f"{CANONICAL_NODE}.x", (
-        f"package.json engines.node is {actual!r}; expected '{CANONICAL_NODE}.x'"
-    )
+    assert (
+        actual == f"{CANONICAL_NODE}.x"
+    ), f"package.json engines.node is {actual!r}; expected '{CANONICAL_NODE}.x'"
 
 
 def test_frontend_package_declares_canonical_node_engine() -> None:
@@ -759,8 +753,7 @@ def test_ci_workflow_declares_canonical_node() -> None:
     violations = _workflow_node_violations(workflow)
 
     assert not violations, (
-        ".github/workflows/test-pipeline.yml has Node authority drift: "
-        f"{violations}"
+        ".github/workflows/test-pipeline.yml has Node authority drift: " f"{violations}"
     )
 
 
@@ -788,9 +781,9 @@ def test_root_scripts_do_not_shell_out_to_npm_run() -> None:
 def test_frontend_scripts_do_not_shell_out_to_npm_run() -> None:
     offenders = _npm_run_scripts("frontend/package.json")
 
-    assert not offenders, (
-        f"frontend/package.json scripts still use `npm run`: {offenders}"
-    )
+    assert (
+        not offenders
+    ), f"frontend/package.json scripts still use `npm run`: {offenders}"
 
 
 def test_active_frontend_dockerfiles_use_canonical_node() -> None:
@@ -821,9 +814,9 @@ def test_active_frontend_dockerfiles_enable_corepack_and_use_pnpm() -> None:
         if missing:
             drift.append(f"{path.relative_to(REPO_ROOT)}: {missing}")
 
-    assert not drift, (
-        f"active frontend Dockerfiles must use corepack plus pnpm: {drift}"
-    )
+    assert (
+        not drift
+    ), f"active frontend Dockerfiles must use corepack plus pnpm: {drift}"
 
 
 def test_active_frontend_dockerfiles_have_no_npm_install_or_run_fallbacks() -> None:
@@ -847,9 +840,9 @@ def test_active_frontend_dockerfiles_have_no_npm_install_or_run_fallbacks() -> N
 def test_frontend_has_no_nested_pnpm_lockfile() -> None:
     nested_lock = REPO_ROOT / "frontend/pnpm-lock.yaml"
 
-    assert not nested_lock.exists(), (
-        "frontend/pnpm-lock.yaml exists; root pnpm-lock.yaml must be the sole authority"
-    )
+    assert (
+        not nested_lock.exists()
+    ), "frontend/pnpm-lock.yaml exists; root pnpm-lock.yaml must be the sole authority"
 
 
 def test_next_override_matches_frontend_declaration() -> None:

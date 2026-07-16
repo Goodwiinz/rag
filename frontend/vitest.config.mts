@@ -58,9 +58,9 @@ export default defineConfig({
         'src/**/index.{ts,tsx}',
         'src/components/ui/**',
       ],
-      // PR #1 ships smoke-test-only coverage; PR #5 raises this to 50/40/45/50
-      // after the codemod sweep and MSW standardization land.
-      thresholds: { lines: 0, branches: 0, functions: 0, statements: 0 },
+      // No thresholds here: the single source of truth for coverage floors
+      // is frontend/quality-baseline.json, enforced by
+      // scripts/ci/check_frontend_coverage.mjs against json-summary output.
     },
     reporters: process.env.CI
       ? ['default', ['junit', { outputFile: 'coverage/junit-vitest.xml' }]]

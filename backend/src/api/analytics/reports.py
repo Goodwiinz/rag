@@ -4,12 +4,16 @@ Reports API routes
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
+from sqlalchemy import update
 
+from src.core.database import get_async_session
 from src.core.dependencies import get_current_user
+from src.models.analytics.analytics_models import AnalyticsReport
 from src.models.user import User
 from src.services.analytics.report_service import report_service
 
