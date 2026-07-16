@@ -52,6 +52,9 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   },
 
   advanceStep: async (projectId: string) => {
+    // Snapshot only — this action doesn't own the token slot, the last
+    // fetch/reset does. See pipelineRequestToken comment above.
+    const requestToken = pipelineRequestToken;
     const { pipeline } = get();
     if (!pipeline) return;
 
@@ -71,8 +74,10 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
         completed_steps: completedSteps,
         invalidated_steps: invalidatedSteps,
       });
+      if (pipelineRequestToken !== requestToken || updated.project_id !== projectId) return; // superseded
       set({ pipeline: updated });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to advance step';
       set({ error: message });
@@ -80,6 +85,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   },
 
   skipStep: async (projectId: string) => {
+    const requestToken = pipelineRequestToken;
     const { pipeline } = get();
     if (!pipeline) return;
 
@@ -95,8 +101,10 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
         current_step: nextStep,
         skipped_steps: skippedSteps,
       });
+      if (pipelineRequestToken !== requestToken || updated.project_id !== projectId) return; // superseded
       set({ pipeline: updated });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to skip step';
       set({ error: message });
@@ -104,6 +112,7 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   },
 
   goToStep: async (projectId: string, step: number) => {
+    const requestToken = pipelineRequestToken;
     const { pipeline } = get();
     if (!pipeline) return;
 
@@ -111,8 +120,10 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
       const updated = await scispaceService.updatePipeline(projectId, {
         current_step: step,
       });
+      if (pipelineRequestToken !== requestToken || updated.project_id !== projectId) return; // superseded
       set({ pipeline: updated });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to navigate to step';
       set({ error: message });
@@ -124,12 +135,18 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
     step: number,
     data: Record<string, unknown>
   ) => {
+    const requestToken = pipelineRequestToken;
+    const { pipeline } = get();
+    if (!pipeline) return;
+
     try {
       const updated = await scispaceService.updatePipeline(projectId, {
         step_data: { [String(step)]: data },
       });
+      if (pipelineRequestToken !== requestToken || updated.project_id !== projectId) return; // superseded
       set({ pipeline: updated });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to update step data';
       set({ error: message });
@@ -137,11 +154,16 @@ export const usePipelineStore = create<PipelineStore>((set, get) => ({
   },
 
   resetPipeline: async (projectId: string) => {
+    // Owns loading, so it installs a new token like fetchPipeline does.
+    const requestToken = {};
+    pipelineRequestToken = requestToken;
     set({ loading: true, error: null });
     try {
       const pipeline = await scispaceService.resetPipeline(projectId);
+      if (pipelineRequestToken !== requestToken || pipeline.project_id !== projectId) return; // superseded
       set({ pipeline, loading: false });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to reset pipeline';
       set({ error: message, loading: false });
