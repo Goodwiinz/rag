@@ -31,6 +31,16 @@ function getErrorMessage(error: unknown, fallback: string): string {
 // Callers awaiting the same id share one request.
 let inflightProjectFetch: { id: string; promise: Promise<void> } | null = null;
 
+// Identity for the "owner" of currentProject/projectDocuments/projectNotes.
+// inflightProjectFetch above only dedups the NETWORK call for a repeated
+// same-id request; it does nothing for a slow fetchProject('A') resolving
+// after fetchProject('B') already committed — that would overwrite B's
+// state with A's. Module scope (outside Zustand), unique token objects, same
+// pattern as pipelineStore's pipelineRequestToken. A dedup joiner (returns
+// inflightProjectFetch.promise) never installs its own token — it's sharing
+// the original caller's in-flight request and that caller already owns it.
+let projectFetchToken: object | null = null;
+
 interface ProjectState {
   // State
   projects: Project[];
@@ -150,10 +160,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (inflightProjectFetch?.id === projectId) {
       return inflightProjectFetch.promise;
     }
+    const requestToken = {};
+    projectFetchToken = requestToken;
     set({ loading: true, error: null });
     const promise = (async () => {
       try {
         const project = await projectService.getProject(projectId);
+        if (projectFetchToken !== requestToken) return; // superseded
         // Clear stale documents/notes from the previous project on switch
         const prev = get().currentProject;
         if (prev && prev.id !== projectId) {
@@ -167,6 +180,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           set({ currentProject: project, loading: false });
         }
       } catch (error: unknown) {
+        if (projectFetchToken !== requestToken) return; // superseded
         console.error('[ProjectStore] Failed to fetch project:', error);
         set({
           error: getErrorMessage(error, 'Failed to fetch project'),

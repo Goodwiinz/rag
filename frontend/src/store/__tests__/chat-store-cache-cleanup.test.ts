@@ -227,6 +227,128 @@ describe('loadConversations reverse-index purge', () => {
   });
 });
 
+describe('loadConversations request identity', () => {
+  beforeEach(() => {
+    act(() => {
+      useChatStore.getState().reset();
+    });
+    vi.clearAllMocks();
+  });
+
+  it('drops a superseded same-workspace response instead of overwriting the newer list', async () => {
+    let resolveStale!: (v: unknown) => void;
+    let resolveFresh!: (v: unknown) => void;
+    (workspaceService.listConversations as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        new Promise((r) => {
+          resolveStale = r;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((r) => {
+          resolveFresh = r;
+        })
+      );
+
+    const stale = useChatStore.getState().loadConversations('ws-1');
+    const fresh = useChatStore.getState().loadConversations('ws-1');
+    resolveFresh({
+      conversations: [makeConversation('conv-new', 'ws-1')],
+      total: 1,
+      page: 1,
+      limit: 50,
+      has_more: false,
+    });
+    await act(async () => {
+      await fresh;
+    });
+    resolveStale({
+      conversations: [makeConversation('conv-old', 'ws-1')],
+      total: 1,
+      page: 1,
+      limit: 50,
+      has_more: false,
+    });
+    await act(async () => {
+      await stale;
+    });
+
+    expect(
+      useChatStore.getState().conversations['ws-1'].map((c) => c.id)
+    ).toEqual(['conv-new']);
+  });
+
+  it('ignores a superseded 404 even when still current', async () => {
+    useChatStore.setState({
+      currentWorkspaceId: 'ws-1',
+      workspaces: [makeWorkspace('ws-1')],
+    });
+    let rejectStale!: (r: unknown) => void;
+    let resolveFresh!: (v: unknown) => void;
+    (workspaceService.listConversations as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        new Promise((_, rej) => {
+          rejectStale = rej;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((r) => {
+          resolveFresh = r;
+        })
+      );
+
+    const stale = useChatStore.getState().loadConversations('ws-1');
+    const fresh = useChatStore.getState().loadConversations('ws-1');
+    resolveFresh({
+      conversations: [],
+      total: 0,
+      page: 1,
+      limit: 50,
+      has_more: false,
+    });
+    await act(async () => {
+      await fresh;
+    });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    rejectStale(Object.assign(new Error('Not Found'), { response: { status: 404 } }));
+    await act(async () => {
+      await stale;
+    });
+
+    expect(useChatStore.getState().currentWorkspaceId).toBe('ws-1');
+    expect(useChatStore.getState().workspaces).toHaveLength(1);
+    expect(workspaceService.getOrCreateDefaultWorkspace).not.toHaveBeenCalled();
+    // Superseded requests are silent: the token guard returns before the
+    // catch's console.error ever runs.
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('ignores a late 404 for a workspace the user has already navigated away from', async () => {
+    useChatStore.setState({
+      currentWorkspaceId: 'ws-b',
+      workspaces: [makeWorkspace('ws-b')],
+    });
+    (
+      workspaceService.listConversations as ReturnType<typeof vi.fn>
+    ).mockRejectedValue(
+      Object.assign(new Error('Not Found'), { response: { status: 404 } })
+    );
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await act(async () => {
+      await useChatStore.getState().loadConversations('ws-a');
+    });
+    err.mockRestore();
+
+    const state = useChatStore.getState();
+    expect(state.currentWorkspaceId).toBe('ws-b');
+    expect(state.workspaces).toHaveLength(1);
+    expect(state.isLoadingConversations).toBe(false);
+    expect(workspaceService.getOrCreateDefaultWorkspace).not.toHaveBeenCalled();
+  });
+});
+
 describe('bulkDeleteThreads success-based currentThreadId clearing', () => {
   beforeEach(() => {
     act(() => {

@@ -26,11 +26,22 @@ export interface ConversationSlice {
   deleteConversation: (id: string) => Promise<boolean>;
 }
 
+// Identity for in-flight loadConversations calls, keyed by workspace. Module
+// scope (outside Immer) like requestCoordinator. A superseded request — same
+// workspace re-loaded (A → B → A) — must not commit a stale conversation
+// list, set a stale error, or fire stale-data recovery over the newer load's
+// state. Unique token objects (not counters): the latest request deletes its
+// entry on settle, and object identity can't be recycled the way a reset
+// counter can, so a slow request from an earlier cycle can never match.
+const loadConversationsRequestTokens = new Map<string, object>();
+
 export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
   set,
   get
 ) => ({
   loadConversations: async (workspaceId) => {
+    const requestToken = {};
+    loadConversationsRequestTokens.set(workspaceId, requestToken);
     set((state) => {
       state.isLoadingConversations = true;
       state.error = null;
@@ -38,6 +49,9 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
 
     try {
       const response = await workspaceService.listConversations(workspaceId);
+      if (loadConversationsRequestTokens.get(workspaceId) !== requestToken) {
+        return; // superseded by a newer load — the newer request owns state
+      }
       set((state) => {
         state.conversations[workspaceId] = response.conversations;
         // Rebuild (not just append to) the reverse index for this workspace:
@@ -57,11 +71,27 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
         state.isLoadingConversations = false;
       });
     } catch (error) {
+      if (loadConversationsRequestTokens.get(workspaceId) !== requestToken) {
+        return; // superseded — no stale error, no stale-data recovery
+      }
       console.error('[ChatStore] Error loading conversations:', error);
 
       // Handle 404 - workspace not found (stale data)
       const err = error as { response?: { status?: number } };
       if (err?.response?.status === 404) {
+        // A late 404 for a workspace the user has already navigated away
+        // from must not nuke the (valid) current selection — only recover
+        // when the failed load still targets the current workspace.
+        if (get().currentWorkspaceId !== workspaceId) {
+          console.warn(
+            '[ChatStore] Ignoring stale 404 for superseded workspace:',
+            workspaceId
+          );
+          set((state) => {
+            state.isLoadingConversations = false;
+          });
+          return;
+        }
         console.warn(
           '[ChatStore] Workspace not found (404) - clearing stale data'
         );
@@ -79,6 +109,12 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
         state.error = 'Failed to load conversations';
         state.isLoadingConversations = false;
       });
+    } finally {
+      // Bound the map: the latest request removes its entry on settle. Any
+      // still-in-flight older request already fails the token check.
+      if (loadConversationsRequestTokens.get(workspaceId) === requestToken) {
+        loadConversationsRequestTokens.delete(workspaceId);
+      }
     }
   },
 
