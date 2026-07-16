@@ -159,7 +159,9 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
         return TokenData(
             user_id=user_id,
             email=email,
-            organization_id=None,  # Resolved in get_current_user
+            # Honor an org claim if Supabase set one; otherwise JIT
+            # provisioning (ensure_user_and_org) resolves/creates one.
+            organization_id=app_metadata.get("organization_id"),
             role=role,
             exp=datetime.utcfromtimestamp(exp) if exp else None,
         )
