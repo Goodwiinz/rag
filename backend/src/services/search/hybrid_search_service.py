@@ -644,9 +644,14 @@ class HybridSearchService:
             # Import and use knowledge graph service
             from src.services.knowledge_graph import knowledge_graph_service
 
-            # Execute search using the available interface
+            # Execute search using the available interface. organization_id MUST
+            # be threaded through — without it search_entities runs unscoped over
+            # every tenant's entities and leaks other orgs' entity names/ids/
+            # context into this user's ranked search results.
             kg_result = knowledge_graph_service.search_entities(
-                query=search_request.query, limit=self.max_results_per_source
+                query=search_request.query,
+                limit=self.max_results_per_source,
+                organization_id=organization_id,
             )
 
             # Convert to raw results

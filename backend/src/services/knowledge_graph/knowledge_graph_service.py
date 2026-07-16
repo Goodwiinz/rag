@@ -2565,8 +2565,15 @@ class KnowledgeGraphService:
         query_text = search_request.query if search_request else ""
         limit = getattr(search_request, "limit", 20)
 
+        # Pass organization_id directly, not only the derived doc-id list: if the
+        # doc-id lookup above threw, source_document_ids is None and passing only
+        # that would run unscoped across all tenants. The indexed organization_id
+        # equality is the primary scope.
         entities = self.search_entities(
-            query_text, limit=limit, source_document_ids=source_document_ids
+            query_text,
+            limit=limit,
+            source_document_ids=source_document_ids,
+            organization_id=organization_id,
         )
 
         results = []
