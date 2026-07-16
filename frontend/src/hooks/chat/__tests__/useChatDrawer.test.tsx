@@ -112,4 +112,54 @@ describe('useChatDrawer', () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(document.activeElement).toBe(last);
   });
+
+  it('traps shift+Tab when focus is still on the drawer root itself (open-focus state)', () => {
+    const { result } = renderHook(() => useChatDrawer());
+    const root = document.createElement('div');
+    root.tabIndex = -1;
+    const first = document.createElement('button');
+    const last = document.createElement('button');
+    root.appendChild(first);
+    root.appendChild(last);
+    document.body.appendChild(root);
+    (result.current.drawerRef as React.MutableRefObject<HTMLDivElement | null>).current =
+      root;
+    root.focus();
+    expect(document.activeElement).toBe(root);
+
+    const preventDefault = vi.fn();
+    act(() => {
+      result.current.handleDrawerKeyDown({
+        key: 'Tab',
+        shiftKey: true,
+        preventDefault,
+      } as unknown as React.KeyboardEvent);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(document.activeElement).toBe(last);
+  });
+
+  it('keeps the trap when there are no focusable descendants', () => {
+    const { result } = renderHook(() => useChatDrawer());
+    const root = document.createElement('div');
+    root.tabIndex = -1;
+    document.body.appendChild(root);
+    (result.current.drawerRef as React.MutableRefObject<HTMLDivElement | null>).current =
+      root;
+    root.focus();
+
+    const focusSpy = vi.spyOn(root, 'focus');
+    const preventDefault = vi.fn();
+    act(() => {
+      result.current.handleDrawerKeyDown({
+        key: 'Tab',
+        shiftKey: false,
+        preventDefault,
+      } as unknown as React.KeyboardEvent);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(focusSpy).toHaveBeenCalled();
+  });
 });
