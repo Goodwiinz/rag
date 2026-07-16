@@ -5,6 +5,12 @@ Regression guard for the Hunt-5 finding: remove_workspace_member soft-deletes
 (is_deleted=True) but the uq_workspace_member (workspace_id, user_id) constraint
 is not partial, so a fresh INSERT for a removed user hit the constraint -> 500.
 A removed user could never be re-added. Mocked DB, no real Postgres.
+
+Task 4.3 moved this persistence into
+``src/services/threads/workspace_service.add_member``, which fetches the
+workspace via the shared ``workspace_access.get_workspace`` funnel — these
+tests patch that one seam instead of the pre-4.3 router-inline
+``_get_workspace_or_404``.
 """
 
 from datetime import datetime
@@ -18,11 +24,7 @@ from fastapi import HTTPException
 from src.models.workspace import WorkspaceMember
 from src.schemas.chat import WorkspaceMemberCreate, WorkspaceRole
 
-# Patch target is where add_workspace_member is actually defined (Task 4.2
-# split it out of the former monolithic workspaces.py) — mock.patch needs the
-# module whose globals the handler's name lookups resolve against, not the
-# backward-compat re-export path used by the `import` below.
-MODULE = "src.api.threads.workspace_routes.members"
+GET_WORKSPACE = "src.services.threads.workspace_access.get_workspace"
 
 
 def _execute_returning(value: object) -> MagicMock:
@@ -53,11 +55,11 @@ async def test_readd_restores_soft_deleted_member() -> None:
     db.refresh = AsyncMock()
 
     with (
+        patch(GET_WORKSPACE, new=AsyncMock(return_value=_admin_workspace())),
         patch(
-            f"{MODULE}._get_workspace_or_404",
-            new=AsyncMock(return_value=_admin_workspace()),
+            "src.api.threads.workspace_routes.members._member_to_response",
+            return_value="OK",
         ),
-        patch(f"{MODULE}._member_to_response", return_value="OK"),
     ):
         result = await add_workspace_member(
             workspace_id=workspace_id,
@@ -88,10 +90,7 @@ async def test_readd_live_member_still_409s_as_400() -> None:
     db.add = MagicMock()
     db.commit = AsyncMock()
 
-    with patch(
-        f"{MODULE}._get_workspace_or_404",
-        new=AsyncMock(return_value=_admin_workspace()),
-    ):
+    with patch(GET_WORKSPACE, new=AsyncMock(return_value=_admin_workspace())):
         with pytest.raises(HTTPException) as exc_info:
             await add_workspace_member(
                 workspace_id=uuid4(),
@@ -112,18 +111,25 @@ async def test_readd_live_member_still_409s_as_400() -> None:
 async def test_add_brand_new_member_inserts_row() -> None:
     from src.api.threads.workspaces import add_workspace_member
 
+    # workspace_service.add_member issues two SELECTs for a brand-new member:
+    # (1) the existing-row lookup (none found), (2) a re-fetch with `.user`
+    # eager-loaded after insert+commit (db.refresh() would only re-expire a
+    # relationship that was never loaded on a transient object in the first
+    # place — see workspace_service.add_member's docstring).
+    new_member = MagicMock(spec=WorkspaceMember)
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=_execute_returning(None))  # no prior row
+    db.execute = AsyncMock(
+        side_effect=[_execute_returning(None), _execute_returning(new_member)]
+    )
     db.add = MagicMock()
     db.commit = AsyncMock()
-    db.refresh = AsyncMock()
 
     with (
+        patch(GET_WORKSPACE, new=AsyncMock(return_value=_admin_workspace())),
         patch(
-            f"{MODULE}._get_workspace_or_404",
-            new=AsyncMock(return_value=_admin_workspace()),
+            "src.api.threads.workspace_routes.members._member_to_response",
+            return_value="OK",
         ),
-        patch(f"{MODULE}._member_to_response", return_value="OK"),
     ):
         result = await add_workspace_member(
             workspace_id=uuid4(),

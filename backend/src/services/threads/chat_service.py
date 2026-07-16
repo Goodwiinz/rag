@@ -2,15 +2,29 @@
 Chat Service for Terminal Observatory thread-centric chat persistence.
 
 Provides CRUD operations for workspaces, conversations, threads, and messages.
+
+Task 4.3 consolidated the workspace/conversation/thread/message/collection
+CRUD concerns that used to be duplicated between this class and the
+``workspace_routes`` router-inline implementations into single owners under
+``src/services/threads/{workspace,conversation,thread,message,collection}_service.py``
+(+ the shared ``workspace_access`` funnel). Most methods below now delegate
+to those modules, each passing the flag that reproduces this class's own
+pre-4.3 behavior — see each method's docstring and
+``docs/plans/2026-07-15-maintainability-foundation.md`` Task 4.3 (+ its
+2026-07-16 amendment) for the specific divergence each flag preserves.
+
+Out of scope for that consolidation, unchanged: ``create_message``,
+``create_assistant_message``, ``_filter_owned_document_ids``,
+``get_thread_context``, ``bulk_update_threads``, ``bulk_delete_threads``,
+``bulk_summarize_threads``, ``search_conversations``, ``get_workspace_stats``.
 """
 
 import logging
-import uuid as uuid_mod
 from datetime import datetime
 from typing import List, Literal, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,7 +32,6 @@ from src.models import (
     ChatMessage,
     Citation,
     Collection,
-    CollectionDocument,
     Conversation,
     Document,
     MessageAttachment,
@@ -27,8 +40,6 @@ from src.models import (
     ThreadStatus,
     User,
     Workspace,
-    WorkspaceMember,
-    WorkspaceRole,
 )
 from src.schemas.chat import (
     ChatMessageCreate,
@@ -41,6 +52,14 @@ from src.schemas.chat import (
     ThreadUpdate,
     WorkspaceCreate,
     WorkspaceUpdate,
+)
+from src.services.threads import (
+    collection_service,
+    conversation_service,
+    message_service,
+    thread_service,
+    workspace_access,
+    workspace_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,28 +87,17 @@ class ChatService:
     async def create_workspace(
         self, data: WorkspaceCreate, owner_id: UUID
     ) -> Workspace:
-        """Create a new workspace"""
-        workspace = Workspace(
-            name=data.name,
-            description=data.description,
-            is_public=data.is_public,
-            owner_id=owner_id,
-            organization_id=data.organization_id,
+        """Create a new workspace.
+
+        Delegates to ``workspace_service.create_workspace`` with
+        ``enforce_org_match=False`` — this class's pre-4.3 behavior trusted
+        ``data.organization_id`` verbatim with no cross-org guard (the
+        router-inline create endpoint has always enforced the guard; see
+        ``workspace_service.create_workspace``'s docstring).
+        """
+        workspace = await workspace_service.create_workspace(
+            self.db, data, owner_id, None, enforce_org_match=False
         )
-        self.db.add(workspace)
-
-        # Add owner as a member with OWNER role
-        member = WorkspaceMember(
-            workspace_id=workspace.id,
-            user_id=owner_id,
-            role=WorkspaceRole.OWNER,
-            joined_at=datetime.utcnow(),
-        )
-        self.db.add(member)
-
-        await self.db.commit()
-        await self.db.refresh(workspace)
-
         logger.info(f"Created workspace: {workspace.id} - {workspace.name}")
         return workspace
 
@@ -102,27 +110,16 @@ class ChatService:
         by default it loads only what the check needs (owner/public/members).
         Eager-loading the unbounded conversations collection on every gate call
         grew linearly with workspace age; pass load_conversations=True only
-        where the response actually renders conversation_count.
+        where the response actually renders conversation_count. Never loads
+        collections — this class never needed that field.
         """
-        options = [selectinload(Workspace.members)]
-        if load_conversations:
-            options.append(selectinload(Workspace.conversations))
-        stmt = (
-            select(Workspace)
-            .options(*options)
-            .where(Workspace.id == workspace_id, Workspace.is_deleted == False)
+        return await workspace_access.get_workspace(
+            self.db,
+            workspace_id,
+            user_id,
+            load_conversations=load_conversations,
+            load_collections=False,
         )
-        result = await self.db.execute(stmt)
-        workspace = result.scalars().first()
-
-        if not workspace:
-            return None
-
-        # Check access
-        if not self._user_can_access_workspace(workspace, user_id):
-            return None
-
-        return workspace
 
     async def list_workspaces(
         self,
@@ -131,97 +128,59 @@ class ChatService:
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Workspace], int]:
-        """List workspaces accessible to user"""
-        base_conditions = [
-            WorkspaceMember.user_id == user_id,
-            Workspace.is_deleted == False,
-        ]
+        """List workspaces accessible to user.
 
-        if not include_archived:
-            base_conditions.append(Workspace.is_archived == False)
-
-        # Count total
-        count_stmt = (
-            select(func.count(Workspace.id))
-            .join(WorkspaceMember)
-            .where(*base_conditions)
+        Delegates with ``filter_deleted_memberships=False`` — this class's
+        pre-4.3 behavior did not exclude a soft-deleted ``WorkspaceMember``
+        row, so a removed member still saw the workspace listed (the
+        router-inline endpoint has always filtered it out).
+        """
+        workspaces, total = await workspace_service.list_workspaces(
+            self.db,
+            user_id,
+            include_archived=include_archived,
+            limit=limit,
+            offset=offset,
+            filter_deleted_memberships=False,
         )
-        count_result = await self.db.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # Fetch workspaces
-        stmt = (
-            select(Workspace)
-            .join(WorkspaceMember)
-            .where(*base_conditions)
-            .order_by(desc(Workspace.updated_at))
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await self.db.execute(stmt)
-        workspaces = result.scalars().all()
-
         return workspaces, total
 
     async def update_workspace(
         self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
-        """Update workspace"""
-        # load_conversations: the PATCH response renders conversation_count.
-        workspace = await self.get_workspace(
-            workspace_id, user_id, load_conversations=True
-        )
-        if not workspace:
+        """Update workspace. Returns ``None`` on not-found *or* insufficient
+        permission, matching this class's pre-4.3 undifferentiated result."""
+        try:
+            return await workspace_service.update_workspace(
+                self.db, workspace_id, data, user_id
+            )
+        except PermissionError:
             return None
-
-        # Check permission
-        if not workspace.can_user_admin(str(user_id)):
-            return None
-
-        if data.name is not None:
-            workspace.name = data.name
-        if data.description is not None:
-            workspace.description = data.description
-        if data.is_public is not None:
-            workspace.is_public = data.is_public
-        if data.is_archived is not None:
-            workspace.is_archived = data.is_archived
-
-        workspace.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(workspace)
-
-        return workspace
 
     async def delete_workspace(self, workspace_id: UUID, user_id: UUID) -> bool:
-        """Soft delete workspace"""
-        workspace = await self.get_workspace(workspace_id, user_id)
-        if not workspace:
+        """Soft delete workspace.
+
+        Delegates with ``stamp_deleted_at=False`` — this class's pre-4.3
+        behavior never set ``deleted_at`` (the router-inline delete endpoint
+        always has). Returns ``False`` on not-found *or* insufficient
+        permission, matching the pre-4.3 undifferentiated result.
+        """
+        try:
+            result = await workspace_service.delete_workspace(
+                self.db, workspace_id, user_id, stamp_deleted_at=False
+            )
+        except PermissionError:
             return False
-
-        # Only owner can delete
-        if str(workspace.owner_id) != str(user_id):
-            return False
-
-        workspace.is_deleted = True
-        workspace.updated_at = datetime.utcnow()
-        await self.db.commit()
-
-        logger.info(f"Deleted workspace: {workspace_id}")
-        return True
+        if result:
+            logger.info(f"Deleted workspace: {workspace_id}")
+        return bool(result)
 
     def _user_can_access_workspace(self, workspace: Workspace, user_id: UUID) -> bool:
-        """Check if user can access workspace"""
-        # A soft-deleted workspace revokes access to everything under it —
-        # callers reach here via relationship loads (conversation.workspace,
-        # thread.conversation.workspace) that carry no is_deleted filter.
-        if workspace.is_deleted:
-            return False
-        if workspace.is_public:
-            return True
-        if str(workspace.owner_id) == str(user_id):
-            return True
-        return workspace.is_member(str(user_id))
+        """Check if user can access workspace. Delegates to the canonical
+        predicate in ``workspace_access`` — kept here as a thin wrapper since
+        it's still called internally by ``get_thread_context`` and other
+        out-of-scope methods below."""
+        return workspace_access.user_can_access_workspace(workspace, user_id)
 
     # =========================================================================
     # Conversation Operations
@@ -230,60 +189,28 @@ class ChatService:
     async def create_conversation(
         self, data: ConversationCreate, user_id: UUID
     ) -> Optional[Conversation]:
-        """Create a new conversation in a workspace"""
-        # Verify workspace access
-        workspace = await self.get_workspace(data.workspace_id, user_id)
-        if not workspace:
+        """Create a new conversation in a workspace. Returns ``None`` on
+        not-found *or* insufficient permission, matching this class's
+        pre-4.3 undifferentiated result."""
+        try:
+            conversation = await conversation_service.create_conversation(
+                self.db, data, user_id
+            )
+        except PermissionError:
             return None
-
-        # Check edit permission
-        if not workspace.can_user_edit(str(user_id)):
-            return None
-
-        conversation = Conversation(
-            workspace_id=data.workspace_id,
-            title=data.title,
-            description=data.description,
-            created_by_id=user_id,
-            last_activity_at=datetime.utcnow(),
-        )
-        self.db.add(conversation)
-        await self.db.commit()
-        await self.db.refresh(conversation)
-
-        logger.info(f"Created conversation: {conversation.id} - {conversation.title}")
+        if conversation:
+            logger.info(
+                f"Created conversation: {conversation.id} - {conversation.title}"
+            )
         return conversation
 
     async def get_conversation(
         self, conversation_id: UUID, user_id: UUID
     ) -> Optional[Conversation]:
-        """Get conversation by ID"""
-        stmt = (
-            select(Conversation)
-            .options(
-                selectinload(Conversation.threads),
-                selectinload(Conversation.workspace).selectinload(Workspace.members),
-            )
-            .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
+        """Get conversation by ID."""
+        return await workspace_access.get_conversation(
+            self.db, conversation_id, user_id, load_threads=True
         )
-        result = await self.db.execute(stmt)
-        conversation = result.scalars().first()
-
-        if not conversation:
-            return None
-
-        # A soft-deleted parent workspace must revoke access to its
-        # conversations: delete_workspace flags only its OWN row and never
-        # cascades to child conversations/threads, so this read path must
-        # reject a conversation whose workspace is soft-deleted.
-        if conversation.workspace.is_deleted:
-            return None
-
-        # Check workspace access
-        if not self._user_can_access_workspace(conversation.workspace, user_id):
-            return None
-
-        return conversation
 
     async def list_conversations(
         self,
@@ -294,95 +221,64 @@ class ChatService:
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Conversation], int]:
-        """List conversations in a workspace"""
-        # Verify workspace access
-        workspace = await self.get_workspace(workspace_id, user_id)
-        if not workspace:
-            return [], 0
+        """List conversations in a workspace.
 
-        base_conditions = [
-            Conversation.workspace_id == workspace_id,
-            Conversation.is_deleted == False,
-        ]
-
-        if not include_archived:
-            base_conditions.append(Conversation.is_archived == False)
-
-        if search_query:
-            search_pattern = f"%{search_query}%"
-            base_conditions.append(
-                or_(
-                    Conversation.title.ilike(search_pattern),
-                    Conversation.description.ilike(search_pattern),
-                )
-            )
-
-        # Count total
-        count_stmt = select(func.count(Conversation.id)).where(*base_conditions)
-        count_result = await self.db.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # Fetch conversations.
-        # Eager-load threads: ConversationResponse.thread_count reads the
-        # @property `c.thread_count` which calls `len(self.threads)`. Without
-        # selectinload, that access triggers an implicit lazy IO on the async
-        # session and raises MissingGreenlet, 500ing the whole list.
-        stmt = (
-            select(Conversation)
-            .options(selectinload(Conversation.threads))
-            .where(*base_conditions)
-            .order_by(desc(Conversation.is_pinned), desc(Conversation.last_activity_at))
-            .offset(offset)
-            .limit(limit)
+        Delegates with ``order_pinned_first=True`` — this class's pre-4.3
+        ordering (pinned conversations float to the top). The router-inline
+        list endpoints order by activity only and pass ``False``.
+        """
+        result = await conversation_service.list_conversations(
+            self.db,
+            workspace_id,
+            user_id,
+            include_archived=include_archived,
+            search_query=search_query,
+            limit=limit,
+            offset=offset,
+            order_pinned_first=True,
         )
-        result = await self.db.execute(stmt)
-        conversations = result.scalars().all()
-
+        if result is None:
+            return [], 0
+        conversations, total, _counts = result
         return conversations, total
 
     async def update_conversation(
         self, conversation_id: UUID, data: ConversationUpdate, user_id: UUID
     ) -> Optional[Conversation]:
-        """Update conversation"""
-        conversation = await self.get_conversation(conversation_id, user_id)
-        if not conversation:
+        """Update conversation. Returns ``None`` on not-found *or*
+        insufficient permission, matching this class's pre-4.3
+        undifferentiated result."""
+        try:
+            return await conversation_service.update_conversation(
+                self.db, conversation_id, data, user_id
+            )
+        except PermissionError:
             return None
-
-        # Check permission
-        if not conversation.workspace.can_user_edit(str(user_id)):
-            return None
-
-        if data.title is not None:
-            conversation.title = data.title
-        if data.description is not None:
-            conversation.description = data.description
-        if data.is_archived is not None:
-            conversation.is_archived = data.is_archived
-        if data.is_pinned is not None:
-            conversation.is_pinned = data.is_pinned
-
-        conversation.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(conversation)
-
-        return conversation
 
     async def delete_conversation(self, conversation_id: UUID, user_id: UUID) -> bool:
-        """Soft delete conversation"""
-        conversation = await self.get_conversation(conversation_id, user_id)
-        if not conversation:
+        """Soft delete conversation.
+
+        Delegates with ``stamp_deleted_at=False`` (this class never set
+        ``deleted_at``) and ``require_admin=True`` — this class required
+        *admin* rights to delete a conversation; the router-inline delete
+        endpoints require only edit rights (matching every other mutator
+        there) and pass ``require_admin=False``. Returns ``False`` on
+        not-found *or* insufficient permission, matching the pre-4.3
+        undifferentiated result.
+        """
+        try:
+            result = await conversation_service.delete_conversation(
+                self.db,
+                conversation_id,
+                user_id,
+                stamp_deleted_at=False,
+                require_admin=True,
+            )
+        except PermissionError:
             return False
-
-        # Check permission
-        if not conversation.workspace.can_user_admin(str(user_id)):
-            return False
-
-        conversation.is_deleted = True
-        conversation.updated_at = datetime.utcnow()
-        await self.db.commit()
-
-        logger.info(f"Deleted conversation: {conversation_id}")
-        return True
+        if result:
+            logger.info(f"Deleted conversation: {conversation_id}")
+        return bool(result)
 
     # =========================================================================
     # Thread Operations
@@ -391,92 +287,33 @@ class ChatService:
     async def create_thread(
         self, data: ThreadCreate, user_id: UUID
     ) -> Optional[Thread]:
-        """Create a new thread in a conversation"""
-        # Verify conversation access
-        conversation = await self.get_conversation(data.conversation_id, user_id)
-        if not conversation:
-            return None
+        """Create a new thread in a conversation.
 
-        # Check edit permission
-        if not conversation.workspace.can_user_edit(str(user_id)):
-            return None
-
-        thread_id = uuid_mod.uuid4()
-        thread = Thread(
-            id=thread_id,
-            conversation_id=data.conversation_id,
-            title=data.title,
-            status=ThreadStatus.ACTIVE,
-            created_by_id=user_id,
-            last_message_at=datetime.utcnow(),
-            message_count=0,
-            token_count=0,
-        )
-        self.db.add(thread)
-
-        # Create initial message if provided
-        if data.initial_message:
-            initial_msg = ChatMessage.create_user_message(
-                thread_id=thread_id, user_id=str(user_id), content=data.initial_message
+        Delegates with ``commit=False`` (flush only) — this class's pre-4.3
+        behavior left the commit to its own caller (``threads.py`` does
+        further work — project auto-link, WS broadcast — in the same
+        request before committing). The router-inline create endpoints
+        commit immediately and pass ``commit=True``. Returns ``None`` on
+        not-found *or* insufficient permission, matching the pre-4.3
+        undifferentiated result.
+        """
+        try:
+            thread = await thread_service.create_thread(
+                self.db, data, user_id, commit=False
             )
-            self.db.add(initial_msg)
-            thread.message_count = 1
-
-        # Update conversation activity
-        conversation.update_activity()
-
-        await self.db.flush()
-        await self.db.refresh(thread)
-
-        logger.info(f"Created thread: {thread.id}")
+        except PermissionError:
+            return None
+        if thread:
+            logger.info(f"Created thread: {thread.id}")
         return thread
 
     async def get_thread(
         self, thread_id: UUID, user_id: UUID, include_messages: bool = False
     ) -> Optional[Thread]:
-        """Get thread by ID"""
-        options = [
-            selectinload(Thread.conversation)
-            .selectinload(Conversation.workspace)
-            .selectinload(Workspace.members)
-        ]
-
-        if include_messages:
-            options.extend(
-                [
-                    selectinload(Thread.messages)
-                    .selectinload(ChatMessage.citations)
-                    .selectinload(Citation.document),
-                    selectinload(Thread.messages)
-                    .selectinload(ChatMessage.attachments)
-                    .selectinload(MessageAttachment.document),
-                ]
-            )
-
-        stmt = (
-            select(Thread)
-            .options(*options)
-            .where(Thread.id == thread_id, Thread.is_deleted == False)
+        """Get thread by ID."""
+        return await workspace_access.get_thread(
+            self.db, thread_id, user_id, include_messages=include_messages
         )
-        result = await self.db.execute(stmt)
-        thread = result.scalars().first()
-
-        if not thread:
-            return None
-
-        # A soft-deleted parent conversation/workspace must revoke access to
-        # its threads: delete_conversation / delete_workspace flag only their
-        # OWN row and never cascade to child threads, so this shared funnel
-        # (create_message / list_messages / thread update+delete) is the one
-        # guard that keeps a deleted parent's threads unreachable.
-        if thread.conversation.is_deleted or thread.conversation.workspace.is_deleted:
-            return None
-
-        # Check workspace access
-        if not self._user_can_access_workspace(thread.conversation.workspace, user_id):
-            return None
-
-        return thread
 
     async def list_threads(
         self,
@@ -486,100 +323,55 @@ class ChatService:
         limit: int = 50,
         offset: int = 0,
     ) -> Tuple[List[Thread], int]:
-        """List threads in a conversation"""
-        # Verify conversation access
-        conversation = await self.get_conversation(conversation_id, user_id)
-        if not conversation:
-            return [], 0
-
-        base_conditions = [
-            Thread.conversation_id == conversation_id,
-            Thread.is_deleted == False,
-        ]
-
-        if status_filter:
-            base_conditions.append(Thread.status == status_filter)
-
-        # Count total
-        count_stmt = select(func.count(Thread.id)).where(*base_conditions)
-        count_result = await self.db.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # Fetch threads
-        stmt = (
-            select(Thread)
-            .where(*base_conditions)
-            .order_by(desc(Thread.last_message_at))
-            .offset(offset)
-            .limit(limit)
+        """List threads in a conversation."""
+        result = await thread_service.list_threads(
+            self.db,
+            conversation_id,
+            user_id,
+            status_filter=status_filter,
+            limit=limit,
+            offset=offset,
+            with_preview=False,
         )
-        result = await self.db.execute(stmt)
-        threads = result.scalars().all()
-
+        if result is None:
+            return [], 0
+        threads, total, _previews = result
         return threads, total
 
     async def update_thread(
         self, thread_id: UUID, data: ThreadUpdate, user_id: UUID
     ) -> Optional[Thread]:
-        """Update thread"""
-        thread = await self.get_thread(thread_id, user_id)
-        if not thread:
+        """Update thread. Returns ``None`` on not-found *or* insufficient
+        permission, matching this class's pre-4.3 undifferentiated result.
+
+        Delegates with ``trigger_resolve_summary`` left at its default
+        (``False``) — this class's pre-4.3 resolve-trigger comparison
+        compared mismatched Enum classes and never actually fired; see
+        ``thread_service.update_thread``'s docstring (Task 4.3 amendment
+        A2)."""
+        try:
+            return await thread_service.update_thread(self.db, thread_id, data, user_id)
+        except PermissionError:
             return None
-
-        # Check permission
-        if not thread.conversation.workspace.can_user_edit(str(user_id)):
-            return None
-
-        if data.title is not None:
-            thread.title = data.title
-        if data.summary is not None:
-            thread.summary = data.summary
-
-        # Track if status is changing to resolved
-        status_changing_to_resolved = (
-            data.status is not None
-            and data.status == ThreadStatus.RESOLVED
-            and thread.status != ThreadStatus.RESOLVED
-        )
-
-        if data.status is not None:
-            thread.status = data.status
-
-        thread.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(thread)
-
-        # Trigger final summary on resolution
-        if status_changing_to_resolved:
-            try:
-                from src.tasks.summarize_thread_task import (
-                    summarize_thread_on_resolve_task,
-                )
-
-                summarize_thread_on_resolve_task.delay(str(thread_id))
-            except Exception as e:
-                logger.warning(
-                    f"Failed to queue resolution summary for thread {thread_id}: {e}"
-                )
-
-        return thread
 
     async def delete_thread(self, thread_id: UUID, user_id: UUID) -> bool:
-        """Soft delete thread"""
-        thread = await self.get_thread(thread_id, user_id)
-        if not thread:
+        """Soft delete thread.
+
+        Delegates with ``stamp_deleted_at=False`` — this class's pre-4.3
+        behavior never set ``deleted_at`` (the router-inline delete
+        endpoints always have). Returns ``False`` on not-found *or*
+        insufficient permission, matching the pre-4.3 undifferentiated
+        result.
+        """
+        try:
+            result = await thread_service.delete_thread(
+                self.db, thread_id, user_id, stamp_deleted_at=False
+            )
+        except PermissionError:
             return False
-
-        # Check permission
-        if not thread.conversation.workspace.can_user_edit(str(user_id)):
-            return False
-
-        thread.is_deleted = True
-        thread.updated_at = datetime.utcnow()
-        await self.db.commit()
-
-        logger.info(f"Deleted thread: {thread_id}")
-        return True
+        if result:
+            logger.info(f"Deleted thread: {thread_id}")
+        return bool(result)
 
     # ========================================================================
     # Bulk Thread Operations
@@ -1040,49 +832,8 @@ class ChatService:
     async def get_message(
         self, message_id: UUID, user_id: UUID
     ) -> Optional[ChatMessage]:
-        """Get message by ID"""
-        stmt = (
-            select(ChatMessage)
-            .options(
-                selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments).selectinload(
-                    MessageAttachment.document
-                ),
-                selectinload(ChatMessage.thread)
-                .selectinload(Thread.conversation)
-                .selectinload(Conversation.workspace)
-                .selectinload(Workspace.members),
-            )
-            .where(ChatMessage.id == message_id, ChatMessage.is_deleted == False)
-        )
-        result = await self.db.execute(stmt)
-        message = result.scalars().first()
-
-        if not message:
-            return None
-
-        # A soft-deleted thread must revoke access to its individual messages —
-        # every other read path filters Thread.is_deleted; get_message did not,
-        # leaving GET/PATCH/DELETE on the message id reachable after the parent
-        # thread was soft-deleted. selectinload already loaded thread.is_deleted.
-        if message.thread.is_deleted:
-            return None
-
-        # ...and a soft-deleted parent conversation/workspace must too (the
-        # flag is not cascaded to threads), matching get_thread's guard.
-        if (
-            message.thread.conversation.is_deleted
-            or message.thread.conversation.workspace.is_deleted
-        ):
-            return None
-
-        # Check workspace access
-        if not self._user_can_access_workspace(
-            message.thread.conversation.workspace, user_id
-        ):
-            return None
-
-        return message
+        """Get message by ID."""
+        return await workspace_access.get_message(self.db, message_id, user_id)
 
     async def list_messages(
         self,
@@ -1106,116 +857,55 @@ class ChatService:
         client for newest-first pagination). ``before_id`` filtering works
         identically with either sort order.
         """
-        # Verify thread access
-        thread = await self.get_thread(thread_id, user_id)
-        if not thread:
+        result = await message_service.list_messages(
+            self.db,
+            thread_id,
+            user_id,
+            limit=limit,
+            offset=offset,
+            before_id=before_id,
+            since=since,
+            order=order,
+        )
+        if result is None:
             return [], 0
-
-        base_conditions = [
-            ChatMessage.thread_id == thread_id,
-            ChatMessage.is_deleted == False,
-        ]
-
-        if before_id:
-            # Scope the cursor lookup to THIS thread — an unscoped id lookup let
-            # a foreign message's timestamp drive pagination (cross-tenant
-            # timestamp oracle + silently-wrong paging). A before_id that isn't
-            # in this thread is simply ignored.
-            before_stmt = select(ChatMessage).where(
-                ChatMessage.id == before_id,
-                ChatMessage.thread_id == thread_id,
-            )
-            before_result = await self.db.execute(before_stmt)
-            before_msg = before_result.scalars().first()
-            if before_msg:
-                base_conditions.append(
-                    or_(
-                        ChatMessage.created_at < before_msg.created_at,
-                        and_(
-                            ChatMessage.created_at == before_msg.created_at,
-                            ChatMessage.id < before_msg.id,
-                        ),
-                    )
-                )
-
-        if since is not None:
-            base_conditions.append(ChatMessage.created_at > since)
-
-        # Count total
-        count_stmt = select(func.count(ChatMessage.id)).where(*base_conditions)
-        count_result = await self.db.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # Fetch messages
-        ordering = (
-            (ChatMessage.created_at.asc(), ChatMessage.id.asc())
-            if order == "asc"
-            else (ChatMessage.created_at.desc(), ChatMessage.id.desc())
-        )
-        stmt = (
-            select(ChatMessage)
-            .options(
-                selectinload(ChatMessage.citations).selectinload(Citation.document),
-                selectinload(ChatMessage.attachments).selectinload(
-                    MessageAttachment.document
-                ),
-            )
-            .where(*base_conditions)
-            .order_by(*ordering)
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await self.db.execute(stmt)
-        messages = result.scalars().all()
-
+        messages, total, _has_more = result
         return messages, total
 
     async def update_message_feedback(
         self, message_id: UUID, data: ChatMessageUpdate, user_id: UUID
     ) -> Optional[ChatMessage]:
-        """Update message feedback"""
-        message = await self.get_message(message_id, user_id)
-        if not message:
+        """Update message feedback. Returns ``None`` on not-found *or*
+        insufficient permission (get_message only checks read access;
+        writing feedback requires edit rights), matching this class's
+        pre-4.3 undifferentiated result."""
+        try:
+            return await message_service.update_message_feedback(
+                self.db, message_id, data, user_id
+            )
+        except PermissionError:
             return None
-
-        # get_message only checks read access (member/public viewer); writing
-        # feedback requires edit rights. Mirrors delete_message's guard below
-        # and the workspaces.py feedback handlers. None -> 404 at the endpoint.
-        if not message.thread.conversation.workspace.can_user_edit(str(user_id)):
-            return None
-
-        if data.feedback_rating is not None:
-            message.feedback_rating = data.feedback_rating
-        if data.feedback_text is not None:
-            message.feedback_text = data.feedback_text
-
-        message.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(message)
-
-        return message
 
     async def delete_message(self, message_id: UUID, user_id: UUID) -> bool:
-        """Soft delete message"""
-        message = await self.get_message(message_id, user_id)
-        if not message:
+        """Soft delete message.
+
+        Delegates with ``require_author_or_admin=True`` — this class's
+        pre-4.3 permission rule: the message's author may always delete it,
+        anyone else needs admin rights. The standalone router endpoint
+        requires only edit rights and never checks authorship (passes
+        ``require_author_or_admin=False``). Returns ``False`` on not-found
+        *or* insufficient permission, matching the pre-4.3 undifferentiated
+        result.
+        """
+        try:
+            result = await message_service.delete_message(
+                self.db, message_id, user_id, require_author_or_admin=True
+            )
+        except PermissionError:
             return False
-
-        # Only message author or admin can delete
-        if str(message.user_id) != str(user_id):
-            if not message.thread.conversation.workspace.can_user_admin(str(user_id)):
-                return False
-
-        message.is_deleted = True
-        message.updated_at = datetime.utcnow()
-
-        # Update thread count
-        message.thread.message_count = max(0, message.thread.message_count - 1)
-
-        await self.db.commit()
-
-        logger.info(f"Deleted message: {message_id}")
-        return True
+        if result:
+            logger.info(f"Deleted message: {message_id}")
+        return bool(result)
 
     # =========================================================================
     # Collection Operations
@@ -1224,167 +914,75 @@ class ChatService:
     async def create_collection(
         self, data: CollectionCreate, user_id: UUID
     ) -> Optional[Collection]:
-        """Create a new collection in a workspace"""
-        # Verify workspace access
-        workspace = await self.get_workspace(data.workspace_id, user_id)
-        if not workspace:
+        """Create a new collection in a workspace.
+
+        Delegates to ``collection_service.create_collection``, which — unlike
+        this class's old inline implementation — checks per-document
+        organization ownership before attaching initial documents (this
+        method has zero production callers, so there is no existing insecure
+        behavior worth preserving via a flag; see
+        ``collection_service``'s module docstring).
+        """
+        try:
+            collection = await collection_service.create_collection(
+                self.db, data, user_id
+            )
+        except PermissionError:
             return None
-
-        # Check edit permission
-        if not workspace.can_user_edit(str(user_id)):
-            return None
-
-        collection = Collection(
-            workspace_id=data.workspace_id,
-            name=data.name,
-            description=data.description,
-            color=data.color,
-            icon=data.icon,
-        )
-        self.db.add(collection)
-
-        # Add initial documents if provided
-        if data.document_ids:
-            for idx, doc_id in enumerate(data.document_ids):
-                coll_doc = CollectionDocument(
-                    collection_id=collection.id, document_id=doc_id, sort_order=idx
-                )
-                self.db.add(coll_doc)
-            # Note: document_count is computed automatically from documents relationship
-
-        await self.db.commit()
-        await self.db.refresh(collection)
-
-        logger.info(f"Created collection: {collection.id} - {collection.name}")
+        if collection:
+            logger.info(f"Created collection: {collection.id} - {collection.name}")
         return collection
 
     async def get_collection(
         self, collection_id: UUID, user_id: UUID
     ) -> Optional[Collection]:
-        """Get collection by ID"""
-        stmt = (
-            select(Collection)
-            .options(
-                selectinload(Collection.workspace).selectinload(Workspace.members),
-                selectinload(Collection.documents),
-            )
-            .where(Collection.id == collection_id, Collection.is_deleted == False)
-        )
-        result = await self.db.execute(stmt)
-        collection = result.scalars().first()
-
-        if not collection:
-            return None
-
-        # Check workspace access
-        if not self._user_can_access_workspace(collection.workspace, user_id):
-            return None
-
-        return collection
+        """Get collection by ID."""
+        return await workspace_access.get_collection(self.db, collection_id, user_id)
 
     async def list_collections(
         self, workspace_id: UUID, user_id: UUID, limit: int = 50, offset: int = 0
     ) -> Tuple[List[Collection], int]:
-        """List collections in a workspace"""
-        # Verify workspace access
-        workspace = await self.get_workspace(workspace_id, user_id)
-        if not workspace:
-            return [], 0
-
-        base_conditions = [
-            Collection.workspace_id == workspace_id,
-            Collection.is_deleted == False,
-        ]
-
-        # Count total
-        count_stmt = select(func.count(Collection.id)).where(*base_conditions)
-        count_result = await self.db.execute(count_stmt)
-        total = count_result.scalar() or 0
-
-        # Fetch collections
-        stmt = (
-            select(Collection)
-            .where(*base_conditions)
-            .order_by(Collection.name)
-            .offset(offset)
-            .limit(limit)
+        """List collections in a workspace."""
+        result = await collection_service.list_collections(
+            self.db, workspace_id, user_id, limit=limit, offset=offset
         )
-        result = await self.db.execute(stmt)
-        collections = result.scalars().all()
-
-        return collections, total
+        return result if result is not None else ([], 0)
 
     async def add_documents_to_collection(
         self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
     ) -> Optional[Collection]:
-        """Add documents to a collection"""
-        collection = await self.get_collection(collection_id, user_id)
-        if not collection:
-            return None
+        """Add documents to a collection.
 
-        # Check permission
-        if not collection.workspace.can_user_edit(str(user_id)):
-            return None
-
-        # Get current max position
-        max_pos_stmt = select(func.max(CollectionDocument.sort_order)).where(
-            CollectionDocument.collection_id == collection_id
-        )
-        max_pos_result = await self.db.execute(max_pos_stmt)
-        max_pos = max_pos_result.scalar() or -1
-
-        for doc_id in document_ids:
-            # Check if already in collection
-            existing_stmt = select(CollectionDocument).where(
-                CollectionDocument.collection_id == collection_id,
-                CollectionDocument.document_id == doc_id,
+        Delegates to ``collection_service.add_documents_to_collection``,
+        which — unlike this class's old inline implementation — checks
+        per-document organization ownership before attaching (this method
+        has zero production callers, so there is no existing insecure
+        behavior worth preserving via a flag).
+        """
+        try:
+            return await collection_service.add_documents_to_collection(
+                self.db, collection_id, document_ids, user_id
             )
-            existing_result = await self.db.execute(existing_stmt)
-            existing = existing_result.scalars().first()
-
-            if not existing:
-                max_pos += 1
-                coll_doc = CollectionDocument(
-                    collection_id=collection_id, document_id=doc_id, sort_order=max_pos
-                )
-                self.db.add(coll_doc)
-                # Note: document_count is computed automatically from documents relationship
-
-        collection.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(collection)
-
-        return collection
+        except PermissionError:
+            return None
 
     async def remove_documents_from_collection(
         self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
     ) -> Optional[Collection]:
-        """Remove documents from a collection"""
-        collection = await self.get_collection(collection_id, user_id)
-        if not collection:
-            return None
+        """Remove documents from a collection.
 
-        # Check permission
-        if not collection.workspace.can_user_edit(str(user_id)):
-            return None
-
-        from sqlalchemy import delete
-
-        removed = 0
-        for doc_id in document_ids:
-            delete_stmt = delete(CollectionDocument).where(
-                CollectionDocument.collection_id == collection_id,
-                CollectionDocument.document_id == doc_id,
+        Delegates to ``collection_service.remove_documents_from_collection``,
+        which soft-deletes the ``CollectionDocument`` rows (this class's old
+        implementation hard-deleted them; zero production callers, so there
+        is no existing behavior worth preserving via a flag — soft-delete
+        also matches every other delete in this schema).
+        """
+        try:
+            return await collection_service.remove_documents_from_collection(
+                self.db, collection_id, document_ids, user_id
             )
-            result = await self.db.execute(delete_stmt)
-            removed += result.rowcount
-
-        # Note: document_count is computed automatically from documents relationship
-        collection.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(collection)
-
-        return collection
+        except PermissionError:
+            return None
 
     # =========================================================================
     # Utility Methods

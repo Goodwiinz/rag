@@ -116,21 +116,23 @@ def test_contract_job_verifies_generated_typescript() -> None:
         return any(fragment in (step.get("run") or "") for step in steps)
 
     uses = [step.get("uses", "") for step in steps]
-    assert any(u.startswith("pnpm/action-setup") for u in uses), (
-        "openapi-contract must set up pnpm to run the TypeScript generator"
-    )
-    node_steps = [s for s in steps if s.get("uses", "").startswith("actions/setup-node")]
+    assert any(
+        u.startswith("pnpm/action-setup") for u in uses
+    ), "openapi-contract must set up pnpm to run the TypeScript generator"
+    node_steps = [
+        s for s in steps if s.get("uses", "").startswith("actions/setup-node")
+    ]
     assert node_steps, "openapi-contract must set up Node"
     node_version = str(node_steps[0].get("with", {}).get("node-version", ""))
-    assert "NODE_VERSION" in node_version or node_version == "24", (
-        f"openapi-contract Node must be the canonical 24, got {node_version!r}"
-    )
-    assert step_runs("pnpm install --frozen-lockfile"), (
-        "openapi-contract must install from the root pnpm-lock.yaml"
-    )
-    assert step_runs("generate:api-types"), (
-        "openapi-contract must regenerate frontend/src/types/generated/api.d.ts"
-    )
+    assert (
+        "NODE_VERSION" in node_version or node_version == "24"
+    ), f"openapi-contract Node must be the canonical 24, got {node_version!r}"
+    assert step_runs(
+        "pnpm install --frozen-lockfile"
+    ), "openapi-contract must install from the root pnpm-lock.yaml"
+    assert step_runs(
+        "generate:api-types"
+    ), "openapi-contract must regenerate frontend/src/types/generated/api.d.ts"
     assert step_runs(
         "git diff --exit-code -- backend/openapi.json "
         "frontend/src/types/generated/api.d.ts"

@@ -7,21 +7,27 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 # Import the actual definition module (Task 4.2 split list_threads_standalone
-# out of the former monolithic workspaces.py into workspace_routes/threads.py)
-# so monkeypatch.setattr below intercepts the same _get_workspace_or_404 name
-# the handler's own globals resolve against.
+# out of the former monolithic workspaces.py into workspace_routes/threads.py).
 from src.api.threads.workspace_routes import threads as workspace_routes
 from src.models.thread import ThreadStatus
 
 
 @pytest.mark.asyncio
-async def test_standalone_thread_list_returns_latest_message_preview(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_standalone_thread_list_returns_latest_message_preview() -> None:
     conversation_id = uuid4()
     thread_id = uuid4()
     now = datetime.now(timezone.utc)
-    conversation = SimpleNamespace(id=conversation_id, workspace_id=uuid4())
+
+    # Task 4.3: list_threads_standalone delegates to
+    # thread_service.list_threads, which resolves the parent conversation
+    # through the shared workspace_access.get_conversation funnel — a single
+    # query eager-loading conversation.workspace (needed for the access
+    # check), not a separate conversation-then-workspace pair of mocked
+    # calls.
+    workspace = MagicMock()
+    workspace.is_deleted = False
+    workspace.is_public = True
+    conversation = SimpleNamespace(id=conversation_id, workspace=workspace)
     thread = SimpleNamespace(
         id=thread_id,
         conversation_id=conversation_id,
@@ -43,18 +49,11 @@ async def test_standalone_thread_list_returns_latest_message_preview(
     count_result.scalar.return_value = 1
     thread_result = MagicMock()
     # Desired list-query shape: one row containing the thread and its bounded
-    # latest-message preview. Keep the legacy scalar shape populated so this
-    # fails on the missing response field rather than on mock plumbing.
+    # latest-message preview.
     thread_result.all.return_value = [(thread, "Latest persisted answer")]
-    thread_result.scalars.return_value.all.return_value = [thread]
 
     db = AsyncMock()
     db.execute.side_effect = [conversation_result, count_result, thread_result]
-    monkeypatch.setattr(
-        workspace_routes,
-        "_get_workspace_or_404",
-        AsyncMock(return_value=SimpleNamespace(id=conversation.workspace_id)),
-    )
 
     response = await workspace_routes.list_threads_standalone(
         conversation_id=conversation_id,

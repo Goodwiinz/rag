@@ -1,6 +1,13 @@
 """
 Message endpoints, nested and standalone (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``).
+
+Task 4.3 moved the read/update/delete persistence logic into
+``src/services/threads/message_service.py`` — this module is transport only
+for those three concerns. ``create_message``/``create_message_standalone``
+are unchanged: they already delegate to the canonical
+``ChatService.create_message`` (consolidated in #1051, audit finding C4) and
+are out of scope for this task.
 """
 
 from datetime import datetime
@@ -8,7 +15,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,10 +23,8 @@ from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.chat_message import ChatMessage
 from src.models.citation import Citation
-from src.models.conversation import Conversation
 from src.models.document import Document
 from src.models.message_attachment import MessageAttachment
-from src.models.thread import Thread
 from src.models.user import User
 from src.schemas.chat import (
     ChatMessageCreate,
@@ -27,8 +32,9 @@ from src.schemas.chat import (
     ChatMessageResponse,
     ChatMessageUpdate,
 )
+from src.services.threads import message_service, workspace_access
 
-from .dependencies import _get_thread_or_404, _get_workspace_or_404
+from .dependencies import _get_thread_or_404
 from .presenters import _message_to_response
 
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
@@ -132,47 +138,27 @@ async def list_messages(
     current_user: User = Depends(get_current_user),
 ):
     """List messages in a thread"""
-    thread = await _get_thread_or_404(
-        db, workspace_id, conversation_id, thread_id, current_user
-    )
-
-    # Count total messages first (without selectinload for efficiency)
-    count_stmt = select(func.count(ChatMessage.id)).where(
-        ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False
-    )
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # Query with eager loading of citations and their documents
     offset = (page - 1) * limit
-    stmt = (
-        select(ChatMessage)
-        .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(Document.title, Document.document_type, Document.mime_type),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(Document.title, Document.document_type, Document.mime_type),
-        )
-        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
-        .order_by(ChatMessage.created_at.asc())
-        .offset(offset)
-        .limit(limit)
+    result = await message_service.list_messages(
+        db,
+        thread_id,
+        current_user.id,
+        workspace_id=workspace_id,
+        conversation_id=conversation_id,
+        limit=limit,
+        offset=offset,
+        order="asc",
     )
-    result = await db.execute(stmt)
-    messages = result.scalars().all()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    messages, total, has_more = result
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(messages)) < total,
+        has_more=has_more,
     )
 
 
@@ -190,34 +176,20 @@ async def update_message_feedback(
     current_user: User = Depends(get_current_user),
 ):
     """Update message feedback"""
-    thread = await _get_thread_or_404(
-        db, workspace_id, conversation_id, thread_id, current_user
-    )
-
-    # _get_thread_or_404 grants read access to members/public viewers; mutating
-    # feedback requires edit rights (matches update_thread/delete_thread).
-    if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id,
-        ChatMessage.thread_id == thread_id,
-        ChatMessage.is_deleted == False,
-    )
-    result = await db.execute(stmt)
-    message = result.scalars().first()
-
+    try:
+        message = await message_service.update_message_feedback(
+            db,
+            message_id,
+            request,
+            current_user.id,
+            thread_id=thread_id,
+            conversation_id=conversation_id,
+            workspace_id=workspace_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-
-    if request.feedback_rating is not None:
-        message.feedback_rating = request.feedback_rating
-    if request.feedback_text is not None:
-        message.feedback_text = request.feedback_text
-
-    message.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(message)
 
     return _message_to_response(message)
 
@@ -256,93 +228,19 @@ async def list_messages_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """List messages in a thread (standalone route)"""
-    thread_stmt = select(Thread).where(
-        Thread.id == thread_id, Thread.is_deleted == False
+    offset = (page - 1) * limit
+    result = await message_service.list_messages(
+        db,
+        thread_id,
+        current_user.id,
+        limit=limit,
+        offset=offset,
+        before_id=before_id,
+        order=order,
     )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
-    if not thread:
+    if result is None:
         raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    # Count total messages first
-    count_stmt = select(func.count(ChatMessage.id)).where(
-        ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False
-    )
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # load_only: the message responses render only title/type/mime of a
-    # cited/attached Document — never content_text/content_summary/search_vector
-    # (the heavy extracted body). Loading only the 3 read columns keeps
-    # content_text off the wire on every paged fetch.
-    base_stmt = (
-        select(ChatMessage)
-        .options(
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(Document.title, Document.document_type, Document.mime_type),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(Document.title, Document.document_type, Document.mime_type),
-        )
-        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
-    )
-
-    if order == "desc":
-        # Newest-first cursor window (long-thread paging): the most recent
-        # `limit` messages, optionally older than `before_id`, returned
-        # newest→oldest (the client reverses for chronological display). A
-        # +1-row sentinel — not offset+len<total — decides `has_more`, so a
-        # cursor page never re-fetches itself forever.
-        if before_id is not None:
-            cursor_at = (
-                await db.execute(
-                    select(ChatMessage.created_at).where(
-                        ChatMessage.id == before_id,
-                        ChatMessage.thread_id == thread_id,
-                    )
-                )
-            ).scalar_one_or_none()
-            if cursor_at is not None:
-                base_stmt = base_stmt.where(ChatMessage.created_at < cursor_at)
-        rows = (
-            (
-                await db.execute(
-                    base_stmt.order_by(ChatMessage.created_at.desc()).limit(limit + 1)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        has_more = len(rows) > limit
-        messages = rows[:limit]  # newest→oldest; client reverses
-    else:
-        # Chronological page/offset (default, backward-compatible).
-        offset = (page - 1) * limit
-        messages = (
-            (
-                await db.execute(
-                    base_stmt.order_by(ChatMessage.created_at.asc())
-                    .offset(offset)
-                    .limit(limit)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        has_more = (offset + len(messages)) < total
+    messages, total, has_more = result
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
@@ -414,35 +312,9 @@ async def get_message_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Get message details (standalone route)"""
-    msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id, ChatMessage.is_deleted == False
-    )
-    msg_result = await db.execute(msg_stmt)
-    message = msg_result.scalars().first()
-
+    message = await workspace_access.get_message(db, message_id, current_user.id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-
-    # Verify access via thread -> conversation -> workspace
-    thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
 
     return _message_to_response(message)
 
@@ -455,49 +327,14 @@ async def update_message_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Update message feedback (standalone route)"""
-    msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id, ChatMessage.is_deleted == False
-    )
-    msg_result = await db.execute(msg_stmt)
-    message = msg_result.scalars().first()
-
+    try:
+        message = await message_service.update_message_feedback(
+            db, message_id, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-
-    # Verify access via thread -> conversation -> workspace
-    thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    # Read access (member/public) is not enough to mutate; require edit rights
-    # (matches delete_message_standalone).
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.feedback_rating is not None:
-        message.feedback_rating = request.feedback_rating
-    if request.feedback_text is not None:
-        message.feedback_text = request.feedback_text
-
-    message.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(message)
 
     return _message_to_response(message)
 
@@ -511,43 +348,11 @@ async def delete_message_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a message (standalone route)"""
-    msg_stmt = select(ChatMessage).where(
-        ChatMessage.id == message_id, ChatMessage.is_deleted == False
-    )
-    msg_result = await db.execute(msg_stmt)
-    message = msg_result.scalars().first()
-
-    if not message:
+    try:
+        deleted = await message_service.delete_message(
+            db, message_id, current_user.id, require_author_or_admin=False
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Message not found")
-
-    # Verify access via thread -> conversation -> workspace
-    thread_stmt = select(Thread).where(
-        Thread.id == message.thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
-    if not thread:
-        raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    message.is_deleted = True
-    message.deleted_at = datetime.utcnow()
-
-    # Update thread message count
-    thread.message_count = max((thread.message_count or 1) - 1, 0)
-
-    await db.commit()

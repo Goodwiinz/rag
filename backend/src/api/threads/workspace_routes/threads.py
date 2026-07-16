@@ -1,6 +1,8 @@
 """
 Thread endpoints, nested and standalone (Task 4.2 split of the former
-monolithic ``backend/src/api/threads/workspaces.py``).
+monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
+persistence logic into ``src/services/threads/thread_service.py`` — this
+module is transport only).
 
 ``standalone_list_router`` (``list_threads_standalone``) is kept as a separate
 router object from ``standalone_router`` (thread CRUD) purely to preserve the
@@ -12,22 +14,15 @@ message routes, not alongside the other standalone thread routes.
 that same later position.
 """
 
-import logging
-import uuid as uuid_mod
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models.chat_message import ChatMessage, MessageRole
-from src.models.conversation import Conversation
-from src.models.thread import Thread, ThreadStatus
+from src.models.thread import ThreadStatus
 from src.models.user import User
 from src.schemas.chat import (
     ThreadCreate,
@@ -36,19 +31,10 @@ from src.schemas.chat import (
     ThreadResponse,
     ThreadUpdate,
 )
+from src.services.threads import thread_service, workspace_access
 
-from .dependencies import (
-    _get_conversation_or_404,
-    _get_thread_or_404,
-    _get_workspace_or_404,
-)
-from .presenters import (
-    _last_message_preview_expression,
-    _thread_to_detail_response,
-    _thread_to_response,
-)
-
-logger = logging.getLogger(__name__)
+from .dependencies import _get_thread_or_404
+from .presenters import _thread_to_detail_response, _thread_to_response
 
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
 
@@ -78,38 +64,15 @@ async def create_thread(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new thread in a conversation"""
-    conversation = await _get_conversation_or_404(
-        db, workspace_id, conversation_id, current_user
-    )
-
-    if not conversation.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    thread_id = uuid_mod.uuid4()
-    thread = Thread(
-        id=thread_id,
-        conversation_id=conversation_id,
-        title=request.title,
-        created_by_id=current_user.id,
-    )
-    db.add(thread)
-
-    # Create initial message if provided
-    if request.initial_message:
-        message = ChatMessage(
-            thread_id=thread_id,
-            user_id=current_user.id,
-            role=MessageRole.USER,
-            content=request.initial_message,
+    request.conversation_id = conversation_id
+    try:
+        thread = await thread_service.create_thread(
+            db, request, current_user.id, workspace_id=workspace_id, commit=True
         )
-        db.add(message)
-        thread.message_count = 1
-
-    # Update conversation activity
-    conversation.last_activity_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(thread)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not thread:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
     return _thread_to_response(thread)
 
@@ -130,51 +93,38 @@ async def list_threads(
     current_user: User = Depends(get_current_user),
 ):
     """List threads in a conversation"""
-    conversation = await _get_conversation_or_404(
-        db, workspace_id, conversation_id, current_user
-    )
-
-    base_conditions = [
-        Thread.conversation_id == conversation_id,
-        Thread.is_deleted == False,
-    ]
-
+    status_enum = None
     if status_filter:
         try:
             status_enum = ThreadStatus(status_filter)
-            base_conditions.append(Thread.status == status_enum)
         except ValueError:
             raise HTTPException(
                 status_code=400, detail=f"Invalid status: {status_filter}"
             )
 
-    # Count total
-    count_stmt = select(func.count(Thread.id)).where(*base_conditions)
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # Fetch threads
     offset = (page - 1) * limit
-    preview_expr = _last_message_preview_expression()
-    stmt = (
-        select(Thread, preview_expr)
-        .where(*base_conditions)
-        .order_by(Thread.last_message_at.desc())
-        .offset(offset)
-        .limit(limit)
+    result = await thread_service.list_threads(
+        db,
+        conversation_id,
+        current_user.id,
+        status_filter=status_enum,
+        limit=limit,
+        offset=offset,
+        with_preview=True,
     )
-    result = await db.execute(stmt)
-    thread_rows = result.all()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    threads, total, previews = result
 
     return ThreadListResponse(
         threads=[
-            _thread_to_response(thread, last_message_preview=preview)
-            for thread, preview in thread_rows
+            _thread_to_response(t, last_message_preview=previews.get(t.id))
+            for t in threads
         ],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(thread_rows)) < total,
+        has_more=(offset + len(threads)) < total,
     )
 
 
@@ -211,23 +161,19 @@ async def update_thread(
     current_user: User = Depends(get_current_user),
 ):
     """Update thread details"""
-    thread = await _get_thread_or_404(
-        db, workspace_id, conversation_id, thread_id, current_user
-    )
-
-    if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.title is not None:
-        thread.title = request.title
-    if request.summary is not None:
-        thread.summary = request.summary
-    if request.status is not None:
-        thread.status = ThreadStatus(request.status.value)
-
-    thread.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(thread)
+    try:
+        thread = await thread_service.update_thread(
+            db,
+            thread_id,
+            request,
+            current_user.id,
+            conversation_id=conversation_id,
+            workspace_id=workspace_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
 
     return _thread_to_response(thread)
 
@@ -244,16 +190,19 @@ async def delete_thread(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a thread"""
-    thread = await _get_thread_or_404(
-        db, workspace_id, conversation_id, thread_id, current_user
-    )
-
-    if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    thread.is_deleted = True
-    thread.deleted_at = datetime.utcnow()
-    await db.commit()
+    try:
+        deleted = await thread_service.delete_thread(
+            db,
+            thread_id,
+            current_user.id,
+            conversation_id=conversation_id,
+            workspace_id=workspace_id,
+            stamp_deleted_at=True,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Thread not found")
 
 
 # ============================================================================
@@ -271,47 +220,14 @@ async def create_thread_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new thread (standalone route - uses conversation_id from request body)"""
-    conv_stmt = select(Conversation).where(
-        Conversation.id == request.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    thread_id = uuid_mod.uuid4()
-    thread = Thread(
-        id=thread_id,
-        conversation_id=request.conversation_id,
-        title=request.title,
-        created_by_id=current_user.id,
-    )
-    db.add(thread)
-
-    # Create initial message if provided
-    if request.initial_message:
-        message = ChatMessage(
-            thread_id=thread_id,
-            user_id=current_user.id,
-            role=MessageRole.USER,
-            content=request.initial_message,
+    try:
+        thread = await thread_service.create_thread(
+            db, request, current_user.id, commit=True
         )
-        db.add(message)
-        thread.message_count = 1
-
-    # Update conversation activity
-    conversation.last_activity_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(thread)
-
-    logger.info(f"Thread created in conversation {conversation.id}")
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not thread:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
     return _thread_to_response(thread)
 
@@ -324,28 +240,11 @@ async def get_thread_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Get thread details with messages (standalone route)"""
-    thread_stmt = (
-        select(Thread)
-        .options(selectinload(Thread.messages))
-        .where(Thread.id == thread_id, Thread.is_deleted == False)
+    thread = await workspace_access.get_thread(
+        db, thread_id, current_user.id, include_messages=include_messages
     )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
-
-    # Verify access via conversation -> workspace
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
 
     return _thread_to_detail_response(thread, include_messages)
 
@@ -358,39 +257,14 @@ async def update_thread_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Update thread details (standalone route)"""
-    thread_stmt = select(Thread).where(
-        Thread.id == thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
+    try:
+        thread = await thread_service.update_thread(
+            db, thread_id, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.title is not None:
-        thread.title = request.title
-    if request.summary is not None:
-        thread.summary = request.summary
-    if request.status is not None:
-        thread.status = ThreadStatus(request.status.value)
-
-    thread.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(thread)
 
     return _thread_to_response(thread)
 
@@ -404,32 +278,14 @@ async def delete_thread_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a thread (standalone route)"""
-    thread_stmt = select(Thread).where(
-        Thread.id == thread_id, Thread.is_deleted == False
-    )
-    thread_result = await db.execute(thread_stmt)
-    thread = thread_result.scalars().first()
-
-    if not thread:
+    try:
+        deleted = await thread_service.delete_thread(
+            db, thread_id, current_user.id, stamp_deleted_at=True
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Thread not found")
-
-    conv_stmt = select(Conversation).where(
-        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    thread.is_deleted = True
-    thread.deleted_at = datetime.utcnow()
-    await db.commit()
 
 
 @standalone_list_router.get(
@@ -444,56 +300,36 @@ async def list_threads_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """List threads in a conversation (standalone route)"""
-    conv_stmt = select(Conversation).where(
-        Conversation.id == conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    base_conditions = [
-        Thread.conversation_id == conversation_id,
-        Thread.is_deleted == False,
-    ]
-
+    status_enum = None
     if status_filter:
         try:
             status_enum = ThreadStatus(status_filter)
-            base_conditions.append(Thread.status == status_enum)
         except ValueError:
             raise HTTPException(
                 status_code=400, detail=f"Invalid status: {status_filter}"
             )
 
-    # Count total
-    count_stmt = select(func.count(Thread.id)).where(*base_conditions)
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # Fetch threads
     offset = (page - 1) * limit
-    preview_expr = _last_message_preview_expression()
-    stmt = (
-        select(Thread, preview_expr)
-        .where(*base_conditions)
-        .order_by(Thread.last_message_at.desc())
-        .offset(offset)
-        .limit(limit)
+    result = await thread_service.list_threads(
+        db,
+        conversation_id,
+        current_user.id,
+        status_filter=status_enum,
+        limit=limit,
+        offset=offset,
+        with_preview=True,
     )
-    result = await db.execute(stmt)
-    thread_rows = result.all()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    threads, total, previews = result
 
     return ThreadListResponse(
         threads=[
-            _thread_to_response(thread, last_message_preview=preview)
-            for thread, preview in thread_rows
+            _thread_to_response(t, last_message_preview=previews.get(t.id))
+            for t in threads
         ],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(thread_rows)) < total,
+        has_more=(offset + len(threads)) < total,
     )

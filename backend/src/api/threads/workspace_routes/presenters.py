@@ -2,17 +2,20 @@
 Response serializers shared across workspace resource routes.
 
 Task 4.2 split ``backend/src/api/threads/workspaces.py`` by resource. These
-converters (and the correlated last-message-preview subquery) are consumed by
-more than one resource group — e.g. ``_message_to_response`` backs thread,
-message, and thread-detail responses — so they live in one shared module
-instead of being duplicated per resource file.
+converters are consumed by more than one resource group — e.g.
+``_message_to_response`` backs thread, message, and thread-detail responses
+— so they live in one shared module instead of being duplicated per resource
+file.
+
+Task 4.3 moved the correlated last-message-preview subquery itself (a query
+concern) to ``services.threads.thread_service``, which now owns building
+thread-list rows; ``THREAD_PREVIEW_MAX_CHARS`` is re-exported here only for
+backward compatibility with a couple of tests that import it from this path.
 """
 
 from typing import Optional
 
-from sqlalchemy import func, select
-
-from src.models.chat_message import ChatMessage, MessageRole
+from src.models.chat_message import ChatMessage
 from src.models.citation import Citation
 from src.models.collection import Collection
 from src.models.conversation import Conversation
@@ -31,8 +34,22 @@ from src.schemas.chat import (
     WorkspaceMemberResponse,
     WorkspaceResponse,
 )
+from src.services.threads.thread_service import THREAD_PREVIEW_MAX_CHARS
 
-THREAD_PREVIEW_MAX_CHARS = 240
+__all__ = [
+    "THREAD_PREVIEW_MAX_CHARS",
+    "_workspace_to_response",
+    "_workspace_to_detail_response",
+    "_member_to_response",
+    "_conversation_to_response",
+    "_thread_to_response",
+    "_thread_to_detail_response",
+    "_message_to_response",
+    "_citation_to_response",
+    "_attachment_to_response",
+    "_collection_to_response",
+    "_collection_to_detail_response",
+]
 
 
 def _workspace_to_response(workspace: Workspace) -> WorkspaceResponse:
@@ -127,23 +144,6 @@ def _conversation_to_response(
         ),
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-    )
-
-
-def _last_message_preview_expression():
-    """Latest non-deleted message excerpt for a thread-list row."""
-    return (
-        select(func.substr(ChatMessage.content, 1, THREAD_PREVIEW_MAX_CHARS))
-        .where(
-            ChatMessage.thread_id == Thread.id,
-            ChatMessage.is_deleted == False,
-            ChatMessage.role.in_([MessageRole.USER, MessageRole.ASSISTANT]),
-        )
-        .order_by(ChatMessage.created_at.desc())
-        .limit(1)
-        .correlate(Thread)
-        .scalar_subquery()
-        .label("last_message_preview")
     )
 
 

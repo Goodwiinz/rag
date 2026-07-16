@@ -1,19 +1,17 @@
 """
 Collection endpoints, nested and standalone (Task 4.2 split of the former
-monolithic ``backend/src/api/threads/workspaces.py``).
+monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
+persistence logic into ``src/services/threads/collection_service.py`` — this
+module is transport only).
 """
 
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models.collection import Collection, CollectionDocument
 from src.models.user import User
 from src.schemas.chat import (
     CollectionCreate,
@@ -24,12 +22,9 @@ from src.schemas.chat import (
     CollectionResponse,
     CollectionUpdate,
 )
+from src.services.threads import collection_service, workspace_access
 
-from .dependencies import (
-    _get_accessible_document_or_none,
-    _get_collection_or_404,
-    _get_workspace_or_404,
-)
+from .dependencies import _get_collection_or_404
 from .presenters import _collection_to_detail_response, _collection_to_response
 
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
@@ -54,32 +49,15 @@ async def create_collection(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new collection in a workspace"""
-    workspace = await _get_workspace_or_404(db, workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    collection = Collection(
-        workspace_id=workspace_id,
-        name=request.name,
-        description=request.description,
-        color=request.color,
-        icon=request.icon,
-    )
-    db.add(collection)
-
-    # Add initial documents if provided
-    if request.document_ids:
-        for i, doc_id in enumerate(request.document_ids):
-            doc = await _get_accessible_document_or_none(db, doc_id, current_user)
-            if doc:
-                collection_doc = CollectionDocument(
-                    collection=collection, document_id=doc_id, sort_order=i
-                )
-                db.add(collection_doc)
-
-    await db.commit()
-    await db.refresh(collection)
+    request.workspace_id = workspace_id
+    try:
+        collection = await collection_service.create_collection(
+            db, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not collection:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
     return _collection_to_response(collection)
 
@@ -93,30 +71,13 @@ async def list_collections(
     current_user: User = Depends(get_current_user),
 ):
     """List collections in a workspace"""
-    workspace = await _get_workspace_or_404(db, workspace_id, current_user)
-
-    base_conditions = [
-        Collection.workspace_id == workspace_id,
-        Collection.is_deleted == False,
-    ]
-
-    # Count total
-    count_stmt = select(func.count(Collection.id)).where(*base_conditions)
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # Fetch collections with eager-loaded documents for document_count property
     offset = (page - 1) * limit
-    stmt = (
-        select(Collection)
-        .options(selectinload(Collection.documents))
-        .where(*base_conditions)
-        .order_by(Collection.name)
-        .offset(offset)
-        .limit(limit)
+    result = await collection_service.list_collections(
+        db, workspace_id, current_user.id, limit=limit, offset=offset
     )
-    result = await db.execute(stmt)
-    collections = result.scalars().all()
+    if result is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    collections, total = result
 
     return CollectionListResponse(
         collections=[_collection_to_response(c) for c in collections],
@@ -156,26 +117,14 @@ async def update_collection(
     current_user: User = Depends(get_current_user),
 ):
     """Update collection details"""
-    collection = await _get_collection_or_404(
-        db, workspace_id, collection_id, current_user
-    )
-    workspace = collection.workspace
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.name is not None:
-        collection.name = request.name
-    if request.description is not None:
-        collection.description = request.description
-    if request.color is not None:
-        collection.color = request.color
-    if request.icon is not None:
-        collection.icon = request.icon
-
-    collection.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(collection)
+    try:
+        collection = await collection_service.update_collection(
+            db, collection_id, request, current_user.id, workspace_id=workspace_id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
 
     return _collection_to_response(collection)
 
@@ -191,16 +140,14 @@ async def delete_collection(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a collection"""
-    collection = await _get_collection_or_404(
-        db, workspace_id, collection_id, current_user
-    )
-
-    if not collection.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    collection.is_deleted = True
-    collection.deleted_at = datetime.utcnow()
-    await db.commit()
+    try:
+        deleted = await collection_service.delete_collection(
+            db, collection_id, current_user.id, workspace_id=workspace_id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Collection not found")
 
 
 @router.post(
@@ -215,45 +162,18 @@ async def add_documents_to_collection(
     current_user: User = Depends(get_current_user),
 ):
     """Add documents to a collection"""
-    collection = await _get_collection_or_404(
-        db, workspace_id, collection_id, current_user
-    )
-
-    if not collection.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    # Get current max sort order
-    max_order_stmt = select(func.max(CollectionDocument.sort_order)).where(
-        CollectionDocument.collection_id == collection_id
-    )
-    max_order_result = await db.execute(max_order_stmt)
-    max_order = max_order_result.scalar() or 0
-
-    for i, doc_id in enumerate(request.document_ids):
-        # Check if document exists
-        doc = await _get_accessible_document_or_none(db, doc_id, current_user)
-        if not doc:
-            continue
-
-        # Check if already in collection
-        existing_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == collection_id,
-            CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False,
+    try:
+        collection = await collection_service.add_documents_to_collection(
+            db,
+            collection_id,
+            request.document_ids,
+            current_user.id,
+            workspace_id=workspace_id,
         )
-        existing_result = await db.execute(existing_stmt)
-        existing = existing_result.scalars().first()
-
-        if not existing:
-            collection_doc = CollectionDocument(
-                collection_id=collection_id,
-                document_id=doc_id,
-                sort_order=max_order + i + 1,
-            )
-            db.add(collection_doc)
-
-    await db.commit()
-    await db.refresh(collection)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
 
     return _collection_to_detail_response(collection)
 
@@ -270,28 +190,18 @@ async def remove_documents_from_collection(
     current_user: User = Depends(get_current_user),
 ):
     """Remove documents from a collection"""
-    collection = await _get_collection_or_404(
-        db, workspace_id, collection_id, current_user
-    )
-
-    if not collection.workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    for doc_id in request.document_ids:
-        collection_doc_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == collection_id,
-            CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False,
+    try:
+        collection = await collection_service.remove_documents_from_collection(
+            db,
+            collection_id,
+            request.document_ids,
+            current_user.id,
+            workspace_id=workspace_id,
         )
-        collection_doc_result = await db.execute(collection_doc_stmt)
-        collection_doc = collection_doc_result.scalars().first()
-
-        if collection_doc:
-            collection_doc.is_deleted = True
-            collection_doc.deleted_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(collection)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
 
     return _collection_to_detail_response(collection)
 
@@ -313,32 +223,14 @@ async def create_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new collection (standalone route - uses workspace_id from request body)"""
-    workspace = await _get_workspace_or_404(db, request.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    collection = Collection(
-        workspace_id=request.workspace_id,
-        name=request.name,
-        description=request.description,
-        color=request.color,
-        icon=request.icon,
-    )
-    db.add(collection)
-
-    # Add initial documents if provided
-    if request.document_ids:
-        for i, doc_id in enumerate(request.document_ids):
-            doc = await _get_accessible_document_or_none(db, doc_id, current_user)
-            if doc:
-                collection_doc = CollectionDocument(
-                    collection=collection, document_id=doc_id, sort_order=i
-                )
-                db.add(collection_doc)
-
-    await db.commit()
-    await db.refresh(collection)
+    try:
+        collection = await collection_service.create_collection(
+            db, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not collection:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
     return _collection_to_response(collection)
 
@@ -352,18 +244,11 @@ async def get_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Get collection details with documents (standalone route)"""
-    coll_stmt = (
-        select(Collection)
-        .options(selectinload(Collection.documents))
-        .where(Collection.id == collection_id, Collection.is_deleted == False)
+    collection = await workspace_access.get_collection(
+        db, collection_id, current_user.id
     )
-    coll_result = await db.execute(coll_stmt)
-    collection = coll_result.scalars().first()
-
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    workspace = await _get_workspace_or_404(db, collection.workspace_id, current_user)
 
     return _collection_to_detail_response(collection)
 
@@ -378,32 +263,14 @@ async def update_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Update collection details (standalone route)"""
-    coll_stmt = select(Collection).where(
-        Collection.id == collection_id, Collection.is_deleted == False
-    )
-    coll_result = await db.execute(coll_stmt)
-    collection = coll_result.scalars().first()
-
+    try:
+        collection = await collection_service.update_collection(
+            db, collection_id, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    workspace = await _get_workspace_or_404(db, collection.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.name is not None:
-        collection.name = request.name
-    if request.description is not None:
-        collection.description = request.description
-    if request.color is not None:
-        collection.color = request.color
-    if request.icon is not None:
-        collection.icon = request.icon
-
-    collection.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(collection)
 
     return _collection_to_response(collection)
 
@@ -417,23 +284,14 @@ async def delete_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a collection (standalone route)"""
-    coll_stmt = select(Collection).where(
-        Collection.id == collection_id, Collection.is_deleted == False
-    )
-    coll_result = await db.execute(coll_stmt)
-    collection = coll_result.scalars().first()
-
-    if not collection:
+    try:
+        deleted = await collection_service.delete_collection(
+            db, collection_id, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    workspace = await _get_workspace_or_404(db, collection.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    collection.is_deleted = True
-    collection.deleted_at = datetime.utcnow()
-    await db.commit()
 
 
 @standalone_router.post(
@@ -446,52 +304,14 @@ async def add_documents_to_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Add documents to a collection (standalone route)"""
-    coll_stmt = (
-        select(Collection)
-        .options(selectinload(Collection.documents))
-        .where(Collection.id == collection_id, Collection.is_deleted == False)
-    )
-    coll_result = await db.execute(coll_stmt)
-    collection = coll_result.scalars().first()
-
+    try:
+        collection = await collection_service.add_documents_to_collection(
+            db, collection_id, request.document_ids, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    workspace = await _get_workspace_or_404(db, collection.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    # Get current max sort order
-    max_order_stmt = select(func.max(CollectionDocument.sort_order)).where(
-        CollectionDocument.collection_id == collection_id
-    )
-    max_order_result = await db.execute(max_order_stmt)
-    max_order = max_order_result.scalar() or 0
-
-    for i, doc_id in enumerate(request.document_ids):
-        doc = await _get_accessible_document_or_none(db, doc_id, current_user)
-        if not doc:
-            continue
-
-        existing_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == collection_id,
-            CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False,
-        )
-        existing_result = await db.execute(existing_stmt)
-        existing = existing_result.scalars().first()
-
-        if not existing:
-            collection_doc = CollectionDocument(
-                collection_id=collection_id,
-                document_id=doc_id,
-                sort_order=max_order + i + 1,
-            )
-            db.add(collection_doc)
-
-    await db.commit()
-    await db.refresh(collection)
 
     return _collection_to_detail_response(collection)
 
@@ -506,36 +326,13 @@ async def remove_documents_from_collection_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Remove documents from a collection (standalone route)"""
-    coll_stmt = (
-        select(Collection)
-        .options(selectinload(Collection.documents))
-        .where(Collection.id == collection_id, Collection.is_deleted == False)
-    )
-    coll_result = await db.execute(coll_stmt)
-    collection = coll_result.scalars().first()
-
+    try:
+        collection = await collection_service.remove_documents_from_collection(
+            db, collection_id, request.document_ids, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-
-    workspace = await _get_workspace_or_404(db, collection.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    for doc_id in request.document_ids:
-        collection_doc_stmt = select(CollectionDocument).where(
-            CollectionDocument.collection_id == collection_id,
-            CollectionDocument.document_id == doc_id,
-            CollectionDocument.is_deleted == False,
-        )
-        collection_doc_result = await db.execute(collection_doc_stmt)
-        collection_doc = collection_doc_result.scalars().first()
-
-        if collection_doc:
-            collection_doc.is_deleted = True
-            collection_doc.deleted_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(collection)
 
     return _collection_to_detail_response(collection)

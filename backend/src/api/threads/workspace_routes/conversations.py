@@ -1,21 +1,17 @@
 """
 Conversation endpoints, nested and standalone (Task 4.2 split of the former
-monolithic ``backend/src/api/threads/workspaces.py``).
+monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
+persistence logic into ``src/services/threads/conversation_service.py`` —
+this module is transport only).
 """
 
-import logging
-from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models.conversation import Conversation
-from src.models.thread import Thread
 from src.models.user import User
 from src.schemas.chat import (
     ConversationCreate,
@@ -23,11 +19,10 @@ from src.schemas.chat import (
     ConversationResponse,
     ConversationUpdate,
 )
+from src.services.threads import conversation_service, workspace_access
 
-from .dependencies import _get_conversation_or_404, _get_workspace_or_404
+from .dependencies import _get_conversation_or_404
 from .presenters import _conversation_to_response
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
 
@@ -51,32 +46,15 @@ async def create_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new conversation in a workspace"""
-    workspace = await _get_workspace_or_404(db, workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    conversation = Conversation(
-        workspace_id=workspace_id,
-        title=request.title,
-        description=request.description,
-        created_by_id=current_user.id,
-    )
-    db.add(conversation)
-    await db.commit()
-
-    # Re-fetch with eager-loaded relationships to avoid greenlet errors
-    stmt = (
-        select(Conversation)
-        .options(selectinload(Conversation.threads))
-        .where(Conversation.id == conversation.id)
-    )
-    result = await db.execute(stmt)
-    conversation = result.scalars().first()
-
-    logger.info(
-        f"Conversation '{conversation.title}' created in workspace {workspace_id}"
-    )
+    request.workspace_id = workspace_id
+    try:
+        conversation = await conversation_service.create_conversation(
+            db, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Workspace not found")
 
     return _conversation_to_response(conversation)
 
@@ -91,52 +69,19 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
 ):
     """List conversations in a workspace"""
-    workspace = await _get_workspace_or_404(db, workspace_id, current_user)
-
-    base_conditions = [
-        Conversation.workspace_id == workspace_id,
-        Conversation.is_deleted == False,
-    ]
-
-    if not include_archived:
-        base_conditions.append(Conversation.is_archived == False)
-
-    # Count total
-    count_stmt = select(func.count(Conversation.id)).where(*base_conditions)
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar() or 0
-
-    # Fetch conversations (no thread rows — see the aggregate below)
     offset = (page - 1) * limit
-    stmt = (
-        select(Conversation)
-        .where(*base_conditions)
-        .order_by(Conversation.last_activity_at.desc())
-        .offset(offset)
-        .limit(limit)
+    result = await conversation_service.list_conversations(
+        db,
+        workspace_id,
+        current_user.id,
+        include_archived=include_archived,
+        limit=limit,
+        offset=offset,
+        order_pinned_first=False,
     )
-    result = await db.execute(stmt)
-    conversations = result.scalars().all()
-
-    # Size the sidebar badges with ONE grouped COUNT/SUM over this page's
-    # conversations instead of selectinload-ing every thread row (all columns)
-    # per conversation. Mirrors the unfiltered Conversation.threads relationship
-    # (hard-delete cascade, no is_deleted filter), so thread_count matches
-    # len(self.threads) and message_count matches the per-thread sum exactly.
-    counts: dict[UUID, tuple[int, int]] = {}
-    conv_ids = [c.id for c in conversations]
-    if conv_ids:
-        agg_stmt = (
-            select(
-                Thread.conversation_id,
-                func.count(Thread.id),
-                func.coalesce(func.sum(Thread.message_count), 0),
-            )
-            .where(Thread.conversation_id.in_(conv_ids))
-            .group_by(Thread.conversation_id)
-        )
-        agg_result = await db.execute(agg_stmt)
-        counts = {row[0]: (row[1], row[2]) for row in agg_result.all()}
+    if result is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    conversations, total, counts = result
 
     return ConversationListResponse(
         conversations=[
@@ -183,26 +128,14 @@ async def update_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Update conversation details"""
-    conversation = await _get_conversation_or_404(
-        db, workspace_id, conversation_id, current_user
-    )
-    workspace = conversation.workspace
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.title is not None:
-        conversation.title = request.title
-    if request.description is not None:
-        conversation.description = request.description
-    if request.is_archived is not None:
-        conversation.is_archived = request.is_archived
-    if request.is_pinned is not None:
-        conversation.is_pinned = request.is_pinned
-
-    conversation.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(conversation)
+    try:
+        conversation = await conversation_service.update_conversation(
+            db, conversation_id, request, current_user.id, workspace_id=workspace_id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
     return _conversation_to_response(conversation)
 
@@ -218,17 +151,19 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a conversation"""
-    conversation = await _get_conversation_or_404(
-        db, workspace_id, conversation_id, current_user
-    )
-    workspace = conversation.workspace
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    conversation.is_deleted = True
-    conversation.deleted_at = datetime.utcnow()
-    await db.commit()
+    try:
+        deleted = await conversation_service.delete_conversation(
+            db,
+            conversation_id,
+            current_user.id,
+            workspace_id=workspace_id,
+            stamp_deleted_at=True,
+            require_admin=False,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
 
 # ============================================================================
@@ -246,19 +181,11 @@ async def get_conversation_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Get conversation details (standalone route)"""
-    conv_stmt = (
-        select(Conversation)
-        .options(selectinload(Conversation.threads))
-        .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
+    conversation = await workspace_access.get_conversation(
+        db, conversation_id, current_user.id
     )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Check access via workspace
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
 
     return _conversation_to_response(conversation)
 
@@ -273,34 +200,14 @@ async def update_conversation_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Update conversation details (standalone route)"""
-    conv_stmt = (
-        select(Conversation)
-        .options(selectinload(Conversation.threads))
-        .where(Conversation.id == conversation_id, Conversation.is_deleted == False)
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
+    try:
+        conversation = await conversation_service.update_conversation(
+            db, conversation_id, request, current_user.id
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    if request.title is not None:
-        conversation.title = request.title
-    if request.description is not None:
-        conversation.description = request.description
-    if request.is_archived is not None:
-        conversation.is_archived = request.is_archived
-    if request.is_pinned is not None:
-        conversation.is_pinned = request.is_pinned
-
-    conversation.updated_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(conversation)
 
     return _conversation_to_response(conversation)
 
@@ -314,20 +221,15 @@ async def delete_conversation_standalone(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a conversation (standalone route)"""
-    conv_stmt = select(Conversation).where(
-        Conversation.id == conversation_id, Conversation.is_deleted == False
-    )
-    conv_result = await db.execute(conv_stmt)
-    conversation = conv_result.scalars().first()
-
-    if not conversation:
+    try:
+        deleted = await conversation_service.delete_conversation(
+            db,
+            conversation_id,
+            current_user.id,
+            stamp_deleted_at=True,
+            require_admin=False,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
-
-    if not workspace.can_user_edit(str(current_user.id)):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    conversation.is_deleted = True
-    conversation.deleted_at = datetime.utcnow()
-    await db.commit()
