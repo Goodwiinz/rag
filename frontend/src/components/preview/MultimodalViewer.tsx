@@ -421,7 +421,7 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
         )}
       >
         <div className="text-center" role="alert">
-          <p className="text-(--nous-mars) mb-4">
+          <p className="text-[var(--nous-mars)] mb-4">
             Failed to load document
           </p>
           <p className="text-sm text-muted-foreground">{error}</p>
@@ -655,7 +655,7 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                           value={currentTime}
                           onChange={handleSeek}
                           aria-label="Seek"
-                          className="w-full accent-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+                          className="w-full accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                         />
                         <div className="flex justify-between text-xs text-muted-foreground mt-1">
                           <span>{formatTime(currentTime)}</span>
@@ -689,7 +689,7 @@ export const MultimodalViewer: React.FC<MultimodalViewerProps> = ({
                           value={volume}
                           onChange={handleVolumeChange}
                           aria-label="Volume"
-                          className="w-20 accent-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+                          className="w-20 accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                         />
                       </div>
                     </div>

@@ -87,7 +87,7 @@ export function DocumentList({
       case 'completed':
         return {
           className:
-            'text-(--nous-terra) bg-(--nous-terra)/10 border-(--nous-terra)/20',
+            'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/20',
           label: 'Indexed',
           icon: CheckCircle2,
           canRetry: false,
@@ -95,7 +95,7 @@ export function DocumentList({
       case 'processing':
         return {
           className:
-            'text-(--nous-helios) bg-(--nous-helios)/10 border-(--nous-helios)/20',
+            'text-[var(--nous-helios)] bg-[var(--nous-helios)]/10 border-[var(--nous-helios)]/20',
           label: 'Processing',
           icon: Loader,
           canRetry: false,
@@ -103,7 +103,7 @@ export function DocumentList({
       case 'failed':
         return {
           className:
-            'text-(--nous-mars) bg-(--nous-mars)/10 border-(--nous-mars)/20',
+            'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/20',
           label: 'Failed',
           icon: AlertTriangle,
           canRetry: true,
@@ -141,7 +141,7 @@ export function DocumentList({
               aria-label={
                 allSelected ? 'Deselect all documents' : 'Select all documents'
               }
-              className="text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {allSelected ? (
                 <CheckSquare
@@ -211,7 +211,7 @@ export function DocumentList({
                   <div
                     onClick={() => onSelect(doc.id)}
                     className={cn(
-                      'group relative rounded-xl border bg-card px-4 py-3 transition-all duration-200 cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 shadow-xs',
+                      'group relative rounded-xl border bg-card px-4 py-3 transition-all duration-200 cursor-pointer mb-2 grid grid-cols-[20px_40px_1fr_128px_112px_96px] items-center gap-4 shadow-sm',
                       isSelected
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:bg-muted/50 hover:shadow-md'
@@ -219,7 +219,7 @@ export function DocumentList({
                   >
                     {/* Checkbox */}
                     <div
-                      className="w-5 shrink-0"
+                      className="w-5 flex-shrink-0"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
@@ -229,7 +229,7 @@ export function DocumentList({
                           isSelected ? 'Deselect document' : 'Select document'
                         }
                         className={cn(
-                          'transition-colors rounded focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          'transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           isSelected
                             ? 'text-primary'
                             : 'text-muted-foreground hover:text-foreground'
@@ -244,7 +244,7 @@ export function DocumentList({
                     </div>
 
                     {/* Icon */}
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-primary transition-colors">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors">
                       <FileText aria-hidden="true" className="w-4 h-4" />
                     </div>
 
@@ -282,7 +282,7 @@ export function DocumentList({
                     </div>
 
                     {/* Status */}
-                    <div className="w-28 shrink-0">
+                    <div className="w-28 flex-shrink-0">
                       <span
                         className={cn(
                           'inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium',

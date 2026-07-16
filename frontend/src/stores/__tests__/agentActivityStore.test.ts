@@ -43,7 +43,7 @@ describe('agentActivityStore', () => {
     expect(plan[0].text).toBe('first');
   });
 
-  it('finishRun(done) marks tool-less plan items as complete', () => {
+  it('finishRun(done) marks every plan item as complete', () => {
     const { startRun, setPlan, finishRun } = useAgentActivityStore.getState();
     startRun('t1', 'NOUS', 'task');
     setPlan('t1', ['one', 'two', 'three']);
@@ -59,90 +59,6 @@ describe('agentActivityStore', () => {
     finishRun('t1', 'error');
     const plan = getRun('t1').plan;
     expect(plan.every((p) => !p.done)).toBe(true);
-  });
-
-  it('finishRun(stopped) leaves plan items as pending and sets state', () => {
-    const { startRun, setPlan, finishRun } = useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', ['one', 'two']);
-    finishRun('t1', 'stopped');
-    const run = getRun('t1');
-    expect(run.state).toBe('stopped');
-    expect(run.plan.every((p) => !p.done)).toBe(true);
-  });
-
-  it('setPlan keeps planner tool hints and strips "N/A"', () => {
-    const { startRun, setPlan } = useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', [
-      { text: 'Identify the request', tool: 'N/A' },
-      { text: 'Search arXiv', tool: 'search_arxiv' },
-      'Respond to the user',
-    ]);
-    const plan = getRun('t1').plan;
-    expect(plan[0].tool).toBeUndefined();
-    expect(plan[1].tool).toBe('search_arxiv');
-    expect(plan[2].tool).toBeUndefined();
-  });
-
-  it('a successful tool completion marks the matching plan item done', () => {
-    const { startRun, setPlan, pushToolStart, pushToolEnd } =
-      useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', [
-      { text: 'Search arXiv', tool: 'search_arxiv' },
-      { text: 'Summarize', tool: 'summarize_document' },
-    ]);
-    pushToolStart('t1', 'search_arxiv');
-    pushToolEnd('t1', 'search_arxiv', true);
-    const plan = getRun('t1').plan;
-    expect(plan[0].done).toBe(true);
-    expect(plan[1].done).toBe(false);
-  });
-
-  it('a failed tool does not mark the matching plan item done', () => {
-    const { startRun, setPlan, pushToolStart, pushToolEnd } =
-      useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', [{ text: 'Search arXiv', tool: 'search_arxiv' }]);
-    pushToolStart('t1', 'search_arxiv');
-    pushToolEnd('t1', 'search_arxiv', false);
-    expect(getRun('t1').plan[0].done).toBe(false);
-  });
-
-  it('repeated tool completions mark successive matching plan items', () => {
-    const { startRun, setPlan, pushToolStart, pushToolEnd } =
-      useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', [
-      { text: 'Summarize methods', tool: 'summarize_document' },
-      { text: 'Summarize results', tool: 'summarize_document' },
-    ]);
-    pushToolStart('t1', 'summarize_document');
-    pushToolEnd('t1', 'summarize_document', true);
-    expect(getRun('t1').plan.map((p) => p.done)).toEqual([true, false]);
-    pushToolStart('t1', 'summarize_document');
-    pushToolEnd('t1', 'summarize_document', true);
-    expect(getRun('t1').plan.map((p) => p.done)).toEqual([true, true]);
-  });
-
-  it('finishRun(done) does NOT bulk-complete unexecuted tool-bearing items', () => {
-    const { startRun, setPlan, pushToolStart, pushToolEnd, finishRun } =
-      useAgentActivityStore.getState();
-    startRun('t1', 'NOUS', 'task');
-    setPlan('t1', [
-      { text: 'Identify the request', tool: 'N/A' },
-      { text: 'Search arXiv', tool: 'search_arxiv' },
-      { text: 'Ingest papers', tool: 'ingest_arxiv' },
-    ]);
-    // Only the search ran; ingest never executed.
-    pushToolStart('t1', 'search_arxiv');
-    pushToolEnd('t1', 'search_arxiv', true);
-    finishRun('t1', 'done');
-    const plan = getRun('t1').plan;
-    expect(plan[0].done).toBe(true); // tool-less → closed out at stream end
-    expect(plan[1].done).toBe(true); // completed by its tool
-    expect(plan[2].done).toBe(false); // never ran → stays pending
   });
 
   it('pushToolStart appends an active step with a mapped label', () => {

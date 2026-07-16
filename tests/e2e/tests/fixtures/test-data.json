@@ -33,7 +33,7 @@
     {
       "id": "user-admin-123",
       "email": "admin@test.com",
-      "password": "admin123456",
+      "password": "REDACTED456",
       "first_name": "Admin",
       "last_name": "User",
       "role": "admin",
@@ -59,7 +59,7 @@
     {
       "id": "user-orgadmin-123",
       "email": "orgadmin@test.com",
-      "password": "orgadmin123456",
+      "password": "orgREDACTED456",
       "first_name": "Organization",
       "last_name": "Admin",
       "role": "org_admin",

@@ -327,7 +327,7 @@ Test fixtures provide reusable test data and setup:
 {
   users: {
     valid: { email: 'test@example.com', password: 'test123' },
-    admin: { email: 'admin@example.com', password: 'admin123' }
+    admin: { email: 'admin@example.com', password: 'REDACTED' }
   },
   files: {
     pdf: { path: 'test-data/files/sample.pdf', name: 'sample.pdf' },

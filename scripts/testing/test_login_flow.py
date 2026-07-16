@@ -20,7 +20,7 @@ print(f"DATABASE_URL from settings: {settings.DATABASE_URL}")
 db = SessionLocal()
 
 email = "admin@multimodal-rag.com"
-password = "admin123"
+password = "REDACTED"
 
 print(f"\nLooking for user: {email}")
 

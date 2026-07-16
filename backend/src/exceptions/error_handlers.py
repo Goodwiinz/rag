@@ -103,14 +103,12 @@ async def analytics_exception_handler(
 
     status_code = status_code_map.get(type(exc), 500)
 
-    # Log the error with context. NB: do NOT put "message" in ``extra`` —
-    # it is a reserved LogRecord attribute and logging raises
-    # ``KeyError: Attempt to overwrite 'message' in LogRecord``. The message is
-    # already in the format string above.
+    # Log the error with context
     logger.error(
         f"Analytics exception: {exc.error_code} - {exc.message}",
         extra={
             "error_code": exc.error_code,
+            "message": exc.message,
             "details": exc.details,
             "path": str(request.url),
             "method": request.method,

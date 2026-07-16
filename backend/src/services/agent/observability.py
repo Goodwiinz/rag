@@ -422,18 +422,6 @@ def record_execution_duration(intent: str, status: str, duration: float):
         AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(duration)
 
 
-def record_node_duration(node: str, status: str, duration: float) -> None:
-    """Record a sub-node / phase duration into the shared node histogram.
-
-    Lets phases that don't go through ``track_node_execution`` (e.g. the
-    subtasks ``preprocessing_node`` fans out via ``asyncio.gather``, which
-    otherwise emit no traced run) surface on the same
-    ``agent_node_duration_seconds`` dashboard.
-    """
-    if _METRICS_AVAILABLE:
-        AGENT_NODE_DURATION.labels(node=node, status=status).observe(duration)
-
-
 def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):
     """Record token usage metrics."""
     if _METRICS_AVAILABLE:

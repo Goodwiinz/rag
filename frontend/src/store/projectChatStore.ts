@@ -220,11 +220,13 @@ export const useProjectChatStore = create<ProjectChatState>()(
 
         return response;
       } catch (error: any) {
-        // The backend link endpoint is idempotent (upsert) and never returns
-        // 409, so re-linking an already-attached thread succeeds rather than
-        // erroring. Any error reaching here is a real failure (400 same-
-        // workspace, 404, 500, network) — record its message so the UI can
-        // surface the actual cause instead of a generic fallback.
+        const status = error?.error?.status_code ?? error?.status_code;
+        if (status === 409) {
+          set((state) => {
+            state.linkingThread[projectId] = false;
+          });
+          return null;
+        }
         console.error('[ProjectChatStore] linkThreadToProject failed:', error);
         set((state) => {
           state.errors[projectId] = error?.message || 'Failed to link thread';

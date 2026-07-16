@@ -60,11 +60,9 @@ DATABASE_URL = _supabase_db_url or os.getenv(
 
 # Async variant — asyncpg uses ssl= instead of sslmode=
 if "asyncpg" not in DATABASE_URL:
-    ASYNC_DATABASE_URL = (
-        DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-        .replace("?sslmode=require", "?ssl=require")
-        .replace("&sslmode=require", "&ssl=require")
-    )
+    ASYNC_DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://"
+    ).replace("?sslmode=require", "?ssl=require").replace("&sslmode=require", "&ssl=require")
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
@@ -73,53 +71,6 @@ else:
 SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
 SEED_DEMO_PASSWORD = os.getenv("SEED_DEMO_PASSWORD", "")
 SEED_LAB_ADMIN_PASSWORD = os.getenv("SEED_LAB_ADMIN_PASSWORD", "")
-
-# Hosts considered "genuinely local" for the startup create_all gate. Anything
-# else (DO Managed PG, RDS, a future post-Supabase production DB) must be owned
-# by Alembic — create_all against a managed DB races migrations and permanently
-# drifts the schema (see main.py lifespan + PR #925/#931 history).
-LOCAL_DB_HOSTS = frozenset(
-    {
-        "localhost",
-        "127.0.0.1",
-        "::1",
-        "host.docker.internal",
-        "postgres",  # docker-compose service name
-        "db",  # common compose alias
-    }
-)
-
-
-def should_run_create_all(
-    environment: str,
-    supabase_db_url: str,
-    db_host: str | None,
-    is_sqlite: bool,
-    force: bool,
-) -> bool:
-    """Decide whether startup may run Base.metadata.create_all.
-
-    True only for a genuinely local dev database:
-    - ENVIRONMENT must be exactly "development" (deployed clusters set
-      dev/staging/production), AND
-    - no SUPABASE_DB_URL (every managed cluster sets it), AND
-    - the resolved engine host is local (or the DB is SQLite), OR the operator
-      explicitly forced it with RUN_CREATE_ALL=1.
-
-    The host check closes the residual gap where ENVIRONMENT is unset (defaults
-    to "development") and a managed DATABASE_URL is used without
-    SUPABASE_DB_URL — previously that combination still ran create_all.
-    """
-    if environment != "development":
-        return False
-    if supabase_db_url:
-        return False
-    if force:
-        return True
-    if is_sqlite:
-        return True
-    return (db_host or "") in LOCAL_DB_HOSTS
-
 
 # Check if using SQLite (for testing) - SQLite doesn't support pool options
 _is_sqlite = DATABASE_URL.startswith("sqlite")
@@ -154,11 +105,9 @@ if _is_sqlite:
     # SQLite async configuration for testing
     # Note: aiosqlite is required for async SQLite support
     async_engine = create_async_engine(
-        (
-            ASYNC_DATABASE_URL
-            if not ASYNC_DATABASE_URL.startswith("sqlite")
-            else "sqlite+aiosqlite:///:memory:"
-        ),
+        ASYNC_DATABASE_URL
+        if not ASYNC_DATABASE_URL.startswith("sqlite")
+        else "sqlite+aiosqlite:///:memory:",
         echo=os.getenv("ENVIRONMENT") == "development",
     )
 else:

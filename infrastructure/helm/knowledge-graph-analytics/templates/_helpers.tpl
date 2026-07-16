@@ -123,6 +123,18 @@ Create the Neo4j URI
 {{- end }}
 
 {{/*
+Create the Qdrant URL
+*/}}
+{{- define "knowledge-graph-analytics.qdrantUrl" -}}
+{{- $qdrant := .Values.qdrant -}}
+{{- if $qdrant.enabled -}}
+{{- printf "http://%s:6333" $qdrant.fullname -}}
+{{- else -}}
+{{- printf "%s" .Values.backend.env.QDRANT_URL -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Return the storage class name
 */}}
 {{- define "knowledge-graph-analytics.storageClass" -}}
@@ -327,5 +339,12 @@ spec:
       ports:
         - protocol: TCP
           port: 7687
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
 {{- end }}
 {{- end }}

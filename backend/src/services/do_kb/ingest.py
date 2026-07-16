@@ -25,7 +25,6 @@ from src.core.config import settings
 from src.models.document import Document
 
 from .client import DOKnowledgeBaseClient, DOKnowledgeBaseError, get_do_kb_client
-from .pre_flight import ensure_content_text_for_kb
 from .provisioner import ensure_kb_for_org
 
 logger = logging.getLogger(__name__)
@@ -63,21 +62,14 @@ async def _existing_data_source_uuid(api, kb_uuid: str, key: str) -> Optional[st
     return None
 
 
-_DO_KB_INGEST_METRIC = "do_kb_ingest_total"
-
-
 def _record_metric(status: str) -> None:
-    """Best-effort ingest-outcome counter; observability must never break ingest.
-
-    Was a dead no-op: it looked up ``metrics.agent_do_kb_ingest_total``, a
-    module attribute that is defined nowhere, so every call silently did
-    nothing. Route through the registered ``increment_counter`` instead —
-    the same wiring the RAG read path (`_record_do_kb_read`) uses.
-    """
+    """Best-effort Prometheus counter; tolerate missing prometheus_client."""
     try:
-        from src.observability.metrics import increment_counter
+        from src.observability import metrics  # type: ignore[attr-defined]
 
-        increment_counter(_DO_KB_INGEST_METRIC, attributes={"status": status})
+        counter = getattr(metrics, "agent_do_kb_ingest_total", None)
+        if counter is not None:
+            counter.labels(status=status).inc()
     except Exception:  # pragma: no cover - observability is optional
         pass
 
@@ -148,7 +140,9 @@ async def sync_document_to_kb(
     api = client or get_do_kb_client()
 
     try:
-        kb_uuid = await ensure_kb_for_org(session, document.organization_id, client=api)
+        kb_uuid = await ensure_kb_for_org(
+            session, document.organization_id, client=api
+        )
     except DOKnowledgeBaseError as exc:
         logger.warning(
             "do_kb provisioning skipped",
@@ -163,12 +157,6 @@ async def sync_document_to_kb(
         )
         _record_metric("provision_error")
         return None
-
-    # Pre-flight guard: extract text locally for large/complex PDFs so the
-    # canonical .txt path is used instead of the raw PDF (DO KB's server-side
-    # parser times out on big/complex PDFs). No-op for small PDFs, non-PDFs, and
-    # documents that already have content_text.
-    await ensure_content_text_for_kb(document)
 
     # Prefer the canonical text object in the KB bucket (guarantees presence
     # under the documents/{org}/ prefix the data source reads). Only fall back to
@@ -210,13 +198,6 @@ async def sync_document_to_kb(
 
     document.do_kb_data_source_uuid = ds_uuid
     document.do_kb_indexed_at = datetime.now(timezone.utc)
-    # "registered": the data source is added but indexing has NOT been confirmed
-    # (start_indexing below is fire-and-forget and may fail). The old code wrote
-    # "indexed" here, before the kick, which lied whenever the kick 400'd.
-    # ponytail: a reconciliation poller (client.get_indexing_job — already exists,
-    # called nowhere) would flip this to "indexed" once DO confirms. Not built
-    # now; the honest "registered" is the smallest fix that stops the lie.
-    document.do_kb_index_status = "registered"
 
     try:
         await session.commit()
@@ -280,68 +261,3 @@ async def sync_documents_to_kb(
             _record_metric("indexing_kick_failed")
 
     return results
-
-
-async def unsync_document_from_kb(
-    session: AsyncSession,
-    document: Document,
-    *,
-    client: Optional[DOKnowledgeBaseClient] = None,
-) -> bool:
-    """Remove a document's data source from DO KB and clear its DB columns.
-
-    Inverse of ``sync_document_to_kb``. Use when a document is failing to index
-    (e.g. a PDF that keeps timing out) and needs a clean re-sync: call this, fix
-    the document (populate ``content_text``), then call ``sync_document_to_kb``
-    again.
-
-    Returns True when the data source was deleted (or was already absent), False
-    on error. Never raises — cleanup must not block other operations.
-    """
-    if not settings.DO_KB_ENABLED:
-        return True
-
-    ds_uuid = document.do_kb_data_source_uuid
-    if not ds_uuid:
-        return True
-
-    api = client or get_do_kb_client()
-
-    try:
-        kb_uuid = await ensure_kb_for_org(session, document.organization_id, client=api)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb unsync — provisioning failed",
-            extra={"document_id": str(document.id), "error": str(exc)},
-        )
-        return False
-
-    try:
-        await api.delete_data_source(kb_uuid=kb_uuid, ds_uuid=ds_uuid)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb delete_data_source failed",
-            extra={
-                "document_id": str(document.id),
-                "ds_uuid": ds_uuid,
-                "error": str(exc),
-            },
-        )
-        # Still clear DB columns — the DS may already be gone on DO's side
-        # (e.g. deleted via console), and a stale UUID must not linger.
-
-    document.do_kb_data_source_uuid = None
-    document.do_kb_indexed_at = None
-    document.do_kb_index_status = None
-
-    try:
-        await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "do_kb unsync persist failed",
-            extra={"document_id": str(document.id), "error": str(exc)},
-        )
-        return False
-
-    _record_metric("unsynced")
-    return True

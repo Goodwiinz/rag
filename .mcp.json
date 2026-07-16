@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from", "git+https://github.com/oraios/serena",
+        "serena", "start-mcp-server",
+        "--project", "/home/clawdbot/clawd/rag"
+      ]
+    },
+    "redis": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
+    },
+    "axon": {
+      "command": "/Users/goodwiinz/development/RAG_system/backend/.venv/bin/axon",
+      "args": ["serve", "--watch"]
+    }
+  }
+}

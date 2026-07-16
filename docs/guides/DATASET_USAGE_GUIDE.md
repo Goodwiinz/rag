@@ -375,7 +375,7 @@ integrator.configs["custom"] = DatasetConfig(
    ```
 
 2. **Authentication Failures**:
-   - Check if user exists: `curl http://localhost:8000/auth/login -d '{"username":"admin","password":"admin123"}'`
+   - Check if user exists: `curl http://localhost:8000/auth/login -d '{"username":"admin","password":"REDACTED"}'`
    - Create admin user if needed
 
 3. **Memory Issues with Large Datasets**:

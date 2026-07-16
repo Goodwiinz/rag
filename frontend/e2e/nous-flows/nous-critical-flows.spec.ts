@@ -23,7 +23,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
 
 const ADMIN = {
   email: 'admin@multimodal-rag.com',
-  password: 'admin123',
+  password: 'REDACTED',
 };
 
 const SAMPLE_FILE = path.join(__dirname, 'test-data', 'sample.txt');

@@ -117,6 +117,7 @@ REDIS_URL=redis://localhost:6379/1
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=testpassword
+QDRANT_URL=http://localhost:6333
 MONITORING_METRICS__CUSTOM_METRICS_ENABLED=true
 MONITORING_TRACING__ENABLED=true
 MONITORING_LOGGING__STRUCTURED_LOGGING=true
@@ -143,6 +144,7 @@ EOF
     wait_for_service "PostgreSQL" "http://localhost:5432"
     wait_for_service "Redis" "http://localhost:6379"
     wait_for_service "Neo4j" "http://localhost:7474"
+    wait_for_service "Qdrant" "http://localhost:6333"
 
     cd backend
 

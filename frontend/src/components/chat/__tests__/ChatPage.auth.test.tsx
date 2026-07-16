@@ -48,7 +48,6 @@ vi.mock('@/hooks/chat/useChatStreaming', () => ({
     selectedModel: 'gpt-4o',
     setSelectedModel: vi.fn(),
   }),
-  confirmationBelongsToThread: () => false,
 }));
 
 vi.mock('@/hooks/chat/useChatThreadActions', () => ({

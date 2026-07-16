@@ -479,7 +479,7 @@ export function ChatAnalytics({
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-muted rounded-full h-2 overflow-hidden">
                           <div
-                            className="h-full bg-linear-to-r from-orange-400 to-orange-600"
+                            className="h-full bg-gradient-to-r from-orange-400 to-orange-600"
                             style={{ width: `${(cost / metrics.estimatedCost) * 100}%` }}
                           />
                         </div>

@@ -13,22 +13,24 @@ from celery import Task, current_app
 
 from src.core.config import settings
 from src.core.database import SessionLocal, get_db
-from src.models.document import Document, DocumentType, ProcessingStatus
+from src.tasks.celery_app import celery_app
+from src.models.document import Document, ProcessingStatus
 from src.models.entity import Entity
 from src.models.graph import (
     BatchEntityRequest,
     CreateEntityRequest,
     CreateRelationshipRequest,
+    EntityType as GraphEntityType,
+    ExtractionMethod as GraphExtractionMethod,
+    RelationshipType as GraphRelationshipType,
 )
-from src.models.graph import EntityType as GraphEntityType
-from src.models.graph import ExtractionMethod as GraphExtractionMethod
-from src.models.graph import RelationshipType as GraphRelationshipType
 from src.models.processing import JobStatus, ProcessingJob
 from src.services.knowledge_graph.knowledge_graph_service import knowledge_graph_service
-from src.services.processing.llm_entity_extraction import LLMEntityExtractionService
+from src.services.processing.llm_entity_extraction import (
+    LLMEntityExtractionService,
+)
 from src.services.processing.processing_service import ProcessingPipeline
 from src.services.search.fulltext_search_service import fulltext_search_service
-from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +136,7 @@ def _safe_relationship_type(raw_type: str) -> GraphRelationshipType:
         return GraphRelationshipType.RELATED_TO
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="process_document_ingestion")
+@current_app.task(base=ProcessingTask, bind=True)
 def process_document_ingestion(self, job_id: str):
     """Process complete document ingestion pipeline"""
     db = SessionLocal()
@@ -153,26 +155,6 @@ def process_document_ingestion(self, job_id: str):
 
         if not document:
             raise ValueError(f"Document not found for job {job_id}")
-
-        # Idempotency guard for acks_late redelivery. The Celery app sets
-        # task_acks_late, so a worker recycled/killed AFTER this job finished but
-        # before the broker ack causes the message to be redelivered and the
-        # whole pipeline to re-run — re-extracting and re-inserting a second full
-        # set of Postgres Entity rows (the Neo4j path upserts; Postgres has no
-        # unique constraint to dedup). This is the dominant redelivery case;
-        # short-circuit it. (A crash mid-run, job still RUNNING, can still leave
-        # a partial entity set behind on re-run — that needs an idempotency key
-        # rather than a destructive delete that would clobber curated entities;
-        # tracked as a follow-up.)
-        if job.status == JobStatus.COMPLETED:
-            logger.info(
-                f"Job {job_id} already completed; skipping redelivered ingestion run"
-            )
-            return {
-                "status": "completed",
-                "document_id": str(document.id),
-                "skipped": "duplicate_delivery",
-            }
 
         # Initialize processing service
         processing_service = ProcessingPipeline(db)
@@ -204,31 +186,6 @@ def process_document_ingestion(self, job_id: str):
                 "character_count", text_extraction_result["character_count"]
             )
         db.commit()
-
-        # Step 1b: Figure extraction (optional, flag-gated; never fails ingestion)
-        if (
-            settings.FIGURE_EXTRACTION_ENABLED
-            and document.document_type == DocumentType.PDF
-        ):
-            try:
-                from src.services.processing.figure_extraction_service import (
-                    extract_figures_for_document,
-                    merge_captions_into_text,
-                )
-
-                job.update_progress("Extracting figures", 35)
-                db.commit()
-                fig_result = extract_figures_for_document(db, document)
-                if fig_result.get("captions_text"):
-                    document.content_text = merge_captions_into_text(
-                        document.content_text, fig_result["captions_text"]
-                    )
-                db.commit()
-            except Exception as fig_err:  # optional step, mirrors Neo4j tolerance above
-                db.rollback()
-                logger.warning(
-                    f"Figure extraction failed for document {document.id}: {fig_err}"
-                )
 
         # Step 2: Entity Extraction
         job.update_progress("Extracting entities", 50)
@@ -306,10 +263,8 @@ def process_document_ingestion(self, job_id: str):
         db.commit()
 
         # Update search vector for full-text search
-        search_vector_ok = False
         try:
             fulltext_search_service.update_document_search_vector(str(document.id), db)
-            search_vector_ok = True
             logger.info(f"Updated search vector for document {document.id}")
         except Exception as e:
             logger.warning(
@@ -320,14 +275,9 @@ def process_document_ingestion(self, job_id: str):
         job.update_progress("Finalizing", 95)
         db.commit()
 
-        # Mark document as processed. is_indexed must reflect ACTUAL full-text
-        # searchability: if the search-vector build above failed the document has
-        # no tsvector and the primary full-text retrieval can never surface it —
-        # claiming is_indexed=True there is a silent partial index (the doc looks
-        # ready but is unreachable). Tie the flag to the real outcome so a
-        # re-index can be triggered for the not-yet-searchable docs.
+        # Mark document as processed
         document.update_processing_status(ProcessingStatus.COMPLETED)
-        document.is_indexed = search_vector_ok
+        document.is_indexed = True
         db.commit()
 
         # Complete job
@@ -339,7 +289,6 @@ def process_document_ingestion(self, job_id: str):
                 # embedding_id is the dead Qdrant vector-id column (always NULL
                 # now), so bool(embedding_id) always reported False.
                 "embedding_generated": bool(document.is_embedded),
-                "search_indexed": search_vector_ok,
                 "word_count": text_extraction_result.get("word_count", 0),
             }
         )
@@ -355,13 +304,6 @@ def process_document_ingestion(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Document ingestion failed for job {job_id}: {str(e)}")
-
-        # Roll back first: if the failure came from a DB op the session is
-        # poisoned (PendingRollbackError), so the queries/commit below to write
-        # the FAILED status would themselves throw and get swallowed — leaving
-        # the document stuck in PROCESSING (never FAILED), which then blocks
-        # content-hash dedup from ever re-uploading it.
-        db.rollback()
 
         # Update document and job status
         try:
@@ -387,7 +329,7 @@ def process_document_ingestion(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="extract_text_content")
+@current_app.task(base=ProcessingTask, bind=True)
 def extract_text_content(self, job_id: str):
     """Extract text content from document"""
     db = SessionLocal()
@@ -435,8 +377,6 @@ def extract_text_content(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Text extraction failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -446,7 +386,7 @@ def extract_text_content(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="extract_entities")
+@current_app.task(base=ProcessingTask, bind=True)
 def extract_entities(self, job_id: str):
     """Extract entities from document text"""
     db = SessionLocal()
@@ -489,10 +429,9 @@ def extract_entities(self, job_id: str):
             )
 
         # Save entities
-        from datetime import datetime
-
         from src.models.entity import Entity, ExtractionMethod
         from src.services.processing.llm_entity_extraction import map_to_entity_type
+        from datetime import datetime
 
         saved_entities = []
         for ent in extraction_result.entities:
@@ -533,8 +472,6 @@ def extract_entities(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Entity extraction failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -544,7 +481,7 @@ def extract_entities(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="generate_embeddings")
+@current_app.task(base=ProcessingTask, bind=True)
 def generate_embeddings(self, job_id: str):
     """Generate embeddings for document"""
     db = SessionLocal()
@@ -595,8 +532,6 @@ def generate_embeddings(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Embedding generation failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -606,7 +541,7 @@ def generate_embeddings(self, job_id: str):
         db.close()
 
 
-@current_app.task(base=ProcessingTask, bind=True, name="index_in_graph")
+@current_app.task(base=ProcessingTask, bind=True)
 def index_in_graph(self, job_id: str):
     """Index document and entities in knowledge graph"""
     db = SessionLocal()
@@ -661,8 +596,6 @@ def index_in_graph(self, job_id: str):
 
     except Exception as e:
         logger.error(f"Graph indexing failed for job {job_id}: {str(e)}")
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if job:
             job.fail_job(str(e))
             db.commit()
@@ -680,20 +613,6 @@ def kg_extract_entities_job(self, job_id: str):
         job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
         if not job:
             raise ValueError(f"Job {job_id} not found")
-
-        # Idempotency guard for acks_late redelivery (same pattern as
-        # process_document_ingestion above): a worker killed after completion
-        # but before the broker ack redelivers the message, which would re-run
-        # the full LLM extraction and regress the job COMPLETED -> RUNNING.
-        if job.status == JobStatus.COMPLETED:
-            logger.info(
-                f"Job {job_id} already completed; skipping redelivered KG extraction"
-            )
-            return {
-                "status": "completed",
-                "job_id": job_id,
-                "skipped": "duplicate_delivery",
-            }
 
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
@@ -848,38 +767,20 @@ def kg_extract_entities_job(self, job_id: str):
 
         job.update_progress("Finalizing extraction job", 90)
 
-        result = {
-            "document_ids": document_ids,
-            "entities_found": entities_found_total,
-            "entities_created": entities_created_total,
-            "relationships_found": relationships_found_total,
-            "relationships_created": relationships_created_total,
-            "errors": errors_total,
-            "extraction_errors": extraction_errors_total,
-        }
-
-        # Honest outcome: if NOTHING was created and something errored (all
-        # documents missing/empty, or every KG write failed), completing the job
-        # reports a false success to anything polling job status. Fail it so the
-        # total failure is visible; a legitimately-empty run (no creates, no
-        # errors) still completes.
-        total_created = entities_created_total + relationships_created_total
-        total_errors = errors_total + extraction_errors_total
-        if total_created == 0 and total_errors > 0:
-            job.fail_job(
-                f"KG extraction created no entities or relationships "
-                f"({total_errors} errors across {total_docs} documents)",
-                error_type="extraction_failed",
-            )
-            db.commit()
-            return {"status": "failed", "job_id": job_id, "result": result}
-
-        job.complete_job(result=result)
+        job.complete_job(
+            result={
+                "document_ids": document_ids,
+                "entities_found": entities_found_total,
+                "entities_created": entities_created_total,
+                "relationships_found": relationships_found_total,
+                "relationships_created": relationships_created_total,
+                "errors": errors_total,
+                "extraction_errors": extraction_errors_total,
+            }
+        )
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()
@@ -959,32 +860,15 @@ def kg_merge_entities_job(self, job_id: str):
                         )
                         try:
                             knowledge_graph_service.create_relationship(create_request)
-                        except Exception as rel_error:
-                            # Duplicate-relationship inserts are expected while
-                            # re-pointing edges onto the primary; log at debug so
-                            # a genuine create failure isn't fully invisible.
-                            logger.debug(
-                                "Skipped relationship insert during entity merge: %s",
-                                rel_error,
-                                exc_info=True,
-                            )
+                        except Exception:
+                            # Ignore duplicate relationship insertion errors
+                            pass
 
                     knowledge_graph_service.delete_entity(duplicate_id)
 
                 success_count += 1
-            except Exception as merge_error:
-                # A group that fails to merge was previously counted but never
-                # logged, so the cause was invisible while the job still reported
-                # COMPLETED. Log which group failed and why.
+            except Exception:
                 failure_count += 1
-                logger.warning(
-                    "Failed to merge entity group %s/%s (primary %s): %s",
-                    index + 1,
-                    total_groups,
-                    primary_id,
-                    merge_error,
-                    exc_info=True,
-                )
 
         job.update_progress("Finalizing merge job", 95)
         job.complete_job(
@@ -997,8 +881,6 @@ def kg_merge_entities_job(self, job_id: str):
         db.commit()
         return {"status": "completed", "job_id": job_id}
     except Exception as e:
-        # Roll back a possibly-poisoned session before writing fail state.
-        db.rollback()
         if "job" in locals() and job:
             job.fail_job(str(e), error_type=type(e).__name__)
             db.commit()
@@ -1045,14 +927,9 @@ def cleanup_old_jobs():
 # Periodic tasks
 from celery.schedules import crontab
 
-# Merge (not assign) — every task module shares one app.conf.beat_schedule, so a
-# full `= {...}` here is clobbered by whichever module Celery imports last
-# (include order in celery_app.py). .update() lets all modules' schedules coexist.
-current_app.conf.beat_schedule.update(
-    {
-        "cleanup-old-jobs": {
-            "task": "src.tasks.processing_tasks.cleanup_old_jobs",
-            "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
-        },
-    }
-)
+current_app.conf.beat_schedule = {
+    "cleanup-old-jobs": {
+        "task": "src.tasks.processing_tasks.cleanup_old_jobs",
+        "schedule": crontab(hour=2, minute=0),  # Run daily at 2 AM
+    },
+}

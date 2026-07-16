@@ -463,28 +463,28 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
   const getInsightColor = (type: Insight['type']) => {
     switch (type) {
       case 'opportunity':
-        return 'text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 border-(--nous-sol)/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'warning':
-        return 'text-(--nous-corona) bg-(--nous-corona)/10 border-(--nous-corona)/30';
+        return 'text-[var(--nous-corona)] bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30';
       case 'trend':
-        return 'text-(--nous-terra) bg-(--nous-terra)/10 border-(--nous-terra)/30';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'achievement':
-        return 'text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 border-(--nous-sol)/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       default:
-        return 'text-foreground bg-(--nous-bg-2) border-border';
+        return 'text-foreground bg-[var(--nous-bg-2)] border-border';
     }
   };
 
   const getImpactColor = (impact: Insight['impact']) => {
     switch (impact) {
       case 'high':
-        return 'bg-(--nous-mars)/15 text-(--nous-mars)';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       case 'medium':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'low':
-        return 'bg-(--nous-terra)/15 text-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       default:
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
@@ -538,8 +538,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="shrink-0">
-                <UserGroupIcon className="h-8 w-8 text-(--nous-fg-accent-safe)" />
+              <div className="flex-shrink-0">
+                <UserGroupIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -559,8 +559,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="shrink-0">
-                <ShareIcon className="h-8 w-8 text-(--nous-terra)" />
+              <div className="flex-shrink-0">
+                <ShareIcon className="h-8 w-8 text-[var(--nous-terra)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -581,8 +581,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="shrink-0">
-                <DocumentTextIcon className="h-8 w-8 text-(--nous-fg-accent-safe)" />
+              <div className="flex-shrink-0">
+                <DocumentTextIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -602,8 +602,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="shrink-0">
-                <GlobeAltIcon className="h-8 w-8 text-(--nous-corona)" />
+              <div className="flex-shrink-0">
+                <GlobeAltIcon className="h-8 w-8 text-[var(--nous-corona)]" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-muted-foreground">
@@ -662,8 +662,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
-                  <div className="text-lg font-bold text-(--nous-terra)">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-lg font-bold text-[var(--nous-terra)]">
                     {statistics.qualityMetrics.highConfidenceEntities}
                   </div>
                   <div className="text-sm text-foreground">
@@ -673,8 +673,8 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                     &gt;80% confidence
                   </div>
                 </div>
-                <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
-                  <div className="text-lg font-bold text-(--nous-corona)">
+                <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
+                  <div className="text-lg font-bold text-[var(--nous-corona)]">
                     {statistics.qualityMetrics.questionableEntities}
                   </div>
                   <div className="text-sm text-foreground">
@@ -731,19 +731,19 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.avgPathLength.toFixed(1)}
               </div>
               <div className="text-sm text-foreground">Avg Path Length</div>
             </div>
-            <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.diameter}
               </div>
               <div className="text-sm text-foreground">Graph Diameter</div>
             </div>
-            <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.clusteringCoefficient.toFixed(
                   3
@@ -753,7 +753,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                 Clustering Coefficient
               </div>
             </div>
-            <div className="text-center p-4 bg-(--nous-bg-2) rounded-lg">
+            <div className="text-center p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <div className="text-lg font-bold">
                 {statistics.connectivityMetrics.components}
               </div>
@@ -762,10 +762,10 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
           </div>
 
           {statistics.connectivityMetrics.isolatedNodes > 0 && (
-            <div className="mt-4 p-3 bg-(--nous-corona)/10 border border-(--nous-corona)/30 rounded-lg">
+            <div className="mt-4 p-3 bg-[var(--nous-corona)]/10 border border-[var(--nous-corona)]/30 rounded-lg">
               <div className="flex items-center space-x-2">
-                <ExclamationTriangleIcon className="h-5 w-5 text-(--nous-corona)" />
-                <span className="text-sm text-(--nous-corona)">
+                <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-corona)]" />
+                <span className="text-sm text-[var(--nous-corona)]">
                   {statistics.connectivityMetrics.isolatedNodes} isolated
                   entities found
                 </span>
@@ -826,7 +826,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                     )}
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="shrink-0 mt-1">
+                      <div className="flex-shrink-0 mt-1">
                         <InsightIcon className="h-5 w-5" />
                       </div>
                       <div className="flex-1">
@@ -860,7 +860,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                                       key={index}
                                       className="flex items-start space-x-2"
                                     >
-                                      <span className="text-(--nous-fg-accent-safe) mt-1">
+                                      <span className="text-[var(--nous-fg-accent-safe)] mt-1">
                                         •
                                       </span>
                                       <span>{suggestion}</span>
@@ -872,7 +872,7 @@ export const GraphInsightsDashboard: React.FC<GraphInsightsDashboardProps> = ({
                           )}
                       </div>
 
-                      <div className="shrink-0">
+                      <div className="flex-shrink-0">
                         <Button variant="ghost" size="sm">
                           <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                         </Button>

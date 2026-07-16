@@ -15,7 +15,7 @@ from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import (
     AlertSeverity,
@@ -66,7 +66,7 @@ class QualityMetricsService:
         Collect quality metrics for a search query
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
             metrics = []
 
             # Calculate various quality metrics
@@ -90,7 +90,7 @@ class QualityMetricsService:
                     search_type=search_type,
                     user_id=user_id if user_id != "anonymous" else None,
                     organization_id=organization_id,
-                    evaluation_metadata=calc.metadata,
+                    metadata=calc.metadata,
                     threshold_min=threshold.threshold_min if threshold else None,
                     threshold_max=threshold.threshold_max if threshold else None,
                     measured_at=datetime.utcnow(),
@@ -364,7 +364,7 @@ class QualityMetricsService:
         Background processing for metrics (aggregation, analytics, etc.)
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Update aggregations for each metric
             for metric in metrics:
@@ -447,17 +447,12 @@ class QualityMetricsService:
         Create or update a search session
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
-            # Look for an existing session OWNED BY THE CALLER'S ORG. session_id
-            # is globally unique, so scoping the lookup prevents mutating another
-            # tenant's session.
+            # Look for existing session
             session = (
                 db.query(SearchSession)
-                .filter(
-                    SearchSession.session_id == session_id,
-                    SearchSession.organization_id == organization_id,
-                )
+                .filter(SearchSession.session_id == session_id)
                 .first()
             )
 
@@ -465,20 +460,6 @@ class QualityMetricsService:
                 # Update existing session
                 session.updated_at = datetime.utcnow()
             else:
-                # No session for this (session_id, org). Because session_id is
-                # globally unique, if a row exists under a DIFFERENT org the
-                # caller must neither adopt it (cross-tenant) nor INSERT (unique
-                # violation) — reject instead.
-                conflict = (
-                    db.query(SearchSession.id)
-                    .filter(SearchSession.session_id == session_id)
-                    .first()
-                )
-                if conflict is not None:
-                    raise ValueError(
-                        f"session_id {session_id} belongs to another organization"
-                    )
-
                 # Create new session
                 session = SearchSession(
                     session_id=session_id,
@@ -518,7 +499,7 @@ class QualityMetricsService:
         Record a search event for analytics
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Create search event
             event = SearchEvent(
@@ -537,14 +518,10 @@ class QualityMetricsService:
 
             db.add(event)
 
-            # Update session statistics — scoped to the caller's org so a known
-            # foreign session_id cannot bump another tenant's counters.
+            # Update session statistics
             session = (
                 db.query(SearchSession)
-                .filter(
-                    SearchSession.session_id == session_id,
-                    SearchSession.organization_id == organization_id,
-                )
+                .filter(SearchSession.session_id == session_id)
                 .first()
             )
 
@@ -577,7 +554,7 @@ class QualityMetricsService:
         Get quality metrics for analytics
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             query = db.query(QualityMetric).filter(
                 QualityMetric.organization_id == organization_id
@@ -610,7 +587,7 @@ class QualityMetricsService:
         Get aggregated metrics for dashboard
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             query = db.query(MetricAggregation).filter(
                 and_(
@@ -647,7 +624,7 @@ class QualityMetricsService:
         Get active quality alerts
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             query = db.query(QualityAlert).filter(
                 and_(
@@ -665,27 +642,14 @@ class QualityMetricsService:
             logger.error(f"Error getting active alerts: {e}")
             return []
 
-    def acknowledge_alert(
-        self, alert_id: str, acknowledged_by: str, organization_id: str
-    ) -> bool:
+    def acknowledge_alert(self, alert_id: str, acknowledged_by: str) -> bool:
         """
-        Acknowledge a quality alert.
-
-        ``organization_id`` (the caller's own org) scopes the lookup so a
-        client-supplied ``alert_id`` can only acknowledge the caller's tenant's
-        alerts — never another org's.
+        Acknowledge a quality alert
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
-            alert = (
-                db.query(QualityAlert)
-                .filter(
-                    QualityAlert.id == alert_id,
-                    QualityAlert.organization_id == organization_id,
-                )
-                .first()
-            )
+            alert = db.query(QualityAlert).filter(QualityAlert.id == alert_id).first()
 
             if alert:
                 alert.status = "acknowledged"
@@ -713,7 +677,7 @@ class QualityMetricsService:
         Get search analytics summary
         """
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Default to last 7 days if no time range specified
             if not end_time:

@@ -128,7 +128,7 @@ DATABASE_URL="$SUPABASE_DB_URL" alembic upgrade head
 
 ```bash
 # Run Neo4j setup (requires cypher-shell)
-cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4j_password_123 -f database/init/02_neo4j_setup.cypher
+cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED -f database/init/02_neo4j_setup.cypher
 ```
 
 #### Redis Setup (Local Dev)
@@ -138,8 +138,8 @@ cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4j_password_123 -f database
 redis-cli -h localhost -p 6379 ping
 
 # Fix password configuration if needed
-docker exec rag-redis-1 redis-cli CONFIG SET requirepass "redis_password_123"
-docker exec rag-redis-1 redis-cli AUTH redis_password_123
+docker exec rag-redis-1 redis-cli CONFIG SET requirepass "REDACTED"
+docker exec rag-redis-1 redis-cli AUTH REDACTED
 ```
 
 #### DO Knowledge Base
@@ -175,7 +175,7 @@ redis-cli -h localhost -p 6379 ping
 #### Neo4j
 
 ```bash
-echo "RETURN 1;" | cypher-shell -a bolt://localhost:7687 -u neo4j -p neo4j_password_123
+echo "RETURN 1;" | cypher-shell -a bolt://localhost:7687 -u neo4j -p REDACTED
 ```
 
 ## Database Statistics
@@ -201,7 +201,7 @@ SUPABASE_DB_URL="postgresql://..."   # Supabase connection string
 # Neo4j
 NEO4J_URI="bolt://localhost:7687"    # dev; prod: bolt://neo4j.gen-text.app
 NEO4J_USER="neo4j"
-NEO4J_PASSWORD="neo4j_password_123"
+NEO4J_PASSWORD="REDACTED"
 
 # Redis
 REDIS_URL="redis://localhost:6379/0" # dev; prod: DO Managed Redis URL
@@ -292,20 +292,20 @@ docker exec -it rag-postgres-1 psql -U postgres -d multimodal_rag_dev
 
 ```bash
 # Reset Redis password (dev)
-docker exec rag-redis-1 redis-cli CONFIG SET requirepass "redis_password_123"
+docker exec rag-redis-1 redis-cli CONFIG SET requirepass "REDACTED"
 
 # Test connection
-docker exec rag-redis-1 redis-cli AUTH redis_password_123
+docker exec rag-redis-1 redis-cli AUTH REDACTED
 ```
 
 #### Neo4j Connection Issues
 
 ```bash
 # Check Neo4j status
-docker exec rag-neo4j-1 cypher-shell -u neo4j -p neo4j_password_123 "RETURN 1"
+docker exec rag-neo4j-1 cypher-shell -u neo4j -p REDACTED "RETURN 1"
 
 # Reset password if needed
-docker exec rag-neo4j-1 cypher-shell -u neo4j "ALTER CURRENT USER SET PASSWORD FROM 'old_password' TO 'neo4j_password_123'"
+docker exec rag-neo4j-1 cypher-shell -u neo4j "ALTER CURRENT USER SET PASSWORD FROM 'old_password' TO 'REDACTED'"
 ```
 
 #### DO Knowledge Base Issues

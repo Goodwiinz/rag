@@ -91,7 +91,7 @@ export function AppNavbar() {
     <Navbar02
       logo={
         <div className="flex items-center gap-2 font-bold text-xl">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-xs">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shadow-sm">
             R
           </div>
           <span className="text-primary">RAG System</span>

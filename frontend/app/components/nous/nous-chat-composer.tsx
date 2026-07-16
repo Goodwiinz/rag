@@ -52,7 +52,7 @@ export function NousChatComposer({
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         aria-label="Ask NOUS"
-        className="w-full bg-transparent outline-hidden"
+        className="w-full bg-transparent outline-none"
         style={{
           fontFamily: 'var(--nous-font-body)',
           fontSize: '18px',

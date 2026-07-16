@@ -40,14 +40,14 @@ function healthIcon(health: string) {
   if (health === 'green')
     return (
       <CheckCircle2
-        className="h-4 w-4 text-(--nous-terra)"
+        className="h-4 w-4 text-[var(--nous-terra)]"
         aria-hidden="true"
       />
     );
   if (health === 'yellow')
     return (
       <AlertTriangle
-        className="h-4 w-4 text-(--nous-corona)"
+        className="h-4 w-4 text-[var(--nous-corona)]"
         aria-hidden="true"
       />
     );
@@ -213,7 +213,7 @@ function QueryExplorer() {
                 aria-pressed={isSelected}
                 className={cn(
                   'w-full rounded-md border p-2 text-left text-sm transition-colors',
-                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40',
                   isSelected
                     ? 'border-primary bg-primary/10'
                     : 'border-border hover:bg-muted/50'
@@ -293,7 +293,7 @@ function QueryExplorer() {
                         {src.avg_score.toFixed(3)}
                       </div>
                       {src.error && (
-                        <div className="mt-1 wrap-break-word text-xs text-destructive">
+                        <div className="mt-1 break-words text-xs text-destructive">
                           {src.error}
                         </div>
                       )}
@@ -382,7 +382,7 @@ function QueryExplorer() {
                                     className={cn(
                                       'text-right',
                                       d.delta > 0
-                                        ? 'text-(--nous-terra)'
+                                        ? 'text-[var(--nous-terra)]'
                                         : d.delta < 0
                                           ? 'text-destructive'
                                           : 'text-muted-foreground'
@@ -462,7 +462,7 @@ function FindingCard({ finding }: { finding: Finding }) {
     finding.severity === 'high'
       ? 'border-destructive/40'
       : finding.severity === 'medium'
-        ? 'border-(--nous-corona)/40'
+        ? 'border-[var(--nous-corona)]/40'
         : 'border-border';
 
   const severityLabel =
@@ -531,7 +531,7 @@ function QualityOverview() {
       </label>
       <select
         id="quality-window"
-        className="min-h-[44px] rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40 sm:min-h-0 sm:px-2 sm:py-1"
+        className="min-h-[44px] rounded-md border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40 sm:min-h-0 sm:px-2 sm:py-1"
         value={hours}
         onChange={(e) => setHours(Number(e.target.value))}
       >

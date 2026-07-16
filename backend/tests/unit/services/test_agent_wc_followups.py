@@ -202,6 +202,10 @@ async def test_resume_proceeds_when_interrupt_present():
             new=AsyncMock(return_value=None),
         ),
         patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.api.agent.jobs._persist_thread_messages",
+            new=AsyncMock(return_value=("", "")),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 

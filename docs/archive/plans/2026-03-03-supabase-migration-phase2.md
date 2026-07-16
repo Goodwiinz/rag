@@ -154,7 +154,7 @@ psql postgresql://postgres:postgres@127.0.0.1:54322/postgres \
 curl -X POST http://localhost:54321/auth/v1/token?grant_type=password \
   -H "apikey: <ANON_KEY>" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@multimodal-rag.com","password":"admin123"}'
+  -d '{"email":"admin@multimodal-rag.com","password":"REDACTED"}'
 ```
 
 Expected: Returns Supabase JWT with access_token and refresh_token.

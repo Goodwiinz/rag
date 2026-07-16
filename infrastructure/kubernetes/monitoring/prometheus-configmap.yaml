@@ -148,6 +148,15 @@ data:
           service: 'neo4j'
           component: 'graphdb'
 
+      # Qdrant metrics
+      - job_name: 'qdrant'
+        static_configs:
+          - targets: ['qdrant:6333']
+        metrics_path: /metrics
+        scrape_interval: 30s
+        labels:
+          service: 'qdrant'
+          component: 'vectordb'
 
       # WebSocket custom metrics
       - job_name: 'websocket-metrics'
@@ -278,6 +287,16 @@ data:
               summary: "High Neo4j memory usage"
               description: "Memory usage: {{ $value }}%"
 
+          # Qdrant disk alert
+          - alert: QdrantHighDiskUsage
+            expr: qdrant_storage_disk_usage_percent > 80
+            for: 5m
+            labels:
+              severity: warning
+              service: qdrant
+            annotations:
+              summary: "High Qdrant disk usage"
+              description: "Disk usage: {{ $value }}%"
 
           # Health check failures
           - alert: HealthCheckFailure
@@ -401,6 +420,15 @@ data:
               description: "Cache hit rate: {{ $value }}"
 
           # Vector database latency
+          - alert: QdrantLatency
+            expr: histogram_quantile(0.95, rate(qdrant_request_duration_seconds_bucket[5m])) > 2
+            for: 5m
+            labels:
+              severity: warning
+              service: qdrant
+            annotations:
+              summary: "High Qdrant latency"
+              description: "95th percentile latency: {{ $value }}s"
 
           # Message queue backlog
           - alert: MessageQueueBacklog

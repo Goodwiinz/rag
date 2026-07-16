@@ -11,7 +11,7 @@ from fastapi import Depends
 from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.exceptions.analytics_exceptions import (
     ConfigurationException,
     PermissionDeniedException,
@@ -639,20 +639,13 @@ class RBACService:
             logger.error(f"Failed to get users for role {role_id}: {e}")
             return []
 
-    def cleanup_expired_assignments(self, organization_id: str) -> int:
-        """Clean up expired role assignments for a single organization.
-
-        Scoped to ``organization_id`` (tenant isolation): without it the UPDATE
-        deactivates every org's expired assignments, so one tenant's admin
-        mutates other tenants' rows. Callers pass the authenticated caller's org,
-        never client input.
-        """
+    def cleanup_expired_assignments(self) -> int:
+        """Clean up expired role assignments"""
         try:
             expired_count = (
                 self.db.query(UserRoleAssignment)
                 .filter(
                     and_(
-                        UserRoleAssignment.organization_id == organization_id,
                         UserRoleAssignment.is_active == True,
                         UserRoleAssignment.expires_at < datetime.utcnow(),
                     )
@@ -712,14 +705,8 @@ class RBACService:
 # Utility functions
 
 
-def get_rbac_service(db: Session = Depends(get_db_sync)) -> RBACService:
-    """Get RBAC service instance.
-
-    Injects the *sync* session: ``RBACService`` is entirely synchronous
-    (``self.db.query``/``.execute``/``.commit``). The async ``get_db`` would hand
-    it an ``AsyncSession``, whose sync ``.query`` raises ``AttributeError`` — so
-    every ``/api/v1/rbac`` endpoint that touches the DB 500'd.
-    """
+def get_rbac_service(db: Session = Depends(get_db)) -> RBACService:
+    """Get RBAC service instance"""
     return RBACService(db)
 
 

@@ -323,11 +323,10 @@ async def run_scenario(
 ) -> TurnResult:
     """Drive one agent scenario with a real DB session + user.
 
-    HITL auto-confirm: on a pending interrupt (detected via the returned
-    ``__interrupt__`` state, or ``GraphInterrupt`` as a defensive fallback)
-    we resume with ``Command(resume={"confirmed": True})`` up to
-    ``MAX_HITL_RESUMES`` times so destructive tools (create_project / ingest)
-    actually execute rather than hanging on the interrupt.
+    HITL auto-confirm: on ``GraphInterrupt`` we resume with
+    ``Command(resume={"confirmed": True})`` up to ``MAX_HITL_RESUMES``
+    times so destructive tools (create_project / ingest) actually execute
+    rather than hanging on the interrupt.
 
     The scenario result is logged regardless of error; exceptions are
     swallowed so a single failure never aborts the whole sweep.
@@ -417,25 +416,9 @@ async def run_scenario(
         async with asyncio.timeout(SCENARIO_TIMEOUT_S):
             final_state = await graph.ainvoke(initial_state, config=config)
     except GraphInterrupt:
-        # Defensive fallback only. With a checkpointer attached (this graph
-        # always has one — real Postgres or the MemorySaver fallback, never
-        # None), LangGraph's interrupt() returns `__interrupt__` in the state
-        # rather than raising — proven in
-        # tests/unit/agent/test_interrupt_ainvoke_semantics.py. Before this
-        # fix, this was the ONLY detection path, so create_project/ingest
-        # (the two expect_interrupt=True scenarios) silently never triggered
-        # the resume loop below across every sampled run.
-        interrupted = True
-    except Exception as exc:  # noqa: BLE001
-        error = f"{type(exc).__name__}: {exc}"
-
-    # Primary interrupt detection: check the state ainvoke() actually
-    # returned. Mirrors the real, working mechanism streaming.py uses
-    # (aget_state + snapshot.tasks[*].interrupts) for the SSE path.
-    if not error and (interrupted or final_state.get("__interrupt__")):
         interrupted = True
         # Auto-confirm HITL interrupts so destructive tools actually execute
-        while interrupted and resumes < MAX_HITL_RESUMES:
+        while resumes < MAX_HITL_RESUMES:
             resumes += 1
             log.info(
                 "synthetic_traffic.hitl",
@@ -447,13 +430,16 @@ async def run_scenario(
                     final_state = await graph.ainvoke(
                         Command(resume={"confirmed": True}), config=config
                     )
-                interrupted = bool(final_state.get("__interrupt__"))
+                interrupted = False
+                break
             except GraphInterrupt:
                 interrupted = True
                 continue
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
                 break
+    except Exception as exc:  # noqa: BLE001
+        error = f"{type(exc).__name__}: {exc}"
 
     wall = time.perf_counter() - t0
 

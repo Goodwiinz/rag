@@ -57,6 +57,14 @@ spec:
       ports:
         - protocol: TCP
           port: 7687
+    # Qdrant (in-cluster)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
     # HTTPS outbound (APIs: Cohere, OpenAI, Supabase, DO Spaces)
     - to:
         - ipBlock:

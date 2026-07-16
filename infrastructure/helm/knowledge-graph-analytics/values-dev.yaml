@@ -30,7 +30,7 @@ backend:
   replicaCount: 1
   image:
     repository: registry.digitalocean.com/ragsystemregistry/backend
-    tag: "5ecf396"
+    tag: "c1d01b8"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -130,13 +130,6 @@ backend:
       value: "rag-agent-dev"
     - name: LANGCHAIN_PROJECT
       value: "rag-agent-dev"
-    # Server-canonical persistence rollout (PR 4a, dev soak): the backend
-    # persists the assistant row synchronously before `done` and returns the
-    # persisted ids in the done payload (#986). Inert for legacy clients —
-    # mode is chosen by which thread_id the client sends. The frontend half
-    # is NEXT_PUBLIC_SERVER_CANONICAL_CHAT on the Vercel dev project (#993).
-    - name: AGENT_CANONICAL_PERSISTENCE
-      value: "true"
     - name: SENTRY_TRACES_SAMPLE_RATE
       value: "1.0"
     - name: SENTRY_PROFILES_SAMPLE_RATE
@@ -208,6 +201,7 @@ backend:
     # like the chat_messages.tool_executions UndefinedColumnError seen in dev.
     runMigrations: true
     waitForNeo4j: false
+    waitForQdrant: false
 # ──────────────────────────────────────────────
 # All databases are external (DO Managed)
 # ──────────────────────────────────────────────
@@ -240,6 +234,25 @@ neo4j:
       requests:
         cpu: 250m
         memory: 2Gi
+qdrant:
+  enabled: true
+  persistence:
+    size: 5Gi
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  config:
+    service:
+      api_key: ""
+      http_port: 6333
+      grpc_port: 6334
+  backup:
+    enabled: true
+    schedule: "0 3 * * 0" # Weekly Sunday 3am
 celeryWorker:
   enabled: true
   replicaCount: 1

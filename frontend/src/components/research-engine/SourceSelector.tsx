@@ -54,7 +54,7 @@ export function SourceSelector({
             'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors',
             'bg-background border-border text-foreground',
             'hover:border-primary/40 hover:bg-muted/50',
-            'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >
@@ -79,7 +79,7 @@ export function SourceSelector({
                 disabled={isLastSelected}
                 className={cn(
                   'flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left text-sm transition-colors',
-                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isSelected
                     ? 'text-foreground bg-muted/60'
                     : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',

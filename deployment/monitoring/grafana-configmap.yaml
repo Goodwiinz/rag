@@ -28,7 +28,7 @@ data:
     path = /var/lib/grafana/grafana.db
 
     [security]
-    admin_password = admin123
+    admin_password = REDACTED
     admin_user = admin
     disable_initial_admin_creation = true
     secret_key = GF_SECRET_KEY

@@ -1,11 +1,8 @@
 """
-Hybrid Search Service that combines full-text and knowledge-graph search results.
-
-The Qdrant vector arm was retired (no vector backend is deployed); ``HYBRID``
-now fuses full-text and knowledge-graph sources, and ``SEMANTIC`` maps to
-full-text.
+Hybrid Search Service that combines vector, graph, and full-text search results
 """
 
+import asyncio
 import inspect
 import logging
 import statistics
@@ -449,14 +446,13 @@ class HybridSearchService:
         """
         sources = []
 
-        # Vector search was removed (Qdrant retired); SEMANTIC now maps to
-        # full-text so a valid enum value never yields an empty result set.
-        if search_request.search_type in [
-            SearchType.FULLTEXT,
-            SearchType.SEMANTIC,
-            SearchType.HYBRID,
-        ]:
+        # Always include full-text search for text queries
+        if search_request.search_type in [SearchType.FULLTEXT, SearchType.HYBRID]:
             sources.append(SearchSourceType.FULLTEXT)
+
+        # Include vector search for semantic similarity
+        if search_request.search_type in [SearchType.SEMANTIC, SearchType.HYBRID]:
+            sources.append(SearchSourceType.VECTOR)
 
         # Include knowledge graph search for entity-based queries
         if search_request.search_type in [SearchType.HYBRID]:
@@ -478,6 +474,7 @@ class HybridSearchService:
         if search_request.search_type == SearchType.HYBRID and not sources:
             sources = [
                 SearchSourceType.FULLTEXT,
+                SearchSourceType.VECTOR,
                 SearchSourceType.KNOWLEDGE_GRAPH,
             ]
 
@@ -513,6 +510,17 @@ class HybridSearchService:
                     (
                         source_type,
                         self._execute_fulltext_search,
+                        search_request,
+                        user_id,
+                        organization_id,
+                        db,
+                    )
+                )
+            elif source_type == SearchSourceType.VECTOR:
+                search_tasks.append(
+                    (
+                        source_type,
+                        self._execute_vector_search,
                         search_request,
                         user_id,
                         organization_id,
@@ -617,6 +625,101 @@ class HybridSearchService:
             logger.error(f"Full-text search failed: {e}")
             return SearchSourceResult(
                 source_type=SearchSourceType.FULLTEXT,
+                results=[],
+                search_time_ms=0,
+                total_available=0,
+                success=False,
+                error=str(e),
+            )
+
+    def _execute_vector_search(
+        self,
+        search_request: SearchQuery,
+        user_id: str,
+        organization_id: str,
+        db: Session = None,
+    ) -> SearchSourceResult:
+        """Execute vector similarity search"""
+        start_time = time.time()
+
+        try:
+            # Import and use vector search service
+            from .vector_search_service import vector_search_service
+
+            vector_result = asyncio.run(
+                vector_search_service.search_documents(
+                    query=search_request.query,
+                    organization_id=organization_id,
+                    limit=self.max_results_per_source,
+                    score_threshold=0.2,
+                )
+            )
+
+            # Convert to raw results
+            raw_results = []
+            for result in vector_result.results:
+                full_text = result.text or ""
+                result_metadata = dict(result.metadata.additional_data or {})
+                result_metadata.setdefault("full_text", full_text)
+                result_metadata.setdefault("text", full_text)
+                result_metadata.setdefault("source_type", "vector")
+
+                # Create SearchResult from VectorSearchResult
+                # Prefer actual document title from metadata over raw chunk text
+                vector_title = (
+                    result_metadata.get("document_title")
+                    or result_metadata.get("title")
+                    or result_metadata.get("filename")
+                    or "Untitled"
+                )
+                search_result = SearchResult(
+                    document_id=result.metadata.document_id,
+                    title=vector_title,
+                    document_type=DocumentType.TEXT,  # Default type
+                    content_preview=full_text[:300],
+                    snippets=[],
+                    relevance_score=result.score,
+                    file_size_bytes=0,
+                    created_at=result.metadata.timestamp,
+                    updated_at=result.metadata.timestamp,
+                    processing_status=ProcessingStatus.COMPLETED,
+                    tags=[],
+                    is_public=False,
+                    uploaded_by_user_id=user_id or "",
+                    organization_id=result.metadata.organization_id
+                    or organization_id
+                    or "",
+                    metadata=result_metadata,
+                )
+
+                raw_results.append(
+                    RawSearchResult(
+                        document_id=result.metadata.document_id,
+                        source_type=SearchSourceType.VECTOR,
+                        relevance_score=result.score,
+                        metadata={
+                            "original_score": result.score,
+                            "source": "vector",
+                            "similarity": result.score,
+                        },
+                        search_result=search_result,
+                    )
+                )
+
+            search_time_ms = (time.time() - start_time) * 1000
+
+            return SearchSourceResult(
+                source_type=SearchSourceType.VECTOR,
+                results=raw_results,
+                search_time_ms=search_time_ms,
+                total_available=vector_result.total_found,
+                success=True,
+            )
+
+        except Exception as e:
+            logger.error(f"Vector search failed: {e}")
+            return SearchSourceResult(
+                source_type=SearchSourceType.VECTOR,
                 results=[],
                 search_time_ms=0,
                 total_available=0,

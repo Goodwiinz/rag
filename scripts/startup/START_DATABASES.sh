@@ -86,6 +86,9 @@ start_databases() {
     print_status "Starting Neo4j..."
     docker-compose up -d neo4j
 
+    print_status "Starting Qdrant..."
+    docker-compose up -d qdrant
+
     print_status "Starting Redis..."
     docker-compose up -d redis
 
@@ -133,6 +136,24 @@ wait_for_databases() {
         docker logs rag-neo4j | tail -5
     fi
 
+    # Wait for Qdrant
+    print_status "Waiting for Qdrant..."
+    local qdrant_ready=false
+    for i in {1..30}; do
+        if curl -f http://localhost:6333/collections &>/dev/null; then
+            print_status "Qdrant is ready ✓"
+            qdrant_ready=true
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+
+    if [ "$qdrant_ready" = false ]; then
+        print_warning "Qdrant might not be ready yet"
+        docker logs rag-qdrant | tail -5
+    fi
+
     # Wait for Redis
     if docker exec rag-redis redis-cli ping &>/dev/null; then
         print_status "Redis is ready ✓"
@@ -164,6 +185,12 @@ test_connections() {
         print_warning "Redis connection test failed"
     fi
 
+    # Test Qdrant
+    if curl -f http://localhost:6333/collections &>/dev/null; then
+        print_status "Qdrant connection test passed ✓"
+    else
+        print_warning "Qdrant connection test failed"
+    fi
 }
 
 # Display status
@@ -173,12 +200,14 @@ display_status() {
     echo -e "${GREEN}📊 Services Status:${NC}"
     echo "  • PostgreSQL:          $(docker ps --format "{{.Names}}" | grep postgres | head -1 || echo "Not running")"
     echo "  • Neo4j:              $(docker ps --format "{{.Names}}" | grep neo4j | head -1 || echo "Not running")"
+    echo "  • Qdrant:             $(docker ps --format "{{.Names}}" | grep qdrant | head -1 || echo "Not running")"
     echo "  • Redis:              $(docker ps --format "{{.Names}}" | grep redis | head -1 || echo "Not running")"
     echo ""
     echo -e "${GREEN}🌐 Access URLs:${NC}"
     echo "  • PostgreSQL:          localhost:5432"
     echo "  • Neo4j Browser:       http://localhost:7474"
     echo "  • Neo4j Bolt:         bolt://localhost:7687"
+    echo "  • Qdrant Dashboard:    http://localhost:6333"
     echo "  • Redis CLI:          docker exec -it rag-redis redis-cli"
     echo ""
     echo -e "${GREEN}📝 Next Steps:${NC}"

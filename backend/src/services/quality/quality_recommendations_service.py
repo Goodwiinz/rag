@@ -16,7 +16,7 @@ from sqlalchemy import and_, asc, desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from src.core.config import settings
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.models.document import Document
 from src.models.quality import QualityMetric
 from src.models.quality_metrics import MetricAggregation, QualityAlert, QualityThreshold
@@ -634,7 +634,7 @@ class QualityRecommendationsService:
     ) -> List[QualityInsight]:
         """Analyze relevance metric insights"""
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Get relevance metrics
             relevance_data = db.execute(
@@ -740,7 +740,7 @@ class QualityRecommendationsService:
     ) -> List[QualityInsight]:
         """Analyze response time insights"""
         try:
-            db = next(get_db_sync())
+            db = next(get_db())
 
             # Get response time from search queries
             response_time_data = db.execute(

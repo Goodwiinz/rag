@@ -7,11 +7,11 @@
 - **Port**: `5432`
 - **Database**: `ragdb`
 - **Username**: `raguser`
-- **Password**: `rag_password_123`
+- **Password**: `REDACTED`
 
 **Connection String:**
 ```
-postgresql://raguser:rag_password_123@localhost:5432/ragdb
+postgresql://raguser:REDACTED@localhost:5432/ragdb
 ```
 
 ---
@@ -24,10 +24,10 @@ postgresql://raguser:rag_password_123@localhost:5432/ragdb
 # Connect from your host machine
 psql -h localhost -p 5432 -U raguser -d ragdb
 
-# When prompted, enter password: rag_password_123
+# When prompted, enter password: REDACTED
 
 # Or use this one-liner (password in connection string)
-PGPASSWORD=rag_password_123 psql -h localhost -p 5432 -U raguser -d ragdb
+PGPASSWORD=REDACTED psql -h localhost -p 5432 -U raguser -d ragdb
 ```
 
 ### Method 2: Using Docker Exec (If psql not installed locally)
@@ -49,7 +49,7 @@ docker exec -it rag-postgres-1 psql -U raguser -d ragdb
    - Port: `5432`
    - Database: `ragdb`
    - Username: `raguser`
-   - Password: `rag_password_123`
+   - Password: `REDACTED`
 4. Test Connection → Finish
 
 #### **pgAdmin 4** (Free, Cross-platform)
@@ -62,7 +62,7 @@ docker exec -it rag-postgres-1 psql -U raguser -d ragdb
    - Port: `5432`
    - Database: `ragdb`
    - Username: `raguser`
-   - Password: `rag_password_123`
+   - Password: `REDACTED`
 5. Save
 
 #### **TablePlus** (Paid, macOS/Windows)
@@ -145,7 +145,7 @@ conn = psycopg2.connect(
     port=5432,
     database="ragdb",
     user="raguser",
-    password="rag_password_123"
+    password="REDACTED"
 )
 
 # Create cursor
@@ -168,7 +168,7 @@ from sqlalchemy import create_engine, text
 
 # Create engine
 engine = create_engine(
-    "postgresql://raguser:rag_password_123@localhost:5432/ragdb"
+    "postgresql://raguser:REDACTED@localhost:5432/ragdb"
 )
 
 # Test connection
@@ -189,7 +189,7 @@ async def connect():
         port=5432,
         database="ragdb",
         user="raguser",
-        password="rag_password_123"
+        password="REDACTED"
     )
     
     version = await conn.fetchval("SELECT version()")
@@ -323,8 +323,8 @@ docker exec -it rag-postgres-1 psql -U raguser -d ragdb
 \q                    # Quit
 
 # One-liner queries from host
-PGPASSWORD=rag_password_123 psql -h localhost -U raguser -d ragdb -c "SELECT version();"
-PGPASSWORD=rag_password_123 psql -h localhost -U raguser -d ragdb -c "\dt"
+PGPASSWORD=REDACTED psql -h localhost -U raguser -d ragdb -c "SELECT version();"
+PGPASSWORD=REDACTED psql -h localhost -U raguser -d ragdb -c "\dt"
 ```
 
 ---
@@ -335,7 +335,7 @@ PGPASSWORD=rag_password_123 psql -h localhost -U raguser -d ragdb -c "\dt"
 
 Current `.env` has:
 - Username: `raguser`
-- Password: `rag_password_123`
+- Password: `REDACTED`
 - Database: `ragdb`
 
 For production, use:

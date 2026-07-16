@@ -77,14 +77,14 @@ export function StepProgress({ step }: StepProgressProps) {
         return (
           <Check
             aria-hidden="true"
-            className="h-4 w-4 text-(--nous-terra)"
+            className="h-4 w-4 text-[var(--nous-terra)]"
           />
         );
       case 'error':
         return (
           <AlertCircle
             aria-hidden="true"
-            className="h-4 w-4 text-(--nous-mars)"
+            className="h-4 w-4 text-[var(--nous-mars)]"
           />
         );
     }
@@ -97,22 +97,22 @@ export function StepProgress({ step }: StepProgressProps) {
       case 'running':
         return 'border-primary/40';
       case 'complete':
-        return 'border-(--nous-terra)/40';
+        return 'border-[var(--nous-terra)]/40';
       case 'error':
-        return 'border-(--nous-mars)/40';
+        return 'border-[var(--nous-mars)]/40';
     }
   };
 
   return (
     <div
-      className={`rounded-xl border bg-card shadow-xs transition-colors ${statusBorder()}`}
+      className={`rounded-xl border bg-card shadow-sm transition-colors ${statusBorder()}`}
     >
       {/* Header row */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {expanded ? (
           <ChevronDown
@@ -149,7 +149,7 @@ export function StepProgress({ step }: StepProgressProps) {
             className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${
               step.mode === 'deterministic'
                 ? 'border-primary/20 bg-primary/10 text-primary'
-                : 'border-(--nous-helios)/20 bg-(--nous-helios)/10 text-(--nous-helios)'
+                : 'border-[var(--nous-helios)]/20 bg-[var(--nous-helios)]/10 text-[var(--nous-helios)]'
             }`}
           >
             {step.mode === 'deterministic' ? (
@@ -172,12 +172,12 @@ export function StepProgress({ step }: StepProgressProps) {
                 {mark.passed ? (
                   <Check
                     aria-hidden="true"
-                    className="h-3.5 w-3.5 text-(--nous-terra)"
+                    className="h-3.5 w-3.5 text-[var(--nous-terra)]"
                   />
                 ) : (
                   <X
                     aria-hidden="true"
-                    className="h-3.5 w-3.5 text-(--nous-mars)"
+                    className="h-3.5 w-3.5 text-[var(--nous-mars)]"
                   />
                 )}
                 <span className="sr-only">
@@ -203,9 +203,9 @@ export function StepProgress({ step }: StepProgressProps) {
           {step.errorMessage && (
             <div
               role="alert"
-              className="mt-3 rounded-lg border border-(--nous-mars)/30 bg-(--nous-mars)/10 p-3"
+              className="mt-3 rounded-lg border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-3"
             >
-              <p className="text-xs text-(--nous-mars)">
+              <p className="text-xs text-[var(--nous-mars)]">
                 {step.errorMessage}
               </p>
             </div>
@@ -261,12 +261,12 @@ export function StepProgress({ step }: StepProgressProps) {
                     {mark.passed ? (
                       <Check
                         aria-hidden="true"
-                        className="h-3 w-3 text-(--nous-terra)"
+                        className="h-3 w-3 text-[var(--nous-terra)]"
                       />
                     ) : (
                       <X
                         aria-hidden="true"
-                        className="h-3 w-3 text-(--nous-mars)"
+                        className="h-3 w-3 text-[var(--nous-mars)]"
                       />
                     )}
                     <span className="text-foreground">{mark.check_type}</span>
@@ -295,7 +295,7 @@ function PromptSection({ prompt }: { prompt: string }) {
         type="button"
         onClick={() => setShowPrompt(!showPrompt)}
         aria-expanded={showPrompt}
-        className="flex items-center gap-1 rounded text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        className="flex items-center gap-1 rounded text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
       >
         {showPrompt ? (
           <ChevronDown aria-hidden="true" className="h-3 w-3" />

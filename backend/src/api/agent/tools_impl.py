@@ -663,21 +663,14 @@ async def execute_tool(
 # ---------------------------------------------------------------------------
 
 
-# Two-layer cache for ``_tool_search_arxiv`` to avoid re-hitting arxiv.org's
-# per-IP 429 limiter. L1 is a per-process in-memory dict (fast; protects a
-# single planner firing 4 near-identical searches in <2 min — trace 019e1a5a).
-# L2 (defined after the stopword list) is a SHARED Redis cache so the 1-5 HPA
-# replicas + the synthetic CronJob reuse each other's results and near-duplicate
-# phrasings collapse to one normalized key. Redis-down degrades to L1 only.
-#
-# L2 entries live ``_ARXIV_CACHE_STALE_TTL`` seconds but only count as a FRESH
-# hit within ``_ARXIV_CACHE_FRESH_TTL``; the older band is the stale-on-429
-# fallback (serve the last known result when arXiv is rate-limited).
+# In-process TTL cache for ``_tool_search_arxiv``. Trace 019e1a5a showed
+# the planner firing 4 near-identical arXiv searches in <2 min, tripping
+# the upstream 429 limiter. Keying on the normalized query lets repeated
+# tool calls within ``_ARXIV_SEARCH_CACHE_TTL`` seconds reuse the prior
+# result instead of hammering arxiv.org.
 _ARXIV_SEARCH_CACHE: Dict[tuple, tuple[float, Dict[str, Any]]] = {}
-_ARXIV_CACHE_FRESH_TTL = 600.0  # 10 min: served as a fresh cache hit
-_ARXIV_CACHE_STALE_TTL = 1800  # 30 min: kept in Redis for the 429 stale fallback
+_ARXIV_SEARCH_CACHE_TTL = 600.0  # 10 minutes
 _ARXIV_SEARCH_CACHE_MAX = 64
-_ARXIV_CACHE_REDIS_PREFIX = "arxiv:search:"  # own namespace; NOT tenant-scoped search:
 
 
 def _arxiv_cache_key(
@@ -685,16 +678,9 @@ def _arxiv_cache_key(
     max_results: int,
     categories: Optional[List[str]],
     recency_days: int,
-    chronological: bool = False,
 ) -> tuple:
     cats = tuple(sorted(categories)) if categories else ()
-    return (
-        query.strip(),
-        int(max_results),
-        cats,
-        int(recency_days),
-        bool(chronological),
-    )
+    return (query.strip(), int(max_results), cats, int(recency_days))
 
 
 def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
@@ -704,7 +690,7 @@ def _arxiv_cache_get(key: tuple) -> Optional[Dict[str, Any]]:
     if not hit:
         return None
     ts, value = hit
-    if time.monotonic() - ts > _ARXIV_CACHE_FRESH_TTL:
+    if time.monotonic() - ts > _ARXIV_SEARCH_CACHE_TTL:
         _ARXIV_SEARCH_CACHE.pop(key, None)
         return None
     return value
@@ -770,121 +756,6 @@ def _sanitize_arxiv_query(q: str) -> str:
     return cleaned or q
 
 
-# --- L2: shared Redis cache (cross-pod dedup + normalized key + 429 stale) ---
-# arXiv results are public, so the L2 key is tenant-less (unlike core/cache's
-# tenant-scoped ``search:`` keys — hence the distinct ``arxiv:search:``
-# namespace). The KEY-ONLY normalization below collapses near-duplicate
-# phrasings; it does NOT change the query actually sent to arXiv.
-_ARXIV_CACHE_KEY_STOPWORDS = _ARXIV_STOPWORDS | {"arxiv"}
-_arxiv_redis_singleton: Any = None
-_arxiv_redis_init_failed = False
-
-
-async def _get_arxiv_redis() -> Any:
-    """Return ONE shared async Redis client, created lazily and reused.
-
-    ``get_redis_client()`` builds a fresh client + connection pool per call;
-    caching a single client avoids leaking a pool on every arXiv search. Any
-    failure (bad URL, no Redis) disables L2 for the process and the caller
-    degrades to the L1 in-memory cache + a live arXiv call.
-    """
-    global _arxiv_redis_singleton, _arxiv_redis_init_failed
-    if _arxiv_redis_singleton is not None:
-        return _arxiv_redis_singleton
-    if _arxiv_redis_init_failed:
-        return None
-    try:
-        from src.services.core.cache import get_redis_client
-
-        _arxiv_redis_singleton = await get_redis_client()
-        return _arxiv_redis_singleton
-    except Exception:
-        _arxiv_redis_init_failed = True
-        logger.debug("arXiv L2 Redis cache unavailable; using in-memory only")
-        return None
-
-
-def _normalize_cache_query(q: str) -> str:
-    """Key-only query normalization (does NOT change what is sent to arXiv):
-    lowercase, keep alnum/hyphen tokens, drop stopwords (incl 'arxiv'). Collapses
-    'Search arXiv for recent papers on X.' and 'recent papers on X' to the same
-    key so real + synthetic phrasings share one cache entry."""
-    tokens = re.findall(r"[a-z0-9-]+", q.lower())
-    kept = [t for t in tokens if t not in _ARXIV_CACHE_KEY_STOPWORDS]
-    return " ".join(kept) or q.strip().lower()
-
-
-def _arxiv_redis_key(
-    query: str,
-    max_results: int,
-    categories: Optional[List[str]],
-    recency_days: int,
-    chronological: bool,
-) -> str:
-    import hashlib
-
-    cats = ",".join(sorted(categories)) if categories else ""
-    raw = "|".join(
-        [
-            _normalize_cache_query(query),
-            str(int(max_results)),
-            cats,
-            str(int(recency_days)),
-            str(int(bool(chronological))),
-        ]
-    )
-    # usedforsecurity=False: this is a cache-key digest, not a security hash
-    # (Bandit B324). Collision resistance is irrelevant for a cache bucket.
-    digest = hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
-    return _ARXIV_CACHE_REDIS_PREFIX + digest
-
-
-async def _arxiv_redis_get(
-    redis_key: str, allow_stale: bool
-) -> Optional[Dict[str, Any]]:
-    """Read the L2 entry. Fresh (age < FRESH_TTL) always; older entries only
-    when ``allow_stale`` (the 429 fallback). None on any miss/Redis error."""
-    import time
-
-    client = await _get_arxiv_redis()
-    if client is None:
-        return None
-    try:
-        from src.services.core.cache import cache_get
-
-        entry = await cache_get(client, redis_key)
-    except Exception:
-        return None
-    if not isinstance(entry, dict) or "payload" not in entry:
-        return None
-    age = time.time() - float(entry.get("cached_at", 0) or 0)
-    if not allow_stale and age > _ARXIV_CACHE_FRESH_TTL:
-        return None
-    payload = entry.get("payload")
-    return payload if isinstance(payload, dict) else None
-
-
-async def _arxiv_redis_set(redis_key: str, payload: Dict[str, Any]) -> None:
-    """Store a successful payload with an embedded wall-clock ``cached_at`` and
-    the longer STALE_TTL, so the 429 fallback can serve it past the fresh window."""
-    import time
-
-    client = await _get_arxiv_redis()
-    if client is None:
-        return
-    try:
-        from src.services.core.cache import cache_set
-
-        await cache_set(
-            client,
-            redis_key,
-            {"payload": payload, "cached_at": time.time()},
-            ttl=_ARXIV_CACHE_STALE_TTL,
-        )
-    except Exception:
-        logger.debug("Failed to write arXiv cache entry to Redis", exc_info=True)
-
-
 async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     """Search arXiv for papers."""
     from datetime import datetime, timedelta, timezone
@@ -938,18 +809,8 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
     # Key on the original query + recency_days (an int that already captures
     # the window), NOT the date-filtered query whose minute-precision cutoff
     # changes every minute. (audit #14)
-    cache_key = _arxiv_cache_key(
-        original_query, max_results, categories, recency_days, chronological
-    )
-    redis_key = _arxiv_redis_key(
-        original_query, max_results, categories, recency_days, chronological
-    )
-    # Fresh lookup: L1 (per-process) then L2 (shared Redis). An L2 hit warms L1.
+    cache_key = _arxiv_cache_key(original_query, max_results, categories, recency_days)
     cached = _arxiv_cache_get(cache_key)
-    if cached is None:
-        cached = await _arxiv_redis_get(redis_key, allow_stale=False)
-        if cached is not None:
-            _arxiv_cache_set(cache_key, cached)
     if cached is not None:
         return {**cached, "cached": True}
 
@@ -975,36 +836,17 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
                         "pdf_url": p.get("pdf_url", ""),
                     }
                 )
-            payload = {
-                "papers": results,
-                "total": len(results),
-                "query": query,
-            }
-            if not results:
-                payload["warning"] = (
-                    "No arXiv papers matched the query within the "
-                    "recency window. Tell the user the search returned no "
-                    "results — do not claim a search was performed without "
-                    "naming that it was empty. Suggest broadening the "
-                    "query, widening recency_days, or removing categories."
-                )
+            payload = {"papers": results, "total": len(results), "query": query}
             _arxiv_cache_set(cache_key, payload)
-            await _arxiv_redis_set(redis_key, payload)
             return payload
     except Exception as e:
         logger.error("ArXiv search tool failed", exc_info=e)
-        # On 429 or other failure, serve the last known result so the LLM can
-        # proceed instead of looping: L1 any-age (bypasses the fresh check),
-        # then L2 stale (entries live STALE_TTL past the fresh window).
+        # On 429 or other failure, fall back to a stale cache hit (any TTL)
+        # so the LLM can proceed with prior results instead of looping.
         stale = _ARXIV_SEARCH_CACHE.get(cache_key)
-        stale_payload = (
-            stale[1]
-            if stale is not None
-            else await _arxiv_redis_get(redis_key, allow_stale=True)
-        )
-        if stale_payload is not None:
+        if stale is not None:
             return {
-                **stale_payload,
+                **stale[1],
                 "cached": True,
                 "stale": True,
                 "warning": f"ArXiv unavailable ({e}); returned cached results.",
@@ -1121,7 +963,6 @@ async def _tool_ingest_arxiv(
                     failed_papers[pid] = "PDF download or content extraction failed"
 
             document_ids = []
-            kb_sync_failed = False
             if ingested and current_user:
                 # Use a fresh DB session to avoid concurrency issues with the
                 # shared graph session (same pattern as _tool_add_document_to_project).
@@ -1161,24 +1002,6 @@ async def _tool_ingest_arxiv(
                                 await fresh_db.flush()
                                 document_ids.append(str(document.id))
                                 persisted_documents.append(document)
-
-                            # Build search_vector so these COMPLETED docs are
-                            # findable — without it the NULL tsvector never
-                            # matches plainto_tsquery and the papers are
-                            # invisible to doc search / RAG.
-                            try:
-                                from src.services.search.fulltext_search_service import (
-                                    fulltext_search_service,
-                                )
-
-                                await fulltext_search_service.async_update_document_search_vectors(
-                                    document_ids, fresh_db
-                                )
-                            except Exception as vec_err:  # noqa: BLE001
-                                logger.warning(
-                                    "arxiv ingest: search_vector update failed: %s",
-                                    vec_err,
-                                )
                             # begin() auto-commits on exit
                     logger.info(
                         "Ingested %d documents to DB: %s",
@@ -1210,7 +1033,6 @@ async def _tool_ingest_arxiv(
                                 await sync_documents_to_kb(kb_db, merged)
                                 await kb_db.commit()
                         except Exception as kb_err:  # noqa: BLE001
-                            kb_sync_failed = True
                             logger.warning(
                                 "do_kb dual-write skipped for arxiv ingest: %s", kb_err
                             )
@@ -1302,17 +1124,6 @@ async def _tool_ingest_arxiv(
             if link_error and status == INGEST_STATUS_COMPLETE:
                 status = INGEST_STATUS_COMPLETE_LINK_FAILED
 
-            # The KB dual-write is best-effort, but the agent must not imply the
-            # papers reached the DO KB when it silently failed. Doc search still
-            # works (search_vector is built above), so this is a note, not a
-            # failure — surface it so the LLM stays honest.
-            if kb_sync_failed and ingested_count > 0:
-                message += (
-                    " Note: knowledge-base sync did not complete, so these "
-                    "papers are searchable via document search but may not yet "
-                    "appear in knowledge-base retrieval."
-                )
-
             failed_papers_list = [
                 {"paper_id": pid, "reason": reason}
                 for pid, reason in failed_papers.items()
@@ -1335,7 +1146,6 @@ async def _tool_ingest_arxiv(
                 "project_id": linked_project_id,
                 "project_name": linked_project_name,
                 "link_error": link_error,
-                "kb_sync_failed": kb_sync_failed,
                 "message": message,
             }
     except Exception as e:
@@ -1435,36 +1245,10 @@ async def _tool_do_kb_retrieve(
         }
 
     try:
-        from src.services.do_kb import DOKnowledgeBaseError, get_do_kb_client
+        from src.services.do_kb import get_do_kb_client
 
         client = get_do_kb_client()
         result = await client.retrieve(kb_uuid=kb_uuid, query=query, top_k=top_k)
-    except DOKnowledgeBaseError as exc:
-        # A 404 means the KB was deleted on DO's side (permanent — needs a human
-        # to re-provision). Log distinctly at ERROR with org_id so it doesn't
-        # blend into ordinary transient failures; other codes stay at WARNING.
-        # Still return an empty result so the agent falls back cleanly.
-        if exc.status_code == 404:
-            logger.error(
-                "do_kb_retrieve 404 — knowledge base deleted/missing on DO's "
-                "side; retrieval permanently degraded until re-provisioned "
-                "(org_id=%s, kb_uuid=%s)",
-                current_user.organization_id,
-                kb_uuid,
-            )
-        else:
-            logger.warning(
-                "do_kb_retrieve failed (status=%s, org_id=%s): %s",
-                exc.status_code,
-                current_user.organization_id,
-                exc,
-            )
-        return {
-            "chunks": [],
-            "total": 0,
-            "source": "do_kb",
-            "error": f"Retrieval failed: {exc}",
-        }
     except Exception as exc:
         logger.warning("do_kb_retrieve failed: %s", exc)
         return {
@@ -1509,11 +1293,6 @@ async def _tool_do_kb_retrieve(
             session=db,
             project_id=resolved_project_id,
         )
-
-    if chunks_to_emit and getattr(_kb_settings, "AGENT_DOKB_COHERE_RERANK", False):
-        from src.services.do_kb.rerank import cohere_rescore_chunks
-
-        chunks_to_emit = await cohere_rescore_chunks(query, chunks_to_emit)
 
     chunks_payload = []
     for c in chunks_to_emit:
@@ -1896,26 +1675,6 @@ async def _tool_summarize_document(
                     ),
                     "error_type": "recoverable",
                     "suggestion": "ingest_arxiv_papers",
-                }
-
-            # The id may be a *project* id, not a document id — a common
-            # agent mistake (reusing a project_id from list_projects; trace
-            # 019f4386). Steer it to resolve real document ids first. Wrapped
-            # so any lookup failure falls through to the generic error.
-            try:
-                project = await _verify_project_ownership(document_id, db, current_user)
-            except Exception:
-                project = None
-            if project:
-                return {
-                    "error": (
-                        f"'{document_id}' is a project id, not a document id. "
-                        f'Call list_project_documents(project_id="{document_id}") '
-                        f'to get the document_ids in the "{project.name or "project"}" '
-                        "project, then call summarize_document with one of those ids."
-                    ),
-                    "error_type": "recoverable",
-                    "suggestion": "list_project_documents",
                 }
             return {"error": "Document not found or access denied"}
 
@@ -2416,19 +2175,21 @@ async def _tool_create_draft(
         if not project:
             return {"error": "Project not found or access denied"}
 
+        from src.core.database import AsyncSessionLocal
         from src.services.research.draft_generation_service import (
             DraftGenerationService,
         )
 
-        # Background generation owns its own AsyncSessionLocal; the
-        # request session here is only used for the ownership check above.
-        draft_service = DraftGenerationService(db)
-        result = await draft_service.generate_draft(
-            project_id=project.id,
-            user_id=current_user.id,
-            themes=themes,
-            style=style,
-        )
+        # Use a fresh independent session for draft generation — the agent's
+        # session may be rolled back before the async background task completes.
+        async with AsyncSessionLocal() as draft_db:
+            draft_service = DraftGenerationService(draft_db)
+            result = await draft_service.generate_draft(
+                project_id=project.id,
+                user_id=current_user.id,
+                themes=themes,
+                style=style,
+            )
 
         return {
             "task_id": result.get("task_id", ""),
@@ -2783,7 +2544,10 @@ async def _tool_forget_memory(
     if not query or not query.strip():
         return {"error": "forget_memory: empty query"}
 
-    from src.services.agent.memory import delete_memory_by_query, get_memory_store
+    from src.services.agent.memory import (
+        delete_memory_by_query,
+        get_memory_store,
+    )
 
     store = await get_memory_store()
     if store is None:

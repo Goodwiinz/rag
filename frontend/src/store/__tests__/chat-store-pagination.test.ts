@@ -235,30 +235,4 @@ describe('loadMessages (newest-first initial load)', () => {
       true
     );
   });
-
-  it('ignores a late initial-load response after a newer thread load begins', async () => {
-    let resolveA!: (response: ChatMessageListResponse) => void;
-    let resolveB!: (response: ChatMessageListResponse) => void;
-    const responseA = new Promise<ChatMessageListResponse>((resolve) => {
-      resolveA = resolve;
-    });
-    const responseB = new Promise<ChatMessageListResponse>((resolve) => {
-      resolveB = resolve;
-    });
-    listMessagesMock
-      .mockReturnValueOnce(responseA)
-      .mockReturnValueOnce(responseB);
-
-    const loadA = useChatStore.getState().loadMessages('thread-A');
-    const loadB = useChatStore.getState().loadMessages('thread-B');
-
-    resolveB(makeResponse([makeMessage('b1')], false));
-    await loadB;
-    resolveA(makeResponse([makeMessage('a1')], false));
-    await loadA;
-
-    expect(useChatStore.getState().messages['thread-B']).toHaveLength(1);
-    expect(useChatStore.getState().messages['thread-A']).toBeUndefined();
-    expect(useChatStore.getState().isLoadingMessages).toBe(false);
-  });
 });

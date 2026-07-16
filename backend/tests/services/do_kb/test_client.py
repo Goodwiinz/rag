@@ -40,14 +40,6 @@ def _mock_response(status: int, json_body: dict[str, Any] | None = None) -> Magi
     return response
 
 
-def _sent_method_url_body(request_mock: AsyncMock) -> tuple[str, str, dict[str, Any]]:
-    call_args = request_mock.call_args
-    method = call_args.args[0] if call_args.args else call_args[0][0]
-    url = call_args.args[1] if len(call_args.args) > 1 else call_args[0][1]
-    body = call_args.kwargs.get("json") or call_args[1].get("json") or {}
-    return method, url, body
-
-
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_pooled_client_reused_across_requests():
@@ -99,62 +91,6 @@ async def test_create_kb_happy_path():
     assert kb.uuid == "kb-123"
     assert kb.name == "nous-org-abc"
     request_mock.assert_awaited_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_add_spaces_data_source_uses_current_do_api_route():
-    cfg = _make_settings()
-    client = DOKnowledgeBaseClient(cfg=cfg)
-    payload = {
-        "knowledge_base_data_source": {
-            "uuid": "ds-123",
-            "spaces_data_source": {
-                "bucket_name": "bucket",
-                "item_path": "documents/org/doc.txt",
-                "region": "tor1",
-            },
-        }
-    }
-
-    with patch("httpx.AsyncClient") as mock_async_client:
-        request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value
-        ctx.request = request_mock
-
-        data_source = await client.add_spaces_data_source(
-            kb_uuid="kb-123",
-            bucket="bucket",
-            key="documents/org/doc.txt",
-        )
-
-    assert data_source.uuid == "ds-123"
-    method, url, body = _sent_method_url_body(request_mock)
-    assert method == "POST"
-    assert url.endswith("/v2/gen-ai/knowledge_bases/kb-123/data_sources")
-    assert "data-sources" not in url
-    assert body["knowledge_base_uuid"] == "kb-123"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_list_data_sources_uses_current_do_api_route():
-    cfg = _make_settings()
-    client = DOKnowledgeBaseClient(cfg=cfg)
-    payload = {"knowledge_base_data_sources": [{"uuid": "ds-123"}]}
-
-    with patch("httpx.AsyncClient") as mock_async_client:
-        request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value
-        ctx.request = request_mock
-
-        data_sources = await client.list_data_sources(kb_uuid="kb-123")
-
-    assert data_sources == [{"uuid": "ds-123"}]
-    method, url, _ = _sent_method_url_body(request_mock)
-    assert method == "GET"
-    assert url.endswith("/v2/gen-ai/knowledge_bases/kb-123/data_sources")
-    assert "data-sources" not in url
 
 
 @pytest.mark.unit
@@ -243,9 +179,7 @@ async def test_retrieve_uses_config_alpha():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["alpha"] == 0.3
 
 
@@ -265,9 +199,7 @@ async def test_retrieve_explicit_alpha_overrides_config():
 
         await client.retrieve(kb_uuid="kb-123", query="test", alpha=0.8)
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["alpha"] == 0.8
 
 
@@ -287,9 +219,7 @@ async def test_retrieve_no_alpha_when_config_none():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert "alpha" not in sent_body
 
 
@@ -326,49 +256,6 @@ async def test_retry_on_429_then_success(monkeypatch):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_start_indexing_uses_current_do_api_route():
-    cfg = _make_settings()
-    client = DOKnowledgeBaseClient(cfg=cfg)
-    payload = {"job": {"uuid": "job-1", "status": "PENDING"}}
-
-    with patch("httpx.AsyncClient") as mock_async_client:
-        request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value
-        ctx.request = request_mock
-
-        job = await client.start_indexing(kb_uuid="kb-123")
-
-    assert job.uuid == "job-1"
-    method, url, body = _sent_method_url_body(request_mock)
-    assert method == "POST"
-    assert url.endswith("/v2/gen-ai/indexing_jobs")
-    assert "indexing-jobs" not in url
-    assert body["knowledge_base_uuid"] == "kb-123"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_indexing_job_uses_current_do_api_route():
-    cfg = _make_settings()
-    client = DOKnowledgeBaseClient(cfg=cfg)
-    payload = {"job": {"uuid": "job-1", "status": "PENDING"}}
-
-    with patch("httpx.AsyncClient") as mock_async_client:
-        request_mock = AsyncMock(return_value=_mock_response(200, payload))
-        ctx = mock_async_client.return_value
-        ctx.request = request_mock
-
-        job = await client.get_indexing_job(kb_uuid="kb-123", job_uuid="job-1")
-
-    assert job.uuid == "job-1"
-    method, url, _ = _sent_method_url_body(request_mock)
-    assert method == "GET"
-    assert url.endswith("/v2/gen-ai/indexing_jobs/job-1")
-    assert "indexing-jobs" not in url
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_auth_failure_raises():
     cfg = _make_settings(DO_API_TOKEN=None, DO_KB_ENABLED=False)
     client = DOKnowledgeBaseClient(cfg=cfg)
@@ -393,9 +280,7 @@ async def test_retrieve_uses_config_default_top_k():
         ctx = mock_async_client.return_value
         ctx.request = request_mock
         await client.retrieve(kb_uuid="kb-123", query="test")
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["num_results"] == 12
 
 
@@ -438,9 +323,7 @@ async def test_retrieve_sends_reranking_when_enabled():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["reranking"] is True
 
 
@@ -460,9 +343,7 @@ async def test_retrieve_omits_reranking_when_none():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert "reranking" not in sent_body
 
 
@@ -482,9 +363,7 @@ async def test_retrieve_explicit_reranking_overrides_config():
 
         await client.retrieve(kb_uuid="kb-123", query="test", reranking=False)
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["reranking"] is False
 
 
@@ -504,9 +383,7 @@ async def test_retrieve_sends_search_type_when_set():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert sent_body["search_type"] == "keyword"
 
 
@@ -526,9 +403,7 @@ async def test_retrieve_omits_search_type_when_none():
 
         await client.retrieve(kb_uuid="kb-123", query="test")
 
-    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[
-        1
-    ].get("json")
+    sent_body = request_mock.call_args.kwargs.get("json") or request_mock.call_args[1].get("json")
     assert "search_type" not in sent_body
 
 
@@ -584,26 +459,3 @@ async def test_honors_retry_after_header(monkeypatch):
 
     assert job.uuid == "job-1"
     assert 5 in sleeps
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_delete_data_source_sends_delete_request():
-    """delete_data_source sends DELETE to the correct data-source endpoint."""
-    cfg = _make_settings()
-    client = DOKnowledgeBaseClient(cfg=cfg)
-
-    with patch("httpx.AsyncClient") as mock_async_client:
-        request_mock = AsyncMock(return_value=_mock_response(204))
-        ctx = mock_async_client.return_value
-        ctx.request = request_mock
-
-        await client.delete_data_source(kb_uuid="kb-123", ds_uuid="ds-456")
-
-    request_mock.assert_awaited_once()
-    method, url, _ = _sent_method_url_body(request_mock)
-    assert method == "DELETE"
-    assert "kb-123" in url
-    assert url.endswith("/v2/gen-ai/knowledge_bases/kb-123/data_sources/ds-456")
-    assert "data-sources" not in url
-    assert "ds-456" in url

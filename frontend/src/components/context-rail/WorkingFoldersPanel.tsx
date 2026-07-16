@@ -1,6 +1,6 @@
 'use client';
 
-import type { CitationItem } from '@/hooks';
+import { useCitationsForThread } from '@/hooks';
 import { Folder } from 'lucide-react';
 import { CollapsibleCard } from './CollapsibleCard';
 import { FolderTree, type Node } from './folder-tree';
@@ -13,18 +13,17 @@ export type WorkingFoldersSelection =
   | { kind: 'draft'; id: string; title: string };
 
 interface WorkingFoldersPanelProps {
-  allCitations: CitationItem[];
   projectId?: string;
   workspaceName?: string | null;
   onSelect?: (node: WorkingFoldersSelection) => void;
 }
 
 export function WorkingFoldersPanel({
-  allCitations,
   projectId,
   workspaceName: _workspaceName,
   onSelect,
-}: WorkingFoldersPanelProps) {
+}: WorkingFoldersPanelProps = {}) {
+  const { allCitations } = useCitationsForThread();
   const { documents, notes, drafts } = useProjectWorkingFolders(projectId);
 
   const threadInternal = allCitations.filter((c) => c.documentId);
@@ -143,7 +142,7 @@ export function WorkingFoldersPanel({
     >
       {totalFiles === 0 ? (
         <p
-          className="py-2 text-[11px] text-(--nous-fg-3)"
+          className="py-2 text-[11px] text-[var(--nous-fg-3)]"
           style={{
             fontFamily: 'var(--nous-font-mono)',
             letterSpacing: '0.04em',

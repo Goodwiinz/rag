@@ -190,7 +190,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                     type="button"
                     onClick={() => setSelectedThreadId(thread.id)}
                     disabled={isSubmitting}
-                    className={`w-full p-3 rounded-lg border text-left transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`w-full p-3 rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selectedThreadId === thread.id
                         ? 'bg-primary/10 border-primary/50'
                         : 'bg-card border-border hover:border-primary/30'
@@ -244,7 +244,7 @@ export const LinkThreadModal: React.FC<LinkThreadModalProps> = ({
                 placeholder="Add a note about why this thread is linked..."
                 disabled={isSubmitting}
                 maxLength={500}
-                className="w-full h-20 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                className="w-full h-20 px-3 py-2 bg-background border border-border rounded text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
               />
               <p className="text-xs text-muted-foreground mt-1 text-right">
                 {contextNote.length}/500

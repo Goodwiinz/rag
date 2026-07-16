@@ -172,14 +172,16 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
-    # Figure extraction (PyMuPDF, Phase 1) — embedded raster figures + caption
-    # heuristics during PDF ingestion. Off by default; flip per-env in Infisical.
-    FIGURE_EXTRACTION_ENABLED: bool = False
+    # Qdrant — DEPRECATED. Retained as optional settings so legacy services
+    # in src/services/search/* still import; no runtime cluster expected.
+    QDRANT_URL: Optional[str] = None
+    QDRANT_API_KEY: Optional[str] = None
 
     # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
     # Public Preview — API may churn. One KB per organization.
     DO_KB_ENABLED: bool = False
-    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads
+    DO_KB_SHADOW_READ: bool = False  # Phase 4a: dual-read for eval, no user impact
+    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads, Qdrant fallback
     DO_API_TOKEN: Optional[str] = None
     DO_KB_REGION: Optional[str] = None  # e.g. "tor1", "nyc3"
     DO_KB_PROJECT_ID: Optional[str] = None
@@ -197,11 +199,6 @@ class Settings(BaseSettings):
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
     DO_KB_RERANKING_ENABLED: Optional[bool] = True
     DO_KB_SEARCH_TYPE: Optional[str] = None
-    # Pre-flight guard: PDFs over EITHER threshold get text-extracted locally
-    # before DO KB sync, so the canonical .txt path is used instead of the raw
-    # PDF (DO's server-side parser times out on large/complex PDFs).
-    DO_KB_FORCE_TEXT_PDF_PAGES: int = 100
-    DO_KB_FORCE_TEXT_PDF_SIZE_MB: int = 5
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""
@@ -405,40 +402,12 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
-    # Citation-faithfulness reviewer pass in draft generation (WS1).
-    # Default off: merge inert, flip in values-dev after verify.
-    # When flipping on in dev, no secret is needed — boolean env only;
-    # if ever sourced from Infisical, add DRAFT_CITATION_REVIEW_ENABLED
-    # to the /do-kb path per project convention.
-    DRAFT_CITATION_REVIEW_ENABLED: bool = False
-
-    # Option B server-side history rebuild. When True, the agent stream ignores
-    # all but the newest user turn in the request and rebuilds conversation
-    # context from the LangGraph checkpoint (source of truth), seeding it from
-    # the DB when the checkpoint is empty. When False (default), the legacy
-    # client-resent-history path is used unchanged. Flag-gated rollout: enable
-    # on dev only after soak; the frontend send-only-newest change must NOT ship
-    # until this is on in that environment.
-    #
-    # Requires the client to send a client_message_id on the newest user turn
-    # (the /chat surface does when NEXT_PUBLIC_SERVER_CANONICAL_CHAT is on) — it
-    # is the idempotency key that keeps two same-content turns distinct and a
-    # retry a no-op. Turns without one safely fall back to the legacy path, so
-    # enabling this where cmids aren't sent just makes it a no-op, never a bug.
-    AGENT_SERVER_SIDE_HISTORY: bool = False
-
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
     # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
     # record (intent, plan, tool_executions, retrieved_contexts summary,
     # ai_response, reflection_result, tokens, timing). Empty disables.
     AGENT_LEDGER_DIR: Optional[str] = None
-
-    # Re-score DO KB chunks with the Azure Cohere cross-encoder after
-    # resolve/filter. DO KB Public Preview returns no scores (we synthesize
-    # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
-    # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
-    AGENT_DOKB_COHERE_RERANK: bool = False
 
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
@@ -507,6 +476,23 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Neo4j URI must start with bolt://, neo4j://, bolt+s://, or neo4j+s://"
             )
+        return v
+
+    @field_validator("QDRANT_API_KEY")
+    @classmethod
+    def validate_qdrant_api_key(cls, v):
+        # Allow None or empty string for local development, but validate format if provided
+        if v is not None and v != "" and len(v) < 10:
+            raise ValueError("Qdrant API key must be at least 10 characters long")
+        return v
+
+    @field_validator("QDRANT_URL")
+    @classmethod
+    def validate_qdrant_url(cls, v):
+        if v is None or v == "":
+            return v
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Qdrant URL must start with http:// or https://")
         return v
 
     @field_validator("MAX_FILE_SIZE_MB")
@@ -590,6 +576,8 @@ class Settings(BaseSettings):
             )
         if self.DO_KB_PRIMARY_READ and not self.DO_KB_ENABLED:
             raise ValueError("DO_KB_PRIMARY_READ requires DO_KB_ENABLED=True")
+        if self.DO_KB_SHADOW_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_SHADOW_READ requires DO_KB_ENABLED=True")
         return self
 
     class Config:

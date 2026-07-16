@@ -83,7 +83,7 @@ export const CollectStep: React.FC<CollectStepProps> = ({
               </div>
               <button
                 onClick={() => onRemoveDocument(doc.document_id)}
-                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded"
+                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                 aria-label="Remove from project"
               >
                 <Trash2 className="h-3.5 w-3.5" />

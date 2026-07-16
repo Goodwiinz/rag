@@ -1,0 +1,451 @@
+'use client';
+
+import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import dynamic from 'next/dynamic';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const SyntaxHighlighter = dynamic(
+  () =>
+    import('react-syntax-highlighter/dist/esm/prism').then(
+      (mod) => mod.default
+    ),
+  {
+    loading: () => (
+      <pre className="p-4 rounded-lg bg-[var(--nous-bg-1)] text-xs font-mono overflow-x-auto">
+        <code>Loading...</code>
+      </pre>
+    ),
+    ssr: false,
+  }
+);
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { IconButton, IconButtonSm } from '@/components/ui/icon-button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
+import { cn } from '@/lib/utils';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Bot,
+  User,
+  Copy,
+  Check,
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  Bookmark,
+  Share,
+  MoreVertical,
+  MessageSquare,
+  Clock,
+  Sparkles,
+} from 'lucide-react';
+
+interface MessageBubbleProps {
+  message: {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp?: number;
+    id?: string;
+  };
+  isTyping?: boolean;
+  isLast?: boolean;
+  onCopy?: (content: string) => Promise<void>;
+  onRegenerate?: () => void;
+  onReaction?: (type: 'like' | 'dislike') => void;
+  isCopied?: boolean;
+  reaction?: 'like' | 'dislike' | null;
+  isBookmarked?: boolean;
+  onBookmark?: () => void;
+  onShare?: () => void;
+  modelInfo?: {
+    name: string;
+    responseTime?: number;
+    tokens?: number;
+  };
+  className?: string;
+}
+
+export function MessageBubble({
+  message,
+  isTyping = false,
+  isLast = false,
+  onCopy,
+  onRegenerate,
+  onReaction,
+  isCopied = false,
+  reaction = null,
+  isBookmarked = false,
+  onBookmark,
+  onShare,
+  modelInfo,
+  className,
+}: MessageBubbleProps) {
+  const messageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isLast && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [isLast]);
+
+  const formatTimestamp = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return date.toLocaleDateString();
+  };
+
+  const copyToClipboard = async () => {
+    if (onCopy) {
+      await onCopy(message.content);
+    }
+  };
+
+  const isUser = message.role === 'user';
+
+  return (
+    <motion.div
+      ref={messageRef}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      className={cn(
+        'group relative flex gap-2 sm:gap-3 mb-4 sm:mb-6 px-1 sm:px-0',
+        isUser && 'flex-row-reverse',
+        className
+      )}
+    >
+      <Avatar className="w-7 h-7 sm:w-8 sm:h-8 shrink-0">
+        <AvatarFallback
+          className="text-xs font-medium transition-colors text-white"
+          style={
+            isUser
+              ? {
+                  background: 'var(--nous-bg-2)',
+                  color: 'var(--nous-fg-2)',
+                  border: '1px solid var(--nous-border-1)',
+                }
+              : {
+                  background:
+                    'linear-gradient(135deg, var(--nous-sol), var(--nous-helios))',
+                  boxShadow:
+                    '0 0 0 3px var(--nous-bg-1), 0 2px 6px rgba(212,160,57,0.18)',
+                }
+          }
+        >
+          {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        </AvatarFallback>
+      </Avatar>
+
+      {/* Message Content */}
+      <div className={cn('flex-1 space-y-2 min-w-0', isUser && 'items-end')}>
+        {/* Header */}
+        <div
+          className={cn(
+            'flex items-center gap-2',
+            isUser ? 'justify-end' : 'justify-start'
+          )}
+        >
+          <span className="text-xs font-medium text-muted-foreground">
+            {isUser ? 'You' : 'Assistant'}
+          </span>
+
+          {!isUser && modelInfo && (
+            <HoverCard>
+              <HoverCardTrigger>
+                <Badge variant="secondary" className="text-xs">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  {modelInfo.name}
+                </Badge>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-48">
+                <div className="space-y-2">
+                  {modelInfo.responseTime && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        Response time
+                      </span>
+                      <span>{(modelInfo.responseTime / 1000).toFixed(2)}s</span>
+                    </div>
+                  )}
+                  {modelInfo.tokens && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Tokens</span>
+                      <span>{modelInfo.tokens}</span>
+                    </div>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          )}
+
+          {message.timestamp && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              <span>{formatTimestamp(message.timestamp)}</span>
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            'relative transition-all',
+            isUser
+              ? 'inline-block ml-auto px-4 py-2.5 max-w-[92%] sm:max-w-[540px] bg-[var(--nous-bg-2)] border border-[var(--nous-border-1)] text-[var(--nous-fg-1)] shadow-sm hover:shadow-md'
+              : 'max-w-[95%] sm:max-w-[90%]'
+          )}
+          style={isUser ? { borderRadius: '14px 14px 4px 14px' } : undefined}
+        >
+          {isTyping ? (
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60" />
+              <span
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
+                style={{ animationDelay: '0.2s' }}
+              />
+              <span
+                className="w-2 h-2 bg-current rounded-full animate-pulse opacity-60"
+                style={{ animationDelay: '0.4s' }}
+              />
+              <span className="text-xs ml-2 opacity-70">
+                Assistant is typing
+              </span>
+            </div>
+          ) : (
+            <div
+              className={cn(
+                isUser
+                  ? 'text-sm leading-relaxed text-[var(--nous-fg-1)]'
+                  : 'font-nous-body text-[15px] leading-[1.7] text-[var(--nous-fg-1)]'
+              )}
+            >
+              {isUser ? (
+                <p className="whitespace-pre-wrap break-words">
+                  {message.content}
+                </p>
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    code({ node, className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      const language = match ? match[1] : '';
+                      // Detect inline code by checking if there's no language specified
+                      const isInline = !language;
+
+                      return !isInline && language ? (
+                        <div className="relative group">
+                          <div className="flex items-center justify-between bg-muted px-4 py-2 border-b border-border rounded-t-lg">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {language}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() =>
+                                navigator.clipboard.writeText(
+                                  String(children).replace(/\n$/, '')
+                                )
+                              }
+                              aria-label="Copy code to clipboard"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <SyntaxHighlighter
+                            style={
+                              oneDark as { [key: string]: React.CSSProperties }
+                            }
+                            language={language}
+                            PreTag="div"
+                            className="!mt-0 !rounded-t-none"
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
+                        </div>
+                      ) : (
+                        <code
+                          className={cn(
+                            'rounded-md bg-muted px-1.5 py-0.5 text-xs font-mono',
+                            !isInline && 'block'
+                          )}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-cyan hover:text-sol underline underline-offset-2 transition-colors"
+                      >
+                        {children}
+                      </a>
+                    ),
+                    blockquote: ({ children }) => (
+                      <blockquote className="rounded-[var(--nous-radius-md)] bg-[var(--nous-bg-2)] px-4 py-2 italic text-[var(--nous-fg-2)]">
+                        {children}
+                      </blockquote>
+                    ),
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-2">
+                        <table className="min-w-full divide-y divide-border">
+                          {children}
+                        </table>
+                      </div>
+                    ),
+                    th: ({ children }) => (
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/50">
+                        {children}
+                      </th>
+                    ),
+                    td: ({ children }) => (
+                      <td className="px-3 py-2 text-sm border-t border-border">
+                        {children}
+                      </td>
+                    ),
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons — visible on touch, hover-reveal on desktop */}
+        {!isTyping && (
+          <div
+            className={cn(
+              'flex items-center gap-1 transition-all',
+              isUser ? 'justify-end' : 'justify-start',
+              'opacity-0 group-hover:opacity-100 touch-show'
+            )}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={copyToClipboard}
+            >
+              {isCopied ? (
+                <>
+                  <Check className="w-3 h-3 mr-1" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy
+                </>
+              )}
+            </Button>
+
+            {!isUser && onRegenerate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={onRegenerate}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Regenerate
+              </Button>
+            )}
+
+            {!isUser && onReaction && (
+              <>
+                <Button
+                  variant={reaction === 'like' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'h-7 px-2 text-xs',
+                    reaction === 'like' && 'text-sol'
+                  )}
+                  onClick={() => onReaction('like')}
+                >
+                  <ThumbsUp className="w-3 h-3 mr-1" />
+                  Like
+                </Button>
+                <Button
+                  variant={reaction === 'dislike' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'h-7 px-2 text-xs',
+                    reaction === 'dislike' && 'text-red-600'
+                  )}
+                  onClick={() => onReaction('dislike')}
+                >
+                  <ThumbsDown className="w-3 h-3 mr-1" />
+                  Dislike
+                </Button>
+              </>
+            )}
+
+            {!isUser && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButtonSm
+                    icon={<MoreVertical className="w-3 h-3" />}
+                    label="More actions"
+                    className="h-7 w-7"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isUser ? 'end' : 'start'}>
+                  {onBookmark && (
+                    <DropdownMenuItem onClick={onBookmark}>
+                      <Bookmark
+                        className={cn(
+                          'w-4 h-4 mr-2',
+                          isBookmarked && 'fill-current text-helios'
+                        )}
+                      />
+                      {isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+                    </DropdownMenuItem>
+                  )}
+                  {onShare && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={onShare}>
+                        <Share className="w-4 h-4 mr-2" />
+                        Share message
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+export default MessageBubble;

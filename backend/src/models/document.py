@@ -80,8 +80,6 @@ class Document(BaseModel):
     # DigitalOcean Knowledge Base data source (Phase 2 dual-write)
     do_kb_data_source_uuid = Column(String(64), nullable=True, index=True)
     do_kb_indexed_at = Column(DateTime(timezone=True), nullable=True)
-    # Per-document DO KB indexing health: indexed | skipped | failed | timeout
-    do_kb_index_status = Column(String(20), nullable=True, index=True)
 
     # Access control
     is_public = Column(Boolean, default=False, nullable=False)
@@ -132,8 +130,6 @@ class Document(BaseModel):
         Index('idx_document_status_created', 'processing_status', 'created_at'),
         Index('idx_document_embedded_indexed', 'is_embedded', 'is_indexed'),
         Index('idx_document_org_public', 'organization_id', 'is_public'),
-        # Backs the default GET /documents list: WHERE org ORDER BY created_at DESC
-        Index('idx_document_org_created', 'organization_id', 'created_at'),
     )
 
     def __repr__(self):
@@ -308,7 +304,6 @@ class Document(BaseModel):
         data["is_processing_complete"] = self.is_processing_complete
         data["is_processing_successful"] = self.is_processing_successful
         data["can_be_searched"] = self.can_be_searched()
-        data["do_kb_index_status"] = self.do_kb_index_status
 
         # Include content if requested
         if not include_content:

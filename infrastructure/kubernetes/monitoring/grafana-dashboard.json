@@ -3,11 +3,7 @@
     "id": null,
     "title": "Multimodal RAG System",
     "description": "Comprehensive monitoring dashboard for the Multimodal RAG System with WebSocket support",
-    "tags": [
-      "multimodal-rag",
-      "production",
-      "websocket"
-    ],
+    "tags": ["multimodal-rag", "production", "websocket"],
     "timezone": "browser",
     "refresh": "30s",
     "panels": [
@@ -281,6 +277,26 @@
         "fieldConfig": {
           "defaults": {
             "unit": "queries/s"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Qdrant Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(qdrant_request_duration_seconds_sum[5m])",
+            "legendFormat": "Request Time"
+          },
+          {
+            "expr": "rate(qdrant_request_total[5m])",
+            "legendFormat": "Request Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "seconds"
           }
         }
       },

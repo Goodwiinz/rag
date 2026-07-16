@@ -1,7 +1,7 @@
 'use client';
 
 import { FileText } from 'lucide-react';
-import type { CitationItem } from '@/hooks';
+import { useCitationsForThread } from '@/hooks';
 import { CollapsibleCard } from './CollapsibleCard';
 
 function scoreColor(percent: number): string {
@@ -10,11 +10,9 @@ function scoreColor(percent: number): string {
   return 'var(--nous-fg-3)';
 }
 
-export function RelatedResultsPanel({
-  relatedResults,
-}: {
-  relatedResults: CitationItem[];
-}) {
+export function RelatedResultsPanel() {
+  const { relatedResults } = useCitationsForThread();
+
   if (relatedResults.length === 0) return null;
 
   return (

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { type Citation, getReferencedCitations } from '@/utils/citationParser';
 import { useChatPersistence } from './useChatPersistence';
 
-export interface CitationItem {
+interface CitationItem {
   id?: string;
   documentId?: string;
   externalReferenceId?: string;

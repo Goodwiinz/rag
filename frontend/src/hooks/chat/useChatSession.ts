@@ -1,13 +1,9 @@
 'use client';
 
 import {
-  mapDbMessageToChatPageMessage,
-  mapStoreMessagesToChatMessages,
   selectDisplayedMessages,
   syncConversationMessagesWithStore,
 } from '@/components/chat/shared/cloudMessageView';
-import toast from 'react-hot-toast';
-
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
 import { upsertConversationFromThreadDetail } from '@/components/chat/shared/threadConversationState';
@@ -17,33 +13,12 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   ChatMessage as DBChatMessage,
   Conversation as DBConversation,
-  Thread,
+  MessageRole,
   Workspace,
 } from '@/types/workspace';
+import { normalizeCitation } from '@/utils/citationNormalizer';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-const THREADS_PAGE_SIZE = 50;
-
-// Shared by every listThreads call site (cold load, warm start, "show older")
-// so the sidebar's ChatConversation shape can't drift between them.
-function threadToConversation(
-  thread: Thread,
-  conversationId: string,
-  messages: ChatPageMessage[] = []
-): ChatConversation {
-  return {
-    id: thread.id,
-    title: thread.title || 'New Chat',
-    messages,
-    createdAt: new Date(thread.created_at).getTime(),
-    updatedAt: new Date(thread.updated_at).getTime(),
-    threadId: thread.id,
-    conversationId,
-    previewText: thread.summary || undefined,
-    messageCount: thread.message_count,
-  };
-}
 
 export interface UseChatSessionReturn {
   // State
@@ -84,11 +59,6 @@ export interface UseChatSessionReturn {
     { hasMore: boolean; loadingOlder: boolean; loadedCount: number }
   > | null;
 
-  // Sidebar thread pagination (CX8) — the thread list is capped at
-  // THREADS_PAGE_SIZE per fetch; loadMoreThreads fetches+appends the next page.
-  hasMoreThreads: boolean;
-  loadMoreThreads: () => Promise<void>;
-
   // Helpers
   mapDbMessageToUiMessage: (dbMsg: DBChatMessage) => ChatPageMessage;
   loadThreadsFromDb: (
@@ -121,12 +91,6 @@ export function useChatSession(): UseChatSessionReturn {
   const [isInitializing, setIsInitializing] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
-  // Sidebar thread pagination (CX8): which conversation + page the currently
-  // loaded thread list reflects, so loadMoreThreads knows what to fetch next.
-  const [hasMoreThreads, setHasMoreThreads] = useState(false);
-  const threadsListConvIdRef = useRef<string | null>(null);
-  const threadsPageRef = useRef(1);
-
   // Loading states
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
@@ -157,9 +121,6 @@ export function useChatSession(): UseChatSessionReturn {
   const storeLoadOlderMessages = useChatStore(
     (state) => state.loadOlderMessages
   );
-  const storeIsLoadingMessages = useChatStore(
-    (state) => state.isLoadingMessages
-  );
   const messagePagination = useChatStore((state) => state.messagePagination);
 
   // ---- Derived values ----
@@ -168,19 +129,31 @@ export function useChatSession(): UseChatSessionReturn {
       selectDisplayedMessages({
         localMessages: messages,
         storeMessages: activeThreadMessages ?? [],
-        isStoreLoading: storeIsLoadingMessages,
       }),
-    [messages, activeThreadMessages, storeIsLoadingMessages]
+    [messages, activeThreadMessages]
   );
 
   // ---- Callbacks ----
 
-  // Map a DB/server message to the UI shape. Thin wrapper over the canonical
-  // mapper so the lazy-load path (here) and the store path can't drift — a
-  // prior second copy silently dropped plan + token_usage on thread reload.
+  // Map DB messages to UI messages
   const mapDbMessageToUiMessage = useCallback(
-    (dbMsg: DBChatMessage): ChatPageMessage =>
-      mapDbMessageToChatPageMessage(dbMsg),
+    (dbMsg: DBChatMessage): ChatPageMessage => {
+      // Rebuild display metadata from the persisted row so a reloaded thread
+      // keeps the response time and the "Stopped" marker (both were otherwise
+      // session-only).
+      const metadata: ChatPageMessage['metadata'] = {};
+      if (dbMsg.latency_ms) metadata.responseTimeMs = dbMsg.latency_ms;
+      if (dbMsg.stopped) metadata.stopped = true;
+
+      return {
+        id: dbMsg.id,
+        role: dbMsg.role === MessageRole.USER ? 'user' : 'assistant',
+        content: dbMsg.content,
+        timestamp: new Date(dbMsg.created_at).getTime(),
+        citations: dbMsg.citations?.map(normalizeCitation),
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      };
+    },
     []
   );
 
@@ -291,12 +264,7 @@ export function useChatSession(): UseChatSessionReturn {
           setActiveConversationId(threadDetail.id);
           activeConversationIdRef.current = threadDetail.id;
           setMessages(uiMessages);
-          // Set the store id directly (mirror the warm-start path) instead of
-          // setCurrentThread, whose loadMessages side-effect would re-fetch the
-          // transcript we just got from getThread. The conversation cache is
-          // already seeded above (upsertConversationFromThreadDetail), so the
-          // lazy-load effect cache-hits.
-          useChatStore.setState({ currentThreadId: threadDetail.id });
+          setCurrentThread(threadDetail.id);
         } catch (error: unknown) {
           if (!cancelled) {
             console.error('[Chat] Failed to fetch requested thread:', error);
@@ -330,18 +298,22 @@ export function useChatSession(): UseChatSessionReturn {
         );
         const threadResponse = await workspaceService.listThreads(
           conversationId,
-          { page: 1, limit: THREADS_PAGE_SIZE }
+          { limit: 50 }
         );
-
-        // CX8: record what this list reflects so "show older threads" knows
-        // which conversation + page to fetch next.
-        threadsListConvIdRef.current = conversationId;
-        threadsPageRef.current = 1;
-        setHasMoreThreads(threadResponse.has_more);
 
         // Map threads without loading messages (lazy-loaded on selection)
         const uiConversations: ChatConversation[] = threadResponse.threads.map(
-          (thread) => threadToConversation(thread, conversationId)
+          (thread) => ({
+            id: thread.id,
+            title: thread.title || 'New Chat',
+            messages: [],
+            createdAt: new Date(thread.created_at).getTime(),
+            updatedAt: new Date(thread.updated_at).getTime(),
+            threadId: thread.id,
+            conversationId: conversationId,
+            previewText: thread.summary || undefined,
+            messageCount: thread.message_count,
+          })
         );
 
         setConversations(uiConversations);
@@ -411,36 +383,6 @@ export function useChatSession(): UseChatSessionReturn {
     [mapDbMessageToUiMessage, setCurrentThread]
   );
 
-  // CX8: fetch the next page of threads for whichever conversation the
-  // sidebar list currently reflects, and append (never replace) — a stable
-  // callback so it can be passed straight into ChatSidebar (React.memo, #1083).
-  const loadMoreThreads = useCallback(async () => {
-    const conversationId = threadsListConvIdRef.current;
-    if (!conversationId) return;
-
-    const nextPage = threadsPageRef.current + 1;
-    try {
-      const response = await workspaceService.listThreads(conversationId, {
-        page: nextPage,
-        limit: THREADS_PAGE_SIZE,
-      });
-
-      setConversations((prev) => {
-        const existingIds = new Set(prev.map((c) => c.id));
-        const appended = response.threads
-          .filter((thread) => !existingIds.has(thread.id))
-          .map((thread) => threadToConversation(thread, conversationId));
-        return [...prev, ...appended];
-      });
-
-      threadsPageRef.current = nextPage;
-      setHasMoreThreads(response.has_more);
-    } catch (error) {
-      console.error('[Chat] Failed to load more threads:', error);
-      toast.error('Could not load more threads. Please try again.');
-    }
-  }, []);
-
   // Initialize workspace and conversation from database
   useEffect(() => {
     // Watchdog: a hung request (socket open, no response) leaves init awaiting
@@ -468,11 +410,6 @@ export function useChatSession(): UseChatSessionReturn {
 
       setIsInitializing(true);
       setInitError(null);
-      // The watchdog (above) may set a provisional "taking too long" error at
-      // 15s while init is still running. If init then SUCCEEDS past that point,
-      // `finally` must clear it — otherwise a slow-but-successful load is stuck
-      // on the error screen forever. Only a genuine failure keeps the error.
-      let didFail = false;
       console.log('[Chat] Initializing from database...');
 
       // Warm-start: read IDs cached on prior visits and fire sidebar + message
@@ -496,10 +433,7 @@ export function useChatSession(): UseChatSessionReturn {
 
         if (persistedConvId && persistedThreadId) {
           const warmDataPromise = Promise.all([
-            workspaceService.listThreads(persistedConvId, {
-              page: 1,
-              limit: THREADS_PAGE_SIZE,
-            }),
+            workspaceService.listThreads(persistedConvId, { limit: 50 }),
             workspaceService.getThread(persistedThreadId),
           ]).catch(() => null);
 
@@ -512,47 +446,32 @@ export function useChatSession(): UseChatSessionReturn {
 
           if (warmData) {
             const [threadListResponse, threadDetail] = warmData;
-            // Map the warm-fetched transcript ONCE and seed it into the active
-            // thread's conversation cache. Without this the lazy-load effect
-            // (conv.messages.length > 0 guard) misses, clears `messages` to a
-            // skeleton, and re-fetches getThread — a redundant round-trip of the
-            // heaviest payload plus a transcript→skeleton→transcript flicker on
-            // the most common load path.
-            const persistedUiMessages = threadDetail.messages.map(
-              mapDbMessageToUiMessage
-            );
             const uiConversations: ChatConversation[] =
-              threadListResponse.threads.map((thread) =>
-                threadToConversation(
-                  thread,
-                  persistedConvId,
-                  thread.id === persistedThreadId ? persistedUiMessages : []
-                )
-              );
-            // CX8: warm-start also seeds the first page of the thread list.
-            threadsListConvIdRef.current = persistedConvId;
-            threadsPageRef.current = 1;
-            setHasMoreThreads(threadListResponse.has_more);
+              threadListResponse.threads.map((thread) => ({
+                id: thread.id,
+                title: thread.title || 'New Chat',
+                messages: [],
+                createdAt: new Date(thread.created_at).getTime(),
+                updatedAt: new Date(thread.updated_at).getTime(),
+                threadId: thread.id,
+                conversationId: persistedConvId,
+                previewText: thread.summary || undefined,
+                messageCount: thread.message_count,
+              }));
             setConversations(uiConversations);
-            setMessages(persistedUiMessages);
+            setMessages(threadDetail.messages.map(mapDbMessageToUiMessage));
             setActiveConversationId(persistedThreadId);
             activeConversationIdRef.current = persistedThreadId;
             // Set store ID directly to avoid the loadMessages side-effect in
             // setCurrentThread — we already have messages from getThread above.
             useChatStore.setState({ currentThreadId: persistedThreadId });
-            isHydratedRef.current = true;
-            setInitError(null);
 
-            // dbConversation is only needed for NEW-thread creation (post user
-            // action), so fetch it OFF the paint path — awaiting it here blocked
-            // first paint / isInitializing on an extra HTTP round-trip. The
-            // .catch is required: the call re-throws on 404.
-            void workspaceService
-              .getOrCreateDefaultConversation(ws.id)
-              .then(setDbConversation)
-              .catch((e) =>
-                console.warn('[Chat] default conversation fetch failed', e)
-              );
+            // Still need dbConversation so new-thread creation works
+            const conv = await workspaceService.getOrCreateDefaultConversation(
+              ws.id
+            );
+            setDbConversation(conv);
+            isHydratedRef.current = true;
             console.log('[Chat] Warm-start initialization complete');
             return;
           }
@@ -615,7 +534,6 @@ export function useChatSession(): UseChatSessionReturn {
         }
 
         isHydratedRef.current = true;
-        setInitError(null);
         console.log('[Chat] Database initialization complete');
       } catch (error: unknown) {
         console.error('[Chat] Failed to initialize from database:', error);
@@ -640,12 +558,10 @@ export function useChatSession(): UseChatSessionReturn {
             setMessages([]);
             console.log('[Chat] Created fresh workspace and conversation');
             isHydratedRef.current = true;
-            setInitError(null);
             setIsInitializing(false);
             return;
           } catch (retryError) {
             console.error('[Chat] Retry failed:', retryError);
-            didFail = true;
             setInitError(
               'Failed to create new chat session. Please refresh the page.'
             );
@@ -654,7 +570,6 @@ export function useChatSession(): UseChatSessionReturn {
           }
         }
 
-        didFail = true;
         setInitError(
           error instanceof Error ? error.message : 'Failed to load chat data'
         );
@@ -665,11 +580,6 @@ export function useChatSession(): UseChatSessionReturn {
           settled = true;
           clearTimeout(watchdog);
           setIsInitializing(false);
-        }
-        // Clear the provisional watchdog error if init ultimately succeeded —
-        // the 15s timeout may have fired before a slow load completed.
-        if (!didFail) {
-          setInitError(null);
         }
       }
     };
@@ -701,32 +611,6 @@ export function useChatSession(): UseChatSessionReturn {
       return;
     }
 
-    // The store is the per-thread source of truth. When it already holds THIS
-    // thread's messages, adopt them into local state — do NOT early-return
-    // leaving the PREVIOUS thread's transcript in `messages` (that stale copy
-    // both rendered here via the length-based display merge AND got streamed as
-    // the wrong thread's history by handleSubmit — the I1 bleed).
-    const store = useChatStore.getState();
-    const storeMsgs = store.messages[activeConversationId];
-    if (storeMsgs && storeMsgs.length > 0) {
-      setMessages(mapStoreMessagesToChatMessages(storeMsgs));
-      setIsLoadingMessages(false);
-      return;
-    }
-    // ponytail: the fuller fix is to feed displayedMessages solely from the
-    // store and delete the local conversations[].messages cache. Until then we
-    // fall through to the getThread fetch below (which sets `messages`
-    // correctly) rather than skipping on the GLOBAL store.isLoadingMessages
-    // flag — that skip left local stale and is what caused the bleed; the rare
-    // redundant fetch it avoided is not worth the correctness bug.
-
-    // Neither the conversation cache nor the store has this thread: clear the
-    // PREVIOUS thread's transcript NOW, before the async fetch below. Leaving
-    // it in `messages` during the fetch window rendered thread A under thread
-    // B (length-based display merge) and let a send stream A's history as B's
-    // context — the remaining I1 bleed vector.
-    setMessages([]);
-
     // Lazy-load messages for this thread using the thread detail endpoint
     let cancelled = false;
     setIsLoadingMessages(true);
@@ -746,11 +630,6 @@ export function useChatSession(): UseChatSessionReturn {
       } catch (err) {
         if (!cancelled) {
           console.error('[Chat] Failed to load messages:', err);
-          // Without a signal the thread renders as the empty "start a
-          // conversation" welcome state — indistinguishable from a genuinely
-          // empty thread — so a transient 500 / expired session looks like
-          // data loss. Tell the user it failed so they can retry.
-          toast.error('Could not load this conversation. Please try again.');
         }
       } finally {
         if (!cancelled) {
@@ -776,8 +655,7 @@ export function useChatSession(): UseChatSessionReturn {
     dbConversation,
     isInitializing,
     initError,
-    isLoadingMessages:
-      isLoadingMessages || (activeThreadId !== null && storeIsLoadingMessages),
+    isLoadingMessages,
 
     // Refs
     activeConversationIdRef,
@@ -797,8 +675,6 @@ export function useChatSession(): UseChatSessionReturn {
     // Pagination
     loadOlderMessages,
     messagePagination,
-    hasMoreThreads,
-    loadMoreThreads,
 
     // Helpers
     mapDbMessageToUiMessage,

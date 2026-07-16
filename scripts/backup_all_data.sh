@@ -2,7 +2,7 @@
 # ============================================================================
 # Backup All RAG System Data for Migration
 # ============================================================================
-# Creates portable backups of Neo4j, PostgreSQL, and Redis data
+# Creates portable backups of Neo4j, PostgreSQL, Qdrant, and Redis data
 # Usage: ./scripts/backup_all_data.sh [backup_directory]
 # ============================================================================
 
@@ -59,6 +59,38 @@ if [ -n "$NEO4J_CONTAINER" ]; then
     echo -e "${GREEN}  ✓ Neo4j backup complete${NC}"
 else
     echo -e "${RED}  ✗ Neo4j container not found${NC}"
+fi
+
+# ============================================================================
+# 3. Qdrant Backup (Vector Database)
+# ============================================================================
+echo -e "${YELLOW}[3/4] Backing up Qdrant Vectors...${NC}"
+QDRANT_CONTAINER=$(docker ps --filter "name=qdrant" --format "{{.Names}}" | head -1)
+if [ -n "$QDRANT_CONTAINER" ]; then
+    # Create snapshots for all collections
+    mkdir -p "$BACKUP_DIR/qdrant_snapshots"
+    
+    # Get all collections and create snapshots
+    COLLECTIONS=$(curl -s http://localhost:6333/collections | jq -r '.result.collections[].name' 2>/dev/null || echo "")
+    
+    if [ -n "$COLLECTIONS" ]; then
+        for COLLECTION in $COLLECTIONS; do
+            echo "  Creating snapshot for collection: $COLLECTION"
+            curl -s -X POST "http://localhost:6333/collections/${COLLECTION}/snapshots" > /dev/null
+            # Get the latest snapshot
+            SNAPSHOT=$(curl -s "http://localhost:6333/collections/${COLLECTION}/snapshots" | jq -r '.result[-1].name' 2>/dev/null)
+            if [ -n "$SNAPSHOT" ] && [ "$SNAPSHOT" != "null" ]; then
+                curl -s "http://localhost:6333/collections/${COLLECTION}/snapshots/${SNAPSHOT}" \
+                    -o "$BACKUP_DIR/qdrant_snapshots/${COLLECTION}_${SNAPSHOT}" 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Also copy the storage volume
+    docker cp "$QDRANT_CONTAINER:/qdrant/storage" "$BACKUP_DIR/qdrant_storage" 2>/dev/null || true
+    echo -e "${GREEN}  ✓ Qdrant backup complete${NC}"
+else
+    echo -e "${RED}  ✗ Qdrant container not found${NC}"
 fi
 
 # ============================================================================

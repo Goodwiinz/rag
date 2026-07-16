@@ -28,7 +28,7 @@ export const Settings: React.FC = () => {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
 
-        <div className="bg-white shadow-sm rounded-lg">
+        <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
               Profile Information
@@ -76,7 +76,7 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6 bg-white shadow-sm rounded-lg">
+        <div className="mt-6 bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
               Application Settings
@@ -98,10 +98,10 @@ export const Settings: React.FC = () => {
                   aria-checked={isDarkMode ? 'true' : 'false'}
                   aria-label="Toggle dark mode"
                   onClick={() => setIsDarkMode(!isDarkMode)}
-                  className={`relative inline-flex shrink-0 h-6 w-11 border-2 border-border rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDarkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-border rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isDarkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform ring-0 transition ease-in-out duration-200 ${isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${isDarkMode ? 'translate-x-5' : 'translate-x-0'}`}
                   ></span>
                 </button>
               </div>
@@ -121,10 +121,10 @@ export const Settings: React.FC = () => {
                   aria-checked={emailNotifications ? 'true' : 'false'}
                   aria-label="Toggle email notifications"
                   onClick={() => setEmailNotifications(!emailNotifications)}
-                  className={`relative inline-flex shrink-0 h-6 w-11 border-2 border-border rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${emailNotifications ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-border rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${emailNotifications ? 'bg-blue-600' : 'bg-gray-200'}`}
                 >
                   <span
-                    className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transform ring-0 transition ease-in-out duration-200 ${emailNotifications ? 'translate-x-5' : 'translate-x-0'}`}
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${emailNotifications ? 'translate-x-5' : 'translate-x-0'}`}
                   ></span>
                 </button>
               </div>

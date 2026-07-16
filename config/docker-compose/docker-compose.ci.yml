@@ -194,7 +194,7 @@ services:
         # The anon JWT is signed with SUPABASE_JWT_SECRET — gotrue accepts it
         # as the apikey on /auth/v1/* endpoints.
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://gotrue:9999}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY to a test anon JWT signed with SUPABASE_JWT_SECRET}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-JWT_REDACTED}
         NEXT_PUBLIC_STATSIG_CLIENT_KEY: ${NEXT_PUBLIC_STATSIG_CLIENT_KEY:-client-SEfCB81zQnvSAqRxfVi1nJNRmpJtrmOrvDKQPQm4UBx}
     ports:
       - "3000:3000"

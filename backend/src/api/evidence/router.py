@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
-from ...core.database import get_db_sync
+from ...core.database import get_db
 from ...core.dependencies import get_current_user
 from ...middleware.rate_limiting import get_rate_limiter
 from ...models.evidence import StanceClassificationModel
@@ -236,7 +236,7 @@ async def get_evidence_meter(
     query_id: Optional[str] = Query(None, description="Optional query ID for context"),
     _rate_limit: bool = Depends(rate_limit_dependency),
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
+    db: Session = Depends(get_db),
 ):
     """
     Get consensus meter for a claim across sources
@@ -370,7 +370,7 @@ async def get_evidence_breakdown(
     offset: int = Query(0, ge=0, description="Number of sources to skip"),
     _rate_limit: bool = Depends(rate_limit_dependency),
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
+    db: Session = Depends(get_db),
 ):
     """
     Get detailed breakdown of source stances for a claim
@@ -458,7 +458,7 @@ async def classify_sources_for_claim(
     claim: str,
     source_ids: List[UUID],
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db_sync),
+    db: Session = Depends(get_db),
 ):
     """
     Internal endpoint to classify sources for a claim

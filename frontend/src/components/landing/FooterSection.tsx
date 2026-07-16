@@ -3,8 +3,6 @@
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
-import { GoesOutComesInUnderline } from '@/components/ui/underline-animation';
-
 const FOOTER_COLS = [
   {
     head: 'Product',
@@ -27,16 +25,16 @@ export function FooterSection() {
   return (
     <>
       {/* Closing CTA */}
-      <section className="py-24 px-6 border-t border-(--nous-shade) bg-(--nous-obsidian)">
+      <section className="py-24 px-6 border-t border-[var(--nous-shade)] bg-[var(--nous-obsidian)]">
         <div className="max-w-3xl mx-auto text-center">
           <h2
-            className="text-3xl md:text-4xl font-bold tracking-tight text-(--nous-ivory) mb-5"
+            className="text-3xl md:text-4xl font-bold tracking-tight text-[var(--nous-ivory)] mb-5"
             style={{ fontFamily: 'var(--nous-font-heading)' }}
           >
             Point it at your corpus and start asking.
           </h2>
           <p
-            className="text-lg text-(--nous-parchment) leading-relaxed mb-10"
+            className="text-lg text-[var(--nous-parchment)] leading-relaxed mb-10"
             style={{ fontFamily: 'var(--nous-font-body)' }}
           >
             Hybrid search across millions of documents, 12ms median, every
@@ -45,7 +43,7 @@ export function FooterSection() {
 
           <Link
             href="/register"
-            className="group inline-flex items-center gap-2 h-12 px-7 rounded-(--nous-radius-md) text-sm font-semibold bg-(--nous-sol) text-(--nous-erebus) transition-colors hover:bg-(--nous-helios) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--nous-obsidian)"
+            className="group inline-flex items-center gap-2 h-12 px-7 rounded-[var(--nous-radius-md)] text-sm font-semibold bg-[var(--nous-sol)] text-[var(--nous-erebus)] transition-colors hover:bg-[var(--nous-helios)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--nous-obsidian)]"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             Get started
@@ -58,18 +56,18 @@ export function FooterSection() {
       </section>
 
       {/* Footer */}
-      <footer className="pt-20 pb-10 px-6 border-t border-(--nous-shade)">
+      <footer className="pt-20 pb-10 px-6 border-t border-[var(--nous-shade)]">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-16">
             <div className="col-span-2 md:col-span-1">
               <span
-                className="text-base font-bold tracking-[0.18em] text-(--nous-ivory)"
+                className="text-base font-bold tracking-[0.18em] text-[var(--nous-ivory)]"
                 style={{ fontFamily: 'var(--nous-font-heading)' }}
               >
                 NOUS
               </span>
               <p
-                className="mt-4 text-sm text-(--nous-parchment) leading-relaxed max-w-xs"
+                className="mt-4 text-sm text-[var(--nous-parchment)] leading-relaxed max-w-xs"
                 style={{ fontFamily: 'var(--nous-font-body)' }}
               >
                 A multimodal intelligence platform for research teams who need
@@ -80,7 +78,7 @@ export function FooterSection() {
             {FOOTER_COLS.map((col) => (
               <nav key={col.head} aria-label={col.head}>
                 <h3
-                  className="text-xs font-semibold uppercase tracking-[0.12em] text-(--nous-parchment) mb-4"
+                  className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--nous-parchment)] mb-4"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   {col.head}
@@ -93,12 +91,9 @@ export function FooterSection() {
                     <li key={l.label}>
                       <Link
                         href={l.href}
-                        className="inline-block text-sm text-(--nous-parchment) hover:text-(--nous-ivory) transition-colors rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol)/40"
+                        className="text-sm text-[var(--nous-parchment)] hover:text-[var(--nous-ivory)] transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]/40"
                       >
-                        <GoesOutComesInUnderline
-                          label={l.label}
-                          direction="left"
-                        />
+                        {l.label}
                       </Link>
                     </li>
                   ))}
@@ -108,7 +103,7 @@ export function FooterSection() {
           </div>
 
           <div
-            className="pt-8 border-t border-(--nous-shade) text-sm text-(--nous-parchment)"
+            className="pt-8 border-t border-[var(--nous-shade)] text-sm text-[var(--nous-parchment)]"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
           >
             &copy; 2026 NOUS. All rights reserved.

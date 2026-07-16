@@ -388,7 +388,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           <div className="relative w-16 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(

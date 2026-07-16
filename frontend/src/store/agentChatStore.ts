@@ -21,10 +21,6 @@ const PROJECT_MUTATING_TOOLS = new Set([
   'create_project_note',
 ]);
 
-// Each thread load owns a monotonically increasing token. A late response must
-// never replace the transcript selected after it started.
-let threadLoadEpoch = 0;
-
 interface AgentChatStore extends AgentChatState, AgentChatActions {
   /** Internal: AbortController for current polling loop */
   _abortController: AbortController | null;
@@ -212,20 +208,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
               },
               onPlan: (steps: Array<Record<string, unknown>>) => {
                 set((state) => {
-                  const plan = steps.map((s) => ({
+                  state.currentPlan = steps.map((s) => ({
                     step: (s.step as number) ?? 0,
                     description: (s.description as string) ?? '',
                     tool: (s.tool as string) ?? '',
                     args_hint: (s.args_hint as Record<string, unknown>) ?? {},
                     depends_on: (s.depends_on as number[]) ?? [],
                   }));
-                  state.currentPlan = plan;
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].plan = plan;
-                  }
                 });
               },
               onRagContext: (contexts: Array<Record<string, unknown>>) => {
@@ -482,13 +471,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
       if (!pendingConfirmation) return;
 
       const jobId = pendingConfirmation.jobId;
-      // Capture the durable wait token NOW: the set() below nulls
-      // pendingConfirmation, so re-reading it from the store in the fallback
-      // branch (after streamConfirm fails) would always be undefined —
-      // silently skipping completeDurableConfirmation and mis-routing a
-      // durable-run approval to the legacy /confirm endpoint, which fails and
-      // leaves the run waiting on its token forever.
-      const waitTokenId = pendingConfirmation.waitTokenId;
 
       set((state) => {
         state.isConfirming = true;
@@ -590,51 +572,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                 });
               },
-              onPlan: (steps: Array<Record<string, unknown>>) => {
-                set((state) => {
-                  const plan = steps.map((s) => ({
-                    step: (s.step as number) ?? 0,
-                    description: (s.description as string) ?? '',
-                    tool: (s.tool as string) ?? '',
-                    args_hint: (s.args_hint as Record<string, unknown>) ?? {},
-                    depends_on: (s.depends_on as number[]) ?? [],
-                  }));
-                  state.currentPlan = plan;
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].plan = plan;
-                    }
-                  }
-                });
-              },
-              onRagContext: (contexts: Array<Record<string, unknown>>) => {
-                set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].citations = contexts.map((ctx) => ({
-                        documentId:
-                          (ctx.document_id as string | undefined) ?? '',
-                        documentTitle:
-                          (ctx.title as string | undefined) ?? 'Source',
-                        snippet: ctx.content as string | undefined,
-                        score: ctx.score as number | undefined,
-                      }));
-                    }
-                  }
-                });
-              },
               onReflection: (_passed, _issues, _round, revising) => {
                 if (!revising) return;
                 streamedContent = '';
@@ -733,9 +670,10 @@ export const useAgentChatStore = create<AgentChatStore>()(
           // SSE confirm failed — fall back to polling
         }
 
-        // Durable run or legacy polling fallback. waitTokenId was captured
-        // up-front (before pendingConfirmation was nulled) so this branch is
-        // actually reachable for durable runs.
+        // Durable run or legacy polling fallback
+        const savedConfirmation = get().pendingConfirmation;
+        const waitTokenId = savedConfirmation?.waitTokenId;
+
         if (waitTokenId) {
           await agentChatService.completeDurableConfirmation(
             jobId,
@@ -933,19 +871,14 @@ export const useAgentChatStore = create<AgentChatStore>()(
     // Threads
     newThread: () =>
       set((state) => {
-        threadLoadEpoch += 1;
         state.activeThreadId = null;
         state.messages = [];
         state.inputValue = '';
-        state.isLoadingMessages = false;
       }),
 
     selectThread: (threadId: string) =>
       set((state) => {
-        threadLoadEpoch += 1;
         state.activeThreadId = threadId;
-        state.messages = [];
-        state.isLoadingMessages = true;
       }),
 
     loadThreads: async () => {
@@ -980,7 +913,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
     },
 
     loadThreadMessages: async (threadId: string) => {
-      const loadEpoch = ++threadLoadEpoch;
       set((state) => {
         state.isLoadingMessages = true;
       });
@@ -1015,13 +947,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
           backendMessageId: m.id,
         }));
 
-        if (
-          loadEpoch !== threadLoadEpoch ||
-          get().activeThreadId !== threadId
-        ) {
-          return;
-        }
-
         set((state) => {
           state.messages = messages;
           state.activeThreadId = threadId;
@@ -1029,12 +954,6 @@ export const useAgentChatStore = create<AgentChatStore>()(
         });
       } catch (error) {
         console.error('Failed to load thread messages:', error);
-        if (
-          loadEpoch !== threadLoadEpoch ||
-          get().activeThreadId !== threadId
-        ) {
-          return;
-        }
         set((state) => {
           state.isLoadingMessages = false;
         });

@@ -24,7 +24,7 @@ from src.api.research.chat import (
     build_context_prompt,
 )
 from src.core.api_key_auth import APIKeyData, APIKeyUsageLog, get_api_key_data
-from src.core.database import get_db_sync
+from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models.search_schemas import (
     DeterministicTrace,
@@ -169,7 +169,7 @@ async def search_documents(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Perform search on documents with multiple search modalities
@@ -252,7 +252,7 @@ async def hybrid_search(
     search_request: SearchQuery,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Perform hybrid search combining vector, full-text, and knowledge graph search
@@ -335,29 +335,13 @@ async def get_search_suggestions(
     ),
     limit: int = Query(default=5, ge=1, le=20, description="Number of suggestions"),
     current_user: User = Depends(get_current_user),
-    # Suggestions are built from a sync `db.execute(text(...))` in the service.
-    # Inject the sync session (not the async `get_db`) so that call actually
-    # runs — with the async session it returns a coroutine and silently fails.
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Get search suggestions for auto-completion
     """
     try:
-        # `_get_search_suggestions` returns [] unless it is scoped to the
-        # caller's org (title suggestions would otherwise leak across tenants).
-        # This call site previously dropped organization_id entirely, so the
-        # endpoint always returned []. Pass the caller's org (None-safe: org-less
-        # users still get [] via the service's fail-closed guard).
-        suggestions = fulltext_search_service._get_search_suggestions(
-            q,
-            db,
-            organization_id=(
-                str(current_user.organization_id)
-                if current_user.organization_id
-                else None
-            ),
-        )
+        suggestions = fulltext_search_service._get_search_suggestions(q, db)
 
         # Convert to SearchSuggestion models
         search_suggestions = [
@@ -445,7 +429,7 @@ async def get_search_analytics(
 
 @router.post("/indexes/rebuild")
 async def rebuild_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Rebuild full-text search indexes (admin only)
@@ -496,7 +480,7 @@ async def rebuild_search_indexes(
 
 @router.get("/indexes", response_model=List[SearchIndex])
 async def get_search_indexes(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Get information about search indexes
@@ -544,7 +528,7 @@ async def get_search_indexes(
 async def reindex_document(
     document_id: str,
     current_user: User = Depends(get_current_user),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     Rebuild search vector for a specific document
@@ -566,15 +550,8 @@ async def reindex_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Update search vector, then restore the searchable flag + persist.
-        # A document whose ingestion-time search-vector build failed is left
-        # is_indexed=False (so it isn't falsely advertised as searchable); a
-        # successful reindex makes it searchable again, so the flag must flip
-        # back, else can_be_searched() stays False and this recovery path is a
-        # no-op for the very documents it exists to fix.
+        # Update search vector
         fulltext_search_service.update_document_search_vector(document_id, db)
-        document.is_indexed = True
-        db.commit()
 
         return {
             "message": f"Document {document_id} reindexed successfully",
@@ -665,7 +642,7 @@ async def submit_search_feedback(
 
 @router.get("/health")
 async def search_health_check(
-    current_user: User = Depends(get_current_user), db=Depends(get_db_sync)
+    current_user: User = Depends(get_current_user), db=Depends(get_db)
 ):
     """
     Health check for all search functionality including hybrid search
@@ -804,7 +781,7 @@ async def authenticated_hybrid_search(
     background_tasks: BackgroundTasks,
     request: Request,
     api_key_data: tuple = Depends(get_api_key_data),
-    db=Depends(get_db_sync),
+    db=Depends(get_db),
 ):
     """
     API Key authenticated hybrid search endpoint.
@@ -1001,9 +978,9 @@ async def persist_api_key_usage_log(
                 client_ip=client_ip,
                 user_agent=user_agent[:500] if user_agent else None,  # Limit length
                 response_time_ms=int(response_time_ms),
-                search_query=(
-                    search_query[:1000] if search_query else None
-                ),  # Limit length
+                search_query=search_query[:1000]
+                if search_query
+                else None,  # Limit length
                 results_count=results_count,
                 response_status=response_status,
             )

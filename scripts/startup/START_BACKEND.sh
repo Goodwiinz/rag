@@ -70,6 +70,9 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=neo4j_password
 
+# Qdrant Configuration
+QDRANT_URL=http://localhost:6333
+QDRANT_API_KEY=
 
 # Redis Configuration
 REDIS_URL=redis://localhost:6379/0

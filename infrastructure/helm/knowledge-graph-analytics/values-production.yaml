@@ -221,6 +221,7 @@ backend:
     waitForPostgres: true
     waitForRedis: false
     waitForNeo4j: false
+    waitForQdrant: false
     # Migrations are NOT auto-applied in prod — run `alembic upgrade heads`
     # explicitly via `kubectl exec` after a pre-deploy DB snapshot.
     runMigrations: false
@@ -254,6 +255,9 @@ neo4j:
       requests:
         cpu: 200m
         memory: 512Mi
+
+qdrant:
+  enabled: false
 
 # ──────────────────────────────────────────────
 # Celery (disabled for initial deploy)

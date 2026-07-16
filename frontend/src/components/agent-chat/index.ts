@@ -1,7 +1,7 @@
 export { AgentFAB } from './AgentFAB';
 export { AgentContextBar } from './AgentContextBar';
 export { ToolExecutionCard } from './ToolExecutionCard';
-export { AgentPlanPanel } from './AgentPlanPanel';
+export { PlanCard } from './PlanCard';
 export { AgentMessageItem } from './AgentMessageItem';
 export { AgentMessageList } from './AgentMessageList';
 export { AgentInput } from './AgentInput';

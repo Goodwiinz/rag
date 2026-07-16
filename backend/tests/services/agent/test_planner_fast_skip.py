@@ -4,7 +4,7 @@ Covers:
 - ``_is_simple_writing_flow`` — True/False cases
 - ``PLANNER_LLM_TIMEOUT_SECONDS`` locked to 8
 - Integration with ``make_planner_node``: simple writing queries in a project
-  context must return {} without invoking generate_plan.
+  context must return {} without invoking check_complexity or generate_plan.
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from langchain_core.messages import HumanMessage
 
 from src.services.agent.planner import (
     PLANNER_LLM_TIMEOUT_SECONDS,
-    AgentPlan,
     _is_simple_writing_flow,
     make_planner_node,
 )
@@ -146,8 +145,8 @@ def test_is_simple_writing_flow_false(query: str) -> None:
 async def test_planner_node_skips_llm_for_simple_writing_query() -> None:
     """A simple single-tool writing query must short-circuit before any LLM call.
 
-    generate_plan is patched to raise if called so the test fails loudly if
-    the fast-skip path is not exercised.
+    check_complexity and generate_plan are patched to raise if called so the
+    test fails loudly if the fast-skip path is not exercised.
     """
     node = make_planner_node(
         tool_names=["summarize_document", "create_project_note", "create_draft"]
@@ -155,12 +154,23 @@ async def test_planner_node_skips_llm_for_simple_writing_query() -> None:
 
     query = "summarize this document"
 
-    with patch(
-        "src.services.agent.planner.generate_plan",
-        new=AsyncMock(side_effect=AssertionError("generate_plan must not be called")),
-    ) as mock_gp:
+    with (
+        patch(
+            "src.services.agent.planner.check_complexity",
+            new=AsyncMock(
+                side_effect=AssertionError("check_complexity must not be called")
+            ),
+        ) as mock_cc,
+        patch(
+            "src.services.agent.planner.generate_plan",
+            new=AsyncMock(
+                side_effect=AssertionError("generate_plan must not be called")
+            ),
+        ) as mock_gp,
+    ):
         result = await node(_project_state(query), config={})
 
+    mock_cc.assert_not_awaited()
     mock_gp.assert_not_awaited()
     assert result == {}
 
@@ -169,18 +179,18 @@ async def test_planner_node_skips_llm_for_simple_writing_query() -> None:
 @pytest.mark.asyncio
 async def test_planner_node_does_not_skip_multi_step_writing_query() -> None:
     """A writing query with a conjunction must NOT be fast-skipped — it should
-    proceed to the planner LLM (which may still judge the query simple)."""
+    proceed to check_complexity (which may still return a low count)."""
     node = make_planner_node(tool_names=["summarize_document", "create_project_note"])
 
     query = "summarize this paper and create a note with the key findings"
 
     with patch(
-        "src.services.agent.planner.generate_plan",
-        new=AsyncMock(return_value=AgentPlan(steps=[])),
-    ) as mock_gp:
+        "src.services.agent.planner.check_complexity",
+        new=AsyncMock(return_value=1),
+    ) as mock_cc:
         result = await node(_project_state(query), config={})
 
-    # generate_plan must have been called (fast-skip did NOT fire)
-    mock_gp.assert_awaited_once()
-    # empty steps → simple query, no plan stored
+    # check_complexity must have been called (fast-skip did NOT fire)
+    mock_cc.assert_awaited_once()
+    # step_count=1 < 3 → no plan
     assert result == {}

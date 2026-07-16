@@ -477,7 +477,7 @@ class AdminUser(HttpUser):
         """Authenticate as admin user"""
         credentials = {
             "email": "admin@test.com",
-            "password": "admin123"
+            "password": "REDACTED"
         }
 
         response = self.client.post("/api/v1/auth/login", json=credentials)

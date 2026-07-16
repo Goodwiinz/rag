@@ -261,15 +261,15 @@ export const WebSocketStatusIndicator: React.FC<{
   const getStatusColor = () => {
     switch (status) {
       case 'connected':
-        return 'bg-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]';
       case 'connecting':
-        return 'bg-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]';
       case 'error':
-        return 'bg-(--nous-mars)';
+        return 'bg-[var(--nous-mars)]';
       case 'disconnected':
-        return 'bg-(--nous-bg-3)';
+        return 'bg-[var(--nous-bg-3)]';
       default:
-        return 'bg-(--nous-bg-3)';
+        return 'bg-[var(--nous-bg-3)]';
     }
   };
 
@@ -298,7 +298,7 @@ export const WebSocketStatusIndicator: React.FC<{
   }
 
   return (
-    <div className={`p-3 bg-(--nous-bg-2) rounded-lg ${className}`}>
+    <div className={`p-3 bg-[var(--nous-bg-2)] rounded-lg ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-medium">WebSocket Status</h4>
         <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
@@ -311,7 +311,7 @@ export const WebSocketStatusIndicator: React.FC<{
         <div className="flex justify-between">
           <span className="text-foreground">Connected:</span>
           <span
-            className={`font-medium ${isConnected ? 'text-(--nous-terra)' : 'text-(--nous-mars)'}`}
+            className={`font-medium ${isConnected ? 'text-[var(--nous-terra)]' : 'text-[var(--nous-mars)]'}`}
           >
             {isConnected ? 'Yes' : 'No'}
           </span>
@@ -323,7 +323,7 @@ export const WebSocketStatusIndicator: React.FC<{
         {status === 'error' && (
           <button
             onClick={manuallyReconnect}
-            className="mt-2 w-full min-h-11 px-2 py-1 bg-(--nous-sol) text-white text-xs rounded hover:bg-(--nous-sol)/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="mt-2 w-full min-h-11 px-2 py-1 bg-[var(--nous-sol)] text-white text-xs rounded hover:bg-[var(--nous-sol)]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Reconnect
           </button>

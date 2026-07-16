@@ -120,19 +120,17 @@ def _get_tools_for_intent(intent: str) -> list:
 def _tools_for_turn(intent: str, *, last_user_msg: str, retrieved: list) -> list:
     """Return the tool subset to bind for THIS turn.
 
-    A bare-greeting general turn ("hi") with no retrieved context calls no
-    tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas only inflates the
-    prompt (~thousands of input tokens) and slows time-to-first-token. Bind
-    nothing for those turns; everything else keeps its full intent subset.
-
-    Deliberately uses the NARROW ``_is_greeting`` predicate, not
-    ``is_conversational``: an ack like "yes"/"ok"/"proceed" routinely accepts
-    an action the assistant just proposed, and with ``tools=[]`` the model
-    cannot call the tool — it fabricates a narrated tool call instead
-    (LangSmith trace 019f33ca-fc58-7102-b3da-bb36370b1957). A greeting cannot
-    be answering a question, so only greetings are safe to strip.
+    A conversational general turn ("hi", "thanks", "ok") with no retrieved
+    context calls no tool, so binding the 10 ``GENERAL_TOOLS_NAMES`` schemas
+    only inflates the prompt (~thousands of input tokens) and slows
+    time-to-first-token. Bind nothing for those turns. Every retrieval or
+    specialised-intent turn keeps its full intent subset. Shares the
+    ``is_conversational`` predicate with ``rag_node`` / ``memory_retrieval_node``
+    so all three hot-path nodes agree on what counts as small talk.
     """
-    if intent == "general" and not retrieved and _is_greeting(last_user_msg):
+    from src.services.agent._nodes_rag import is_conversational
+
+    if intent == "general" and not retrieved and is_conversational(last_user_msg):
         return []
     return _get_tools_for_intent(intent)
 
@@ -208,37 +206,6 @@ def _greeting_reply(
 # ---------------------------------------------------------------------------
 
 
-# Injected instead of a Retrieved-context block when retrieval came back
-# empty. Without it, the static "[Doc N]" citation rule plus a silently
-# absent context block leads the model to improvise a bibliography from
-# parametric memory (user-reproduced 2026-07-04: a fabricated "Cited
-# sources" list with unverifiable references). Provenance over assertion:
-# an honest "nothing retrieved" beats fake citations.
-NO_RETRIEVAL_GUIDANCE = (
-    "No documents were retrieved for this turn. If the question concerns "
-    "the user's documents, state plainly that nothing relevant was found "
-    "in their corpus. You may answer from general knowledge ONLY if you "
-    "label it as such — do NOT invent citations, paper references, or a "
-    "bibliography."
-)
-
-
-def _retrieval_context_part(retrieved: list) -> str:
-    """The system-prompt block for this turn's retrieval outcome.
-
-    Non-empty retrieval renders the numbered [Doc N] context block the
-    citation rule refers to; empty retrieval renders the explicit
-    anti-fabrication guidance instead of silently omitting the block.
-    """
-    if retrieved:
-        context_text = "\n\n".join(
-            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
-            for i, ctx in enumerate(retrieved)
-        )
-        return f"Retrieved context:\n{context_text}"
-    return NO_RETRIEVAL_GUIDANCE
-
-
 @track_node_execution("llm_node")
 async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     """Call the LLM with system prompt, RAG context, and bound tools."""
@@ -308,7 +275,12 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
                 f"project; honor them):\n{pm_text}"
             )
 
-    dynamic_parts.append(_retrieval_context_part(retrieved))
+    if retrieved:
+        context_text = "\n\n".join(
+            f"[Doc {i + 1}] {ctx['title']}:\n{ctx['content']}"
+            for i, ctx in enumerate(retrieved)
+        )
+        dynamic_parts.append(f"Retrieved context:\n{context_text}")
 
     # Close the plan→execute handoff (see planner.render_plan_directive). The
     # planner writes state["plan"] but the executor only ever read messages,
@@ -491,23 +463,10 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
             "force_synthesis_node: LLM exceeded %ds; emitting fallback",
             AGENT_LLM_TIMEOUT_SECONDS,
         )
-        # Honest fallback: do not claim "I gathered results" — the tool
-        # results may have been empty or the synthesis may have produced
-        # nothing usable. Surface the timeout plainly and tell the user what
-        # to do; this must not read as a successful-but-empty completion
-        # (the phantom-search failure mode).
-        tool_count = state.get("tool_loop_count", 0)
         response = AIMessage(
             content=(
-                "I ran my tool calls but the final summary step timed out "
-                f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
-                "Please ask me again — the tool results are still in context "
-                "so a retry can synthesize them directly." if tool_count
-                else (
-                    "The final response step timed out "
-                    f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an "
-                    "answer. Please send your request again."
-                )
+                "I gathered results but ran out of time composing a final "
+                "summary. Please ask me to summarize."
             ),
         )
 

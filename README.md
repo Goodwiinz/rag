@@ -62,7 +62,7 @@ Intent-routed StateGraph with specialized subgraphs (research · writing · data
 
 ### Hybrid Retrieval
 
-Vector (DO Knowledge Base) + keyword (Postgres FTS) + graph (Neo4j) fused and reranked (Cohere). Cross-modal: a query hits text chunks, image regions, audio segments, and citation edges in one call.
+Vector (Qdrant) + keyword (Postgres FTS) + graph (Neo4j) fused and reranked (Cohere). Cross-modal: a query hits text chunks, image regions, audio segments, and citation edges in one call.
 
 </td>
 </tr>
@@ -133,10 +133,10 @@ Full gallery at [goodwiins.github.io/nous](https://goodwiins.github.io/nous/).
 ```
 ┌─────────────────┐     ┌──────────────────────────────────────────┐     ┌────────────────┐
 │  Next.js 15     │────▶│  FastAPI · LangGraph StateGraph          │────▶│  Postgres      │
-│  React 18       │ SSE │  ┌──────────────────────────────────┐    │     │  Neo4j         │
-│  Zustand + RQ   │◀────│  │ rag → intent → memory → route →  │    │     │  Redis         │
-│  shadcn/ui      │     │  │ [research|writing|data|general]  │    │     │  MinIO         │
-└─────────────────┘     │  │ → tools → memory_save → END      │    │     └────────────────┘
+│  React 18       │ SSE │  ┌──────────────────────────────────┐    │     │  Qdrant        │
+│  Zustand + RQ   │◀────│  │ rag → intent → memory → route →  │    │     │  Neo4j         │
+│  shadcn/ui      │     │  │ [research|writing|data|general]  │    │     │  Redis         │
+└─────────────────┘     │  │ → tools → memory_save → END      │    │     │  MinIO         │
                         │  └──────────────────────────────────┘    │     └────────────────┘
                         │  interrupt() ── HITL ── Command(resume)  │
                         └──────────────────────────────────────────┘
@@ -144,7 +144,7 @@ Full gallery at [goodwiins.github.io/nous](https://goodwiins.github.io/nous/).
 
 - **Frontend**: Next.js 15 · React 18 · TS strict · Tailwind · shadcn/ui · Zustand · TanStack Query v5 · Cytoscape.js
 - **Backend**: FastAPI · LangGraph · Celery · Whisper · spaCy · sentence-transformers · Cohere rerank
-- **Data**: Postgres (metadata + checkpoints + FTS) · Neo4j (KG + citations) · Redis (cache + broker) · MinIO (blobs)
+- **Data**: Postgres (metadata + checkpoints) · Qdrant (vectors) · Neo4j (KG + citations) · Redis (cache + broker) · MinIO (blobs)
 - **Infra**: Docker Compose · Kubernetes + Helm · Terraform · GitHub Actions CI
 - **Observability**: Prometheus · LangSmith · structlog
 
@@ -158,7 +158,7 @@ git clone https://github.com/goodwiins/rag.git nous
 cd nous
 cp .env.example .env.local     # add OPENAI_API_KEY / ANTHROPIC_API_KEY
 
-# 2. Spin up services (Postgres, Neo4j, Redis, MinIO, backend)
+# 2. Spin up services (Postgres, Qdrant, Neo4j, Redis, MinIO, backend)
 docker-compose -f docker-compose.development.yml up -d
 
 # 3. Start the frontend
@@ -169,7 +169,7 @@ cd frontend && npm install && npm run dev
 
 **Prerequisites:** Node 18.17+, Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
 
-**Dev users:** `admin@multimodal-rag.com / admin123` · `demo@multimodal-rag.com / demo123`
+**Dev users:** `admin@multimodal-rag.com / REDACTED` · `demo@multimodal-rag.com / demo123`
 
 ---
 
@@ -240,7 +240,7 @@ Interactive docs at `http://localhost:8000/docs` when running.
 | Area                                 | Description                              |
 | ------------------------------------ | ---------------------------------------- |
 | [Architecture](docs/architecture/)   | System design, LangGraph flow, data flow |
-| [Database](docs/database/)           | Schema, Neo4j, migrations        |
+| [Database](docs/database/)           | Schema, Neo4j, Qdrant, migrations        |
 | [Deployment](docs/deployment/)       | Docker, K8s, Helm, runbooks              |
 | [Security](docs/security/)           | Auth, RBAC, encryption, audit            |
 | [Testing](docs/testing/)             | Unit, integration, E2E, eval reports     |

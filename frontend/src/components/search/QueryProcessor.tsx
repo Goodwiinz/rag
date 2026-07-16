@@ -64,13 +64,13 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
   const getStatusColor = () => {
     switch (status) {
       case 'in_progress':
-        return 'text-(--nous-fg-accent-safe) border-(--nous-sol) bg-(--nous-sol)/10';
+        return 'text-[var(--nous-fg-accent-safe)] border-[var(--nous-sol)] bg-[var(--nous-sol)]/10';
       case 'completed':
-        return 'text-(--nous-terra) border-(--nous-terra) bg-(--nous-terra)/10';
+        return 'text-[var(--nous-terra)] border-[var(--nous-terra)] bg-[var(--nous-terra)]/10';
       case 'failed':
-        return 'text-(--nous-mars) border-(--nous-mars) bg-(--nous-mars)/10';
+        return 'text-[var(--nous-mars)] border-[var(--nous-mars)] bg-[var(--nous-mars)]/10';
       default:
-        return 'text-muted-foreground border-border bg-(--nous-bg-2)';
+        return 'text-muted-foreground border-border bg-[var(--nous-bg-2)]';
     }
   };
 
@@ -78,12 +78,12 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
     switch (status) {
       case 'in_progress':
         return (
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--nous-sol) border-t-transparent" />
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
         );
       case 'completed':
-        return <CheckCircleIcon className="h-4 w-4 text-(--nous-terra)" />;
+        return <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />;
       case 'failed':
-        return <XCircleIcon className="h-4 w-4 text-(--nous-mars)" />;
+        return <XCircleIcon className="h-4 w-4 text-[var(--nous-mars)]" />;
       default:
         return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
     }
@@ -108,7 +108,7 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
             <span className="text-xs text-foreground">{duration}ms</span>
           )}
           {error && (
-            <Badge className="bg-(--nous-mars)/15 text-(--nous-mars) text-xs">
+            <Badge className="bg-[var(--nous-mars)]/15 text-[var(--nous-mars)] text-xs">
               Error
             </Badge>
           )}
@@ -119,7 +119,7 @@ const ProcessingStage: React.FC<ProcessingStageProps> = ({
         <Progress value={progress} className="h-1" />
       )}
 
-      {error && <p className="text-xs text-(--nous-mars) mt-1">{error}</p>}
+      {error && <p className="text-xs text-[var(--nous-mars)] mt-1">{error}</p>}
     </div>
   );
 };
@@ -585,16 +585,16 @@ export const QueryProcessor: React.FC<QueryProcessorProps> = ({
 
   const getProcessingIcon = () => {
     if (isPaused)
-      return <PauseIcon className="h-5 w-5 text-(--nous-corona)" />;
+      return <PauseIcon className="h-5 w-5 text-[var(--nous-corona)]" />;
     if (isRunning)
       return (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-(--nous-sol) border-t-transparent" />
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--nous-sol)] border-t-transparent" />
       );
     if (processingState.current_stage === 'completed')
-      return <CheckCircleIcon className="h-5 w-5 text-(--nous-terra)" />;
+      return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
     if (processingState.current_stage === 'failed')
-      return <XCircleIcon className="h-5 w-5 text-(--nous-mars)" />;
-    return <BoltIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />;
+      return <XCircleIcon className="h-5 w-5 text-[var(--nous-mars)]" />;
+    return <BoltIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />;
   };
 
   if (!query) {
@@ -683,8 +683,8 @@ export const QueryProcessor: React.FC<QueryProcessorProps> = ({
           </div>
 
           {processingState.error && (
-            <div className="mt-4 p-3 bg-(--nous-mars)/10 rounded-lg">
-              <p className="text-sm text-(--nous-mars)">
+            <div className="mt-4 p-3 bg-[var(--nous-mars)]/10 rounded-lg">
+              <p className="text-sm text-[var(--nous-mars)]">
                 {processingState.error}
               </p>
             </div>

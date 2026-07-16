@@ -51,6 +51,10 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             return_value=_FakeGraph(),
         ),
         patch(
+            "src.api.agent.streaming._persist_thread_messages",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -59,14 +63,14 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
         async for event in stream_event_generator(body, request, current_user):
             events.append(event)
 
-    assert "event: trace\n" in events[0]
-    assert "event: token\n" in events[1]
+    assert events[0].startswith("event: trace\n")
+    assert events[1].startswith("event: token\n")
     trace_payload = events[0].split("data: ", 1)[1].strip()
     assert '"thread_id": "thread-123"' in trace_payload
     assert '"cli_session_id": ""' in trace_payload
     assert '"langsmith_run_id": ""' in trace_payload
     assert '"langsmith_url": ""' in trace_payload
-    assert "event: done\n" in events[-1]
+    assert events[-1].startswith("event: done\n")
 
 
 @pytest.mark.asyncio
@@ -91,6 +95,10 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
             return_value=_FakeGraph(),
         ),
         patch(
+            "src.api.agent.streaming._persist_thread_messages",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "src.api.agent.streaming.AsyncSessionLocal",
             return_value=AsyncMock(),
         ),
@@ -101,11 +109,11 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
         ):
             events.append(event)
 
-    assert "event: trace\n" in events[0]
-    assert "event: token\n" in events[1]
+    assert events[0].startswith("event: trace\n")
+    assert events[1].startswith("event: token\n")
     trace_payload = events[0].split("data: ", 1)[1].strip()
     assert '"thread_id": "thread-456"' in trace_payload
     assert '"cli_session_id": ""' in trace_payload
     assert '"langsmith_run_id": ""' in trace_payload
     assert '"langsmith_url": ""' in trace_payload
-    assert "event: done\n" in events[-1]
+    assert events[-1].startswith("event: done\n")

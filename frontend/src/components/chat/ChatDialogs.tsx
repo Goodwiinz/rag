@@ -48,17 +48,17 @@ export function ChatDialogs({
         open={renameDialog.open}
         onOpenChange={(open) => setRenameDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="rounded-xl border-(--nous-border-1) bg-(--nous-bg-2)">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
             <AlertDialogTitle
-              className="text-(--nous-fg-1) tracking-tight"
+              className="text-[var(--nous-fg-1)] tracking-tight"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Rename thread
             </AlertDialogTitle>
           </AlertDialogHeader>
           <Input
-            className="text-sm bg-(--nous-bg-1) border-(--nous-border-1) text-(--nous-fg-1)"
+            className="text-sm bg-[var(--nous-bg-1)] border-[var(--nous-border-1)] text-[var(--nous-fg-1)]"
             style={{ fontFamily: 'var(--nous-font-ui)' }}
             value={renameDialog.value}
             onChange={(e) =>
@@ -90,16 +90,16 @@ export function ChatDialogs({
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="rounded-xl border-(--nous-border-1) bg-(--nous-bg-2)">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
             <AlertDialogTitle
-              className="text-(--nous-fg-1) tracking-tight"
+              className="text-[var(--nous-fg-1)] tracking-tight"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete thread?
             </AlertDialogTitle>
             <AlertDialogDescription
-              className="text-(--nous-fg-3) text-xs"
+              className="text-[var(--nous-fg-3)] text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               This action cannot be undone.
@@ -114,7 +114,7 @@ export function ChatDialogs({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitDeleteThread}
-              className="bg-(--nous-mars)/10 border border-(--nous-mars)/50 text-(--nous-mars) hover:bg-(--nous-mars)/20 text-xs"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete
@@ -128,16 +128,16 @@ export function ChatDialogs({
         open={bulkDeleteDialog.open}
         onOpenChange={(open) => setBulkDeleteDialog((d) => ({ ...d, open }))}
       >
-        <AlertDialogContent className="rounded-xl border-(--nous-border-1) bg-(--nous-bg-2)">
+        <AlertDialogContent className="rounded-xl border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
           <AlertDialogHeader>
             <AlertDialogTitle
-              className="text-(--nous-fg-1) tracking-tight"
+              className="text-[var(--nous-fg-1)] tracking-tight"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete {bulkDeleteDialog.ids.length} threads?
             </AlertDialogTitle>
             <AlertDialogDescription
-              className="text-(--nous-fg-3) text-xs"
+              className="text-[var(--nous-fg-3)] text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               This action cannot be undone.
@@ -152,7 +152,7 @@ export function ChatDialogs({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={commitBulkDelete}
-              className="bg-(--nous-mars)/10 border border-(--nous-mars)/50 text-(--nous-mars) hover:bg-(--nous-mars)/20 text-xs"
+              className="bg-[var(--nous-mars)]/10 border border-[var(--nous-mars)]/50 text-[var(--nous-mars)] hover:bg-[var(--nous-mars)]/20 text-xs"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               Delete all

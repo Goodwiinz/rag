@@ -1,14 +1,8 @@
 """Add organization_id to stance_classifications (tenant isolation)
 
-Revision ID: add_org_id_stance_class
+Revision ID: add_org_id_stance_classifications
 Revises: e1f2a3b4c5d6
 Create Date: 2026-06-29 23:00:00
-
-NOTE: the revision id MUST stay <= 32 chars. ``alembic_version.version_num`` is
-``VARCHAR(32)``, so a longer id raises StringDataRightTruncation on the version
-stamp and crash-loops the migration init container (the original 33-char id
-``add_org_id_stance_classifications`` did exactly this, blocking every deploy
-past e1f2a3b4c5d6).
 
 Closes a cross-tenant information disclosure: /api/v1/evidence/breakdown was scoped
 only by claim_hash + model_version (a deterministic SHA-256 of public claim text),
@@ -29,9 +23,11 @@ explicitly (NULL-org users never see any classifications). See memory/nous-loop-
 """
 
 from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 # revision identifiers, used by Alembic.
-revision = "add_org_id_stance_class"
+revision = "add_org_id_stance_classifications"
 down_revision = "e1f2a3b4c5d6"
 branch_labels = None
 depends_on = None
@@ -49,10 +45,14 @@ ORG_INDEX = "ix_stance_classifications_organization_id"
 
 def upgrade():
     # 1. Add the tenant column.
-    # Idempotent: the DOKS dev cluster HISTORICALLY ran create_all at startup
-    # (before the SUPABASE_DB_URL gate landed in #925), so the column may already
-    # exist from the model — a plain add_column would crash-loop the init container.
-    op.execute(f"ALTER TABLE {TABLE} ADD COLUMN IF NOT EXISTS organization_id UUID")
+    op.add_column(
+        TABLE,
+        sa.Column(
+            "organization_id",
+            PG_UUID(as_uuid=True),
+            nullable=True,
+        ),
+    )
 
     # 2. Drop the legacy 3-tuple unique constraint if it exists (left behind by the
     #    standalone migration). IF EXISTS makes this safe whether or not it ran.

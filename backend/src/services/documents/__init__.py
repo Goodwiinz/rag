@@ -30,6 +30,12 @@ __all__ = [
     "DocumentRealtimeService",
     "ProcessingEventType",
     "ProcessingEvent",
+    # Document upload
+    "DocumentUploadService",
+    # Enhanced processing
+    "EnhancedDocumentProcessingService",
+    "ProcessingResult",
+    "MultimodalProcessor",
 ]
 
 _EXPORTS: Dict[str, Tuple[str, str]] = {
@@ -58,6 +64,15 @@ _EXPORTS: Dict[str, Tuple[str, str]] = {
     "DocumentRealtimeService": ("src.services.documents.document_realtime_service", "DocumentRealtimeService"),
     "ProcessingEventType": ("src.services.documents.document_realtime_service", "ProcessingEventType"),
     "ProcessingEvent": ("src.services.documents.document_realtime_service", "ProcessingEvent"),
+    # Document upload
+    "DocumentUploadService": ("src.services.documents.document_upload_service", "DocumentUploadService"),
+    # Enhanced processing
+    "EnhancedDocumentProcessingService": (
+        "src.services.documents.enhanced_document_processing_service",
+        "EnhancedDocumentProcessingService",
+    ),
+    "ProcessingResult": ("src.services.documents.enhanced_document_processing_service", "ProcessingResult"),
+    "MultimodalProcessor": ("src.services.documents.enhanced_document_processing_service", "MultimodalProcessor"),
 }
 
 

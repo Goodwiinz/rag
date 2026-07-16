@@ -8,9 +8,9 @@ export const StatsCardSkeleton: React.FC = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="relative overflow-hidden rounded-xl bg-linear-to-br from-amber-50/50 to-orange-50/30 backdrop-blur-lg border border-amber-200/20 shadow-lg"
+      className="relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-50/50 to-orange-50/30 backdrop-blur-lg border border-amber-200/20 shadow-lg"
     >
-      <div className="absolute inset-0 bg-linear-to-br from-amber-400/5 to-orange-400/5" />
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-400/5 to-orange-400/5" />
       <div className="relative p-6">
         <div className="flex items-center justify-between">
           <div className="space-y-3 flex-1">
@@ -30,9 +30,9 @@ export const AIInsightSkeleton: React.FC = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="relative overflow-hidden rounded-xl bg-linear-to-br from-blue-50/50 to-indigo-50/30 backdrop-blur-lg border border-blue-200/20 shadow-lg"
+      className="relative overflow-hidden rounded-xl bg-gradient-to-br from-blue-50/50 to-indigo-50/30 backdrop-blur-lg border border-blue-200/20 shadow-lg"
     >
-      <div className="absolute inset-0 bg-linear-to-br from-blue-400/5 to-indigo-400/5" />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-400/5 to-indigo-400/5" />
       <div className="relative p-6">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -59,7 +59,7 @@ export const ActivityFeedSkeleton: React.FC = () => {
     >
       {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="flex items-start gap-3">
-          <div className="h-10 w-10 bg-gray-200/50 rounded-full animate-pulse shrink-0" />
+          <div className="h-10 w-10 bg-gray-200/50 rounded-full animate-pulse flex-shrink-0" />
           <div className="flex-1 space-y-2">
             <div className="h-4 bg-gray-200/50 rounded-full w-40 animate-pulse" />
             <div className="h-3 bg-gray-200/50 rounded-full w-full animate-pulse" />
@@ -76,7 +76,7 @@ export const ChartSkeleton: React.FC<{ height: string }> = ({ height }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`${height} rounded-xl bg-linear-to-br from-amber-50/30 to-orange-50/20 backdrop-blur-lg border border-amber-200/20 shadow-lg p-4`}
+      className={`${height} rounded-xl bg-gradient-to-br from-amber-50/30 to-orange-50/20 backdrop-blur-lg border border-amber-200/20 shadow-lg p-4`}
     >
       <div className="h-full bg-gray-200/30 rounded-lg animate-pulse" />
     </motion.div>

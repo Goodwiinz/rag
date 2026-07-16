@@ -43,10 +43,6 @@ from src.models.graph import (
 logger = logging.getLogger(__name__)
 
 
-class RelationshipScopeError(RuntimeError):
-    """Raised when scoped relationship creation finds no endpoint pair."""
-
-
 def _parse_metadata(metadata_val) -> Dict[str, Any]:
     """Parse metadata from Neo4j (may be JSON string, Python repr, or dict)."""
     if not metadata_val or metadata_val == "{}":
@@ -1163,13 +1159,6 @@ class KnowledgeGraphService:
 
                 record = result.single()
                 if not record:
-                    scoped = bool(request.organization_id) or (
-                        source_document_ids is not None
-                    )
-                    if scoped:
-                        raise RelationshipScopeError(
-                            "create_relationship matched no in-scope endpoint pair"
-                        )
                     raise RuntimeError("Failed to create relationship")
 
                 # On MATCH the existing edge keeps its original id, so read it
@@ -1275,13 +1264,11 @@ class KnowledgeGraphService:
                             context=r.get("context"),
                             evidence=_parse_evidence(r.get("evidence", [])),
                             metadata=_parse_metadata(r.get("metadata", "{}")),
-                            source_document_id=r.get("source_document_id"),
-                            created_at=_convert_datetime(r.get("created_at")),
-                            updated_at=(
-                                _convert_datetime(r.get("updated_at"))
-                                if r.get("updated_at") is not None
-                                else None
+                            source_document_id=r.get(
+                                "source_document_id", r.get("source_paper")
                             ),
+                            created_at=r.get("created_at", datetime.utcnow()),
+                            updated_at=r.get("updated_at"),
                         )
                     )
 
@@ -1315,7 +1302,7 @@ class KnowledgeGraphService:
             context=r.get("context"),
             evidence=_parse_evidence(r.get("evidence", [])),
             metadata=_parse_metadata(r.get("metadata", "{}")),
-            source_document_id=r.get("source_document_id"),
+            source_document_id=r.get("source_document_id", r.get("source_paper")),
             created_at=self._to_native_dt(r.get("created_at")) or datetime.utcnow(),
             updated_at=self._to_native_dt(r.get("updated_at")),
         )
@@ -1376,9 +1363,7 @@ class KnowledgeGraphService:
             return []
         try:
             with self.get_session() as session:
-                conditions = [
-                    "(source.id IN $entity_ids OR target.id IN $entity_ids)"
-                ]
+                conditions = ["source.id IN $entity_ids"]
                 params: Dict[str, Any] = {"entity_ids": list(entity_ids)}
                 if organization_id is not None:
                     conditions.append("source.organization_id = $organization_id")
@@ -1427,7 +1412,7 @@ class KnowledgeGraphService:
                     else ""
                 )
                 query = f"""
-                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]->(target:Entity){where}
+                    MATCH (source:Entity)-[r:RELATED_TO {{id: $relationship_id}}]-(target:Entity){where}
                     RETURN r, source.id AS source_id, target.id AS target_id
                     """
 
@@ -1449,12 +1434,8 @@ class KnowledgeGraphService:
                     evidence=_parse_evidence(r.get("evidence", [])),
                     metadata=_parse_metadata(r.get("metadata", "{}")),
                     source_document_id=r.get("source_document_id"),
-                    created_at=_convert_datetime(r.get("created_at")),
-                    updated_at=(
-                        _convert_datetime(r.get("updated_at"))
-                        if r.get("updated_at") is not None
-                        else None
-                    ),
+                    created_at=r["created_at"],
+                    updated_at=r.get("updated_at"),
                 )
         except Exception as e:
             logger.error(f"Error retrieving relationship {relationship_id}: {e}")
@@ -2267,17 +2248,8 @@ class KnowledgeGraphService:
             logger.error(f"Error getting graph analytics: {e}")
             return GraphAnalytics()
 
-    def get_health_status(
-        self, organization_id: Optional[str] = None
-    ) -> GraphHealthStatus:
-        """Get health status of the graph database.
-
-        When ``organization_id`` is supplied the node/relationship counts (and
-        database size) are scoped to that tenant. These counts feed a
-        user-facing panel, so a global ``MATCH (n)`` would leak the whole
-        multi-tenant graph's size to every tenant. Called with no org only from
-        ops/standalone scripts, which keep the global counts.
-        """
+    def get_health_status(self) -> GraphHealthStatus:
+        """Get health status of the graph database"""
         start_time = time.time()
         try:
             with self.get_session() as session:
@@ -2290,28 +2262,12 @@ class KnowledgeGraphService:
                 version_result = session.run(
                     "CALL dbms.components() YIELD name, versions RETURN versions[0] as version"
                 ).single()
-                if organization_id:
-                    # Strict org-equality (no source_document_id fallback like
-                    # _entity_scope_predicate): this is a best-effort display
-                    # panel, and every deployed env is org-backfilled. New writes
-                    # always stamp organization_id, so counts stay accurate.
-                    node_count_result = session.run(
-                        "MATCH (e:Entity {organization_id: $org}) "
-                        "RETURN count(e) as count",
-                        org=organization_id,
-                    ).single()
-                    rel_count_result = session.run(
-                        "MATCH (:Entity {organization_id: $org})-[r]->"
-                        "(:Entity {organization_id: $org}) RETURN count(r) as count",
-                        org=organization_id,
-                    ).single()
-                else:
-                    node_count_result = session.run(
-                        "MATCH (n) RETURN count(n) as count"
-                    ).single()
-                    rel_count_result = session.run(
-                        "MATCH ()-[r]->() RETURN count(r) as count"
-                    ).single()
+                node_count_result = session.run(
+                    "MATCH (n) RETURN count(n) as count"
+                ).single()
+                rel_count_result = session.run(
+                    "MATCH ()-[r]->() RETURN count(r) as count"
+                ).single()
 
                 # Get indexes and constraints
                 index_result = session.run(
@@ -2386,11 +2342,6 @@ class KnowledgeGraphService:
                             uptime = f"{minutes}m"
                 except Exception as uptime_error:
                     logger.debug(f"Could not get uptime: {uptime_error}")
-
-                # Whole-DB store size is a cross-tenant signal; don't expose it
-                # on the per-tenant health panel.
-                if organization_id:
-                    database_size = None
 
                 return GraphHealthStatus(
                     status="healthy",

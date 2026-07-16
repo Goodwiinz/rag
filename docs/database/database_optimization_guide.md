@@ -42,7 +42,7 @@ await manager.initialize({
         'host': 'localhost',
         'port': 5432,
         'user': 'raguser',
-        'password': 'rag_password_123',
+        'password': 'REDACTED',
         'database': 'ragdb',
         'pool_size': 50,
         'optimization_level': 'production'
@@ -50,7 +50,7 @@ await manager.initialize({
     'neo4j': {
         'uri': 'bolt://localhost:7687',
         'user': 'neo4j',
-        'password': 'neo4j_password_123'
+        'password': 'REDACTED'
     }
 })
 
@@ -85,7 +85,7 @@ config = DatabaseConfig(
     host="localhost",
     port=5432,
     user="raguser",
-    password="rag_password_123",
+    password="REDACTED",
     database="ragdb",
     pool_size=50,
     optimization_level="production"
@@ -129,7 +129,7 @@ from src.database.optimizations import Neo4jOptimizer, Neo4jConfig
 config = Neo4jConfig(
     uri="bolt://localhost:7687",
     user="neo4j",
-    password="neo4j_password_123",
+    password="REDACTED",
     database="neo4j",
     max_connection_pool_size=50
 )
@@ -169,7 +169,7 @@ from src.database.optimizations import RedisOptimizer, RedisConfig
 config = RedisConfig(
     host="localhost",
     port=6379,
-    password="redis_password_123",
+    password="REDACTED",
     database=0,
     max_connections=100,
     optimization_level="production"

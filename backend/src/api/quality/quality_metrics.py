@@ -99,22 +99,13 @@ async def record_search_metrics(
                 metric_unit=metric.metric_unit,
                 query=metric.query,
                 search_type=metric.search_type,
-                measured_at=(
-                    metric.measured_at.isoformat() if metric.measured_at else None
-                ),
+                measured_at=metric.measured_at.isoformat(),
                 is_threshold_violation=metric.is_threshold_violation,
-                metadata=metric.evaluation_metadata,
+                metadata=metric.metadata,
             )
             for metric in metrics
         ]
 
-    except ValueError as e:
-        # track_search_session raises ValueError when the client-supplied
-        # session_id belongs to another organization — a client conflict, not a
-        # server fault. Surface 409 so legitimate cross-tenant rejections don't
-        # page as 5xx. The message echoes only the caller's own session_id.
-        logger.warning(f"Rejected search-metrics record: {e}")
-        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         logger.error(f"Error recording search metrics: {e}")
         raise HTTPException(status_code=500, detail="Failed to record search metrics")
@@ -155,11 +146,9 @@ async def get_quality_metrics(
                 metric_unit=metric.metric_unit,
                 query=metric.query,
                 search_type=metric.search_type,
-                measured_at=(
-                    metric.measured_at.isoformat() if metric.measured_at else None
-                ),
+                measured_at=metric.measured_at.isoformat(),
                 is_threshold_violation=metric.is_threshold_violation,
-                metadata=metric.evaluation_metadata,
+                metadata=metric.metadata,
             )
             for metric in metrics
         ]
@@ -280,9 +269,7 @@ async def acknowledge_alert(
     """
     try:
         success = quality_metrics_service.acknowledge_alert(
-            alert_id=alert_id,
-            acknowledged_by=str(current_user.id),
-            organization_id=str(current_user.organization_id),
+            alert_id=alert_id, acknowledged_by=str(current_user.id)
         )
 
         if success:

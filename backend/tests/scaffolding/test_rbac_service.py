@@ -13,19 +13,14 @@ from fastapi import HTTPException, status
 from src.services.security import RBACService
 from src.services.security.rbac_service import check_permission, require_permission
 from src.models.permission import (
-    Permission,
-    Role,
-    UserRoleAssignment,
-    PermissionCategory,
-    PermissionScope,
-    SYSTEM_PERMISSIONS,
-    SYSTEM_ROLES,
+    Permission, Role, UserRoleAssignment, PermissionCategory, PermissionScope,
+    SYSTEM_PERMISSIONS, SYSTEM_ROLES
 )
 from src.models.user import User
 from src.models.organization import Organization
 from src.exceptions.analytics_exceptions import (
     PermissionDeniedException,
-    ConfigurationException,
+    ConfigurationException
 )
 
 
@@ -121,16 +116,12 @@ class TestRBACService:
         mock_db.add.assert_not_called()  # Should not add new permissions
         mock_db.commit.assert_not_called()
 
-    def test_initialize_system_roles_new_org(
-        self, rbac_service, mock_db, mock_organization
-    ):
+    def test_initialize_system_roles_new_org(self, rbac_service, mock_db, mock_organization):
         """Test initializing system roles for new organization"""
         # Mock system permissions
         mock_permission = Mock()
         mock_permission.name = "document_read"
-        mock_db.query.return_value.filter.return_value.all.return_value = [
-            mock_permission
-        ]
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_permission]
 
         # Mock no existing roles
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -141,14 +132,10 @@ class TestRBACService:
         assert mock_db.add.call_count == len(SYSTEM_ROLES)
         mock_db.commit.assert_called_once()
 
-    def test_create_role_success(
-        self, rbac_service, mock_db, mock_organization, mock_permission
-    ):
+    def test_create_role_success(self, rbac_service, mock_db, mock_organization, mock_permission):
         """Test successful role creation"""
         # Mock permission query
-        mock_db.query.return_value.filter.return_value.all.return_value = [
-            mock_permission
-        ]
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_permission]
 
         # Mock no existing role
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -159,7 +146,7 @@ class TestRBACService:
             display_name="Custom Role",
             description="Custom role description",
             permission_names=["document_read"],
-            priority=300,
+            priority=300
         )
 
         assert role is not None
@@ -170,22 +157,18 @@ class TestRBACService:
         """Test role creation with existing name"""
         # Mock existing role
         existing_role = Mock()
-        mock_db.query.return_value.filter.return_value.first.return_value = (
-            existing_role
-        )
+        mock_db.query.return_value.filter.return_value.first.return_value = existing_role
 
         with pytest.raises(ConfigurationException):
             rbac_service.create_role(
                 organization_id=str(mock_organization.id),
                 name="existing_role",
-                display_name="Existing Role",
+                display_name="Existing Role"
             )
 
         mock_db.rollback.assert_called_once()
 
-    def test_assign_permissions_to_role_success(
-        self, rbac_service, mock_db, mock_permission
-    ):
+    def test_assign_permissions_to_role_success(self, rbac_service, mock_db, mock_permission):
         """Test successful permission assignment to role"""
         role_id = "role-123"
         permission_names = ["document_read"]
@@ -196,9 +179,7 @@ class TestRBACService:
         mock_db.query.return_value.filter.return_value.first.return_value = mock_role
 
         # Mock permissions exist
-        mock_db.query.return_value.filter.return_value.all.return_value = [
-            mock_permission
-        ]
+        mock_db.query.return_value.filter.return_value.all.return_value = [mock_permission]
 
         # Mock no existing assignment
         mock_db.execute.return_value.fetchone.return_value = None
@@ -236,7 +217,7 @@ class TestRBACService:
             user_id=user_id,
             role_id=role_id,
             organization_id=organization_id,
-            assigned_by="admin-123",
+            assigned_by="admin-123"
         )
 
         assert assignment is not None
@@ -254,7 +235,9 @@ class TestRBACService:
 
         with pytest.raises(ConfigurationException):
             rbac_service.assign_role_to_user(
-                user_id=user_id, role_id=role_id, organization_id=wrong_org_id
+                user_id=user_id,
+                role_id=role_id,
+                organization_id=wrong_org_id
             )
 
     def test_revoke_role_from_user_success(self, rbac_service, mock_db):
@@ -266,9 +249,7 @@ class TestRBACService:
         # Mock existing assignment
         mock_assignment = Mock(spec=UserRoleAssignment)
         mock_assignment.is_active = True
-        mock_db.query.return_value.filter.return_value.first.return_value = (
-            mock_assignment
-        )
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_assignment
 
         result = rbac_service.revoke_role_from_user(user_id, role_id, organization_id)
 
@@ -308,9 +289,7 @@ class TestRBACService:
         mock_assignment.is_active = True
         mock_assignment.expires_at = None
 
-        mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
-            mock_assignment
-        ]
+        mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [mock_assignment]
 
         permissions = rbac_service.get_user_permissions(user_id, organization_id)
 
@@ -324,12 +303,8 @@ class TestRBACService:
         organization_id = "org-123"
 
         # Mock permission exists
-        with patch.object(
-            rbac_service, "get_user_permissions", return_value={"document_read"}
-        ):
-            result = rbac_service.user_has_permission(
-                user_id, permission_name, organization_id
-            )
+        with patch.object(rbac_service, 'get_user_permissions', return_value={"document_read"}):
+            result = rbac_service.user_has_permission(user_id, permission_name, organization_id)
 
         assert result is True
 
@@ -340,12 +315,8 @@ class TestRBACService:
         organization_id = "org-123"
 
         # Mock permission doesn't exist
-        with patch.object(
-            rbac_service, "get_user_permissions", return_value={"document_read"}
-        ):
-            result = rbac_service.user_has_permission(
-                user_id, permission_name, organization_id
-            )
+        with patch.object(rbac_service, 'get_user_permissions', return_value={"document_read"}):
+            result = rbac_service.user_has_permission(user_id, permission_name, organization_id)
 
         assert result is False
 
@@ -355,12 +326,8 @@ class TestRBACService:
         permission_names = ["document_read", "document_delete"]
         organization_id = "org-123"
 
-        with patch.object(
-            rbac_service, "get_user_permissions", return_value={"document_read"}
-        ):
-            result = rbac_service.user_has_any_permission(
-                user_id, permission_names, organization_id
-            )
+        with patch.object(rbac_service, 'get_user_permissions', return_value={"document_read"}):
+            result = rbac_service.user_has_any_permission(user_id, permission_names, organization_id)
 
         assert result is True
 
@@ -370,14 +337,8 @@ class TestRBACService:
         permission_names = ["document_read", "document_write"]
         organization_id = "org-123"
 
-        with patch.object(
-            rbac_service,
-            "get_user_permissions",
-            return_value={"document_read", "document_write"},
-        ):
-            result = rbac_service.user_has_all_permissions(
-                user_id, permission_names, organization_id
-            )
+        with patch.object(rbac_service, 'get_user_permissions', return_value={"document_read", "document_write"}):
+            result = rbac_service.user_has_all_permissions(user_id, permission_names, organization_id)
 
         assert result is True
 
@@ -387,12 +348,8 @@ class TestRBACService:
         permission_names = ["document_read", "document_delete"]
         organization_id = "org-123"
 
-        with patch.object(
-            rbac_service, "get_user_permissions", return_value={"document_read"}
-        ):
-            result = rbac_service.user_has_all_permissions(
-                user_id, permission_names, organization_id
-            )
+        with patch.object(rbac_service, 'get_user_permissions', return_value={"document_read"}):
+            result = rbac_service.user_has_all_permissions(user_id, permission_names, organization_id)
 
         assert result is False
 
@@ -423,8 +380,7 @@ class TestRBACService:
         mock_assignment2.expires_at = None
 
         mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
-            mock_assignment2,
-            mock_assignment1,  # Intentionally out of order
+            mock_assignment2, mock_assignment1  # Intentionally out of order
         ]
 
         roles = rbac_service.get_user_roles(user_id, organization_id)
@@ -444,8 +400,7 @@ class TestRBACService:
         mock_role2.priority = 200
 
         mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-            mock_role2,
-            mock_role1,  # Database returns in priority order
+            mock_role2, mock_role1  # Database returns in priority order
         ]
 
         roles = rbac_service.get_organization_roles(organization_id)
@@ -467,9 +422,7 @@ class TestRBACService:
         mock_assignment.is_active = True
         mock_assignment.expires_at = None
 
-        mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [
-            mock_assignment
-        ]
+        mock_db.query.return_value.options.return_value.filter.return_value.all.return_value = [mock_assignment]
 
         users = rbac_service.get_users_with_role(role_id, organization_id)
 
@@ -477,17 +430,14 @@ class TestRBACService:
         assert users[0].id == "user-123"
 
     def test_cleanup_expired_assignments(self, rbac_service, mock_db):
-        """Test cleanup of expired assignments is scoped to one organization."""
+        """Test cleanup of expired assignments"""
         # Mock expired assignments exist
         mock_db.query.return_value.filter.return_value.update.return_value = 5
 
-        expired_count = rbac_service.cleanup_expired_assignments("org-123")
+        expired_count = rbac_service.cleanup_expired_assignments()
 
         assert expired_count == 5
         mock_db.commit.assert_called_once()
-        # The filter must be applied (org scope + is_active + expired) — cleanup
-        # is per-organization, never a global cross-tenant UPDATE.
-        mock_db.query.return_value.filter.assert_called_once()
 
     def test_get_permission_categories(self, rbac_service, mock_db):
         """Test getting permission categories"""
@@ -496,12 +446,10 @@ class TestRBACService:
         mock_permission.to_dict.return_value = {
             "id": "perm-123",
             "name": "document_read",
-            "category": "documents",
+            "category": "documents"
         }
 
-        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-            mock_permission
-        ]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_permission]
 
         categories = rbac_service.get_permission_categories()
 
@@ -519,7 +467,7 @@ class TestRBACUtilityFunctions:
         permission_name = "document_read"
         organization_id = "org-123"
 
-        with patch("src.services.rbac_service.RBACService") as mock_rbac_class:
+        with patch('src.services.rbac_service.RBACService') as mock_rbac_class:
             mock_rbac = Mock()
             mock_rbac.user_has_permission.return_value = True
             mock_rbac_class.return_value.__enter__.return_value = mock_rbac
@@ -527,9 +475,7 @@ class TestRBACUtilityFunctions:
             result = check_permission(user_id, permission_name, organization_id)
 
         assert result is True
-        mock_rbac.user_has_permission.assert_called_once_with(
-            user_id, permission_name, organization_id
-        )
+        mock_rbac.user_has_permission.assert_called_once_with(user_id, permission_name, organization_id)
 
     def test_check_permission_failure(self):
         """Test failed permission check"""
@@ -537,7 +483,7 @@ class TestRBACUtilityFunctions:
         permission_name = "document_delete"
         organization_id = "org-123"
 
-        with patch("src.services.rbac_service.RBACService") as mock_rbac_class:
+        with patch('src.services.rbac_service.RBACService') as mock_rbac_class:
             mock_rbac = Mock()
             mock_rbac.user_has_permission.return_value = False
             mock_rbac_class.return_value.__enter__.return_value = mock_rbac
@@ -550,16 +496,9 @@ class TestRBACUtilityFunctions:
         """Test require_permission decorator - success case"""
         permission_name = "document_read"
 
-        with (
-            patch(
-                "src.services.rbac_service.get_current_user_id", return_value="user-123"
-            ),
-            patch(
-                "src.services.rbac_service.get_current_tenant_id",
-                return_value="org-123",
-            ),
-            patch("src.services.rbac_service.RBACService") as mock_rbac_class,
-        ):
+        with patch('src.services.rbac_service.get_current_user_id', return_value="user-123"), \
+             patch('src.services.rbac_service.get_current_tenant_id', return_value="org-123"), \
+             patch('src.services.rbac_service.RBACService') as mock_rbac_class:
 
             mock_rbac = Mock()
             mock_rbac.user_has_permission.return_value = True
@@ -577,16 +516,9 @@ class TestRBACUtilityFunctions:
         """Test require_permission decorator - failure case"""
         permission_name = "document_delete"
 
-        with (
-            patch(
-                "src.services.rbac_service.get_current_user_id", return_value="user-123"
-            ),
-            patch(
-                "src.services.rbac_service.get_current_tenant_id",
-                return_value="org-123",
-            ),
-            patch("src.services.rbac_service.RBACService") as mock_rbac_class,
-        ):
+        with patch('src.services.rbac_service.get_current_user_id', return_value="user-123"), \
+             patch('src.services.rbac_service.get_current_tenant_id', return_value="org-123"), \
+             patch('src.services.rbac_service.RBACService') as mock_rbac_class:
 
             mock_rbac = Mock()
             mock_rbac.user_has_permission.return_value = False
@@ -603,13 +535,8 @@ class TestRBACUtilityFunctions:
         """Test require_permission decorator - no authentication"""
         permission_name = "document_read"
 
-        with (
-            patch("src.services.rbac_service.get_current_user_id", return_value=None),
-            patch(
-                "src.services.rbac_service.get_current_tenant_id",
-                return_value="org-123",
-            ),
-        ):
+        with patch('src.services.rbac_service.get_current_user_id', return_value=None), \
+             patch('src.services.rbac_service.get_current_tenant_id', return_value="org-123"):
 
             @require_permission(permission_name)
             def test_function():
@@ -629,7 +556,7 @@ class TestRBACIntegration:
         role_name = "content_manager"
         permission_name = "document_read"
 
-        with patch("src.services.rbac_service.RBACService") as mock_rbac_class:
+        with patch('src.services.rbac_service.RBACService') as mock_rbac_class:
             mock_rbac = Mock()
             mock_permission = Mock()
             mock_permission.name = permission_name
@@ -651,9 +578,7 @@ class TestRBACIntegration:
 
             # Test permission check
             rbac_service = RBACService()
-            has_permission = rbac_service.user_has_permission(
-                user_id, permission_name, organization_id
-            )
+            has_permission = rbac_service.user_has_permission(user_id, permission_name, organization_id)
 
             # Test role retrieval
             roles = rbac_service.get_user_roles(user_id, organization_id)
@@ -667,7 +592,7 @@ class TestRBACIntegration:
         user_id = "user-123"
         organization_id = "org-123"
 
-        with patch("src.services.rbac_service.RBACService") as mock_rbac_class:
+        with patch('src.services.rbac_service.RBACService') as mock_rbac_class:
             mock_rbac = Mock()
 
             # Create multiple roles with different permissions
@@ -699,10 +624,7 @@ class TestRBACIntegration:
             mock_assignment2.is_active = True
             mock_assignment2.expires_at = None
 
-            mock_rbac.get_user_permissions.return_value = {
-                "document_read",
-                "document_write",
-            }
+            mock_rbac.get_user_permissions.return_value = {"document_read", "document_write"}
             mock_rbac.get_user_roles.return_value = [mock_role1, mock_role2]
             mock_rbac_class.return_value.__enter__.return_value = mock_rbac
 
@@ -719,7 +641,7 @@ class TestRBACIntegration:
         user_id = "user-123"
         organization_id = "org-123"
 
-        with patch("src.services.rbac_service.RBACService") as mock_rbac_class:
+        with patch('src.services.rbac_service.RBACService') as mock_rbac_class:
             mock_rbac = Mock()
 
             # Create expired assignment

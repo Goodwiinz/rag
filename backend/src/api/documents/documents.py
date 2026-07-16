@@ -55,64 +55,6 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-async def _cleanup_do_kb_data_source(db: AsyncSession, document: Document) -> None:
-    """Best-effort removal of a deleted document's DO KB data source.
-
-    A soft-deleted document's chunks stay live in the DO KB index and still
-    resolve back to a title in ``resolve_and_filter_chunks`` (which does not
-    filter ``is_deleted``), so retrieval would keep surfacing them — and the
-    underlying data source leaks storage on DO's side. Unsync removes it.
-
-    Failure-isolated: ``unsync_document_from_kb`` never raises and no-ops when
-    ``DO_KB_ENABLED`` is off or the document has no ``do_kb_data_source_uuid``,
-    so a KB outage during delete must not block the user's delete.
-    """
-    if not document.do_kb_data_source_uuid:
-        return
-    try:
-        from src.services.do_kb import unsync_document_from_kb
-
-        await unsync_document_from_kb(db, document)
-    except Exception:  # noqa: BLE001
-        logger.warning(
-            "do_kb cleanup on delete failed",
-            extra={"document_id": str(document.id)},
-            exc_info=True,
-        )
-
-
-async def _cleanup_do_kb_data_sources_background(document_ids: List[str]) -> None:
-    """Bulk-delete DO KB cleanup, run as a FastAPI background task.
-
-    Runs after the response, so it must NOT touch the request's session (closed
-    by then, and AsyncSession is not concurrency-safe anyway) — it opens its
-    own ``AsyncSessionLocal`` per doc, same pattern as
-    ``_persist_assistant_message_safe`` in agent/jobs.py. Sequential is fine
-    here: nobody is waiting. Failure-isolated per doc: swallow + log so one
-    bad doc (or a DO outage) never crashes the worker or skips the rest.
-
-    Note: a crash between the delete commit and this task leaves a soft-deleted
-    doc with a stale do_kb_data_source_uuid — known sub-threshold drift window,
-    tracked separately (do not fix here).
-    """
-    from src.core.database import AsyncSessionLocal
-    from src.services.do_kb import unsync_document_from_kb
-
-    for document_id in document_ids:
-        try:
-            async with AsyncSessionLocal() as db:
-                document = await db.get(Document, document_id)
-                if document is None or not document.do_kb_data_source_uuid:
-                    continue
-                await unsync_document_from_kb(db, document)
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "do_kb bulk-delete background cleanup failed",
-                extra={"document_id": str(document_id)},
-                exc_info=True,
-            )
-
-
 # Request/Response Models
 class DocumentResponse(BaseModel):
     id: str
@@ -589,34 +531,26 @@ async def delete_document(
             )
             await db.execute(job_update_stmt)
 
+        # Delete physical file (local or Supabase)
+        file_service.delete_physical_file(document)
+
         # Soft delete document
         document.soft_delete()
 
-        # Atomically revert organization storage usage
-        await db.execute(
-            Organization.storage_usage_update(
-                document.organization_id, -document.file_size_bytes
-            )
-        )
+        # Update organization storage usage
+        organization = document.organization
+        organization.update_storage_usage(-document.file_size_bytes)
 
         await db.commit()
 
-        # Best-effort physical delete AFTER the commit — deleting first meant a
-        # commit failure rolled back the row while the object was already gone
-        # (live row pointing at a missing file). A failure here leaves at worst
-        # a sweepable orphan object.
+        # Invalidate search cache so stale results don't include deleted document
         try:
-            file_service.delete_physical_file(document)
-        except Exception:
-            logger.warning(
-                "Soft-deleted document %s but failed to remove its storage object",
-                document.id,
-                exc_info=True,
-            )
+            from src.services.search.search_service import cache
 
-        # Remove the DO KB data source so the deleted doc stops surfacing in
-        # retrieval and no longer leaks storage (best-effort, never blocks).
-        await _cleanup_do_kb_data_source(db, document)
+            await cache.delete_pattern("search:*")
+            await cache.delete_pattern("suggestions:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
 
         return {
             "message": "Document deleted successfully",
@@ -1076,64 +1010,62 @@ async def bulk_delete_documents(
 
     successful = []
     failed = []
-    deleted_docs: List[Document] = []
 
     from sqlalchemy import update
 
-    try:
-        # Set-based instead of per-id: the old loop issued 3 queries per
-        # document (up to 300 round trips per request) inside one open
-        # transaction.
-        doc_stmt = select(Document).where(
-            Document.id.in_(request.document_ids),
-            Document.organization_id == organization.id,
-            Document.is_deleted == False,
-        )
-        doc_result = await db.execute(doc_stmt)
-        deleted_docs = list(doc_result.scalars().all())
-        found_ids = {str(d.id) for d in deleted_docs}
-        successful = [i for i in request.document_ids if i in found_ids]
-        failed = [
-            {"document_id": i, "error": "Document not found"}
-            for i in request.document_ids
-            if i not in found_ids
-        ]
+    for document_id in request.document_ids:
+        try:
+            doc_stmt = select(Document).where(
+                Document.id == document_id,
+                Document.organization_id == organization.id,
+                Document.is_deleted == False,
+            )
+            doc_result = await db.execute(doc_stmt)
+            document = doc_result.scalars().first()
 
-        if deleted_docs:
+            if not document:
+                failed.append(
+                    {"document_id": document_id, "error": "Document not found"}
+                )
+                continue
+
+            # Perform deletion
             if cascade:
-                await db.execute(
+                # Delete related entities
+                entity_update_stmt = (
                     update(Entity)
                     .where(
-                        Entity.document_id.in_(found_ids),
-                        Entity.is_deleted == False,
+                        Entity.document_id == document_id, Entity.is_deleted == False
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
-                await db.execute(
+                await db.execute(entity_update_stmt)
+
+                # Delete related processing jobs
+                job_update_stmt = (
                     update(ProcessingJob)
                     .where(
-                        ProcessingJob.document_id.in_(found_ids),
+                        ProcessingJob.document_id == document_id,
                         ProcessingJob.is_deleted == False,
                     )
                     .values(is_deleted=True, deleted_at=datetime.utcnow())
                 )
+                await db.execute(job_update_stmt)
 
-            for document in deleted_docs:
-                document.soft_delete()
+            # Delete physical file (local or Supabase)
+            file_service.delete_physical_file(document)
 
-            # One atomic quota revert for the whole batch (same org for all).
-            await db.execute(
-                Organization.storage_usage_update(
-                    organization.id,
-                    -sum(d.file_size_bytes or 0 for d in deleted_docs),
-                )
-            )
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to bulk delete documents: {str(e)}",
-        )
+            # Soft delete document
+            document.soft_delete()
+
+            # Update organization storage usage
+            org = document.organization
+            org.update_storage_usage(-document.file_size_bytes)
+
+            successful.append(document_id)
+
+        except Exception as e:
+            failed.append({"document_id": document_id, "error": str(e)})
 
     try:
         await db.commit()
@@ -1142,31 +1074,6 @@ async def bulk_delete_documents(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to commit bulk delete: {str(e)}",
-        )
-
-    # Best-effort physical deletes AFTER the commit (see delete_document): only
-    # documents whose soft-delete actually committed lose their objects, and a
-    # storage failure leaves a sweepable orphan instead of a live row with a
-    # missing file.
-    for document in deleted_docs:
-        try:
-            file_service.delete_physical_file(document)
-        except Exception:
-            logger.warning(
-                "Soft-deleted document %s but failed to remove its storage object",
-                document.id,
-                exc_info=True,
-            )
-
-    # Defer DO KB cleanup off the request path: up to 100 docs × one DO HTTP
-    # call each (with retries/backoff) could block this response for minutes
-    # when DO KB is degraded. Not asyncio.gather here — the request's single
-    # AsyncSession is not concurrency-safe (and unsync commits on it). The
-    # background task opens its own session; sequential there is fine.
-    kb_cleanup_ids = [str(d.id) for d in deleted_docs if d.do_kb_data_source_uuid]
-    if kb_cleanup_ids:
-        background_tasks.add_task(
-            _cleanup_do_kb_data_sources_background, kb_cleanup_ids
         )
 
     return BulkDocumentResponse(
@@ -1231,12 +1138,7 @@ async def reprocess_document(
         document.processing_started_at = None
         document.processing_completed_at = None
 
-        # Flush (not commit): keep the status reset and the new job in one
-        # transaction that is only committed AFTER the Celery enqueue succeeds.
-        # Committing here would strand the document in PENDING (losing its prior
-        # status) if the enqueue below fails — the except's rollback can't undo a
-        # commit.
-        await db.flush()
+        await db.commit()
 
         # Create new processing job
         from src.models.processing import JobPriority, JobType
@@ -1261,19 +1163,12 @@ async def reprocess_document(
         )
 
         db.add(processing_job)
-        # Flush to populate processing_job.id for the enqueue without persisting
-        # a PENDING/celery_task_id=NULL row yet.
-        await db.flush()
+        await db.commit()
 
         # Queue the job for processing
         from src.tasks.processing_tasks import process_document_ingestion
 
         process_document_ingestion.delay(str(processing_job.id))
-
-        # Commit once the task is actually enqueued. If .delay() raises (e.g.
-        # broker down), the except's rollback reverts both the status reset and
-        # the job insert — no orphaned job, document keeps its prior status.
-        await db.commit()
 
         return {
             "message": "Document queued for reprocessing",

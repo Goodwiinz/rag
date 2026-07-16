@@ -69,6 +69,14 @@ scrape_configs:
       - targets: ['redis-exporter:9121']
     scrape_interval: 30s
 
+  # Qdrant Vector Database metrics (if available)
+  - job_name: 'qdrant'
+    static_configs:
+      - targets: ['qdrant:6333']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
 
   # Neo4j metrics (if available)
   - job_name: 'neo4j'

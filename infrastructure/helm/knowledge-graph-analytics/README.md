@@ -1,6 +1,6 @@
 # knowledge-graph-analytics Helm chart
 
-Backend (FastAPI) + frontend (Next.js) + celery + Neo4j for the NOUS Multimodal Intelligence Platform.
+Backend (FastAPI) + frontend (Next.js) + celery + Neo4j/Qdrant for the NOUS Multimodal Intelligence Platform.
 
 Three environment value files:
 
@@ -23,6 +23,7 @@ The chart references these k8s Secrets via `secretKeyRef`. They are **created ou
 | `supabase-credentials` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase project |
 | `azure-openai-credentials` | `AZURE_OPENAI_CHAT_ENDPOINT`, `AZURE_OPENAI_CHAT_API_KEY`, `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME`, `AZURE_OPENAI_CHAT_API_VERSION` | Azure portal → Cognitive Services resource |
 | `neo4j-credentials` | `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j cluster (in-cluster StatefulSet) |
+| `qdrant-credentials` | `QDRANT_API_KEY` | Qdrant StatefulSet |
 
 ### Updating a secret
 

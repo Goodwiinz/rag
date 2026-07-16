@@ -2,7 +2,6 @@
 File upload and management API endpoints
 """
 
-import logging
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -22,17 +21,10 @@ from src.core.dependencies import (
 )
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
-from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
 
 router = APIRouter(prefix="/files", tags=["files"])
-
-
-# Module-level logger: the except handlers in list_files / get_file_statistics /
-# cancel_upload reference `logger`; before this it existed only as a local inside
-# upload_file, so those error paths raised NameError and masked the real error.
-logger = logging.getLogger(__name__)
 
 
 def _escape_like(value: str) -> str:
@@ -89,6 +81,9 @@ async def upload_file(
     """Upload a file to the system"""
 
     # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
@@ -214,26 +209,7 @@ async def list_files(
             conditions.append(Document.document_type == document_type)
 
         if processing_status:
-            # This router emits frontend status names ('queued'/'indexed') in
-            # its upload response, so a client filtering by what it received
-            # sends those back. Comparing them raw against the ProcessingStatus
-            # enum column raised LookupError -> 500. Map like documents.py does.
-            frontend_to_backend = {
-                "queued": ProcessingStatus.PENDING,
-                "indexed": ProcessingStatus.COMPLETED,
-                "processing": ProcessingStatus.PROCESSING,
-                "failed": ProcessingStatus.FAILED,
-                "retrying": ProcessingStatus.RETRYING,
-                "pending": ProcessingStatus.PENDING,
-                "completed": ProcessingStatus.COMPLETED,
-            }
-            mapped = frontend_to_backend.get(processing_status.lower())
-            if not mapped:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid processing_status: {processing_status}",
-                )
-            conditions.append(Document.processing_status == mapped)
+            conditions.append(Document.processing_status == processing_status)
 
         if search:
             escaped_search = _escape_like(search)
@@ -262,9 +238,6 @@ async def list_files(
             size=size,
         )
 
-    except HTTPException:
-        # e.g. the 400 for an invalid processing_status — don't mask it as 500.
-        raise
     except Exception as e:
         logger.error(f"Error in list_files: {e}")
         raise HTTPException(
@@ -348,14 +321,6 @@ async def download_file(
 
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
-        # Verify the object exists before redirecting: a blind presign+302 for
-        # a missing object serves the storage provider's raw XML error (and
-        # bucket hostname) instead of a clean app 404, unlike the local branch.
-        if not helper.object_exists(bucket, key):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
         signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
         return RedirectResponse(url=signed_url, status_code=302)
 
@@ -367,13 +332,9 @@ async def download_file(
     if document.storage_backend == "s3" and document.storage_path:
         from src.core.s3_client import S3StorageHelper
 
-        s3_helper = S3StorageHelper()
-        if not s3_helper.object_exists(document.storage_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
-        signed_url = s3_helper.create_signed_url(document.storage_path, expires_in=3600)
+        signed_url = S3StorageHelper().create_signed_url(
+            document.storage_path, expires_in=3600
+        )
         return RedirectResponse(url=signed_url, status_code=302)
 
     # Local file path
@@ -435,7 +396,7 @@ async def update_file_metadata(
             document.is_public = is_public
 
         await db.commit()
-        await db.refresh(document)
+        db.refresh(document)
 
         return {
             "message": "File metadata updated successfully",
@@ -443,7 +404,7 @@ async def update_file_metadata(
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -534,11 +495,7 @@ async def get_file_metadata(
         )
 
     return {
-        # `document.metadata` is SQLAlchemy's reserved declarative MetaData
-        # registry, not the document's JSON metadata — returning it makes
-        # jsonable_encoder raise and the endpoint 500 on every call. The JSON
-        # column is `document_metadata`, exposed via get_metadata().
-        "metadata": document.get_metadata(),
+        "metadata": document.metadata,
         "file_info": {
             "id": str(document.id),
             "title": document.title,
@@ -576,6 +533,7 @@ async def cancel_upload(
             )
 
         # First, check if upload_id exists in processing jobs
+        from src.models.processing import ProcessingJob
 
         job_stmt = select(ProcessingJob).where(
             ProcessingJob.celery_task_id == upload_id, ProcessingJob.is_deleted == False
@@ -592,25 +550,17 @@ async def cancel_upload(
                     detail="You can only cancel your own uploads",
                 )
 
-            # Check if job can be cancelled. JobStatus is a plain PyEnum, so the
-            # old `status not in ["pending", "running"]` compared enum members
-            # to strings — always True, so every cancel early-returned and the
-            # block below was dead (and would have written the raw string
-            # "cancelled" into the enum column). Compare against enum members.
-            if processing_job.status not in (
-                JobStatus.PENDING,
-                JobStatus.QUEUED,
-                JobStatus.RUNNING,
-                JobStatus.RETRYING,
-            ):
+            # Check if job can be cancelled (only pending or running jobs)
+            if processing_job.status not in ["pending", "running"]:
                 return {
-                    "message": f"Cannot cancel job in {processing_job.status.value} state",
+                    "message": f"Cannot cancel job in {processing_job.status} state",
                     "upload_id": upload_id,
-                    "job_status": processing_job.status.value,
+                    "job_status": processing_job.status,
                 }
 
-            # cancel_job() sets status=CANCELLED + completed_at + duration.
-            processing_job.cancel_job()
+            # Update job status to cancelled
+            processing_job.status = "cancelled"
+            processing_job.completed_at = datetime.utcnow()
             processing_job.error_message = "Upload cancelled by user"
             await db.commit()
 
@@ -662,7 +612,7 @@ async def cancel_upload(
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         logger.error(f"Failed to cancel upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -709,46 +659,13 @@ async def reprocess_file(
         document.processing_started_at = None
         document.processing_completed_at = None
 
-        # Create + enqueue an actual ProcessingJob. The old code only reset the
-        # status and committed — it created no job and dispatched no task, so
-        # nothing ever picked the document up (there is no PENDING sweeper); it
-        # sat PENDING forever while the API falsely reported "queued". Mirror
-        # documents.py reprocess_document: flush -> delay -> commit so a broker
-        # failure rolls back the status reset too (no stranded document).
-        from src.models.processing import JobPriority, JobType
-
-        processing_job = ProcessingJob(
-            job_type=JobType.DOCUMENT_INGESTION,
-            status=JobStatus.PENDING,
-            priority=JobPriority.NORMAL,
-            document_id=document.id,
-            organization_id=organization.id,
-            created_by_user_id=current_user.id,
-            parameters={
-                "document_id": str(document.id),
-                "file_path": document.file_path,
-                "document_type": document.document_type.value,
-                "mime_type": document.mime_type,
-            },
-            config={"max_retries": 3, "timeout_seconds": 300},
-            total_steps=5,
-            queue_name="document_processing",
-        )
-        db.add(processing_job)
-        await db.flush()
-
-        from src.tasks.processing_tasks import process_document_ingestion
-
-        process_document_ingestion.delay(str(processing_job.id))
-
         await db.commit()
 
         return {
             "message": "File queued for reprocessing",
             "processing_status": document.processing_status.value,
-            "job_id": str(processing_job.id),
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -1,12 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChatStore } from '@/store/agentChatStore';
-
-const serviceMocks = vi.hoisted(() => ({
-  listThreads: vi.fn(async () => ({ threads: [] })),
-  getThreadMessages: vi.fn(async () => ({ messages: [] })),
-  streamMessage: vi.fn(async () => {}),
-  startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
-}));
 
 // loadThreads/loadThreadMessages dynamically import agentChatService and call
 // the backend. In jsdom that request never resolves, so loadThreads otherwise
@@ -14,26 +7,16 @@ const serviceMocks = vi.hoisted(() => ({
 // hermetic and fast. (Mirrors the fix in PR #734.)
 vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
-    listThreads: serviceMocks.listThreads,
-    getThreadMessages: serviceMocks.getThreadMessages,
-    streamMessage: serviceMocks.streamMessage,
-    startDurableRun: serviceMocks.startDurableRun,
-    streamConfirm: vi.fn(async () => {}),
-    completeDurableConfirmation: vi.fn(async () => {}),
-    getDurableRunStatus: vi.fn(async () => ({ status: 'PENDING' })),
-    confirmAction: vi.fn(async () => {}),
+    listThreads: vi.fn(async () => ({ threads: [] })),
+    getThreadMessages: vi.fn(async () => ({ messages: [] })),
+    streamMessage: vi.fn(async () => {}),
+    startDurableRun: vi.fn(async () => ({ runId: 'run-stub' })),
   },
 }));
 
 describe('agentChatStore', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   beforeEach(() => {
     useAgentChatStore.getState().reset();
-    serviceMocks.getThreadMessages.mockReset();
-    serviceMocks.getThreadMessages.mockResolvedValue({ messages: [] });
   });
 
   describe('initial state', () => {
@@ -197,72 +180,6 @@ describe('agentChatStore', () => {
       useAgentChatStore.getState().selectThread('thread-42');
       expect(useAgentChatStore.getState().activeThreadId).toBe('thread-42');
     });
-
-    it('keeps the latest selected thread when an earlier fetch resolves last', async () => {
-      let resolveThreadA!: (value: { messages: Array<Record<string, unknown>> }) => void;
-      let resolveThreadB!: (value: { messages: Array<Record<string, unknown>> }) => void;
-      const threadA = new Promise<{ messages: Array<Record<string, unknown>> }>((resolve) => {
-        resolveThreadA = resolve;
-      });
-      const threadB = new Promise<{ messages: Array<Record<string, unknown>> }>((resolve) => {
-        resolveThreadB = resolve;
-      });
-      // Serve the SAME deferred payloads at BOTH layers. In this suite one
-      // loadThreadMessages call resolves the mocked agentChatService while the
-      // other reaches the real module's api-client fetch (vitest module-graph
-      // quirk, stack-verified) — with only the fetch stub, the mock-routed load
-      // resolved instantly (empty) and the "earlier fetch resolves LAST" race
-      // never happened: the test passed even with the epoch guard deleted.
-      // Mutation-verified: with both layers deferred, deleting the guard fails
-      // this test.
-      serviceMocks.getThreadMessages.mockImplementation(
-        async (threadId: string) =>
-          threadId.includes('thread-A') ? threadA : threadB
-      );
-      vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-        const response = String(input).includes('thread-A') ? threadA : threadB;
-        return response.then((body) =>
-          Promise.resolve(
-            new Response(JSON.stringify(body), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            })
-          )
-        );
-      }));
-
-      useAgentChatStore.setState({
-        messages: [
-          { id: 'old', role: 'assistant', content: 'old transcript', timestamp: new Date() },
-        ],
-      });
-
-      useAgentChatStore.getState().selectThread('thread-A');
-      const loadA = useAgentChatStore.getState().loadThreadMessages('thread-A');
-      useAgentChatStore.getState().selectThread('thread-B');
-      const loadB = useAgentChatStore.getState().loadThreadMessages('thread-B');
-
-      expect(useAgentChatStore.getState().messages).toEqual([]);
-      expect(useAgentChatStore.getState().isLoadingMessages).toBe(true);
-
-      resolveThreadB({
-        messages: [
-          { id: 'b1', role: 'assistant', content: 'thread B', created_at: new Date().toISOString() },
-        ],
-      });
-      await loadB;
-      resolveThreadA({
-        messages: [
-          { id: 'a1', role: 'assistant', content: 'thread A', created_at: new Date().toISOString() },
-        ],
-      });
-      await loadA;
-
-      const state = useAgentChatStore.getState();
-      expect(state.activeThreadId).toBe('thread-B');
-      expect(state.messages.map((message) => message.content)).toEqual(['thread B']);
-      expect(state.isLoadingMessages).toBe(false);
-    });
   });
 
   describe('clearMessages', () => {
@@ -347,120 +264,6 @@ describe('agentChatStore', () => {
       const messages = useAgentChatStore.getState().messages;
       const assistant = messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('A');
-    });
-  });
-
-  describe('confirmAction resume stream', () => {
-    // The confirm (post-HITL) stream emits the same plan / rag_context
-    // events as the main stream; the store must not drop them.
-    it('attaches plan and citations from the resumed stream to the assistant message', async () => {
-      const { agentChatService } = await import('@/services/agentChatService');
-      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
-        async (_req, callbacks) => {
-          callbacks.onPlan?.(
-            [{ step: 1, description: 'ingest paper', tool: 'ingest_arxiv' }],
-            ''
-          );
-          callbacks.onRagContext?.([
-            {
-              document_id: 'doc-1',
-              title: 'Attention Is All You Need',
-              content: 'snippet',
-              score: 0.9,
-            },
-          ]);
-          callbacks.onToken?.('done!');
-          callbacks.onDone?.();
-        }
-      );
-
-      useAgentChatStore.setState({
-        messages: [
-          {
-            id: 'a-1',
-            role: 'assistant',
-            content: 'Waiting for your confirmation...',
-            timestamp: new Date(),
-          },
-        ],
-        pendingConfirmation: {
-          jobId: 'job-1',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
-        },
-      });
-      await useAgentChatStore.getState().confirmAction(true);
-
-      const assistant = useAgentChatStore
-        .getState()
-        .messages.find((m) => m.role === 'assistant');
-      expect(assistant?.plan).toEqual([
-        {
-          step: 1,
-          description: 'ingest paper',
-          tool: 'ingest_arxiv',
-          args_hint: {},
-          depends_on: [],
-        },
-      ]);
-      expect(assistant?.citations).toEqual([
-        {
-          documentId: 'doc-1',
-          documentTitle: 'Attention Is All You Need',
-          snippet: 'snippet',
-          score: 0.9,
-        },
-      ]);
-      expect(assistant?.content).toBe('done!');
-    });
-
-    // When SSE confirm fails, a durable (Trigger.dev) run must complete via its
-    // wait token — not the legacy /confirm endpoint. The token was captured
-    // before pendingConfirmation was nulled; re-reading it from the store here
-    // used to yield undefined, silently dropping the approval.
-    it('completes the durable wait token on SSE failure instead of the legacy confirm', async () => {
-      const { agentChatService } = await import('@/services/agentChatService');
-      vi.mocked(agentChatService.streamConfirm).mockRejectedValueOnce(
-        new Error('sse down')
-      );
-      vi.mocked(agentChatService.getDurableRunStatus).mockResolvedValue({
-        status: 'COMPLETED',
-        output: { result: { message: 'ingested' } },
-      } as never);
-
-      useAgentChatStore.setState({
-        messages: [
-          {
-            id: 'a-1',
-            role: 'assistant',
-            content: 'Waiting for your confirmation...',
-            timestamp: new Date(),
-          },
-        ],
-        pendingConfirmation: {
-          jobId: 'run-42',
-          waitTokenId: 'wait-7',
-          tools: [{ name: 'ingest_arxiv', args: {} }],
-          message: 'Confirm?',
-        },
-      });
-
-      vi.useFakeTimers();
-      try {
-        const p = useAgentChatStore.getState().confirmAction(true);
-        // The poll loop waits 3s before its first status check.
-        await vi.advanceTimersByTimeAsync(3000);
-        await p;
-      } finally {
-        vi.useRealTimers();
-      }
-
-      expect(agentChatService.completeDurableConfirmation).toHaveBeenCalledWith(
-        'run-42',
-        'wait-7',
-        true
-      );
-      expect(agentChatService.confirmAction).not.toHaveBeenCalled();
     });
   });
 
