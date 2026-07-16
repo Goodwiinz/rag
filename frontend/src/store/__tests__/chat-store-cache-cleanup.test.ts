@@ -331,6 +331,76 @@ describe('loadThreads stale-404 recovery guard', () => {
     expect(workspaceService.getOrCreateDefaultWorkspace).not.toHaveBeenCalled();
   });
 
+  it('drops a superseded same-conversation response instead of overwriting the newer list (A → B → A)', async () => {
+    useChatStore.setState({ currentConversationId: 'conv-a' });
+    let resolveStale!: (value: unknown) => void;
+    let resolveFresh!: (value: unknown) => void;
+    (workspaceService.listThreads as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveStale = resolve;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFresh = resolve;
+        })
+      );
+
+    const stale = useChatStore.getState().loadThreads('conv-a');
+    const fresh = useChatStore.getState().loadThreads('conv-a');
+    resolveFresh({ threads: [makeThread('t-new', 'conv-a')] });
+    await act(async () => {
+      await fresh;
+    });
+    resolveStale({ threads: [makeThread('t-old', 'conv-a')] });
+    await act(async () => {
+      await stale;
+    });
+
+    // Old behavior: last-writer-wins, the stale response clobbered the list
+    expect(
+      useChatStore.getState().threads['conv-a'].map((t) => t.id)
+    ).toEqual(['t-new']);
+  });
+
+  it('ignores a superseded 404 even when the conversation is still current', async () => {
+    useChatStore.setState({
+      currentWorkspaceId: 'ws-1',
+      currentConversationId: 'conv-a',
+    });
+    let rejectStale!: (reason: unknown) => void;
+    let resolveFresh!: (value: unknown) => void;
+    (workspaceService.listThreads as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectStale = reject;
+        })
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFresh = resolve;
+        })
+      );
+
+    const stale = useChatStore.getState().loadThreads('conv-a');
+    const fresh = useChatStore.getState().loadThreads('conv-a');
+    resolveFresh({ threads: [makeThread('t1', 'conv-a')] });
+    await act(async () => {
+      await fresh;
+    });
+    rejectStale(notFound());
+    await act(async () => {
+      await stale;
+    });
+
+    // Old behavior: requested === current, so the stale 404 fired full
+    // recovery over the state the fresh load just committed
+    expect(useChatStore.getState().currentConversationId).toBe('conv-a');
+    expect(useChatStore.getState().threads['conv-a']).toHaveLength(1);
+    expect(workspaceService.getOrCreateDefaultWorkspace).not.toHaveBeenCalled();
+  });
+
   it('still runs stale-data recovery when the 404 is for the CURRENT conversation', async () => {
     useChatStore.setState({
       currentWorkspaceId: 'ws-1',

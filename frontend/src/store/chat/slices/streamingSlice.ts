@@ -70,6 +70,11 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
         { useRag },
         controller.signal
       )) {
+        // A buffered event can arrive after a newer stream took ownership —
+        // drop it rather than writing into the new stream's state.
+        if (activeAbortController !== controller) {
+          break;
+        }
         switch (event.type) {
           case 'message_start':
             set((state) => {

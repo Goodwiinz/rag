@@ -264,6 +264,35 @@ describe('loadOlderMessages', () => {
       ).toBe(1);
     });
 
+    it('a superseded request that FAILS after the cache was rebuilt does not set the global error', async () => {
+      seedThread(['m3']);
+      let rejectOlder!: (reason: unknown) => void;
+      listMessagesMock.mockReturnValueOnce(
+        new Promise<ChatMessageListResponse>((_, reject) => {
+          rejectOlder = reject;
+        })
+      );
+
+      const load = useChatStore.getState().loadOlderMessages(THREAD);
+      act(() => {
+        useChatStore.getState().clearThread(THREAD);
+        seedThread(['m9']);
+      });
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      rejectOlder(new Error('network down'));
+      await act(async () => {
+        await load;
+      });
+      err.mockRestore();
+
+      // Old behavior surfaced a global error banner for a request the
+      // current view no longer owns
+      expect(useChatStore.getState().error).toBeNull();
+      expect(
+        useChatStore.getState().messages[THREAD].map((m) => m.id)
+      ).toEqual(['m9']);
+    });
+
     it('a superseded request neither commits nor clears the flag owned by the newer request', async () => {
       seedThread(['m3']);
       let resolveFirst!: (response: ChatMessageListResponse) => void;
