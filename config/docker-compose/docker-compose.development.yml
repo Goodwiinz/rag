@@ -111,9 +111,10 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       target: development
+    working_dir: /app/frontend
     ports:
       - "3000:3000"
     environment:
@@ -128,8 +129,10 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - NODE_OPTIONS=--max-old-space-size=4096
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./frontend:/app/frontend
+      - frontend_root_node_modules:/app/node_modules
+      - frontend_workspace_node_modules:/app/frontend/node_modules
+      - frontend_next_cache:/app/frontend/.next
     depends_on:
       backend:
         condition: service_healthy
@@ -420,6 +423,9 @@ services:
 
 volumes:
   # postgres_dev_data:  # Commented out — Supabase manages PostgreSQL now
+  frontend_root_node_modules:
+  frontend_workspace_node_modules:
+  frontend_next_cache:
   redis_dev_data:
   serena_dev_data:
   neo4j_dev_data:

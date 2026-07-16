@@ -4,9 +4,11 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: ../../frontend
-      target: production
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: rag-frontend
     ports:
       - "3000:3000"

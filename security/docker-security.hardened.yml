@@ -89,8 +89,11 @@ services:
   # Frontend Application
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.hardened
+      context: ..
+      dockerfile: frontend/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     image: rag-frontend:hardened
     container_name: rag-frontend-hardened
     restart: unless-stopped
