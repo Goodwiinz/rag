@@ -56,14 +56,22 @@ async def _resolve_or_create_org(
             is_deleted=False,
         )
     else:
+        # Fail-closed: no org claim on the token. Give this org-less user
+        # their OWN organization instead of funneling everyone into one
+        # shared "Default Organization" — two org-less users must never
+        # collapse into the same tenant scope (organization_id is what all
+        # tenant filtering keys off). The name is deterministic on user_id
+        # so re-provisioning (or a concurrent duplicate) the same user
+        # resolves back to the same org, matching the org_id branch above.
+        org_name = f"user-{str(token_data.user_id)[:8]} Organization"
         result = await db.execute(
-            select(Organization).where(Organization.name == "Default Organization")
+            select(Organization).where(Organization.name == org_name)
         )
         org = result.scalars().first()
         if org:
             return org
         org = Organization(
-            name="Default Organization",
+            name=org_name,
             storage_tier=StorageTier.FREE,
             storage_used_bytes=0,
             storage_limit_bytes=_FREE_STORAGE,
@@ -82,9 +90,7 @@ async def _resolve_or_create_org(
             )
         else:
             result = await db.execute(
-                select(Organization).where(
-                    Organization.name == "Default Organization"
-                )
+                select(Organization).where(Organization.name == org_name)
             )
         org = result.scalars().first()
 
