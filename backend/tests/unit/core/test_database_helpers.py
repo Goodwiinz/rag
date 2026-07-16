@@ -144,13 +144,25 @@ async def test_get_async_session_is_context_manager_not_iterable(monkeypatch):
 
 
 @pytest.mark.unit
-def test_no_async_for_over_session_context_managers():
-    """Source scan for the exact misuse that produced JAVASCRIPT-NEXTJS-4A."""
+def test_no_misuse_of_session_context_managers():
+    """Source scan for the two misuse modes of the @asynccontextmanager helpers:
+
+    1. `async for db in get_db_session():` — TypeError at runtime (Sentry
+       JAVASCRIPT-NEXTJS-4A, broke background arXiv ingestion).
+    2. `Depends(get_async_session)` — FastAPI only enters *generator function*
+       dependencies; wrapping the already-wrapped helper raises
+       "'_AsyncGeneratorContextManager' object is not an async iterator"
+       during dependency resolution, 500ing the endpoint on every request
+       (found on 5 /api/v2/realtime routes). Endpoints must use get_db.
+    """
     src_root = Path(database.__file__).resolve().parents[1]
-    pattern = re.compile(r"async\s+for\s+\w+\s+in\s+get_(?:db_session|async_session)\(")
+    patterns = [
+        re.compile(r"async\s+for\s+\w+\s+in\s+get_(?:db_session|async_session)\("),
+        re.compile(r"Depends\(\s*get_(?:db_session|async_session)\s*\)"),
+    ]
     offenders = [
         str(path.relative_to(src_root))
         for path in src_root.rglob("*.py")
-        if pattern.search(path.read_text(encoding="utf-8", errors="ignore"))
+        if any(p.search(path.read_text(encoding="utf-8", errors="ignore")) for p in patterns)
     ]
     assert offenders == []
