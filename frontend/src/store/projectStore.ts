@@ -25,6 +25,12 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+// In-flight dedup for fetchProject: /chat's layout effect (and the project
+// page) re-invoke it on render churn before the first GET settles, queueing
+// parallel identical /projects/{id} requests (Sentry JAVASCRIPT-NEXTJS-3Q).
+// Callers awaiting the same id share one request.
+let inflightProjectFetch: { id: string; promise: Promise<void> } | null = null;
+
 interface ProjectState {
   // State
   projects: Project[];
@@ -141,28 +147,39 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   fetchProject: async (projectId) => {
+    if (inflightProjectFetch?.id === projectId) {
+      return inflightProjectFetch.promise;
+    }
     set({ loading: true, error: null });
-    try {
-      const project = await projectService.getProject(projectId);
-      // Clear stale documents/notes from the previous project on switch
-      const prev = get().currentProject;
-      if (prev && prev.id !== projectId) {
+    const promise = (async () => {
+      try {
+        const project = await projectService.getProject(projectId);
+        // Clear stale documents/notes from the previous project on switch
+        const prev = get().currentProject;
+        if (prev && prev.id !== projectId) {
+          set({
+            currentProject: project,
+            projectDocuments: [],
+            projectNotes: [],
+            loading: false,
+          });
+        } else {
+          set({ currentProject: project, loading: false });
+        }
+      } catch (error: unknown) {
+        console.error('[ProjectStore] Failed to fetch project:', error);
         set({
-          currentProject: project,
-          projectDocuments: [],
-          projectNotes: [],
+          error: getErrorMessage(error, 'Failed to fetch project'),
           loading: false,
         });
-      } else {
-        set({ currentProject: project, loading: false });
+      } finally {
+        if (inflightProjectFetch?.id === projectId) {
+          inflightProjectFetch = null;
+        }
       }
-    } catch (error: unknown) {
-      console.error('[ProjectStore] Failed to fetch project:', error);
-      set({
-        error: getErrorMessage(error, 'Failed to fetch project'),
-        loading: false,
-      });
-    }
+    })();
+    inflightProjectFetch = { id: projectId, promise };
+    return promise;
   },
 
   createProject: async (data) => {
