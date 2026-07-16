@@ -25,17 +25,26 @@ interface PipelineStore {
   clearError: () => void;
 }
 
+// Identity for the in-flight pipeline fetch. Module scope (outside the store)
+// — unique token objects, not counters; see chat/slices/threadSlice.ts for
+// the full rationale.
+let pipelineRequestToken: object | null = null;
+
 export const usePipelineStore = create<PipelineStore>((set, get) => ({
   pipeline: null,
   loading: false,
   error: null,
 
   fetchPipeline: async (projectId: string) => {
+    const requestToken = {};
+    pipelineRequestToken = requestToken;
     set({ loading: true, error: null });
     try {
       const pipeline = await scispaceService.getPipeline(projectId);
+      if (pipelineRequestToken !== requestToken) return; // superseded
       set({ pipeline, loading: false });
     } catch (err) {
+      if (pipelineRequestToken !== requestToken) return; // superseded
       const message =
         err instanceof Error ? err.message : 'Failed to load pipeline';
       set({ error: message, loading: false });
