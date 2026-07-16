@@ -101,5 +101,13 @@ describe('useChatStreaming submit single-flight (submitLockRef)', () => {
     expect(streamMessageMock).toHaveBeenCalledTimes(1);
     // The lock released so a later, legitimate submit isn't stuck.
     expect(result.current.isLoading).toBe(false);
+
+    // Prove the lock actually releases: a genuine subsequent submit reaches
+    // streamMessage again, rather than relying on the isLoading flag alone.
+    streamMessageMock.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      await result.current.handleSubmit('later message');
+    });
+    expect(streamMessageMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -65,10 +65,26 @@ export function useChatDrawer(): UseChatDrawerReturn {
     const focusables = root.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
     );
-    if (focusables.length === 0) return;
+    if (focusables.length === 0) {
+      // No focusable descendants — still trap on the root itself so Tab
+      // can't escape to whatever is behind the dialog.
+      e.preventDefault();
+      root.focus();
+      return;
+    }
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
+    if (document.activeElement === root) {
+      // Focus is still on the dialog root (e.g. right after open) — treat
+      // the root itself as a boundary rather than falling through to the
+      // browser's native Tab handling.
+      e.preventDefault();
+      if (e.shiftKey) {
+        last.focus();
+      } else {
+        first.focus();
+      }
+    } else if (e.shiftKey && document.activeElement === first) {
       e.preventDefault();
       last.focus();
     } else if (!e.shiftKey && document.activeElement === last) {

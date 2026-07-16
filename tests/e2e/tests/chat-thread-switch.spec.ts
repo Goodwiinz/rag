@@ -78,7 +78,7 @@ test.describe("Chat thread switching @regression", () => {
     await composer.fill(`Alpha marker ${alphaMarker}`);
     const alphaResponse = page.waitForResponse(
       (response) =>
-        response.url().includes("/agent/stream") &&
+        response.url().endsWith("/api/v1/agent/stream") &&
         response.request().method() === "POST",
     );
     await page.getByRole("button", { name: /^Send/ }).click();

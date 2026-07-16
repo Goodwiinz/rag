@@ -118,6 +118,7 @@ export function useSlashCommands({
 
   // Start a fresh chat — shared by the sidebar "new" button and the /new command
   const startNewChat = useCallback(() => {
+    setCommandOutputs([]);
     setCurrentThread(null);
     router.push(getNewChatUrl());
   }, [router, setCurrentThread]);
@@ -319,13 +320,19 @@ export function useSlashCommands({
             try {
               await fetchProjects({ limit: 20, project_status: 'active' });
               const { projects, currentProject } = useProjectStore.getState();
+              const contextProjectId =
+                new URLSearchParams(window.location.search).get(
+                  'projectId'
+                ) ||
+                currentProject?.id ||
+                null;
               const items: CommandOutputItem[] = projects.map((p) => ({
                 key: p.id,
                 label: p.name,
                 meta: `${p.document_count ?? 0} ${
                   (p.document_count ?? 0) === 1 ? 'paper' : 'papers'
                 }`,
-                active: p.id === currentProject?.id,
+                active: p.id === contextProjectId,
                 action: { type: 'set-project', id: p.id, name: p.name },
               }));
               patchOutput(outId, {
