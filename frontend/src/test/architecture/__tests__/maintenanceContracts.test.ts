@@ -49,7 +49,11 @@ describe('chat route stays a composition root', () => {
     // Persistence/streaming is delegated to the hooks under src/hooks/chat
     // (useChatSession, useChatStreaming, ...) -- the route composes their
     // outputs, it does not call workspaceService/agentChatService itself.
-    const serviceImports = [...source.matchAll(/from ['"]@\/services\/[^'"]+['"]/g)];
+    const serviceImports = [
+      // static subpath + barrel imports, and dynamic import() forms
+      ...source.matchAll(/from ['"]@\/services(?:\/[^'"]*)?['"]/g),
+      ...source.matchAll(/import\(\s*['"]@\/services(?:\/[^'"]*)?['"]\s*\)/g),
+    ];
     expect(serviceImports.map((m) => m[0])).toEqual([]);
   });
 });
@@ -82,7 +86,11 @@ describe('presentation components under components/chat', () => {
     // docs/engineering/api-contracts.md. Presentation components go through
     // it, not through the generated schema module directly.
     const files = walk('src/components/chat');
-    const offenders = files.filter((relPath) => read(relPath).includes('types/generated/api'));
+    // Match real import statements only -- a comment or string mentioning
+    // the path must not fail the guard.
+    const importPattern =
+      /(?:from|import\(?)\s*['"][^'"]*types\/generated\/api['"]/;
+    const offenders = files.filter((relPath) => importPattern.test(read(relPath)));
     expect(offenders).toEqual([]);
   });
 });

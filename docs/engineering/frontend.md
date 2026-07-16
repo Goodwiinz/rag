@@ -104,6 +104,7 @@ pnpm --dir frontend lint:changed
 pnpm --dir frontend quality:exclusions
 pnpm --dir frontend type-check
 pnpm --dir frontend test
+pnpm --dir frontend validate   # lint + type-check + test in one gate
 pnpm --dir frontend test:coverage -- --coverage.reporter=json-summary
 node scripts/ci/check_frontend_coverage.mjs frontend/coverage/coverage-summary.json
 ```

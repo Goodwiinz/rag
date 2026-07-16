@@ -16,12 +16,12 @@ cd frontend && pnpm dev
 # Backend (if not using Docker)
 cd backend && uvicorn src.main:app --reload --port 8000
 
-# Type-check / Test / Lint / Validate
-cd frontend && pnpm type-check
-cd frontend && pnpm test             # Frontend
+# Type-check / Test / Lint / Validate  (subshells: cwd stays at repo root)
+(cd frontend && pnpm type-check)
+(cd frontend && pnpm test)           # Frontend
 pytest tests/ --cov=src              # Backend
-cd frontend && pnpm lint
-cd frontend && pnpm validate         # lint + type-check + test
+(cd frontend && pnpm lint)
+(cd frontend && pnpm validate)       # lint + type-check + test
 ```
 
 Toolchain, quality-ratchet, and API-contract rules are enforced, not just
@@ -54,7 +54,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Code Style
 
-- **Python**: Black (88), isort, mypy strict, snake_case, structlog
+- **Python**: Black (88), isort, mypy (CI-blocking on added files; full-tree advisory — see docs/engineering/backend.md), snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
 - **Theme**: NOUS brand — Erebus `#0A0A0E`, Selene `#F7F7F5`, Sol `#D4A039` (accent). Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.

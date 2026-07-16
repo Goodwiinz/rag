@@ -65,6 +65,7 @@ rediscover which line the test is actually protecting.
 ## Commands
 
 ```sh
+pytest tests/ --cov=src            # full backend suite with coverage
 pytest -q backend/tests/unit/ci backend/tests/unit/architecture
 pytest -q backend/tests/unit/api backend/tests/api/threads
 pytest -q backend/tests/unit/services/threads
