@@ -244,11 +244,12 @@ async def add_member(
             WorkspaceMember.user_id == data.user_id,
         )
     )
-    existing = (await db.execute(stmt)).scalars().first()
+    existing: Optional[WorkspaceMember] = (await db.execute(stmt)).scalars().first()
 
     if existing and not existing.is_deleted:
         raise ValueError("User is already a member")
 
+    member: Optional[WorkspaceMember]
     if existing:
         # Restore a previously removed member. uq_workspace_member is not a
         # partial index, so inserting a fresh row for a re-added user would
@@ -300,7 +301,7 @@ async def update_member_role(
             WorkspaceMember.is_deleted == False,  # noqa: E712
         )
     )
-    member = (await db.execute(stmt)).scalars().first()
+    member: Optional[WorkspaceMember] = (await db.execute(stmt)).scalars().first()
     if not member:
         return None
     if member.role == WorkspaceRole.OWNER:

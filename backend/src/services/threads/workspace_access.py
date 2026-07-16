@@ -99,7 +99,7 @@ async def get_workspace(
         )
     )
     result = await db.execute(stmt)
-    workspace = result.scalars().first()
+    workspace: Optional[Workspace] = result.scalars().first()
     if not workspace:
         return None
     if not user_can_access_workspace(workspace, user_id):
@@ -134,7 +134,7 @@ async def get_conversation(
 
     stmt = select(Conversation).options(*options).where(*conditions)
     result = await db.execute(stmt)
-    conversation = result.scalars().first()
+    conversation: Optional[Conversation] = result.scalars().first()
     if not conversation:
         return None
 
@@ -177,7 +177,7 @@ async def get_thread(
 
     stmt = select(Thread).options(*options).where(*conditions)
     result = await db.execute(stmt)
-    thread = result.scalars().first()
+    thread: Optional[Thread] = result.scalars().first()
     if not thread:
         return None
 
@@ -242,7 +242,7 @@ async def get_message(
         .where(*conditions)
     )
     result = await db.execute(stmt)
-    message = result.scalars().first()
+    message: Optional[ChatMessage] = result.scalars().first()
     if not message:
         return None
 
@@ -291,7 +291,7 @@ async def get_collection(
 
     stmt = select(Collection).options(*options).where(*conditions)
     result = await db.execute(stmt)
-    collection = result.scalars().first()
+    collection: Optional[Collection] = result.scalars().first()
     if not collection:
         return None
     if collection.workspace.is_deleted:
@@ -321,4 +321,5 @@ async def get_accessible_document_or_none(
         filters.append(Document.uploaded_by_user_id == user_id)
 
     result = await db.execute(select(Document).where(*filters))
-    return result.scalars().first()
+    document: Optional[Document] = result.scalars().first()
+    return document

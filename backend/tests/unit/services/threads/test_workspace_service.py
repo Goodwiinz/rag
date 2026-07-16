@@ -9,10 +9,14 @@ found ``PermissionError``/``None`` split every write method uses.
 
 from __future__ import annotations
 
+from typing import Awaitable, Callable
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.organization import Organization
+from src.models.user import User
 from src.models.workspace import WorkspaceMember, WorkspaceRole
 from src.schemas.chat import (
     WorkspaceCreate,
@@ -26,8 +30,8 @@ pytestmark = pytest.mark.integration
 
 
 async def test_create_workspace_enforce_org_match_rejects_mismatch(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     with pytest.raises(PermissionError):
         await workspace_service.create_workspace(
@@ -40,8 +44,10 @@ async def test_create_workspace_enforce_org_match_rejects_mismatch(
 
 
 async def test_create_workspace_old_default_trusts_requested_org(
-    db_session, user_factory, organization_factory
-):
+    db_session: AsyncSession,
+    user_factory: Callable[..., Awaitable[User]],
+    organization_factory: Callable[..., Awaitable[Organization]],
+) -> None:
     """``enforce_org_match=False`` (ChatService's pre-4.3 default) creates
     the workspace under the REQUESTED org even when it differs from the
     caller's own — the pre-existing (unenforced) behavior preserved for
@@ -60,8 +66,8 @@ async def test_create_workspace_old_default_trusts_requested_org(
 
 
 async def test_create_workspace_enforce_org_match_allows_matching_org(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     workspace = await workspace_service.create_workspace(
         db_session,
@@ -77,8 +83,8 @@ async def test_create_workspace_enforce_org_match_allows_matching_org(
 
 
 async def test_list_workspaces_filter_deleted_memberships_flag(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     workspace = await workspace_service.create_workspace(
         db_session,
@@ -106,7 +112,9 @@ async def test_list_workspaces_filter_deleted_memberships_flag(
     assert workspace.id in [w.id for w in unfiltered]
 
 
-async def test_update_workspace_not_found_vs_forbidden(db_session, user_factory):
+async def test_update_workspace_not_found_vs_forbidden(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     editor = await user_factory()  # a member, but not admin/owner
     workspace = await workspace_service.create_workspace(
@@ -138,7 +146,9 @@ async def test_update_workspace_not_found_vs_forbidden(db_session, user_factory)
         )
 
 
-async def test_delete_workspace_stamp_deleted_at_flag(db_session, user_factory):
+async def test_delete_workspace_stamp_deleted_at_flag(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws_stamped = await workspace_service.create_workspace(
         db_session,
@@ -167,7 +177,9 @@ async def test_delete_workspace_stamp_deleted_at_flag(db_session, user_factory):
     assert ws_unstamped.deleted_at is None
 
 
-async def test_delete_workspace_only_owner(db_session, user_factory):
+async def test_delete_workspace_only_owner(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     other_admin = await user_factory()
     workspace = await workspace_service.create_workspace(
@@ -192,7 +204,9 @@ async def test_delete_workspace_only_owner(db_session, user_factory):
         )
 
 
-async def test_add_member_restores_soft_deleted_row(db_session, user_factory):
+async def test_add_member_restores_soft_deleted_row(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     target = await user_factory()
     workspace = await workspace_service.create_workspace(
@@ -210,6 +224,7 @@ async def test_add_member_restores_soft_deleted_row(db_session, user_factory):
         WorkspaceMemberCreate(user_id=target.id, role=WorkspaceRole.VIEWER),
         owner.id,
     )
+    assert member is not None
     original_member_id = member.id
 
     await workspace_service.remove_member(db_session, workspace.id, target.id, owner.id)
@@ -220,6 +235,7 @@ async def test_add_member_restores_soft_deleted_row(db_session, user_factory):
         WorkspaceMemberCreate(user_id=target.id, role=WorkspaceRole.EDITOR),
         owner.id,
     )
+    assert restored is not None
     assert restored.id == original_member_id  # same row, restored not re-inserted
     assert restored.is_deleted is False
     # Compare by value: WorkspaceMemberCreate.role is schemas.chat.WorkspaceRole
@@ -229,7 +245,9 @@ async def test_add_member_restores_soft_deleted_row(db_session, user_factory):
     assert restored.role.value == "editor"
 
 
-async def test_update_member_role_rejects_owner_change(db_session, user_factory):
+async def test_update_member_role_rejects_owner_change(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     workspace = await workspace_service.create_workspace(
         db_session,

@@ -62,7 +62,7 @@ async def create_thread(
     request: ThreadCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadResponse:
     """Create a new thread in a conversation"""
     request.conversation_id = conversation_id
     try:
@@ -91,7 +91,7 @@ async def list_threads(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadListResponse:
     """List threads in a conversation"""
     status_enum = None
     if status_filter:
@@ -140,7 +140,7 @@ async def get_thread(
     include_messages: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadDetailResponse:
     """Get thread details with messages"""
     thread = await _get_thread_or_404(
         db, workspace_id, conversation_id, thread_id, current_user
@@ -160,7 +160,7 @@ async def update_thread(
     request: ThreadUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadResponse:
     """Update thread details"""
     try:
         thread = await thread_service.update_thread(
@@ -189,7 +189,7 @@ async def delete_thread(
     thread_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a thread"""
     try:
         deleted = await thread_service.delete_thread(
@@ -219,7 +219,7 @@ async def create_thread_standalone(
     request: ThreadCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadResponse:
     """Create a new thread (standalone route - uses conversation_id from request body)"""
     try:
         thread = await thread_service.create_thread(
@@ -239,7 +239,7 @@ async def get_thread_standalone(
     include_messages: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadDetailResponse:
     """Get thread details with messages (standalone route)"""
     thread = await workspace_access.get_thread(
         db, thread_id, current_user.id, include_messages=include_messages
@@ -256,7 +256,7 @@ async def update_thread_standalone(
     request: ThreadUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadResponse:
     """Update thread details (standalone route)"""
     try:
         thread = await thread_service.update_thread(
@@ -277,7 +277,7 @@ async def delete_thread_standalone(
     thread_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a thread (standalone route)"""
     try:
         deleted = await thread_service.delete_thread(
@@ -299,7 +299,7 @@ async def list_threads_standalone(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ThreadListResponse:
     """List threads in a conversation (standalone route)"""
     status_enum = None
     if status_filter:

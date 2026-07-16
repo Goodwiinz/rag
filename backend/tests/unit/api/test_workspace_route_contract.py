@@ -23,9 +23,10 @@ are intentionally not duplicated here.
 
 from __future__ import annotations
 
-from typing import List
+from typing import Any, List, Tuple
 
 import pytest
+from fastapi import APIRouter
 
 from src.api.threads.threads import router as threads_router
 from src.api.threads.workspaces import THREAD_PREVIEW_MAX_CHARS
@@ -48,6 +49,11 @@ from src.schemas.chat import (
 )
 
 pytestmark = pytest.mark.unit
+
+# response_model may be None, a pydantic model class, or a typing generic
+# alias like List[WorkspaceResponse] — heterogeneous enough that Any is the
+# honest slot type here.
+RouteRow = Tuple[str, str, Any, int, bool]
 
 # Each row: (method, path-suffix-after-router-prefix, response_model, status_code, deprecated)
 # Order matches definition order in workspaces.py (also route-matching order).
@@ -225,11 +231,11 @@ STANDALONE_ROUTES = [
 ]
 
 
-def _actual_table(router):
+def _actual_table(router: APIRouter) -> List[RouteRow]:
     """Walk the live APIRouter's ``.routes`` (not source regexing) into
     (method, path, response_model, status_code, deprecated) tuples, in
     registration order."""
-    table = []
+    table: List[RouteRow] = []
     for route in router.routes:
         methods = sorted(route.methods - {"HEAD"})
         assert len(methods) == 1, (
@@ -248,53 +254,55 @@ def _actual_table(router):
     return table
 
 
-def _expected_table(prefix, rows):
+def _expected_table(
+    prefix: str, rows: List[Tuple[str, str, Any, int, bool]]
+) -> List[RouteRow]:
     return [
         (method, prefix + suffix, response_model, status_code, deprecated)
         for method, suffix, response_model, status_code, deprecated in rows
     ]
 
 
-def test_nested_router_route_count_unchanged():
+def test_nested_router_route_count_unchanged() -> None:
     assert len(workspaces_router.routes) == len(NESTED_ROUTES) == 28
 
 
-def test_nested_router_contract_unchanged():
+def test_nested_router_contract_unchanged() -> None:
     expected = _expected_table(workspaces_router.prefix, NESTED_ROUTES)
     assert _actual_table(workspaces_router) == expected
 
 
-def test_nested_router_prefix_and_tags_unchanged():
+def test_nested_router_prefix_and_tags_unchanged() -> None:
     assert workspaces_router.prefix == "/api/v2/workspaces"
     assert workspaces_router.tags == ["workspaces"]
 
 
-def test_standalone_router_route_count_unchanged():
+def test_standalone_router_route_count_unchanged() -> None:
     assert len(workspaces_standalone_router.routes) == len(STANDALONE_ROUTES) == 19
 
 
-def test_standalone_router_contract_unchanged():
+def test_standalone_router_contract_unchanged() -> None:
     expected = _expected_table(workspaces_standalone_router.prefix, STANDALONE_ROUTES)
     assert _actual_table(workspaces_standalone_router) == expected
 
 
-def test_standalone_router_prefix_and_tags_unchanged():
+def test_standalone_router_prefix_and_tags_unchanged() -> None:
     assert workspaces_standalone_router.prefix == "/api/v2"
     assert workspaces_standalone_router.tags == ["workspaces-flat"]
 
 
-def test_total_endpoint_count_is_47():
+def test_total_endpoint_count_is_47() -> None:
     total = len(workspaces_router.routes) + len(workspaces_standalone_router.routes)
     assert total == 47
 
 
-def test_module_level_constant_unchanged():
+def test_module_level_constant_unchanged() -> None:
     # recon risk: THREAD_PREVIEW_MAX_CHARS is shared module state; a split
     # must land it somewhere still importable from this path, unchanged.
     assert THREAD_PREVIEW_MAX_CHARS == 240
 
 
-def test_nested_create_message_is_the_only_deprecated_route():
+def test_nested_create_message_is_the_only_deprecated_route() -> None:
     """Audit C4: exactly one route in either router is deprecated — the
     deeply-nested workspace create-message route. Canonical assertion lives in
     ``test_create_message_route_deprecation.py``; repeated here as part of the
@@ -314,7 +322,7 @@ def test_nested_create_message_is_the_only_deprecated_route():
     ]
 
 
-def test_threads_router_registered_before_workspaces_standalone_router():
+def test_threads_router_registered_before_workspaces_standalone_router() -> None:
     """main.py L628-636: ``threads_router`` (owns ``/api/v2/threads/bulk/*``)
     must be included before ``workspaces_standalone_router`` (owns
     ``/api/v2/threads/{thread_id}``) — reversed order lets the parameterized
@@ -323,7 +331,7 @@ def test_threads_router_registered_before_workspaces_standalone_router():
     a new module must preserve this include order in main.py."""
     from src.main import app  # local: only this test needs the full app graph
 
-    def _index_of(target_router):
+    def _index_of(target_router: APIRouter) -> int:
         for i, route in enumerate(app.routes):
             if getattr(route, "original_router", None) is target_router:
                 return i
@@ -338,7 +346,7 @@ def test_threads_router_registered_before_workspaces_standalone_router():
     )
 
 
-def test_bulk_delete_route_exists_on_threads_router():
+def test_bulk_delete_route_exists_on_threads_router() -> None:
     # Sanity check for the invariant above: the literal route it protects.
     bulk_delete = [
         route

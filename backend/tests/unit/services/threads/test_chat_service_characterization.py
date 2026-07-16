@@ -12,10 +12,15 @@ surface must behave identically after the consolidation as it did before it.
 
 from __future__ import annotations
 
+from typing import Awaitable, Callable
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.organization import Organization
+from src.models.thread import Thread
+from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.schemas.chat import (
     ChatMessageUpdate,
@@ -29,7 +34,7 @@ from src.services.threads.chat_service import ChatService
 pytestmark = pytest.mark.integration
 
 
-async def _make_workspace(db_session, owner):
+async def _make_workspace(db_session: AsyncSession, owner: User) -> Workspace:
     ws = Workspace(name="ws", owner_id=owner.id, organization_id=owner.organization_id)
     db_session.add(ws)
     await db_session.commit()
@@ -39,8 +44,10 @@ async def _make_workspace(db_session, owner):
 
 
 async def test_create_workspace_enforces_org_match(
-    db_session, user_factory, organization_factory
-):
+    db_session: AsyncSession,
+    user_factory: Callable[..., Awaitable[User]],
+    organization_factory: Callable[..., Awaitable[Organization]],
+) -> None:
     """fix(workspaces): close pre-existing tenant gaps on the ChatService
     surface — ChatService.create_workspace previously trusted
     ``data.organization_id`` verbatim with no cross-org guard, unlike the
@@ -60,7 +67,9 @@ async def test_create_workspace_enforces_org_match(
         )
 
 
-async def test_list_workspaces_filters_deleted_memberships(db_session, user_factory):
+async def test_list_workspaces_filters_deleted_memberships(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """fix(workspaces): close pre-existing tenant gaps on the ChatService
     surface — ChatService.list_workspaces previously did not exclude a
     soft-deleted ``WorkspaceMember`` row, so a removed member still saw the
@@ -82,7 +91,9 @@ async def test_list_workspaces_filters_deleted_memberships(db_session, user_fact
     assert workspace.id not in [w.id for w in workspaces]
 
 
-async def test_delete_workspace_never_stamps_deleted_at(db_session, user_factory):
+async def test_delete_workspace_never_stamps_deleted_at(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Divergence 3: ChatService soft-deletes never set deleted_at (only
     is_deleted); the router-inline delete endpoints always have."""
     owner = await user_factory()
@@ -97,8 +108,8 @@ async def test_delete_workspace_never_stamps_deleted_at(db_session, user_factory
 
 
 async def test_delete_conversation_never_stamps_deleted_at_and_requires_admin(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Divergence 3 + a second permission divergence: ChatService requires
     ADMIN rights to delete a conversation; the router-inline delete
     endpoints require only edit rights."""
@@ -116,6 +127,7 @@ async def test_delete_conversation_never_stamps_deleted_at_and_requires_admin(
     conversation = await service.create_conversation(
         ConversationCreate(workspace_id=ws.id, title="c"), owner.id
     )
+    assert conversation is not None
 
     # An editor (not admin) is refused by ChatService's own delete rule.
     assert await service.delete_conversation(conversation.id, editor.id) is False
@@ -126,8 +138,10 @@ async def test_delete_conversation_never_stamps_deleted_at_and_requires_admin(
 
 
 async def test_delete_thread_never_stamps_deleted_at(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     """Divergence 3, for threads."""
     user = await user_factory()
     thread = await thread_factory(user=user)
@@ -138,7 +152,9 @@ async def test_delete_thread_never_stamps_deleted_at(
     assert thread.deleted_at is None
 
 
-async def test_list_conversations_orders_pinned_first(db_session, user_factory):
+async def test_list_conversations_orders_pinned_first(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Divergence 4: ChatService orders pinned conversations to the top; the
     router-inline list endpoint orders by activity only."""
     owner = await user_factory()
@@ -148,6 +164,7 @@ async def test_list_conversations_orders_pinned_first(db_session, user_factory):
     older_pinned = await service.create_conversation(
         ConversationCreate(workspace_id=ws.id, title="pinned"), owner.id
     )
+    assert older_pinned is not None
     await service.create_conversation(
         ConversationCreate(workspace_id=ws.id, title="fresh"), owner.id
     )
@@ -159,8 +176,8 @@ async def test_list_conversations_orders_pinned_first(db_session, user_factory):
 
 
 async def test_create_thread_only_flushes_caller_owns_the_commit(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Divergence 5: ChatService.create_thread only flushes — a caller that
     never commits (or rolls back) can still discard it. The router-inline
     create endpoints commit immediately."""
@@ -170,10 +187,12 @@ async def test_create_thread_only_flushes_caller_owns_the_commit(
     conversation = await service.create_conversation(
         ConversationCreate(workspace_id=ws.id, title="c"), owner.id
     )
+    assert conversation is not None
 
     thread = await service.create_thread(
         ThreadCreate(conversation_id=conversation.id, title="t"), owner.id
     )
+    assert thread is not None
     thread_id = thread.id
 
     await db_session.rollback()
@@ -189,8 +208,10 @@ async def test_create_thread_only_flushes_caller_owns_the_commit(
 
 
 async def test_delete_message_allows_author_even_as_viewer(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     """Divergence 6: ChatService.delete_message allows the message's AUTHOR
     to delete it even without edit rights; the standalone router endpoint
     requires edit rights and never checks authorship."""
@@ -235,8 +256,8 @@ async def test_delete_message_allows_author_even_as_viewer(
 
 
 async def test_update_workspace_and_delete_workspace_collapse_permission_and_not_found(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """ChatService's undifferentiated None/False result for not-found vs.
     insufficient-permission (the router distinguishes 404 vs 403; ChatService
     always returns None/False for both)."""

@@ -19,6 +19,7 @@ from src.models.chat_message import ChatMessage
 from src.models.citation import Citation
 from src.models.collection import Collection
 from src.models.conversation import Conversation
+from src.models.message_attachment import MessageAttachment
 from src.models.thread import Thread
 from src.models.workspace import Workspace, WorkspaceMember
 from src.schemas.chat import (
@@ -255,7 +256,7 @@ def _citation_to_response(citation: Citation) -> CitationResponse:
     )
 
 
-def _attachment_to_response(attachment) -> MessageAttachmentResponse:
+def _attachment_to_response(attachment: MessageAttachment) -> MessageAttachmentResponse:
     """Convert MessageAttachment model to response schema"""
     return MessageAttachmentResponse(
         id=attachment.id,

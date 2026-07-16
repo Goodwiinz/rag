@@ -44,7 +44,7 @@ async def create_conversation(
     request: ConversationCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationResponse:
     """Create a new conversation in a workspace"""
     request.workspace_id = workspace_id
     try:
@@ -67,7 +67,7 @@ async def list_conversations(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationListResponse:
     """List conversations in a workspace"""
     offset = (page - 1) * limit
     result = await conversation_service.list_conversations(
@@ -108,7 +108,7 @@ async def get_conversation(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationResponse:
     """Get conversation details"""
     conversation = await _get_conversation_or_404(
         db, workspace_id, conversation_id, current_user
@@ -126,7 +126,7 @@ async def update_conversation(
     request: ConversationUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationResponse:
     """Update conversation details"""
     try:
         conversation = await conversation_service.update_conversation(
@@ -149,7 +149,7 @@ async def delete_conversation(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a conversation"""
     try:
         deleted = await conversation_service.delete_conversation(
@@ -179,7 +179,7 @@ async def get_conversation_standalone(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationResponse:
     """Get conversation details (standalone route)"""
     conversation = await workspace_access.get_conversation(
         db, conversation_id, current_user.id
@@ -198,7 +198,7 @@ async def update_conversation_standalone(
     request: ConversationUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ConversationResponse:
     """Update conversation details (standalone route)"""
     try:
         conversation = await conversation_service.update_conversation(
@@ -219,7 +219,7 @@ async def delete_conversation_standalone(
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a conversation (standalone route)"""
     try:
         deleted = await conversation_service.delete_conversation(

@@ -47,7 +47,7 @@ async def create_collection(
     request: CollectionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionResponse:
     """Create a new collection in a workspace"""
     request.workspace_id = workspace_id
     try:
@@ -69,7 +69,7 @@ async def list_collections(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionListResponse:
     """List collections in a workspace"""
     offset = (page - 1) * limit
     result = await collection_service.list_collections(
@@ -97,7 +97,7 @@ async def get_collection(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Get collection details with documents"""
     collection = await _get_collection_or_404(
         db, workspace_id, collection_id, current_user
@@ -115,7 +115,7 @@ async def update_collection(
     request: CollectionUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionResponse:
     """Update collection details"""
     try:
         collection = await collection_service.update_collection(
@@ -138,7 +138,7 @@ async def delete_collection(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a collection"""
     try:
         deleted = await collection_service.delete_collection(
@@ -160,7 +160,7 @@ async def add_documents_to_collection(
     request: CollectionDocumentAdd,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Add documents to a collection"""
     try:
         collection = await collection_service.add_documents_to_collection(
@@ -188,7 +188,7 @@ async def remove_documents_from_collection(
     request: CollectionDocumentRemove,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Remove documents from a collection"""
     try:
         collection = await collection_service.remove_documents_from_collection(
@@ -221,7 +221,7 @@ async def create_collection_standalone(
     request: CollectionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionResponse:
     """Create a new collection (standalone route - uses workspace_id from request body)"""
     try:
         collection = await collection_service.create_collection(
@@ -242,7 +242,7 @@ async def get_collection_standalone(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Get collection details with documents (standalone route)"""
     collection = await workspace_access.get_collection(
         db, collection_id, current_user.id
@@ -261,7 +261,7 @@ async def update_collection_standalone(
     request: CollectionUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionResponse:
     """Update collection details (standalone route)"""
     try:
         collection = await collection_service.update_collection(
@@ -282,7 +282,7 @@ async def delete_collection_standalone(
     collection_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a collection (standalone route)"""
     try:
         deleted = await collection_service.delete_collection(
@@ -302,7 +302,7 @@ async def add_documents_to_collection_standalone(
     request: CollectionDocumentAdd,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Add documents to a collection (standalone route)"""
     try:
         collection = await collection_service.add_documents_to_collection(
@@ -324,7 +324,7 @@ async def remove_documents_from_collection_standalone(
     request: CollectionDocumentRemove,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> CollectionDetailResponse:
     """Remove documents from a collection (standalone route)"""
     try:
         collection = await collection_service.remove_documents_from_collection(

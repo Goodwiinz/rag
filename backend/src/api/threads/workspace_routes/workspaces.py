@@ -41,7 +41,7 @@ async def create_workspace(
     request: WorkspaceCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> WorkspaceResponse:
     """Create a new workspace"""
     user_org_id = getattr(current_user, "organization_id", None)
     try:
@@ -62,7 +62,7 @@ async def list_workspaces(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> List[WorkspaceResponse]:
     """List workspaces accessible by the current user"""
     workspaces, _total = await workspace_service.list_workspaces(
         db,
@@ -80,7 +80,7 @@ async def get_workspace(
     workspace_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> WorkspaceDetailResponse:
     """Get workspace details with members"""
     workspace = await _get_workspace_or_404(db, workspace_id, current_user)
 
@@ -93,7 +93,7 @@ async def update_workspace(
     request: WorkspaceUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> WorkspaceResponse:
     """Update workspace details"""
     try:
         workspace = await workspace_service.update_workspace(
@@ -112,7 +112,7 @@ async def delete_workspace(
     workspace_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a workspace"""
     try:
         deleted = await workspace_service.delete_workspace(

@@ -9,11 +9,15 @@ flag), and nested-route chain scoping.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from uuid import uuid4
+from typing import Awaitable, Callable, List
+from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import ChatMessage, MessageRole
+from src.models.thread import Thread
+from src.models.user import User
 from src.models.workspace import WorkspaceMember, WorkspaceRole
 from src.schemas.chat import ChatMessageUpdate
 from src.services.threads import message_service
@@ -21,7 +25,9 @@ from src.services.threads import message_service
 pytestmark = pytest.mark.integration
 
 
-async def _seed_messages(db_session, thread, user, count=3):
+async def _seed_messages(
+    db_session: AsyncSession, thread: Thread, user: User, count: int = 3
+) -> List[ChatMessage]:
     now = datetime.utcnow()
     msgs = []
     for i in range(count):
@@ -42,49 +48,67 @@ async def _seed_messages(db_session, thread, user, count=3):
 
 
 async def test_list_messages_asc_desc_and_before_id(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     user = await user_factory()
     thread = await thread_factory(user=user)
     msgs = await _seed_messages(db_session, thread, user, count=3)
 
-    asc, total, has_more = await message_service.list_messages(
+    asc_result = await message_service.list_messages(
         db_session, thread.id, user.id, order="asc"
     )
+    assert asc_result is not None
+    asc, total, has_more = asc_result
     assert [m.id for m in asc] == [m.id for m in msgs]
     assert total == 3
     assert has_more is False
 
-    desc, _total, _has_more = await message_service.list_messages(
+    desc_result = await message_service.list_messages(
         db_session, thread.id, user.id, order="desc"
     )
+    assert desc_result is not None
+    desc, _total, _has_more = desc_result
     assert [m.id for m in desc] == [m.id for m in reversed(msgs)]
 
-    older, _total, has_more_cursor = await message_service.list_messages(
+    older_result = await message_service.list_messages(
         db_session, thread.id, user.id, order="desc", before_id=msgs[2].id, limit=1
     )
+    assert older_result is not None
+    older, _total, has_more_cursor = older_result
     assert [m.id for m in older] == [msgs[1].id]
     assert has_more_cursor is True  # msgs[0] still remains
 
 
-async def test_list_messages_since_filter(db_session, thread_factory, user_factory):
+async def test_list_messages_since_filter(
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     user = await user_factory()
     thread = await thread_factory(user=user)
     msgs = await _seed_messages(db_session, thread, user, count=3)
 
-    newer, total, _has_more = await message_service.list_messages(
+    newer_result = await message_service.list_messages(
         db_session, thread.id, user.id, since=msgs[0].created_at
     )
+    assert newer_result is not None
+    newer, total, _has_more = newer_result
     assert total == 2
     assert [m.id for m in newer] == [msgs[1].id, msgs[2].id]
 
 
-async def test_list_messages_returns_none_for_missing_thread(db_session, user_factory):
+async def test_list_messages_returns_none_for_missing_thread(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     user = await user_factory()
     assert (await message_service.list_messages(db_session, uuid4(), user.id)) is None
 
 
-async def _add_viewer(db_session, workspace_id, viewer_id):
+async def _add_viewer(
+    db_session: AsyncSession, workspace_id: UUID, viewer_id: UUID
+) -> None:
     db_session.add(
         WorkspaceMember(
             workspace_id=workspace_id, user_id=viewer_id, role=WorkspaceRole.VIEWER
@@ -93,22 +117,25 @@ async def _add_viewer(db_session, workspace_id, viewer_id):
     await db_session.commit()
 
 
-async def _workspace_id_for_thread(db_session, thread):
+async def _workspace_id_for_thread(db_session: AsyncSession, thread: Thread) -> UUID:
     from sqlalchemy import select
 
     from src.models.conversation import Conversation
 
-    conv = (
+    conv: Conversation = (
         await db_session.execute(
             select(Conversation).where(Conversation.id == thread.conversation_id)
         )
     ).scalar_one()
-    return conv.workspace_id
+    workspace_id: UUID = conv.workspace_id
+    return workspace_id
 
 
 async def test_update_message_feedback_requires_edit_rights(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     owner = await user_factory()
     viewer = await user_factory()
     thread = await thread_factory(user=owner)
@@ -131,12 +158,15 @@ async def test_update_message_feedback_requires_edit_rights(
     updated = await message_service.update_message_feedback(
         db_session, msg.id, ChatMessageUpdate(feedback_rating=5), owner.id
     )
+    assert updated is not None
     assert updated.feedback_rating == 5
 
 
 async def test_delete_message_require_author_or_admin_flag(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     owner = await user_factory()
     editor = await user_factory()
     thread = await thread_factory(user=owner)

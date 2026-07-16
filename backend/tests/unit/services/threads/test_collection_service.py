@@ -9,10 +9,15 @@ soft- (not hard-) delete on remove.
 
 from __future__ import annotations
 
-from uuid import uuid4
+from typing import Awaitable, Callable
+from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.document import Document
+from src.models.organization import Organization
+from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.schemas.chat import CollectionCreate, CollectionUpdate
 from src.services.threads import collection_service
@@ -20,7 +25,7 @@ from src.services.threads import collection_service
 pytestmark = pytest.mark.integration
 
 
-async def _make_workspace(db_session, owner):
+async def _make_workspace(db_session: AsyncSession, owner: User) -> Workspace:
     ws = Workspace(name="ws", owner_id=owner.id, organization_id=owner.organization_id)
     db_session.add(ws)
     await db_session.commit()
@@ -29,8 +34,10 @@ async def _make_workspace(db_session, owner):
     return ws
 
 
-async def _make_document(db_session, organization_id, user, *, title="doc"):
-    from src.models.document import Document, DocumentType
+async def _make_document(
+    db_session: AsyncSession, organization_id: UUID, user: User, *, title: str = "doc"
+) -> Document:
+    from src.models.document import DocumentType
 
     doc = Document(
         title=title,
@@ -49,8 +56,10 @@ async def _make_document(db_session, organization_id, user, *, title="doc"):
 
 
 async def test_create_collection_only_attaches_owned_documents(
-    db_session, user_factory, organization_factory
-):
+    db_session: AsyncSession,
+    user_factory: Callable[..., Awaitable[User]],
+    organization_factory: Callable[..., Awaitable[Organization]],
+) -> None:
     owner = await user_factory()
     other_org = await organization_factory()
     other_user = await user_factory(organization=other_org)
@@ -67,13 +76,16 @@ async def test_create_collection_only_attaches_owned_documents(
         owner.id,
     )
 
+    assert collection is not None
     attached_ids = {cd.document_id for cd in collection.documents}
     assert attached_ids == {owned_doc.id}
 
 
 async def test_add_documents_to_collection_rejects_foreign_org_document(
-    db_session, user_factory, organization_factory
-):
+    db_session: AsyncSession,
+    user_factory: Callable[..., Awaitable[User]],
+    organization_factory: Callable[..., Awaitable[Organization]],
+) -> None:
     owner = await user_factory()
     other_org = await organization_factory()
     other_user = await user_factory(organization=other_org)
@@ -81,15 +93,19 @@ async def test_add_documents_to_collection_rejects_foreign_org_document(
     collection = await collection_service.create_collection(
         db_session, CollectionCreate(workspace_id=ws.id, name="c"), owner.id
     )
+    assert collection is not None
     foreign_doc = await _make_document(db_session, other_org.id, other_user)
 
     updated = await collection_service.add_documents_to_collection(
         db_session, collection.id, [foreign_doc.id], owner.id
     )
+    assert updated is not None
     assert updated.documents == []
 
 
-async def test_remove_documents_soft_deletes_not_hard_deletes(db_session, user_factory):
+async def test_remove_documents_soft_deletes_not_hard_deletes(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws = await _make_workspace(db_session, owner)
     doc = await _make_document(db_session, owner.organization_id, owner)
@@ -98,6 +114,7 @@ async def test_remove_documents_soft_deletes_not_hard_deletes(db_session, user_f
         CollectionCreate(workspace_id=ws.id, name="c", document_ids=[doc.id]),
         owner.id,
     )
+    assert collection is not None
     collection_doc_id = collection.documents[0].id
 
     await collection_service.remove_documents_from_collection(
@@ -119,14 +136,15 @@ async def test_remove_documents_soft_deletes_not_hard_deletes(db_session, user_f
 
 
 async def test_update_collection_rejects_mismatched_workspace_id(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws_a = await _make_workspace(db_session, owner)
     ws_b = await _make_workspace(db_session, owner)
     collection = await collection_service.create_collection(
         db_session, CollectionCreate(workspace_id=ws_b.id, name="c"), owner.id
     )
+    assert collection is not None
 
     assert (
         await collection_service.update_collection(
@@ -145,10 +163,13 @@ async def test_update_collection_rejects_mismatched_workspace_id(
         owner.id,
         workspace_id=ws_b.id,
     )
+    assert updated is not None
     assert updated.name == "new"
 
 
-async def test_delete_collection_not_found_vs_forbidden(db_session, user_factory):
+async def test_delete_collection_not_found_vs_forbidden(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     viewer = await user_factory()
     ws = await _make_workspace(db_session, owner)
@@ -161,6 +182,7 @@ async def test_delete_collection_not_found_vs_forbidden(db_session, user_factory
     collection = await collection_service.create_collection(
         db_session, CollectionCreate(workspace_id=ws.id, name="c"), owner.id
     )
+    assert collection is not None
 
     assert (
         await collection_service.delete_collection(db_session, uuid4(), owner.id)

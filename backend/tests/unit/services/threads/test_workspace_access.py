@@ -12,20 +12,26 @@ with cross-org resources sharing identical child ids/titles, not just a bare
 
 from __future__ import annotations
 
+from typing import Awaitable, Callable
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.collection import Collection
 from src.models.conversation import Conversation
+from src.models.organization import Organization
 from src.models.thread import Thread
+from src.models.user import User
 from src.models.workspace import Workspace, WorkspaceMember, WorkspaceRole
 from src.services.threads import workspace_access
 
 pytestmark = pytest.mark.integration
 
 
-async def _make_workspace(db_session, owner, *, is_public=False, name="ws"):
+async def _make_workspace(
+    db_session: AsyncSession, owner: User, *, is_public: bool = False, name: str = "ws"
+) -> Workspace:
     ws = Workspace(
         name=name,
         owner_id=owner.id,
@@ -39,7 +45,9 @@ async def _make_workspace(db_session, owner, *, is_public=False, name="ws"):
     return ws
 
 
-async def _make_conversation(db_session, workspace, owner, *, title="conv"):
+async def _make_conversation(
+    db_session: AsyncSession, workspace: Workspace, owner: User, *, title: str = "conv"
+) -> Conversation:
     conv = Conversation(workspace_id=workspace.id, title=title, created_by_id=owner.id)
     db_session.add(conv)
     await db_session.commit()
@@ -48,7 +56,13 @@ async def _make_conversation(db_session, workspace, owner, *, title="conv"):
     return conv
 
 
-async def _make_thread(db_session, conversation, owner, *, title="thread"):
+async def _make_thread(
+    db_session: AsyncSession,
+    conversation: Conversation,
+    owner: User,
+    *,
+    title: str = "thread",
+) -> Thread:
     thread = Thread(
         conversation_id=conversation.id, title=title, created_by_id=owner.id
     )
@@ -60,8 +74,8 @@ async def _make_thread(db_session, conversation, owner, *, title="thread"):
 
 
 async def test_get_conversation_rejects_mismatched_workspace_id(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Two orgs each own a conversation titled identically — the funnel must
     404 (return None) when the path workspace_id doesn't match the
     conversation's real parent, not silently serve the wrong org's row."""
@@ -85,8 +99,8 @@ async def test_get_conversation_rejects_mismatched_workspace_id(
 
 
 async def test_get_thread_rejects_mismatched_conversation_or_workspace_id(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws = await _make_workspace(db_session, owner)
     conv = await _make_conversation(db_session, ws, owner)
@@ -125,8 +139,10 @@ async def test_get_thread_rejects_mismatched_conversation_or_workspace_id(
 
 
 async def test_get_message_rejects_mismatched_thread_id(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     from src.models import ChatMessage, MessageRole
 
     user = await user_factory()
@@ -153,7 +169,9 @@ async def test_get_message_rejects_mismatched_thread_id(
     ) is not None
 
 
-async def test_get_collection_rejects_mismatched_workspace_id(db_session, user_factory):
+async def test_get_collection_rejects_mismatched_workspace_id(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws_a = await _make_workspace(db_session, owner, name="a")
     ws_b = await _make_workspace(db_session, owner, name="b")
@@ -175,13 +193,20 @@ async def test_get_collection_rejects_mismatched_workspace_id(db_session, user_f
     ) is not None
 
 
-async def test_user_can_access_workspace_predicate(db_session, user_factory):
+async def test_user_can_access_workspace_predicate(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     outsider = await user_factory()
-    ws = await _make_workspace(db_session, owner, is_public=False)
+    created_ws = await _make_workspace(db_session, owner, is_public=False)
     ws = await workspace_access.get_workspace(
-        db_session, ws.id, owner.id, load_conversations=False, load_collections=False
+        db_session,
+        created_ws.id,
+        owner.id,
+        load_conversations=False,
+        load_collections=False,
     )
+    assert ws is not None
 
     assert workspace_access.user_can_access_workspace(ws, owner.id) is True
     assert workspace_access.user_can_access_workspace(ws, outsider.id) is False
@@ -201,6 +226,7 @@ async def test_user_can_access_workspace_predicate(db_session, user_factory):
     ws = await workspace_access.get_workspace(
         db_session, ws.id, owner.id, load_conversations=False, load_collections=False
     )
+    assert ws is not None
     assert workspace_access.user_can_access_workspace(ws, outsider.id) is True
 
     ws.is_public = True
@@ -212,8 +238,10 @@ async def test_user_can_access_workspace_predicate(db_session, user_factory):
 
 
 async def test_get_accessible_document_or_none_scopes_by_organization(
-    db_session, user_factory, organization_factory
-):
+    db_session: AsyncSession,
+    user_factory: Callable[..., Awaitable[User]],
+    organization_factory: Callable[..., Awaitable[Organization]],
+) -> None:
     from src.models.document import Document, DocumentType
 
     org_a = await organization_factory()

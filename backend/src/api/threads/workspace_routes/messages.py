@@ -11,7 +11,7 @@ are out of scope for this task.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -60,7 +60,7 @@ async def create_message(
     request: ChatMessageCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageResponse:
     """[DEPRECATED] Create a new message in a thread.
 
     Audit finding C4: three public POST create-message routes coexist but only
@@ -120,6 +120,10 @@ async def create_message(
     )
     result = await db.execute(stmt)
     message = result.scalars().first()
+    if message is None:
+        raise HTTPException(
+            status_code=404, detail="Thread not found or insufficient permissions"
+        )
 
     return _message_to_response(message)
 
@@ -136,7 +140,7 @@ async def list_messages(
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageListResponse:
     """List messages in a thread"""
     offset = (page - 1) * limit
     result = await message_service.list_messages(
@@ -174,7 +178,7 @@ async def update_message_feedback(
     request: ChatMessageUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageResponse:
     """Update message feedback"""
     try:
         message = await message_service.update_message_feedback(
@@ -226,8 +230,21 @@ async def list_messages_standalone(
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageListResponse:
     """List messages in a thread (standalone route)"""
+    # `order`'s FastAPI Query pattern (`^(asc|desc)$`) already constrains the
+    # wire value; kept as a plain `str` param (not Literal) so the OpenAPI
+    # schema still renders as a regex-constrained string rather than an
+    # enum, matching the existing generated contract. Re-validate here and
+    # assign literal constants (not the `str` variable) so mypy narrows to
+    # the Literal["asc", "desc"] `list_messages` expects, with no cast().
+    validated_order: Literal["asc", "desc"]
+    if order == "asc":
+        validated_order = "asc"
+    elif order == "desc":
+        validated_order = "desc"
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid order: {order}")
     offset = (page - 1) * limit
     result = await message_service.list_messages(
         db,
@@ -236,7 +253,7 @@ async def list_messages_standalone(
         limit=limit,
         offset=offset,
         before_id=before_id,
-        order=order,
+        order=validated_order,
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -258,7 +275,7 @@ async def create_message_standalone(
     request: ChatMessageCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageResponse:
     """Create a new message (standalone route - uses thread_id from request body).
 
     CANONICAL create-message route (audit finding C4). This flat
@@ -301,6 +318,10 @@ async def create_message_standalone(
     )
     result = await db.execute(stmt)
     message = result.scalars().first()
+    if message is None:
+        raise HTTPException(
+            status_code=404, detail="Thread not found or insufficient permissions"
+        )
 
     return _message_to_response(message)
 
@@ -310,7 +331,7 @@ async def get_message_standalone(
     message_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageResponse:
     """Get message details (standalone route)"""
     message = await workspace_access.get_message(db, message_id, current_user.id)
     if not message:
@@ -325,7 +346,7 @@ async def update_message_standalone(
     request: ChatMessageUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ChatMessageResponse:
     """Update message feedback (standalone route)"""
     try:
         message = await message_service.update_message_feedback(
@@ -346,7 +367,7 @@ async def delete_message_standalone(
     message_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Soft-delete a message (standalone route)"""
     try:
         deleted = await message_service.delete_message(

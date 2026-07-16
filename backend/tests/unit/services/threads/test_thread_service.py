@@ -7,11 +7,15 @@ trigger, and nested-route chain scoping — see the module docstring.
 
 from __future__ import annotations
 
+from typing import Awaitable, Callable, Tuple
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.thread import ThreadStatus
+from src.models.conversation import Conversation
+from src.models.thread import Thread, ThreadStatus
+from src.models.user import User
 from src.models.workspace import Workspace
 from src.schemas.chat import ConversationCreate, ThreadCreate, ThreadUpdate
 from src.services.threads import conversation_service, thread_service
@@ -19,7 +23,9 @@ from src.services.threads import conversation_service, thread_service
 pytestmark = pytest.mark.integration
 
 
-async def _make_conversation(db_session, owner):
+async def _make_conversation(
+    db_session: AsyncSession, owner: User
+) -> Tuple[Workspace, Conversation]:
     ws = Workspace(name="ws", owner_id=owner.id, organization_id=owner.organization_id)
     db_session.add(ws)
     await db_session.commit()
@@ -28,10 +34,13 @@ async def _make_conversation(db_session, owner):
     conv = await conversation_service.create_conversation(
         db_session, ConversationCreate(workspace_id=ws.id, title="c"), owner.id
     )
+    assert conv is not None
     return ws, conv
 
 
-async def test_create_thread_commit_flag(db_session, user_factory):
+async def test_create_thread_commit_flag(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """``commit=False`` (old ChatService default) only flushes — the row is
     visible in-session but a caller that never commits could still roll it
     back. ``commit=True`` (router-canonical) commits immediately."""
@@ -44,6 +53,7 @@ async def test_create_thread_commit_flag(db_session, user_factory):
         owner.id,
         commit=False,
     )
+    assert flushed is not None
     assert flushed.id is not None
     # In-transaction visibility either way; the real distinction is whether
     # a rollback would discard it. Both paths must return a persisted-enough
@@ -56,10 +66,13 @@ async def test_create_thread_commit_flag(db_session, user_factory):
         owner.id,
         commit=True,
     )
+    assert committed is not None
     assert committed.id is not None
 
 
-async def test_create_thread_not_found_vs_forbidden(db_session, user_factory):
+async def test_create_thread_not_found_vs_forbidden(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws, conv = await _make_conversation(db_session, owner)
 
@@ -79,7 +92,9 @@ async def test_create_thread_not_found_vs_forbidden(db_session, user_factory):
     ) is None
 
 
-async def test_create_thread_rejects_mismatched_workspace_id(db_session, user_factory):
+async def test_create_thread_rejects_mismatched_workspace_id(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     owner = await user_factory()
     ws_a, _conv_a = await _make_conversation(db_session, owner)
     ws_b, conv_b = await _make_conversation(db_session, owner)
@@ -103,7 +118,11 @@ async def test_create_thread_rejects_mismatched_workspace_id(db_session, user_fa
     assert thread is not None
 
 
-async def test_list_threads_with_preview_flag(db_session, thread_factory, user_factory):
+async def test_list_threads_with_preview_flag(
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     from src.models import ChatMessage, MessageRole
 
     user = await user_factory()
@@ -120,26 +139,32 @@ async def test_list_threads_with_preview_flag(db_session, thread_factory, user_f
 
     conv_id = thread.conversation_id
 
-    bare, total, previews = await thread_service.list_threads(
+    bare_result = await thread_service.list_threads(
         db_session, conv_id, user.id, with_preview=False
     )
+    assert bare_result is not None
+    bare, total, previews = bare_result
     assert total == 1
     assert previews == {}
 
-    with_preview, _total, previews = await thread_service.list_threads(
+    preview_result = await thread_service.list_threads(
         db_session, conv_id, user.id, with_preview=True
     )
+    assert preview_result is not None
+    with_preview, _total, previews = preview_result
     assert previews[thread.id] == "the answer"
 
 
 async def test_list_threads_returns_none_for_missing_conversation(
-    db_session, user_factory
-):
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     user = await user_factory()
     assert (await thread_service.list_threads(db_session, uuid4(), user.id)) is None
 
 
-async def test_list_threads_rejects_mismatched_workspace_id(db_session, user_factory):
+async def test_list_threads_rejects_mismatched_workspace_id(
+    db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
+) -> None:
     """Regression: the nested route's workspace->conversation chain check
     (a conversation requested via a *different* workspace's id 404s) was
     dropped when list_threads moved out of the router. ``workspace_id`` must
@@ -161,8 +186,11 @@ async def test_list_threads_rejects_mismatched_workspace_id(db_session, user_fac
 
 
 async def test_update_thread_resolve_summary_default_off(
-    db_session, thread_factory, user_factory, monkeypatch
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``trigger_resolve_summary`` defaults to ``False`` — every pre-4.3
     caller (buggy-enum ``ChatService``, trigger-less router-inline) observed
     "never fires," so the default must reproduce that exactly (Task 4.3
@@ -183,13 +211,17 @@ async def test_update_thread_resolve_summary_default_off(
     updated = await thread_service.update_thread(
         db_session, thread.id, ThreadUpdate(status=ThreadStatus.RESOLVED), user.id
     )
+    assert updated is not None
     assert updated.status == ThreadStatus.RESOLVED
     assert calls == []
 
 
 async def test_update_thread_resolve_triggers_summary_task_when_opted_in(
-    db_session, thread_factory, user_factory, monkeypatch
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """With the flag explicitly enabled, the fixed comparison correctly
     enqueues the resolution summary."""
     user = await user_factory()
@@ -217,13 +249,16 @@ async def test_update_thread_resolve_triggers_summary_task_when_opted_in(
         user.id,
         trigger_resolve_summary=True,
     )
+    assert updated is not None
     assert updated.status == ThreadStatus.RESOLVED
     assert calls == [str(thread.id)]
 
 
 async def test_delete_thread_stamp_deleted_at_flag(
-    db_session, thread_factory, user_factory
-):
+    db_session: AsyncSession,
+    thread_factory: Callable[..., Awaitable[Thread]],
+    user_factory: Callable[..., Awaitable[User]],
+) -> None:
     user = await user_factory()
     stamped = await thread_factory(user=user)
     unstamped = await thread_factory(user=user)

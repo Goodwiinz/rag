@@ -40,7 +40,7 @@ callers that don't ask for it):
 
 import uuid as uuid_mod
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import structlog
@@ -61,7 +61,7 @@ logger = structlog.get_logger(__name__)
 THREAD_PREVIEW_MAX_CHARS = 240
 
 
-def last_message_preview_expression():
+def last_message_preview_expression() -> Any:
     """Latest non-deleted message excerpt for a thread-list row."""
     return (
         select(func.substr(ChatMessage.content, 1, THREAD_PREVIEW_MAX_CHARS))
@@ -116,7 +116,7 @@ async def create_thread(
 
     if data.initial_message:
         initial_msg = ChatMessage.create_user_message(
-            thread_id=thread_id, user_id=str(user_id), content=data.initial_message
+            thread_id=str(thread_id), user_id=str(user_id), content=data.initial_message
         )
         db.add(initial_msg)
         thread.message_count = 1

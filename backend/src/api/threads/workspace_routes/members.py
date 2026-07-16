@@ -39,7 +39,7 @@ async def add_workspace_member(
     request: WorkspaceMemberCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> WorkspaceMemberResponse:
     """Add a member to a workspace"""
     try:
         member = await workspace_service.add_member(
@@ -64,7 +64,7 @@ async def update_member_role(
     request: WorkspaceMemberUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> WorkspaceMemberResponse:
     """Update a member's role"""
     try:
         member = await workspace_service.update_member_role(
@@ -88,7 +88,7 @@ async def remove_workspace_member(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     """Remove a member from a workspace"""
     try:
         removed = await workspace_service.remove_member(
