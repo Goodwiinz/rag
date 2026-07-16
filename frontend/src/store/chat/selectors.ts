@@ -4,12 +4,20 @@
  * Split out of chat-store.ts (Task 5.4) with no behavior change. Re-exported
  * from `@/store/chat-store` so existing callers are unaffected.
  */
+import type {
+  ChatMessage,
+  Conversation,
+  Thread,
+  Workspace,
+} from '@/types/workspace';
 import type { ChatStore } from './types';
 
-export const selectCurrentWorkspace = (state: ChatStore) =>
+export const selectCurrentWorkspace = (state: ChatStore): Workspace | null =>
   state.workspaces.find((w) => w.id === state.currentWorkspaceId) || null;
 
-export const selectCurrentConversation = (state: ChatStore) => {
+export const selectCurrentConversation = (
+  state: ChatStore
+): Conversation | null => {
   if (!state.currentWorkspaceId || !state.currentConversationId) return null;
   const conversations = state.conversations[state.currentWorkspaceId] || [];
   return (
@@ -17,7 +25,7 @@ export const selectCurrentConversation = (state: ChatStore) => {
   );
 };
 
-export const selectCurrentThread = (state: ChatStore) => {
+export const selectCurrentThread = (state: ChatStore): Thread | null => {
   if (!state.currentConversationId || !state.currentThreadId) return null;
   const threads = state.threads[state.currentConversationId] || [];
   return threads.find((t) => t.id === state.currentThreadId) || null;
@@ -60,17 +68,21 @@ export const resolveBoundProjectId = (
     ? undefined
     : (threadProjectId ?? urlProjectId ?? undefined);
 
-export const selectCurrentMessages = (state: ChatStore) => {
+export const selectCurrentMessages = (state: ChatStore): ChatMessage[] => {
   if (!state.currentThreadId) return [];
   return state.messages[state.currentThreadId] || [];
 };
 
-export const selectConversationsForCurrentWorkspace = (state: ChatStore) => {
+export const selectConversationsForCurrentWorkspace = (
+  state: ChatStore
+): Conversation[] => {
   if (!state.currentWorkspaceId) return [];
   return state.conversations[state.currentWorkspaceId] || [];
 };
 
-export const selectThreadsForCurrentConversation = (state: ChatStore) => {
+export const selectThreadsForCurrentConversation = (
+  state: ChatStore
+): Thread[] => {
   if (!state.currentConversationId) return [];
   return state.threads[state.currentConversationId] || [];
 };

@@ -103,9 +103,10 @@ export const createStreamingSlice: ChatSliceCreator<StreamingSlice> = (
             break;
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       // Silently catch AbortError (user clicked stop)
-      if (err?.name !== 'AbortError') {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (!isAbort) {
         console.error('[ChatStore] Error streaming message:', err);
         set((state) => {
           state.error = 'Failed to stream message';

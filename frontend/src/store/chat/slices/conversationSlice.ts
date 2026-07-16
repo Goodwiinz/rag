@@ -45,11 +45,12 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
         }
         state.isLoadingConversations = false;
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ChatStore] Error loading conversations:', error);
 
       // Handle 404 - workspace not found (stale data)
-      if (error?.response?.status === 404) {
+      const err = error as { response?: { status?: number } };
+      if (err?.response?.status === 404) {
         console.warn(
           '[ChatStore] Workspace not found (404) - clearing stale data'
         );
@@ -83,11 +84,12 @@ export const createConversationSlice: ChatSliceCreator<ConversationSlice> = (
         state.conversationToWorkspace[conversation.id] = workspaceId;
       });
       return conversation;
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ChatStore] Error creating conversation:', error);
 
       // Handle 404 - workspace not found (stale data)
-      if (error?.response?.status === 404) {
+      const err = error as { response?: { status?: number } };
+      if (err?.response?.status === 404) {
         console.warn(
           '[ChatStore] Workspace not found (404) while creating conversation - clearing stale data'
         );

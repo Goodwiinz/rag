@@ -62,11 +62,12 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
         }
         state.isLoadingThreads = false;
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ChatStore] Error loading threads:', error);
 
       // Handle 404 - conversation not found (stale data)
-      if (error?.response?.status === 404) {
+      const err = error as { response?: { status?: number } };
+      if (err?.response?.status === 404) {
         console.warn(
           '[ChatStore] Conversation not found (404) - clearing stale data'
         );
