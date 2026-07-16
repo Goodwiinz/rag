@@ -23409,7 +23409,7 @@
     "/api/v1/evaluation/jobs/{job_id}/reports/{report_type}": {
       "post": {
         "description": "Generate a report for an evaluation job",
-        "operationId": "generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post",
+        "operationId": "trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post",
         "parameters": [
           {
             "in": "path",
@@ -23436,7 +23436,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Generate Evaluation Report Api V1 Evaluation Jobs  Job Id  Reports  Report Type  Post",
+                  "title": "Response Trigger Evaluation Report Api V1 Evaluation Jobs  Job Id  Reports  Report Type  Post",
                   "type": "object"
                 }
               }
@@ -23459,7 +23459,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Generate Evaluation Report",
+        "summary": "Trigger Evaluation Report",
         "tags": [
           "evaluation"
         ]
