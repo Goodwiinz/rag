@@ -13,7 +13,7 @@ import pytest
 
 
 @pytest.mark.unit
-def test_entity_scope_predicate_scopes_on_org_alone():
+def test_entity_scope_predicate_scopes_on_org_alone() -> None:
     """organization_id alone must produce an indexed equality predicate."""
     from src.services.knowledge_graph.knowledge_graph_service import (
         _entity_scope_predicate,
@@ -31,7 +31,7 @@ def test_entity_scope_predicate_scopes_on_org_alone():
 
 
 @pytest.mark.unit
-def test_hybrid_kg_search_forwards_organization_id():
+def test_hybrid_kg_search_forwards_organization_id() -> None:
     """_execute_knowledge_graph_search must pass organization_id to the KG
     search — otherwise the hybrid KG leg leaks cross-tenant entities."""
     from src.services.search.hybrid_search_service import HybridSearchService
@@ -41,7 +41,7 @@ def test_hybrid_kg_search_forwards_organization_id():
 
 
 @pytest.mark.unit
-def test_kg_search_adapter_forwards_organization_id():
+def test_kg_search_adapter_forwards_organization_id() -> None:
     """The service-level search() adapter must forward organization_id directly,
     not rely solely on the derived source_document_ids (which is None on a doc
     lookup failure → unscoped)."""
