@@ -186,6 +186,13 @@ async def get_user_behavior_analytics(
         ):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+        # Intra-tenant horizontal authz (mirrors get_session_analysis below):
+        # within the caller's org, only an admin may read ANOTHER user's
+        # behavior analytics; a non-admin may read only their own. The org
+        # check above stops cross-tenant reads; this stops same-org peer reads.
+        if str(current_user.id) != user_id and current_user.role.value != "admin":
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
         metrics = await user_behavior_service.analyze_user_behavior(
             user_id=user_id, days_back=days_back
         )
