@@ -366,8 +366,10 @@ async def get_extracted_features(
             )
 
             if paper_id:
+                # .as_string(), NOT .astext — generic sqlalchemy.JSON has no
+                # astext comparator; it raises AttributeError at build time.
                 stmt = stmt.where(
-                    Document.document_metadata["arxiv_id"].astext == paper_id
+                    Document.document_metadata["arxiv_id"].as_string() == paper_id
                 )
 
             stmt = stmt.limit(limit)
