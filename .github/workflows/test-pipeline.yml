@@ -430,6 +430,11 @@ jobs:
         run: pnpm test:coverage
         env:
           CI: true
+      # Blocking ratchet: global coverage may never fall below the floors
+      # committed in frontend/quality-baseline.json ("coverage" key).
+      # Raising or lowering a floor is an intentional, reviewed JSON edit.
+      - name: Coverage ratchet (blocking)
+        run: node ../scripts/ci/check_frontend_coverage.mjs coverage/coverage-summary.json
       - name: Upload coverage
         if: always()
         uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5

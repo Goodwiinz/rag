@@ -2071,5 +2071,11 @@
         "warnings": 43
       }
     }
+  },
+  "coverage": {
+    "lines": 19.36,
+    "statements": 19.36,
+    "functions": 52.19,
+    "branches": 76.31
   }
 }
