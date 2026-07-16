@@ -38,21 +38,24 @@ stage_lint_backend() {
 # ─── lint-frontend ────────────────────────────────────────────────────────────
 
 stage_lint_frontend() {
+    cd frontend || return 1
+
     echo "Installing frontend dependencies..."
-    pnpm install --frozen-lockfile --filter multimodal-rag-frontend... || return 1
+    npm ci || { cd ..; return 1; }
 
     echo ""
     echo "Running type-check..."
-    pnpm --dir frontend type-check
+    npm run type-check
     local typecheck_exit=$?
 
     # lint has continue-on-error in CI — warn but don't fail
     echo ""
     echo "Running lint..."
-    if ! pnpm --dir frontend lint; then
+    if ! npm run lint; then
         echo -e "${YELLOW}⚠ lint check failed (non-blocking)${RESET}"
     fi
 
+    cd ..
     return $typecheck_exit
 }
 
@@ -114,14 +117,17 @@ stage_security_scan() {
 # ─── frontend-tests ───────────────────────────────────────────────────────────
 
 stage_frontend_tests() {
+    cd frontend || return 1
+
     echo "Installing frontend dependencies..."
-    pnpm install --frozen-lockfile --filter multimodal-rag-frontend... || return 1
+    npm ci || { cd ..; return 1; }
 
     echo ""
     echo "Running frontend tests..."
-    CI=true pnpm --dir frontend test:coverage
+    CI=true npm test -- --coverage --watchAll=false
     local test_exit=$?
 
+    cd ..
     return $test_exit
 }
 

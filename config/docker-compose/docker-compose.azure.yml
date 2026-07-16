@@ -80,11 +80,9 @@ services:
   # Frontend Service
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile.prod
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
     ports:
       - "3000:3000"
     environment:

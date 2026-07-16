@@ -1,36 +1,92 @@
-# syntax=docker/dockerfile:1
-# Development-only frontend image. Build from the repository root so pnpm can
-# resolve the frontend as part of the canonical workspace lockfile.
+# Multi-stage production-ready Dockerfile for the React Frontend
+# Stage 1: Node.js base
+FROM node:25-alpine AS base
 
-ARG NODE_VERSION=24
-FROM node:${NODE_VERSION}-alpine AS base
-
-RUN apk add --no-cache curl libc6-compat && \
-    corepack enable && \
-    corepack prepare pnpm@10.18.2 --activate
+# Install system dependencies
+RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json frontend/package.json
-COPY tests/e2e/package.json tests/e2e/package.json
+# Copy package files
+COPY package*.json ./
 
+# Stage 2: Dependencies installation
 FROM base AS dependencies
 
-RUN pnpm install --frozen-lockfile --filter multimodal-rag-frontend...
+# Install dependencies
+RUN npm install --omit=dev && npm cache clean --force
 
-FROM dependencies AS development
+# Stage 3: Development
+FROM base AS development
 
-COPY frontend/ frontend/
+# Install curl for health checks
+RUN apk add --no-cache curl
 
-WORKDIR /app/frontend
+# Install all dependencies including dev
+RUN npm install
 
-ENV NODE_ENV=development
-ENV NEXT_TELEMETRY_DISABLED=1
+# Copy source code
+COPY . .
 
+# Expose port
 EXPOSE 3000
 
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+    CMD curl -f http://localhost:3000 || exit 1
 
-CMD ["pnpm", "dev", "--hostname", "0.0.0.0"]
+# Start development server
+CMD ["npm", "run", "dev"]
+
+# Stage 4: Production build
+FROM node:25-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Stage 5: Production
+FROM nginx:alpine AS production
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy built application
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Create nginx user for non-root execution
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set permissions
+RUN chown -R nextjs:nodejs /usr/share/nginx/html && \
+    chown -R nextjs:nodejs /var/cache/nginx && \
+    chown -R nextjs:nodejs /var/log/nginx && \
+    chown -R nextjs:nodejs /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nextjs:nodejs /var/run/nginx.pid
+
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

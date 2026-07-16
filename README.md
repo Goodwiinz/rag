@@ -132,7 +132,7 @@ Full gallery at [goodwiins.github.io/nous](https://goodwiins.github.io/nous/).
 
 ```
 ┌─────────────────┐     ┌──────────────────────────────────────────┐     ┌────────────────┐
-│  Next.js 16     │────▶│  FastAPI · LangGraph StateGraph          │────▶│  Postgres      │
+│  Next.js 15     │────▶│  FastAPI · LangGraph StateGraph          │────▶│  Postgres      │
 │  React 18       │ SSE │  ┌──────────────────────────────────┐    │     │  Neo4j         │
 │  Zustand + RQ   │◀────│  │ rag → intent → memory → route →  │    │     │  Redis         │
 │  shadcn/ui      │     │  │ [research|writing|data|general]  │    │     │  MinIO         │
@@ -142,7 +142,7 @@ Full gallery at [goodwiins.github.io/nous](https://goodwiins.github.io/nous/).
                         └──────────────────────────────────────────┘
 ```
 
-- **Frontend**: Next.js 16 · React 18 · TS strict · Tailwind · shadcn/ui · Zustand · TanStack Query v5 · Cytoscape.js
+- **Frontend**: Next.js 15 · React 18 · TS strict · Tailwind · shadcn/ui · Zustand · TanStack Query v5 · Cytoscape.js
 - **Backend**: FastAPI · LangGraph · Celery · Whisper · spaCy · sentence-transformers · Cohere rerank
 - **Data**: Postgres (metadata + checkpoints + FTS) · Neo4j (KG + citations) · Redis (cache + broker) · MinIO (blobs)
 - **Infra**: Docker Compose · Kubernetes + Helm · Terraform · GitHub Actions CI
@@ -161,14 +161,13 @@ cp .env.example .env.local     # add OPENAI_API_KEY / ANTHROPIC_API_KEY
 # 2. Spin up services (Postgres, Neo4j, Redis, MinIO, backend)
 docker-compose -f docker-compose.development.yml up -d
 
-# 3. Install workspace deps and start the frontend
-pnpm install
-pnpm dev
+# 3. Start the frontend
+cd frontend && npm install && npm run dev
 
 # 4. Open:  http://localhost:3000   (API docs at :8000/docs)
 ```
 
-**Prerequisites:** Node 24+, pnpm 10.18+ (via corepack), Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
+**Prerequisites:** Node 18.17+, Python 3.11+, Docker 24+, 16 GB RAM, OpenAI or Anthropic key.
 
 **Dev users:** `admin@multimodal-rag.com / admin123` · `demo@multimodal-rag.com / demo123`
 
@@ -182,7 +181,7 @@ pnpm dev
 | Testing       | Jest · RTL · Playwright E2E · pytest (unit/integration/e2e/perf markers)   |
 | AI evals      | DeepEval in CI — faithfulness, relevancy, hallucination thresholds         |
 | Lint/format   | Prettier · ESLint · Black 88 · isort                                       |
-| Validation    | `pnpm validate` = lint + type-check + test                                 |
+| Validation    | `npm run validate` = lint + type-check + test                              |
 | CI/CD         | GitHub Actions · Docker Bake · Helm deploys                                |
 | Security      | JWT auth · RBAC · encrypted fields · SQL injection guards · CORS allowlist |
 | Observability | Prometheus metrics · LangSmith traces · structured logs                    |
@@ -225,7 +224,7 @@ Interactive docs at `http://localhost:8000/docs` when running.
 ```
 .
 ├── backend/          FastAPI app — api/, services/ (agent, research, search), models/, core/
-├── frontend/         Next.js 16 — app/, src/ (components, hooks, store, services, types)
+├── frontend/         Next.js 15 — app/, src/ (components, hooks, store, services, types)
 ├── brand/            Logos, guidelines, screenshots, landing page
 ├── docs/             Architecture, deployment, security, testing, observability
 ├── infrastructure/   Terraform + K8s manifests

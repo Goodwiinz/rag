@@ -228,12 +228,8 @@ services:
   # shell binaries that older base images don't ship.
   e2e-tests:
     image: mcr.microsoft.com/playwright:v1.59.1-jammy
-    working_dir: /app
+    working_dir: /app/tests/e2e
     volumes:
-      - ./package.json:/app/package.json:ro
-      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
-      - ./frontend/package.json:/app/frontend/package.json:ro
       - ./tests/e2e:/app/tests/e2e
       - e2e-results:/app/tests/e2e/test-results
     environment:
@@ -246,10 +242,8 @@ services:
       CI_SHARD_TOTAL: ${CI_SHARD_TOTAL:-1}
     command: >
       sh -c "
-        corepack enable &&
-        corepack prepare pnpm@10.18.2 --activate &&
-        pnpm install --frozen-lockfile --filter ./tests/e2e... &&
-        pnpm --dir tests/e2e exec playwright test --reporter=html,github
+        npm ci &&
+        npx playwright test --reporter=html,github
       "
     depends_on:
       frontend:
@@ -264,12 +258,8 @@ services:
   # Smoke Test Runner (subset of E2E for PRs)
   smoke-tests:
     image: mcr.microsoft.com/playwright:v1.59.1-jammy
-    working_dir: /app
+    working_dir: /app/tests/e2e
     volumes:
-      - ./package.json:/app/package.json:ro
-      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
-      - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
-      - ./frontend/package.json:/app/frontend/package.json:ro
       - ./tests/e2e:/app/tests/e2e
       - smoke-results:/app/tests/e2e/test-results
     environment:
@@ -279,10 +269,8 @@ services:
       HEADLESS: "true"
     command: >
       sh -c "
-        corepack enable &&
-        corepack prepare pnpm@10.18.2 --activate &&
-        pnpm install --frozen-lockfile --filter ./tests/e2e... &&
-        pnpm --dir tests/e2e exec playwright test --grep @smoke --reporter=html,github --project=chromium
+        npm ci &&
+        npx playwright test --grep @smoke --reporter=html,github --project=chromium
       "
     depends_on:
       frontend:

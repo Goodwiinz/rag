@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 env:
   PYTHON_VERSION: "3.11"
-  NODE_VERSION: "24"
+  NODE_VERSION: "20"
   DOCKER_BUILDKIT: "1"
   # NOTE: PIP_NO_CACHE_DIR is intentionally NOT set here. Setting it globally
   # makes pip ignore ~/.cache/pip on the runner, which silently turns every

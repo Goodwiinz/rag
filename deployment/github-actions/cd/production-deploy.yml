@@ -95,8 +95,7 @@ jobs:
       id: frontend-build
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: frontend/Dockerfile.prod
+        context: ./frontend
         push: true
         tags: ${{ steps.frontend-meta.outputs.tags }}
         labels: ${{ steps.frontend-meta.outputs.labels }}
@@ -104,8 +103,6 @@ jobs:
         cache-to: type=gha,mode=max
         platforms: linux/amd64,linux/arm64
         build-args: |
-          NEXT_PUBLIC_SUPABASE_URL=${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_API_URL=${{ vars.API_URL }}
           NEXT_PUBLIC_WS_URL=${{ vars.WS_URL }}
 

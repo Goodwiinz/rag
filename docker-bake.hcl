@@ -17,7 +17,7 @@ variable "PYTHON_VERSION" {
 }
 
 variable "NODE_VERSION" {
-  default = "24"
+  default = "20"
 }
 
 # Default group - builds all production services
@@ -126,7 +126,6 @@ target "frontend-dev" {
   inherits   = ["frontend"]
   platforms  = ["linux/amd64"]
   dockerfile = "frontend/Dockerfile"
-  target     = "development"
   tags       = ["rag-frontend:dev"]
   output     = ["type=docker"]
 }
