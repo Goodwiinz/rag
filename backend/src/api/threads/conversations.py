@@ -53,7 +53,10 @@ async def create_workspace(
     A workspace is a project container that holds conversations, threads, and collections.
     """
     service = get_chat_service(db)
-    workspace = await service.create_workspace(data, current_user.id)
+    try:
+        workspace = await service.create_workspace(data, current_user.id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
     return WorkspaceResponse(
         id=workspace.id,
@@ -66,9 +69,9 @@ async def create_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members),
-        conversation_count=len(workspace.conversations)
-        if workspace.conversations
-        else 0,
+        conversation_count=(
+            len(workspace.conversations) if workspace.conversations else 0
+        ),
     )
 
 
@@ -156,9 +159,9 @@ async def get_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members),
-        conversation_count=len(workspace.conversations)
-        if workspace.conversations
-        else 0,
+        conversation_count=(
+            len(workspace.conversations) if workspace.conversations else 0
+        ),
         members=members,
     )
 
@@ -195,9 +198,9 @@ async def update_workspace(
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=len(workspace.conversations)
-        if workspace.conversations
-        else 0,
+        conversation_count=(
+            len(workspace.conversations) if workspace.conversations else 0
+        ),
     )
 
 

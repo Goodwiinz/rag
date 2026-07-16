@@ -38,12 +38,12 @@ callers that don't ask for it):
   additionally returns a ``{thread_id: preview}`` dict.
 """
 
-import logging
 import uuid as uuid_mod
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
+import structlog
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,7 +52,7 @@ from src.models.thread import Thread, ThreadStatus
 from src.schemas.chat import ThreadCreate, ThreadUpdate
 from src.services.threads import workspace_access
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # The router's rendered `last_message_preview` field truncates to this many
 # characters. Owned here (the query that produces it); re-exported by
@@ -129,7 +129,7 @@ async def create_thread(
         await db.flush()
     await db.refresh(thread)
 
-    logger.info(f"Created thread: {thread.id}")
+    logger.info("thread_created", thread_id=str(thread.id))
     return thread
 
 
@@ -138,12 +138,18 @@ async def list_threads(
     conversation_id: UUID,
     user_id: UUID,
     *,
+    workspace_id: Optional[UUID] = None,
     status_filter: Optional[ThreadStatus] = None,
     limit: int = 50,
     offset: int = 0,
     with_preview: bool = False,
 ) -> Optional[Tuple[List[Thread], int, Dict[UUID, Optional[str]]]]:
     """List threads in a conversation.
+
+    ``workspace_id``, when given, scopes the parent lookup to that workspace
+    (the nested-route chain check) — a conversation id that does not belong
+    to the path's ``workspace_id`` returns ``None`` exactly as it did as a
+    two-query chain; standalone callers pass ``None``.
 
     Returns ``None`` if the conversation isn't found/accessible (distinct
     from a legitimately empty list); otherwise ``(threads, total, previews)``
@@ -152,7 +158,7 @@ async def list_threads(
     rendered field).
     """
     conversation = await workspace_access.get_conversation(
-        db, conversation_id, user_id, load_threads=False
+        db, conversation_id, user_id, workspace_id=workspace_id, load_threads=False
     )
     if not conversation:
         return None
@@ -255,7 +261,9 @@ async def update_thread(
             summarize_thread_on_resolve_task.delay(str(thread_id))
         except Exception as e:  # noqa: BLE001
             logger.warning(
-                f"Failed to queue resolution summary for thread {thread_id}: {e}"
+                "thread_resolve_summary_enqueue_failed",
+                thread_id=str(thread_id),
+                error=str(e),
             )
 
     return thread
@@ -299,5 +307,5 @@ async def delete_thread(
     thread.updated_at = datetime.utcnow()
     await db.commit()
 
-    logger.info(f"Deleted thread: {thread_id}")
+    logger.info("thread_deleted", thread_id=str(thread_id))
     return True

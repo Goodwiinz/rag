@@ -38,28 +38,36 @@ async def _make_workspace(db_session, owner):
     return ws
 
 
-async def test_create_workspace_trusts_requested_org_no_guard(
+async def test_create_workspace_enforces_org_match(
     db_session, user_factory, organization_factory
 ):
-    """Divergence 1: ChatService.create_workspace has never enforced a
-    cross-org guard — unlike the router-inline create endpoint."""
+    """fix(workspaces): close pre-existing tenant gaps on the ChatService
+    surface — ChatService.create_workspace previously trusted
+    ``data.organization_id`` verbatim with no cross-org guard, unlike the
+    router-inline create endpoint (which has always enforced it); the live
+    ``conversations.py`` create endpoint this class backs inherited that gap.
+    It now enforces the same guard: a cross-org create raises
+    ``PermissionError`` (the route maps that to 403), replacing the old
+    divergence-1 test that pinned the gap itself."""
     owner = await user_factory()
     foreign_org = await organization_factory()
     service = ChatService(db_session)
 
-    workspace = await service.create_workspace(
-        WorkspaceCreate(name="x", is_public=False, organization_id=foreign_org.id),
-        owner.id,
-    )
-    assert workspace.organization_id == foreign_org.id
+    with pytest.raises(PermissionError):
+        await service.create_workspace(
+            WorkspaceCreate(name="x", is_public=False, organization_id=foreign_org.id),
+            owner.id,
+        )
 
 
-async def test_list_workspaces_does_not_filter_deleted_memberships(
-    db_session, user_factory
-):
-    """Divergence 2: a removed (soft-deleted WorkspaceMember) member still
-    sees the workspace listed via ChatService — the router-inline list
-    endpoint filters this out."""
+async def test_list_workspaces_filters_deleted_memberships(db_session, user_factory):
+    """fix(workspaces): close pre-existing tenant gaps on the ChatService
+    surface — ChatService.list_workspaces previously did not exclude a
+    soft-deleted ``WorkspaceMember`` row, so a removed member still saw the
+    workspace on the live ``conversations.py`` list endpoint this class
+    backs, unlike the router-inline list endpoint (which has always filtered
+    it out). It now filters deleted memberships too, replacing the old
+    divergence-2 test that pinned the gap itself."""
     owner = await user_factory()
     service = ChatService(db_session)
     workspace = await service.create_workspace(
@@ -71,7 +79,7 @@ async def test_list_workspaces_does_not_filter_deleted_memberships(
     await db_session.commit()
 
     workspaces, _total = await service.list_workspaces(owner.id)
-    assert workspace.id in [w.id for w in workspaces]
+    assert workspace.id not in [w.id for w in workspaces]
 
 
 async def test_delete_workspace_never_stamps_deleted_at(db_session, user_factory):

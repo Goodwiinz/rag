@@ -69,6 +69,15 @@ async def test_create_thread_not_found_vs_forbidden(db_session, user_factory):
         )
     ) is None
 
+    # Non-member targeting a real conversation is indistinguishable from
+    # not-found: the access funnel fails closed with None (404 path).
+    outsider = await user_factory()
+    assert (
+        await thread_service.create_thread(
+            db_session, ThreadCreate(conversation_id=conv.id, title="t"), outsider.id
+        )
+    ) is None
+
 
 async def test_create_thread_rejects_mismatched_workspace_id(db_session, user_factory):
     owner = await user_factory()
@@ -128,6 +137,27 @@ async def test_list_threads_returns_none_for_missing_conversation(
 ):
     user = await user_factory()
     assert (await thread_service.list_threads(db_session, uuid4(), user.id)) is None
+
+
+async def test_list_threads_rejects_mismatched_workspace_id(db_session, user_factory):
+    """Regression: the nested route's workspace->conversation chain check
+    (a conversation requested via a *different* workspace's id 404s) was
+    dropped when list_threads moved out of the router. ``workspace_id`` must
+    scope the parent lookup exactly like create/update/delete_thread do."""
+    owner = await user_factory()
+    ws_a, _conv_a = await _make_conversation(db_session, owner)
+    ws_b, conv_b = await _make_conversation(db_session, owner)
+
+    assert (
+        await thread_service.list_threads(
+            db_session, conv_b.id, owner.id, workspace_id=ws_a.id
+        )
+    ) is None
+
+    result = await thread_service.list_threads(
+        db_session, conv_b.id, owner.id, workspace_id=ws_b.id
+    )
+    assert result is not None
 
 
 async def test_update_thread_resolve_summary_default_off(
