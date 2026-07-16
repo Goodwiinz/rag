@@ -518,14 +518,37 @@ async def broadcast_message(
             detail="Only administrators can broadcast messages",
         )
 
+    # Tenant scope: role==ADMIN is a PER-ORG role, not a platform superuser, so
+    # an org admin may only broadcast within their OWN org. A null-org principal
+    # has no tenant to scope to — reject rather than let str(None) conflate every
+    # null-org tenant into one broadcast target.
+    if current_user.organization_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot broadcast without an organization",
+        )
+    caller_org = str(current_user.organization_id)
+
+    # An org admin cannot target another tenant's org explicitly.
+    if request.target_organizations:
+        for org_id in request.target_organizations:
+            if str(org_id) != caller_org:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot broadcast to another organization",
+                )
+
     try:
-        # Create WebSocket message
+        # Create WebSocket message — target_organization makes
+        # should_receive_message gate delivery to the caller's own tenant on
+        # every path (channel / user / organization).
         message = WebSocketMessage(
             type=MessageType(request.message_type),
             data=request.data,
             timestamp=datetime.now(dt_timezone.utc),
             priority=request.priority,
             target_channels=[request.channel],
+            target_organization=caller_org,
         )
 
         # Broadcast based on targets
