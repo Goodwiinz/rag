@@ -43,6 +43,14 @@ export interface MessageSlice {
   clearThread: (threadId: string) => void;
 }
 
+// Identity for in-flight older-page loads. Module-scope (outside Immer) for
+// the same reason as requestCoordinator's newestPageRequests. A commit may
+// only apply if the thread's cache survived (pagination still present), this
+// request is still the acknowledged one (loadingOlder still true — a cache
+// rebuilt by refreshMessages starts back at false), and no newer
+// loadOlderMessages superseded it (generation match).
+const olderPageGenerations = new Map<string, number>();
+
 function compareMessageOrder(left: ChatMessage, right: ChatMessage): number {
   const timestampOrder = left.created_at.localeCompare(right.created_at);
   return timestampOrder !== 0
@@ -268,6 +276,8 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       if (!state.messagePagination[threadId]) return;
       state.messagePagination[threadId].loadingOlder = true;
     });
+    const generation = (olderPageGenerations.get(threadId) ?? 0) + 1;
+    olderPageGenerations.set(threadId, generation);
 
     try {
       // Cursor pagination: ask for messages strictly OLDER than the oldest
@@ -298,6 +308,18 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       const olderAscending = [...response.messages].reverse();
 
       set((state) => {
+        // Commit-phase guard: the thread cache may have been invalidated
+        // (clearThread/deleteThread/eviction) or rebuilt while this request
+        // was in flight — committing then would resurrect a deleted cache or
+        // splice a stale page into a fresh one.
+        const currentPagination = state.messagePagination[threadId];
+        if (
+          !currentPagination ||
+          !currentPagination.loadingOlder ||
+          olderPageGenerations.get(threadId) !== generation
+        ) {
+          return;
+        }
         const existing = state.messages[threadId] || [];
         // De-dup against already-loaded messages: overlapping pages (e.g.
         // a message inserted between fetches) must not produce duplicates.
@@ -330,7 +352,12 @@ export const createMessageSlice: ChatSliceCreator<MessageSlice> = (
       });
     } finally {
       set((state) => {
-        if (state.messagePagination[threadId]) {
+        // Same guard as the commit: don't clear a flag that now belongs to a
+        // newer request against a rebuilt cache.
+        if (
+          state.messagePagination[threadId] &&
+          olderPageGenerations.get(threadId) === generation
+        ) {
           state.messagePagination[threadId].loadingOlder = false;
         }
       });

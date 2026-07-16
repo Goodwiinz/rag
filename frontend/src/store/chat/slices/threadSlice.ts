@@ -68,6 +68,19 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
       // Handle 404 - conversation not found (stale data)
       const err = error as { response?: { status?: number } };
       if (err?.response?.status === 404) {
+        // A late 404 for a conversation the user has already navigated away
+        // from must not nuke the (valid) current selection — only recover
+        // when the failed load still targets the current conversation.
+        if (get().currentConversationId !== conversationId) {
+          console.warn(
+            '[ChatStore] Ignoring stale 404 for superseded conversation:',
+            conversationId
+          );
+          set((state) => {
+            state.isLoadingThreads = false;
+          });
+          return;
+        }
         console.warn(
           '[ChatStore] Conversation not found (404) - clearing stale data'
         );
@@ -332,11 +345,15 @@ export const createThreadSlice: ChatSliceCreator<ThreadSlice> = (
           }
         }
 
-        // Clear current thread if it was deleted
-        if (
-          state.currentThreadId &&
-          threadIds.includes(state.currentThreadId)
-        ) {
+        // Clear current thread only if its delete actually SUCCEEDED — a
+        // failed delete leaves the thread alive server-side and still
+        // validly selected (clearing on requested ids deselected it anyway).
+        const deletedIds = new Set(
+          response.results
+            .filter((result) => result.success)
+            .map((result) => result.thread_id)
+        );
+        if (state.currentThreadId && deletedIds.has(state.currentThreadId)) {
           state.currentThreadId = null;
         }
 
