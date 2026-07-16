@@ -103,6 +103,14 @@ class ConnectionInfo:
     subscribed_channels: Set[str]
     message_filter: Dict[str, Any] = None
     client_info: Dict[str, Any] = None
+    # Authenticated token's expiry (naive UTC, matching TokenData.exp — see
+    # security.py verify_token). AU4: without this, a connection authenticated
+    # once at connect time keeps receiving its org's realtime pushes even
+    # after the token backing it has expired, until the socket happens to
+    # drop for an unrelated reason. None = no expiry enforced (back-compat
+    # for callers that don't thread a token expiry through, e.g. the legacy
+    # connect() path).
+    expires_at: Optional[datetime] = None
 
     def update_heartbeat(self):
         """Update connection heartbeat timestamp"""
@@ -329,6 +337,7 @@ class EnhancedConnectionManager(BaseService):
         organization_id: str,
         client_info: Dict[str, Any] = None,
         auth_method: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> str:
         """
         Internal helper that handles the common connection setup logic.
@@ -342,6 +351,7 @@ class EnhancedConnectionManager(BaseService):
             organization_id: User's organization ID
             client_info: Optional client metadata
             auth_method: Optional auth method label for welcome message
+            expires_at: Authenticated token's expiry (naive UTC), if known
 
         Returns:
             Connection ID
@@ -360,6 +370,7 @@ class EnhancedConnectionManager(BaseService):
             subscribed_channels=set(),
             message_filter=client_info.get("message_filter") if client_info else None,
             client_info=client_info or {},
+            expires_at=expires_at,
         )
 
         # Store connection
@@ -472,6 +483,7 @@ class EnhancedConnectionManager(BaseService):
         organization_id: str,
         client_info: Dict[str, Any] = None,
         subprotocol: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
     ) -> Optional[str]:
         """
         Accept and manage a pre-authenticated WebSocket connection.
@@ -486,6 +498,8 @@ class EnhancedConnectionManager(BaseService):
             organization_id: User's organization ID
             client_info: Optional client metadata
             subprotocol: Optional subprotocol to respond with
+            expires_at: Authenticated token's expiry (naive UTC), if known —
+                enforced by the heartbeat monitor (AU4)
 
         Returns:
             Connection ID if successful, None otherwise
@@ -522,6 +536,7 @@ class EnhancedConnectionManager(BaseService):
             organization_id=organization_id,
             client_info=client_info,
             auth_method="secure",
+            expires_at=expires_at,
         )
 
     async def disconnect(self, connection_id: str, reason: str = None):
@@ -847,7 +862,14 @@ class EnhancedConnectionManager(BaseService):
                 await asyncio.sleep(self.heartbeat_interval)
 
                 current_time = datetime.now(dt_timezone.utc)
+                # Naive UTC "now" for expires_at comparisons. TokenData.exp is
+                # built via datetime.utcfromtimestamp (naive — see
+                # security.py verify_token / token_data.exp < datetime.utcnow()),
+                # so this must stay naive too: comparing it against an
+                # aware current_time would raise TypeError.
+                token_now = datetime.utcnow()
                 stale_connections = []
+                expired_connections = []
 
                 for connection_id, connection_info in self.active_connections.items():
                     # Check if connection is stale
@@ -868,15 +890,42 @@ class EnhancedConnectionManager(BaseService):
                             connection_id, ping_message
                         )
 
+                    # AU4: a JWT verified once at connect time was never
+                    # re-checked, so a revoked/expired session kept receiving
+                    # its own org's realtime pushes until the socket happened
+                    # to drop. Enforce the token's own exp here.
+                    if (
+                        connection_info.expires_at is not None
+                        and connection_info.expires_at < token_now
+                    ):
+                        expired_connections.append(connection_id)
+
                 # Clean up stale connections
                 for connection_id in stale_connections:
                     await self.disconnect(
                         connection_id, "Connection timeout - no heartbeat"
                     )
 
+                # Close connections whose authentication token has expired
+                for connection_id in expired_connections:
+                    connection_info = self.active_connections.get(connection_id)
+                    if connection_info is None:
+                        continue  # already cleaned up above (e.g. also stale)
+                    try:
+                        await connection_info.websocket.close(
+                            code=4002, reason="Authentication token expired"
+                        )
+                    except Exception:
+                        pass  # best-effort close, mirrors shutdown()
+                    await self.disconnect(connection_id, "Authentication token expired")
+
                 if stale_connections:
                     logger.info(
                         f"Cleaned up {len(stale_connections)} stale WebSocket connections"
+                    )
+                if expired_connections:
+                    logger.info(
+                        f"Closed {len(expired_connections)} WebSocket connections with expired tokens"
                     )
 
             except asyncio.CancelledError:
