@@ -76,6 +76,13 @@ const FULL_STAGES = [
 const BASE_THRESHOLDS = {
   http_req_duration: ['p(95)<5000'],
   http_req_failed: [{ threshold: 'rate<0.5', abortOnFail: true, delayAbortEval: '60s' }],
+  // Lax, non-aborting per-endpoint thresholds exist only to make k6 emit the
+  // `{name:...}` sub-metrics in summary.json — without a threshold referencing
+  // a tag, k6 reports no per-endpoint percentiles.
+  'http_req_duration{name:search}': ['p(95)<600000'],
+  'http_req_duration{name:documents}': ['p(95)<600000'],
+  'http_req_duration{name:profile}': ['p(95)<600000'],
+  'http_req_duration{name:upload}': ['p(95)<600000'],
 };
 
 // Generous setup/teardown windows: setup mints + authenticates up to
