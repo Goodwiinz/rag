@@ -34,6 +34,8 @@ from src.core.security import (
 )
 
 _SUPABASE_SECRET = "supabase-test-shared-secret-32chars!!"
+_SUPABASE_URL = "https://test-project.supabase.co"
+_SUPABASE_ISSUER = f"{_SUPABASE_URL}/auth/v1"
 
 
 def _exp(minutes: int) -> int:
@@ -46,6 +48,7 @@ def _supabase_hs256(secret: str, *, aud: str = "authenticated", **claims) -> str
         "email": "sb@example.com",
         "app_metadata": {"role": "ADMIN"},
         "aud": aud,
+        "iss": _SUPABASE_ISSUER,
         "exp": _exp(60),
     }
     payload.update(claims)
@@ -86,6 +89,7 @@ def es256_keypair():
 @pytest.mark.unit
 def test_supabase_hs256_valid_token(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
     token = _supabase_hs256(_SUPABASE_SECRET)
 
     data = verify_token(token)
@@ -100,6 +104,7 @@ def test_supabase_hs256_valid_token(monkeypatch):
 @pytest.mark.unit
 def test_supabase_hs256_defaults_role_to_user(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
     token = _supabase_hs256(_SUPABASE_SECRET, app_metadata={})
 
     data = verify_token(token)
@@ -146,6 +151,7 @@ def test_supabase_es256_valid_token(monkeypatch, es256_keypair):
     monkeypatch.setattr(security, "_get_supabase_jwks", lambda: jwks)
     # Ensure the HS256 paths can't accidentally match.
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", "unrelated-secret")
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
 
     token = jwt.encode(
         {
@@ -153,6 +159,7 @@ def test_supabase_es256_valid_token(monkeypatch, es256_keypair):
             "email": "es@example.com",
             "app_metadata": {"role": "CONTENT_MANAGER"},
             "aud": "authenticated",
+            "iss": _SUPABASE_ISSUER,
             "exp": _exp(60),
         },
         priv_pem,
@@ -244,6 +251,7 @@ def _creds(token: str) -> HTTPAuthorizationCredentials:
 @pytest.mark.unit
 def test_get_current_user_token_valid(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
     token = _supabase_hs256(_SUPABASE_SECRET)
 
     data = get_current_user_token(_creds(token))
@@ -274,3 +282,67 @@ def test_get_current_user_token_rejects_expired_tokendata(monkeypatch):
         get_current_user_token(_creds("any"))
 
     assert exc.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# AU6 (defense-in-depth): issuer (iss) validation on the Supabase paths.
+# The signature already binds to a project-specific secret/JWKS, so this
+# can't be forged from a foreign issuer — it only closes the gap where a
+# same-secret/same-JWKS token minted for a *different* Supabase project
+# would otherwise be silently accepted here.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_supabase_hs256_correct_issuer_accepted(monkeypatch):
+    monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    token = _supabase_hs256(_SUPABASE_SECRET, iss=_SUPABASE_ISSUER)
+
+    data = verify_token(token)
+
+    assert data is not None
+    assert data.user_id == "sb-user"
+
+
+@pytest.mark.unit
+def test_supabase_hs256_wrong_issuer_rejected(monkeypatch):
+    monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    token = _supabase_hs256(
+        _SUPABASE_SECRET, iss="https://a-different-project.supabase.co/auth/v1"
+    )
+
+    assert verify_token(token) is None
+
+
+@pytest.mark.unit
+def test_supabase_hs256_missing_supabase_url_skips_issuer_check(monkeypatch):
+    """SUPABASE_URL unset (bare local/test env) must not enforce issuer —
+    otherwise every Supabase token would be rejected outright."""
+    monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
+    monkeypatch.setattr(settings, "SUPABASE_URL", "")
+    token = _supabase_hs256(_SUPABASE_SECRET, iss="literally-anything")
+
+    data = verify_token(token)
+
+    assert data is not None
+
+
+@pytest.mark.unit
+def test_cli_token_unaffected_by_supabase_issuer_check(monkeypatch):
+    """Regression: the CLI path has its own separate issuer
+    (``_CLI_TOKEN_ISSUER``) and must keep working regardless of
+    ``SUPABASE_URL`` / the new Supabase-path issuer check."""
+    from src.core.security import create_cli_token
+
+    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    token, _expires_at = create_cli_token(
+        user_id="cli-user", email="cli@example.com", organization_id="org-1"
+    )
+
+    data = verify_token(token)
+
+    assert data is not None
+    assert data.is_cli is True
+    assert data.user_id == "cli-user"

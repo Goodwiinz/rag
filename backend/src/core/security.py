@@ -258,15 +258,29 @@ def verify_token(token: str) -> Optional[TokenData]:
         except JWTError:
             pass  # Fall through to Supabase paths
 
+    # Defense-in-depth (audit AU6): also pin the expected Supabase issuer.
+    # The signature already binds the token to this project's secret/JWKS, so
+    # this can't reject a *forged* token that a foreign issuer couldn't
+    # already forge — it only guards against a same-secret token minted for a
+    # different Supabase project ever being replayed here. Only enforced when
+    # SUPABASE_URL is actually configured: an empty value (bare local/test
+    # setups) must not turn into a blanket rejection of every Supabase token.
+    supabase_issuer = (
+        f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1"
+        if settings.SUPABASE_URL
+        else None
+    )
+
     # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
         try:
-            payload = jwt.decode(
-                token,
-                settings.SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
+            decode_kwargs: Dict[str, Any] = {
+                "algorithms": ["HS256"],
+                "audience": "authenticated",
+            }
+            if supabase_issuer:
+                decode_kwargs["issuer"] = supabase_issuer
+            payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, **decode_kwargs)
             result = _extract_supabase_token_data(payload)
             if result:
                 return result
@@ -283,12 +297,13 @@ def verify_token(token: str) -> Optional[TokenData]:
                 for key_data in jwks_data["keys"]:
                     if key_data.get("kid") == kid or kid is None:
                         public_key = jwk.construct(key_data)
-                        payload = jwt.decode(
-                            token,
-                            public_key,
-                            algorithms=["ES256"],
-                            audience="authenticated",
-                        )
+                        decode_kwargs = {
+                            "algorithms": ["ES256"],
+                            "audience": "authenticated",
+                        }
+                        if supabase_issuer:
+                            decode_kwargs["issuer"] = supabase_issuer
+                        payload = jwt.decode(token, public_key, **decode_kwargs)
                         result = _extract_supabase_token_data(payload)
                         if result:
                             return result
