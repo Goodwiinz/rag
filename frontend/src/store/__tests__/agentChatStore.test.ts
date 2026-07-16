@@ -1,5 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChatStore } from '@/store/agentChatStore';
+import type { AgentStreamCallbacks } from '@/services/agentChatService';
+
+/** Internal `_abortController` slot isn't part of the public store types
+ * (AgentChatState/AgentChatActions) — read it via a narrow structural cast,
+ * mirroring the store's own `as unknown as AgentChatStore` internal casts. */
+function getAbortController(): AbortController | null {
+  return (
+    useAgentChatStore.getState() as unknown as {
+      _abortController: AbortController | null;
+    }
+  )._abortController;
+}
 
 const serviceMocks = vi.hoisted(() => ({
   listThreads: vi.fn(async () => ({ threads: [] })),
@@ -501,6 +513,142 @@ describe('agentChatStore', () => {
         true
       );
       expect(agentChatService.confirmAction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('request identity and cancellation (RS-C1)', () => {
+    it("a superseded generation's terminal events do not clobber the newer generation", async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      const pending: Array<{
+        callbacks: AgentStreamCallbacks;
+        resolve: () => void;
+      }> = [];
+      const deferredImpl = (
+        _req: unknown,
+        callbacks: AgentStreamCallbacks
+      ): Promise<void> =>
+        new Promise<void>((resolve) => {
+          pending.push({ callbacks, resolve });
+        });
+      vi.mocked(agentChatService.streamMessage)
+        .mockImplementationOnce(deferredImpl)
+        .mockImplementationOnce(deferredImpl);
+
+      useAgentChatStore.setState({ inputValue: 'gen1 message' });
+      const gen1 = useAgentChatStore.getState().sendMessage();
+      await vi.waitFor(() => expect(pending.length).toBe(1));
+
+      // Supersede gen1 the way the store's public API allows: stop it, then
+      // start a new generation.
+      useAgentChatStore.getState().stopGeneration();
+      expect(useAgentChatStore.getState().isStreaming).toBe(false);
+
+      useAgentChatStore.setState({ inputValue: 'gen2 message' });
+      const gen2 = useAgentChatStore.getState().sendMessage();
+      await vi.waitFor(() => expect(pending.length).toBe(2));
+
+      const gen2Controller = getAbortController();
+      expect(gen2Controller).not.toBeNull();
+      expect(useAgentChatStore.getState().isStreaming).toBe(true);
+
+      // Gen1's stream is superseded but its mock promise is still pending —
+      // its terminal event arrives late, after gen2 has taken over.
+      pending[0].callbacks.onDone?.();
+
+      expect(useAgentChatStore.getState().isStreaming).toBe(true);
+      expect(getAbortController()).toBe(gen2Controller);
+
+      pending.forEach((p) => p.resolve());
+      await Promise.all([gen1, gen2]);
+    });
+
+    it('stopGeneration aborts the underlying stream', async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+      let capturedSignal: AbortSignal | undefined;
+      let release: (() => void) | undefined;
+      vi.mocked(agentChatService.streamMessage).mockImplementationOnce(
+        (_req, _callbacks, signal) =>
+          new Promise<void>((resolve) => {
+            capturedSignal = signal;
+            release = resolve;
+          })
+      );
+
+      useAgentChatStore.setState({ inputValue: 'hello' });
+      const send = useAgentChatStore.getState().sendMessage();
+      await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+
+      expect(capturedSignal?.aborted).toBe(false);
+      useAgentChatStore.getState().stopGeneration();
+      expect(capturedSignal?.aborted).toBe(true);
+
+      release?.();
+      await send;
+    });
+
+    it("confirmAction events target the captured message, not the visible thread's last assistant message", async () => {
+      const { agentChatService } = await import('@/services/agentChatService');
+
+      useAgentChatStore.setState({
+        activeThreadId: 'thread-A',
+        messages: [
+          {
+            id: 'a-assistant',
+            role: 'assistant',
+            content: 'Waiting for your confirmation...',
+            timestamp: new Date(),
+          },
+        ],
+        pendingConfirmation: {
+          jobId: 'job-a',
+          tools: [{ name: 'ingest_arxiv', args: {} }],
+          message: 'Confirm?',
+        },
+      });
+
+      let confirmCallbacks: AgentStreamCallbacks | undefined;
+      let releaseConfirm: (() => void) | undefined;
+      vi.mocked(agentChatService.streamConfirm).mockImplementationOnce(
+        (_req, callbacks) =>
+          new Promise<void>((resolve) => {
+            confirmCallbacks = callbacks;
+            releaseConfirm = resolve;
+          })
+      );
+
+      const confirmPromise = useAgentChatStore.getState().confirmAction(true);
+      await vi.waitFor(() => expect(confirmCallbacks).toBeDefined());
+
+      // Switch to a different thread while thread A's confirm stream is
+      // still pending.
+      serviceMocks.getThreadMessages.mockResolvedValueOnce({
+        messages: [
+          {
+            id: 'b1',
+            role: 'assistant',
+            content: 'thread B message',
+            created_at: new Date().toISOString(),
+          },
+        ],
+      });
+      useAgentChatStore.getState().selectThread('thread-B');
+      await useAgentChatStore.getState().loadThreadMessages('thread-B');
+
+      const beforeLateEvents = useAgentChatStore.getState().messages;
+      expect(beforeLateEvents.map((m) => m.content)).toEqual([
+        'thread B message',
+      ]);
+
+      // Thread A's confirm stream fires its late events after the switch —
+      // they must not touch thread B's now-visible last assistant message.
+      confirmCallbacks?.onToken?.('late content for thread A');
+      confirmCallbacks?.onDone?.();
+
+      const afterLateEvents = useAgentChatStore.getState().messages;
+      expect(afterLateEvents).toEqual(beforeLateEvents);
+
+      releaseConfirm?.();
+      await confirmPromise;
     });
   });
 

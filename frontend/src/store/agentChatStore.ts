@@ -25,6 +25,13 @@ const PROJECT_MUTATING_TOOLS = new Set([
 // never replace the transcript selected after it started.
 let threadLoadEpoch = 0;
 
+// Identity for the in-flight thread-list fetch. Module scope, unique token
+// objects (not a counter) — mirrors pipelineStore.ts's pipelineRequestToken.
+// There's only one thread list, so a single global token is enough to let a
+// slower, superseded loadThreads() call detect it lost the race and drop its
+// response instead of overwriting a newer one.
+let loadThreadsToken: object | null = null;
+
 interface AgentChatStore extends AgentChatState, AgentChatActions {
   /** Internal: AbortController for current polling loop */
   _abortController: AbortController | null;
@@ -152,177 +159,201 @@ export const useAgentChatStore = create<AgentChatStore>()(
 
           try {
             let streamedContent = '';
-            await agentChatService.streamMessage(requestPayload, {
-              onToken: (content: string) => {
-                if (abortController.signal.aborted) return;
-                streamedContent += content;
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].content = streamedContent;
-                  }
-                });
-              },
-              onToolStart: (tool: string) => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    const existing = state.messages[idx].toolExecutions || [];
-                    existing.push({
-                      id: `te-${Date.now()}`,
-                      toolName: tool,
-                      toolDisplayName: tool
-                        .replace(/_/g, ' ')
-                        .replace(/\b\w/g, (c) => c.toUpperCase()),
-                      args: {},
-                      status: 'running',
-                    });
-                    state.messages[idx].toolExecutions = existing;
-                  }
-                });
-              },
-              onToolEnd: (tool: string, result: string) => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    const execs = state.messages[idx].toolExecutions || [];
-                    const teIdx = [...execs]
-                      .reverse()
-                      .findIndex((te) => te.toolName === tool);
-                    if (teIdx !== -1) {
-                      const actualIdx = execs.length - 1 - teIdx;
-                      execs[actualIdx].status = 'completed';
-                      try {
-                        execs[actualIdx].result = JSON.parse(result);
-                      } catch {
-                        execs[actualIdx].result = result;
+            // Ownership check for every terminal/side-effecting callback: a
+            // superseded generation (stopGeneration, or a fresh sendMessage
+            // started after it) must not have its late events mutate state
+            // that a newer generation now owns. onToken already guards via
+            // its own controller's aborted flag; the rest previously had no
+            // guard at all.
+            const isCurrentGeneration = (): boolean =>
+              (get() as unknown as AgentChatStore)._abortController ===
+              abortController;
+            await agentChatService.streamMessage(
+              requestPayload,
+              {
+                onToken: (content: string) => {
+                  if (abortController.signal.aborted) return;
+                  streamedContent += content;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content = streamedContent;
+                    }
+                  });
+                },
+                onToolStart: (tool: string) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      const existing = state.messages[idx].toolExecutions || [];
+                      existing.push({
+                        id: `te-${Date.now()}`,
+                        toolName: tool,
+                        toolDisplayName: tool
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase()),
+                        args: {},
+                        status: 'running',
+                      });
+                      state.messages[idx].toolExecutions = existing;
+                    }
+                  });
+                },
+                onToolEnd: (tool: string, result: string) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      const execs = state.messages[idx].toolExecutions || [];
+                      const teIdx = [...execs]
+                        .reverse()
+                        .findIndex((te) => te.toolName === tool);
+                      if (teIdx !== -1) {
+                        const actualIdx = execs.length - 1 - teIdx;
+                        execs[actualIdx].status = 'completed';
+                        try {
+                          execs[actualIdx].result = JSON.parse(result);
+                        } catch {
+                          execs[actualIdx].result = result;
+                        }
                       }
                     }
+                  });
+                  if (PROJECT_MUTATING_TOOLS.has(tool)) {
+                    didMutateProjectData = true;
                   }
-                });
-                if (PROJECT_MUTATING_TOOLS.has(tool)) {
-                  didMutateProjectData = true;
-                }
-              },
-              onPlan: (steps: Array<Record<string, unknown>>) => {
-                set((state) => {
-                  const plan = steps.map((s) => ({
-                    step: (s.step as number) ?? 0,
-                    description: (s.description as string) ?? '',
-                    tool: (s.tool as string) ?? '',
-                    args_hint: (s.args_hint as Record<string, unknown>) ?? {},
-                    depends_on: (s.depends_on as number[]) ?? [],
-                  }));
-                  state.currentPlan = plan;
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].plan = plan;
-                  }
-                });
-              },
-              onRagContext: (contexts: Array<Record<string, unknown>>) => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].citations = contexts.map((ctx) => ({
-                      documentId: (ctx.document_id as string | undefined) ?? '',
-                      documentTitle:
-                        (ctx.title as string | undefined) ?? 'Source',
-                      snippet: ctx.content as string | undefined,
-                      score: ctx.score as number | undefined,
+                },
+                onPlan: (steps: Array<Record<string, unknown>>) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const plan = steps.map((s) => ({
+                      step: (s.step as number) ?? 0,
+                      description: (s.description as string) ?? '',
+                      tool: (s.tool as string) ?? '',
+                      args_hint: (s.args_hint as Record<string, unknown>) ?? {},
+                      depends_on: (s.depends_on as number[]) ?? [],
                     }));
+                    state.currentPlan = plan;
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].plan = plan;
+                    }
+                  });
+                },
+                onRagContext: (contexts: Array<Record<string, unknown>>) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].citations = contexts.map((ctx) => ({
+                        documentId:
+                          (ctx.document_id as string | undefined) ?? '',
+                        documentTitle:
+                          (ctx.title as string | undefined) ?? 'Source',
+                        snippet: ctx.content as string | undefined,
+                        score: ctx.score as number | undefined,
+                      }));
+                    }
+                  });
+                },
+                onReflection: (_passed, _issues, _round, revising) => {
+                  if (!isCurrentGeneration()) return;
+                  if (!revising) return;
+                  streamedContent = '';
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content = '';
+                    }
+                  });
+                },
+                onConfirmation: (
+                  threadId: string,
+                  confirmation: Record<string, unknown>
+                ) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].isStreaming = false;
+                      state.messages[idx].content =
+                        'Waiting for your confirmation...';
+                    }
+                    state.pendingConfirmation = {
+                      jobId: threadId, // thread_id used as job identifier for SSE
+                      tools:
+                        (confirmation.tools as Array<{
+                          name: string;
+                          args: Record<string, unknown>;
+                        }>) || [],
+                      message:
+                        (confirmation.message as string) ||
+                        'The agent wants to perform an action. Please confirm.',
+                    };
+                    state.isStreaming = false;
+                    (state as unknown as AgentChatStore)._abortController =
+                      null;
+                  });
+                },
+                onDone: () => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].isStreaming = false;
+                      if (didMutateProjectData) {
+                        state.projectDataVersion += 1;
+                      }
+                    }
+                    state.isStreaming = false;
+                    state.currentPlan = null;
+                    (state as unknown as AgentChatStore)._abortController =
+                      null;
+                  });
+                  if (uiMode === 'closed') {
+                    set((state) => {
+                      state.hasUnread = true;
+                    });
                   }
-                });
-              },
-              onReflection: (_passed, _issues, _round, revising) => {
-                if (!revising) return;
-                streamedContent = '';
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].content = '';
-                  }
-                });
-              },
-              onConfirmation: (
-                threadId: string,
-                confirmation: Record<string, unknown>
-              ) => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].isStreaming = false;
-                    state.messages[idx].content =
-                      'Waiting for your confirmation...';
-                  }
-                  state.pendingConfirmation = {
-                    jobId: threadId, // thread_id used as job identifier for SSE
-                    tools:
-                      (confirmation.tools as Array<{
-                        name: string;
-                        args: Record<string, unknown>;
-                      }>) || [],
-                    message:
-                      (confirmation.message as string) ||
-                      'The agent wants to perform an action. Please confirm.',
-                  };
-                  state.isStreaming = false;
-                  (state as unknown as AgentChatStore)._abortController = null;
-                });
-              },
-              onDone: () => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].isStreaming = false;
+                },
+                onError: (error: string) => {
+                  if (!isCurrentGeneration()) return;
+                  set((state) => {
+                    const idx = state.messages.findIndex(
+                      (m) => m.id === placeholderId
+                    );
+                    if (idx !== -1) {
+                      state.messages[idx].content =
+                        streamedContent || error || 'An error occurred.';
+                      state.messages[idx].isStreaming = false;
+                      state.messages[idx].isError = !streamedContent;
+                    }
                     if (didMutateProjectData) {
                       state.projectDataVersion += 1;
                     }
-                  }
-                  state.isStreaming = false;
-                  state.currentPlan = null;
-                  (state as unknown as AgentChatStore)._abortController = null;
-                });
-                if (uiMode === 'closed') {
-                  set((state) => {
-                    state.hasUnread = true;
+                    state.isStreaming = false;
                   });
-                }
+                },
               },
-              onError: (error: string) => {
-                set((state) => {
-                  const idx = state.messages.findIndex(
-                    (m) => m.id === placeholderId
-                  );
-                  if (idx !== -1) {
-                    state.messages[idx].content =
-                      streamedContent || error || 'An error occurred.';
-                    state.messages[idx].isStreaming = false;
-                    state.messages[idx].isError = !streamedContent;
-                  }
-                  if (didMutateProjectData) {
-                    state.projectDataVersion += 1;
-                  }
-                  state.isStreaming = false;
-                });
-              },
-            });
+              abortController.signal
+            );
             return; // SSE streaming succeeded
           } catch {
             // SSE failed — fall back to polling below
@@ -490,19 +521,37 @@ export const useAgentChatStore = create<AgentChatStore>()(
       // leaves the run waiting on its token forever.
       const waitTokenId = pendingConfirmation.waitTokenId;
 
+      // Single-ownership: confirmAction now shares the _abortController slot
+      // with sendMessage. If one is somehow already in flight, supersede it
+      // the same way stopGeneration would, then take ownership.
+      const previousController = (get() as unknown as AgentChatStore)
+        ._abortController;
+      if (previousController) previousController.abort();
+      const abortController = new AbortController();
+
+      // Capture identity ONCE, before any await: which thread and message
+      // this confirmation belongs to. Every later callback must resolve
+      // state via these captured values, never via "current last assistant
+      // message" — the user can switch threads mid-confirm, and the newly
+      // visible thread's last assistant message would then belong to a
+      // different conversation entirely (cross-thread corruption).
+      const confirmThreadId = get().activeThreadId;
+      const targetMessageId =
+        [...get().messages].reverse().find((m) => m.role === 'assistant')?.id ??
+        null;
+      const isCurrentGeneration = (): boolean =>
+        (get() as unknown as AgentChatStore)._abortController ===
+          abortController && get().activeThreadId === confirmThreadId;
+
       set((state) => {
         state.isConfirming = true;
         state.isStreaming = true;
+        (state as unknown as AgentChatStore)._abortController = abortController;
         // Update the waiting message to show streaming
-        const lastAsst = [...state.messages]
-          .reverse()
-          .find((m) => m.role === 'assistant');
-        if (lastAsst) {
-          const idx = state.messages.findIndex((m) => m.id === lastAsst.id);
-          if (idx !== -1) {
-            state.messages[idx].isStreaming = true;
-            state.messages[idx].content = '';
-          }
+        const idx = state.messages.findIndex((m) => m.id === targetMessageId);
+        if (idx !== -1) {
+          state.messages[idx].isStreaming = true;
+          state.messages[idx].content = '';
         }
         state.pendingConfirmation = null;
       });
@@ -520,68 +569,56 @@ export const useAgentChatStore = create<AgentChatStore>()(
             { thread_id: jobId, confirmed },
             {
               onToken: (content: string) => {
+                if (!isCurrentGeneration()) return;
                 streamedContent += content;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].content = streamedContent;
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].content = streamedContent;
                   }
                 });
               },
               onToolStart: (tool: string) => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      const existing = state.messages[idx].toolExecutions || [];
-                      existing.push({
-                        id: `te-${Date.now()}`,
-                        toolName: tool,
-                        toolDisplayName: tool
-                          .replace(/_/g, ' ')
-                          .replace(/\b\w/g, (c) => c.toUpperCase()),
-                        args: {},
-                        status: 'running',
-                      });
-                      state.messages[idx].toolExecutions = existing;
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    const existing = state.messages[idx].toolExecutions || [];
+                    existing.push({
+                      id: `te-${Date.now()}`,
+                      toolName: tool,
+                      toolDisplayName: tool
+                        .replace(/_/g, ' ')
+                        .replace(/\b\w/g, (c) => c.toUpperCase()),
+                      args: {},
+                      status: 'running',
+                    });
+                    state.messages[idx].toolExecutions = existing;
                   }
                 });
               },
               onToolEnd: (tool: string, result: string) => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      const execs = state.messages[idx].toolExecutions || [];
-                      const teIdx = [...execs]
-                        .reverse()
-                        .findIndex((te) => te.toolName === tool);
-                      if (teIdx !== -1) {
-                        const actualIdx = execs.length - 1 - teIdx;
-                        execs[actualIdx].status = 'completed';
-                        try {
-                          execs[actualIdx].result = JSON.parse(result);
-                        } catch {
-                          execs[actualIdx].result = result;
-                        }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    const execs = state.messages[idx].toolExecutions || [];
+                    const teIdx = [...execs]
+                      .reverse()
+                      .findIndex((te) => te.toolName === tool);
+                    if (teIdx !== -1) {
+                      const actualIdx = execs.length - 1 - teIdx;
+                      execs[actualIdx].status = 'completed';
+                      try {
+                        execs[actualIdx].result = JSON.parse(result);
+                      } catch {
+                        execs[actualIdx].result = result;
                       }
                     }
                   }
@@ -591,6 +628,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 });
               },
               onPlan: (steps: Array<Record<string, unknown>>) => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
                   const plan = steps.map((s) => ({
                     step: (s.step as number) ?? 0,
@@ -600,55 +638,41 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     depends_on: (s.depends_on as number[]) ?? [],
                   }));
                   state.currentPlan = plan;
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].plan = plan;
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].plan = plan;
                   }
                 });
               },
               onRagContext: (contexts: Array<Record<string, unknown>>) => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].citations = contexts.map((ctx) => ({
-                        documentId:
-                          (ctx.document_id as string | undefined) ?? '',
-                        documentTitle:
-                          (ctx.title as string | undefined) ?? 'Source',
-                        snippet: ctx.content as string | undefined,
-                        score: ctx.score as number | undefined,
-                      }));
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].citations = contexts.map((ctx) => ({
+                      documentId: (ctx.document_id as string | undefined) ?? '',
+                      documentTitle:
+                        (ctx.title as string | undefined) ?? 'Source',
+                      snippet: ctx.content as string | undefined,
+                      score: ctx.score as number | undefined,
+                    }));
                   }
                 });
               },
               onReflection: (_passed, _issues, _round, revising) => {
+                if (!isCurrentGeneration()) return;
                 if (!revising) return;
                 streamedContent = '';
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].content = '';
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].content = '';
                   }
                 });
               },
@@ -657,19 +681,15 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 confirmation: Record<string, unknown>
               ) => {
                 // Nested confirmation (e.g. ingest confirmed → add needs confirm)
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].isStreaming = false;
-                      state.messages[idx].content =
-                        'Waiting for your confirmation...';
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].isStreaming = false;
+                    state.messages[idx].content =
+                      'Waiting for your confirmation...';
                   }
                   state.pendingConfirmation = {
                     jobId: threadId,
@@ -684,20 +704,17 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   };
                   state.isStreaming = false;
                   state.isConfirming = false;
+                  (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
               onDone: () => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].isStreaming = false;
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].isStreaming = false;
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;
@@ -705,28 +722,27 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   if (didMutateProjectData) {
                     state.projectDataVersion += 1;
                   }
+                  (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
               onError: (error: string) => {
+                if (!isCurrentGeneration()) return;
                 set((state) => {
-                  const lastAsst = [...state.messages]
-                    .reverse()
-                    .find((m) => m.role === 'assistant');
-                  if (lastAsst) {
-                    const idx = state.messages.findIndex(
-                      (m) => m.id === lastAsst.id
-                    );
-                    if (idx !== -1) {
-                      state.messages[idx].content =
-                        streamedContent || error || 'Action failed.';
-                      state.messages[idx].isStreaming = false;
-                    }
+                  const idx = state.messages.findIndex(
+                    (m) => m.id === targetMessageId
+                  );
+                  if (idx !== -1) {
+                    state.messages[idx].content =
+                      streamedContent || error || 'Action failed.';
+                    state.messages[idx].isStreaming = false;
                   }
                   state.isStreaming = false;
                   state.isConfirming = false;
+                  (state as unknown as AgentChatStore)._abortController = null;
                 });
               },
-            }
+            },
+            abortController.signal
           );
           return; // SSE confirm succeeded
         } catch {
@@ -746,7 +762,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
           const MAX_POLLS = 200;
           const POLL_INTERVAL_MS = 3000;
           for (let i = 0; i < MAX_POLLS; i++) {
+            if (abortController.signal.aborted) return;
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            if (abortController.signal.aborted) return;
             const run = await agentChatService.getDurableRunStatus(jobId);
 
             if (run.status === 'COMPLETED' && run.output) {
@@ -802,7 +820,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
           const MAX_POLLS = 120;
           const POLL_INTERVAL_MS = 1500;
           for (let i = 0; i < MAX_POLLS; i++) {
+            if (abortController.signal.aborted) return;
             await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            if (abortController.signal.aborted) return;
             const job = await agentChatService.pollJob(jobId);
 
             if (job.status === 'completed' && job.result) {
@@ -871,10 +891,15 @@ export const useAgentChatStore = create<AgentChatStore>()(
           }
         }
       } catch {
+        // If superseded (stopGeneration / thread switch already aborted this
+        // generation), its own reset already ran — don't clobber whatever
+        // owns the slot now. Mirrors sendMessage's outer catch guard.
+        if (abortController.signal.aborted) return;
         set((state) => {
           state.isStreaming = false;
           state.isConfirming = false;
           state.pendingConfirmation = null;
+          (state as unknown as AgentChatStore)._abortController = null;
         });
       }
     },
@@ -939,21 +964,47 @@ export const useAgentChatStore = create<AgentChatStore>()(
     newThread: () =>
       set((state) => {
         threadLoadEpoch += 1;
+        // A sendMessage/confirmAction generation left running against the
+        // thread we're navigating away from must not keep streaming into
+        // (or clobbering state for) the blank thread we're about to show.
+        // Mirrors stopGeneration's abort + reset.
+        const store = state as unknown as AgentChatStore;
+        if (store._abortController) {
+          store._abortController.abort();
+          store._abortController = null;
+        }
         state.activeThreadId = null;
         state.messages = [];
         state.inputValue = '';
         state.isLoadingMessages = false;
+        state.isStreaming = false;
+        state.isConfirming = false;
       }),
 
     selectThread: (threadId: string) =>
       set((state) => {
         threadLoadEpoch += 1;
+        // See newThread — abort whatever generation is in flight before
+        // switching the visible thread out from under it.
+        const store = state as unknown as AgentChatStore;
+        if (store._abortController) {
+          store._abortController.abort();
+          store._abortController = null;
+        }
         state.activeThreadId = threadId;
         state.messages = [];
         state.isLoadingMessages = true;
+        state.isStreaming = false;
+        state.isConfirming = false;
       }),
 
     loadThreads: async () => {
+      // Unique token identity (not a counter) — a slower, superseded call
+      // must detect it lost the race and drop its response. See
+      // loadThreadsToken above / pipelineStore.ts's pipelineRequestToken.
+      const requestToken = {};
+      loadThreadsToken = requestToken;
+
       set((state) => {
         state.isLoadingThreads = true;
       });
@@ -962,6 +1013,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
         const { agentChatService } =
           await import('@/services/agentChatService');
         const response = await agentChatService.listThreads();
+        if (loadThreadsToken !== requestToken) return; // superseded
 
         const threads: AgentThread[] = response.threads.map((t) => ({
           id: t.id,
@@ -977,6 +1029,7 @@ export const useAgentChatStore = create<AgentChatStore>()(
           state.isLoadingThreads = false;
         });
       } catch (error) {
+        if (loadThreadsToken !== requestToken) return; // superseded
         console.error('Failed to load threads:', error);
         set((state) => {
           state.isLoadingThreads = false;
