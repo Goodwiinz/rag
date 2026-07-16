@@ -68,7 +68,7 @@ export function ChatInput({
   inputRef,
   onAttach,
   onCommand,
-}: ChatInputProps) {
+}: ChatInputProps): React.JSX.Element {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = inputRef ?? internalRef;
   const [isFocused, setIsFocused] = useState(false);
