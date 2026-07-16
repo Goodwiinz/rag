@@ -14,7 +14,12 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-MODULE = "src.api.threads.workspaces"
+# Patch target is where update_message_feedback/update_message_standalone are
+# actually defined (Task 4.2 split them out of the former monolithic
+# workspaces.py) — mock.patch needs the module whose globals the handlers'
+# name lookups resolve against, not the backward-compat re-export path used
+# by the `import` statements below.
+MODULE = "src.api.threads.workspace_routes.messages"
 
 
 def _execute_returning(value: object) -> MagicMock:
@@ -37,9 +42,7 @@ async def test_update_message_feedback_forbids_non_editor() -> None:
     db = AsyncMock()
     db.commit = AsyncMock()
 
-    with patch(
-        f"{MODULE}._get_thread_or_404", new=AsyncMock(return_value=thread)
-    ):
+    with patch(f"{MODULE}._get_thread_or_404", new=AsyncMock(return_value=thread)):
         with pytest.raises(HTTPException) as exc_info:
             await update_message_feedback(
                 workspace_id=uuid4(),

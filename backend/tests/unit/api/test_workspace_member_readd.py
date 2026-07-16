@@ -18,7 +18,11 @@ from fastapi import HTTPException
 from src.models.workspace import WorkspaceMember
 from src.schemas.chat import WorkspaceMemberCreate, WorkspaceRole
 
-MODULE = "src.api.threads.workspaces"
+# Patch target is where add_workspace_member is actually defined (Task 4.2
+# split it out of the former monolithic workspaces.py) — mock.patch needs the
+# module whose globals the handler's name lookups resolve against, not the
+# backward-compat re-export path used by the `import` below.
+MODULE = "src.api.threads.workspace_routes.members"
 
 
 def _execute_returning(value: object) -> MagicMock:
@@ -48,15 +52,16 @@ async def test_readd_restores_soft_deleted_member() -> None:
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
 
-    with patch(
-        f"{MODULE}._get_workspace_or_404",
-        new=AsyncMock(return_value=_admin_workspace()),
-    ), patch(f"{MODULE}._member_to_response", return_value="OK"):
+    with (
+        patch(
+            f"{MODULE}._get_workspace_or_404",
+            new=AsyncMock(return_value=_admin_workspace()),
+        ),
+        patch(f"{MODULE}._member_to_response", return_value="OK"),
+    ):
         result = await add_workspace_member(
             workspace_id=workspace_id,
-            request=WorkspaceMemberCreate(
-                user_id=target_id, role=WorkspaceRole.EDITOR
-            ),
+            request=WorkspaceMemberCreate(user_id=target_id, role=WorkspaceRole.EDITOR),
             db=db,
             current_user=SimpleNamespace(id=admin_id),
         )
@@ -113,15 +118,16 @@ async def test_add_brand_new_member_inserts_row() -> None:
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
 
-    with patch(
-        f"{MODULE}._get_workspace_or_404",
-        new=AsyncMock(return_value=_admin_workspace()),
-    ), patch(f"{MODULE}._member_to_response", return_value="OK"):
+    with (
+        patch(
+            f"{MODULE}._get_workspace_or_404",
+            new=AsyncMock(return_value=_admin_workspace()),
+        ),
+        patch(f"{MODULE}._member_to_response", return_value="OK"),
+    ):
         result = await add_workspace_member(
             workspace_id=uuid4(),
-            request=WorkspaceMemberCreate(
-                user_id=uuid4(), role=WorkspaceRole.VIEWER
-            ),
+            request=WorkspaceMemberCreate(user_id=uuid4(), role=WorkspaceRole.VIEWER),
             db=db,
             current_user=SimpleNamespace(id=uuid4()),
         )

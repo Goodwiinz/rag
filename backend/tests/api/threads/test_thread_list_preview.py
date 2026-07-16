@@ -6,7 +6,11 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from src.api.threads import workspaces as workspace_routes
+# Import the actual definition module (Task 4.2 split list_threads_standalone
+# out of the former monolithic workspaces.py into workspace_routes/threads.py)
+# so monkeypatch.setattr below intercepts the same _get_workspace_or_404 name
+# the handler's own globals resolve against.
+from src.api.threads.workspace_routes import threads as workspace_routes
 from src.models.thread import ThreadStatus
 
 
