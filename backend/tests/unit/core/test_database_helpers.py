@@ -9,6 +9,8 @@ were never directly exercised. These tests target those two paths.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -117,3 +119,38 @@ async def test_get_db_opens_new_session_when_no_state(monkeypatch):
     with pytest.raises(StopAsyncIteration):
         await agen.__anext__()
     cm.__aexit__.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# get_async_session / get_db_session — @asynccontextmanager, so callers must
+# use `async with`, never `async for` (Sentry JAVASCRIPT-NEXTJS-4A: iterating
+# it raised TypeError and silently killed background arXiv ingestion).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_async_session_is_context_manager_not_iterable(monkeypatch):
+    fake_session = AsyncMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=fake_session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(database, "AsyncSessionLocal", MagicMock(return_value=cm))
+
+    acm = database.get_async_session()
+    assert not hasattr(acm, "__aiter__")  # `async for` over it raises TypeError
+    async with acm as session:
+        assert session is fake_session
+
+
+@pytest.mark.unit
+def test_no_async_for_over_session_context_managers():
+    """Source scan for the exact misuse that produced JAVASCRIPT-NEXTJS-4A."""
+    src_root = Path(database.__file__).resolve().parents[1]
+    pattern = re.compile(r"async\s+for\s+\w+\s+in\s+get_(?:db_session|async_session)\(")
+    offenders = [
+        str(path.relative_to(src_root))
+        for path in src_root.rglob("*.py")
+        if pattern.search(path.read_text(encoding="utf-8", errors="ignore"))
+    ]
+    assert offenders == []
