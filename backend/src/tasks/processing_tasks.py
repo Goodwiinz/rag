@@ -1015,6 +1015,21 @@ def kg_merge_entities_job(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery (same pattern as
+        # kg_extract_entities_job): a worker killed after completion but before
+        # the broker ack redelivers the message. Re-running would regress the
+        # job COMPLETED -> RUNNING and re-process every group — re-deleting
+        # already-merged duplicate nodes and duplicating re-pointed edges.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered entity merge"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         groups = (job.parameters or {}).get("groups", [])
         if not groups:
             raise ValueError("No groups provided for merge job")
@@ -1050,6 +1065,7 @@ def kg_merge_entities_job(self, job_id: str):
             db.commit()
 
             try:
+                merged_all_duplicates = True
                 for duplicate_id in duplicate_ids:
                     # Scope every KG read/write to the job's org: get_relationships
                     # and delete_entity are otherwise unscoped and would
@@ -1098,11 +1114,29 @@ def kg_merge_entities_job(self, job_id: str):
                                 exc_info=True,
                             )
 
-                    knowledge_graph_service.delete_entity(
+                    # delete_entity swallows Neo4j errors and returns False (and
+                    # also returns False when the node is already gone). The
+                    # relationships were already re-pointed onto the primary, so
+                    # a failure here leaves the duplicate node alive alongside
+                    # duplicated edges — NOT a merged group. Track it so the
+                    # group is reported failed instead of a false success.
+                    if not knowledge_graph_service.delete_entity(
                         duplicate_id, organization_id=job_org_id
-                    )
+                    ):
+                        merged_all_duplicates = False
+                        logger.warning(
+                            "Entity merge: duplicate %s not deleted "
+                            "(group %s/%s, primary %s) — group marked failed",
+                            duplicate_id,
+                            index + 1,
+                            total_groups,
+                            primary_id,
+                        )
 
-                success_count += 1
+                if merged_all_duplicates:
+                    success_count += 1
+                else:
+                    failure_count += 1
             except Exception as merge_error:
                 # A group that fails to merge was previously counted but never
                 # logged, so the cause was invisible while the job still reported
