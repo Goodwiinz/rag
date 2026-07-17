@@ -6,6 +6,8 @@ DB writes are committed independently of the shared graph session.
 """
 
 import json
+import sys
+from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
@@ -40,6 +42,12 @@ def _mock_project(name="Test Project", proj_id=None):
     proj.id = proj_id or uuid4()
     proj.name = name
     return proj
+
+
+def _mock_arxiv_service_module(service_context):
+    module = ModuleType("src.services.arxiv.arxiv_service")
+    module.ArXivIngestionService = Mock(return_value=service_context)
+    return module
 
 
 # ---------------------------------------------------------------------------
@@ -185,9 +193,200 @@ class TestAddDocumentToProject:
 class TestIngestArxiv:
     """Tests for _tool_ingest_arxiv fresh-session behaviour."""
 
+    async def test_ingested_pdf_is_persisted_to_s3(self, tmp_path):
+        """A downloaded arXiv PDF must survive the pod that downloaded it."""
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
+        from src.core.config import settings
+
+        user = _mock_user()
+        pdf_path = tmp_path / "2601.05264v1.pdf"
+        pdf_bytes = b"%PDF-1.7\npreviewable arxiv paper"
+        pdf_path.write_bytes(pdf_bytes)
+
+        ingested_doc = Mock()
+        ingested_doc.title = "Previewable Paper"
+        ingested_doc.filename = pdf_path.name
+        ingested_doc.file_size_bytes = len(pdf_bytes)
+        ingested_doc.mime_type = "application/pdf"
+        ingested_doc.content_text = "paper text"
+        ingested_doc.content_summary = None
+        ingested_doc.document_metadata = {
+            "arxiv_id": "2601.05264v1",
+            "pdf_path": str(pdf_path),
+        }
+
+        mock_service = AsyncMock()
+        mock_service.search_papers = AsyncMock(return_value=[{"id": "2601.05264v1"}])
+        mock_service.ingest_papers = AsyncMock(return_value=[ingested_doc])
+        mock_service_ctx = AsyncMock()
+        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
+        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
+            ),
+            patch("src.core.database.AsyncSessionLocal", return_value=fresh_db),
+            patch.object(settings, "STORAGE_BACKEND", "s3"),
+            patch.object(settings, "S3_BUCKET_NAME", "rag-system-storage"),
+            patch("src.core.s3_client.S3StorageHelper") as helper_cls,
+        ):
+            helper_cls.return_value.upload_file.side_effect = (
+                lambda key, _data, _mime_type: key
+            )
+            result = await _tool_ingest_arxiv(
+                args={"paper_ids": ["2601.05264v1"]},
+                user_id=str(user.id),
+                db=AsyncMock(),
+                current_user=user,
+            )
+
+        assert result["status"] == "ingestion_complete"
+        persisted = fresh_db._added_items[0]
+        assert persisted.storage_backend == "s3"
+        assert persisted.storage_path.startswith(
+            f"documents/{user.organization_id}/{persisted.id}/"
+        )
+        assert persisted.file_path == (
+            f"s3://rag-system-storage/{persisted.storage_path}"
+        )
+        helper_cls.return_value.upload_file.assert_called_once_with(
+            persisted.storage_path,
+            pdf_bytes,
+            "application/pdf",
+        )
+
+    async def test_abstract_only_paper_persists_as_text_in_s3(self):
+        """A transient PDF failure must not abort metadata-only ingestion."""
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
+        from src.core.config import settings
+        from src.models.document import DocumentType
+
+        user = _mock_user()
+        ingested_doc = Mock()
+        ingested_doc.title = "Abstract Only"
+        ingested_doc.filename = "2601.00001v1.pdf"
+        ingested_doc.file_size_bytes = 0
+        ingested_doc.mime_type = "application/pdf"
+        ingested_doc.content_text = "# Abstract\n\nMetadata remains useful."
+        ingested_doc.content_summary = None
+        ingested_doc.document_metadata = {
+            "arxiv_id": "2601.00001v1",
+            "source": "arxiv",
+            "pdf_extraction_failed": True,
+            "has_full_text": False,
+        }
+
+        mock_service = AsyncMock()
+        mock_service.search_papers = AsyncMock(return_value=[{"id": "2601.00001v1"}])
+        mock_service.ingest_papers = AsyncMock(return_value=[ingested_doc])
+        mock_service_ctx = AsyncMock()
+        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
+        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        fresh_db = MockAsyncSession()
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
+            ),
+            patch("src.core.database.AsyncSessionLocal", return_value=fresh_db),
+            patch.object(settings, "STORAGE_BACKEND", "s3"),
+            patch.object(settings, "S3_BUCKET_NAME", "rag-system-storage"),
+            patch("src.core.s3_client.S3StorageHelper") as helper_cls,
+        ):
+            helper_cls.return_value.upload_file.side_effect = (
+                lambda key, _data, _mime_type: key
+            )
+            result = await _tool_ingest_arxiv(
+                args={"paper_ids": ["2601.00001v1"]},
+                user_id=str(user.id),
+                db=AsyncMock(),
+                current_user=user,
+            )
+
+        assert result["status"] == "ingestion_complete"
+        persisted = fresh_db._added_items[0]
+        assert persisted.document_type is DocumentType.TEXT
+        assert persisted.filename == "2601.00001v1.txt"
+        assert persisted.mime_type == "text/plain"
+        assert persisted.storage_backend == "s3"
+        helper_cls.return_value.upload_file.assert_called_once_with(
+            persisted.storage_path,
+            ingested_doc.content_text.encode("utf-8"),
+            "text/plain",
+        )
+
+    async def test_storage_is_deleted_when_document_transaction_fails(self, tmp_path):
+        """Object promotion must be compensated when the DB row rolls back."""
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
+        from src.core.config import settings
+
+        user = _mock_user()
+        pdf_path = tmp_path / "2601.00002v1.pdf"
+        pdf_path.write_bytes(b"%PDF-1.7\nrollback")
+        ingested_doc = Mock(
+            title="Rollback Paper",
+            filename=pdf_path.name,
+            file_size_bytes=pdf_path.stat().st_size,
+            mime_type="application/pdf",
+            content_text="paper text",
+            content_summary=None,
+            document_metadata={
+                "arxiv_id": "2601.00002v1",
+                "pdf_path": str(pdf_path),
+            },
+        )
+        mock_service = AsyncMock()
+        mock_service.search_papers = AsyncMock(return_value=[{"id": "2601.00002v1"}])
+        mock_service.ingest_papers = AsyncMock(return_value=[ingested_doc])
+        mock_service_ctx = AsyncMock()
+        mock_service_ctx.__aenter__ = AsyncMock(return_value=mock_service)
+        mock_service_ctx.__aexit__ = AsyncMock(return_value=False)
+        fresh_db = MockAsyncSession()
+        fresh_db.flush = AsyncMock(side_effect=RuntimeError("database unavailable"))
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
+            ),
+            patch("src.core.database.AsyncSessionLocal", return_value=fresh_db),
+            patch.object(settings, "STORAGE_BACKEND", "s3"),
+            patch.object(settings, "S3_BUCKET_NAME", "rag-system-storage"),
+            patch("src.core.s3_client.S3StorageHelper") as helper_cls,
+        ):
+            helper_cls.return_value.upload_file.side_effect = (
+                lambda key, _data, _mime_type: key
+            )
+            result = await _tool_ingest_arxiv(
+                args={"paper_ids": ["2601.00002v1"]},
+                user_id=str(user.id),
+                db=AsyncMock(),
+                current_user=user,
+            )
+
+        uploaded_key = helper_cls.return_value.upload_file.call_args.args[0]
+        assert "error" in result
+        helper_cls.return_value.delete_file.assert_called_once_with(uploaded_key)
+
     async def test_ingested_papers_use_fresh_session(self):
         """Ingest should persist documents via AsyncSessionLocal, not shared db."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         paper_ids = ["2301.00001v1", "2301.00002v1"]
@@ -217,9 +416,13 @@ class TestIngestArxiv:
         shared_db = AsyncMock()  # graph session — should NOT be used for writes
 
         with (
-            patch(
-                "src.services.arxiv.arxiv_service.ArXivIngestionService",
-                return_value=mock_service_ctx,
+            patch.dict(
+                sys.modules,
+                {
+                    "src.services.arxiv.arxiv_service": _mock_arxiv_service_module(
+                        mock_service_ctx
+                    )
+                },
             ),
             patch(
                 "src.core.database.AsyncSessionLocal",
