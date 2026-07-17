@@ -50,3 +50,15 @@ def test_docids_query_never_selects_by_bare_id_without_collection():
     for docs in (None, [uuid4()]):
         sql = _sql(DraftGenerationService._build_project_documents_query(pid, docs))
         assert "join collection_documents" in sql
+
+
+def test_docids_query_excludes_soft_deleted_documents():
+    # W-B1: soft-deleted docs keep their collection_documents row; the draft
+    # source query must filter them or retracted papers get synthesized in.
+    pid = uuid4()
+    for docs in (None, [uuid4()]):
+        sql = _sql(DraftGenerationService._build_project_documents_query(pid, docs))
+        # column names always appear in the SELECT list; the guard must be a
+        # predicate, so assert inside the WHERE clause specifically
+        where_clause = sql.split("where", 1)[1]
+        assert "is_deleted is false" in where_clause

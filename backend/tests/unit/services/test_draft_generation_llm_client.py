@@ -69,7 +69,7 @@ async def test_build_draft_content_falls_back_to_template_without_client():
 
     assert service._openai_client is None
 
-    content = await service._build_draft_content(
+    content, used_fallback = await service._build_draft_content(
         documents=[],
         themes=["theme a"],
         style="academic",
@@ -78,6 +78,7 @@ async def test_build_draft_content_falls_back_to_template_without_client():
     )
 
     assert "## Abstract" in content
+    assert used_fallback is True  # W-B6: degraded drafts must be marked
 
 
 @pytest.mark.asyncio
@@ -154,3 +155,36 @@ async def test_gpt5_model_omits_temperature_gpt4o_keeps_it():
     assert kwargs["temperature"] == 0.7
     assert kwargs["max_tokens"] == 4000
     assert "max_completion_tokens" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_generate_draft_reuses_active_generation():
+    """W-B4: a second generate_draft for the same project must not race the
+    in-flight one for the same version number — it returns the active task."""
+    from unittest.mock import MagicMock, patch
+    from uuid import uuid4
+
+    with patch(
+        "src.services.research.extraction_matrix_service"
+        ".ExtractionMatrixService._get_openai_client",
+        side_effect=RuntimeError("no key"),
+    ):
+        service = DraftGenerationService(db=MagicMock())
+
+    project_id = uuid4()
+    active = {"task_id": "abc123", "status": "generating"}
+    with patch.object(
+        DraftGenerationService, "get_latest_status", return_value=active
+    ) as get_status, patch.object(
+        DraftGenerationService, "_fire_and_forget"
+    ) as fire:
+        result = await service.generate_draft(
+            project_id=project_id,
+            user_id=uuid4(),
+            themes=["t"],
+        )
+
+    get_status.assert_called_once_with(project_id, active_only=True)
+    fire.assert_not_called()
+    assert result["task_id"] == "abc123"
+    assert "already in progress" in result["message"]
