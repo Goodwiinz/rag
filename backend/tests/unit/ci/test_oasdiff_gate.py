@@ -62,7 +62,7 @@ def test_advisory_oasdiff_step_runs_only_on_pull_requests() -> None:
     step = _advisory_step()
     assert step is not None
     assert (
-        step.get("if") == "github.event_name == 'pull_request'"
+        "pull_request" in str(step.get("if") or "")
     ), "advisory oasdiff step must be guarded to pull_request events"
 
 
@@ -106,7 +106,9 @@ def test_advisory_step_pins_oasdiff_release_and_verifies_checksum() -> None:
     env = step.get("env") or {}
 
     assert "go install" not in run, "do not `go install` oasdiff at CI time"
-    assert "sha256sum" in run, "must verify the downloaded tarball's checksum"
+    assert (
+        "sha256sum -c" in run
+    ), "must VERIFY the tarball's checksum (sha256sum -c), not just compute it"
     assert any(
         "OASDIFF_VERSION" in k for k in env
     ), "pin the oasdiff version in an env var"

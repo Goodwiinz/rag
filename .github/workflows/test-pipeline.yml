@@ -427,7 +427,7 @@ jobs:
           set -euo pipefail
           tarball="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
           url="https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${tarball}"
-          curl -fsSL "$url" -o "/tmp/${tarball}"
+          curl -fsSL --retry 3 --retry-all-errors --max-time 60 "$url" -o "/tmp/${tarball}"
           echo "${OASDIFF_SHA256}  /tmp/${tarball}" | sha256sum -c -
           tar -xzf "/tmp/${tarball}" -C /tmp oasdiff
           if [ -z "${PR_BASE_SHA}" ]; then
