@@ -39,14 +39,14 @@ from src.models.graph import (
     RelationshipType,
     UpdateEntityRequest,
 )
-from src.models.user import User, UserRole
 from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
+from src.models.user import User, UserRole
 from src.services.knowledge_graph.knowledge_graph_service import (
     RelationshipScopeError,
     knowledge_graph_service,
 )
+from src.services.processing.entity_extraction_service import EntityExtractionService
 from src.services.processing.entity_extraction_service import (
-    EntityExtractionService,
     EntityType as ProcessingEntityType,
 )
 from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entities_job
@@ -54,6 +54,21 @@ from src.tasks.processing_tasks import kg_extract_entities_job, kg_merge_entitie
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge-graph", tags=["knowledge-graph"])
+
+
+def _require_org_id(current_user: User) -> str:
+    """Resolve the caller's organization id, or 403.
+
+    Destructive/maintenance KG writes must be tenant-scoped; never fall through
+    to an unscoped, cross-tenant operation when the caller has no organization.
+    """
+    org_id = getattr(current_user, "organization_id", None)
+    if not org_id:
+        raise HTTPException(
+            status_code=403,
+            detail="No organization associated with this account",
+        )
+    return str(org_id)
 
 
 def _get_org_document_ids(db, organization_id) -> List[str]:
@@ -700,9 +715,7 @@ def create_merge_job(
     org_id = str(current_user.organization_id)
     entity_source_docs: Dict[str, str] = {}
     for entity_id in entity_ids:
-        entity = knowledge_graph_service.get_entity(
-            entity_id, organization_id=org_id
-        )
+        entity = knowledge_graph_service.get_entity(entity_id, organization_id=org_id)
         if not entity:
             raise HTTPException(
                 status_code=404, detail=f"Entity not found: {entity_id}"
@@ -1212,7 +1225,8 @@ def fix_null_entity_types(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Fix all entities with NULL type by setting them to 'OTHER'.
+    Fix entities with NULL type by setting them to 'OTHER', scoped to the
+    caller's organization.
 
     Requires admin privileges.
     """
@@ -1220,14 +1234,24 @@ def fix_null_entity_types(
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
 
+    # Org-scope the maintenance write. UserRole.ADMIN is a per-USER role with no
+    # platform-vs-tenant distinction, so an unscoped SET over (e:Entity) let any
+    # tenant admin mutate every other tenant's graph nodes. Restrict to this
+    # org's entities.
+    org_id = _require_org_id(current_user)
+
     try:
         with knowledge_graph_service.get_session() as session:
-            # Count entities with NULL type
-            count_result = session.run("""
+            # Count this org's entities with NULL type
+            count_result = session.run(
+                """
                 MATCH (e:Entity)
-                WHERE e.type IS NULL OR e.entity_type IS NULL
+                WHERE e.organization_id = $org_id
+                  AND (e.type IS NULL OR e.entity_type IS NULL)
                 RETURN count(e) as count
-            """)
+                """,
+                {"org_id": org_id},
+            )
             count = count_result.single()["count"]
 
             if count == 0:
@@ -1235,21 +1259,29 @@ def fix_null_entity_types(
 
             # Fix entities with NULL type or entity_type properties in one query
             # Using COALESCE to avoid double-counting entities with both NULL
-            result = session.run("""
+            result = session.run(
+                """
                 MATCH (e:Entity)
-                WHERE e.type IS NULL OR e.entity_type IS NULL
+                WHERE e.organization_id = $org_id
+                  AND (e.type IS NULL OR e.entity_type IS NULL)
                 SET e.type = COALESCE(e.type, 'OTHER'),
                     e.entity_type = COALESCE(e.entity_type, 'OTHER')
                 RETURN count(e) as updated
-            """)
+                """,
+                {"org_id": org_id},
+            )
             total_updated = result.single()["updated"]
 
-            logger.info(f"Fixed {total_updated} entities with NULL type")
+            logger.info(
+                f"Fixed {total_updated} entities with NULL type for org {org_id}"
+            )
 
             return {
                 "message": f"Successfully fixed {total_updated} entities with NULL type",
                 "updated": total_updated,
             }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fixing NULL entity types: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -1261,23 +1293,49 @@ def reset_graph_schema(
     confirm: bool = Query(..., description="Confirmation to reset schema"),
     current_user: User = Depends(get_current_user),
 ):
-    """Reset the entire graph schema (DESTRUCTIVE OPERATION)"""
-    # Admin-only: this wipes ALL nodes/relationships across EVERY tenant
-    # (MATCH (n) DETACH DELETE n, unscoped). Mirror the gate on fix_null_entity_types.
+    """Reset the CALLER'S organization graph (DESTRUCTIVE OPERATION).
+
+    Deletes every Entity node owned by the caller's organization (and, via
+    DETACH DELETE, their relationships). Global schema constraints/indexes are
+    (idempotently) re-ensured.
+    """
+    # Admin-only AND org-scoped: previously this ran `MATCH (n) DETACH DELETE n`
+    # — an unscoped wipe of ALL nodes/relationships across EVERY tenant, gated
+    # only on the per-USER UserRole.ADMIN (no platform-vs-tenant distinction), so
+    # any single tenant's admin could destroy every other tenant's graph. Scope
+    # the delete to this org's entities. A true global wipe is a platform/ops
+    # action, not a tenant-facing API.
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     if not confirm:
         raise HTTPException(status_code=400, detail="Confirmation required")
 
+    org_id = _require_org_id(current_user)
+
     try:
         with knowledge_graph_service.get_session() as session:
-            # Delete all nodes and relationships
-            session.run("MATCH (n) DETACH DELETE n")
+            # Delete only THIS org's entity nodes; DETACH removes their edges.
+            result = session.run(
+                """
+                MATCH (e:Entity)
+                WHERE e.organization_id = $org_id
+                DETACH DELETE e
+                RETURN count(e) as deleted
+                """,
+                {"org_id": org_id},
+            )
+            deleted = result.single()["deleted"]
 
-            # Recreate constraints and indexes
+            # Re-ensure global constraints/indexes (idempotent, IF NOT EXISTS).
             knowledge_graph_service._ensure_schema()
 
-        return {"message": "Graph schema reset successfully"}
+        logger.info(f"Reset graph for org {org_id}: deleted {deleted} entities")
+        return {
+            "message": "Organization graph reset successfully",
+            "deleted_entities": deleted,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error resetting graph schema: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
