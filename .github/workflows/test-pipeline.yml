@@ -181,9 +181,39 @@ jobs:
   # broken a deploy: exactly one migration head (divergent branches can't be
   # applied by `alembic upgrade head`) and revision ids <= 32 chars
   # (alembic_version.version_num is VARCHAR(32); a longer id crash-loops deploy).
+  #
+  # BLOCKING: the static guard above runs first with only Alembic installed and
+  # never touches a DB (env.py is not executed). Below it, three ADVISORY
+  # execution-depth probes (Task 5.1) MEASURE what a static read cannot — that
+  # the chain actually applies. They are continue-on-error because the schema
+  # carries known create-migration debt (analytics_* tables shipped with no
+  # create migration; a to_regclass guard papered over it, PR #720), so a
+  # from-empty `upgrade head` and `alembic check` may legitimately fail TODAY.
+  # First-run CI results become the record that Task 5.2 uses to promote any of
+  # these to blocking. Their outcomes are written to the job summary.
+  #
+  # Why these steps need the FULL backend requirements (not just alembic): the
+  # static guard reads only ScriptDirectory, but `alembic upgrade head` EXECUTES
+  # backend/alembic/env.py, which imports src.models.base + the entire model
+  # layer (and, in URL fallback, src.core.config.settings). env.py builds its DB
+  # URL from SUPABASE_DB_URL or DATABASE_URL (get_url()), so the throwaway
+  # service-container DATABASE_URL below is all the engine needs.
   migration-check:
     name: Alembic Migration Check
     runs-on: ubuntu-latest
+    # Throwaway CI-local Postgres for the advisory execution probes. Credentials
+    # are disposable (postgres/postgres) — no secrets, by design.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up Python
@@ -192,9 +222,75 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install Alembic (pinned to backend requirement)
         run: pip install alembic==1.18.4
+      # BLOCKING guard — unchanged. Runs before any DB work so a divergent-head
+      # or over-long-revision-id defect fails the job regardless of the advisory
+      # probes below (which cannot block).
       - name: Check single head + revision-id length
         working-directory: backend
         run: python ../scripts/ci/check_alembic.py
+      # --- Advisory execution-depth probes (Task 5.1: MEASURE, do not block) ---
+      - name: Cache pip dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('backend/requirements*.txt', 'backend/constraints-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+            ${{ runner.os }}-pip-
+      # env.py imports the full model layer at runtime, so `alembic upgrade head`
+      # needs the same dependency set as the app. Advisory: a dependency hiccup
+      # must never fail the blocking static guard that already ran above.
+      - name: Install backend requirements (for execution probes)
+        continue-on-error: true
+        run: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+      - name: Advisory — upgrade head from empty DB
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set +e
+          alembic upgrade head
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "- Alembic upgrade head (from empty): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Alembic upgrade head (from empty): :x: FAIL (rc=$rc) — advisory, see Task 5.2" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+      - name: Advisory — alembic check (models vs migrations drift)
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set +e
+          alembic check
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "- Alembic check (drift): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Alembic check (drift): :x: FAIL (rc=$rc) — advisory, model/migration drift" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+      - name: Advisory — downgrade -1 then upgrade head (round-trip smoke)
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: |
+          set +e
+          alembic downgrade -1 && alembic upgrade head
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "- Alembic downgrade -1 / upgrade head (round-trip): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Alembic downgrade -1 / upgrade head (round-trip): :x: FAIL (rc=$rc) — advisory" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
   # ==========================================================================
   # Unit Tests (Fast - No External Dependencies)
   # ==========================================================================
