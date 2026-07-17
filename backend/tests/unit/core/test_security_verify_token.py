@@ -89,7 +89,7 @@ def es256_keypair():
 @pytest.mark.unit
 def test_supabase_hs256_valid_token(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token = _supabase_hs256(_SUPABASE_SECRET)
 
     data = verify_token(token)
@@ -104,7 +104,7 @@ def test_supabase_hs256_valid_token(monkeypatch):
 @pytest.mark.unit
 def test_supabase_hs256_defaults_role_to_user(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token = _supabase_hs256(_SUPABASE_SECRET, app_metadata={})
 
     data = verify_token(token)
@@ -151,7 +151,7 @@ def test_supabase_es256_valid_token(monkeypatch, es256_keypair):
     monkeypatch.setattr(security, "_get_supabase_jwks", lambda: jwks)
     # Ensure the HS256 paths can't accidentally match.
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", "unrelated-secret")
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
 
     token = jwt.encode(
         {
@@ -251,7 +251,7 @@ def _creds(token: str) -> HTTPAuthorizationCredentials:
 @pytest.mark.unit
 def test_get_current_user_token_valid(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token = _supabase_hs256(_SUPABASE_SECRET)
 
     data = get_current_user_token(_creds(token))
@@ -296,7 +296,7 @@ def test_get_current_user_token_rejects_expired_tokendata(monkeypatch):
 @pytest.mark.unit
 def test_supabase_hs256_correct_issuer_accepted(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token = _supabase_hs256(_SUPABASE_SECRET, iss=_SUPABASE_ISSUER)
 
     data = verify_token(token)
@@ -308,7 +308,7 @@ def test_supabase_hs256_correct_issuer_accepted(monkeypatch):
 @pytest.mark.unit
 def test_supabase_hs256_wrong_issuer_rejected(monkeypatch):
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token = _supabase_hs256(
         _SUPABASE_SECRET, iss="https://a-different-project.supabase.co/auth/v1"
     )
@@ -317,12 +317,15 @@ def test_supabase_hs256_wrong_issuer_rejected(monkeypatch):
 
 
 @pytest.mark.unit
-def test_supabase_hs256_missing_supabase_url_skips_issuer_check(monkeypatch):
-    """SUPABASE_URL unset (bare local/test env) must not enforce issuer —
-    otherwise every Supabase token would be rejected outright."""
+def test_unset_issuer_setting_skips_check(monkeypatch):
+    """SUPABASE_JWT_ISSUER unset (the DEFAULT, and the CI / bare-GoTrue case)
+    must NOT enforce issuer. A bare GoTrue mints tokens whose `iss` differs
+    from the hosted `<url>/auth/v1`, so a derived/always-on check would reject
+    every login there (this is the exact E2E regression that blocked #1216).
+    Signature binding to the shared secret still protects the token."""
     monkeypatch.setattr(settings, "SUPABASE_JWT_SECRET", _SUPABASE_SECRET)
-    monkeypatch.setattr(settings, "SUPABASE_URL", "")
-    token = _supabase_hs256(_SUPABASE_SECRET, iss="literally-anything")
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", "")
+    token = _supabase_hs256(_SUPABASE_SECRET, iss="http://gotrue:9999-bare-issuer")
 
     data = verify_token(token)
 
@@ -336,7 +339,7 @@ def test_cli_token_unaffected_by_supabase_issuer_check(monkeypatch):
     ``SUPABASE_URL`` / the new Supabase-path issuer check."""
     from src.core.security import create_cli_token
 
-    monkeypatch.setattr(settings, "SUPABASE_URL", _SUPABASE_URL)
+    monkeypatch.setattr(settings, "SUPABASE_JWT_ISSUER", _SUPABASE_ISSUER)
     token, _expires_at = create_cli_token(
         user_id="cli-user", email="cli@example.com", organization_id="org-1"
     )

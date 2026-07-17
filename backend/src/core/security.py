@@ -258,18 +258,15 @@ def verify_token(token: str) -> Optional[TokenData]:
         except JWTError:
             pass  # Fall through to Supabase paths
 
-    # Defense-in-depth (audit AU6): also pin the expected Supabase issuer.
+    # Defense-in-depth (audit AU6): optionally pin the expected Supabase issuer.
     # The signature already binds the token to this project's secret/JWKS, so
-    # this can't reject a *forged* token that a foreign issuer couldn't
-    # already forge — it only guards against a same-secret token minted for a
-    # different Supabase project ever being replayed here. Only enforced when
-    # SUPABASE_URL is actually configured: an empty value (bare local/test
-    # setups) must not turn into a blanket rejection of every Supabase token.
-    supabase_issuer = (
-        f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1"
-        if settings.SUPABASE_URL
-        else None
-    )
+    # this can't reject a *forged* token — it only guards against a same-secret
+    # token minted for a different Supabase project being replayed here.
+    # Opt-in via an EXACT SUPABASE_JWT_ISSUER (empty = skip). It is deliberately
+    # NOT derived from SUPABASE_URL: the hosted stack issues `<url>/auth/v1`
+    # while a bare GoTrue (CI/local) issues a different value, so a derived
+    # guess would reject every login in those environments.
+    supabase_issuer = settings.SUPABASE_JWT_ISSUER or None
 
     # Try Supabase JWT — HS256 with shared secret
     if settings.SUPABASE_JWT_SECRET:
