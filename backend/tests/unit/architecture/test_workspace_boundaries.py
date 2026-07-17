@@ -149,6 +149,13 @@ def _parse(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
+# NOTE (adversarial-review residual): this guard AST-walks the ROUTE module
+# only — it cannot see a commit made inside a called service. A handler that
+# both calls a committing ChatService method AND has its own literal
+# db.commit() would pass here while double-committing at runtime. No such
+# path exists today (verified 2026-07-17); if one appears, extend this guard
+# to cross-check handlers against the ChatService commit allowlist in
+# test_transaction_ownership.py.
 def _forbidden_session_calls(tree: ast.Module) -> list[str]:
     """Method names among FORBIDDEN_SESSION_METHODS called anywhere in tree."""
     hits = []
