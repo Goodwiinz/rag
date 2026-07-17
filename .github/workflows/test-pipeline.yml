@@ -242,7 +242,19 @@ jobs:
       # must never fail the blocking static guard that already ran above.
       - name: Install backend requirements (for execution probes)
         continue-on-error: true
-        run: pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+        run: |
+          set +e
+          pip install --build-constraint backend/constraints-ci.txt -r backend/requirements.txt
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "- Install backend requirements (for probes): :white_check_mark: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Install backend requirements (for probes): :x: FAIL (rc=$rc) — probes below are unreliable" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $rc
+      # NOTE: these three run in sequence against one shared DB; a probe-1 failure
+      # cascades into 2/3.
       - name: Advisory — upgrade head from empty DB
         continue-on-error: true
         working-directory: backend

@@ -123,3 +123,28 @@ def test_db_url_passed_via_env_to_advisory_steps() -> None:
         assert "localhost" in str(
             env["DATABASE_URL"]
         ), "the advisory steps should target the CI service container on localhost"
+
+
+def test_each_probe_writes_to_step_summary() -> None:
+    """Each of the three probes must annotate the measurement record."""
+    for fragment in ("alembic upgrade head", "alembic check", "alembic downgrade -1"):
+        step = _step_running(fragment)
+        assert step is not None, f"step running {fragment!r} must exist"
+        assert "GITHUB_STEP_SUMMARY" in (step.get("run") or ""), (
+            f"probe {fragment!r} must write a PASS/FAIL line to "
+            "$GITHUB_STEP_SUMMARY so the outcome is captured in the run record"
+        )
+
+
+def test_install_step_annotates_outcome_in_summary() -> None:
+    """The probe-deps install writes its own outcome line so a failed install is
+    visible in the record and readers know the probes below are unreliable."""
+    step = _step_running("pip install --build-constraint")
+    assert step is not None, "the backend-requirements install step must exist"
+    assert step.get("continue-on-error") is True, (
+        "install must stay advisory (continue-on-error: true) so a dependency "
+        "hiccup never fails the blocking static guard that already ran"
+    )
+    assert "GITHUB_STEP_SUMMARY" in (
+        step.get("run") or ""
+    ), "install step must write a PASS/FAIL line to $GITHUB_STEP_SUMMARY"
