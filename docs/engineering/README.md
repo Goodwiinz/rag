@@ -20,6 +20,10 @@ file it as a proposal instead.
 - **[api-contracts.md](api-contracts.md)** — the OpenAPI → generated
   TypeScript pipeline and the adopt-on-touch migration rule.
 
+Future internal workspace packages must be declared with the pnpm
+`workspace:` protocol (`"pkg": "workspace:*"`) so installs can never fall
+back to the public registry.
+
 ## Architecture guards
 
 Static regression tests that fail loudly if a boundary above erodes:
