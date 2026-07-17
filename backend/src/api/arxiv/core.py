@@ -370,7 +370,7 @@ async def _process_arxiv_ingestion(
         # Get database session
         from src.core.database import get_db_session
 
-        async for db in get_db_session():
+        async with get_db_session() as db:
             async with ArXivIngestionService() as arxiv_service:
                 # First, get paper metadata
                 papers = []

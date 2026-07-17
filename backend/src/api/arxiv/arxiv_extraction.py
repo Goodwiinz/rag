@@ -354,7 +354,7 @@ async def get_extracted_features(
 
         extracted_features = []
 
-        async for db in get_db_session():
+        async with get_db_session() as db:
             # Build query — scoped to the caller's org and non-deleted docs.
             # Previously unscoped, returning every org's extracted features.
             # The arXiv id is stored in the document_metadata JSON under
