@@ -19,11 +19,10 @@ describe('createDeferred', () => {
     await expect(d.promise).rejects.toThrow('boom');
   });
 
-  // Settle-once: the second settle is a silent no-op, matching native Promise
-  // semantics (a Promise ignores resolve/reject after it settles). We keep the
-  // wrapper's behaviour identical so a scheduler step that double-settles a
-  // deferred cannot flip an already-decided outcome — the interleaving stays
-  // deterministic instead of throwing mid-schedule.
+  // Settle-once: the native Promise ignores every resolve/reject after it has
+  // settled. These tests pin that contract — createDeferred exposes the raw
+  // native resolvers, so a scheduler step that double-settles a deferred cannot
+  // flip an already-decided outcome and the interleaving stays deterministic.
   it('ignores a second resolve after settling', async () => {
     const d = createDeferred<number>();
     d.resolve(1);

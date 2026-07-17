@@ -15,11 +15,10 @@ export interface Deferred<T> {
 }
 
 /**
- * A promise paired with its resolvers, with settle-once semantics: the first
- * resolve/reject decides the outcome and every later settle is a silent no-op
- * (matching native Promise behaviour). No-op rather than throw so a schedule
- * that double-settles a deferred can't blow up mid-run — the interleaving stays
- * deterministic.
+ * A promise paired with its resolvers. Settle-once is inherited from the native
+ * Promise: the first resolve/reject decides the outcome and every later settle
+ * is a silent no-op, so a schedule that double-settles a deferred observes a
+ * stable outcome without any wrapper bookkeeping.
  */
 export function createDeferred<T>(): Deferred<T> {
   let resolveFn!: (value: T) => void;
@@ -28,24 +27,7 @@ export function createDeferred<T>(): Deferred<T> {
     resolveFn = res;
     rejectFn = rej;
   });
-  let settled = false;
-  return {
-    promise,
-    resolve(value: T): void {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      resolveFn(value);
-    },
-    reject(error: unknown): void {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      rejectFn(error);
-    },
-  };
+  return { promise, resolve: resolveFn, reject: rejectFn };
 }
 
 export type Step =
@@ -62,6 +44,9 @@ export type Step =
 // already-queued microtasks (queue is FIFO). Continuation chains in the chat
 // store are shallow, so a generous constant fully drains them without timers.
 // Bump this if a deeper continuation chain ever under-drains.
+// Steering: any Task 4.2 schedule with a deeper await chain than the drain-depth
+// assertion at __tests__/deferredScheduler.test.ts:83 must extend that assertion
+// or bump this constant in lockstep — otherwise a fixed drain can silently under-run.
 const MICROTASK_FLUSH_PASSES = 25;
 
 async function flushMicrotasks(): Promise<void> {
@@ -75,6 +60,10 @@ async function flushMicrotasks(): Promise<void> {
  * immediately (its continuations stay queued as microtasks). Each settle step
  * drains microtasks before the next step so continuations observe a
  * deterministic order; `flush` drains on demand after a `run`.
+ *
+ * Advisory: a `run` fn that rejects asynchronously floats as an unhandled
+ * rejection — 4.2 helpers should attach their own `.catch` or assert the
+ * rejection via a deferred.
  */
 export async function runInterleaving(steps: Step[]): Promise<void> {
   for (const step of steps) {
