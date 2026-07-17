@@ -174,10 +174,10 @@ beforeEach(() => {
   // instantaneous. Store groups override this per-test with deferred queues.
   listMessagesMock.mockResolvedValue(response([]) as never);
   act(() => store().reset());
-  // reset() replays the base initialState, which does NOT cover the streaming
-  // slice — a hook turn left mid-stream (single-flight rows deliberately never
-  // emit onDone) would otherwise leak isStreaming=true and block the next
-  // handleSubmit. Force it clear so each row starts from a quiescent composer.
+  // reset() already replays initialState (isStreaming: false), so this is
+  // redundant with it; kept as an isolation belt-and-suspenders in case a hook
+  // turn left mid-stream (single-flight rows deliberately never emit onDone)
+  // leaves the streaming slice dirty, so each row starts from a quiescent composer.
   useChatStore.setState({ isStreaming: false } as never);
 });
 
