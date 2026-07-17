@@ -113,7 +113,7 @@ async def test_project_id_returns_recoverable_list_documents_hint():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_llm_failure_returns_error_not_truncated_text():
+async def test_llm_failure_returns_error_not_truncated_text() -> None:
     """W-C1: on LLM failure the tool must surface an error, not dress the
     document's first 500 words up as a successful summary (same contract as
     compare_documents)."""

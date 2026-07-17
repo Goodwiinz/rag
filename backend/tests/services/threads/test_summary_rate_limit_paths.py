@@ -13,7 +13,7 @@ import pytest
 from src.services.threads.thread_summarization_service import ThreadSummarizationService
 
 
-def _service_with_thread():
+def _service_with_thread() -> tuple:
     db = MagicMock()
     thread = MagicMock(id=uuid4(), summary=None, message_count=5)
     message = MagicMock()
@@ -26,7 +26,7 @@ def _service_with_thread():
 
 
 @pytest.mark.asyncio
-async def test_fallback_path_sets_rate_limit():
+async def test_fallback_path_sets_rate_limit() -> None:
     service, thread = _service_with_thread()
     with (
         patch("src.services.threads.thread_summarization_service.settings") as settings,
@@ -47,7 +47,7 @@ async def test_fallback_path_sets_rate_limit():
 
 
 @pytest.mark.asyncio
-async def test_timeout_path_sets_rate_limit():
+async def test_timeout_path_sets_rate_limit() -> None:
     service, thread = _service_with_thread()
     with (
         patch("src.services.threads.thread_summarization_service.settings") as settings,
