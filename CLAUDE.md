@@ -1,6 +1,6 @@
 # NOUS — Multimodal Intelligence Platform
 
-Next.js 15 + FastAPI + PostgreSQL / Neo4j / Redis. **Only `dev` is live** (ArgoCD auto-sync from `develop`, namespace `rag-dev`). `staging` + `production` ArgoCD apps were **retired 2026-04-29 (PR #442)** for cluster memory pressure (DO volume snapshots taken before deletion); their values files remain and the gitops workflow still bumps staging tags nothing consumes.
+Next.js 16 + FastAPI + PostgreSQL / Neo4j / Redis. **Only `dev` is live** (ArgoCD auto-sync from `develop`, namespace `rag-dev`). `staging` + `production` ArgoCD apps were **retired 2026-04-29 (PR #442)** for cluster memory pressure (DO volume snapshots taken before deletion); their values files remain and the gitops workflow still bumps staging tags nothing consumes.
 Runs locally (no Docker; user runs backend/frontend manually) or deployed to the **DOKS cluster**:
 Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Vercel frontend, ArgoCD auto-sync from `develop`.
 
@@ -10,19 +10,24 @@ Supabase (Postgres + auth), DO Managed Redis, DO Spaces, in-cluster Neo4j, Verce
 # Start services
 docker-compose -f docker-compose.development.yml up -d
 
-# Frontend
-cd frontend && npm run dev
+# Frontend (Node 24 + pnpm 10.18.2, corepack — no npm)
+cd frontend && pnpm dev
 
 # Backend (if not using Docker)
 cd backend && uvicorn src.main:app --reload --port 8000
 
-# Type-check / Test / Lint / Validate
-cd frontend && npm run type-check
-cd frontend && npm run test          # Frontend
+# Type-check / Test / Lint / Validate  (subshells: cwd stays at repo root)
+(cd frontend && pnpm type-check)
+(cd frontend && pnpm test)           # Frontend
 pytest tests/ --cov=src              # Backend
-cd frontend && npm run lint
-cd frontend && npm run validate      # lint + type-check + test
+(cd frontend && pnpm lint)
+(cd frontend && pnpm validate)       # lint + type-check + test
 ```
+
+Toolchain, quality-ratchet, and API-contract rules are enforced, not just
+documented here — see [`docs/engineering/`](docs/engineering/README.md) for
+the router/service boundaries, tenant-scope rules, chat state ownership,
+and the commands CI actually runs.
 
 ## Agent System (LangGraph)
 
@@ -49,7 +54,7 @@ LangGraph StateGraph with intent-based routing to specialized subgraphs.
 
 ## Code Style
 
-- **Python**: Black (88), isort, mypy strict, snake_case, structlog
+- **Python**: Black (88), isort, mypy (CI-blocking on added files; full-tree advisory — see docs/engineering/backend.md), snake_case, structlog
 - **TypeScript**: Prettier, ESLint, strict mode, camelCase/PascalCase
 - **Imports**: `@/*` aliases for src/app paths
 - **Theme**: NOUS brand — Erebus `#0A0A0E`, Selene `#F7F7F5`, Sol `#D4A039` (accent). Inter headings, Source Serif 4 body. Clean, minimalist. shadcn/ui components.

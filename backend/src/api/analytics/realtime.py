@@ -4,6 +4,7 @@ Real-time Analytics API routes
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
@@ -264,9 +265,11 @@ async def check_realtime_health(current_user: User = Depends(get_current_user)):
         summary = await realtime_service.get_realtime_summary()
 
         return {
-            "status": "healthy"
-            if summary.system_health in ["healthy", "degraded"]
-            else "unhealthy",
+            "status": (
+                "healthy"
+                if summary.system_health in ["healthy", "degraded"]
+                else "unhealthy"
+            ),
             "total_connections": summary.total_connections,
             "active_subscriptions": summary.active_subscriptions,
             "messages_per_second": summary.messages_per_second,

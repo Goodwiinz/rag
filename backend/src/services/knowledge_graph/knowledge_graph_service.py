@@ -2538,12 +2538,10 @@ class KnowledgeGraphService:
         Returns a SearchResponse-compatible object so the search API can treat
         knowledge-graph search identically to fulltext/vector search.
         """
-        from src.models.search_schemas import (
-            SearchResponse,
-            SearchResult as SearchResultModel,
-            SearchType as SearchTypeEnum,
-        )
         from src.models.document import DocumentType
+        from src.models.search_schemas import SearchResponse
+        from src.models.search_schemas import SearchResult as SearchResultModel
+        from src.models.search_schemas import SearchType as SearchTypeEnum
 
         start_time = time.time()
 
@@ -2565,8 +2563,15 @@ class KnowledgeGraphService:
         query_text = search_request.query if search_request else ""
         limit = getattr(search_request, "limit", 20)
 
+        # Pass organization_id directly, not only the derived doc-id list: if the
+        # doc-id lookup above threw, source_document_ids is None and passing only
+        # that would run unscoped across all tenants. The indexed organization_id
+        # equality is the primary scope.
         entities = self.search_entities(
-            query_text, limit=limit, source_document_ids=source_document_ids
+            query_text,
+            limit=limit,
+            source_document_ids=source_document_ids,
+            organization_id=organization_id,
         )
 
         results = []
@@ -2641,48 +2646,6 @@ class KnowledgeGraphService:
         except Exception as e:
             logger.error(f"Error in create_entity_node adapter: {e}")
             return None
-
-    def find_entity_node(self, name: str, entity_type: str) -> Optional[Dict[str, Any]]:
-        """Adapter for legacy callers that expect find_entity_node.
-
-        Returns {"id": ..., "name": ...} on match, None otherwise.
-        """
-        try:
-            entities = self.search_entities(
-                name, entity_types=[_safe_entity_type(entity_type)], limit=5
-            )
-            for entity in entities:
-                if entity.name.lower().strip() == name.lower().strip():
-                    return {"id": entity.id, "name": entity.name}
-            return None
-        except Exception as e:
-            logger.error(f"Error in find_entity_node adapter: {e}")
-            return None
-
-    def query_graph(
-        self, query: str, params: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
-        """Adapter for multi-agent search callers that expect query_graph.
-
-        Performs an entity search and returns results as dicts rather than
-        executing raw Cypher (which would be an injection risk).
-        """
-        try:
-            limit = params.get("limit", 50) if params else 50
-            entities = self.search_entities(query, limit=limit)
-            return [
-                {
-                    "id": e.id,
-                    "name": e.name,
-                    "type": e.entity_type.value,
-                    "confidence": e.confidence_score,
-                    "source_document_id": e.source_document_id,
-                }
-                for e in entities
-            ]
-        except Exception as e:
-            logger.error(f"Error in query_graph adapter: {e}")
-            return []
 
 
 # Global instance

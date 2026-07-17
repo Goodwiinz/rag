@@ -8,7 +8,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Showcase-goodwiins.github.io%2Fnous-D4A039?style=for-the-badge)](https://goodwiins.github.io/nous/)
 [![GitHub](https://img.shields.io/badge/GitHub-goodwiins%2Frag-0A0A0E?style=for-the-badge&logo=github)](https://github.com/goodwiins/rag)
-[![Next.js](https://img.shields.io/badge/Next.js-15.1-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agent_System-1C3C3C?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
 
@@ -247,6 +247,7 @@ Interactive docs at `http://localhost:8000/docs` when running.
 | [Testing](docs/testing/)             | Unit, integration, E2E, eval reports     |
 | [Observability](docs/observability/) | Prometheus, LangSmith, tracing           |
 | [API](docs/api/)                     | OpenAPI specs, endpoint reference        |
+| [Engineering standards](docs/engineering/) | Enforced router/service boundaries, quality ratchets, API-contract pipeline |
 
 ---
 

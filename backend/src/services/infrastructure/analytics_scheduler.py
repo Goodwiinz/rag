@@ -4,6 +4,7 @@ Analytics scheduler for recurring jobs
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 

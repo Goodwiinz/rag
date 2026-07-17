@@ -20,10 +20,16 @@ import logging
 import time
 from collections import OrderedDict
 from threading import Lock
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from src.core.config import get_settings
 from src.shared.enums import JobStatus
+
+if TYPE_CHECKING:
+    # Only for the `_redis` annotation below — the runtime import is deferred
+    # inside `_get_redis()` (see its docstring) so `redis.asyncio`'s module-level
+    # setup can't interfere with other async libraries during app startup.
+    import redis.asyncio as aioredis
 
 logger = logging.getLogger(__name__)
 

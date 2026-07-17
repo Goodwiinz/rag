@@ -11,15 +11,31 @@ Security improvements:
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import WebSocket
 from jose import jwt
 
+from .config import settings
 from .security import verify_token
 
 logger = logging.getLogger(__name__)
+
+
+def _is_origin_allowed(origin: str) -> bool:
+    """Check *origin* against the same CORS allowlist the HTTP API uses.
+
+    Reuses ``settings.cors_origins_list`` / ``settings.CORS_ORIGIN_REGEX`` (see
+    ``CORSMiddleware`` wiring in src/main.py) instead of a second hardcoded
+    list, so the two allowlists can't drift apart.
+    """
+    if origin in settings.cors_origins_list:
+        return True
+    if settings.CORS_ORIGIN_REGEX and re.match(settings.CORS_ORIGIN_REGEX, origin):
+        return True
+    return False
 
 
 class WebSocketAuthError(Exception):
@@ -47,7 +63,6 @@ class WebSocketAuthenticator:
         Attempts authentication in order of preference:
         1. Authorization header (Bearer token) - Most secure
         2. Sec-WebSocket-Protocol header - Browser workaround
-        3. Cookie (for session-based auth) - Fallback
 
         Args:
             websocket: The WebSocket connection to authenticate
@@ -62,8 +77,21 @@ class WebSocketAuthenticator:
             WebSocketAuthError: If authentication fails with specific error codes:
                 - 4001: No authentication token provided
                 - 4002: Token has expired
-                - 4003: Invalid token format or signature
+                - 4003: Invalid token format/signature, or disallowed Origin
         """
+        # CSWSH hardening: browsers always send Origin on a cross-origin WS
+        # handshake. Non-browser clients (CLI, server-to-server) send none, so
+        # only reject when an Origin is present and not allowlisted.
+        origin = websocket.headers.get("origin")
+        if origin and not _is_origin_allowed(origin):
+            logger.warning(
+                "WebSocket authentication failed: disallowed Origin '%s'", origin
+            )
+            raise WebSocketAuthError(
+                f"Origin '{origin}' is not allowed.",
+                code=4003,
+            )
+
         token = None
         auth_method = None
 
@@ -85,19 +113,11 @@ class WebSocketAuthenticator:
                     auth_method = "subprotocol"
                     logger.debug("Using Sec-WebSocket-Protocol for WebSocket auth")
 
-        # Method 3: Cookie fallback (for session-based auth)
-        if not token:
-            cookies = websocket.cookies
-            token = cookies.get("access_token")
-            if token:
-                auth_method = "cookie"
-                logger.debug("Using cookie for WebSocket auth")
-
         if not token:
             logger.warning("WebSocket authentication failed: No token provided")
             raise WebSocketAuthError(
-                "No authentication token provided. Use Authorization header, "
-                "Sec-WebSocket-Protocol, or access_token cookie.",
+                "No authentication token provided. Use Authorization header "
+                "or Sec-WebSocket-Protocol.",
                 code=4001,
             )
 

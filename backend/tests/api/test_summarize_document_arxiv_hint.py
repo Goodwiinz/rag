@@ -109,3 +109,36 @@ async def test_project_id_returns_recoverable_list_documents_hint():
     assert result.get("suggestion") == "list_project_documents"
     assert "project id, not a document id" in result["error"]
     assert project.name in result["error"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_llm_failure_returns_error_not_truncated_text() -> None:
+    """W-C1: on LLM failure the tool must surface an error, not dress the
+    document's first 500 words up as a successful summary (same contract as
+    compare_documents)."""
+    user = MagicMock()
+    user.organization_id = "org-1"
+    db = MagicMock()
+
+    doc = MagicMock()
+    doc.content_text = "word " * 600
+    doc.title = "Some Paper"
+
+    with (
+        patch(
+            "src.services.agent.tools_impl._resolve_document_id",
+            new=AsyncMock(return_value=doc),
+        ),
+        patch(
+            "src.services.agent.tools_impl._get_tool_llm",
+            side_effect=RuntimeError("model down"),
+        ),
+    ):
+        result = await _tool_summarize_document(
+            {"document_id": "11111111-1111-1111-1111-111111111111"}, db, user
+        )
+
+    assert "summary" not in result
+    assert "error" in result
+    assert "model error" in result["error"]

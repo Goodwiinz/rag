@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,12 @@ from src.models.search_schemas import (
 
 from .cohere_rerank_service import cohere_rerank_service
 from .fulltext_search_service import fulltext_search_service
+
+if TYPE_CHECKING:
+    # Only for the return-type annotation below — the runtime import stays
+    # deferred inside search_with_diagnostics() so the diagnostics module is
+    # only loaded when that diagnostic path actually runs.
+    from src.services.diagnostics.retrieval_diagnostics import RetrievalTrace
 
 logger = logging.getLogger(__name__)
 
@@ -638,9 +644,14 @@ class HybridSearchService:
             # Import and use knowledge graph service
             from src.services.knowledge_graph import knowledge_graph_service
 
-            # Execute search using the available interface
+            # Execute search using the available interface. organization_id MUST
+            # be threaded through — without it search_entities runs unscoped over
+            # every tenant's entities and leaks other orgs' entity names/ids/
+            # context into this user's ranked search results.
             kg_result = knowledge_graph_service.search_entities(
-                query=search_request.query, limit=self.max_results_per_source
+                query=search_request.query,
+                limit=self.max_results_per_source,
+                organization_id=organization_id,
             )
 
             # Convert to raw results

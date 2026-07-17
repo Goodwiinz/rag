@@ -23409,7 +23409,7 @@
     "/api/v1/evaluation/jobs/{job_id}/reports/{report_type}": {
       "post": {
         "description": "Generate a report for an evaluation job",
-        "operationId": "generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post",
+        "operationId": "trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post",
         "parameters": [
           {
             "in": "path",
@@ -23436,7 +23436,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": true,
-                  "title": "Response Generate Evaluation Report Api V1 Evaluation Jobs  Job Id  Reports  Report Type  Post",
+                  "title": "Response Trigger Evaluation Report Api V1 Evaluation Jobs  Job Id  Reports  Report Type  Post",
                   "type": "object"
                 }
               }
@@ -23459,7 +23459,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Generate Evaluation Report",
+        "summary": "Trigger Evaluation Report",
         "tags": [
           "evaluation"
         ]
@@ -25875,7 +25875,7 @@
     },
     "/api/v1/knowledge-graph/maintenance/fix-null-types": {
       "post": {
-        "description": "Fix all entities with NULL type by setting them to 'OTHER'.\n\nRequires admin privileges.",
+        "description": "Fix entities with NULL type by setting them to 'OTHER', scoped to the\ncaller's organization.\n\nRequires admin privileges.",
         "operationId": "fix_null_entity_types_api_v1_knowledge_graph_maintenance_fix_null_types_post",
         "responses": {
           "200": {
@@ -26312,7 +26312,7 @@
     },
     "/api/v1/knowledge-graph/schema/reset": {
       "post": {
-        "description": "Reset the entire graph schema (DESTRUCTIVE OPERATION)",
+        "description": "Reset the CALLER'S organization graph (DESTRUCTIVE OPERATION).\n\nDeletes every Entity node owned by the caller's organization (and, via\nDETACH DELETE, their relationships). Global schema constraints/indexes are\n(idempotently) re-ensured.",
         "operationId": "reset_graph_schema_api_v1_knowledge_graph_schema_reset_post",
         "parameters": [
           {

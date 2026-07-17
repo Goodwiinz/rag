@@ -11,6 +11,7 @@ Two bugs this pins:
 from __future__ import annotations
 
 import sys
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -40,13 +41,16 @@ class _FakeDoc:
 
 
 def _patch_pipeline(monkeypatch, documents):
-    # get_db_session -> async generator yielding a fake db
+    # get_db_session is @asynccontextmanager in src.core.database — the stub
+    # must match that protocol (Sentry JAVASCRIPT-NEXTJS-4A: `async for` over
+    # the real context manager raised TypeError in prod).
     db = MagicMock()
     db.add = MagicMock()
     db.commit = AsyncMock()
     db.flush = AsyncMock()
     db.execute = AsyncMock()  # search_vector UPDATE runs through here
 
+    @asynccontextmanager
     async def _fake_get_db_session():
         yield db
 

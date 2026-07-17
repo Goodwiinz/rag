@@ -10,7 +10,6 @@ import pytest
 
 from src.services.research.bibliography_service import BibliographyService
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -346,3 +345,30 @@ class TestFormatBibliography:
 
         with pytest.raises(ValueError):
             BibliographyService.format_bibliography([citation], "")
+
+
+# ===========================================================================
+# W-B2 regressions: nullable title / empty author must not crash BibTeX
+# ===========================================================================
+
+
+class TestBibtexNullableFields:
+    """format_bibtex must tolerate the same nullable fields the ieee/apa/mla
+    formatters already guard (Citation.document_title and authors are
+    nullable; external-reference citations may carry only a DOI/arXiv id)."""
+
+    def test_null_title_does_not_crash(self) -> None:
+        citations = [_make_minimal_citation(document_title=None)]
+        result = BibliographyService.format_bibtex(citations)
+        assert "@" in result  # an entry was produced
+
+    def test_empty_author_entry_does_not_crash(self) -> None:
+        citations = [_make_minimal_citation(authors=[""])]
+        result = BibliographyService.format_bibtex(citations)
+        assert "@" in result
+
+    def test_null_title_and_empty_author_key_is_stable(self) -> None:
+        key = BibliographyService._generate_bibtex_key(
+            _make_minimal_citation(document_title=None, authors=[""]), 1
+        )
+        assert key  # falls back to defaults instead of raising

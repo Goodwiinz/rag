@@ -12,6 +12,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import AsyncSessionLocal
@@ -135,6 +136,18 @@ class DraftGenerationService:
         Returns:
             Generation status with task ID
         """
+        # Reuse an in-flight generation for this project instead of racing it
+        # for the same version number. ponytail: process-local pre-check; the
+        # uq_draft_version constraint (handled below) is the cross-process
+        # backstop.
+        active = self.get_latest_status(project_id, active_only=True)
+        if active:
+            return {
+                "task_id": active["task_id"],
+                "status": active["status"],
+                "message": "Draft generation already in progress",
+            }
+
         # Use MD5 for non-security task ID generation (usedforsecurity=False)
         task_id = hashlib.md5(
             f"{project_id}:{time.time()}".encode(), usedforsecurity=False
@@ -182,7 +195,13 @@ class DraftGenerationService:
         query = (
             select(Document)
             .join(CollectionDocument, Document.id == CollectionDocument.document_id)
-            .where(CollectionDocument.collection_id == project_id)
+            .where(
+                CollectionDocument.collection_id == project_id,
+                # Soft-deleted docs keep their junction row; without this
+                # filter retracted/removed papers get synthesized into the
+                # draft and cited (sibling read paths already guard it).
+                Document.is_deleted.is_(False),
+            )
         )
         if document_ids:
             query = query.where(Document.id.in_(document_ids))
@@ -261,7 +280,7 @@ class DraftGenerationService:
             )
 
             # Build draft content
-            draft_content = await self._build_draft_content(
+            draft_content, used_fallback = await self._build_draft_content(
                 documents=documents,
                 themes=themes,
                 style=style,
@@ -346,6 +365,9 @@ class DraftGenerationService:
                         "max_sections": max_sections,
                         "include_abstract": include_abstract,
                         "document_count": len(documents),
+                        # Mark template-fallback drafts so a degraded
+                        # generation is distinguishable from a real one.
+                        **({"fallback_template": True} if used_fallback else {}),
                         **(
                             {"citation_review": citation_review}
                             if citation_review is not None
@@ -408,6 +430,25 @@ class DraftGenerationService:
                 num_documents=document_count,
             )
 
+        except IntegrityError as e:
+            # Lost the uq_draft_version race to a concurrent generation —
+            # surface a readable status instead of the raw psycopg error.
+            self._update_status(
+                task_id,
+                DraftGenerationStatus.FAILED,
+                0,
+                "Another draft generation for this project finished first. "
+                "Retry to generate a new version.",
+            )
+            logger.warning(
+                "draft_generation_version_conflict", task_id=task_id, error=str(e)
+            )
+            self._record_generation_metrics(
+                status=DraftGenerationStatus.FAILED,
+                duration=time.time() - start_time,
+                num_documents=document_count,
+            )
+
         except Exception as e:
             self._update_status(
                 task_id, DraftGenerationStatus.FAILED, 0, f"Error: {str(e)}"
@@ -441,17 +482,21 @@ class DraftGenerationService:
         style: str,
         max_sections: int,
         include_abstract: bool,
-    ) -> str:
-        """Build draft content using LLM, falling back to template on failure."""
+    ) -> Tuple[str, bool]:
+        """Build draft content using LLM, falling back to template on failure.
+
+        Returns (content, used_fallback) so callers can mark degraded drafts.
+        """
         if self._openai_client is not None:
             try:
-                return await self._build_draft_with_llm(
+                content = await self._build_draft_with_llm(
                     documents=documents,
                     themes=themes,
                     style=style,
                     max_sections=max_sections,
                     include_abstract=include_abstract,
                 )
+                return content, False
             except Exception as exc:
                 logger.warning(
                     "llm_draft_generation_failed",
@@ -459,12 +504,15 @@ class DraftGenerationService:
                     fallback="template",
                 )
 
-        return self._build_draft_template(
-            documents=documents,
-            themes=themes,
-            style=style,
-            max_sections=max_sections,
-            include_abstract=include_abstract,
+        return (
+            self._build_draft_template(
+                documents=documents,
+                themes=themes,
+                style=style,
+                max_sections=max_sections,
+                include_abstract=include_abstract,
+            ),
+            True,
         )
 
     async def _build_draft_with_llm(

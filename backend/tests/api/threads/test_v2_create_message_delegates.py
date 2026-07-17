@@ -17,7 +17,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from src.api.threads import workspaces as workspaces_mod
+# Import the actual definition module (Task 4.2 split create_message_standalone
+# out of the former monolithic workspaces.py into workspace_routes/messages.py)
+# so patch.object below intercepts the same _message_to_response name the
+# handler's own globals resolve against.
+from src.api.threads.workspace_routes import messages as workspaces_mod
 from src.schemas.chat import ChatMessageCreate, MessageRole
 
 pytestmark = pytest.mark.unit

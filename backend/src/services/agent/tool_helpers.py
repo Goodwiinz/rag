@@ -125,7 +125,13 @@ async def _resolve_document_id(
                     Document.is_deleted == False,
                     (
                         Document.filename.ilike(f"%{_escape_like(bare_id)}%")
-                        | (Document.document_metadata["arxiv_id"].astext == bare_id)
+                        # .as_string(), NOT .astext — generic sqlalchemy.JSON
+                        # has no astext; it raised at statement-build time and
+                        # the except below silently killed BOTH lookups.
+                        | (
+                            Document.document_metadata["arxiv_id"].as_string()
+                            == bare_id
+                        )
                     ),
                 )
                 .order_by(desc(Document.created_at))

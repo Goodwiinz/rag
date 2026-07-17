@@ -354,7 +354,7 @@ async def get_extracted_features(
 
         extracted_features = []
 
-        async for db in get_db_session():
+        async with get_db_session() as db:
             # Build query — scoped to the caller's org and non-deleted docs.
             # Previously unscoped, returning every org's extracted features.
             # The arXiv id is stored in the document_metadata JSON under
@@ -366,8 +366,10 @@ async def get_extracted_features(
             )
 
             if paper_id:
+                # .as_string(), NOT .astext — generic sqlalchemy.JSON has no
+                # astext comparator; it raises AttributeError at build time.
                 stmt = stmt.where(
-                    Document.document_metadata["arxiv_id"].astext == paper_id
+                    Document.document_metadata["arxiv_id"].as_string() == paper_id
                 )
 
             stmt = stmt.limit(limit)

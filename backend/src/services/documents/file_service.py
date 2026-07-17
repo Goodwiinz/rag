@@ -17,7 +17,7 @@ import magic
 from fastapi import Depends, HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Optional pandas import for spreadsheet processing
@@ -861,7 +861,15 @@ class FileService:
             )
 
     async def delete_file(self, document: Document, user: User) -> bool:
-        """Delete file and update storage"""
+        """Delete file and update storage.
+
+        Mirrors the cascade of ``documents.delete_document``: this is the second
+        live delete surface for the same rows, and previously it soft-deleted
+        only the Document + quota — leaving the document's Entity rows live in
+        Postgres and its subgraph / DO KB data source orphaned forever (a
+        deleted doc that still surfaces in retrieval and graph results). Reap
+        all satellites the same way.
+        """
         # Check permissions first — outside the try so a 403 propagates as-is
         # instead of being wrapped into a FileStorageError.
         if document.uploaded_by_user_id != user.id and not user.has_permission(
@@ -872,15 +880,38 @@ class FileService:
                 detail="Can only delete your own files or require admin role",
             )
 
-        # Make the DB the source of truth FIRST: soft-delete the record + revert
-        # quota, then commit. Only after that succeeds do we remove the physical
-        # object. Deleting the object before the commit meant a commit failure
-        # rolled back the row while the storage object was already irreversibly
-        # gone — a live row pointing at a missing file (every later download /
-        # content / reprocess 403/404, quota still counted). With this order a
-        # failure leaves at worst a sweepable orphan object, never a live row
-        # whose backing file is gone.
+        # Capture ids before soft_delete / commit for the post-commit satellite
+        # cleanup (the ORM object's attributes stay readable, but be explicit).
+        document_id = str(document.id)
+        organization_id = str(document.organization_id)
+
+        # Make the DB the source of truth FIRST: soft-delete the record + its
+        # Entity rows + processing jobs and revert quota, then commit. Only after
+        # that succeeds do we remove the physical object. Deleting the object
+        # before the commit meant a commit failure rolled back the row while the
+        # storage object was already irreversibly gone — a live row pointing at a
+        # missing file (every later download / content / reprocess 403/404, quota
+        # still counted). With this order a failure leaves at worst a sweepable
+        # orphan object, never a live row whose backing file is gone.
         try:
+            from datetime import datetime
+
+            from src.models.entity import Entity
+
+            await self.db.execute(
+                update(Entity)
+                .where(Entity.document_id == document.id, Entity.is_deleted == False)
+                .values(is_deleted=True, deleted_at=datetime.utcnow())
+            )
+            await self.db.execute(
+                update(ProcessingJob)
+                .where(
+                    ProcessingJob.document_id == document.id,
+                    ProcessingJob.is_deleted == False,
+                )
+                .values(is_deleted=True, deleted_at=datetime.utcnow())
+            )
+
             document.soft_delete()
             await self.db.execute(
                 Organization.storage_usage_update(
@@ -905,7 +936,55 @@ class FileService:
                 exc_info=True,
             )
 
+        # Reap the DO KB data source + Neo4j subgraph (best-effort, post-commit,
+        # never blocks the delete) — same as documents.delete_document.
+        await self._cleanup_satellites_on_delete(document, document_id, organization_id)
+
         return True
+
+    async def _cleanup_satellites_on_delete(
+        self, document: Document, document_id: str, organization_id: str
+    ) -> None:
+        """Best-effort removal of a deleted document's DO KB data source and
+        Neo4j subgraph. Each step is failure-isolated: a KB/Neo4j outage during
+        delete must never fail or block the user's delete (the Postgres rows are
+        already gone). Failures are logged as recoverable drift."""
+        # DO KB: unsync so the deleted doc stops surfacing in retrieval and stops
+        # leaking storage. unsync_document_from_kb no-ops when DO_KB is off or the
+        # doc has no data source, and never raises.
+        try:
+            if document.do_kb_data_source_uuid:
+                from src.services.do_kb import unsync_document_from_kb
+
+                await unsync_document_from_kb(self.db, document)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "do_kb cleanup on file delete failed",
+                extra={"document_id": document_id},
+                exc_info=True,
+            )
+
+        # Neo4j: reap this document's relationships then its now-orphaned entity
+        # nodes (shared across docs — no blind DETACH DELETE), org-scoped. The KG
+        # service is synchronous, so offload to a worker thread.
+        try:
+            import asyncio
+
+            from src.services.knowledge_graph.knowledge_graph_service import (
+                KnowledgeGraphService,
+            )
+
+            await asyncio.to_thread(
+                lambda: KnowledgeGraphService().delete_document_graph(
+                    document_id, organization_id
+                )
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "knowledge-graph cleanup on file delete failed",
+                extra={"document_id": document_id},
+                exc_info=True,
+            )
 
     async def get_file_stats(self, organization_id: str) -> Dict[str, Any]:
         """Get file statistics for organization"""

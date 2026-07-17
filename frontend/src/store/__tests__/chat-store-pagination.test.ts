@@ -199,6 +199,153 @@ describe('loadOlderMessages', () => {
     );
     err.mockRestore();
   });
+
+  // Pins the commit-phase guard (PR #1205 triage, pre-existing bug): the old
+  // code applied the older page unconditionally, resurrecting a cache that
+  // was invalidated mid-flight or splicing a stale page into a rebuilt one.
+  // These tests FAIL against the old behavior.
+  describe('commit-phase guard against mid-flight invalidation', () => {
+    it('drops the older page when the thread cache was invalidated while the request was in flight', async () => {
+      seedThread(['m3']);
+      let resolveOlder!: (response: ChatMessageListResponse) => void;
+      listMessagesMock.mockReturnValueOnce(
+        new Promise<ChatMessageListResponse>((resolve) => {
+          resolveOlder = resolve;
+        })
+      );
+
+      const load = useChatStore.getState().loadOlderMessages(THREAD);
+      // Thread cache invalidated mid-flight (e.g. thread deleted / evicted)
+      act(() => {
+        useChatStore.getState().clearThread(THREAD);
+      });
+      resolveOlder(makeResponse([makeMessage('m2'), makeMessage('m1')], true));
+      await act(async () => {
+        await load;
+      });
+
+      // Old behavior resurrected the deleted cache as [m1, m2]
+      expect(useChatStore.getState().messages[THREAD]).toBeUndefined();
+      expect(useChatStore.getState().messagePagination[THREAD]).toBeUndefined();
+      expect(useChatStore.getState().messageToThread.m1).toBeUndefined();
+      expect(useChatStore.getState().messageToThread.m2).toBeUndefined();
+    });
+
+    it('drops a stale older page when the cache was rebuilt (fresh newest page) mid-flight', async () => {
+      seedThread(['m3']);
+      let resolveOlder!: (response: ChatMessageListResponse) => void;
+      listMessagesMock.mockReturnValueOnce(
+        new Promise<ChatMessageListResponse>((resolve) => {
+          resolveOlder = resolve;
+        })
+      );
+
+      const load = useChatStore.getState().loadOlderMessages(THREAD);
+      // Invalidate + rebuild with a fresh newest page (loadingOlder resets
+      // to false on a rebuilt cache) while the older-page request is in
+      // flight — its cursor no longer matches this cache.
+      act(() => {
+        useChatStore.getState().clearThread(THREAD);
+        seedThread(['m9']);
+      });
+      resolveOlder(makeResponse([makeMessage('m2'), makeMessage('m1')], true));
+      await act(async () => {
+        await load;
+      });
+
+      // Old behavior spliced the stale page in: ['m1', 'm2', 'm9']
+      const ids = useChatStore.getState().messages[THREAD].map((m) => m.id);
+      expect(ids).toEqual(['m9']);
+      expect(
+        useChatStore.getState().messagePagination[THREAD].loadingOlder
+      ).toBe(false);
+      expect(
+        useChatStore.getState().messagePagination[THREAD].loadedCount
+      ).toBe(1);
+    });
+
+    it('a superseded request that FAILS after the cache was rebuilt does not set the global error', async () => {
+      seedThread(['m3']);
+      let rejectOlder!: (reason: unknown) => void;
+      listMessagesMock.mockReturnValueOnce(
+        new Promise<ChatMessageListResponse>((_, reject) => {
+          rejectOlder = reject;
+        })
+      );
+
+      const load = useChatStore.getState().loadOlderMessages(THREAD);
+      act(() => {
+        useChatStore.getState().clearThread(THREAD);
+        seedThread(['m9']);
+      });
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      rejectOlder(new Error('network down'));
+      await act(async () => {
+        await load;
+      });
+      err.mockRestore();
+
+      // Old behavior surfaced a global error banner for a request the
+      // current view no longer owns
+      expect(useChatStore.getState().error).toBeNull();
+      expect(
+        useChatStore.getState().messages[THREAD].map((m) => m.id)
+      ).toEqual(['m9']);
+    });
+
+    it('a superseded request neither commits nor clears the flag owned by the newer request', async () => {
+      seedThread(['m3']);
+      let resolveFirst!: (response: ChatMessageListResponse) => void;
+      let resolveSecond!: (response: ChatMessageListResponse) => void;
+      listMessagesMock
+        .mockReturnValueOnce(
+          new Promise<ChatMessageListResponse>((resolve) => {
+            resolveFirst = resolve;
+          })
+        )
+        .mockReturnValueOnce(
+          new Promise<ChatMessageListResponse>((resolve) => {
+            resolveSecond = resolve;
+          })
+        );
+
+      const first = useChatStore.getState().loadOlderMessages(THREAD);
+      // Invalidate + rebuild, then a NEWER older-page request starts against
+      // the rebuilt cache while the first is still in flight.
+      act(() => {
+        useChatStore.getState().clearThread(THREAD);
+        seedThread(['m9']);
+      });
+      const second = useChatStore.getState().loadOlderMessages(THREAD);
+
+      resolveFirst(makeResponse([makeMessage('m2'), makeMessage('m1')], true));
+      await act(async () => {
+        await first;
+      });
+
+      // The stale page is dropped even though loadingOlder is true (it
+      // belongs to the second request), and the first request's finally must
+      // not clear the second request's flag.
+      expect(
+        useChatStore.getState().messages[THREAD].map((m) => m.id)
+      ).toEqual(['m9']);
+      expect(
+        useChatStore.getState().messagePagination[THREAD].loadingOlder
+      ).toBe(true);
+
+      resolveSecond(makeResponse([makeMessage('m8')], false));
+      await act(async () => {
+        await second;
+      });
+
+      expect(
+        useChatStore.getState().messages[THREAD].map((m) => m.id)
+      ).toEqual(['m8', 'm9']);
+      expect(
+        useChatStore.getState().messagePagination[THREAD].loadingOlder
+      ).toBe(false);
+    });
+  });
 });
 
 describe('loadMessages (newest-first initial load)', () => {

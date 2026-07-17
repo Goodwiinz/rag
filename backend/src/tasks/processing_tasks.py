@@ -564,6 +564,24 @@ def extract_entities(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery (celery_app sets
+        # task_acks_late=True): a worker killed after completion but before the
+        # broker ack redelivers the SAME message. Without this the task re-runs
+        # the full paid LLM extraction AND appends a SECOND copy of every entity
+        # (OPENAI rows are deliberately never delete-before-inserted, so the
+        # duplicates accumulate), while regressing the job COMPLETED -> RUNNING.
+        # Same short-circuit as kg_extract_entities_job / kg_merge_entities_job.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered "
+                "entity extraction"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         document = (
             db.query(Document)
             .filter(Document.id == job.parameters["document_id"])
@@ -1015,9 +1033,29 @@ def kg_merge_entities_job(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery (same pattern as
+        # kg_extract_entities_job): a worker killed after completion but before
+        # the broker ack redelivers the message. Re-running would regress the
+        # job COMPLETED -> RUNNING and re-process every group — re-deleting
+        # already-merged duplicate nodes and duplicating re-pointed edges.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered entity merge"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         groups = (job.parameters or {}).get("groups", [])
         if not groups:
             raise ValueError("No groups provided for merge job")
+
+        # Tenant scope for every KG read/write below. Entity ids are org-validated
+        # at enqueue, but the KG service itself is only tenant-safe when the org
+        # is passed through.
+        job_org_id = str(job.organization_id) if job.organization_id else None
 
         job.start_job(worker_id=self.request.id, celery_task_id=self.request.id)
         db.commit()
@@ -1045,9 +1083,15 @@ def kg_merge_entities_job(self, job_id: str):
             db.commit()
 
             try:
+                merged_all_duplicates = True
                 for duplicate_id in duplicate_ids:
+                    # Scope every KG read/write to the job's org: get_relationships
+                    # and delete_entity are otherwise unscoped and would
+                    # read/DETACH DELETE any entity by id across tenants, and a
+                    # re-pointed edge created without organization_id lands
+                    # org-less, regressing edge-level tenancy.
                     relationships = knowledge_graph_service.get_relationships(
-                        duplicate_id
+                        duplicate_id, organization_id=job_org_id
                     )
                     for rel in relationships:
                         create_request = CreateRelationshipRequest(
@@ -1074,6 +1118,7 @@ def kg_merge_entities_job(self, job_id: str):
                             evidence=rel.evidence or [],
                             metadata=rel.metadata or {},
                             source_document_id=rel.source_document_id,
+                            organization_id=job_org_id,
                         )
                         try:
                             knowledge_graph_service.create_relationship(create_request)
@@ -1087,9 +1132,29 @@ def kg_merge_entities_job(self, job_id: str):
                                 exc_info=True,
                             )
 
-                    knowledge_graph_service.delete_entity(duplicate_id)
+                    # delete_entity swallows Neo4j errors and returns False (and
+                    # also returns False when the node is already gone). The
+                    # relationships were already re-pointed onto the primary, so
+                    # a failure here leaves the duplicate node alive alongside
+                    # duplicated edges — NOT a merged group. Track it so the
+                    # group is reported failed instead of a false success.
+                    if not knowledge_graph_service.delete_entity(
+                        duplicate_id, organization_id=job_org_id
+                    ):
+                        merged_all_duplicates = False
+                        logger.warning(
+                            "Entity merge: duplicate %s not deleted "
+                            "(group %s/%s, primary %s) — group marked failed",
+                            duplicate_id,
+                            index + 1,
+                            total_groups,
+                            primary_id,
+                        )
 
-                success_count += 1
+                if merged_all_duplicates:
+                    success_count += 1
+                else:
+                    failure_count += 1
             except Exception as merge_error:
                 # A group that fails to merge was previously counted but never
                 # logged, so the cause was invisible while the job still reported

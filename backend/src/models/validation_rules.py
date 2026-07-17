@@ -19,6 +19,12 @@ from sqlalchemy import event, inspect
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import validates
 
+from .enhanced_document import DocumentModality, ProcessingStage
+from .knowledge_graph import EntitySource, EntityType, RelationshipType
+from .processing import JobStatus, JobType
+from .rag_query import AnswerType, QueryType
+from .websocket_status import ConnectionStatus
+
 
 class ValidationRule:
     """Base class for validation rules"""

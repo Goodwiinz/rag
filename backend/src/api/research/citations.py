@@ -13,12 +13,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Citation,
@@ -32,7 +33,6 @@ from src.models import (
 )
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,
@@ -174,6 +174,25 @@ async def create_citation(
                     detail="Document not found or not accessible",
                 )
 
+        # Verify the referenced message belongs to the user (same ownership
+        # chain _message_is_accessible walks: thread → conversation → workspace)
+        if citation_data.message_id:
+            msg_check = await db.execute(
+                select(ChatMessage.id)
+                .join(ChatMessage.thread)
+                .join(Thread.conversation)
+                .join(Conversation.workspace)
+                .where(
+                    ChatMessage.id == citation_data.message_id,
+                    Workspace.owner_id == current_user.id,
+                )
+            )
+            if msg_check.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Message not found or not accessible",
+                )
+
         # Create citation instance
         citation = Citation(
             message_id=citation_data.message_id,
@@ -208,6 +227,8 @@ async def create_citation(
 
         return CitationResponse.model_validate(citation)
 
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(
@@ -255,15 +276,6 @@ async def list_citations(
         limit = 50
 
     try:
-        # Build query with filters
-        query = select(Citation).options(
-            selectinload(Citation.document),
-            selectinload(Citation.message)
-            .selectinload(ChatMessage.thread)
-            .selectinload(Thread.conversation)
-            .selectinload(Conversation.workspace),
-        )
-
         filters = []
         if message_id:
             filters.append(Citation.message_id == message_id)
@@ -276,29 +288,47 @@ async def list_citations(
         if needs_review is not None:
             filters.append(Citation.needs_review == needs_review)
 
-        if filters:
-            query = query.where(and_(*filters))
-
-        # Get total count
-        count_query = (
-            select(Citation.id).where(and_(*filters))
-            if filters
-            else select(Citation.id)
+        # SQL equivalent of _citation_is_accessible: accessible via the
+        # document (public or uploaded by the caller) OR via the message's
+        # thread → conversation → workspace ownership chain. All joins are
+        # many-to-one from Citation, so no row multiplication.
+        access_filter = or_(
+            Document.is_public.is_(True),
+            Document.uploaded_by_user_id == current_user.id,
+            Workspace.owner_id == current_user.id,
         )
-        await db.execute(count_query)
+        filtered = (
+            select(Citation)
+            .outerjoin(Citation.document)
+            .outerjoin(Citation.message)
+            .outerjoin(ChatMessage.thread)
+            .outerjoin(Thread.conversation)
+            .outerjoin(Conversation.workspace)
+            .where(and_(*filters, access_filter) if filters else access_filter)
+        )
 
-        query = query.order_by(Citation.created_at.desc())
-        result = await db.execute(query)
-        accessible_citations = [
-            citation
-            for citation in result.scalars().all()
-            if _citation_is_accessible(citation, current_user)
-        ]
-        citations = accessible_citations[skip : skip + limit]
+        count_result = await db.execute(
+            select(func.count()).select_from(filtered.subquery())
+        )
+        total = count_result.scalar() or 0
+
+        result = await db.execute(
+            filtered.options(
+                selectinload(Citation.document),
+                selectinload(Citation.message)
+                .selectinload(ChatMessage.thread)
+                .selectinload(Thread.conversation)
+                .selectinload(Conversation.workspace),
+            )
+            .order_by(Citation.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        citations = result.scalars().all()
 
         return CitationListResponse(
             citations=[CitationResponse.model_validate(c) for c in citations],
-            total=len(accessible_citations),
+            total=total,
             skip=skip,
             limit=limit,
         )

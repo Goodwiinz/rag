@@ -23,7 +23,9 @@ from src.core.database import get_async_session
 from src.models.analytics.graph_analytics import (
     CentralityAnalysis,
     CentralityRanking,
+    CommunityMetricData,
     CommunityMetrics,
+    EdgeMetricData,
     EdgeMetrics,
     EdgeType,
     GraphAlgorithmType,
@@ -31,6 +33,7 @@ from src.models.analytics.graph_analytics import (
     GraphAnalysisResponse,
     GraphAnalyticsResult,
     GraphStatistics,
+    NodeMetricData,
     NodeMetrics,
     NodeType,
     PathAnalysisRequest,
@@ -50,8 +53,7 @@ _current_org: ContextVar[Optional[str]] = ContextVar(
 )
 
 _ORG_ID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -314,9 +316,11 @@ class GraphAnalyticsService:
                 "edge_count": edge_count,
                 "density": density,
                 "results": {
-                    "rankings": rankings[: request.max_results]
-                    if request.max_results
-                    else rankings
+                    "rankings": (
+                        rankings[: request.max_results]
+                        if request.max_results
+                        else rankings
+                    )
                 },
             }
 
@@ -350,9 +354,11 @@ class GraphAnalyticsService:
                 "node_count": node_count,
                 "edge_count": 0,  # Not calculated in this implementation
                 "results": {
-                    "rankings": rankings[: request.max_results]
-                    if request.max_results
-                    else rankings
+                    "rankings": (
+                        rankings[: request.max_results]
+                        if request.max_results
+                        else rankings
+                    )
                 },
             }
 
@@ -529,9 +535,11 @@ class GraphAnalyticsService:
                 "edge_count": triangle_count * 3,  # Approximate
                 "results": {
                     "triangle_count": triangle_count,
-                    "triangles": triangles[: request.max_results]
-                    if request.max_results
-                    else triangles,
+                    "triangles": (
+                        triangles[: request.max_results]
+                        if request.max_results
+                        else triangles
+                    ),
                 },
             }
 
@@ -583,9 +591,11 @@ class GraphAnalyticsService:
                 "edge_count": 0,
                 "results": {
                     "average_clustering_coefficient": avg_clustering,
-                    "coefficients": coefficients[: request.max_results]
-                    if request.max_results
-                    else coefficients,
+                    "coefficients": (
+                        coefficients[: request.max_results]
+                        if request.max_results
+                        else coefficients
+                    ),
                 },
             }
 
@@ -1189,9 +1199,7 @@ class GraphAnalyticsService:
             elif key == "properties":
                 for prop_key, prop_value in value.items():
                     _validate_identifier(prop_key, "edge property")
-                    conditions.append(
-                        f"r.{prop_key} = {_cypher_literal(prop_value)}"
-                    )
+                    conditions.append(f"r.{prop_key} = {_cypher_literal(prop_value)}")
 
         return f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
@@ -1285,76 +1293,84 @@ class GraphAnalyticsService:
                         density=analysis.density,
                         connected_components=analysis.component_count,
                         largest_component_size=None,
-                        average_degree=(2 * analysis.edge_count) / analysis.node_count
-                        if analysis.node_count > 0
-                        else 0,
+                        average_degree=(
+                            (2 * analysis.edge_count) / analysis.node_count
+                            if analysis.node_count > 0
+                            else 0
+                        ),
                         last_updated=analysis.updated_at,
                     ),
-                    node_metrics=[
-                        NodeMetricData(
-                            node_id=m.node_id,
-                            node_type=m.node_type,
-                            node_label=m.node_label,
-                            pagerank_score=m.pagerank_score,
-                            betweenness_centrality=m.betweenness_centrality,
-                            closeness_centrality=m.closeness_centrality,
-                            eigenvector_centrality=m.eigenvector_centrality,
-                            degree_centrality=m.degree_centrality,
-                            degree=m.degree,
-                            in_degree=m.in_degree,
-                            out_degree=m.out_degree,
-                            clustering_coefficient=m.clustering_coefficient,
-                            community_id=m.community_id,
-                            community_size=m.community_size,
-                            modularity=m.modularity,
-                            custom_metrics=m.custom_metrics,
-                        )
-                        for m in analysis.node_metrics
-                    ]
-                    if analysis.include_node_metrics
-                    else None,
-                    edge_metrics=[
-                        EdgeMetricData(
-                            edge_id=m.edge_id,
-                            source_node_id=m.source_node_id,
-                            target_node_id=m.target_node_id,
-                            edge_type=m.edge_type,
-                            weight=m.weight,
-                            betweenness=m.betweenness,
-                            edge_betweenness=m.edge_betweenness,
-                            jaccard_similarity=m.jaccard_similarity,
-                            adamic_adar=m.adamic_adar,
-                            shortest_path_length=m.shortest_path_length,
-                            bridges_count=m.bridges_count,
-                            custom_metrics=m.custom_metrics,
-                        )
-                        for m in analysis.edge_metrics
-                    ]
-                    if analysis.include_edge_metrics
-                    else None,
-                    community_metrics=[
-                        CommunityMetricData(
-                            community_id=m.community_id,
-                            community_label=m.community_label,
-                            node_count=m.node_count,
-                            edge_count=m.edge_count,
-                            density=m.density,
-                            modularity=m.modularity,
-                            conductance=m.conductance,
-                            cluster_coefficient=m.cluster_coefficient,
-                            silhouette_score=m.silhouette_score,
-                            internal_edges=m.internal_edges,
-                            external_edges=m.external_edges,
-                            expansion=m.expansion,
-                            node_type_distribution=m.node_type_distribution,
-                            edge_type_distribution=m.edge_type_distribution,
-                            central_nodes=m.central_nodes,
-                            bridge_nodes=m.bridge_nodes,
-                        )
-                        for m in analysis.community_metrics
-                    ]
-                    if analysis.include_community_metrics
-                    else None,
+                    node_metrics=(
+                        [
+                            NodeMetricData(
+                                node_id=m.node_id,
+                                node_type=m.node_type,
+                                node_label=m.node_label,
+                                pagerank_score=m.pagerank_score,
+                                betweenness_centrality=m.betweenness_centrality,
+                                closeness_centrality=m.closeness_centrality,
+                                eigenvector_centrality=m.eigenvector_centrality,
+                                degree_centrality=m.degree_centrality,
+                                degree=m.degree,
+                                in_degree=m.in_degree,
+                                out_degree=m.out_degree,
+                                clustering_coefficient=m.clustering_coefficient,
+                                community_id=m.community_id,
+                                community_size=m.community_size,
+                                modularity=m.modularity,
+                                custom_metrics=m.custom_metrics,
+                            )
+                            for m in analysis.node_metrics
+                        ]
+                        if analysis.include_node_metrics
+                        else None
+                    ),
+                    edge_metrics=(
+                        [
+                            EdgeMetricData(
+                                edge_id=m.edge_id,
+                                source_node_id=m.source_node_id,
+                                target_node_id=m.target_node_id,
+                                edge_type=m.edge_type,
+                                weight=m.weight,
+                                betweenness=m.betweenness,
+                                edge_betweenness=m.edge_betweenness,
+                                jaccard_similarity=m.jaccard_similarity,
+                                adamic_adar=m.adamic_adar,
+                                shortest_path_length=m.shortest_path_length,
+                                bridges_count=m.bridges_count,
+                                custom_metrics=m.custom_metrics,
+                            )
+                            for m in analysis.edge_metrics
+                        ]
+                        if analysis.include_edge_metrics
+                        else None
+                    ),
+                    community_metrics=(
+                        [
+                            CommunityMetricData(
+                                community_id=m.community_id,
+                                community_label=m.community_label,
+                                node_count=m.node_count,
+                                edge_count=m.edge_count,
+                                density=m.density,
+                                modularity=m.modularity,
+                                conductance=m.conductance,
+                                cluster_coefficient=m.cluster_coefficient,
+                                silhouette_score=m.silhouette_score,
+                                internal_edges=m.internal_edges,
+                                external_edges=m.external_edges,
+                                expansion=m.expansion,
+                                node_type_distribution=m.node_type_distribution,
+                                edge_type_distribution=m.edge_type_distribution,
+                                central_nodes=m.central_nodes,
+                                bridge_nodes=m.bridge_nodes,
+                            )
+                            for m in analysis.community_metrics
+                        ]
+                        if analysis.include_community_metrics
+                        else None
+                    ),
                     execution_time_ms=analysis.execution_time_ms,
                     memory_usage_mb=analysis.memory_usage_mb,
                     status=analysis.status,

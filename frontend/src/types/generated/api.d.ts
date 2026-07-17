@@ -3372,10 +3372,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Generate Evaluation Report
+         * Trigger Evaluation Report
          * @description Generate a report for an evaluation job
          */
-        post: operations["generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post"];
+        post: operations["trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4129,7 +4129,8 @@ export interface paths {
         put?: never;
         /**
          * Fix Null Entity Types
-         * @description Fix all entities with NULL type by setting them to 'OTHER'.
+         * @description Fix entities with NULL type by setting them to 'OTHER', scoped to the
+         *     caller's organization.
          *
          *     Requires admin privileges.
          */
@@ -4259,7 +4260,11 @@ export interface paths {
         put?: never;
         /**
          * Reset Graph Schema
-         * @description Reset the entire graph schema (DESTRUCTIVE OPERATION)
+         * @description Reset the CALLER'S organization graph (DESTRUCTIVE OPERATION).
+         *
+         *     Deletes every Entity node owned by the caller's organization (and, via
+         *     DETACH DELETE, their relationships). Global schema constraints/indexes are
+         *     (idempotently) re-ensured.
          */
         post: operations["reset_graph_schema_api_v1_knowledge_graph_schema_reset_post"];
         delete?: never;
@@ -20309,7 +20314,7 @@ export interface operations {
             };
         };
     };
-    generate_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post: {
+    trigger_evaluation_report_api_v1_evaluation_jobs__job_id__reports__report_type__post: {
         parameters: {
             query?: never;
             header?: never;
