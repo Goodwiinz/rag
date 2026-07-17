@@ -37,6 +37,7 @@ celery_app = Celery(
         "src.tasks.agent_run_tasks",
         "src.tasks.retention_tasks",
         "src.tasks.reconcile_tasks",
+        "src.tasks.reconcile_jobs",
     ],
 )
 
@@ -132,6 +133,13 @@ celery_app.conf.update(
         "reconcile-satellite-indexes": {
             "task": "src.tasks.reconcile_tasks.reconcile_satellite_indexes",
             "schedule": 1800.0,  # every 30 min; rate-capped per run
+        },
+        # Task 1.4: re-enqueue processing_jobs whose post-commit Celery dispatch
+        # was lost to a broker outage (PENDING/celery_task_id=NULL). Runs at the
+        # lost-job window (10 min), ahead of the 30-min stuck-job sweep.
+        "reconcile-lost-processing-jobs": {
+            "task": "src.tasks.reconcile_jobs.reconcile_lost_processing_jobs",
+            "schedule": 600.0,  # every 10 min
         },
     },
     task_default_retry_delay=60,
