@@ -1,20 +1,17 @@
-"""Guard: reprocess_document must not commit before the Celery enqueue.
+"""Guard: reprocess_document enqueues post-commit (no pre-commit race, no orphan).
 
-`reprocess_document` (api/documents/documents.py) reset the document's status to
-PENDING and committed it, then created a `ProcessingJob(status=PENDING)` and
-committed that too — all BEFORE calling `process_document_ingestion.delay(...)`.
+`reprocess_document` (api/documents/documents.py) resets the document to PENDING
+and creates a `ProcessingJob`, then enqueues `process_document_ingestion`. It now
+routes that enqueue through `enqueue_after_commit(...)`, which fires `.delay(...)`
+only *after* the surrounding commit succeeds and drops it entirely if the
+transaction rolls back — closing the worker-reads-before-commit race without the
+old orphan risk. A broker outage in the narrow post-commit window leaves the job
+PENDING/celery_task_id=NULL, which the lost-job reconciler (src.tasks.reconcile_jobs)
+re-enqueues.
 
-If `.delay()` raised (broker/Redis down), the `except`'s `db.rollback()` could
-not undo the two prior commits, leaving:
-  - an orphaned `ProcessingJob(status=PENDING, celery_task_id=NULL)` no worker
-    ever picks up (no reaper resets PENDING jobs), and
-  - the document stranded in PENDING with its prior (e.g. COMPLETED) status lost,
-while the client received a misleading HTTP 500.
-
-Fix (mirrors the KG-job fix): `flush` (not `commit`) the status reset and the job
-insert, enqueue, then a single `commit` — so a broker failure rolls both back
-cleanly. This guard asserts no `commit` sits between the try and the enqueue, and
-that a commit follows it.
+This guard asserts the endpoint uses the post-commit helper and no longer issues
+a raw pre-commit `process_document_ingestion.delay(...)`, and that a commit is
+present.
 """
 
 from pathlib import Path
@@ -34,22 +31,23 @@ def _reprocess_fn() -> str:
     return source[start:end]
 
 
-def test_no_commit_before_enqueue():
+def test_enqueues_through_post_commit_helper():
     fn = _reprocess_fn()
-    enqueue = fn.index("process_document_ingestion.delay(")
-    before = fn[fn.index("try:") : enqueue]
-    assert "await db.commit()" not in before, (
-        "reprocess_document commits before the Celery enqueue; a broker failure "
-        "then orphans a PENDING job and strands the document in PENDING. Flush "
-        "before enqueue and commit once afterwards."
+    assert "enqueue_after_commit(" in fn, (
+        "reprocess_document must enqueue via enqueue_after_commit(...) so the "
+        "Celery dispatch fires only after the commit (no worker-reads-before-"
+        "commit race, no orphaned PENDING job on rollback)"
     )
 
 
-def test_commit_after_enqueue():
+def test_no_raw_precommit_delay():
     fn = _reprocess_fn()
-    enqueue = fn.index("process_document_ingestion.delay(")
-    after = fn[enqueue:]
-    assert "await db.commit()" in after, (
-        "reprocess_document must commit after the enqueue succeeds so a broker "
-        "failure rolls back the status reset and job insert"
+    assert "process_document_ingestion.delay(" not in fn, (
+        "reprocess_document must not raw-.delay() the ingestion task before "
+        "commit; route it through enqueue_after_commit(...)"
     )
+
+
+def test_commit_present():
+    fn = _reprocess_fn()
+    assert "await db.commit()" in fn, "reprocess_document must commit the job insert"

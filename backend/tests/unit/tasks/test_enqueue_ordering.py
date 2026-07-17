@@ -29,6 +29,15 @@ Deliberately out of scope (tracked separately, the async-only helper can't fix
 them): sync ``self.db.commit()`` sites (``processing_service.queue_processing_job``,
 etc.) and compensation commits inside ``except``/``finally`` handlers
 (``file_service`` reverses a failed upload after its real post-enqueue commit).
+
+Known limitations (accidental blind spots this AST walk does not catch): a
+nested-function enqueue whose only commit lives in the enclosing scope (the
+nested body is visited as its own scope, so the enclosing commit isn't seen),
+and an aliased enqueue where the bound method is stashed first
+(``d = task.delay; d(...)``) — the call node is then a plain ``Name``, not a
+``.delay`` attribute, so ``_enqueue_kind`` classifies it as neither raw nor
+helper. Neither pattern occurs in ``src`` today; if one is introduced, prefer
+the helper regardless.
 """
 
 from __future__ import annotations
@@ -80,8 +89,10 @@ def _awaited_commit_lineno(node: ast.AST) -> int | None:
 
     Scoped to *awaited* commits on purpose: the ``enqueue_after_commit`` helper
     (Task 1.2) takes an ``AsyncSession``, so only async-session sites are in this
-    ratchet's remit. Sync ``self.db.commit()`` sites (e.g. ``processing_service``)
-    carry the same race but need a different fix and are tracked elsewhere.
+    ratchet's remit. Sync ``self.db.commit()`` sites carry the same race but need
+    a different fix — e.g. ``src/services/processing/processing_service.py:154``
+    (``queue_processing_job``), which would need a future sync-session enqueue
+    helper and is out of this PR's scope.
     """
     if (
         isinstance(node, ast.Await)
