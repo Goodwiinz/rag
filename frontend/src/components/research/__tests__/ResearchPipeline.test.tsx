@@ -52,7 +52,7 @@ function mockPipelineStore(
     loading: boolean;
     error: string | null;
   }> = {}
-) {
+): void {
   (usePipelineStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
     pipeline: null,
     loading: true,
