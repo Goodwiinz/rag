@@ -128,6 +128,17 @@ def _forbidden_txn_calls(tree: ast.Module) -> List[str]:
     return hits
 
 
+def _forbidden_txn_calls_attrs(tree: ast.Module) -> List[str]:
+    """Bare TXN-method attr names called anywhere in ``tree`` (no line info)."""
+    return [
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in TXN_METHODS
+    ]
+
+
 # =============================================================================
 # (a) Leaf-service transaction ownership table — the freeze
 # =============================================================================
@@ -251,6 +262,39 @@ class TestLeafServiceTransactionOwnership:
         assert defaults[flag] is expected, (
             f"{module}.{func}(`{flag}`) default changed from {expected!r} to "
             f"{defaults[flag]!r} — a silent behavior flip. Confirm and update."
+        )
+
+    @pytest.mark.parametrize("module", sorted(LEAF_TXN))
+    def test_leaf_table_covers_every_public_function(self, module: str) -> None:
+        """Completeness guard (mirrors ChatService's ``test_delegate_and_
+        direct_sets_cover_all_methods``): every module-level public function in
+        a leaf module must have a row in ``LEAF_TXN`` — a new/renamed leaf
+        function can't slip the freeze unclassified.
+
+        Only module-level public defs are classified. Nested defs (inner
+        helpers/closures) are intentionally excluded via ``tree.body`` (not
+        ``ast.walk``): the freeze pins each module's public persistence API, not
+        its private internals, so an inner ``def`` introduced inside an existing
+        public function does not spuriously demand its own row.
+        """
+        tree = _parse(SERVICES_DIR / f"{module}.py")
+        public_top = {
+            node.name
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and not node.name.startswith("_")
+        }
+        classified = set(LEAF_TXN[module])
+        missing = public_top - classified
+        assert not missing, (
+            f"{module}.py public function(s) {sorted(missing)} have no row in "
+            "LEAF_TXN — classify each one's exact txn footprint in the freeze, "
+            "in the same PR that introduced it."
+        )
+        stale = classified - public_top
+        assert not stale, (
+            f"LEAF_TXN[{module!r}] has row(s) {sorted(stale)} with no matching "
+            "public function — a function was removed/renamed; update the freeze."
         )
 
     def test_create_thread_commit_flag_gates_both_branches(self) -> None:
@@ -380,13 +424,25 @@ class TestChatServiceTransactionOwnership:
 # =============================================================================
 
 
+# Route modules (stems) whose handlers have been flipped to own their single
+# handler-end ``commit`` (PR 3 Task 3.2). Each resource flip appends its module
+# here IN THE SAME COMMIT that adds the ``await db.commit()`` to its handlers and
+# flips its leaf service to flush-only. Empty = pre-move baseline (every router
+# still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
+# ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
+MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset()
+
+
 class TestRouteLayerOwnsNoTransaction:
-    """(c) ``workspace_routes/*`` must call zero commit/rollback/flush/refresh
-    today — post-#1218 the routers delegate everything. PR 3 moves ownership
-    up to this layer, so this is the pre-move baseline: it captures that the
-    move starts from zero, and the assertion is expected to be intentionally
-    UPDATED (not just kept green) once the route layer legitimately owns a
-    ``begin()`` — at which point the expected set here changes deliberately."""
+    """(c) ``workspace_routes/*`` transaction ownership, frozen and advancing.
+
+    Post-#1218 every router delegated all commits to the service layer (zero
+    txn calls). PR 3 Task 3.2 moves ownership up to this layer one resource at a
+    time: a migrated module owns EXACTLY ``commit`` (one per mutating handler,
+    at handler end) and never rollback/flush/refresh — those stay with the
+    middleware-owned session. Unmigrated modules must still own nothing. This
+    freeze is UPDATED per flip (append to ``MIGRATED_ROUTE_MODULES``), never
+    weakened."""
 
     def test_route_dir_exists(self) -> None:
         assert ROUTES_DIR.is_dir(), f"{ROUTES_DIR} missing — update this freeze."
@@ -397,13 +453,26 @@ class TestRouteLayerOwnsNoTransaction:
         ids=lambda p: p.name if isinstance(p, Path) else "",
     )
     def test_route_module_owns_no_transaction(self, path: Path) -> None:
-        hits = _forbidden_txn_calls(_parse(path))
-        assert not hits, (
-            f"{path} now owns a transaction boundary: {hits}. Today (pre-PR 3) "
-            "route handlers delegate all commits to the service layer. When PR "
-            "3 deliberately moves ownership to the route/use-case layer, update "
-            "this test in that PR."
-        )
+        called = set(_forbidden_txn_calls_attrs(_parse(path)))
+        if path.stem in MIGRATED_ROUTE_MODULES:
+            illegal = sorted(called - {"commit"})
+            assert not illegal, (
+                f"{path} is migrated to UoW but owns {illegal} — a migrated "
+                "route may only call commit() (one per mutating handler at its "
+                "end); rollback/flush/refresh stay with the middleware session."
+            )
+            assert "commit" in called, (
+                f"{path} is in MIGRATED_ROUTE_MODULES but owns no commit() — "
+                "either it was appended prematurely or a handler-end commit is "
+                "missing."
+            )
+        else:
+            assert not called, (
+                f"{path} now owns a transaction boundary: {sorted(called)}. "
+                "Pre-move, route handlers delegate all commits to the service "
+                "layer. When PR 3 moves ownership here, append this module to "
+                "MIGRATED_ROUTE_MODULES in the same commit."
+            )
 
 
 # =============================================================================

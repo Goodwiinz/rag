@@ -22,11 +22,20 @@ read-only re-fetch, not a transaction). Enforcing a blanket select()/model-
 import ban here would fail on legitimate, already-reviewed code, so this
 guard only checks what the split is actually load-bearing on:
 
-  (a) No route module calls ``.commit()``/``.rollback()``/``.flush()``/
-      ``.refresh()`` (transaction-boundary ownership moved to the service
-      layer wholesale — the codebase today has zero such calls in this
-      package, so this is a straight ratchet: any future ``db.commit()``
-      creeping back into a route handler is a regression, full stop).
+  (a) Transaction-boundary ownership per route module, tracked against the PR
+      3 Task 3.2 migration (``MIGRATED_TO_UOW``). PR 3 moved the *single*
+      request commit up from the leaf services to the route/use-case layer,
+      one resource at a time (the middleware autobegins the request session,
+      so ``db.begin()`` would conflict — a migrated handler ends with exactly
+      one ``await db.commit()``). So:
+        * A module NOT yet in ``MIGRATED_TO_UOW`` still owns nothing — zero
+          ``commit``/``rollback``/``flush``/``refresh``, the pre-move baseline.
+        * A migrated module may own ``commit`` only — at most one per handler
+          (a second in one handler is a double-commit bug) and at least one in
+          the module (proof it actually migrated). It still owns no
+          ``rollback``/``flush``/``refresh``: those stay with the
+          middleware-owned session (which rolls back the request on the error
+          path when a handler raises after a flush but before its commit).
   (b) No resource module (``workspaces``, ``members``, ``conversations``,
       ``threads``, ``messages``, ``collections``) imports another resource
       module's internals — cross-handler helpers must go through the two
@@ -36,10 +45,15 @@ guard only checks what the split is actually load-bearing on:
       ``router``/``standalone_router`` to the same composed ``APIRouter``
       objects.
 
-RATCHET: if a future change legitimately needs a route handler to own a
-commit, or needs a resource module to reach into another resource module,
-that is a new decision to make explicitly (and to re-document here) — it
-must not happen silently.
+RATCHET: ``MIGRATED_TO_UOW`` only ever grows, and only in the same commit that
+adds a module's handler-end commits + flips its leaf service to flush-only. A
+``commit`` in an unmigrated module, a second commit in any one handler, or any
+``rollback``/``flush``/``refresh`` in a route module is a regression, full
+stop. "Exactly one commit per *mutating* handler" is enforced as "≤1 per
+handler, ≥1 per module": a static AST walk can't classify which handlers
+mutate (read-only handlers legitimately own zero), so the guard pins the
+double-commit ceiling and the migrated-module floor rather than a per-handler
+exact count.
 """
 
 from __future__ import annotations
@@ -63,8 +77,21 @@ RESOURCE_MODULES = frozenset(
 SHARED_MODULES = frozenset({"dependencies", "presenters"})
 
 # db-session methods that own a transaction boundary. 4.3's whole point was
-# moving these out of routers and into one-service-method-owns-one-txn.
+# moving these out of routers and into one-service-method-owns-one-txn; PR 3
+# then moved the single ``commit`` back UP to the route layer per resource.
 FORBIDDEN_SESSION_METHODS = frozenset({"commit", "rollback", "flush", "refresh"})
+
+# The only session method a migrated route module may own. rollback/flush/
+# refresh never move to the route layer — the middleware-owned session handles
+# rollback at the request boundary.
+_MIGRATED_ALLOWED = frozenset({"commit"})
+
+# Route modules (stems) whose handlers now own their single handler-end commit
+# (PR 3 Task 3.2). Each resource flip appends its module here IN THE SAME COMMIT
+# that adds the handler-end ``await db.commit()`` and flips its leaf service to
+# flush-only. Empty = pre-migration baseline. Twin of ``MIGRATED_ROUTE_MODULES``
+# in ``tests/unit/services/threads/test_transaction_ownership.py``.
+MIGRATED_TO_UOW: frozenset[str] = frozenset()
 
 
 def _route_module_files() -> list[Path]:
@@ -88,6 +115,27 @@ def _forbidden_session_calls(tree: ast.Module) -> list[str]:
     return hits
 
 
+def _session_call_attrs(node: ast.AST) -> list[str]:
+    """Bare FORBIDDEN_SESSION_METHODS attr names called anywhere under node.
+
+    Route handlers contain no nested defs, so an ``ast.walk`` from a top-level
+    handler counts exactly that handler's own session calls.
+    """
+    return [
+        c.func.attr
+        for c in ast.walk(node)
+        if isinstance(c, ast.Call)
+        and isinstance(c.func, ast.Attribute)
+        and c.func.attr in FORBIDDEN_SESSION_METHODS
+    ]
+
+
+def _top_level_functions(tree: ast.Module) -> list[ast.AST]:
+    return [
+        n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
 def _relative_import_targets(tree: ast.Module) -> set[str]:
     """Module-level names reached via `from .x import y` / `from . import x`."""
     targets: set[str] = set()
@@ -101,7 +149,7 @@ def _relative_import_targets(tree: ast.Module) -> set[str]:
 
 
 class TestNoRouterOwnedTransactions:
-    """(a) Routers never call commit/rollback/flush/refresh (Task 4.3)."""
+    """(a) Route-module transaction ownership, tracked against MIGRATED_TO_UOW."""
 
     def test_guard_scans_a_meaningful_number_of_files(self) -> None:
         files = _route_module_files()
@@ -112,12 +160,38 @@ class TestNoRouterOwnedTransactions:
 
     @pytest.mark.parametrize("path", _route_module_files(), ids=lambda p: p.name)
     def test_module_owns_no_transaction_boundary(self, path: Path) -> None:
-        hits = _forbidden_session_calls(_parse(path))
-        assert not hits, (
-            f"{path} calls a transaction-boundary method the Task 4.3 split "
-            f"moved into src/services/threads/: {hits}. Route handlers must "
-            "delegate commit/rollback/flush/refresh to a service method."
+        tree = _parse(path)
+
+        if path.stem not in MIGRATED_TO_UOW:
+            hits = _forbidden_session_calls(tree)
+            assert not hits, (
+                f"{path} calls a transaction-boundary method but is not in "
+                f"MIGRATED_TO_UOW: {hits}. An unmigrated route handler must "
+                "delegate commit/rollback/flush/refresh to a service method. If "
+                "this module is being flipped to own its commit (PR 3), append "
+                "its stem to MIGRATED_TO_UOW in the same commit."
+            )
+            return
+
+        # Migrated module (PR 3 Task 3.2): commit only, ≤1 per handler, ≥1 total.
+        all_attrs = _session_call_attrs(tree)
+        illegal = sorted(set(all_attrs) - _MIGRATED_ALLOWED)
+        assert not illegal, (
+            f"{path} is migrated to UoW but owns {illegal} — a migrated route "
+            "may only call commit() (rollback/flush/refresh stay with the "
+            "middleware-owned session)."
         )
+        assert "commit" in all_attrs, (
+            f"{path} is in MIGRATED_TO_UOW but owns no commit() — either it was "
+            "appended prematurely or a handler-end commit is missing."
+        )
+        for func in _top_level_functions(tree):
+            commits = [a for a in _session_call_attrs(func) if a == "commit"]
+            assert len(commits) <= 1, (
+                f"{path}::{getattr(func, 'name', '?')} calls commit() "
+                f"{len(commits)}× — a mutating handler owns EXACTLY ONE commit "
+                "at its end; a second is a double-commit bug."
+            )
 
 
 class TestNoSidewaysResourceImports:
