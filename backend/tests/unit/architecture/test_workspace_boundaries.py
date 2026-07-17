@@ -44,6 +44,11 @@ guard only checks what the split is actually load-bearing on:
       shim (``backend/src/api/threads/workspaces.py``) both still resolve
       ``router``/``standalone_router`` to the same composed ``APIRouter``
       objects.
+  (d) PR 3 Task 3.3 ratchet: no ``src/services/threads/*_service.py`` function
+      calls ``commit()`` except the documented ``chat_service.py`` allowlist
+      (direct owners + delegate-boundary commits). Leaf services are wholly
+      flush-only — the route (or a ChatService delegate) owns the request
+      commit.
 
 RATCHET: ``MIGRATED_TO_UOW`` only ever grows, and only in the same commit that
 adds a module's handler-end commits + flips its leaf service to flush-only. A
@@ -86,19 +91,52 @@ FORBIDDEN_SESSION_METHODS = frozenset({"commit", "rollback", "flush", "refresh"}
 # rollback at the request boundary.
 _MIGRATED_ALLOWED = frozenset({"commit"})
 
-# Route modules (stems) whose handlers now own their single handler-end commit
-# (PR 3 Task 3.2). Each resource flip appends its module here IN THE SAME COMMIT
-# that adds the handler-end ``await db.commit()`` and flips its leaf service to
-# flush-only. Empty = pre-migration baseline. Twin of ``MIGRATED_ROUTE_MODULES``
-# in ``tests/unit/services/threads/test_transaction_ownership.py``.
-MIGRATED_TO_UOW: frozenset[str] = frozenset(
+# Route modules (stems) whose handlers own their single handler-end commit
+# (PR 3 Task 3.2). PR 3 Task 3.3 completed the migration: this now equals the
+# full resource-module set (see test_migration_is_complete). Twin of
+# ``MIGRATED_ROUTE_MODULES`` in
+# ``tests/unit/services/threads/test_transaction_ownership.py``.
+MIGRATED_TO_UOW: frozenset[str] = RESOURCE_MODULES
+
+# Leaf persistence services under src/services/threads/ — everything except
+# chat_service.py must be flush-only after PR 3 (the route / a ChatService
+# delegate owns the request commit).
+SERVICES_DIR = BACKEND_DIR / "src" / "services" / "threads"
+
+# The ONLY functions in src/services/threads/ permitted to call commit() after
+# PR 3 Task 3.3 — all in chat_service.py. Every other service function is
+# flush-only. Each entry carries its removal condition:
+#
+#   * Direct transaction owners (out of scope for the 4.3 consolidation): they
+#     own their commit until a later explicit pass moves it up. Remove when
+#     that pass lands.
+#   * Delegate-boundary commits (delegate-then-commit): they delegate to a
+#     now-flush-only leaf and own the request commit for ChatService's own
+#     callers (the legacy src/api/threads/{conversations,threads}.py routes
+#     issue no commit of their own; the three collection delegates are
+#     currently caller-less but kept faithful). Remove each when its caller
+#     owns the commit or the delegate itself is deleted.
+CHAT_SERVICE_COMMIT_ALLOWLIST: frozenset[str] = frozenset(
     {
-        "collections",
-        "members",
-        "workspaces",
-        "conversations",
-        "threads",
-        "messages",
+        # direct owners
+        "create_message",
+        "create_assistant_message",
+        "bulk_update_threads",
+        "bulk_delete_threads",
+        # delegate-boundary commits
+        "create_workspace",
+        "update_workspace",
+        "delete_workspace",
+        "create_conversation",
+        "update_conversation",
+        "delete_conversation",
+        "update_thread",
+        "delete_thread",
+        "update_message_feedback",
+        "delete_message",
+        "create_collection",
+        "add_documents_to_collection",
+        "remove_documents_from_collection",
     }
 )
 
@@ -167,18 +205,30 @@ class TestNoRouterOwnedTransactions:
             "workspace_routes package moved and this guard needs updating."
         )
 
+    def test_migration_is_complete(self) -> None:
+        """PR 3 Task 3.3: every resource route module owns its commit — the
+        migration is done, so MIGRATED_TO_UOW is exactly the resource-module
+        set. The per-resource-flip "unmigrated resource" branch is gone; the
+        only routes owning nothing now are the shared/composition modules."""
+        assert MIGRATED_TO_UOW == RESOURCE_MODULES, (
+            "MIGRATED_TO_UOW must equal RESOURCE_MODULES once PR 3 is complete; "
+            f"symmetric diff: {sorted(MIGRATED_TO_UOW ^ RESOURCE_MODULES)}."
+        )
+
     @pytest.mark.parametrize("path", _route_module_files(), ids=lambda p: p.name)
     def test_module_owns_no_transaction_boundary(self, path: Path) -> None:
         tree = _parse(path)
 
         if path.stem not in MIGRATED_TO_UOW:
+            # Shared/composition modules (dependencies, presenters, __init__):
+            # not resource modules, never mutate, own no transaction. (Every
+            # resource module is migrated now — there is no unmigrated-resource
+            # case left.)
             hits = _forbidden_session_calls(tree)
             assert not hits, (
-                f"{path} calls a transaction-boundary method but is not in "
-                f"MIGRATED_TO_UOW: {hits}. An unmigrated route handler must "
-                "delegate commit/rollback/flush/refresh to a service method. If "
-                "this module is being flipped to own its commit (PR 3), append "
-                "its stem to MIGRATED_TO_UOW in the same commit."
+                f"{path} is a shared/composition route module but owns a "
+                f"transaction boundary: {hits}. Only the six resource handlers "
+                "own commits; dependencies/presenters/__init__ must not."
             )
             return
 
@@ -271,3 +321,89 @@ class TestCompositionExportsStillResolve:
                 "workspace_routes — the compatibility export broke."
             )
             assert shim_obj.routes, f"workspace_routes.{name} has no routes composed"
+
+
+# The five leaf persistence services IN SCOPE for PR 3's UoW refactor. Other
+# ``*_service.py`` under this package (``thread_summarization_service`` — sync
+# SQLAlchemy per its own contract, ``thread_message_search_service``,
+# ``thread_event_service``, ``stream_service``) are OUT of scope and own their
+# own transactions legitimately, so this ratchet deliberately does not scan
+# them. ``chat_service.py`` is handled separately (it keeps an allowlist).
+LEAF_SERVICE_MODULES: tuple[str, ...] = (
+    "workspace_service.py",
+    "conversation_service.py",
+    "thread_service.py",
+    "message_service.py",
+    "collection_service.py",
+)
+
+
+def _commit_functions(tree: ast.Module) -> dict[str, int]:
+    """Top-level/class functions -> count of ``.commit()`` calls in their own
+    scope. Only ``commit`` (not the other txn methods) — TASK 3.3 is about who
+    owns the *commit*."""
+    out: dict[str, int] = {}
+    for func in ast.walk(tree):
+        if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        n = sum(
+            1
+            for c in ast.walk(func)
+            if isinstance(c, ast.Call)
+            and isinstance(c.func, ast.Attribute)
+            and c.func.attr == "commit"
+        )
+        if n:
+            out[func.name] = out.get(func.name, 0) + n
+    return out
+
+
+class TestServicesDoNotCommitExceptChatServiceAllowlist:
+    """(d) PR 3 Task 3.3 ratchet: none of the five in-scope leaf persistence
+    services (``LEAF_SERVICE_MODULES``) call ``commit()`` at all, and
+    ``chat_service.py`` calls it only in the documented allowlist.
+
+    Complements the per-function LEAF_TXN freeze in
+    ``tests/unit/services/threads/test_transaction_ownership.py``: that pins
+    each known function's footprint; this catches a commit sneaking into a NEW
+    service helper the freeze doesn't enumerate yet. Leaf services are wholly
+    flush-only; ChatService keeps its direct-owner + delegate-boundary commits.
+    """
+
+    def test_guard_scans_all_service_modules(self) -> None:
+        for name in (*LEAF_SERVICE_MODULES, "chat_service.py"):
+            assert (SERVICES_DIR / name).is_file(), (
+                f"{SERVICES_DIR / name} not found — the in-scope service module "
+                "moved/renamed and this ratchet needs updating."
+            )
+
+    @pytest.mark.parametrize("name", LEAF_SERVICE_MODULES, ids=lambda n: n)
+    def test_leaf_service_is_flush_only(self, name: str) -> None:
+        path = SERVICES_DIR / name
+        committers = _commit_functions(_parse(path))
+        assert not committers, (
+            f"{path} calls commit() in {sorted(committers)} — every leaf "
+            "persistence service is flush-only after PR 3; the route (or a "
+            "ChatService delegate) owns the request commit. If a new function "
+            "legitimately needs to own a commit, that is a deliberate ownership "
+            "decision to document, not a silent regression."
+        )
+
+    def test_chat_service_commits_only_in_the_allowlist(self) -> None:
+        committers = set(_commit_functions(_parse(SERVICES_DIR / "chat_service.py")))
+        unexpected = committers - CHAT_SERVICE_COMMIT_ALLOWLIST
+        assert not unexpected, (
+            f"ChatService function(s) {sorted(unexpected)} call commit() but are "
+            "not in CHAT_SERVICE_COMMIT_ALLOWLIST. Either it is a direct owner / "
+            "delegate-boundary commit (add it, with its removal condition) or it "
+            "should delegate the commit to its caller."
+        )
+
+    def test_allowlist_has_no_stale_entries(self) -> None:
+        committers = set(_commit_functions(_parse(SERVICES_DIR / "chat_service.py")))
+        stale = CHAT_SERVICE_COMMIT_ALLOWLIST - committers
+        assert not stale, (
+            f"CHAT_SERVICE_COMMIT_ALLOWLIST lists {sorted(stale)} which no longer "
+            "call commit() — a delegate's commit was removed (removal condition "
+            "met?); drop it from the allowlist in the same change."
+        )
