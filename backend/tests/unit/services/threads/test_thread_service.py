@@ -1,8 +1,11 @@
-"""Characterize thread_service.py (Task 4.3 consolidation).
+"""Characterize thread_service.py (Task 4.3 consolidation; PR 3 Task 3.2 UoW).
 
-Covers the ``commit`` (create) and ``stamp_deleted_at`` (delete) divergence
-flags, the ``with_preview`` capability addition, the resolution-summary
-trigger, and nested-route chain scoping — see the module docstring.
+Covers the ``stamp_deleted_at`` (delete) divergence flag, the ``with_preview``
+capability addition, the resolution-summary trigger, and nested-route chain
+scoping — see the module docstring. PR 3 Task 3.2 deleted ``create_thread``'s
+``commit`` flag (now unconditionally flush-only, caller owns the commit) and
+moved the resolve-summary enqueue to ``enqueue_after_commit`` (fires on the
+caller's commit), so the create/resolve tests here characterize that.
 """
 
 from __future__ import annotations
@@ -38,12 +41,14 @@ async def _make_conversation(
     return ws, conv
 
 
-async def test_create_thread_commit_flag(
+async def test_create_thread_flushes_without_committing(
     db_session: AsyncSession, user_factory: Callable[..., Awaitable[User]]
 ) -> None:
-    """``commit=False`` (old ChatService default) only flushes — the row is
-    visible in-session but a caller that never commits could still roll it
-    back. ``commit=True`` (router-canonical) commits immediately."""
+    """PR 3 Task 3.2: ``create_thread`` is unconditionally flush-only (the
+    ``commit`` flag was deleted). The row is visible in-session immediately
+    (id populated, readable back), but the caller (route / ChatService's
+    ``threads.py`` caller) owns the request commit — a caller that never
+    commits would roll it back."""
     owner = await user_factory()
     ws, conv = await _make_conversation(db_session, owner)
 
@@ -51,23 +56,15 @@ async def test_create_thread_commit_flag(
         db_session,
         ThreadCreate(conversation_id=conv.id, title="t1"),
         owner.id,
-        commit=False,
     )
     assert flushed is not None
     assert flushed.id is not None
-    # In-transaction visibility either way; the real distinction is whether
-    # a rollback would discard it. Both paths must return a persisted-enough
-    # row the caller can immediately read back.
+    # In-transaction visibility: the same session reads the flushed row back.
+    reread = await db_session.get(Thread, flushed.id)
+    assert reread is not None
+    # The caller owns the commit; do it here so teardown can track + clean up.
     await db_session.commit()
-
-    committed = await thread_service.create_thread(
-        db_session,
-        ThreadCreate(conversation_id=conv.id, title="t2"),
-        owner.id,
-        commit=True,
-    )
-    assert committed is not None
-    assert committed.id is not None
+    db_session.info["_created"]["threads"].append(flushed.id)
 
 
 async def test_create_thread_not_found_vs_forbidden(
@@ -113,7 +110,6 @@ async def test_create_thread_rejects_mismatched_workspace_id(
         ThreadCreate(conversation_id=conv_b.id, title="t"),
         owner.id,
         workspace_id=ws_b.id,
-        commit=True,
     )
     assert thread is not None
 
@@ -223,7 +219,11 @@ async def test_update_thread_resolve_triggers_summary_task_when_opted_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With the flag explicitly enabled, the fixed comparison correctly
-    enqueues the resolution summary."""
+    enqueues the resolution summary.
+
+    PR 3 Task 3.2: the enqueue moved to ``enqueue_after_commit``, so it now
+    fires on the caller's commit (exactly once, dropped on rollback) rather
+    than inline at flush — this test verifies that new timing."""
     user = await user_factory()
     thread = await thread_factory(user=user)
 
@@ -251,6 +251,10 @@ async def test_update_thread_resolve_triggers_summary_task_when_opted_in(
     )
     assert updated is not None
     assert updated.status == ThreadStatus.RESOLVED
+    # Registered but not yet fired: the leaf flushed, no commit yet.
+    assert calls == []
+    # The caller's commit drains the enqueue exactly once.
+    await db_session.commit()
     assert calls == [str(thread.id)]
 
 

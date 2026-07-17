@@ -177,11 +177,14 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
     },
     "thread_service": {
         "last_message_preview_expression": frozenset(),  # query builder, no db
-        # DYNAMIC: commit vs flush chosen by the ``commit`` flag; refresh always.
-        "create_thread": frozenset({"commit", "flush", "refresh"}),
+        # PR 3 Task 3.2 (threads flip): commit -> flush; the ``commit`` flag on
+        # create_thread was DELETED (now unconditional flush + refresh). The
+        # route / ChatService owns the request commit; update_thread's resolve-
+        # summary enqueue moved to enqueue_after_commit (not a txn method).
+        "create_thread": frozenset({"flush", "refresh"}),
         "list_threads": frozenset(),
-        "update_thread": frozenset({"commit", "refresh"}),
-        "delete_thread": frozenset({"commit"}),
+        "update_thread": frozenset({"flush", "refresh"}),
+        "delete_thread": frozenset({"flush"}),
     },
     "message_service": {
         "get_message": frozenset(),
@@ -212,7 +215,8 @@ LEAF_FLAG_DEFAULTS: Dict[Tuple[str, str, str], bool] = {
     ("conversation_service", "list_conversations", "order_pinned_first"): True,
     ("conversation_service", "delete_conversation", "stamp_deleted_at"): False,
     ("conversation_service", "delete_conversation", "require_admin"): False,
-    ("thread_service", "create_thread", "commit"): False,
+    # PR 3 Task 3.2 deleted ("thread_service","create_thread","commit") — the
+    # leaf is now unconditionally flush-only, so its row is gone here too.
     ("thread_service", "list_threads", "with_preview"): False,
     ("thread_service", "update_thread", "trigger_resolve_summary"): False,
     ("thread_service", "delete_thread", "stamp_deleted_at"): False,
@@ -303,21 +307,23 @@ class TestLeafServiceTransactionOwnership:
             "public function — a function was removed/renamed; update the freeze."
         )
 
-    def test_create_thread_commit_flag_gates_both_branches(self) -> None:
-        """The one dynamic commit: ``create_thread`` commits OR flushes on the
-        ``commit`` flag. Freeze that both branches (and the always-on refresh)
-        exist, so Task 3.2's flip to flush-only is a visible, reviewed edit."""
+    def test_create_thread_is_unconditionally_flush_only(self) -> None:
+        """PR 3 Task 3.2 removed ``create_thread``'s ``commit`` flag: it now
+        flushes unconditionally (+ the always-on refresh) and never commits, so
+        composing it with further work in one request (the live ``threads.py``
+        create path: create_thread -> project auto-link -> WS broadcast -> one
+        commit) is atomic. This pins that the flag and the commit() branch are
+        gone — re-introducing either is a deliberate, reviewed edit here."""
         tree = _parse(SERVICES_DIR / "thread_service.py")
         node = _functions_by_name(tree)["create_thread"]
         called = _txn_methods_called(node)
-        assert {"commit", "flush", "refresh"} <= called, (
-            "create_thread must still contain both the commit() branch and the "
-            f"flush() branch (+ refresh); found only {sorted(called)}."
+        assert called == frozenset({"flush", "refresh"}), (
+            "create_thread must flush (+ refresh) and own no commit after the "
+            f"PR 3 flip; found {sorted(called)}."
         )
-        assert _kwonly_bool_defaults(node).get("commit") is False, (
-            "create_thread's `commit` flag must default False (flush-only for "
-            "ChatService's caller); PR 3 removes the flag and makes flush "
-            "unconditional — update this test then."
+        assert "commit" not in _kwonly_bool_defaults(node), (
+            "create_thread's `commit` kw-only flag was deleted in PR 3 — it must "
+            "not come back (the leaf is unconditionally flush-only now)."
         )
 
 
@@ -348,6 +354,10 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     "create_conversation": frozenset({"commit"}),
     "update_conversation": frozenset({"commit"}),
     "delete_conversation": frozenset({"commit"}),
+    # -- threads flip (create_thread stays a pure delegate: flush-only, its
+    #    threads.py caller owns the commit) --
+    "update_thread": frozenset({"commit"}),
+    "delete_thread": frozenset({"commit"}),
 }
 
 # Every other ChatService method delegates to a leaf service (or is read-only)
@@ -363,8 +373,6 @@ CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
         "create_thread",
         "get_thread",
         "list_threads",
-        "update_thread",
-        "delete_thread",
         "bulk_summarize_threads",
         "_filter_owned_document_ids",
         "get_message",
@@ -444,7 +452,7 @@ class TestChatServiceTransactionOwnership:
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
 MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset(
-    {"collections", "members", "workspaces", "conversations"}
+    {"collections", "members", "workspaces", "conversations", "threads"}
 )
 
 

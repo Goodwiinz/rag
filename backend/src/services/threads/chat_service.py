@@ -320,18 +320,17 @@ class ChatService:
     ) -> Optional[Thread]:
         """Create a new thread in a conversation.
 
-        Delegates with ``commit=False`` (flush only) — this class's pre-4.3
-        behavior left the commit to its own caller (``threads.py`` does
-        further work — project auto-link, WS broadcast — in the same
-        request before committing). The router-inline create endpoints
-        commit immediately and pass ``commit=True``. Returns ``None`` on
-        not-found *or* insufficient permission, matching the pre-4.3
-        undifferentiated result.
+        Flush-only (the leaf's ``commit`` flag was removed in PR 3 Task 3.2;
+        ``create_thread`` is now unconditionally flush-only). This class does
+        NOT commit here — its live caller (``src/api/threads/threads.py``) does
+        further work (project auto-link, WS broadcast) in the same request and
+        then owns the single ``await db.commit()``. Adding a commit here would
+        split that atomic unit and fire the WS broadcast against a not-yet-
+        committed thread. Returns ``None`` on not-found *or* insufficient
+        permission, matching the pre-4.3 undifferentiated result.
         """
         try:
-            thread = await thread_service.create_thread(
-                self.db, data, user_id, commit=False
-            )
+            thread = await thread_service.create_thread(self.db, data, user_id)
         except PermissionError:
             return None
         if thread:
@@ -379,11 +378,20 @@ class ChatService:
         (``False``) — this class's pre-4.3 resolve-trigger comparison
         compared mismatched Enum classes and never actually fired; see
         ``thread_service.update_thread``'s docstring (Task 4.3 amendment
-        A2)."""
+        A2).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        threads.py PATCH endpoint issues no commit of its own. The leaf's
+        resolve-summary enqueue (dead under the default flag) is registered via
+        enqueue_after_commit, so it would fire on THIS commit."""
         try:
-            return await thread_service.update_thread(self.db, thread_id, data, user_id)
+            result = await thread_service.update_thread(
+                self.db, thread_id, data, user_id
+            )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_thread(self, thread_id: UUID, user_id: UUID) -> bool:
         """Soft delete thread.
@@ -400,6 +408,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted thread: {thread_id}")
         return bool(result)

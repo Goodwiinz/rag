@@ -1,8 +1,10 @@
 """
 Thread endpoints, nested and standalone (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
-persistence logic into ``src/services/threads/thread_service.py`` — this
-module is transport only).
+persistence logic into ``src/services/threads/thread_service.py``; PR 3 Task
+3.2 moved the single request commit UP to these handlers — the service flushes
+(the old ``create_thread(commit=...)`` flag is gone), each mutating handler ends
+with one ``await db.commit()``). Transport + transaction-boundary only.
 
 ``standalone_list_router`` (``list_threads_standalone``) is kept as a separate
 router object from ``standalone_router`` (thread CRUD) purely to preserve the
@@ -67,13 +69,14 @@ async def create_thread(
     request.conversation_id = conversation_id
     try:
         thread = await thread_service.create_thread(
-            db, request, current_user.id, workspace_id=workspace_id, commit=True
+            db, request, current_user.id, workspace_id=workspace_id
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     if not thread:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    await db.commit()
     return _thread_to_response(thread)
 
 
@@ -176,6 +179,7 @@ async def update_thread(
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
 
+    await db.commit()
     return _thread_to_response(thread)
 
 
@@ -205,6 +209,8 @@ async def delete_thread(
     if not deleted:
         raise HTTPException(status_code=404, detail="Thread not found")
 
+    await db.commit()
+
 
 # ============================================================================
 # Standalone (Flat) Thread Routes
@@ -222,14 +228,13 @@ async def create_thread_standalone(
 ) -> ThreadResponse:
     """Create a new thread (standalone route - uses conversation_id from request body)"""
     try:
-        thread = await thread_service.create_thread(
-            db, request, current_user.id, commit=True
-        )
+        thread = await thread_service.create_thread(db, request, current_user.id)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     if not thread:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    await db.commit()
     return _thread_to_response(thread)
 
 
@@ -267,6 +272,7 @@ async def update_thread_standalone(
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
 
+    await db.commit()
     return _thread_to_response(thread)
 
 
@@ -287,6 +293,8 @@ async def delete_thread_standalone(
         raise HTTPException(status_code=403, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Thread not found")
+
+    await db.commit()
 
 
 @standalone_list_router.get(
