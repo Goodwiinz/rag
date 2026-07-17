@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Citation,
@@ -32,7 +33,6 @@ from src.models import (
 )
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.citation_extraction_service import CitationExtractionService
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     CitationCreate,
     CitationListResponse,

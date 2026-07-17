@@ -18,7 +18,6 @@ from src.models import Citation, Document
 from src.models.document import DocumentType
 from src.shared.research_schemas import CitationCreate
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -56,7 +55,10 @@ async def sample_citations(test_db: AsyncSession, sample_document: Document):
     citations = []
     for i, (title, source) in enumerate(
         [
-            ("BERT: Pre-training of Deep Bidirectional Transformers", "semantic_scholar"),
+            (
+                "BERT: Pre-training of Deep Bidirectional Transformers",
+                "semantic_scholar",
+            ),
             ("GPT-4 Technical Report", "arxiv"),
             ("Incomplete Paper", "manual"),
         ]
@@ -106,7 +108,10 @@ class TestCreateCitation:
 
         assert response.status_code == 201
         data = response.json()
-        assert data.get("documentTitle") == "New Citation" or data.get("document_title") == "New Citation"
+        assert (
+            data.get("documentTitle") == "New Citation"
+            or data.get("document_title") == "New Citation"
+        )
 
     @pytest.mark.asyncio
     async def test_create_citation_persists_to_db(
@@ -212,9 +217,7 @@ class TestExtractCitation:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_extract_with_mocked_service(
-        self, async_client, sample_document
-    ):
+    async def test_extract_with_mocked_service(self, async_client, sample_document):
         mock_citation = CitationCreate(
             document_title="Extracted Paper",
             authors=["Mocked Author"],
@@ -231,9 +234,7 @@ class TestExtractCitation:
             instance.extract_for_document = AsyncMock(
                 return_value=(mock_citation, "arxiv")
             )
-            instance.extract_hybrid = AsyncMock(
-                return_value=(mock_citation, "arxiv")
-            )
+            instance.extract_hybrid = AsyncMock(return_value=(mock_citation, "arxiv"))
 
             response = await async_client.post(
                 "/api/v1/citations/extract",
@@ -313,9 +314,7 @@ class TestLookupCitation:
 
         # Verify NOT persisted
         result = await test_db.execute(
-            select(Citation).where(
-                Citation.document_title == "Lookup Only Paper"
-            )
+            select(Citation).where(Citation.document_title == "Lookup Only Paper")
         )
         assert result.scalar_one_or_none() is None
 
@@ -338,9 +337,7 @@ class TestExportBibliography:
         assert response.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_export_bibtex_by_citation_ids(
-        self, async_client, sample_citations
-    ):
+    async def test_export_bibtex_by_citation_ids(self, async_client, sample_citations):
         ids = [str(c.id) for c in sample_citations[:2]]
 
         response = await async_client.post(
@@ -521,9 +518,7 @@ class TestCitationTenancy:
         assert response.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_create_with_own_message_succeeds(
-        self, async_client, test_message
-    ):
+    async def test_create_with_own_message_succeeds(self, async_client, test_message):
         response = await async_client.post(
             "/api/v1/citations",
             json={"message_id": str(test_message.id), "document_title": "Mine"},
