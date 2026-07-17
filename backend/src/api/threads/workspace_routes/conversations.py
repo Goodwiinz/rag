@@ -1,8 +1,10 @@
 """
 Conversation endpoints, nested and standalone (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
-persistence logic into ``src/services/threads/conversation_service.py`` —
-this module is transport only).
+persistence logic into ``src/services/threads/conversation_service.py``; PR 3
+Task 3.2 moved the single request commit UP to these handlers — the service
+flushes, each mutating handler ends with one ``await db.commit()``). Transport
++ transaction-boundary only.
 """
 
 from uuid import UUID
@@ -56,6 +58,7 @@ async def create_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     return _conversation_to_response(conversation)
 
 
@@ -137,6 +140,7 @@ async def update_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    await db.commit()
     return _conversation_to_response(conversation)
 
 
@@ -164,6 +168,8 @@ async def delete_conversation(
         raise HTTPException(status_code=403, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    await db.commit()
 
 
 # ============================================================================
@@ -209,6 +215,7 @@ async def update_conversation_standalone(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    await db.commit()
     return _conversation_to_response(conversation)
 
 
@@ -233,3 +240,5 @@ async def delete_conversation_standalone(
         raise HTTPException(status_code=403, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    await db.commit()

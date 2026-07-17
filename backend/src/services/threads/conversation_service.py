@@ -62,7 +62,7 @@ async def create_conversation(
         last_activity_at=datetime.utcnow(),
     )
     db.add(conversation)
-    await db.commit()
+    await db.flush()
 
     created = await workspace_access.get_conversation(
         db, conversation.id, user_id, load_threads=True
@@ -185,7 +185,7 @@ async def update_conversation(
         conversation.is_pinned = data.is_pinned
 
     conversation.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     # No db.refresh(): every mutated field is a Python-side assignment already
     # reflecting final state, and a bare refresh() would expire `.threads`
     # (eager-loaded above via get_conversation, untouched by this mutation)
@@ -239,5 +239,5 @@ async def delete_conversation(
     if stamp_deleted_at:
         conversation.deleted_at = datetime.utcnow()
     conversation.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     return True

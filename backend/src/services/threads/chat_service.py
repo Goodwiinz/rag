@@ -220,6 +220,9 @@ class ChatService:
             )
         except PermissionError:
             return None
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        # conversations.py create endpoint owns no commit of its own.
+        await self.db.commit()
         if conversation:
             logger.info(
                 f"Created conversation: {conversation.id} - {conversation.title}"
@@ -269,13 +272,17 @@ class ChatService:
     ) -> Optional[Conversation]:
         """Update conversation. Returns ``None`` on not-found *or*
         insufficient permission, matching this class's pre-4.3
-        undifferentiated result."""
+        undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes)."""
         try:
-            return await conversation_service.update_conversation(
+            result = await conversation_service.update_conversation(
                 self.db, conversation_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_conversation(self, conversation_id: UUID, user_id: UUID) -> bool:
         """Soft delete conversation.
@@ -298,6 +305,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted conversation: {conversation_id}")
         return bool(result)

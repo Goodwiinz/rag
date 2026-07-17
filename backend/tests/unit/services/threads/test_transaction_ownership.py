@@ -168,10 +168,12 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "remove_member": frozenset({"flush"}),
     },
     "conversation_service": {
-        "create_conversation": frozenset({"commit"}),
+        # PR 3 Task 3.2 (conversations flip): commit -> flush; conversations.py
+        # route + ChatService delegates own the request commit.
+        "create_conversation": frozenset({"flush"}),
         "list_conversations": frozenset(),
-        "update_conversation": frozenset({"commit"}),  # deliberately no refresh()
-        "delete_conversation": frozenset({"commit"}),
+        "update_conversation": frozenset({"flush"}),  # deliberately no refresh()
+        "delete_conversation": frozenset({"flush"}),
     },
     "thread_service": {
         "last_message_preview_expression": frozenset(),  # query builder, no db
@@ -342,6 +344,10 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     "create_workspace": frozenset({"commit"}),
     "update_workspace": frozenset({"commit"}),
     "delete_workspace": frozenset({"commit"}),
+    # -- conversations flip --
+    "create_conversation": frozenset({"commit"}),
+    "update_conversation": frozenset({"commit"}),
+    "delete_conversation": frozenset({"commit"}),
 }
 
 # Every other ChatService method delegates to a leaf service (or is read-only)
@@ -352,11 +358,8 @@ CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
         "get_workspace",
         "list_workspaces",
         "_user_can_access_workspace",
-        "create_conversation",
         "get_conversation",
         "list_conversations",
-        "update_conversation",
-        "delete_conversation",
         "create_thread",
         "get_thread",
         "list_threads",
@@ -441,7 +444,7 @@ class TestChatServiceTransactionOwnership:
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
 MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset(
-    {"collections", "members", "workspaces"}
+    {"collections", "members", "workspaces", "conversations"}
 )
 
 
