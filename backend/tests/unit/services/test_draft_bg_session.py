@@ -91,7 +91,7 @@ async def test_background_task_never_touches_ctor_session():
     bg_session = _make_bg_session(documents)
 
     service = DraftGenerationService(ctor_session)
-    service._build_draft_content = AsyncMock(return_value="Some draft body.")
+    service._build_draft_content = AsyncMock(return_value=("Some draft body.", False))
 
     patcher = _patch_session_factory(bg_session)
     try:
@@ -110,7 +110,9 @@ async def test_happy_path_completes_through_patched_session():
     bg_session = _make_bg_session(documents)
 
     service = DraftGenerationService(MagicMock())
-    service._build_draft_content = AsyncMock(return_value="Findings from [Doc 1].")
+    service._build_draft_content = AsyncMock(
+        return_value=("Findings from [Doc 1].", False)
+    )
 
     patcher = _patch_session_factory(bg_session)
     try:
@@ -167,9 +169,9 @@ async def test_two_session_windows_first_closed_before_build_draft_content():
 
     service = DraftGenerationService(MagicMock())
 
-    async def _fake_build_draft_content(*args: object, **kwargs: object) -> str:
+    async def _fake_build_draft_content(*args: object, **kwargs: object):
         call_order.append("build_draft_content")
-        return "Findings from [Doc 1]."
+        return "Findings from [Doc 1].", False
 
     service._build_draft_content = AsyncMock(side_effect=_fake_build_draft_content)
 

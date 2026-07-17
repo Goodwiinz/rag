@@ -92,7 +92,7 @@ async def _run(service, task_id, draft_content, project_id=None, user_id=None):
         "project_id": str(project_id),
         "user_id": str(user_id),
     }
-    service._build_draft_content = AsyncMock(return_value=draft_content)
+    service._build_draft_content = AsyncMock(return_value=(draft_content, False))
     await service._generate_draft_async(
         task_id=task_id,
         project_id=project_id,
