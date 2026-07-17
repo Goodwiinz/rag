@@ -14,8 +14,8 @@ a raw pre-commit `process_document_ingestion.delay(...)`, and that a commit is
 present.
 """
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 # tests/ -> backend/
 ROUTER = (

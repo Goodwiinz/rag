@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from typing import Mapping
 
 from src.core.database import SessionLocal
 from src.models.processing import JobStatus, JobType, ProcessingJob
@@ -54,7 +55,7 @@ _REENQUEUE_BY_JOB_TYPE: dict[JobType, tuple[str, str | None]] = {
 
 
 @celery_app.task(name="src.tasks.reconcile_jobs.reconcile_lost_processing_jobs")
-def reconcile_lost_processing_jobs() -> dict:
+def reconcile_lost_processing_jobs() -> Mapping[str, object]:
     """Beat task: re-enqueue processing_jobs whose post-commit dispatch was lost."""
     from src.core.config import get_settings
 
@@ -73,7 +74,7 @@ def reconcile_lost_processing_jobs() -> dict:
         minutes=settings_local.LOST_JOB_RECONCILE_AFTER_MINUTES
     )
 
-    summary = {"reenqueued": 0, "failed": 0, "skipped": 0}
+    summary: dict[str, int] = {"reenqueued": 0, "failed": 0, "skipped": 0}
     db = SessionLocal()
     try:
         lost_jobs = (
@@ -122,7 +123,7 @@ def reconcile_lost_processing_jobs() -> dict:
                 continue
 
             task_name, queue = mapping
-            send_kwargs: dict = {"args": [str(job.id)]}
+            send_kwargs: dict[str, object] = {"args": [str(job.id)]}
             if queue:
                 send_kwargs["queue"] = queue
             # A broker error here propagates to the outer handler (whole run

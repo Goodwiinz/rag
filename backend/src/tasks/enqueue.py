@@ -59,9 +59,7 @@ def enqueue_after_commit_apply_async(
     need a ``queue=`` (or other apply_async option) override. Same post-commit /
     drop-on-rollback semantics.
     """
-    _register(
-        db, task, lambda: task.apply_async(args=args, kwargs=kwargs, **options)
-    )
+    _register(db, task, lambda: task.apply_async(args=args, kwargs=kwargs, **options))
 
 
 def _register(db: AsyncSession, task: Any, thunk: Callable[[], Any]) -> None:

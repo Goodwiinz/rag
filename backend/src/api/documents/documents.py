@@ -897,7 +897,7 @@ async def check_duplicate(
 
     if existing is None:
         # Also check metadata-stored hash for older documents
-        from sqlalchemy import cast, String
+        from sqlalchemy import String, cast
 
         query = (
             select(Document)
@@ -1363,9 +1363,7 @@ async def reprocess_document(
         from src.tasks.enqueue import enqueue_after_commit
         from src.tasks.processing_tasks import process_document_ingestion
 
-        enqueue_after_commit(
-            db, process_document_ingestion, str(processing_job.id)
-        )
+        enqueue_after_commit(db, process_document_ingestion, str(processing_job.id))
 
         await db.commit()
 

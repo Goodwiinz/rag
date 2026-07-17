@@ -774,9 +774,7 @@ async def reprocess_file(
         from src.tasks.enqueue import enqueue_after_commit
         from src.tasks.processing_tasks import process_document_ingestion
 
-        enqueue_after_commit(
-            db, process_document_ingestion, str(processing_job.id)
-        )
+        enqueue_after_commit(db, process_document_ingestion, str(processing_job.id))
 
         await db.commit()
 

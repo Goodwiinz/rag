@@ -38,13 +38,13 @@ _EXPECTED_KEYS = {
 def test_all_task_modules_beat_schedules_coexist():
     # Import order intentionally matches celery_app.include; with the old
     # full-assignment the last import wins and only its keys remain.
-    import src.tasks.processing_tasks  # noqa: F401
+    import src.tasks.agent_run_tasks  # noqa: F401
     import src.tasks.document_processing_tasks  # noqa: F401
     import src.tasks.evaluation_tasks  # noqa: F401
-    import src.tasks.agent_run_tasks  # noqa: F401
-    import src.tasks.retention_tasks  # noqa: F401
-    import src.tasks.reconcile_tasks  # noqa: F401
+    import src.tasks.processing_tasks  # noqa: F401
     import src.tasks.reconcile_jobs  # noqa: F401
+    import src.tasks.reconcile_tasks  # noqa: F401
+    import src.tasks.retention_tasks  # noqa: F401
     from src.tasks.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
@@ -53,13 +53,13 @@ def test_all_task_modules_beat_schedules_coexist():
 
 
 def test_scheduled_tasks_resolve_to_registered_tasks():
-    import src.tasks.processing_tasks  # noqa: F401
+    import src.tasks.agent_run_tasks  # noqa: F401
     import src.tasks.document_processing_tasks  # noqa: F401
     import src.tasks.evaluation_tasks  # noqa: F401
-    import src.tasks.agent_run_tasks  # noqa: F401
-    import src.tasks.retention_tasks  # noqa: F401
-    import src.tasks.reconcile_tasks  # noqa: F401
+    import src.tasks.processing_tasks  # noqa: F401
     import src.tasks.reconcile_jobs  # noqa: F401
+    import src.tasks.reconcile_tasks  # noqa: F401
+    import src.tasks.retention_tasks  # noqa: F401
     from src.tasks.celery_app import celery_app
 
     for key in _EXPECTED_KEYS:

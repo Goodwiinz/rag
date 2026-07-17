@@ -118,9 +118,7 @@ def test_lost_document_job_reenqueued_with_default_routing(session_factory):
     assert result["reenqueued"] == 1
     # DOCUMENT_INGESTION originally used process_document_ingestion.delay() ->
     # default routing (no queue kwarg).
-    send_task.assert_called_once_with(
-        "process_document_ingestion", args=[str(job_id)]
-    )
+    send_task.assert_called_once_with("process_document_ingestion", args=[str(job_id)])
     with session_factory() as db:
         job = db.get(ProcessingJob, job_id)
         assert job.status is JobStatus.PENDING  # still pending; worker flips it

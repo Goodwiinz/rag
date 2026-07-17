@@ -56,9 +56,10 @@ def test_reprocess_creates_job_and_enqueues():
     org = MagicMock()
     org.id = uuid.uuid4()
 
-    with patch(
-        "src.tasks.processing_tasks.process_document_ingestion"
-    ) as task, patch("src.tasks.enqueue.enqueue_after_commit") as enqueue:
+    with (
+        patch("src.tasks.processing_tasks.process_document_ingestion") as task,
+        patch("src.tasks.enqueue.enqueue_after_commit") as enqueue,
+    ):
         resp = asyncio.run(
             files_mod.reprocess_file(
                 str(document.id),

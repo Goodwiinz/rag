@@ -27,10 +27,7 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.tasks.enqueue import (
-    enqueue_after_commit,
-    enqueue_after_commit_apply_async,
-)
+from src.tasks.enqueue import enqueue_after_commit, enqueue_after_commit_apply_async
 
 pytestmark = pytest.mark.unit
 
@@ -125,9 +122,7 @@ async def test_apply_async_variant_fires_with_options_after_commit(
     db: AsyncSession,
 ) -> None:
     task = SimpleNamespace(name="kg.task", apply_async=MagicMock())
-    enqueue_after_commit_apply_async(
-        db, task, args=["kg-1"], queue="entity_processing"
-    )
+    enqueue_after_commit_apply_async(db, task, args=["kg-1"], queue="entity_processing")
 
     # Registration alone must not enqueue.
     task.apply_async.assert_not_called()

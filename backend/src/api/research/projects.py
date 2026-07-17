@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     Collection,
     CollectionDocument,
@@ -27,15 +28,9 @@ from src.models import (
     ProjectNote,
     User,
 )
-from src.models.processing import (
-    JobPriority,
-    JobStatus,
-    JobType,
-    ProcessingJob,
-)
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.project_service import ProjectService
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
     NoteListResponse,
