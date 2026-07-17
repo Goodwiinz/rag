@@ -13,7 +13,6 @@ from uuid import UUID
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from celery import Task, current_app
-
 from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as SATimeoutError
 

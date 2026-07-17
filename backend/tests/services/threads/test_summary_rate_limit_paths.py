@@ -10,9 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.services.threads.thread_summarization_service import (
-    ThreadSummarizationService,
-)
+from src.services.threads.thread_summarization_service import ThreadSummarizationService
 
 
 def _service_with_thread():
