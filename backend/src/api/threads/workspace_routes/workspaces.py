@@ -1,9 +1,11 @@
 """
 Workspace CRUD endpoints (Task 4.2 split of the former monolithic
 ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the persistence
-logic into ``src/services/threads/workspace_service.py`` — this module is
-transport only: auth/permission-error -> HTTP status mapping and request/
-response shaping).
+logic into ``src/services/threads/workspace_service.py``; PR 3 Task 3.2 moved
+the single request commit UP to these handlers — the service flushes, each
+mutating handler ends with one ``await db.commit()``). Transport +
+transaction-boundary: auth/permission-error -> HTTP status mapping, request/
+response shaping, and the request commit.
 """
 
 import logging
@@ -51,6 +53,7 @@ async def create_workspace(
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
+    await db.commit()
     logger.info(f"Workspace '{workspace.name}' created by user {current_user.id}")
     return _workspace_to_response(workspace)
 
@@ -104,6 +107,7 @@ async def update_workspace(
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     return _workspace_to_response(workspace)
 
 
@@ -123,4 +127,5 @@ async def delete_workspace(
     if not deleted:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     logger.info(f"Workspace {workspace_id} deleted by user {current_user.id}")

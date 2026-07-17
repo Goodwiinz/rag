@@ -92,7 +92,7 @@ async def create_workspace(
     db.add(
         WorkspaceMember(workspace=workspace, user_id=owner_id, role=WorkspaceRole.OWNER)
     )
-    await db.commit()
+    await db.flush()
 
     # Re-fetch with full eager load — the response/presenter reads
     # member/conversation/collection counts immediately after create.
@@ -174,7 +174,7 @@ async def update_workspace(
         workspace.is_archived = data.is_archived
 
     workspace.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     # No db.refresh(): every mutated field is a Python-side assignment
     # already reflecting final state, and a bare refresh() would expire the
     # members/conversations/collections eager-loaded above (untouched by
@@ -208,7 +208,7 @@ async def delete_workspace(
     if stamp_deleted_at:
         workspace.deleted_at = datetime.utcnow()
     workspace.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     return True
 
 

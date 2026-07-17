@@ -107,6 +107,10 @@ class ChatService:
         workspace = await workspace_service.create_workspace(
             self.db, data, owner_id, user_organization_id, enforce_org_match=True
         )
+        # PR 3 Task 3.2: leaf now flushes; this delegate owns the request commit
+        # for its callers (the legacy conversations.py create endpoint issues no
+        # commit of its own). Removal condition: delete when that caller owns it.
+        await self.db.commit()
         logger.info(f"Created workspace: {workspace.id} - {workspace.name}")
         return workspace
 
@@ -160,13 +164,18 @@ class ChatService:
         self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
         """Update workspace. Returns ``None`` on not-found *or* insufficient
-        permission, matching this class's pre-4.3 undifferentiated result."""
+        permission, matching this class's pre-4.3 undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        conversations.py update endpoint owns no commit of its own."""
         try:
-            return await workspace_service.update_workspace(
+            result = await workspace_service.update_workspace(
                 self.db, workspace_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_workspace(self, workspace_id: UUID, user_id: UUID) -> bool:
         """Soft delete workspace.
@@ -182,6 +191,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted workspace: {workspace_id}")
         return bool(result)

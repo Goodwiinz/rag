@@ -157,11 +157,12 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "get_accessible_document_or_none": frozenset(),
     },
     "workspace_service": {
-        "create_workspace": frozenset({"commit"}),
+        # PR 3 Task 3.2 (workspaces + members flips): commit -> flush; the
+        # workspaces.py/members.py routes (+ ChatService delegates) own commit.
+        "create_workspace": frozenset({"flush"}),
         "list_workspaces": frozenset(),
-        "update_workspace": frozenset({"commit"}),  # deliberately no refresh()
-        "delete_workspace": frozenset({"commit"}),
-        # PR 3 Task 3.2 (members flip): commit -> flush; members.py owns commit.
+        "update_workspace": frozenset({"flush"}),  # deliberately no refresh()
+        "delete_workspace": frozenset({"flush"}),
         "add_member": frozenset({"flush"}),
         "update_member_role": frozenset({"flush"}),
         "remove_member": frozenset({"flush"}),
@@ -337,6 +338,10 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     "create_collection": frozenset({"commit"}),
     "add_documents_to_collection": frozenset({"commit"}),
     "remove_documents_from_collection": frozenset({"commit"}),
+    # -- workspaces flip --
+    "create_workspace": frozenset({"commit"}),
+    "update_workspace": frozenset({"commit"}),
+    "delete_workspace": frozenset({"commit"}),
 }
 
 # Every other ChatService method delegates to a leaf service (or is read-only)
@@ -344,11 +349,8 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
 # move ownership without rewriting these.
 CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
     {
-        "create_workspace",
         "get_workspace",
         "list_workspaces",
-        "update_workspace",
-        "delete_workspace",
         "_user_can_access_workspace",
         "create_conversation",
         "get_conversation",
@@ -438,7 +440,9 @@ class TestChatServiceTransactionOwnership:
 # flips its leaf service to flush-only. Empty = pre-move baseline (every router
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
-MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset({"collections", "members"})
+MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset(
+    {"collections", "members", "workspaces"}
+)
 
 
 class TestRouteLayerOwnsNoTransaction:
