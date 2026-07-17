@@ -14,16 +14,18 @@ routes through ``enqueue_after_commit(...)`` (which fires post-commit by design)
 or carries a ``# enqueue-before-commit: <justification>`` comment on the enqueue
 line or the line directly above it.
 
-It stays RED until Task 1.3 migrates the offenders. Measured baseline on
-``develop @ 93fb8f7f`` (branch cut point) — the list being burned down:
+Task 1.3 migrated all three original offenders to the post-commit helpers, so
+this ratchet is now GREEN and guards against regressions. Measured baseline on
+``develop @ 93fb8f7f`` (branch cut point), now all resolved:
 
-    src/api/documents/documents.py:1360   process_document_ingestion.delay
-    src/api/documents/files.py:775        process_document_ingestion.delay
-    src/api/research/projects.py:545      kg_extract_entities_job.apply_async
+    documents.py:1360   process_document_ingestion.delay    -> enqueue_after_commit
+    files.py:775        process_document_ingestion.delay    -> enqueue_after_commit
+    projects.py:545     kg_extract_entities_job.apply_async -> enqueue_after_commit_apply_async
 
-All three are the same deliberate ``flush → enqueue → await db.commit()`` shape.
-If this list changes, the ratchet caught a new offender (route it through the
-helper, or justify it) or a fixed one (shrink the baseline).
+All three were the same deliberate ``flush → enqueue → await db.commit()`` shape.
+If the offender list becomes non-empty again, the ratchet caught a new offender:
+route it through ``enqueue_after_commit`` / ``enqueue_after_commit_apply_async``,
+or add a ``# enqueue-before-commit: <reason>`` comment.
 
 Deliberately out of scope (tracked separately, the async-only helper can't fix
 them): sync ``self.db.commit()`` sites (``processing_service.queue_processing_job``,
@@ -52,6 +54,10 @@ pytestmark = pytest.mark.unit
 
 _SRC_ROOT = Path(__file__).resolve().parents[3] / "src"
 _JUSTIFY_MARKER = "# enqueue-before-commit:"
+# Post-commit enqueue helpers (src/tasks/enqueue.py) — exempt escape hatches:
+# both fire their enqueue on ``after_commit``, so a call positioned before a
+# commit is correct by construction.
+_HELPER_NAMES = {"enqueue_after_commit", "enqueue_after_commit_apply_async"}
 
 
 def _own_nodes(node: ast.AST) -> Iterator[ast.AST]:
@@ -72,15 +78,15 @@ def _enqueue_kind(call: ast.Call) -> str | None:
     """Classify a call node: 'raw' (needs ordering), 'helper' (exempt), or None."""
     func = call.func
     if isinstance(func, ast.Attribute):
+        if func.attr in _HELPER_NAMES:
+            return "helper"
         if func.attr in ("delay", "apply_async", "send_task"):
             return "raw"
-        if func.attr == "enqueue_after_commit":
-            return "helper"
     elif isinstance(func, ast.Name):
+        if func.id in _HELPER_NAMES:
+            return "helper"
         if func.id == "send_task":
             return "raw"
-        if func.id == "enqueue_after_commit":
-            return "helper"
     return None
 
 

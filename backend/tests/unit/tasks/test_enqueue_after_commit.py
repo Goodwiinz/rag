@@ -27,7 +27,10 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.tasks.enqueue import enqueue_after_commit
+from src.tasks.enqueue import (
+    enqueue_after_commit,
+    enqueue_after_commit_apply_async,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -116,6 +119,34 @@ async def test_raising_task_logs_without_corrupting_session(db: AsyncSession) ->
     # Session is still usable after the swallowed error.
     await _work(db)
     await db.commit()
+
+
+async def test_apply_async_variant_fires_with_options_after_commit(
+    db: AsyncSession,
+) -> None:
+    task = SimpleNamespace(name="kg.task", apply_async=MagicMock())
+    enqueue_after_commit_apply_async(
+        db, task, args=["kg-1"], queue="entity_processing"
+    )
+
+    # Registration alone must not enqueue.
+    task.apply_async.assert_not_called()
+
+    await _work(db)
+    await db.commit()
+
+    task.apply_async.assert_called_once_with(
+        args=["kg-1"], kwargs=None, queue="entity_processing"
+    )
+
+
+async def test_apply_async_variant_dropped_on_rollback(db: AsyncSession) -> None:
+    task = SimpleNamespace(name="kg.task", apply_async=MagicMock())
+    enqueue_after_commit_apply_async(db, task, args=["kg-1"], queue="q")
+
+    await _work(db)
+    await db.rollback()
+    task.apply_async.assert_not_called()
 
 
 async def test_second_commit_does_not_refire(db: AsyncSession) -> None:
