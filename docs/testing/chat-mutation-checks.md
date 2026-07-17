@@ -11,9 +11,9 @@ confirm it passes. No guard's source was left modified — see the commit for
 this task, which touches tests and this doc only.
 
 The deterministic interleaving harness (`frontend/src/test/concurrency/`, PR
-"test: deterministic interleaving harness") is the living successor to this
-one-time manual verification — `pnpm test:mutants` is the automated spot-check
-that keeps these guards honest without hand-editing source.
+"test: deterministic interleaving harness") will be the living successor to this
+one-time manual verification once that PR lands — `pnpm test:mutants` will be the
+automated spot-check that keeps these guards honest without hand-editing source.
 
 The plan's literal Task 5.5 file list names two covering-test files:
 `frontend/src/store/__tests__/chat-store-refresh.test.ts` (items 1 and 2 —

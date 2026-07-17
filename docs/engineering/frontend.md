@@ -43,8 +43,11 @@ backend owns; each entity has exactly **one** client-side cache, never two.
 - **The chat Zustand store (`@/store/chat-store`) is the one sanctioned
   exception** — the server-canonical owner of the chat transcript
   (workspaces/conversations/threads/messages). The backend is still the
-  writer; the store is the client cache, and it's the *only* server entity
-  that lives outside Query. See [Chat state ownership](#chat-state-ownership).
+  writer; the store is the client cache. Going forward it's the *only* store
+  sanctioned to own a server entity outside Query. Other stores
+  (`projectStore`, `projectChatStore`, `agentChatStore`, `pipelineStore`)
+  predate this rule and already hold server-derived state; they are grandfathered,
+  not a license to add more. See [Chat state ownership](#chat-state-ownership).
 - **Never dual-cache the same entity** in Query and the store. If some future
   need genuinely requires both, it demands an explicit written reconciliation
   contract (who wins, when each invalidates) — not two caches drifting apart.
