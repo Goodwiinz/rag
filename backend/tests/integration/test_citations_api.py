@@ -425,3 +425,141 @@ class TestExportBibliography:
         assert response.status_code == 200
         content_disp = response.headers.get("content-disposition", "")
         assert "bibliography.bib" in content_disp
+
+
+# ===========================================================================
+# Tenancy regressions (writing-surface audit W-A1 / W-A2 / W-A3)
+# ===========================================================================
+
+
+@pytest_asyncio.fixture
+async def other_message(test_db: AsyncSession, other_workspace):
+    """A message in another user's workspace (thread → conversation → workspace)."""
+    from src.models import ChatMessage, Conversation, Thread
+    from src.models.chat_message import MessageRole
+
+    conversation = Conversation(
+        id=uuid4(),
+        title="Other Conversation",
+        workspace_id=other_workspace.id,
+        created_by_id=other_workspace.owner_id,
+    )
+    test_db.add(conversation)
+    await test_db.flush()
+    thread = Thread(
+        id=uuid4(),
+        title="Other Thread",
+        conversation_id=conversation.id,
+        created_by_id=other_workspace.owner_id,
+        message_count=1,
+    )
+    test_db.add(thread)
+    await test_db.flush()
+    message = ChatMessage(
+        id=uuid4(),
+        thread_id=thread.id,
+        user_id=other_workspace.owner_id,
+        role=MessageRole.USER,
+        content="Other tenant message",
+    )
+    test_db.add(message)
+    await test_db.commit()
+    await test_db.refresh(message)
+    return message
+
+
+class TestCitationTenancy:
+    @pytest.mark.asyncio
+    async def test_create_with_foreign_document_returns_403_not_500(
+        self, async_client, test_db: AsyncSession
+    ):
+        """W-A1: cross-org document check must surface as 403, not a 500
+        with the auth detail wrapped inside."""
+        from src.models import Organization
+        from src.models.organization import StorageTier
+
+        foreign_org = Organization(
+            id=uuid4(),
+            name="Foreign Org",
+            storage_tier=StorageTier.FREE,
+            storage_limit_bytes=Organization.get_default_storage_limit(
+                StorageTier.FREE
+            ),
+            is_active=True,
+        )
+        test_db.add(foreign_org)
+        await test_db.flush()
+        foreign_doc = Document(
+            id=uuid4(),
+            title="Foreign Doc",
+            filename="foreign.pdf",
+            file_path="/data/uploads/foreign.pdf",
+            file_size_bytes=1,
+            mime_type="application/pdf",
+            document_type=DocumentType.PDF,
+            organization_id=foreign_org.id,
+        )
+        test_db.add(foreign_doc)
+        await test_db.commit()
+
+        response = await async_client.post(
+            "/api/v1/citations",
+            json={"document_id": str(foreign_doc.id), "document_title": "X"},
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_create_with_foreign_message_returns_403(
+        self, async_client, other_message
+    ):
+        """W-A2: a message_id owned by another tenant must be rejected, not
+        written into their citation list."""
+        response = await async_client.post(
+            "/api/v1/citations",
+            json={"message_id": str(other_message.id), "document_title": "Injected"},
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_create_with_own_message_succeeds(
+        self, async_client, test_message
+    ):
+        response = await async_client.post(
+            "/api/v1/citations",
+            json={"message_id": str(test_message.id), "document_title": "Mine"},
+        )
+        assert response.status_code == 201
+
+    @pytest.mark.asyncio
+    async def test_list_excludes_other_tenant_citations_and_total(
+        self, async_client, test_db: AsyncSession, sample_citations, other_message
+    ):
+        """W-A3: filtering happens in SQL — another tenant's message-anchored
+        citation must not appear, and `total` must count only accessible rows."""
+        foreign_citation = Citation(
+            id=uuid4(),
+            message_id=other_message.id,
+            document_title="Foreign-only citation",
+            metadata_source="manual",
+        )
+        test_db.add(foreign_citation)
+        await test_db.commit()
+
+        response = await async_client.get("/api/v1/citations")
+        assert response.status_code == 200
+        data = response.json()
+        ids = {c["id"] for c in data["citations"]}
+        assert str(foreign_citation.id) not in ids
+        assert data["total"] == len(sample_citations)
+
+    @pytest.mark.asyncio
+    async def test_list_paginates_in_sql_with_correct_total(
+        self, async_client, sample_citations
+    ):
+        """W-A3: skip/limit are applied by the DB; total reflects the full
+        accessible count, not the page size."""
+        response = await async_client.get("/api/v1/citations?skip=1&limit=1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["citations"]) == 1
+        assert data["total"] == len(sample_citations)
