@@ -463,10 +463,14 @@ jobs:
             echo "## API breaking-change gate (oasdiff, --fail-on ERR)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          # pipefail propagates oasdiff's non-zero (ERR-level break) through tee,
-          # so the step — and the job — fails. No `|| true`: this gate blocks.
-          /tmp/oasdiff breaking --fail-on ERR /tmp/openapi-base.json backend/openapi.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          # Capture oasdiff's exit code (ERR-level break => non-zero) through the
+          # pipe so we can close the ``` fence before propagating. `|| rc=$?`
+          # keeps `set -e` from aborting mid-fence; rc pre-set to 0 for success.
+          rc=0
+          /tmp/oasdiff breaking --fail-on ERR /tmp/openapi-base.json backend/openapi.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Propagate: non-zero here fails the step (and job) — this gate blocks.
+          exit "${rc}"
       # Informational: full changelog into the job summary, never blocking.
       - name: API changelog (oasdiff, informational)
         if: github.event_name == 'pull_request'

@@ -168,9 +168,9 @@ def test_blocking_step_is_pull_request_only_with_label_escape_hatch() -> None:
         "pull_request" in cond
     ), "blocking gate must be guarded to pull_request events"
     assert (
-        "contains(github.event.pull_request.labels.*.name, 'api-breaking-approved')"
+        "!contains(github.event.pull_request.labels.*.name, 'api-breaking-approved')"
         in cond
-    ), "blocking gate must honor the api-breaking-approved label escape hatch"
+    ), "blocking gate must NEGATE the label check (skip when labelled, not run only-when-labelled)"
 
 
 def test_blocking_step_skips_cleanly_when_base_missing() -> None:
