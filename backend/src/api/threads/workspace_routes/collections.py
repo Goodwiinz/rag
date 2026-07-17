@@ -1,8 +1,11 @@
 """
 Collection endpoints, nested and standalone (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
-persistence logic into ``src/services/threads/collection_service.py`` — this
-module is transport only).
+persistence logic into ``src/services/threads/collection_service.py``; PR 3
+Task 3.2 moved the single request commit UP to these handlers — the service
+flushes, each mutating handler ends with one ``await db.commit()`` (the
+middleware-owned session rolls back on the error path). This module is
+transport + transaction-boundary only.
 """
 
 from uuid import UUID
@@ -59,6 +62,7 @@ async def create_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     return _collection_to_response(collection)
 
 
@@ -126,6 +130,7 @@ async def update_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_response(collection)
 
 
@@ -148,6 +153,8 @@ async def delete_collection(
         raise HTTPException(status_code=403, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Collection not found")
+
+    await db.commit()
 
 
 @router.post(
@@ -175,6 +182,7 @@ async def add_documents_to_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_detail_response(collection)
 
 
@@ -203,6 +211,7 @@ async def remove_documents_from_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_detail_response(collection)
 
 
@@ -232,6 +241,7 @@ async def create_collection_standalone(
     if not collection:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     return _collection_to_response(collection)
 
 
@@ -272,6 +282,7 @@ async def update_collection_standalone(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_response(collection)
 
 
@@ -293,6 +304,8 @@ async def delete_collection_standalone(
     if not deleted:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
+
 
 @standalone_router.post(
     "/collections/{collection_id}/documents", response_model=CollectionDetailResponse
@@ -313,6 +326,7 @@ async def add_documents_to_collection_standalone(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_detail_response(collection)
 
 
@@ -335,4 +349,5 @@ async def remove_documents_from_collection_standalone(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    await db.commit()
     return _collection_to_detail_response(collection)

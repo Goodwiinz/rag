@@ -933,6 +933,12 @@ class ChatService:
         method has zero production callers, so there is no existing insecure
         behavior worth preserving via a flag; see
         ``collection_service``'s module docstring).
+
+        PR 3 Task 3.2: the leaf now flushes, so this delegate owns the request
+        commit (delegate-then-commit) — external behavior identical (persisted
+        on return). Kept faithful even though this method is currently
+        caller-less. Removal condition: delete the commit when/if this delegate
+        is deleted or its (currently non-existent) callers own the commit.
         """
         try:
             collection = await collection_service.create_collection(
@@ -940,6 +946,7 @@ class ChatService:
             )
         except PermissionError:
             return None
+        await self.db.commit()
         if collection:
             logger.info(f"Created collection: {collection.id} - {collection.name}")
         return collection
@@ -969,13 +976,19 @@ class ChatService:
         per-document organization ownership before attaching (this method
         has zero production callers, so there is no existing insecure
         behavior worth preserving via a flag).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes); external
+        behavior identical. Removal condition: delete the commit when this
+        delegate is removed or its callers own the commit.
         """
         try:
-            return await collection_service.add_documents_to_collection(
+            collection = await collection_service.add_documents_to_collection(
                 self.db, collection_id, document_ids, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return collection
 
     async def remove_documents_from_collection(
         self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
@@ -987,13 +1000,19 @@ class ChatService:
         implementation hard-deleted them; zero production callers, so there
         is no existing behavior worth preserving via a flag — soft-delete
         also matches every other delete in this schema).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes); external
+        behavior identical. Removal condition: delete the commit when this
+        delegate is removed or its callers own the commit.
         """
         try:
-            return await collection_service.remove_documents_from_collection(
+            collection = await collection_service.remove_documents_from_collection(
                 self.db, collection_id, document_ids, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return collection
 
     # =========================================================================
     # Utility Methods

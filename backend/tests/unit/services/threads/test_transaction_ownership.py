@@ -186,13 +186,15 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "delete_message": frozenset({"commit"}),
     },
     "collection_service": {
+        # PR 3 Task 3.2 (collections flip): commit -> flush; route/ChatService
+        # owns the request commit. re-fetch-after-flush sees flushed state.
         "get_collection": frozenset(),
-        "create_collection": frozenset({"commit"}),  # re-fetches, no refresh()
+        "create_collection": frozenset({"flush"}),  # re-fetches, no refresh()
         "list_collections": frozenset(),
-        "update_collection": frozenset({"commit", "refresh"}),
-        "delete_collection": frozenset({"commit"}),
-        "add_documents_to_collection": frozenset({"commit"}),
-        "remove_documents_from_collection": frozenset({"commit"}),
+        "update_collection": frozenset({"flush", "refresh"}),
+        "delete_collection": frozenset({"flush"}),
+        "add_documents_to_collection": frozenset({"flush"}),
+        "remove_documents_from_collection": frozenset({"flush"}),
     },
 }
 
@@ -326,6 +328,14 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     "create_assistant_message": frozenset({"commit", "flush", "refresh"}),
     "bulk_update_threads": frozenset({"begin_nested", "commit", "rollback", "refresh"}),
     "bulk_delete_threads": frozenset({"begin_nested", "commit", "rollback"}),
+    # PR 3 Task 3.2 delegate-boundary commits: these methods delegate to a
+    # now-flush-only leaf and own the request commit for their own callers
+    # (delegate-then-commit). Each moved here from CHAT_PURE_DELEGATES in the
+    # same commit that flipped its resource's leaf + route.
+    # -- collections flip --
+    "create_collection": frozenset({"commit"}),
+    "add_documents_to_collection": frozenset({"commit"}),
+    "remove_documents_from_collection": frozenset({"commit"}),
 }
 
 # Every other ChatService method delegates to a leaf service (or is read-only)
@@ -355,11 +365,8 @@ CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
         "list_messages",
         "update_message_feedback",
         "delete_message",
-        "create_collection",
         "get_collection",
         "list_collections",
-        "add_documents_to_collection",
-        "remove_documents_from_collection",
         "get_thread_context",
         "search_conversations",
         "get_workspace_stats",
@@ -430,7 +437,7 @@ class TestChatServiceTransactionOwnership:
 # flips its leaf service to flush-only. Empty = pre-move baseline (every router
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
-MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset()
+MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset({"collections"})
 
 
 class TestRouteLayerOwnsNoTransaction:

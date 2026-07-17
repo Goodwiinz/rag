@@ -91,7 +91,7 @@ _MIGRATED_ALLOWED = frozenset({"commit"})
 # that adds the handler-end ``await db.commit()`` and flips its leaf service to
 # flush-only. Empty = pre-migration baseline. Twin of ``MIGRATED_ROUTE_MODULES``
 # in ``tests/unit/services/threads/test_transaction_ownership.py``.
-MIGRATED_TO_UOW: frozenset[str] = frozenset()
+MIGRATED_TO_UOW: frozenset[str] = frozenset({"collections"})
 
 
 def _route_module_files() -> list[Path]:
