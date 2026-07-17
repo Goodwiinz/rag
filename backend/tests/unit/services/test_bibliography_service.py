@@ -10,7 +10,6 @@ import pytest
 
 from src.services.research.bibliography_service import BibliographyService
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

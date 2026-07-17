@@ -21,8 +21,7 @@ def _service_with_thread():
     message = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = thread
     (
-        db.query.return_value.filter.return_value.filter.return_value
-        .order_by.return_value.all.return_value
+        db.query.return_value.filter.return_value.filter.return_value.order_by.return_value.all.return_value
     ) = [message]
     service = ThreadSummarizationService(db=db)
     return service, thread
@@ -31,17 +30,15 @@ def _service_with_thread():
 @pytest.mark.asyncio
 async def test_fallback_path_sets_rate_limit():
     service, thread = _service_with_thread()
-    with patch(
-        "src.services.threads.thread_summarization_service.settings"
-    ) as settings, patch.object(
-        service, "_format_messages_for_prompt", return_value="x"
-    ), patch.object(
-        service, "_generate_fallback_summary", return_value="fallback summary"
-    ), patch.object(
-        service, "_update_thread_summary"
-    ) as update, patch.object(
-        service, "_set_rate_limit"
-    ) as set_rl:
+    with (
+        patch("src.services.threads.thread_summarization_service.settings") as settings,
+        patch.object(service, "_format_messages_for_prompt", return_value="x"),
+        patch.object(
+            service, "_generate_fallback_summary", return_value="fallback summary"
+        ),
+        patch.object(service, "_update_thread_summary") as update,
+        patch.object(service, "_set_rate_limit") as set_rl,
+    ):
         settings.OPENAI_API_KEY = None
         settings.ANTHROPIC_API_KEY = None
         summary = await service.generate_summary(thread.id, force=True)
@@ -54,17 +51,17 @@ async def test_fallback_path_sets_rate_limit():
 @pytest.mark.asyncio
 async def test_timeout_path_sets_rate_limit():
     service, thread = _service_with_thread()
-    with patch(
-        "src.services.threads.thread_summarization_service.settings"
-    ) as settings, patch.object(
-        service, "_format_messages_for_prompt", return_value="x"
-    ), patch.object(
-        service, "_generate_with_openai", side_effect=asyncio.TimeoutError
-    ), patch.object(
-        service, "_generate_fallback_summary", return_value="fallback summary"
-    ), patch.object(
-        service, "_set_rate_limit"
-    ) as set_rl:
+    with (
+        patch("src.services.threads.thread_summarization_service.settings") as settings,
+        patch.object(service, "_format_messages_for_prompt", return_value="x"),
+        patch.object(
+            service, "_generate_with_openai", side_effect=asyncio.TimeoutError
+        ),
+        patch.object(
+            service, "_generate_fallback_summary", return_value="fallback summary"
+        ),
+        patch.object(service, "_set_rate_limit") as set_rl,
+    ):
         settings.OPENAI_API_KEY = "sk-test"
         settings.ANTHROPIC_API_KEY = None
         summary = await service.generate_summary(thread.id, force=True)
