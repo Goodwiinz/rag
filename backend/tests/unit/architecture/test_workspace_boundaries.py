@@ -92,7 +92,14 @@ _MIGRATED_ALLOWED = frozenset({"commit"})
 # flush-only. Empty = pre-migration baseline. Twin of ``MIGRATED_ROUTE_MODULES``
 # in ``tests/unit/services/threads/test_transaction_ownership.py``.
 MIGRATED_TO_UOW: frozenset[str] = frozenset(
-    {"collections", "members", "workspaces", "conversations", "threads"}
+    {
+        "collections",
+        "members",
+        "workspaces",
+        "conversations",
+        "threads",
+        "messages",
+    }
 )
 
 

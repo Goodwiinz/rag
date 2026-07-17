@@ -919,13 +919,17 @@ class ChatService:
         """Update message feedback. Returns ``None`` on not-found *or*
         insufficient permission (get_message only checks read access;
         writing feedback requires edit rights), matching this class's
-        pre-4.3 undifferentiated result."""
+        pre-4.3 undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes)."""
         try:
-            return await message_service.update_message_feedback(
+            result = await message_service.update_message_feedback(
                 self.db, message_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_message(self, message_id: UUID, user_id: UUID) -> bool:
         """Soft delete message.
@@ -944,6 +948,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted message: {message_id}")
         return bool(result)

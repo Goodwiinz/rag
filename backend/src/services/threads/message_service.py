@@ -206,7 +206,7 @@ async def update_message_feedback(
         message.feedback_text = data.feedback_text
 
     message.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     # No db.refresh(): every mutated field is a Python-side assignment already
     # reflecting final state, and a bare refresh() would expire the
     # citations/attachments eager-loaded above (untouched by this mutation)
@@ -251,5 +251,5 @@ async def delete_message(
     message.is_deleted = True
     message.updated_at = datetime.utcnow()
     message.thread.message_count = max((message.thread.message_count or 1) - 1, 0)
-    await db.commit()
+    await db.flush()
     return True

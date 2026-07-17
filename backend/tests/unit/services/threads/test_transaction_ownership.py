@@ -187,10 +187,12 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "delete_thread": frozenset({"flush"}),
     },
     "message_service": {
+        # PR 3 Task 3.2 (messages flip): commit -> flush; messages.py route +
+        # ChatService delegates own the request commit.
         "get_message": frozenset(),
         "list_messages": frozenset(),
-        "update_message_feedback": frozenset({"commit"}),  # deliberately no refresh()
-        "delete_message": frozenset({"commit"}),
+        "update_message_feedback": frozenset({"flush"}),  # deliberately no refresh()
+        "delete_message": frozenset({"flush"}),
     },
     "collection_service": {
         # PR 3 Task 3.2 (collections flip): commit -> flush; route/ChatService
@@ -358,6 +360,9 @@ CHAT_DIRECT_TXN: Dict[str, FrozenSet[str]] = {
     #    threads.py caller owns the commit) --
     "update_thread": frozenset({"commit"}),
     "delete_thread": frozenset({"commit"}),
+    # -- messages flip --
+    "update_message_feedback": frozenset({"commit"}),
+    "delete_message": frozenset({"commit"}),
 }
 
 # Every other ChatService method delegates to a leaf service (or is read-only)
@@ -377,8 +382,6 @@ CHAT_PURE_DELEGATES: FrozenSet[str] = frozenset(
         "_filter_owned_document_ids",
         "get_message",
         "list_messages",
-        "update_message_feedback",
-        "delete_message",
         "get_collection",
         "list_collections",
         "get_thread_context",
@@ -452,7 +455,14 @@ class TestChatServiceTransactionOwnership:
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
 MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset(
-    {"collections", "members", "workspaces", "conversations", "threads"}
+    {
+        "collections",
+        "members",
+        "workspaces",
+        "conversations",
+        "threads",
+        "messages",
+    }
 )
 
 
