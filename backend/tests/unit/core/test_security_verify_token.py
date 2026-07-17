@@ -27,11 +27,7 @@ from jose import jwt
 
 import src.core.security as security
 from src.core.config import settings
-from src.core.security import (
-    TokenData,
-    get_current_user_token,
-    verify_token,
-)
+from src.core.security import TokenData, get_current_user_token, verify_token
 
 _SUPABASE_SECRET = "supabase-test-shared-secret-32chars!!"
 _SUPABASE_URL = "https://test-project.supabase.co"
@@ -202,7 +198,9 @@ def test_es256_algorithm_confusion_rejected(monkeypatch, es256_keypair):
 
     header = _b64(json.dumps({"alg": "HS256", "typ": "JWT", "kid": kid}).encode())
     payload = _b64(
-        json.dumps({"sub": "attacker", "aud": "authenticated", "exp": _exp(60)}).encode()
+        json.dumps(
+            {"sub": "attacker", "aud": "authenticated", "exp": _exp(60)}
+        ).encode()
     )
     signing_input = header + b"." + payload
     sig = _b64(hmac.new(pub_pem.encode(), signing_input, hashlib.sha256).digest())
