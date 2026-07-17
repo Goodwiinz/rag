@@ -140,23 +140,29 @@ async def test_get_citation_rejects_inaccessible_private_document():
 
 
 @pytest.mark.asyncio
-async def test_list_citations_excludes_inaccessible_private_document_rows():
+async def test_list_citations_applies_access_filter_in_sql():
+    """Access filtering moved from Python into the SQL statement (W-A3).
+
+    A mock DB can't evaluate the WHERE clause, so assert the emitted
+    statements carry the access predicates and SQL-level pagination; the
+    behavioral exclusion cases are covered by real-DB integration tests
+    (tests/integration/test_citations_api.py::TestCitationTenancy).
+    """
     current_user = _make_user()
-    owned_doc = _make_document(uploaded_by_user_id=current_user.id, is_public=False)
-    other_private_doc = _make_document(uploaded_by_user_id=uuid4(), is_public=False)
-    visible_citation = _make_citation(document_id=owned_doc.id, document=owned_doc)
-    hidden_citation = _make_citation(
-        document_id=other_private_doc.id,
-        document=other_private_doc,
+    visible_citation = _make_citation(
+        document=_make_document(uploaded_by_user_id=current_user.id),
     )
 
+    executed = []
+
+    async def capture_execute(statement):
+        executed.append(str(statement).lower())
+        if len(executed) == 1:  # count query
+            return _result(scalar=1)
+        return _result(scalars=[visible_citation])
+
     db = AsyncMock()
-    db.execute = AsyncMock(
-        side_effect=[
-            _result(rows=[(visible_citation.id,), (hidden_citation.id,)]),
-            _result(scalars=[visible_citation, hidden_citation]),
-        ]
-    )
+    db.execute = AsyncMock(side_effect=capture_execute)
 
     response = await citations_api.list_citations(
         skip=0,
@@ -167,7 +173,12 @@ async def test_list_citations_excludes_inaccessible_private_document_rows():
 
     assert response.total == 1
     assert len(response.citations) == 1
-    assert response.citations[0].id == visible_citation.id
+    count_sql, list_sql = executed
+    for sql in (count_sql, list_sql):
+        assert "is_public" in sql
+        assert "uploaded_by_user_id" in sql
+        assert "owner_id" in sql
+    assert "limit" in list_sql and "offset" in list_sql
 
 
 @pytest.mark.asyncio
