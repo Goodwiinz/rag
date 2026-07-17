@@ -173,11 +173,12 @@ async def test_generate_draft_reuses_active_generation():
 
     project_id = uuid4()
     active = {"task_id": "abc123", "status": "generating"}
-    with patch.object(
-        DraftGenerationService, "get_latest_status", return_value=active
-    ) as get_status, patch.object(
-        DraftGenerationService, "_fire_and_forget"
-    ) as fire:
+    with (
+        patch.object(
+            DraftGenerationService, "get_latest_status", return_value=active
+        ) as get_status,
+        patch.object(DraftGenerationService, "_fire_and_forget") as fire,
+    ):
         result = await service.generate_draft(
             project_id=project_id,
             user_id=uuid4(),

@@ -110,7 +110,9 @@ async def test_happy_path_completes_through_patched_session():
     bg_session = _make_bg_session(documents)
 
     service = DraftGenerationService(MagicMock())
-    service._build_draft_content = AsyncMock(return_value=("Findings from [Doc 1].", False))
+    service._build_draft_content = AsyncMock(
+        return_value=("Findings from [Doc 1].", False)
+    )
 
     patcher = _patch_session_factory(bg_session)
     try:
