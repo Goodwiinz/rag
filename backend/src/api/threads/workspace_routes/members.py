@@ -1,8 +1,10 @@
 """
 Workspace member management endpoints (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``; Task 4.3 moved the
-persistence logic into ``src/services/threads/workspace_service.py`` — this
-module is transport only).
+persistence logic into ``src/services/threads/workspace_service.py``; PR 3
+Task 3.2 moved the single request commit UP to these handlers — the member
+service functions flush, each mutating handler ends with one
+``await db.commit()``). Transport + transaction-boundary only.
 """
 
 from uuid import UUID
@@ -52,6 +54,7 @@ async def add_workspace_member(
     if not member:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    await db.commit()
     return _member_to_response(member)
 
 
@@ -77,6 +80,7 @@ async def update_member_role(
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
 
+    await db.commit()
     return _member_to_response(member)
 
 
@@ -100,3 +104,5 @@ async def remove_workspace_member(
         raise HTTPException(status_code=400, detail=str(exc))
     if not removed:
         raise HTTPException(status_code=404, detail="Member not found")
+
+    await db.commit()

@@ -161,9 +161,10 @@ LEAF_TXN: Dict[str, Dict[str, FrozenSet[str]]] = {
         "list_workspaces": frozenset(),
         "update_workspace": frozenset({"commit"}),  # deliberately no refresh()
         "delete_workspace": frozenset({"commit"}),
-        "add_member": frozenset({"commit"}),
-        "update_member_role": frozenset({"commit"}),
-        "remove_member": frozenset({"commit"}),
+        # PR 3 Task 3.2 (members flip): commit -> flush; members.py owns commit.
+        "add_member": frozenset({"flush"}),
+        "update_member_role": frozenset({"flush"}),
+        "remove_member": frozenset({"flush"}),
     },
     "conversation_service": {
         "create_conversation": frozenset({"commit"}),
@@ -437,7 +438,7 @@ class TestChatServiceTransactionOwnership:
 # flips its leaf service to flush-only. Empty = pre-move baseline (every router
 # still owns nothing). This is the freeze twin of ``MIGRATED_TO_UOW`` in
 # ``tests/unit/architecture/test_workspace_boundaries.py``; both advance together.
-MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset({"collections"})
+MIGRATED_ROUTE_MODULES: FrozenSet[str] = frozenset({"collections", "members"})
 
 
 class TestRouteLayerOwnsNoTransaction:
