@@ -2,7 +2,8 @@
 
 1. reprocess_file reset status to PENDING but created no ProcessingJob and
    enqueued no task — the document sat PENDING forever while the API reported
-   success. It must create + .delay() a job like documents.py does.
+   success. It must create a job and register a post-commit enqueue (via
+   enqueue_after_commit) like documents.py does.
 2. cancel_upload compared JobStatus (a plain PyEnum) to lowercase strings, so
    `status not in ["pending","running"]` was always True and every cancel
    early-returned; the real cancel block was dead.
@@ -55,7 +56,9 @@ def test_reprocess_creates_job_and_enqueues():
     org = MagicMock()
     org.id = uuid.uuid4()
 
-    with patch("src.tasks.processing_tasks.process_document_ingestion") as task:
+    with patch(
+        "src.tasks.processing_tasks.process_document_ingestion"
+    ) as task, patch("src.tasks.enqueue.enqueue_after_commit") as enqueue:
         resp = asyncio.run(
             files_mod.reprocess_file(
                 str(document.id),
@@ -65,9 +68,12 @@ def test_reprocess_creates_job_and_enqueues():
             )
         )
 
-    # A job was added and the Celery task dispatched — not a bare status reset.
+    # A job was added and a post-commit enqueue registered for the ingestion
+    # task — not a bare status reset, and not a pre-commit .delay().
     db.add.assert_called_once()
-    task.delay.assert_called_once()
+    enqueue.assert_called_once()
+    enq_args = enqueue.call_args.args
+    assert enq_args[0] is db and enq_args[1] is task
     db.commit.assert_awaited_once()
     assert "job_id" in resp
 
