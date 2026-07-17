@@ -2035,10 +2035,14 @@ async def _tool_summarize_document(
                 ]
             )
             summary = response.content
-        except Exception:
-            # Fallback: first 500 words
-            words = text.split()
-            summary = " ".join(words[:500]) + ("..." if len(words) > 500 else "")
+        except Exception as llm_exc:
+            # Don't dress raw truncated text up as an LLM summary — same
+            # reasoning as compare_documents: success-shaped fallback makes
+            # the agent present a non-summary as a real one.
+            logger.warning("summarize_document LLM call failed", exc_info=llm_exc)
+            return {
+                "error": "Document summary could not be generated due to a model error. Please retry."
+            }
 
         return {
             "summary": summary,
