@@ -22,6 +22,7 @@ pytestmark = pytest.mark.asyncio
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _mock_user(org_id=None):
     user = Mock()
     user.id = uuid4()
@@ -195,8 +196,8 @@ class TestIngestArxiv:
 
     async def test_ingested_pdf_is_persisted_to_s3(self, tmp_path):
         """A downloaded arXiv PDF must survive the pod that downloaded it."""
-        from src.services.agent.tools_impl import _tool_ingest_arxiv
         from src.core.config import settings
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         pdf_path = tmp_path / "2601.05264v1.pdf"
@@ -264,9 +265,9 @@ class TestIngestArxiv:
 
     async def test_abstract_only_paper_persists_as_text_in_s3(self):
         """A transient PDF failure must not abort metadata-only ingestion."""
-        from src.services.agent.tools_impl import _tool_ingest_arxiv
         from src.core.config import settings
         from src.models.document import DocumentType
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         ingested_doc = Mock()
@@ -329,8 +330,8 @@ class TestIngestArxiv:
 
     async def test_storage_is_deleted_when_document_transaction_fails(self, tmp_path):
         """Object promotion must be compensated when the DB row rolls back."""
-        from src.services.agent.tools_impl import _tool_ingest_arxiv
         from src.core.config import settings
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         user = _mock_user()
         pdf_path = tmp_path / "2601.00002v1.pdf"
@@ -607,7 +608,9 @@ class TestExecuteToolDispatch:
 
         mock_handler.assert_awaited_once()
         # keyword-only handler — routing must pass query + user_id through
-        assert mock_handler.await_args.kwargs["query"] == "forget my transformer searches"
+        assert (
+            mock_handler.await_args.kwargs["query"] == "forget my transformer searches"
+        )
         assert mock_handler.await_args.kwargs["user_id"] == "user-1"
         assert result.get("status") == "completed"
         assert "error" not in result  # must NOT be the "Unknown tool" catch-all
@@ -708,9 +711,7 @@ class TestCreateProject:
             "src.services.research.project_service.ProjectService",
             return_value=service,
         ):
-            result = await _tool_create_project(
-                {"name": "X"}, MockAsyncSession(), user
-            )
+            result = await _tool_create_project({"name": "X"}, MockAsyncSession(), user)
 
         assert "error" in result
         assert "workspace" in result["error"].lower()
@@ -788,9 +789,7 @@ class TestListProjects:
 
         user = _mock_user()
         service = MagicMock()
-        service.list_projects = AsyncMock(
-            return_value={"projects": [], "total": 0}
-        )
+        service.list_projects = AsyncMock(return_value={"projects": [], "total": 0})
 
         with patch(
             "src.services.research.project_service.ProjectService",
