@@ -32,6 +32,27 @@ the chat route imports no `@/services/*` module directly, and
 `chat-store.ts` stays under its line-count ceiling and only composes slice
 creators (no new state or a `create...Slice` defined inline).
 
+## Server-state ownership
+
+One cache owner per server entity. Server state is request-backed data the
+backend owns; each entity has exactly **one** client-side cache, never two.
+
+- **TanStack Query owns request-backed server state** — documents, analytics,
+  workspace-data reads. If it comes from an endpoint and isn't the chat
+  transcript, Query caches it.
+- **The chat Zustand store (`@/store/chat-store`) is the one sanctioned
+  exception** — the server-canonical owner of the chat transcript
+  (workspaces/conversations/threads/messages). The backend is still the
+  writer; the store is the client cache, and it's the *only* server entity
+  that lives outside Query. See [Chat state ownership](#chat-state-ownership).
+- **Never dual-cache the same entity** in Query and the store. If some future
+  need genuinely requires both, it demands an explicit written reconciliation
+  contract (who wins, when each invalidates) — not two caches drifting apart.
+- **Server Actions must not become a third cache.** If Next Server Actions are
+  ever adopted for reads/writes, each carries its own authz check and
+  participates in coordinated revalidation — it does not shadow-cache what
+  Query or the store already owns.
+
 ## Canonical writer + terminal reconciliation
 
 - The backend is the sole persisted-chat writer. A hook that already
