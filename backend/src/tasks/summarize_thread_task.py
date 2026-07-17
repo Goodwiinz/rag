@@ -12,7 +12,7 @@ from uuid import UUID
 # Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from celery import Task, current_app, group
+from celery import Task, current_app
 
 from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as SATimeoutError
@@ -120,47 +120,7 @@ def summarize_thread_on_resolve_task(self, thread_id: str) -> None:
     summarize_thread_task.delay(thread_id, force=True)
 
 
-@current_app.task(name="tasks.batch_summarize_threads")
-def batch_summarize_threads_task(thread_ids: list[str]) -> dict:
-    """
-    Batch summarize multiple threads in parallel.
-
-    Uses Celery group to dispatch all summarization tasks concurrently,
-    improving throughput and reducing total execution time.
-
-    Args:
-        thread_ids: List of thread UUIDs as strings
-
-    Returns:
-        Dict with success/failure counts
-    """
-    results = {
-        "total": len(thread_ids),
-        "success": 0,
-        "failed": 0,
-        "skipped": 0,
-    }
-
-    # Create parallel task group
-    job = group(
-        summarize_thread_task.s(thread_id, force=False) for thread_id in thread_ids
-    )
-
-    try:
-        # Execute in parallel with 5 minute timeout
-        group_result = job.apply_async()
-        task_results = group_result.get(timeout=300)
-
-        # Aggregate results
-        for task_result in task_results:
-            if task_result:  # Summary was generated
-                results["success"] += 1
-            else:  # Summary was skipped (e.g., already exists)
-                results["skipped"] += 1
-
-    except Exception as e:
-        logger.error(f"Batch summarization failed: {e}")
-        results["failed"] = len(thread_ids) - results["success"] - results["skipped"]
-
-    logger.info(f"Batch summarization complete: {results}")
-    return results
+# batch_summarize_threads_task was deleted (writing-surface audit W-B5): it
+# blocked on group(...).get() inside a task body — the documented Celery
+# deadlock anti-pattern — and had no callers anywhere in the repo. Callers
+# that need batching can dispatch summarize_thread_task per thread directly.

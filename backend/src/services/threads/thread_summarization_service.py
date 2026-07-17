@@ -239,13 +239,17 @@ class ThreadSummarizationService:
                     self._set_rate_limit(thread_id)
                     return summary
 
-            # No API keys configured, use fallback
+            # No API keys configured, use fallback. Still set the rate limit:
+            # without it every eligible turn regenerates + commits the summary
+            # (the only-Azure-keys dev config always lands here).
             summary = self._generate_fallback_summary(messages)
             self._update_thread_summary(thread, summary)
+            self._set_rate_limit(thread_id)
             return summary
 
         except asyncio.TimeoutError:
             logger.warning(f"Summary generation timed out for thread {thread_id}")
+            self._set_rate_limit(thread_id)
             return self._generate_fallback_summary(messages)
         except Exception as e:
             logger.error(f"Summary generation failed for thread {thread_id}: {e}")
