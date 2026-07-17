@@ -25,7 +25,8 @@ Contract under test:
 import uuid
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import patch
+from typing import Iterator
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine
@@ -35,7 +36,7 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def session_factory():
+def session_factory() -> Iterator[sessionmaker]:
     from src.models.processing import ProcessingJob
 
     engine = create_engine("sqlite:///:memory:")
@@ -46,15 +47,15 @@ def session_factory():
 
 
 def _seed(
-    factory,
+    factory: sessionmaker,
     *,
-    status,
-    job_type=None,
-    celery_task_id=None,
-    updated_at,
-    is_deleted=False,
-    retry_count=0,
-):
+    status: object,
+    job_type: object = None,
+    celery_task_id: str | None = None,
+    updated_at: datetime,
+    is_deleted: bool = False,
+    retry_count: int = 0,
+) -> uuid.UUID:
     from src.models.processing import JobType, ProcessingJob
 
     job_id = uuid.uuid4()
@@ -77,7 +78,12 @@ def _seed(
     return job_id
 
 
-def _settings(enabled=True, after_minutes=10, max_attempts=3, max_per_run=100):
+def _settings(
+    enabled: bool = True,
+    after_minutes: int = 10,
+    max_attempts: int = 3,
+    max_per_run: int = 100,
+) -> SimpleNamespace:
     return SimpleNamespace(
         LOST_JOB_RECONCILER_ENABLED=enabled,
         LOST_JOB_RECONCILE_AFTER_MINUTES=after_minutes,
@@ -86,7 +92,9 @@ def _settings(enabled=True, after_minutes=10, max_attempts=3, max_per_run=100):
     )
 
 
-def _run(factory, settings):
+def _run(
+    factory: sessionmaker, settings: SimpleNamespace
+) -> "tuple[dict[str, int], MagicMock]":
     from src.tasks import reconcile_jobs
 
     with (
@@ -103,7 +111,9 @@ OLD = NAIVE_NOW - timedelta(minutes=30)
 RECENT = NAIVE_NOW - timedelta(minutes=2)
 
 
-def test_lost_document_job_reenqueued_with_default_routing(session_factory):
+def test_lost_document_job_reenqueued_with_default_routing(
+    session_factory: sessionmaker,
+) -> None:
     from src.models.processing import JobStatus, JobType, ProcessingJob
 
     job_id = _seed(
@@ -125,7 +135,7 @@ def test_lost_document_job_reenqueued_with_default_routing(session_factory):
         assert job.retry_count == 1
 
 
-def test_lost_kg_job_reenqueued_on_entity_queue(session_factory):
+def test_lost_kg_job_reenqueued_on_entity_queue(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, JobType
 
     job_id = _seed(
@@ -144,7 +154,7 @@ def test_lost_kg_job_reenqueued_on_entity_queue(session_factory):
     )
 
 
-def test_ineligible_rows_untouched(session_factory):
+def test_ineligible_rows_untouched(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, ProcessingJob
 
     dispatched = _seed(
@@ -174,7 +184,7 @@ def test_ineligible_rows_untouched(session_factory):
         assert db.get(ProcessingJob, deleted).status is JobStatus.PENDING
 
 
-def test_gives_up_and_fails_after_max_attempts(session_factory):
+def test_gives_up_and_fails_after_max_attempts(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, ProcessingJob
 
     exhausted = _seed(
@@ -196,7 +206,7 @@ def test_gives_up_and_fails_after_max_attempts(session_factory):
         assert job.completed_at is not None
 
 
-def test_unknown_job_type_skipped_not_failed(session_factory):
+def test_unknown_job_type_skipped_not_failed(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, JobType, ProcessingJob
 
     # CLEANUP has no re-enqueue mapping (never produced by a post-commit site).
@@ -217,7 +227,7 @@ def test_unknown_job_type_skipped_not_failed(session_factory):
         assert db.get(ProcessingJob, job_id).status is JobStatus.PENDING
 
 
-def test_double_run_is_idempotent(session_factory):
+def test_double_run_is_idempotent(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, ProcessingJob
 
     job_id = _seed(session_factory, status=JobStatus.PENDING, updated_at=OLD)
@@ -234,7 +244,7 @@ def test_double_run_is_idempotent(session_factory):
         assert db.get(ProcessingJob, job_id).retry_count == 1
 
 
-def test_gated_by_flag(session_factory):
+def test_gated_by_flag(session_factory: sessionmaker) -> None:
     from src.models.processing import JobStatus, ProcessingJob
 
     job_id = _seed(session_factory, status=JobStatus.PENDING, updated_at=OLD)
