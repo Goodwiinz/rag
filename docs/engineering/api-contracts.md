@@ -60,8 +60,9 @@ together — never `go install` at CI time, never pipe curl to a shell.
   generated schema, not a mandate to migrate every type at once.
   `frontend/src/types/README.md` lists current adopters
   (`services/documentAnalyticsApi.ts`, `services/workspaceService.ts`).
-- Where a generated field is looser than the frontend needs (a JSONB
-  passthrough column typed `Record<string, unknown>[]`) or stricter than
+- Where a generated field is looser than the frontend needs (a JSONB column
+  the backend deliberately leaves as an untyped passthrough, so it generates
+  as `Record<string, unknown>[]`) or stricter than
   the wire contract actually requires (`openapi-typescript`'s
   `defaultNonNullable` marks any Pydantic-defaulted field as required, even
   though a caller may still omit it), narrow or relax it with an explicit
@@ -69,7 +70,12 @@ together — never `go install` at CI time, never pipe curl to a shell.
   `as unknown as` — that's exactly the drift this pipeline exists to catch.
 - Frontend-only concepts (streaming frames, planner steps, optimistic ids,
   UI enums, view models) stay hand-written; only wire request/response
-  shapes are candidates for aliasing.
+  shapes are candidates for aliasing. Note: JSONB itself is not the reason a
+  type stays hand-written — a typed JSONB column can be modeled in Pydantic
+  and flows through the generated schema like any other field. Hand-written
+  types are reserved for intentionally-opaque JSON (where the backend
+  deliberately declines to type the column) and view-model shapes, not for
+  "JSONB can't be typed".
 
 ## Commands
 

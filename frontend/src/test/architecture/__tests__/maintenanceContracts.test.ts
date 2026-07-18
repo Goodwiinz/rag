@@ -79,6 +79,26 @@ describe('chat-store.ts stays a facade', () => {
   });
 });
 
+describe('chat store owns transcript state, not TanStack Query', () => {
+  // Server-state ownership contract (docs/engineering/frontend.md): the chat
+  // Zustand store is the server-canonical transcript owner and the one
+  // sanctioned exception to "Query owns server state" -- so it must not itself
+  // reach into @tanstack/react-query. This is the mechanical half only; the
+  // rest of the rule ("no dual-caching the same entity across Query and the
+  // store") is review guidance, not machine-checked -- a heuristic analyzer
+  // for it would be more false-positives than value (YAGNI).
+  it('no file under src/store/chat/ (or chat-store.ts) imports @tanstack/react-query', () => {
+    const files = ['src/store/chat-store.ts', ...walk('src/store/chat')];
+    // Match real import statements only -- a comment or string mentioning the
+    // package must not fail the guard (same precedent as the generated-types
+    // guard below).
+    const importPattern =
+      /(?:from|import\(?)\s*['"]@tanstack\/react-query['"]/;
+    const offenders = files.filter((relPath) => importPattern.test(read(relPath)));
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('presentation components under components/chat', () => {
   it('never import generated OpenAPI types directly when a domain adapter exists', () => {
     // frontend/src/types/api/workspace-contract.ts (+ services/workspaceService.ts)

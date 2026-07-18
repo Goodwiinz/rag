@@ -1,13 +1,19 @@
 # Chat store/hook guard mutation checks
 
 Task 5.5 mutation-verifies the critical async-reconciliation and
-single-flight guards identified in recon (`chatfe.guards`). For each guard
+single-flight guards identified in recon (`chatfe.guards`) — **7 guard groups**
+(1, 2, 3, 4a, 4b, 5, 6) below, each with its own covering test. For each guard
 below the check was: temporarily disable the guard on disk (comment it out),
 run the named focused command and confirm it fails with the assertion shown,
 restore the guard by editing back to the original text, confirm `git diff`
 on the file is empty (byte-identical to HEAD), then rerun the command and
 confirm it passes. No guard's source was left modified — see the commit for
 this task, which touches tests and this doc only.
+
+The deterministic interleaving harness (`frontend/src/test/concurrency/`, PR
+"test: deterministic interleaving harness") will be the living successor to this
+one-time manual verification once that PR lands — `pnpm test:mutants` will be the
+automated spot-check that keeps these guards honest without hand-editing source.
 
 The plan's literal Task 5.5 file list names two covering-test files:
 `frontend/src/store/__tests__/chat-store-refresh.test.ts` (items 1 and 2 —
