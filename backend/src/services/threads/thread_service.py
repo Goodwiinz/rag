@@ -6,13 +6,17 @@ Canonical owner for thread CRUD — the router-inline copy in
 standalone) and ``ChatService``'s thread methods both implemented this
 independently; this is now the one implementation.
 
+PR 3 Task 3.2: these functions no longer own the request commit — they
+``flush()`` and the route (or, for ChatService's own callers, the ChatService
+method) issues the single ``await db.commit()`` at the end of the mutating
+path. The old ``commit: bool`` flag on ``create_thread`` is gone (create is now
+unconditionally flush-only, which is exactly what its live ``threads.py`` caller
+already relied on — that route does further work, project auto-link + WS
+broadcast, then commits once). ``update_thread``'s resolve-summary enqueue moved
+to ``enqueue_after_commit`` so it fires on the caller's commit, not at flush.
+
 Divergence flags (Task 4.3 amendment A2):
 
-- ``commit`` (create): old ``ChatService.create_thread`` only flushed,
-  leaving the commit to its caller (``threads.py``, live, does further work
-  — project auto-link, WS broadcast — in the same request before
-  committing). The router-inline create endpoints committed immediately.
-  Default ``False`` (old/flush-only), router canonical passes ``True``.
 - ``trigger_resolve_summary`` (update, status -> RESOLVED): pre-4.3,
   ``ChatService.update_thread`` compared ``data.status`` (``schemas.chat.
   ThreadStatus``) directly against ``src.models.ThreadStatus.RESOLVED`` —
@@ -51,6 +55,7 @@ from src.models.chat_message import ChatMessage, MessageRole
 from src.models.thread import Thread, ThreadStatus
 from src.schemas.chat import ThreadCreate, ThreadUpdate
 from src.services.threads import workspace_access
+from src.tasks.enqueue import enqueue_after_commit
 
 logger = structlog.get_logger(__name__)
 
@@ -84,7 +89,6 @@ async def create_thread(
     user_id: UUID,
     *,
     workspace_id: Optional[UUID] = None,
-    commit: bool = False,
 ) -> Optional[Thread]:
     """Create a thread (+ optional initial message). ``None`` if the
     conversation isn't found/accessible; raises ``PermissionError`` if found
@@ -123,10 +127,11 @@ async def create_thread(
 
     conversation.update_activity()
 
-    if commit:
-        await db.commit()
-    else:
-        await db.flush()
+    # PR 3 Task 3.2: unconditionally flush (the old ``commit`` flag is gone).
+    # The caller owns the request commit — the live ``threads.py`` route flushes
+    # here, does further work (project auto-link, WS broadcast), then commits
+    # once; the workspace_routes create handlers commit right after this call.
+    await db.flush()
     await db.refresh(thread)
 
     logger.info("thread_created", thread_id=str(thread.id))
@@ -251,14 +256,21 @@ async def update_thread(
         thread.status = ThreadStatus(getattr(data.status, "value", data.status))
 
     thread.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     await db.refresh(thread)
 
     if status_changing_to_resolved:
         try:
             from src.tasks.summarize_thread_task import summarize_thread_on_resolve_task
 
-            summarize_thread_on_resolve_task.delay(str(thread_id))
+            # PR 3 Task 3.2: this leaf now flushes; the request commit is owned
+            # by the route / ChatService. Register the enqueue on the session so
+            # it fires on THAT commit (exactly once, dropped on rollback) rather
+            # than at flush time — the enqueue_after_commit invariant. Gated
+            # behind trigger_resolve_summary, which every current caller leaves
+            # False, so this path is dead today; the helper keeps it correct for
+            # whenever the flag is turned on.
+            enqueue_after_commit(db, summarize_thread_on_resolve_task, str(thread_id))
         except Exception as e:  # noqa: BLE001
             logger.warning(
                 "thread_resolve_summary_enqueue_failed",
@@ -305,7 +317,7 @@ async def delete_thread(
     if stamp_deleted_at:
         thread.deleted_at = datetime.utcnow()
     thread.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
 
     logger.info("thread_deleted", thread_id=str(thread_id))
     return True

@@ -107,6 +107,10 @@ class ChatService:
         workspace = await workspace_service.create_workspace(
             self.db, data, owner_id, user_organization_id, enforce_org_match=True
         )
+        # PR 3 Task 3.2: leaf now flushes; this delegate owns the request commit
+        # for its callers (the legacy conversations.py create endpoint issues no
+        # commit of its own). Removal condition: delete when that caller owns it.
+        await self.db.commit()
         logger.info(f"Created workspace: {workspace.id} - {workspace.name}")
         return workspace
 
@@ -160,13 +164,18 @@ class ChatService:
         self, workspace_id: UUID, data: WorkspaceUpdate, user_id: UUID
     ) -> Optional[Workspace]:
         """Update workspace. Returns ``None`` on not-found *or* insufficient
-        permission, matching this class's pre-4.3 undifferentiated result."""
+        permission, matching this class's pre-4.3 undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        conversations.py update endpoint owns no commit of its own."""
         try:
-            return await workspace_service.update_workspace(
+            result = await workspace_service.update_workspace(
                 self.db, workspace_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_workspace(self, workspace_id: UUID, user_id: UUID) -> bool:
         """Soft delete workspace.
@@ -182,6 +191,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted workspace: {workspace_id}")
         return bool(result)
@@ -209,6 +220,9 @@ class ChatService:
             )
         except PermissionError:
             return None
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        # conversations.py create endpoint owns no commit of its own.
+        await self.db.commit()
         if conversation:
             logger.info(
                 f"Created conversation: {conversation.id} - {conversation.title}"
@@ -258,13 +272,17 @@ class ChatService:
     ) -> Optional[Conversation]:
         """Update conversation. Returns ``None`` on not-found *or*
         insufficient permission, matching this class's pre-4.3
-        undifferentiated result."""
+        undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes)."""
         try:
-            return await conversation_service.update_conversation(
+            result = await conversation_service.update_conversation(
                 self.db, conversation_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_conversation(self, conversation_id: UUID, user_id: UUID) -> bool:
         """Soft delete conversation.
@@ -287,6 +305,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted conversation: {conversation_id}")
         return bool(result)
@@ -300,18 +320,17 @@ class ChatService:
     ) -> Optional[Thread]:
         """Create a new thread in a conversation.
 
-        Delegates with ``commit=False`` (flush only) — this class's pre-4.3
-        behavior left the commit to its own caller (``threads.py`` does
-        further work — project auto-link, WS broadcast — in the same
-        request before committing). The router-inline create endpoints
-        commit immediately and pass ``commit=True``. Returns ``None`` on
-        not-found *or* insufficient permission, matching the pre-4.3
-        undifferentiated result.
+        Flush-only (the leaf's ``commit`` flag was removed in PR 3 Task 3.2;
+        ``create_thread`` is now unconditionally flush-only). This class does
+        NOT commit here — its live caller (``src/api/threads/threads.py``) does
+        further work (project auto-link, WS broadcast) in the same request and
+        then owns the single ``await db.commit()``. Adding a commit here would
+        split that atomic unit and fire the WS broadcast against a not-yet-
+        committed thread. Returns ``None`` on not-found *or* insufficient
+        permission, matching the pre-4.3 undifferentiated result.
         """
         try:
-            thread = await thread_service.create_thread(
-                self.db, data, user_id, commit=False
-            )
+            thread = await thread_service.create_thread(self.db, data, user_id)
         except PermissionError:
             return None
         if thread:
@@ -359,11 +378,20 @@ class ChatService:
         (``False``) — this class's pre-4.3 resolve-trigger comparison
         compared mismatched Enum classes and never actually fired; see
         ``thread_service.update_thread``'s docstring (Task 4.3 amendment
-        A2)."""
+        A2).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes) — the legacy
+        threads.py PATCH endpoint issues no commit of its own. The leaf's
+        resolve-summary enqueue (dead under the default flag) is registered via
+        enqueue_after_commit, so it would fire on THIS commit."""
         try:
-            return await thread_service.update_thread(self.db, thread_id, data, user_id)
+            result = await thread_service.update_thread(
+                self.db, thread_id, data, user_id
+            )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_thread(self, thread_id: UUID, user_id: UUID) -> bool:
         """Soft delete thread.
@@ -380,6 +408,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted thread: {thread_id}")
         return bool(result)
@@ -889,13 +919,17 @@ class ChatService:
         """Update message feedback. Returns ``None`` on not-found *or*
         insufficient permission (get_message only checks read access;
         writing feedback requires edit rights), matching this class's
-        pre-4.3 undifferentiated result."""
+        pre-4.3 undifferentiated result.
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes)."""
         try:
-            return await message_service.update_message_feedback(
+            result = await message_service.update_message_feedback(
                 self.db, message_id, data, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return result
 
     async def delete_message(self, message_id: UUID, user_id: UUID) -> bool:
         """Soft delete message.
@@ -914,6 +948,8 @@ class ChatService:
             )
         except PermissionError:
             return False
+        # PR 3 Task 3.2: delegate-then-commit (leaf now flushes).
+        await self.db.commit()
         if result:
             logger.info(f"Deleted message: {message_id}")
         return bool(result)
@@ -933,6 +969,12 @@ class ChatService:
         method has zero production callers, so there is no existing insecure
         behavior worth preserving via a flag; see
         ``collection_service``'s module docstring).
+
+        PR 3 Task 3.2: the leaf now flushes, so this delegate owns the request
+        commit (delegate-then-commit) — external behavior identical (persisted
+        on return). Kept faithful even though this method is currently
+        caller-less. Removal condition: delete the commit when/if this delegate
+        is deleted or its (currently non-existent) callers own the commit.
         """
         try:
             collection = await collection_service.create_collection(
@@ -940,6 +982,7 @@ class ChatService:
             )
         except PermissionError:
             return None
+        await self.db.commit()
         if collection:
             logger.info(f"Created collection: {collection.id} - {collection.name}")
         return collection
@@ -969,13 +1012,19 @@ class ChatService:
         per-document organization ownership before attaching (this method
         has zero production callers, so there is no existing insecure
         behavior worth preserving via a flag).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes); external
+        behavior identical. Removal condition: delete the commit when this
+        delegate is removed or its callers own the commit.
         """
         try:
-            return await collection_service.add_documents_to_collection(
+            collection = await collection_service.add_documents_to_collection(
                 self.db, collection_id, document_ids, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return collection
 
     async def remove_documents_from_collection(
         self, collection_id: UUID, document_ids: List[UUID], user_id: UUID
@@ -987,13 +1036,19 @@ class ChatService:
         implementation hard-deleted them; zero production callers, so there
         is no existing behavior worth preserving via a flag — soft-delete
         also matches every other delete in this schema).
+
+        PR 3 Task 3.2: delegate-then-commit (leaf now flushes); external
+        behavior identical. Removal condition: delete the commit when this
+        delegate is removed or its callers own the commit.
         """
         try:
-            return await collection_service.remove_documents_from_collection(
+            collection = await collection_service.remove_documents_from_collection(
                 self.db, collection_id, document_ids, user_id
             )
         except PermissionError:
             return None
+        await self.db.commit()
+        return collection
 
     # =========================================================================
     # Utility Methods

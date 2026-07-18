@@ -92,7 +92,7 @@ async def create_workspace(
     db.add(
         WorkspaceMember(workspace=workspace, user_id=owner_id, role=WorkspaceRole.OWNER)
     )
-    await db.commit()
+    await db.flush()
 
     # Re-fetch with full eager load — the response/presenter reads
     # member/conversation/collection counts immediately after create.
@@ -174,7 +174,7 @@ async def update_workspace(
         workspace.is_archived = data.is_archived
 
     workspace.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     # No db.refresh(): every mutated field is a Python-side assignment
     # already reflecting final state, and a bare refresh() would expire the
     # members/conversations/collections eager-loaded above (untouched by
@@ -208,7 +208,7 @@ async def delete_workspace(
     if stamp_deleted_at:
         workspace.deleted_at = datetime.utcnow()
     workspace.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     return True
 
 
@@ -259,7 +259,7 @@ async def add_member(
         existing.invited_by_id = current_user_id
         existing.joined_at = datetime.utcnow()
         member = existing
-        await db.commit()
+        await db.flush()
     else:
         member = WorkspaceMember(
             workspace_id=workspace_id,
@@ -268,7 +268,7 @@ async def add_member(
             invited_by_id=current_user_id,
         )
         db.add(member)
-        await db.commit()
+        await db.flush()
         # A freshly-constructed member's `.user` was never loaded (it's a
         # many-to-one that would otherwise lazy-load on first access, which
         # MissingGreenlets under the async session) — re-fetch it eager-loaded
@@ -309,7 +309,7 @@ async def update_member_role(
 
     member.role = data.role
     member.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     # No db.refresh(): `.user` is eager-loaded above and untouched by this
     # mutation; refresh() would only expire it again (MissingGreenlet on the
     # presenter's next access under the async session).
@@ -346,5 +346,5 @@ async def remove_member(
 
     member.is_deleted = True
     member.deleted_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     return True

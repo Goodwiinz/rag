@@ -3,11 +3,16 @@ Message endpoints, nested and standalone (Task 4.2 split of the former
 monolithic ``backend/src/api/threads/workspaces.py``).
 
 Task 4.3 moved the read/update/delete persistence logic into
-``src/services/threads/message_service.py`` — this module is transport only
-for those three concerns. ``create_message``/``create_message_standalone``
-are unchanged: they already delegate to the canonical
-``ChatService.create_message`` (consolidated in #1051, audit finding C4) and
-are out of scope for this task.
+``src/services/threads/message_service.py``; PR 3 Task 3.2 moved the single
+request commit UP to the update/delete handlers — the message service flushes,
+those handlers end with one ``await db.commit()``.
+
+``create_message``/``create_message_standalone`` are unchanged and deliberately
+issue NO route commit: they delegate to the canonical
+``ChatService.create_message`` (consolidated in #1051, audit finding C4), which
+is a DIRECT transaction owner (commits internally, out of scope for this task).
+Adding a route commit there would double-commit. The read-only ``select(...)``
+re-fetch after that call is a response-shaping query, not a transaction.
 """
 
 from typing import Literal, Optional
@@ -194,6 +199,7 @@ async def update_message_feedback(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    await db.commit()
     return _message_to_response(message)
 
 
@@ -356,6 +362,7 @@ async def update_message_standalone(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    await db.commit()
     return _message_to_response(message)
 
 
@@ -376,3 +383,5 @@ async def delete_message_standalone(
         raise HTTPException(status_code=403, detail=str(exc))
     if not deleted:
         raise HTTPException(status_code=404, detail="Message not found")
+
+    await db.commit()

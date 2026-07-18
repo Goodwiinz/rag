@@ -90,7 +90,7 @@ async def create_collection(
                     )
                 )
 
-    await db.commit()
+    await db.flush()
     # A plain db.refresh() expires + lazy-reloads relationships, which
     # MissingGreenlets under the async session the moment a caller (e.g. the
     # presenter's document_count) touches `.documents`. Re-fetch with it
@@ -171,7 +171,7 @@ async def update_collection(
         collection.icon = data.icon
 
     collection.updated_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     await db.refresh(collection)
     return collection
 
@@ -199,7 +199,7 @@ async def delete_collection(
 
     collection.is_deleted = True
     collection.deleted_at = datetime.utcnow()
-    await db.commit()
+    await db.flush()
     return True
 
 
@@ -266,7 +266,7 @@ async def add_documents_to_collection(
                 )
             )
 
-    await db.commit()
+    await db.flush()
     # See create_collection: re-fetch with `.documents` eager-loaded rather
     # than db.refresh(), which would expire the relationship and
     # MissingGreenlet on next access under the async session.
@@ -316,7 +316,7 @@ async def remove_documents_from_collection(
             collection_doc.is_deleted = True
             collection_doc.deleted_at = datetime.utcnow()
 
-    await db.commit()
+    await db.flush()
     # See create_collection: re-fetch with `.documents` eager-loaded rather
     # than db.refresh(), which would expire the relationship and
     # MissingGreenlet on next access under the async session.
