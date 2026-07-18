@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from neo4j import AsyncSession
 
+from src.models.graph import EntityType
 from src.services.config.analytics_config import config
 from src.services.models.analytics_models import (
     AnomalyInsight,
@@ -23,7 +24,6 @@ from src.services.models.analytics_models import (
     KeyEntityInsight,
     PathStep,
 )
-from src.services.models.knowledge_graph_models import EntityType
 
 logger = logging.getLogger(__name__)
 
@@ -134,9 +134,7 @@ class GraphAlgorithms:
             return rows
         finally:
             try:
-                await session.run(
-                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
-                )
+                await session.run("CALL gds.graph.drop($g, false)", {"g": graph_name})
             except Exception:  # noqa: BLE001 - cleanup best-effort
                 pass
 
@@ -164,9 +162,7 @@ class GraphAlgorithms:
             return [r.data() async for r in result]
         finally:
             try:
-                await session.run(
-                    "CALL gds.graph.drop($g, false)", {"g": graph_name}
-                )
+                await session.run("CALL gds.graph.drop($g, false)", {"g": graph_name})
             except Exception:  # noqa: BLE001 - cleanup best-effort
                 pass
 
@@ -922,9 +918,7 @@ class GraphAlgorithms:
                 trend_direction = (
                     "increasing"
                     if growth_rate > 0
-                    else "decreasing"
-                    if growth_rate < 0
-                    else "stable"
+                    else "decreasing" if growth_rate < 0 else "stable"
                 )
 
                 trends.append(

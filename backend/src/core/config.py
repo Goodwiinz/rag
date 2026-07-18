@@ -223,6 +223,13 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_DB_URL: str = ""  # If set, overrides DATABASE_URL for Supabase connection
     SUPABASE_JWT_SECRET: str = ""  # Supabase JWT secret for verifying auth tokens
+    # Optional defense-in-depth: when set, verify_token pins the Supabase JWT
+    # `iss` claim to this EXACT value. Leave empty to skip issuer validation —
+    # the token signature already binds to SUPABASE_JWT_SECRET/JWKS. Not derived
+    # from SUPABASE_URL: the hosted stack issues `<url>/auth/v1` while a bare
+    # GoTrue (CI/local) issues a different value, so the exact string must be
+    # stated explicitly (e.g. https://<ref>.supabase.co/auth/v1) to enable it.
+    SUPABASE_JWT_ISSUER: str = ""
 
     REDIS_URL: str = "redis://localhost:6379"
 
@@ -254,8 +261,6 @@ class Settings(BaseSettings):
     # other DO KB HTTP calls (index, list, delete …).
     DO_KB_RETRIEVE_TIMEOUT_SECONDS: float = 3.0
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
-    DO_KB_RERANKING_ENABLED: Optional[bool] = True
-    DO_KB_SEARCH_TYPE: Optional[str] = None
     # Pre-flight guard: PDFs over EITHER threshold get text-extracted locally
     # before DO KB sync, so the canonical .txt path is used instead of the raw
     # PDF (DO's server-side parser times out on large/complex PDFs).
