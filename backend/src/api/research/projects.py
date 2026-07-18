@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     Collection,
     CollectionDocument,
@@ -27,15 +28,9 @@ from src.models import (
     ProjectNote,
     User,
 )
-from src.models.processing import (
-    JobPriority,
-    JobStatus,
-    JobType,
-    ProcessingJob,
-)
+from src.models.processing import JobPriority, JobStatus, JobType, ProcessingJob
 from src.services.research.bibliography_service import BibliographyService
 from src.services.research.project_service import ProjectService
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     NoteCreate,
     NoteListResponse,
@@ -533,21 +528,28 @@ async def add_document_to_project(
                     queue_name="entity_processing",
                 )
                 db.add(kg_job)
-                # Flush (not commit) so kg_job.id is populated for apply_async
-                # without persisting a PENDING row yet. If apply_async raises
-                # (e.g. broker down), the rollback below undoes this flush, so no
-                # orphaned PENDING/celery_task_id=NULL job is left behind. The
-                # single commit lands only once the task is actually enqueued.
+                # Flush so kg_job.id is populated for the enqueue registration.
+                # celery_task_id is intentionally NOT set here and the row stays
+                # PENDING: the worker stamps celery_task_id via start_job when it
+                # picks the job up, so the create-time value is redundant — and
+                # unavailable anyway, because enqueue_after_commit_apply_async
+                # fires the apply_async only *after* the commit below (closing
+                # the worker-reads-before-commit race), returning no task id to
+                # read pre-commit. The enqueue is dropped if the transaction
+                # rolls back; a broker outage in the post-commit window leaves
+                # the job PENDING/celery_task_id=NULL, which the lost-job
+                # reconciler (src.tasks.reconcile_jobs) re-enqueues.
                 await db.flush()
 
+                from src.tasks.enqueue import enqueue_after_commit_apply_async
                 from src.tasks.processing_tasks import kg_extract_entities_job
 
-                task = kg_extract_entities_job.apply_async(
+                enqueue_after_commit_apply_async(
+                    db,
+                    kg_extract_entities_job,
                     args=[str(kg_job.id)],
                     queue="entity_processing",
                 )
-                kg_job.celery_task_id = task.id
-                kg_job.status = JobStatus.QUEUED
                 await db.commit()
                 kg_job_id = str(kg_job.id)
 

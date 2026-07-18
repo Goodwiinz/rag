@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
-from src.core.database import get_async_session
+from src.core.database import get_db
 from src.core.dependencies import get_current_organization, get_current_user
 from src.models.document import Document
 from src.models.document import ProcessingStatus as DocumentProcessingStatus
@@ -147,7 +147,7 @@ async def subscribe_document_status_updates(
     subscription: RealtimeStatusSubscription,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Subscribe to real-time status updates for a specific document
@@ -233,7 +233,7 @@ async def get_realtime_document_status(
     include_stages: bool = Query(True, description="Include processing stage details"),
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Get enhanced real-time status for a specific document
@@ -429,7 +429,7 @@ async def get_bulk_realtime_status(
     request: BulkStatusRequest,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Get real-time status for multiple documents in bulk
@@ -528,7 +528,7 @@ async def get_bulk_realtime_status(
 async def get_realtime_system_metrics(
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Get real-time system-wide processing metrics
@@ -651,7 +651,7 @@ async def trigger_document_status_broadcast(
     document_id: str,
     current_user: User = Depends(get_current_user),
     organization: Organization = Depends(get_current_organization),
-    session: AsyncSession = Depends(get_async_session),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Trigger a manual status broadcast for a document
