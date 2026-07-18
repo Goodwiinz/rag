@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2024-05-19 - Avoid `aria-label` Override on Buttons with Descriptive Text
+**Learning:** Adding an `aria-label` to buttons that already contain valid, descriptive text (e.g., `entity.name` and `entity.type` displayed inside the `<button>`) causes the screen reader to announce only the `aria-label` and ignore the visible child text. This inadvertently hides useful information like the `entity.type`.
+**Action:** Do not add an `aria-label` to buttons that already have clear, readable text content. Reserve `aria-label` primarily for icon-only buttons or those with cryptic visual text.

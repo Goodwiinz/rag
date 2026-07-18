@@ -265,8 +265,9 @@ export const EntitySearch: React.FC<EntitySearchProps> = ({ onEntityClick }) => 
                   {results.entities.slice(0, 12).map((entity) => (
                     <button
                       key={entity.id}
+                      type="button"
                       onClick={() => onEntityClick?.(entity.id)}
-                      className="p-3 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-1) hover:border-(--nous-sol) transition-colors text-left"
+                      className="p-3 rounded-lg border border-(--nous-border-1) bg-(--nous-bg-1) hover:border-(--nous-sol) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) transition-colors text-left"
                     >
                       <div className="text-sm font-mono font-bold text-(--nous-fg-1)">
                         {entity.name}

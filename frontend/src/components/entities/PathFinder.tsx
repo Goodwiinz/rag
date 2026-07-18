@@ -124,11 +124,12 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                   {filteredSourceEntities.map(entity => (
                     <button
                       key={entity.id}
+                      type="button"
                       onClick={() => {
                         setSourceId(entity.id);
                         setSearchQuery({ ...searchQuery, source: entity.name });
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) focus-visible:outline-hidden focus-visible:bg-(--nous-bg-3) focus-visible:ring-2 focus-visible:ring-(--nous-sol) transition-colors"
                     >
                       <div className="text-(--nous-fg-1)">{entity.name}</div>
                       <div className="text-(--nous-fg-3)">{entity.type}</div>
@@ -154,11 +155,12 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                   {filteredTargetEntities.map(entity => (
                     <button
                       key={entity.id}
+                      type="button"
                       onClick={() => {
                         setTargetId(entity.id);
                         setSearchQuery({ ...searchQuery, target: entity.name });
                       }}
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) focus-visible:outline-hidden focus-visible:bg-(--nous-bg-3) focus-visible:ring-2 focus-visible:ring-(--nous-sol) transition-colors"
                     >
                       <div className="text-(--nous-fg-1)">{entity.name}</div>
                       <div className="text-(--nous-fg-3)">{entity.type}</div>
@@ -259,8 +261,9 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                     <React.Fragment key={nodeIndex}>
                       {/* Entity Node */}
                       <button
+                        type="button"
                         onClick={() => onEntityClick?.(node.entity_id)}
-                        className="px-3 py-1.5 rounded-md bg-(--nous-bg-3) border border-(--nous-border-1) hover:border-(--nous-sol) transition-colors"
+                        className="px-3 py-1.5 rounded-md bg-(--nous-bg-3) border border-(--nous-border-1) hover:border-(--nous-sol) focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) transition-colors"
                       >
                         <div className="text-xs font-mono text-(--nous-fg-1)">
                           {node.entity_name}
