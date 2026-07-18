@@ -564,6 +564,24 @@ def extract_entities(self, job_id: str):
         if not job:
             raise ValueError(f"Job {job_id} not found")
 
+        # Idempotency guard for acks_late redelivery (celery_app sets
+        # task_acks_late=True): a worker killed after completion but before the
+        # broker ack redelivers the SAME message. Without this the task re-runs
+        # the full paid LLM extraction AND appends a SECOND copy of every entity
+        # (OPENAI rows are deliberately never delete-before-inserted, so the
+        # duplicates accumulate), while regressing the job COMPLETED -> RUNNING.
+        # Same short-circuit as kg_extract_entities_job / kg_merge_entities_job.
+        if job.status == JobStatus.COMPLETED:
+            logger.info(
+                f"Job {job_id} already completed; skipping redelivered "
+                "entity extraction"
+            )
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "skipped": "duplicate_delivery",
+            }
+
         document = (
             db.query(Document)
             .filter(Document.id == job.parameters["document_id"])

@@ -18,7 +18,8 @@ from typing import Any, Optional
 
 import httpx
 
-from src.core.config import Settings, settings as global_settings
+from src.core.config import Settings
+from src.core.config import settings as global_settings
 
 from .models import Chunk, DataSource, IndexingJob, KnowledgeBase, RetrieveResult
 
@@ -280,14 +281,19 @@ class DOKnowledgeBaseClient:
         query: str,
         top_k: Optional[int] = None,
         alpha: Optional[float] = None,
-        reranking: Optional[bool] = None,
-        search_type: Optional[str] = None,
     ) -> RetrieveResult:
-        # DO KB retrieve body fields (per
-        # docs.digitalocean.com/products/inference/how-to/create-manage-agent-knowledge-bases):
-        #   query: str
-        #   num_results: int 0-100 (NOT top_k)
-        #   alpha: float 0-1 (lexical vs semantic balance)
+        # DO KBaaS ``/v1/{kb}/retrieve`` now validates the body against a strict
+        # schema — any unrecognized field yields ``400 {"message":"invalid
+        # request body"}``. The accepted fields are exactly:
+        #   query: str (required)
+        #   num_results: int 1-100 (required; NOT top_k)
+        #   alpha: float 0-1 (optional; lexical vs semantic balance)
+        # ``reranking`` and ``search_type`` were accepted during Public Preview
+        # but are now rejected — sending either 400s the call, which the rag
+        # node silently swallows into a keyword-only fallback. DO reranks
+        # server-side by default; client-side re-scoring lives behind
+        # ``AGENT_DOKB_COHERE_RERANK`` (``cohere_rescore_chunks``), independent
+        # of this request body.
         k = top_k if top_k is not None else self._settings.DO_KB_DEFAULT_TOP_K
         body: dict[str, Any] = {"query": query, "num_results": max(1, min(k, 100))}
         resolved_alpha = (
@@ -295,20 +301,6 @@ class DOKnowledgeBaseClient:
         )
         if resolved_alpha is not None:
             body["alpha"] = resolved_alpha
-
-        resolved_reranking = (
-            reranking
-            if reranking is not None
-            else self._settings.DO_KB_RERANKING_ENABLED
-        )
-        if resolved_reranking is not None:
-            body["reranking"] = resolved_reranking
-
-        resolved_search_type = (
-            search_type if search_type is not None else self._settings.DO_KB_SEARCH_TYPE
-        )
-        if resolved_search_type is not None:
-            body["search_type"] = resolved_search_type
 
         payload = await self._request(
             "POST",

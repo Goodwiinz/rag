@@ -82,7 +82,7 @@ class WebSocketAuthenticator:
             user_id = self._validate_jwt_token(token)
 
             # Get database session
-            async for session in get_async_session():
+            async with get_async_session() as session:
                 try:
                     # Validate user exists and is active
                     user = await self._validate_user(session, user_id)
@@ -472,7 +472,7 @@ class WebSocketAuthorizer:
                 return True
 
             # Check document ownership or explicit access
-            async for session in get_async_session():
+            async with get_async_session() as session:
                 try:
                     from src.models.document import Document
 
@@ -520,7 +520,7 @@ class WebSocketAuthorizer:
         """Check if user can receive system notifications"""
         try:
             # Check if user has websocket:system_notifications permission
-            async for session in get_async_session():
+            async with get_async_session() as session:
                 try:
                     permissions = await self.authenticator._get_user_permissions(
                         session, user.id, organization.id
@@ -547,7 +547,7 @@ class WebSocketAuthorizer:
     ) -> List[str]:
         """Get list of document IDs user can access"""
         try:
-            async for session in get_async_session():
+            async with get_async_session() as session:
                 try:
                     from src.models.document import Document
 

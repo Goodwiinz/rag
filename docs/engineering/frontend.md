@@ -49,6 +49,41 @@ creators (no new state or a `create...Slice` defined inline).
   exact file:line and the mutation-verified proof it actually gates
   something.
 
+## Legacy server-state stores — audit verdicts & contracts
+
+Four Zustand stores predate the one-cache-owner rule (see "Server-state
+ownership") and hold server entities outside TanStack Query. Audited
+2026-07: exactly one live dual-cache existed; the rest are single-owner.
+Verdicts:
+
+- **`projectStore`** — *the* dual-cache: `projectDocuments`/`projectNotes`
+  are also Query-cached by `useProjectWorkingFolders` under
+  `['project', id, 'documents' | 'notes']` (5-min staleTime).
+  **Reconciliation contract:** the Query side is read-only (queries only,
+  no Query mutations); every writer invalidates the Query keys — store
+  mutations (`addDocument`/`removeDocument`/note CRUD) via
+  `src/lib/query-client.ts`'s registered client, agent tools via
+  `useChatStreaming` (/chat) and `agentChatStore` (global widget). The
+  store side refetches through its own actions (page effects +
+  `projectDataVersion`). `currentProject`/`projects`/`bibliography` have no
+  Query duplicate. New consumers of project documents/notes/drafts should
+  use the Query keys, not new store fields.
+- **`agentChatStore`** — sanctioned transcript owner, same status as the
+  chat store: server-canonical cache of the global agent widget's threads
+  and messages (`/api/v1/agent/*`), which no Query cache duplicates. Its
+  outbound obligation is the invalidation above whenever a
+  project-mutating tool completes.
+- **`projectChatStore`** — exemption: `linkedThreads` has no Query
+  duplicate. Its only second copy is the chat store's thread→project
+  binding mirror, reconciled by the in-file `threadBindingTokens`
+  contract (most recent link/unlink per thread wins).
+- **`pipelineStore`** — exemption: `PipelineState` has a single consumer
+  (`ResearchPipeline`), no Query duplicate, and per-project supersession
+  tokens; migrating it to Query would fix no live hazard.
+
+Don't add a second cache for any of these entities; if one becomes
+necessary, extend the contract here first.
+
 ## Generated vs. hand-authored HTTP types
 
 - `frontend/src/types/generated/api.d.ts` is generated from

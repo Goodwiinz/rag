@@ -2647,48 +2647,6 @@ class KnowledgeGraphService:
             logger.error(f"Error in create_entity_node adapter: {e}")
             return None
 
-    def find_entity_node(self, name: str, entity_type: str) -> Optional[Dict[str, Any]]:
-        """Adapter for legacy callers that expect find_entity_node.
-
-        Returns {"id": ..., "name": ...} on match, None otherwise.
-        """
-        try:
-            entities = self.search_entities(
-                name, entity_types=[_safe_entity_type(entity_type)], limit=5
-            )
-            for entity in entities:
-                if entity.name.lower().strip() == name.lower().strip():
-                    return {"id": entity.id, "name": entity.name}
-            return None
-        except Exception as e:
-            logger.error(f"Error in find_entity_node adapter: {e}")
-            return None
-
-    def query_graph(
-        self, query: str, params: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
-        """Adapter for multi-agent search callers that expect query_graph.
-
-        Performs an entity search and returns results as dicts rather than
-        executing raw Cypher (which would be an injection risk).
-        """
-        try:
-            limit = params.get("limit", 50) if params else 50
-            entities = self.search_entities(query, limit=limit)
-            return [
-                {
-                    "id": e.id,
-                    "name": e.name,
-                    "type": e.entity_type.value,
-                    "confidence": e.confidence_score,
-                    "source_document_id": e.source_document_id,
-                }
-                for e in entities
-            ]
-        except Exception as e:
-            logger.error(f"Error in query_graph adapter: {e}")
-            return []
-
 
 # Global instance
 knowledge_graph_service = KnowledgeGraphService()
