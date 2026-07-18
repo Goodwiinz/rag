@@ -345,6 +345,10 @@ jobs:
     needs: lint-backend
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Full history so the advisory oasdiff step can resolve the PR base's
+          # committed spec via `git show <base-sha>:backend/openapi.json`.
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
@@ -403,6 +407,87 @@ jobs:
         run: |
           pnpm --dir frontend generate:api-types
           git diff --exit-code -- backend/openapi.json frontend/src/types/generated/api.d.ts
+      # Semantic-compatibility gate. The freshness diff above is blind to
+      # compatibility: a breaking change that regenerates both committed
+      # artifacts passes it. oasdiff compares the PR base's committed spec
+      # against this branch's. Split into three steps: install+materialize,
+      # a BLOCKING `breaking --fail-on ERR` gate, and an informational changelog.
+      - name: Set up oasdiff and materialize base spec
+        id: oasdiff
+        if: github.event_name == 'pull_request'
+        env:
+          # Pinned oasdiff release + checksum. Do NOT `go install` at CI time and
+          # do NOT pipe curl to a shell. Bump both together from
+          # https://github.com/oasdiff/oasdiff/releases (checksums.txt).
+          OASDIFF_VERSION: "1.23.0"
+          OASDIFF_SHA256: "972b10535c3db4366b9dc3ebc11ca021279af3095267c3cffdca854a3a3c4f89"
+          # Env indirection: never interpolate github.event.* into a run: block.
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          set -euo pipefail
+          tarball="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/${tarball}"
+          curl -fsSL --retry 3 --retry-all-errors --max-time 60 "$url" -o "/tmp/${tarball}"
+          echo "${OASDIFF_SHA256}  /tmp/${tarball}" | sha256sum -c -
+          tar -xzf "/tmp/${tarball}" -C /tmp oasdiff
+          if [ -z "${PR_BASE_SHA}" ]; then
+            echo "No PR base sha available; API compatibility gate skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "base_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Base spec as committed at the PR base (fetch-depth: 0 makes it reachable).
+          if ! git show "${PR_BASE_SHA}:backend/openapi.json" > /tmp/openapi-base.json 2>/dev/null; then
+            echo "Base spec not present at ${PR_BASE_SHA} (new file?); API compatibility gate skipped." >> "$GITHUB_STEP_SUMMARY"
+            echo "base_available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "base_available=true" >> "$GITHUB_OUTPUT"
+      # BLOCKING: ERR-level breaking changes fail the job. Escape hatch — a
+      # reviewed, intentional break lands by labelling the PR
+      # `api-breaking-approved`, which skips this gate (the changelog step below
+      # still records what changed). A missing base spec is NOT a failure: the
+      # step exits 0 with a summary note.
+      - name: API breaking-change gate (oasdiff, ERR-level blocking)
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'api-breaking-approved')
+        env:
+          BASE_AVAILABLE: ${{ steps.oasdiff.outputs.base_available }}
+        run: |
+          set -euo pipefail
+          if [ "${BASE_AVAILABLE}" != "true" ]; then
+            echo "No base spec to compare; API breaking-change gate skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## API breaking-change gate (oasdiff, --fail-on ERR)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Capture oasdiff's exit code (ERR-level break => non-zero) through the
+          # pipe so we can close the ``` fence before propagating. `|| rc=$?`
+          # keeps `set -e` from aborting mid-fence; rc pre-set to 0 for success.
+          rc=0
+          /tmp/oasdiff breaking --fail-on ERR /tmp/openapi-base.json backend/openapi.json 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || rc=$?
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Propagate: non-zero here fails the step (and job) — this gate blocks.
+          exit "${rc}"
+      # Informational: full changelog into the job summary, never blocking.
+      - name: API changelog (oasdiff, informational)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          BASE_AVAILABLE: ${{ steps.oasdiff.outputs.base_available }}
+        run: |
+          set -euo pipefail
+          if [ "${BASE_AVAILABLE}" != "true" ]; then
+            exit 0
+          fi
+          {
+            echo "## API changelog (oasdiff)"
+            echo '```'
+            /tmp/oasdiff changelog /tmp/openapi-base.json backend/openapi.json 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ==========================================================================
   # Security Scan
