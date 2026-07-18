@@ -897,7 +897,7 @@ async def check_duplicate(
 
     if existing is None:
         # Also check metadata-stored hash for older documents
-        from sqlalchemy import cast, String
+        from sqlalchemy import String, cast
 
         query = (
             select(Document)
@@ -1350,18 +1350,21 @@ async def reprocess_document(
         )
 
         db.add(processing_job)
-        # Flush to populate processing_job.id for the enqueue without persisting
-        # a PENDING/celery_task_id=NULL row yet.
+        # Flush to populate processing_job.id for the enqueue registration.
         await db.flush()
 
-        # Queue the job for processing
+        # Queue the job for processing — post-commit. enqueue_after_commit
+        # dispatches the ingestion task only *after* the commit below succeeds
+        # (closing the worker-reads-before-commit race) and drops it entirely if
+        # the transaction rolls back (no orphan job). A broker outage in the
+        # post-commit window leaves the job PENDING/celery_task_id=NULL, which
+        # the lost-job reconciler (src.tasks.reconcile_jobs) re-enqueues —
+        # durability without the pre-commit race.
+        from src.tasks.enqueue import enqueue_after_commit
         from src.tasks.processing_tasks import process_document_ingestion
 
-        process_document_ingestion.delay(str(processing_job.id))
+        enqueue_after_commit(db, process_document_ingestion, str(processing_job.id))
 
-        # Commit once the task is actually enqueued. If .delay() raises (e.g.
-        # broker down), the except's rollback reverts both the status reset and
-        # the job insert — no orphaned job, document keeps its prior status.
         await db.commit()
 
         return {

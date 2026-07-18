@@ -746,8 +746,9 @@ async def reprocess_file(
         # status and committed — it created no job and dispatched no task, so
         # nothing ever picked the document up (there is no PENDING sweeper); it
         # sat PENDING forever while the API falsely reported "queued". Mirror
-        # documents.py reprocess_document: flush -> delay -> commit so a broker
-        # failure rolls back the status reset too (no stranded document).
+        # documents.py reprocess_document: flush -> register post-commit enqueue
+        # -> commit, so the dispatch fires only after the row is durable (no
+        # worker-reads-before-commit race) and is dropped on rollback.
         from src.models.processing import JobPriority, JobType
 
         processing_job = ProcessingJob(
@@ -770,9 +771,10 @@ async def reprocess_file(
         db.add(processing_job)
         await db.flush()
 
+        from src.tasks.enqueue import enqueue_after_commit
         from src.tasks.processing_tasks import process_document_ingestion
 
-        process_document_ingestion.delay(str(processing_job.id))
+        enqueue_after_commit(db, process_document_ingestion, str(processing_job.id))
 
         await db.commit()
 
