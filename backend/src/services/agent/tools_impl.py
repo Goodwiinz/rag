@@ -12,7 +12,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 # Matches the trailing ``vN`` revision suffix arXiv appends to paper IDs
 # (e.g. ``2605.10877v1``). Used to compare requested vs. ingested IDs
@@ -1111,7 +1111,7 @@ async def _tool_ingest_arxiv(
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system by searching for them first, then ingesting."""
-    from src.models.document import DocumentType, ProcessingStatus
+    from src.models.document import ProcessingStatus
     from src.services.arxiv.arxiv_service import ArXivIngestionService
 
     paper_ids = args.get("paper_ids", [])
@@ -1224,24 +1224,26 @@ async def _tool_ingest_arxiv(
                 # an open transaction, which ``begin()`` would reject.
                 from src.core.database import AsyncSessionLocal
 
+                promoted_storage: List[Dict[str, Any]] = []
                 try:
                     persisted_documents: List[Document] = []
                     async with AsyncSessionLocal() as fresh_db:
                         async with fresh_db.begin():
                             for doc in ingested:
+                                from src.services.arxiv.storage import store_arxiv_pdf
+
+                                document_id = uuid4()
+                                storage_fields = await asyncio.to_thread(
+                                    store_arxiv_pdf,
+                                    doc,
+                                    current_user.organization_id,
+                                    document_id,
+                                )
+                                promoted_storage.append(storage_fields)
                                 document = Document(
+                                    id=document_id,
                                     title=getattr(doc, "title", "Untitled"),
-                                    filename=getattr(doc, "filename", ""),
-                                    file_path=getattr(
-                                        doc,
-                                        "file_path",
-                                        getattr(doc, "filename", ""),
-                                    ),
-                                    file_size_bytes=getattr(doc, "file_size_bytes", 0),
-                                    mime_type=getattr(
-                                        doc, "mime_type", "application/pdf"
-                                    ),
-                                    document_type=DocumentType.PDF,
+                                    **storage_fields,
                                     content_text=getattr(doc, "content_text", None),
                                     content_summary=getattr(
                                         doc, "content_summary", None
@@ -1277,6 +1279,9 @@ async def _tool_ingest_arxiv(
                                     vec_err,
                                 )
                             # begin() auto-commits on exit
+                    # The rows now own these objects. Later failure-isolated KB
+                    # or project work must never remove committed document data.
+                    promoted_storage.clear()
                     logger.info(
                         "Ingested %d documents to DB: %s",
                         len(document_ids),
@@ -1312,6 +1317,20 @@ async def _tool_ingest_arxiv(
                                 "do_kb dual-write skipped for arxiv ingest: %s", kb_err
                             )
                 except Exception as db_err:
+                    from src.services.arxiv.storage import delete_arxiv_storage
+
+                    for storage_fields in reversed(promoted_storage):
+                        try:
+                            await asyncio.to_thread(
+                                delete_arxiv_storage, storage_fields
+                            )
+                        except Exception:  # noqa: BLE001
+                            logger.warning(
+                                "arxiv ingest rollback left an orphaned object: %s",
+                                storage_fields.get("storage_path")
+                                or storage_fields.get("file_path"),
+                                exc_info=True,
+                            )
                     logger.error(
                         "Failed to persist ingested documents to DB", exc_info=db_err
                     )

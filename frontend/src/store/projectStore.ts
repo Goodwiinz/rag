@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { getAppQueryClient } from '@/lib/query-client';
 import { projectService } from '@/services/projectService';
 import type {
   Project,
@@ -40,6 +41,21 @@ let inflightProjectFetch: { id: string; promise: Promise<void> } | null = null;
 // inflightProjectFetch.promise) never installs its own token — it's sharing
 // the original caller's in-flight request and that caller already owns it.
 let projectFetchToken: object | null = null;
+
+// Dual-cache reconciliation (docs/engineering/frontend.md, "Legacy
+// server-state stores"): the context rail caches the same project documents/
+// notes via useProjectWorkingFolders under ['project', id, 'documents'|
+// 'notes'] with a 5-minute staleTime. Every store-side mutation must
+// invalidate the Query copy, or the rail serves stale lists until staleTime
+// expires. (Reads don't invalidate — a refetch doesn't change server state.)
+function invalidateProjectQueries(
+  projectId: string,
+  scope: 'documents' | 'notes'
+): void {
+  void getAppQueryClient()?.invalidateQueries({
+    queryKey: ['project', projectId, scope],
+  });
+}
 
 interface ProjectState {
   // State
@@ -301,6 +317,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectDocuments: [...state.projectDocuments, doc],
         documentsLoading: false,
       }));
+      invalidateProjectQueries(projectId, 'documents');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to add document:', error);
       set({
@@ -321,6 +338,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
         documentsLoading: false,
       }));
+      invalidateProjectQueries(projectId, 'documents');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to remove document:', error);
       set({
@@ -362,6 +380,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: [note, ...state.projectNotes],
         notesLoading: false,
       }));
+      invalidateProjectQueries(projectId, 'notes');
       return note;
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to create note:', error);
@@ -383,6 +402,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
         notesLoading: false,
       }));
+      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to update note:', error);
       set({
@@ -401,6 +421,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         projectNotes: state.projectNotes.filter((n) => n.id !== noteId),
         notesLoading: false,
       }));
+      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to delete note:', error);
       set({
@@ -419,6 +440,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           n.id === noteId ? updated : n
         ),
       }));
+      invalidateProjectQueries(projectId, 'notes');
     } catch (error: unknown) {
       console.error('[ProjectStore] Failed to toggle pin:', error);
       set({

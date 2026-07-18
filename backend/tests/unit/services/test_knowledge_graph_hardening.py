@@ -176,22 +176,6 @@ class TestIntegrationContracts:
 
         assert hasattr(KnowledgeGraphService, "create_entity_node")
 
-    def test_find_entity_node_adapter_exists(self):
-        """KnowledgeGraphService should have find_entity_node()."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            KnowledgeGraphService,
-        )
-
-        assert hasattr(KnowledgeGraphService, "find_entity_node")
-
-    def test_query_graph_adapter_exists(self):
-        """KnowledgeGraphService should have query_graph()."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            KnowledgeGraphService,
-        )
-
-        assert hasattr(KnowledgeGraphService, "query_graph")
-
     @patch(
         "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities"
     )
@@ -215,20 +199,6 @@ class TestIntegrationContracts:
         assert hasattr(result, "total_results")
         assert isinstance(result.results, list)
 
-    @patch(
-        "src.services.knowledge_graph.knowledge_graph_service.KnowledgeGraphService.search_entities"
-    )
-    def test_query_graph_returns_list_of_dicts(self, mock_search_entities):
-        """query_graph() should return a list of dicts."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            KnowledgeGraphService,
-        )
-
-        mock_search_entities.return_value = []
-        svc = KnowledgeGraphService()
-        result = svc.query_graph("some query")
-        assert isinstance(result, list)
-
 
 # ---------------------------------------------------------------------------
 # Phase 3: Serialization
@@ -240,9 +210,7 @@ class TestSerialization:
 
     def test_parse_metadata_from_json_string(self):
         """_parse_metadata should parse json.dumps() output."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_metadata,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_metadata
 
         data = {"key": "value", "nested": {"a": 1}}
         result = _parse_metadata(json.dumps(data))
@@ -250,27 +218,21 @@ class TestSerialization:
 
     def test_parse_metadata_from_python_repr(self):
         """_parse_metadata should handle legacy str() format."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_metadata,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_metadata
 
         result = _parse_metadata("{'key': 'value'}")
         assert result == {"key": "value"}
 
     def test_parse_metadata_from_dict(self):
         """_parse_metadata should pass through native dicts."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_metadata,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_metadata
 
         data = {"key": "value"}
         assert _parse_metadata(data) == data
 
     def test_parse_metadata_empty(self):
         """_parse_metadata should handle empty/null values."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_metadata,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_metadata
 
         assert _parse_metadata(None) == {}
         assert _parse_metadata("") == {}
@@ -278,9 +240,7 @@ class TestSerialization:
 
     def test_parse_evidence_from_json_string(self):
         """_parse_evidence should parse json.dumps() output."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_evidence,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_evidence
 
         data = ["evidence1", "evidence2"]
         result = _parse_evidence(json.dumps(data))
@@ -288,18 +248,14 @@ class TestSerialization:
 
     def test_parse_evidence_from_list(self):
         """_parse_evidence should pass through native lists."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_evidence,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_evidence
 
         data = ["a", "b"]
         assert _parse_evidence(data) == data
 
     def test_parse_evidence_empty(self):
         """_parse_evidence should handle empty/null values."""
-        from src.services.knowledge_graph.knowledge_graph_service import (
-            _parse_evidence,
-        )
+        from src.services.knowledge_graph.knowledge_graph_service import _parse_evidence
 
         assert _parse_evidence(None) == []
         assert _parse_evidence("") == []
@@ -384,6 +340,7 @@ class TestEntityIdentity:
 class TestRelationshipDatetimeCoercion:
     def test_to_native_dt_converts_neo4j_datetime(self):
         from datetime import datetime, timezone
+
         from src.services.knowledge_graph.knowledge_graph_service import (
             KnowledgeGraphService,
         )

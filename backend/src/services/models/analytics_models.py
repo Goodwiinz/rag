@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from src.services.models.knowledge_graph_models import EntityType
+from src.models.graph import EntityType
 
 
 class CentralityAlgorithm(str, Enum):

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { getAppQueryClient } from '@/lib/query-client';
 import type {
   AgentChatState,
   AgentChatActions,
@@ -20,6 +21,19 @@ const PROJECT_MUTATING_TOOLS = new Set([
   'create_draft',
   'create_project_note',
 ]);
+
+// Dual-cache reconciliation (docs/engineering/frontend.md, "Legacy
+// server-state stores"): project-mutating agent tools bump
+// projectDataVersion so the project page refetches its projectStore copy —
+// but the context rail's Query copy (['project', id, …], 5-min staleTime)
+// also needs invalidating. The /chat SSE path does this in useChatStreaming;
+// this covers the global widget's own streaming paths. Same key scoping:
+// narrow to the bound project when known, broad ['project'] otherwise.
+function invalidateProjectQueries(projectId?: string): void {
+  void getAppQueryClient()?.invalidateQueries({
+    queryKey: projectId ? ['project', projectId] : ['project'],
+  });
+}
 
 // Each thread load owns a monotonically increasing token. A late response must
 // never replace the transcript selected after it started.
@@ -335,6 +349,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     (state as unknown as AgentChatStore)._abortController =
                       null;
                   });
+                  if (didMutateProjectData) {
+                    invalidateProjectQueries(pageContext.projectId);
+                  }
                   if (uiMode === 'closed') {
                     set((state) => {
                       state.hasUnread = true;
@@ -358,6 +375,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                     }
                     state.isStreaming = false;
                   });
+                  if (didMutateProjectData) {
+                    invalidateProjectQueries(pageContext.projectId);
+                  }
                 },
               },
               abortController.signal
@@ -736,6 +756,9 @@ export const useAgentChatStore = create<AgentChatStore>()(
                   }
                   (state as unknown as AgentChatStore)._abortController = null;
                 });
+                if (didMutateProjectData) {
+                  invalidateProjectQueries(get().pageContext.projectId);
+                }
               },
               onError: (error: string) => {
                 if (!isCurrentGeneration()) return;
@@ -850,6 +873,10 @@ export const useAgentChatStore = create<AgentChatStore>()(
             if (!isCurrentGeneration()) return;
 
             if (job.status === 'completed' && job.result) {
+              const hasMutation =
+                job.result.tool_executions?.some((te) =>
+                  PROJECT_MUTATING_TOOLS.has(te.tool_name)
+                ) ?? false;
               set((state) => {
                 const lastAsst = [...state.messages]
                   .reverse()
@@ -878,13 +905,13 @@ export const useAgentChatStore = create<AgentChatStore>()(
                 state.pendingConfirmation = null;
                 state.isConfirming = false;
 
-                const hasMutation = job.result!.tool_executions?.some((te) =>
-                  PROJECT_MUTATING_TOOLS.has(te.tool_name)
-                );
                 if (hasMutation) {
                   state.projectDataVersion += 1;
                 }
               });
+              if (hasMutation) {
+                invalidateProjectQueries(get().pageContext.projectId);
+              }
               return;
             }
             // Any other terminal state (failed / error / cancelled / a
