@@ -352,7 +352,14 @@ class CitationVerificationService:
         llm = build_lightweight_llm(
             max_tokens=4096, request_timeout=_VERIFIER_TIMEOUT_SECONDS
         )
-        structured_llm = llm.with_structured_output(_LLMVerdict)
+        # method="function_calling" (not the AzureChatOpenAI default "json_schema"):
+        # json_schema routes through chat.completions.parse(), whose ParsedChatCompletion
+        # has a generic `parsed` field that spams benign PydanticSerializationUnexpectedValue
+        # warnings on every verdict (openai-python #2872 / langchain #35538). The
+        # function-calling path never builds that field. Matches planner.py's binding.
+        structured_llm = llm.with_structured_output(
+            _LLMVerdict, method="function_calling"
+        )
         try:
             return await asyncio.wait_for(
                 structured_llm.ainvoke(messages), timeout=_VERIFIER_TIMEOUT_SECONDS
