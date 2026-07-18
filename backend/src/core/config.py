@@ -223,6 +223,13 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_DB_URL: str = ""  # If set, overrides DATABASE_URL for Supabase connection
     SUPABASE_JWT_SECRET: str = ""  # Supabase JWT secret for verifying auth tokens
+    # Optional defense-in-depth: when set, verify_token pins the Supabase JWT
+    # `iss` claim to this EXACT value. Leave empty to skip issuer validation —
+    # the token signature already binds to SUPABASE_JWT_SECRET/JWKS. Not derived
+    # from SUPABASE_URL: the hosted stack issues `<url>/auth/v1` while a bare
+    # GoTrue (CI/local) issues a different value, so the exact string must be
+    # stated explicitly (e.g. https://<ref>.supabase.co/auth/v1) to enable it.
+    SUPABASE_JWT_ISSUER: str = ""
 
     REDIS_URL: str = "redis://localhost:6379"
 
@@ -254,8 +261,6 @@ class Settings(BaseSettings):
     # other DO KB HTTP calls (index, list, delete …).
     DO_KB_RETRIEVE_TIMEOUT_SECONDS: float = 3.0
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
-    DO_KB_RERANKING_ENABLED: Optional[bool] = True
-    DO_KB_SEARCH_TYPE: Optional[str] = None
     # Pre-flight guard: PDFs over EITHER threshold get text-extracted locally
     # before DO KB sync, so the canonical .txt path is used instead of the raw
     # PDF (DO's server-side parser times out on large/complex PDFs).
@@ -529,6 +534,21 @@ class Settings(BaseSettings):
     # silence means the task was killed/lost without a terminal write (D7 —
     # cleanup_old_jobs only ever deletes terminal rows).
     PROCESSING_JOB_STUCK_AFTER_SECONDS: int = 1800
+
+    # Lost-job reconciler (src/tasks/reconcile_jobs.py). Recovers processing_jobs
+    # whose post-commit Celery dispatch never reached the broker (broker outage
+    # in the narrow window after the row committed): status=PENDING,
+    # celery_task_id IS NULL, untouched for this long. It re-enqueues each such
+    # job (attempt tracked on retry_count) and, after MAX_ATTEMPTS re-enqueues,
+    # marks it FAILED. Distinct from the stuck-job sweep (which mark-fails
+    # already-dispatched jobs stalled mid-flight): the reconciler re-enqueues
+    # never-dispatched ones. The AFTER_MINUTES default (10) is well under the
+    # stuck threshold (30 min) so recovery runs before the sweep gives up.
+    # Its own kill switch so re-enqueue can be disabled independently.
+    LOST_JOB_RECONCILER_ENABLED: bool = True
+    LOST_JOB_RECONCILE_AFTER_MINUTES: int = 10
+    LOST_JOB_RECONCILE_MAX_ATTEMPTS: int = 3
+    LOST_JOB_RECONCILE_MAX_PER_RUN: int = 100
 
     # Audit D5 (P2.5): data-retention beat tasks (src/tasks/retention_tasks.py).
     # Two-stage safety: RETENTION_ENABLED is the kill switch (tasks no-op when

@@ -4129,7 +4129,8 @@ export interface paths {
         put?: never;
         /**
          * Fix Null Entity Types
-         * @description Fix all entities with NULL type by setting them to 'OTHER'.
+         * @description Fix entities with NULL type by setting them to 'OTHER', scoped to the
+         *     caller's organization.
          *
          *     Requires admin privileges.
          */
@@ -4259,7 +4260,11 @@ export interface paths {
         put?: never;
         /**
          * Reset Graph Schema
-         * @description Reset the entire graph schema (DESTRUCTIVE OPERATION)
+         * @description Reset the CALLER'S organization graph (DESTRUCTIVE OPERATION).
+         *
+         *     Deletes every Entity node owned by the caller's organization (and, via
+         *     DETACH DELETE, their relationships). Global schema constraints/indexes are
+         *     (idempotently) re-ensured.
          */
         post: operations["reset_graph_schema_api_v1_knowledge_graph_schema_reset_post"];
         delete?: never;

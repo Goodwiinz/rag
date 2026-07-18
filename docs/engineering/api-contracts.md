@@ -18,6 +18,38 @@ itself.
    frontend/src/types/generated/api.d.ts`. A schema change and its
    regenerated types must land in the same PR — commit both together.
 
+## Compatibility gate
+
+The freshness diff above is blind to *compatibility*: a breaking change that
+regenerates both committed artifacts passes it. On pull requests the
+`openapi-contract` job also runs [oasdiff](https://github.com/oasdiff/oasdiff)
+against the PR base's committed spec:
+
+- **Blocks:** `oasdiff breaking --fail-on ERR` — any **ERR-level** breaking
+  change (removed path/operation, removed required response field, a new
+  required request param, a narrowed type, etc.) fails the job. WARN-level
+  changes do not block.
+- **Informational:** `oasdiff changelog` writes the full change list to the job
+  summary on every PR — never blocking.
+- **Skips cleanly** on non-PR events and when there is no base spec to compare
+  (new file / empty base sha) — it exits 0 with a summary note, never fails.
+
+### Escape hatch
+
+An intentional, reviewed breaking change lands by adding the
+**`api-breaking-approved`** label to the PR — the blocking gate then skips (the
+changelog step still records what changed). Legitimate uses: shipping a
+deliberate v-next contract change with its consumers updated in the same PR, or
+removing an endpoint already confirmed dead. It is not a way to defer fixing an
+accidental break — drop the label and fix the diff instead.
+
+### Bumping the pinned oasdiff
+
+The binary is pinned by version **and** tarball sha256 in the `openapi-contract`
+job (`OASDIFF_VERSION` / `OASDIFF_SHA256`). To bump, take both from the release's
+`checksums.txt` at <https://github.com/oasdiff/oasdiff/releases> and update them
+together — never `go install` at CI time, never pipe curl to a shell.
+
 ## Adopt-on-touch
 
 - Alias generated shapes from `components['schemas'][...]`; don't re-type
