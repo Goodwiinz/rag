@@ -258,6 +258,41 @@ class TestProductionToolRegistryParity:
                 item.name for item in TOOL_REGISTRY.descriptors_for_subgraph(subgraph)
             } == names
 
+        assert [
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("research")
+        ] == [
+            "search_arxiv",
+            "ingest_arxiv_papers",
+            "search_documents",
+            "do_kb_retrieve",
+            "create_project",
+            "list_projects",
+            "add_document_to_project",
+            "list_project_documents",
+        ]
+        assert [
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("writing")
+        ] == [
+            "create_draft",
+            "create_project_note",
+            "export_bibliography",
+            "summarize_document",
+            "compare_documents",
+            "search_arxiv",
+            "ingest_arxiv_papers",
+        ]
+        assert [
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
+        ] == [
+            "extract_entities",
+            "search_knowledge_graph",
+            "explore_entity_neighborhood",
+            "find_entity_paths",
+            "get_graph_stats",
+            "search_documents",
+            "list_project_documents",
+        ]
+
     def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(self):
         from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 

@@ -46,6 +46,8 @@ from src.services.agent.error_recovery import (
 )
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
+from src.services.agent.tool_registry import ToolPolicyTag
+from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -54,15 +56,11 @@ logger = logging.getLogger(__name__)
 # Destructive-tool gate (consumed by ``interrupt_node``)
 # ---------------------------------------------------------------------------
 
-DESTRUCTIVE_TOOLS = {
-    "ingest_arxiv_papers",
-    "add_document_to_project",
-    "create_project",
-    "create_project_note",
-    "create_draft",
-    "execute_code",
-    "forget_memory",
-}
+DESTRUCTIVE_TOOLS = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors
+    if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
+)
 
 
 _SENSITIVE_ARG_KEYS = {
@@ -242,7 +240,9 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
         return {}
 
     destructive_calls = [
-        tc for tc in last_message.tool_calls if tc["name"] in DESTRUCTIVE_TOOLS
+        tc
+        for tc in last_message.tool_calls
+        if TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
     ]
 
     if not destructive_calls:
@@ -293,12 +293,11 @@ _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
 # same query 4x (steps 3/6/9/12) until the loop cap kills the turn. The
 # wall clock stays bounded by the service's internal timeouts; the 120s
 # cap is only the backstop.
-_SLOW_TOOLS = {
-    "ingest_arxiv_papers",
-    "create_draft",
-    "compare_documents",
-    "search_arxiv",
-}
+_SLOW_TOOLS = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors
+    if ToolPolicyTag.SLOW in descriptor.policy_tags
+)
 
 # Tools that already handle their own retry/backoff internally. Outer
 # retry_transient stacks on top and amplifies wall-clock — trace 019e040b
@@ -306,10 +305,11 @@ _SLOW_TOOLS = {
 # wait_for) × 2 attempts + 1s backoff. arxiv_service.py has its own 429
 # loop + exponential backoff; ingest_arxiv_papers downloads with retry
 # (arxiv_service._download_pdf). One outer attempt is enough.
-_NO_OUTER_RETRY_TOOLS = {
-    "search_arxiv",
-    "ingest_arxiv_papers",
-}
+_NO_OUTER_RETRY_TOOLS = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors
+    if ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
+)
 
 # Wall-clock cap for any agent-LLM invocation (main llm_node + subgraph
 # LLM nodes). Without this, a stalled Azure/OpenAI socket leaves the node
@@ -422,7 +422,9 @@ async def _execute_single_tool(
     error_info: dict = {}
 
     timeout = (
-        _SLOW_TOOL_TIMEOUT_SECONDS if tool_name in _SLOW_TOOLS else TOOL_TIMEOUT_SECONDS
+        _SLOW_TOOL_TIMEOUT_SECONDS
+        if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.SLOW)
+        else TOOL_TIMEOUT_SECONDS
     )
 
     async with _get_tool_semaphore():
@@ -465,7 +467,11 @@ async def _execute_single_tool(
             # while keeping one safety-net retry for genuine transient blips.
             # Tools that retry internally (arxiv) skip the outer retry to
             # avoid 2× wall-clock amplification (trace 019e040b: 85.5s).
-            _outer_attempts = 1 if tool_name in _NO_OUTER_RETRY_TOOLS else 2
+            _outer_attempts = (
+                1
+                if TOOL_REGISTRY.has_policy(tool_name, ToolPolicyTag.NO_OUTER_RETRY)
+                else 2
+            )
             result = await retry_transient(
                 lambda: traced_call(tool_args),
                 max_attempts=_outer_attempts,
@@ -705,7 +711,12 @@ def make_filtered_tool_node(allowed_tool_names: set[str]):
         allowed_calls = []
         skipped_messages = []
         for tc in last_message.tool_calls:
-            if tc["name"] in allowed_tool_names:
+            descriptor = TOOL_REGISTRY.descriptor(tc["name"])
+            if (
+                tc["name"] in allowed_tool_names
+                and descriptor is not None
+                and descriptor.enabled
+            ):
                 allowed_calls.append(tc)
             else:
                 logger.warning(

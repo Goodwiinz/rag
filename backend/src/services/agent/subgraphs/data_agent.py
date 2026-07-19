@@ -17,26 +17,12 @@ from src.services.agent.graph import _sanitize_messages
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tools import (
-    explore_entity_neighborhood,
-    extract_entities,
-    find_entity_paths,
-    get_graph_stats,
-    list_project_documents,
-    search_documents,
-    search_knowledge_graph,
-)
+from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 DATA_TOOLS = [
-    extract_entities,
-    search_knowledge_graph,
-    explore_entity_neighborhood,
-    find_entity_paths,
-    get_graph_stats,
-    search_documents,
-    list_project_documents,
+    descriptor.tool for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("data")
 ]
 
 DATA_TOOL_NAMES_LIST = [t.name for t in DATA_TOOLS]

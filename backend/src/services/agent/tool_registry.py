@@ -39,6 +39,7 @@ class ToolPolicyTag(StrEnum):
     DESTRUCTIVE = "destructive"
     SLOW = "slow"
     NO_OUTER_RETRY = "no_outer_retry"
+    CONTEXT_FREE = "context_free"
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class ToolDescriptor:
     policy_tags: frozenset[ToolPolicyTag]
     enabled: bool = True
     exposed_in_all_tools: bool = True
+    subgraph_positions: tuple[tuple[AgentSubgraph, int], ...] = ()
 
 
 class ToolRegistry:
@@ -76,7 +78,10 @@ class ToolRegistry:
         self._by_subgraph = {
             subgraph: tuple(
                 descriptor
-                for descriptor in self._descriptors
+                for descriptor in sorted(
+                    self._descriptors,
+                    key=lambda item: dict(item.subgraph_positions).get(subgraph, 0),
+                )
                 if descriptor.enabled and subgraph in descriptor.subgraphs
             )
             for subgraph in AgentSubgraph
@@ -103,6 +108,16 @@ class ToolRegistry:
                 raise TypeError("tool descriptor enabled must be a bool")
             if not isinstance(descriptor.exposed_in_all_tools, bool):
                 raise TypeError("tool descriptor exposed_in_all_tools must be a bool")
+            positions = dict(descriptor.subgraph_positions)
+            if len(positions) != len(descriptor.subgraph_positions) or not all(
+                isinstance(subgraph, AgentSubgraph) and isinstance(position, int)
+                for subgraph, position in descriptor.subgraph_positions
+            ):
+                raise TypeError("subgraph positions must be unique enum/int pairs")
+            if not set(positions).issubset(descriptor.subgraphs):
+                raise ValueError(
+                    "subgraph positions must refer to descriptor subgraphs"
+                )
             if not all(
                 isinstance(intent, AgentIntent) for intent in descriptor.intents
             ):
@@ -138,6 +153,10 @@ class ToolRegistry:
                 "policy_tags": sorted(tag.value for tag in descriptor.policy_tags),
                 "enabled": descriptor.enabled,
                 "exposed_in_all_tools": descriptor.exposed_in_all_tools,
+                "subgraph_positions": [
+                    (subgraph.value, position)
+                    for subgraph, position in descriptor.subgraph_positions
+                ],
             }
             for descriptor in self._descriptors
         ]

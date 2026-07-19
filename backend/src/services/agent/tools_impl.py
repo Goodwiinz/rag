@@ -594,18 +594,12 @@ AGENT_TOOLS = [
 # Tool dispatcher
 # ---------------------------------------------------------------------------
 
-# Tools whose implementations take neither a DB session nor a User object.
-# The dispatcher skips opening a tool_session() for these so a slow external
-# call (search_arxiv sits in the 120s timeout tier) never pins a pooled
-# session/user lookup it will not use.
-_CONTEXT_FREE_TOOLS = frozenset(
-    {
-        "search_arxiv",
-        "search_external_database",
-        "list_external_databases",
-        "forget_memory",  # user_id string only — no session, no ORM user
-    }
-)
+
+def _registry_descriptor(tool_name: str):
+    """Resolve code-owned tool metadata without importing wrappers eagerly."""
+    from src.services.agent.tools import TOOL_REGISTRY
+
+    return TOOL_REGISTRY.descriptor(tool_name)
 
 
 async def execute_tool(
@@ -630,7 +624,13 @@ async def execute_tool(
     direct callers and tests; when either is provided no session is opened
     and the values are forwarded as-is.
     """
-    if tool_name in _CONTEXT_FREE_TOOLS or _is_unknown_tool(tool_name):
+    descriptor = _registry_descriptor(tool_name)
+    if descriptor is None or not descriptor.enabled:
+        return {"error": f"Unknown tool: {tool_name}"}
+
+    from src.services.agent.tool_registry import ToolPolicyTag
+
+    if descriptor and ToolPolicyTag.CONTEXT_FREE in descriptor.policy_tags:
         return await _dispatch_tool(
             tool_name, args, user_id, db, current_user, thread_id
         )
@@ -652,40 +652,6 @@ async def execute_tool(
         return await _dispatch_tool(
             tool_name, args, user_id, session, resolved_user, thread_id
         )
-
-
-# Known tool names — kept in sync with the dispatch chain below so unknown
-# tools short-circuit without opening a database session.
-_KNOWN_TOOLS = frozenset(
-    {
-        "search_arxiv",
-        "ingest_arxiv_papers",
-        "search_documents",
-        "do_kb_retrieve",
-        "add_document_to_project",
-        "create_project",
-        "create_project_note",
-        "list_projects",
-        "list_project_documents",
-        "summarize_document",
-        "compare_documents",
-        "extract_entities",
-        "search_knowledge_graph",
-        "explore_entity_neighborhood",
-        "find_entity_paths",
-        "get_graph_stats",
-        "create_draft",
-        "export_bibliography",
-        "execute_code",
-        "search_external_database",
-        "list_external_databases",
-        "forget_memory",
-    }
-)
-
-
-def _is_unknown_tool(tool_name: str) -> bool:
-    return tool_name not in _KNOWN_TOOLS
 
 
 async def _dispatch_tool(

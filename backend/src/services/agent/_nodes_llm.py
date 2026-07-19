@@ -46,7 +46,8 @@ from src.services.agent.observability import (
     track_node_execution,
 )
 from src.services.agent.state import AgentState
-from src.services.agent.tools import ALL_TOOLS
+from src.services.agent.tool_registry import AgentIntent
+from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -55,32 +56,16 @@ logger = logging.getLogger(__name__)
 # Intent-scoped tool subsets
 # ---------------------------------------------------------------------------
 
-RESEARCH_TOOLS_NAMES = {
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "list_project_documents",
-    "execute_code",
-}
-WRITING_TOOLS_NAMES = {
-    "create_draft",
-    "create_project_note",
-    "export_bibliography",
-    "summarize_document",
-    "compare_documents",
-}
-KG_TOOLS_NAMES = {
-    "extract_entities",
-    "search_knowledge_graph",
-    "explore_entity_neighborhood",
-    "find_entity_paths",
-    "get_graph_stats",
-    "search_documents",
-    "execute_code",
-}
+RESEARCH_TOOLS_NAMES = frozenset(
+    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("research")
+)
+WRITING_TOOLS_NAMES = frozenset(
+    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("writing")
+)
+KG_TOOLS_NAMES = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors_for_intent("knowledge_graph")
+)
 
 # Subset for "general" intent — avoids binding all 20 tools on every first
 # message (greetings, "help", etc.) which bloats the token budget by ~4 000
@@ -88,33 +73,17 @@ KG_TOOLS_NAMES = {
 # sub-graphs. General gets the 10 most commonly used discovery+productivity
 # tools; more specialised tools (create_draft, compare_documents, etc.) are
 # available once the classifier narrows the intent.
-GENERAL_TOOLS_NAMES = {
-    "search_arxiv",
-    "ingest_arxiv_papers",
-    "search_documents",
-    "create_project",
-    "list_projects",
-    "add_document_to_project",
-    "list_project_documents",
-    "create_project_note",
-    "summarize_document",
-    "search_knowledge_graph",
-}
+GENERAL_TOOLS_NAMES = frozenset(
+    descriptor.name for descriptor in TOOL_REGISTRY.descriptors_for_intent("general")
+)
 
 
 def _get_tools_for_intent(intent: str) -> list:
     """Return the tool subset for a given intent."""
-    name_set = {
-        "research": RESEARCH_TOOLS_NAMES,
-        "writing": WRITING_TOOLS_NAMES,
-        "knowledge_graph": KG_TOOLS_NAMES,
-        "general": GENERAL_TOOLS_NAMES,
-    }.get(intent)
-
-    if name_set is None:
+    descriptors = TOOL_REGISTRY.descriptors_for_intent(intent)
+    if intent not in {item.value for item in AgentIntent}:
         return ALL_TOOLS
-
-    return [t for t in ALL_TOOLS if t.name in name_set]
+    return [descriptor.tool for descriptor in descriptors]
 
 
 def _tools_for_turn(intent: str, *, last_user_msg: str, retrieved: list) -> list:
@@ -502,7 +471,8 @@ async def force_synthesis_node(state: AgentState, config: RunnableConfig) -> dic
                 "I ran my tool calls but the final summary step timed out "
                 f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an answer. "
                 "Please ask me again — the tool results are still in context "
-                "so a retry can synthesize them directly." if tool_count
+                "so a retry can synthesize them directly."
+                if tool_count
                 else (
                     "The final response step timed out "
                     f"({AGENT_LLM_TIMEOUT_SECONDS}s) before producing an "

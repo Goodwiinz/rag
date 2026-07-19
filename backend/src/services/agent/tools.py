@@ -799,13 +799,27 @@ TOOL_REGISTRY = ToolRegistry(
             tool=search_arxiv,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
-            policy_tags=frozenset({ToolPolicyTag.SLOW, ToolPolicyTag.NO_OUTER_RETRY}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 0),
+                (AgentSubgraph.WRITING, 5),
+            ),
+            policy_tags=frozenset(
+                {
+                    ToolPolicyTag.SLOW,
+                    ToolPolicyTag.NO_OUTER_RETRY,
+                    ToolPolicyTag.CONTEXT_FREE,
+                }
+            ),
         ),
         ToolDescriptor(
             name="ingest_arxiv_papers",
             tool=ingest_arxiv_papers,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 1),
+                (AgentSubgraph.WRITING, 6),
+            ),
             policy_tags=frozenset(
                 {
                     ToolPolicyTag.DESTRUCTIVE,
@@ -825,6 +839,7 @@ TOOL_REGISTRY = ToolRegistry(
                 }
             ),
             subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 2), (AgentSubgraph.DATA, 5)),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -832,6 +847,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=do_kb_retrieve,
             intents=frozenset(),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 3),),
             policy_tags=frozenset(),
             exposed_in_all_tools=False,
         ),
@@ -840,6 +856,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=create_project,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 4),),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
@@ -847,6 +864,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=list_projects,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 5),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -854,6 +872,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=add_document_to_project,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 6),),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
@@ -861,6 +880,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=create_project_note,
             intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 1),),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
         ),
         ToolDescriptor(
@@ -868,6 +888,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=list_project_documents,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 7), (AgentSubgraph.DATA, 6)),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -875,6 +896,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=summarize_document,
             intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 3),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -882,6 +904,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=compare_documents,
             intents=frozenset({AgentIntent.WRITING}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 4),),
             policy_tags=frozenset({ToolPolicyTag.SLOW}),
         ),
         ToolDescriptor(
@@ -889,6 +912,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=extract_entities,
             intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
             subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 0),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -896,6 +920,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=search_knowledge_graph,
             intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH, AgentIntent.GENERAL}),
             subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 1),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -903,6 +928,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=explore_entity_neighborhood,
             intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
             subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 2),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -910,6 +936,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=find_entity_paths,
             intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
             subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 3),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -917,6 +944,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=get_graph_stats,
             intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
             subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 4),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -924,6 +952,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=create_draft,
             intents=frozenset({AgentIntent.WRITING}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 0),),
             policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.SLOW}),
         ),
         ToolDescriptor(
@@ -931,6 +960,7 @@ TOOL_REGISTRY = ToolRegistry(
             tool=export_bibliography,
             intents=frozenset({AgentIntent.WRITING}),
             subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 2),),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
@@ -945,21 +975,23 @@ TOOL_REGISTRY = ToolRegistry(
             tool=search_external_database,
             intents=frozenset(),
             subgraphs=frozenset(),
-            policy_tags=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="list_external_databases",
             tool=list_external_databases,
             intents=frozenset(),
             subgraphs=frozenset(),
-            policy_tags=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
         ),
         ToolDescriptor(
             name="forget_memory",
             tool=forget_memory,
             intents=frozenset(),
             subgraphs=frozenset(),
-            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.CONTEXT_FREE}
+            ),
         ),
     ]
 )

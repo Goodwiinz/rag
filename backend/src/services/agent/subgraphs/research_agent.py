@@ -21,28 +21,13 @@ from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tools import (
-    add_document_to_project,
-    create_project,
-    do_kb_retrieve,
-    ingest_arxiv_papers,
-    list_project_documents,
-    list_projects,
-    search_arxiv,
-    search_documents,
-)
+from src.services.agent.tool_registry import ToolPolicyTag
+from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 RESEARCH_TOOLS = [
-    search_arxiv,
-    ingest_arxiv_papers,
-    search_documents,
-    do_kb_retrieve,
-    create_project,
-    list_projects,
-    add_document_to_project,
-    list_project_documents,
+    descriptor.tool for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("research")
 ]
 
 RESEARCH_TOOL_NAMES_LIST = [t.name for t in RESEARCH_TOOLS]
@@ -138,11 +123,11 @@ def _build_research_system_prompt() -> str:
 # Only tools actually in RESEARCH_TOOLS belong here — the filtered tool
 # node can never execute anything else, so extra entries are dead weight
 # that misleads readers about what this subgraph can run.
-RESEARCH_DESTRUCTIVE_TOOLS = {
-    "ingest_arxiv_papers",
-    "add_document_to_project",
-    "create_project",
-}
+RESEARCH_DESTRUCTIVE_TOOLS = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("research")
+    if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
+)
 
 
 @track_node_execution("research_llm_node")
@@ -245,7 +230,10 @@ def research_should_continue(state: AgentState) -> str:
     last = state["messages"][-1] if state["messages"] else None
     if isinstance(last, AIMessage) and last.tool_calls:
         if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
-            if any(tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+            if any(
+                TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+                for tc in last.tool_calls
+            ):
                 return "research_interrupt_node"
             return "research_tool_node"
         # Loop ceiling tripped while the model still wants more tools.
@@ -368,7 +356,9 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
         # checkpoint or an out-of-order edge could violate that contract.
         return {"pending_confirmation": {}, "user_confirmed": False}
     destructive_calls = [
-        tc for tc in last.tool_calls if tc["name"] in RESEARCH_DESTRUCTIVE_TOOLS
+        tc
+        for tc in last.tool_calls
+        if TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
     ]
     tool_names = [tc["name"] for tc in destructive_calls]
 
