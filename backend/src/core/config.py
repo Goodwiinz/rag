@@ -478,6 +478,14 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
+    # Project-skill runtime rollout gates.  All default off so deploying the
+    # catalog schema cannot change existing agent behavior until operators
+    # explicitly enable the staged path.
+    AGENT_TOOL_REGISTRY_ENFORCEMENT_ENABLED: bool = False
+    PROJECT_SKILL_CATALOG_ENABLED: bool = False
+    PROJECT_SKILL_RUNTIME_ENABLED: bool = False
+    PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS: int = 30
+
     # Citation-faithfulness reviewer pass in draft generation (WS1).
     # Default off: merge inert, flip in values-dev after verify.
     # When flipping on in dev, no secret is needed — boolean env only;
