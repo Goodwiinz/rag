@@ -231,7 +231,9 @@ def research_should_continue(state: AgentState) -> str:
     if isinstance(last, AIMessage) and last.tool_calls:
         if state.get("tool_loop_count", 0) < MAX_RESEARCH_TOOL_LOOPS:
             if any(
-                TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+                TOOL_REGISTRY.has_policy_in_subgraph(
+                    tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
+                )
                 for tc in last.tool_calls
             ):
                 return "research_interrupt_node"
@@ -358,7 +360,9 @@ async def research_interrupt_node(state: AgentState, config: RunnableConfig) -> 
     destructive_calls = [
         tc
         for tc in last.tool_calls
-        if TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+        if TOOL_REGISTRY.has_policy_in_subgraph(
+            tc["name"], ToolPolicyTag.DESTRUCTIVE, "research"
+        )
     ]
     tool_names = [tc["name"] for tc in destructive_calls]
 

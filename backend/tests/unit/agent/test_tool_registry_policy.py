@@ -23,6 +23,54 @@ def test_main_llm_binding_queries_registry_for_intent(monkeypatch):
 
 
 @pytest.mark.unit
+def test_main_routing_queries_registry_destructive_policy(monkeypatch):
+    from src.services.agent import _builders
+
+    registry = Mock()
+    registry.has_policy.return_value = True
+    monkeypatch.setattr(_builders, "TOOL_REGISTRY", registry)
+
+    route = _builders.should_continue(
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[{"id": "call-1", "name": "search_arxiv", "args": {}}],
+                )
+            ],
+            "tool_loop_count": 0,
+        }
+    )
+
+    assert route == "interrupt_node"
+    registry.has_policy.assert_called_once()
+
+
+@pytest.mark.unit
+def test_subgraph_routing_requires_descriptor_policy_and_scope(monkeypatch):
+    from src.services.agent.subgraphs import research_agent, writing_agent
+
+    registry = Mock()
+    registry.has_policy.return_value = True
+    registry.has_policy_in_subgraph.return_value = False
+    monkeypatch.setattr(research_agent, "TOOL_REGISTRY", registry)
+    monkeypatch.setattr(writing_agent, "TOOL_REGISTRY", registry)
+    state = {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "call-1", "name": "execute_code", "args": {}}],
+            )
+        ],
+        "tool_loop_count": 0,
+    }
+
+    assert research_agent.research_should_continue(state) == "research_tool_node"
+    assert writing_agent.writing_should_continue(state) == "writing_tool_node"
+    assert registry.has_policy_in_subgraph.call_count == 2
+
+
+@pytest.mark.unit
 async def test_disabled_registry_tool_is_rejected_without_dispatch(monkeypatch):
     from src.services.agent import tools, tools_impl
     from src.services.agent.tool_registry import ToolRegistry

@@ -37,6 +37,7 @@ def _descriptor(
     policy_tags: frozenset[ToolPolicyTag] = frozenset(),
     enabled: bool = True,
     exposed_in_all_tools: bool = True,
+    subgraph_positions: tuple[tuple[AgentSubgraph, int], ...] | None = None,
 ) -> ToolDescriptor:
     return ToolDescriptor(
         name=name,
@@ -46,6 +47,11 @@ def _descriptor(
         policy_tags=policy_tags,
         enabled=enabled,
         exposed_in_all_tools=exposed_in_all_tools,
+        subgraph_positions=(
+            tuple((subgraph, 0) for subgraph in subgraphs)
+            if subgraph_positions is None
+            else subgraph_positions
+        ),
     )
 
 
@@ -135,6 +141,34 @@ class TestToolRegistry:
         with pytest.raises(ValueError, match="no_outer_retry"):
             ToolRegistry(
                 [_descriptor(policy_tags=frozenset({ToolPolicyTag.NO_OUTER_RETRY}))]
+            )
+
+    def test_rejects_incomplete_or_ambiguous_subgraph_positions(self):
+        research = frozenset({AgentSubgraph.RESEARCH})
+
+        with pytest.raises(ValueError, match="every descriptor subgraph"):
+            ToolRegistry([_descriptor(subgraphs=research, subgraph_positions=())])
+
+        with pytest.raises(ValueError, match="non-negative"):
+            ToolRegistry(
+                [
+                    _descriptor(
+                        subgraphs=research,
+                        subgraph_positions=((AgentSubgraph.RESEARCH, -1),),
+                    )
+                ]
+            )
+
+        with pytest.raises(ValueError, match="duplicate subgraph position"):
+            ToolRegistry(
+                [
+                    _descriptor(subgraphs=research),
+                    _descriptor(
+                        name="beta_tool",
+                        tool_object=beta_tool,
+                        subgraphs=research,
+                    ),
+                ]
             )
 
 

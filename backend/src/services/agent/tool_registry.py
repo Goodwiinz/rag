@@ -90,6 +90,9 @@ class ToolRegistry:
 
     def _validate(self) -> None:
         names: set[str] = set()
+        positions_by_subgraph: dict[AgentSubgraph, set[int]] = {
+            subgraph: set() for subgraph in AgentSubgraph
+        }
         for descriptor in self._descriptors:
             if not isinstance(descriptor, ToolDescriptor):
                 raise TypeError("registry entries must be ToolDescriptor instances")
@@ -114,10 +117,18 @@ class ToolRegistry:
                 for subgraph, position in descriptor.subgraph_positions
             ):
                 raise TypeError("subgraph positions must be unique enum/int pairs")
-            if not set(positions).issubset(descriptor.subgraphs):
+            if set(positions) != descriptor.subgraphs:
                 raise ValueError(
-                    "subgraph positions must refer to descriptor subgraphs"
+                    "every descriptor subgraph must have exactly one position"
                 )
+            for subgraph, position in positions.items():
+                if position < 0:
+                    raise ValueError("subgraph positions must be non-negative")
+                if position in positions_by_subgraph[subgraph]:
+                    raise ValueError(
+                        f"duplicate subgraph position for {subgraph.value}: {position}"
+                    )
+                positions_by_subgraph[subgraph].add(position)
             if not all(
                 isinstance(intent, AgentIntent) for intent in descriptor.intents
             ):
@@ -198,6 +209,22 @@ class ToolRegistry:
         """Whether a registered descriptor carries a server-owned policy tag."""
         descriptor = self._by_name.get(name)
         return bool(descriptor and tag in descriptor.policy_tags)
+
+    def has_policy_in_subgraph(
+        self, name: str, tag: ToolPolicyTag, subgraph: str
+    ) -> bool:
+        """Whether an enabled subgraph-visible descriptor carries a policy tag."""
+        descriptor = self._by_name.get(name)
+        try:
+            selected_subgraph = AgentSubgraph(subgraph)
+        except ValueError:
+            return False
+        return bool(
+            descriptor
+            and descriptor.enabled
+            and selected_subgraph in descriptor.subgraphs
+            and tag in descriptor.policy_tags
+        )
 
     def metadata_snapshot(self) -> dict[str, str]:
         """Return stable registry metadata suitable for durable run snapshots."""

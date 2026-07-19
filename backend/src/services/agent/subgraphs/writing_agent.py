@@ -159,7 +159,9 @@ def writing_should_continue(state: AgentState) -> str:
     if isinstance(last, AIMessage) and last.tool_calls:
         if state.get("tool_loop_count", 0) < MAX_WRITING_TOOL_LOOPS:
             if any(
-                TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+                TOOL_REGISTRY.has_policy_in_subgraph(
+                    tc["name"], ToolPolicyTag.DESTRUCTIVE, "writing"
+                )
                 for tc in last.tool_calls
             ):
                 return "writing_interrupt_node"
@@ -263,7 +265,9 @@ async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> d
     destructive_calls = [
         tc
         for tc in last.tool_calls
-        if TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+        if TOOL_REGISTRY.has_policy_in_subgraph(
+            tc["name"], ToolPolicyTag.DESTRUCTIVE, "writing"
+        )
     ]
     tool_names = [tc["name"] for tc in destructive_calls]
 
