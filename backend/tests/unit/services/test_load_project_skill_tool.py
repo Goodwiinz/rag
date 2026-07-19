@@ -226,3 +226,93 @@ async def test_loader_enforces_aggregate_token_limit_before_returning_instructio
         )
 
     assert result["error_type"] == "project_skill_token_limit"
+
+
+@pytest.mark.asyncio
+async def test_loader_rejects_mutated_instructions_with_a_stale_stored_hash():
+    from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
+
+    snapshot_id, user_id, project_id, version_id = uuid4(), uuid4(), uuid4(), uuid4()
+    expected_hash = "61d63d5b5fb1a48c0cb7dc3dcc53763eb1290295bf6e52d9606687a3ceb6271c"
+    row = SimpleNamespace(
+        id=snapshot_id,
+        user_id=user_id,
+        project_id=project_id,
+        expires_at=None,
+        skill_catalog=[
+            {
+                "version_id": str(version_id),
+                "name": "literature-review",
+                "version": 2,
+                "content_hash": expected_hash,
+            }
+        ],
+        loaded_skill_versions=[],
+    )
+    version = SimpleNamespace(
+        id=version_id,
+        parsed_name="literature-review",
+        version=2,
+        content_hash=expected_hash,
+        instructions="mutated after approval",
+    )
+    session = AsyncMock()
+    session.get.side_effect = [row, version]
+    session.scalar = AsyncMock(return_value=project_id)
+    with patch(
+        "src.services.agent.runtime_snapshot.get_settings",
+        return_value=SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True),
+    ):
+        result = await load_project_skill_from_snapshot(
+            session,
+            snapshot_id=str(snapshot_id),
+            user_id=str(user_id),
+            project_id=str(project_id),
+            skill_name="literature-review",
+        )
+    assert result["error_type"] == "skill_version_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_loader_rejects_snapshot_version_owned_by_another_project():
+    from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
+
+    snapshot_id, user_id, project_id, version_id = uuid4(), uuid4(), uuid4(), uuid4()
+    content_hash = "61d63d5b5fb1a48c0cb7dc3dcc53763eb1290295bf6e52d9606687a3ceb6271c"
+    row = SimpleNamespace(
+        id=snapshot_id,
+        user_id=user_id,
+        project_id=project_id,
+        expires_at=None,
+        skill_catalog=[
+            {
+                "version_id": str(version_id),
+                "name": "literature-review",
+                "version": 2,
+                "content_hash": content_hash,
+            }
+        ],
+        loaded_skill_versions=[],
+    )
+    version = SimpleNamespace(
+        id=version_id,
+        parsed_name="literature-review",
+        version=2,
+        content_hash=content_hash,
+        instructions="Use only the frozen version.",
+    )
+    session = AsyncMock()
+    session.get.side_effect = [row, version]
+    session.scalar = AsyncMock(return_value=uuid4())
+    with patch(
+        "src.services.agent.runtime_snapshot.get_settings",
+        return_value=SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True),
+    ):
+        result = await load_project_skill_from_snapshot(
+            session,
+            snapshot_id=str(snapshot_id),
+            user_id=str(user_id),
+            project_id=str(project_id),
+            skill_name="literature-review",
+        )
+    assert result["error_type"] == "skill_version_unavailable"

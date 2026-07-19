@@ -1506,7 +1506,11 @@ async def _run_agent_graph(
                 except Exception:
                     logger.warning("project memory load failed", exc_info=True)
 
-            from src.services.agent.runtime_snapshot import create_runtime_snapshot
+            from src.services.agent.runtime_snapshot import (
+                create_runtime_snapshot,
+                runtime_config_fields,
+                runtime_state_fields,
+            )
 
             runtime_snapshot = await create_runtime_snapshot(
                 db,
@@ -1536,11 +1540,10 @@ async def _run_agent_graph(
                 "intent_confidence": 0.0,
                 "last_error_info": {},
                 "user_id": str(current_user.id),
-                "current_project_id": str(page_context.get("project_id") or ""),
                 "model": request.model,
-                "runtime_snapshot_id": runtime_snapshot.id or "",
-                "project_skill_catalog": list(runtime_snapshot.project_skill_catalog),
-                "loaded_skill_versions": [],
+                **runtime_state_fields(
+                    runtime_snapshot, page_context.get("project_id")
+                ),
             }
 
             config = {
@@ -1555,8 +1558,9 @@ async def _run_agent_graph(
                         getattr(current_user, "organization_id", "") or ""
                     ),
                     "page_context": page_context,
-                    "project_id": str(page_context.get("project_id") or ""),
-                    "runtime_snapshot_id": runtime_snapshot.id or "",
+                    **runtime_config_fields(
+                        runtime_snapshot.id, page_context.get("project_id")
+                    ),
                 },
                 # LangSmith run metadata — makes traces filterable per
                 # tenant/turn (saved views by user_id / org_id / thread_id).
@@ -1812,19 +1816,12 @@ async def _resume_agent_graph(
             # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
             if snapshot and snapshot.values:
+                from src.services.agent.runtime_snapshot import (
+                    resume_runtime_config_fields,
+                )
+
                 config["configurable"].update(
-                    {
-                        "runtime_snapshot_id": str(
-                            snapshot.values.get("runtime_snapshot_id", "") or ""
-                        ),
-                        "project_id": str(
-                            snapshot.values.get("current_project_id")
-                            or (snapshot.values.get("page_context") or {}).get(
-                                "project_id"
-                            )
-                            or ""
-                        ),
-                    }
+                    resume_runtime_config_fields(snapshot.values)
                 )
             # Pre-resume checkpoint id -> deterministic assistant idempotency
             # key, captured BEFORE the resume advances the checkpoint so a

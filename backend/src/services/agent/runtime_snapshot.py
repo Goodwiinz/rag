@@ -51,6 +51,37 @@ class RuntimeSnapshot:
     expires_at: datetime | None
 
 
+def runtime_state_fields(
+    snapshot: RuntimeSnapshot, project_id: str | None
+) -> dict[str, Any]:
+    """Single initial-state projection used by streaming and queued turns."""
+    return {
+        "current_project_id": str(project_id or ""),
+        "runtime_snapshot_id": snapshot.id or "",
+        "project_skill_catalog": list(snapshot.project_skill_catalog),
+        "loaded_skill_versions": [],
+    }
+
+
+def runtime_config_fields(
+    snapshot_id: str | None, project_id: str | None
+) -> dict[str, str]:
+    """Server-owned configurable identifiers for every tool invocation."""
+    return {
+        "project_id": str(project_id or ""),
+        "runtime_snapshot_id": str(snapshot_id or ""),
+    }
+
+
+def resume_runtime_config_fields(values: dict[str, Any]) -> dict[str, str]:
+    """Recover immutable runtime context from checkpoint state for HITL resume."""
+    page_context = values.get("page_context") or {}
+    return runtime_config_fields(
+        values.get("runtime_snapshot_id"),
+        values.get("current_project_id") or page_context.get("project_id"),
+    )
+
+
 def empty_runtime_snapshot() -> RuntimeSnapshot:
     """Return the ordinary-tools-only fallback without a durable skill catalog."""
     metadata = TOOL_REGISTRY.metadata_snapshot()

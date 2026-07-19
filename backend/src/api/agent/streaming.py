@@ -427,7 +427,11 @@ async def stream_event_generator(
             except Exception:
                 logger.warning("project memory load failed", exc_info=True)
 
-        from src.services.agent.runtime_snapshot import create_runtime_snapshot
+        from src.services.agent.runtime_snapshot import (
+            create_runtime_snapshot,
+            runtime_config_fields,
+            runtime_state_fields,
+        )
 
         runtime_snapshot = await create_runtime_snapshot(
             db,
@@ -456,11 +460,8 @@ async def stream_event_generator(
             "intent_confidence": 0.0,
             "last_error_info": {},
             "user_id": str(current_user.id),
-            "current_project_id": str(page_context.get("project_id") or ""),
             "model": request_body.model,
-            "runtime_snapshot_id": runtime_snapshot.id or "",
-            "project_skill_catalog": list(runtime_snapshot.project_skill_catalog),
-            "loaded_skill_versions": [],
+            **runtime_state_fields(runtime_snapshot, page_context.get("project_id")),
         }
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
@@ -476,8 +477,9 @@ async def stream_event_generator(
                     getattr(current_user, "organization_id", "") or ""
                 ),
                 "page_context": page_context,
-                "project_id": str(page_context.get("project_id") or ""),
-                "runtime_snapshot_id": runtime_snapshot.id or "",
+                **runtime_config_fields(
+                    runtime_snapshot.id, page_context.get("project_id")
+                ),
             },
             # LangSmith run metadata — per-tenant/turn filterable traces.
             # Inherited by child runs; never carries secrets.
@@ -1083,14 +1085,9 @@ async def stream_confirm_event_generator(
         page_context = _page_context_to_dict(
             current_snapshot.values.get("page_context", {})
         )
-        runtime_snapshot_id = str(
-            current_snapshot.values.get("runtime_snapshot_id", "") or ""
-        )
-        current_project_id = str(
-            current_snapshot.values.get("current_project_id")
-            or page_context.get("project_id")
-            or ""
-        )
+        from src.services.agent.runtime_snapshot import resume_runtime_config_fields
+
+        runtime_context = resume_runtime_config_fields(current_snapshot.values)
 
         # Resume idempotency key anchored to the interrupt CHECKPOINT — not
         # the thread's latest user client_message_id. A user can send a new
@@ -1176,8 +1173,7 @@ async def stream_confirm_event_generator(
                     getattr(current_user, "organization_id", "") or ""
                 ),
                 "page_context": page_context,
-                "project_id": current_project_id,
-                "runtime_snapshot_id": runtime_snapshot_id,
+                **runtime_context,
             },
         }
 
