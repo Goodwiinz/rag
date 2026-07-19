@@ -75,6 +75,13 @@ def parse_skill_document(text: str) -> SkillDocument:
     description = metadata.get("description")
     if not isinstance(description, str) or not description.strip():
         raise SkillDocumentError("description must be a non-empty string")
+    description = description.strip()
+    if (
+        "\n" in description
+        or "\r" in description
+        or any(ord(char) < 32 or ord(char) == 127 for char in description)
+    ):
+        raise SkillDocumentError("description must be a trimmed single line")
 
     instructions = "".join(lines[closing_index + 1 :])
     if not instructions.strip():

@@ -60,7 +60,7 @@ async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalo
     row = session.add.call_args.args[0]
     assert row.tool_registry_hash == "b" * 64
     assert row.tool_registry_version == "7"
-    assert row.tool_metadata["enabled_names"]
+    assert row.tool_metadata["descriptors"]
     assert row.skill_catalog == [
         {
             "version_id": str(version_id),

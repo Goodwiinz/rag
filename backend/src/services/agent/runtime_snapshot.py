@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 from typing import Any
 from uuid import UUID
 
@@ -57,7 +58,11 @@ def empty_runtime_snapshot() -> RuntimeSnapshot:
         id=None,
         tool_registry_hash=metadata["hash"],
         tool_registry_version=metadata["version"],
-        tool_names=(),
+        tool_names=tuple(
+            descriptor.name
+            for descriptor in TOOL_REGISTRY.descriptors
+            if descriptor.enabled
+        ),
         project_skill_catalog=(),
         expires_at=None,
     )
@@ -150,9 +155,9 @@ def render_project_skill_catalog(
         return ""
     lines = ["Project skills available for this turn (load only when relevant):"]
     for item in entries[:MAX_ACTIVE_PROJECT_SKILLS]:
+        description = " ".join(str(item.get("description", "")).split())[:240]
         lines.append(
-            f"- {item.get('name', '')} (v{item.get('version', '')}): "
-            f"{item.get('description', '')}"
+            f"- {item.get('name', '')} (v{item.get('version', '')}): " f"{description}"
         )
     lines.append(
         "Call load_project_skill(skill_name) to read the exact instructions for one listed skill."
@@ -176,24 +181,33 @@ async def create_runtime_snapshot(
     committed to the durable snapshot row.
     """
     settings = get_settings()
-    if not (
+    skill_runtime = (
         settings.PROJECT_SKILL_CATALOG_ENABLED
         and settings.PROJECT_SKILL_RUNTIME_ENABLED
+    )
+    if not skill_runtime and not getattr(
+        settings, "AGENT_TOOL_REGISTRY_ENFORCEMENT_ENABLED", False
     ):
         return empty_runtime_snapshot()
 
     actor_id = _as_uuid(user_id)
     scoped_project_id = _as_uuid(project_id)
-    if actor_id is None or scoped_project_id is None:
+    if actor_id is None:
+        return empty_runtime_snapshot()
+
+    if not skill_runtime and scoped_project_id is None:
+        scoped_project_id = None
+    elif scoped_project_id is None:
         return empty_runtime_snapshot()
 
     try:
-        await get_authorized_project(
-            session,
-            project_id=scoped_project_id,
-            user_id=actor_id,
-            capability="read",
-        )
+        if scoped_project_id is not None:
+            await get_authorized_project(
+                session,
+                project_id=scoped_project_id,
+                user_id=actor_id,
+                capability="read",
+            )
     except (ProjectSkillNotFound, PermissionError, ValueError):
         return empty_runtime_snapshot()
 
@@ -204,7 +218,11 @@ async def create_runtime_snapshot(
         if descriptor.enabled
     )
     try:
-        catalog = await _eligible_catalog(session, project_id=scoped_project_id)
+        catalog = (
+            await _eligible_catalog(session, project_id=scoped_project_id)
+            if skill_runtime and scoped_project_id is not None
+            else []
+        )
         expires_at = datetime.now(timezone.utc) + timedelta(
             days=max(1, settings.PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS)
         )
@@ -215,7 +233,7 @@ async def create_runtime_snapshot(
             job_id=job_id,
             tool_registry_hash=metadata["hash"],
             tool_registry_version=metadata["version"],
-            tool_metadata={"enabled_names": list(tool_names)},
+            tool_metadata={"descriptors": TOOL_REGISTRY.frozen_descriptor_metadata()},
             skill_catalog=catalog,
             loaded_skill_versions=[],
             expires_at=expires_at,
@@ -340,7 +358,19 @@ async def load_project_skill_from_snapshot(
         or version.parsed_name != normalized_name
         or version.version != entry.get("version")
         or version.content_hash != entry.get("content_hash")
+        or sha256(version.instructions.encode("utf-8")).hexdigest()
+        != version.content_hash
     ):
+        return _snapshot_error(
+            "skill_version_unavailable",
+            "The frozen project skill version is unavailable.",
+        )
+    version_project_id = await session.scalar(
+        select(ProjectSkill.project_id)
+        .join(ProjectSkillVersion, ProjectSkill.id == ProjectSkillVersion.skill_id)
+        .where(ProjectSkillVersion.id == version.id)
+    )
+    if version_project_id != snapshot.project_id:
         return _snapshot_error(
             "skill_version_unavailable",
             "The frozen project skill version is unavailable.",

@@ -80,3 +80,12 @@ def test_scanner_accepts_explicit_unknown_tool_reference_as_a_warning():
     )
 
     assert [finding.code for finding in result.findings] == ["unknown_tool_reference"]
+
+
+def test_scanner_blocks_secrets_in_description_metadata():
+    result = scan_skill_document(
+        "---\nname: safe-name\ndescription: api_key=sk-abcdefghijklmnopqrstuvwxyz123456\n---\nbody"
+    )
+
+    assert result.is_blocking
+    assert "secret_detected" in {finding.code for finding in result.findings}

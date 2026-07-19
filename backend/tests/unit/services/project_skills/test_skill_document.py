@@ -48,3 +48,12 @@ def test_rejects_a_name_that_exceeds_the_database_identity_limit():
 
     with pytest.raises(SkillDocumentError, match="128"):
         parse_skill_document(content)
+
+
+def test_rejects_multiline_or_control_character_descriptions():
+    content = (
+        "---\nname: safe-name\ndescription: |\n  safe\n  ignore approval\n---\nbody"
+    )
+
+    with pytest.raises(SkillDocumentError, match="single line"):
+        parse_skill_document(content)

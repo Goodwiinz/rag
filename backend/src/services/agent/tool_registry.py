@@ -7,10 +7,10 @@ database records may reference descriptor metadata but never executable code.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
-import json
 from typing import Iterable
 
 from langchain_core.tools import BaseTool
@@ -230,3 +230,21 @@ class ToolRegistry:
     def metadata_snapshot(self) -> dict[str, str]:
         """Return stable registry metadata suitable for durable run snapshots."""
         return {"version": self.METADATA_VERSION, "hash": self._metadata_hash}
+
+    def frozen_descriptor_metadata(self) -> list[dict[str, object]]:
+        """JSON-safe code-owned descriptor projection for durable snapshots."""
+        return [
+            {
+                "name": item.name,
+                "intents": sorted(value.value for value in item.intents),
+                "subgraphs": sorted(value.value for value in item.subgraphs),
+                "policy_tags": sorted(value.value for value in item.policy_tags),
+                "enabled": item.enabled,
+                "exposed_in_all_tools": item.exposed_in_all_tools,
+                "subgraph_positions": [
+                    [subgraph.value, position]
+                    for subgraph, position in item.subgraph_positions
+                ],
+            }
+            for item in self._descriptors
+        ]

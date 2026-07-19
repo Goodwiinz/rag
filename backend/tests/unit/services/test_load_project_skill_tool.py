@@ -46,7 +46,7 @@ async def test_loader_returns_exact_frozen_version_and_records_unique_load():
                 "version_id": str(version_id),
                 "name": "literature-review",
                 "version": 2,
-                "content_hash": "a" * 64,
+                "content_hash": "61d63d5b5fb1a48c0cb7dc3dcc53763eb1290295bf6e52d9606687a3ceb6271c",
             }
         ],
         loaded_skill_versions=[],
@@ -55,12 +55,13 @@ async def test_loader_returns_exact_frozen_version_and_records_unique_load():
         id=version_id,
         parsed_name="literature-review",
         version=2,
-        content_hash="a" * 64,
+        content_hash="61d63d5b5fb1a48c0cb7dc3dcc53763eb1290295bf6e52d9606687a3ceb6271c",
         instructions="Use only the frozen version.",
     )
     session = AsyncMock()
     session.add = Mock()
     session.get.side_effect = [row, version]
+    session.scalar = AsyncMock(return_value=project_id)
     session.commit = AsyncMock()
     settings = SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True)
 
@@ -81,7 +82,7 @@ async def test_loader_returns_exact_frozen_version_and_records_unique_load():
         {
             "version_id": str(version_id),
             "name": "literature-review",
-            "content_hash": "a" * 64,
+            "content_hash": "61d63d5b5fb1a48c0cb7dc3dcc53763eb1290295bf6e52d9606687a3ceb6271c",
             "token_count": 7,
         }
     ]
@@ -196,7 +197,7 @@ async def test_loader_enforces_aggregate_token_limit_before_returning_instructio
                 "version_id": str(version_id),
                 "name": "large-skill",
                 "version": 1,
-                "content_hash": "b" * 64,
+                "content_hash": "f8efef2f7535e6a9651bd6d128c8f39e3121d4da8d4f1672350a3b8d40c71ecc",
             }
         ],
         loaded_skill_versions=[{"name": "prior", "token_count": 12_000}],
@@ -205,11 +206,12 @@ async def test_loader_enforces_aggregate_token_limit_before_returning_instructio
         id=version_id,
         parsed_name="large-skill",
         version=1,
-        content_hash="b" * 64,
+        content_hash="f8efef2f7535e6a9651bd6d128c8f39e3121d4da8d4f1672350a3b8d40c71ecc",
         instructions="still must not be returned",
     )
     session = AsyncMock()
     session.get.side_effect = [row, version]
+    session.scalar = AsyncMock(return_value=project_id)
     settings = SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True)
 
     with patch(

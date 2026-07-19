@@ -54,6 +54,7 @@ def _scan_document(
 ) -> list[ScanFinding]:
     findings: list[ScanFinding] = []
     instructions = document.instructions
+    metadata_text = document.description
     start_line = document.instruction_start_line
 
     if document.name in existing_names:
@@ -129,6 +130,8 @@ def _scan_document(
                     _line_for_match(instructions, match, start_line),
                 )
             )
+        for match in pattern.finditer(metadata_text):
+            findings.append(_finding(code, "blocker", message, 3))
 
     tool_reference = re.compile(
         r"\b(?:call|use)\s+(?:tool\s+)?`([a-z][a-z0-9_]*)`?"
