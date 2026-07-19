@@ -22,6 +22,7 @@ from src.core.config import get_settings
 from src.models import (
     AgentRuntimeSnapshot,
     ProjectSkill,
+    ProjectSkillVersion,
     ProjectSkillVersionScan,
 )
 from src.services.agent.tools import TOOL_REGISTRY
@@ -33,6 +34,8 @@ from src.services.project_skills.access import (
 logger = logging.getLogger(__name__)
 
 MAX_ACTIVE_PROJECT_SKILLS = 32
+MAX_LOADED_PROJECT_SKILLS = 3
+MAX_LOADED_PROJECT_SKILL_TOKENS = 12_000
 
 
 @dataclass(frozen=True)
@@ -217,3 +220,143 @@ async def create_runtime_snapshot(
         project_skill_catalog=_state_catalog(catalog),
         expires_at=expires_at,
     )
+
+
+def _snapshot_error(error_type: str, error: str) -> dict[str, str]:
+    """Keep loader failures structured for the model and tool audit trail."""
+    return {"error_type": error_type, "error": error}
+
+
+def _estimated_instruction_tokens(instructions: str) -> int:
+    """Match the conservative catalog scanner approximation without model I/O."""
+    return (len(instructions) + 3) // 4
+
+
+async def load_project_skill_from_snapshot(
+    session: AsyncSession,
+    *,
+    snapshot_id: str | None,
+    user_id: UUID | str | None,
+    project_id: UUID | str | None,
+    skill_name: str,
+) -> dict[str, Any]:
+    """Load one exact, frozen instruction document from a durable snapshot.
+
+    The caller supplies all context from server-owned config.  ``skill_name``
+    is intentionally the only model-controlled value; it must match an entry
+    already persisted in the snapshot catalog.
+    """
+    if not get_settings().PROJECT_SKILL_RUNTIME_ENABLED:
+        return _snapshot_error(
+            "project_skill_runtime_disabled", "Project skill runtime is disabled."
+        )
+    snapshot_uuid = _as_uuid(snapshot_id)
+    actor_id = _as_uuid(user_id)
+    expected_project_id = _as_uuid(project_id)
+    if snapshot_uuid is None or actor_id is None or expected_project_id is None:
+        return _snapshot_error(
+            "runtime_snapshot_required",
+            "Project skill loading requires server runtime snapshot context.",
+        )
+
+    snapshot = await session.get(
+        AgentRuntimeSnapshot, snapshot_uuid, with_for_update=True
+    )
+    now = datetime.now(timezone.utc)
+    if (
+        snapshot is None
+        or snapshot.user_id != actor_id
+        or snapshot.project_id != expected_project_id
+        or (
+            snapshot.expires_at is not None
+            and snapshot.expires_at.replace(tzinfo=timezone.utc) <= now
+        )
+    ):
+        return _snapshot_error(
+            "runtime_snapshot_unavailable",
+            "The project skill snapshot is unavailable for this run.",
+        )
+
+    try:
+        from src.services.project_skills.skill_document import normalize_skill_name
+
+        normalized_name = normalize_skill_name(skill_name)
+    except ValueError:
+        return _snapshot_error(
+            "invalid_skill_name", "skill_name must be lowercase kebab-case."
+        )
+
+    entry = next(
+        (
+            item
+            for item in snapshot.skill_catalog or []
+            if item.get("name") == normalized_name
+        ),
+        None,
+    )
+    if entry is None:
+        return _snapshot_error(
+            "skill_not_in_snapshot",
+            "That skill is not available in this run's snapshot.",
+        )
+
+    prior_loads = list(snapshot.loaded_skill_versions or [])
+    prior = next(
+        (item for item in prior_loads if item.get("name") == normalized_name), None
+    )
+    if (
+        prior is None
+        and len({item.get("name") for item in prior_loads}) >= MAX_LOADED_PROJECT_SKILLS
+    ):
+        return _snapshot_error(
+            "project_skill_load_limit",
+            "At most three project skills may be loaded per turn.",
+        )
+
+    version_id = _as_uuid(entry.get("version_id"))
+    version = await session.get(ProjectSkillVersion, version_id) if version_id else None
+    if (
+        version is None
+        or str(version.id) != str(entry.get("version_id"))
+        or version.parsed_name != normalized_name
+        or version.version != entry.get("version")
+        or version.content_hash != entry.get("content_hash")
+    ):
+        return _snapshot_error(
+            "skill_version_unavailable",
+            "The frozen project skill version is unavailable.",
+        )
+
+    token_count = _estimated_instruction_tokens(version.instructions)
+    loaded_tokens = sum(int(item.get("token_count", 0) or 0) for item in prior_loads)
+    if prior is None and loaded_tokens + token_count > MAX_LOADED_PROJECT_SKILL_TOKENS:
+        return _snapshot_error(
+            "project_skill_token_limit",
+            "Loading this skill would exceed the per-turn project skill token limit.",
+        )
+
+    record = prior or {
+        "version_id": str(version.id),
+        "name": normalized_name,
+        "content_hash": version.content_hash,
+        "token_count": token_count,
+    }
+    if prior is None:
+        snapshot.loaded_skill_versions = [*prior_loads, record]
+        try:
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.warning("failed to record loaded project skill", exc_info=True)
+            return _snapshot_error(
+                "runtime_snapshot_unavailable",
+                "The project skill snapshot could not be updated.",
+            )
+
+    return {
+        "name": normalized_name,
+        "version": version.version,
+        "content_hash": version.content_hash,
+        "instructions": version.instructions,
+        "loaded_skill_version": record,
+    }

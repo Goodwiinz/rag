@@ -40,6 +40,7 @@ class ToolPolicyTag(StrEnum):
     SLOW = "slow"
     NO_OUTER_RETRY = "no_outer_retry"
     CONTEXT_FREE = "context_free"
+    CONTEXT_REQUIRED = "context_required"
 
 
 @dataclass(frozen=True)

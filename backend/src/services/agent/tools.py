@@ -788,6 +788,40 @@ async def forget_memory(
     )
 
 
+@tool
+async def load_project_skill(
+    skill_name: str,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Load the frozen instructions for one relevant project skill.
+
+    Use only for a skill listed in this run's project-skill catalog.  The
+    server supplies the snapshot, user, and project context; never ask for or
+    invent identifiers.
+    """
+    config = config or {}
+    configurable = config.get("configurable", {})
+    snapshot_id = str(configurable.get("runtime_snapshot_id", "") or "")
+    project_id = str(configurable.get("project_id", "") or "")
+    if not snapshot_id or not project_id:
+        return {
+            "error_type": "runtime_snapshot_required",
+            "error": "Project skill loading requires server runtime snapshot context.",
+        }
+
+    from src.services.agent.tools_impl import _tool_load_project_skill
+
+    async with _tool_context(config) as (db, current_user, _page_ctx):
+        user_id = str(current_user.id) if current_user is not None else ""
+        return await _tool_load_project_skill(
+            {"skill_name": skill_name},
+            user_id=user_id,
+            project_id=project_id,
+            runtime_snapshot_id=snapshot_id,
+            db=db,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Code-owned registry and compatibility view
 # ---------------------------------------------------------------------------
@@ -983,6 +1017,14 @@ TOOL_REGISTRY = ToolRegistry(
             intents=frozenset(),
             subgraphs=frozenset(),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
+        ),
+        ToolDescriptor(
+            name="load_project_skill",
+            tool=load_project_skill,
+            intents=frozenset(),
+            subgraphs=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_REQUIRED}),
+            exposed_in_all_tools=False,
         ),
         ToolDescriptor(
             name="forget_memory",

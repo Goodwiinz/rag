@@ -608,6 +608,8 @@ async def execute_tool(
     user_id: str = "",
     organization_id: str = "",
     thread_id: str = "",
+    runtime_snapshot_id: str = "",
+    project_id: str = "",
     db: Optional[AsyncSession] = None,
     current_user: Optional[User] = None,
 ) -> Dict[str, Any]:
@@ -632,12 +634,26 @@ async def execute_tool(
 
     if descriptor and ToolPolicyTag.CONTEXT_FREE in descriptor.policy_tags:
         return await _dispatch_tool(
-            tool_name, args, user_id, db, current_user, thread_id
+            tool_name,
+            args,
+            user_id,
+            db,
+            current_user,
+            thread_id,
+            runtime_snapshot_id,
+            project_id,
         )
 
     if db is not None or current_user is not None:
         return await _dispatch_tool(
-            tool_name, args, user_id, db, current_user, thread_id
+            tool_name,
+            args,
+            user_id,
+            db,
+            current_user,
+            thread_id,
+            runtime_snapshot_id,
+            project_id,
         )
 
     from src.services.agent.tool_session import resolve_tool_user, tool_session
@@ -650,7 +666,14 @@ async def execute_tool(
         # own statements transparently begin a new transaction.
         await session.commit()
         return await _dispatch_tool(
-            tool_name, args, user_id, session, resolved_user, thread_id
+            tool_name,
+            args,
+            user_id,
+            session,
+            resolved_user,
+            thread_id,
+            runtime_snapshot_id,
+            project_id,
         )
 
 
@@ -661,6 +684,8 @@ async def _dispatch_tool(
     db: Optional[AsyncSession] = None,
     current_user: Optional[User] = None,
     thread_id: str = "",
+    runtime_snapshot_id: str = "",
+    project_id: str = "",
 ) -> Dict[str, Any]:
     """Route a tool call to its ``_tool_*`` implementation."""
     if tool_name == "search_arxiv":
@@ -713,7 +738,40 @@ async def _dispatch_tool(
             user_id=user_id,
             page_context=None,
         )
+    if tool_name == "load_project_skill":
+        return await _tool_load_project_skill(
+            args,
+            user_id=user_id,
+            project_id=project_id,
+            runtime_snapshot_id=runtime_snapshot_id,
+            db=db,
+        )
     return {"error": f"Unknown tool: {tool_name}"}
+
+
+async def _tool_load_project_skill(
+    args: Dict[str, Any],
+    *,
+    user_id: str,
+    project_id: str,
+    runtime_snapshot_id: str,
+    db: Optional[AsyncSession],
+) -> Dict[str, Any]:
+    """Load a frozen skill through the snapshot service, never live pointers."""
+    if db is None:
+        return {
+            "error_type": "runtime_snapshot_unavailable",
+            "error": "Project skill loading requires a server session.",
+        }
+    from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
+
+    return await load_project_skill_from_snapshot(
+        db,
+        snapshot_id=runtime_snapshot_id,
+        user_id=user_id,
+        project_id=project_id,
+        skill_name=args.get("skill_name", ""),
+    )
 
 
 # ---------------------------------------------------------------------------

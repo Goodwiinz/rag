@@ -438,6 +438,8 @@ async def _execute_single_tool(
             user_id = str(configurable.get("user_id", "") or "")
             organization_id = str(configurable.get("organization_id", "") or "")
             thread_id = str(configurable.get("thread_id", "") or "")
+            runtime_snapshot_id = str(configurable.get("runtime_snapshot_id", "") or "")
+            project_id = str(configurable.get("project_id", "") or "")
 
             async def _call_tool(args: dict):
                 return await asyncio.wait_for(
@@ -447,6 +449,8 @@ async def _execute_single_tool(
                         user_id=user_id,
                         organization_id=organization_id,
                         thread_id=thread_id,
+                        runtime_snapshot_id=runtime_snapshot_id,
+                        project_id=project_id,
                     ),
                     timeout=timeout,
                 )
