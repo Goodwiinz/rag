@@ -347,6 +347,34 @@
         "title": "ApiDocumentStatus",
         "type": "string"
       },
+      "ApprovalRequest": {
+        "properties": {
+          "audit_note": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Note"
+          },
+          "self_approval_acknowledged": {
+            "default": false,
+            "title": "Self Approval Acknowledged",
+            "type": "boolean"
+          },
+          "warning_acknowledged": {
+            "default": false,
+            "title": "Warning Acknowledged",
+            "type": "boolean"
+          }
+        },
+        "title": "ApprovalRequest",
+        "type": "object"
+      },
       "ArXivIngestRequest": {
         "properties": {
           "batch_size": {
@@ -1765,6 +1793,68 @@
           "categories"
         ],
         "title": "CategoryTrackingRequest",
+        "type": "object"
+      },
+      "ChangeRequestResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "audit_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Note"
+          },
+          "expected_active_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Active Version Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "proposed_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Version Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "status",
+          "proposed_version_id",
+          "expected_active_version_id",
+          "audit_note"
+        ],
+        "title": "ChangeRequestResponse",
         "type": "object"
       },
       "ChatCompletionRequest": {
@@ -8794,6 +8884,21 @@
         "title": "RealtimeStatusSubscription",
         "type": "object"
       },
+      "RejectRequest": {
+        "properties": {
+          "audit_note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Audit Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audit_note"
+        ],
+        "title": "RejectRequest",
+        "type": "object"
+      },
       "RelationshipResponse": {
         "description": "Response model for relationship data",
         "properties": {
@@ -9308,6 +9413,20 @@
         "title": "RoleResponse",
         "type": "object"
       },
+      "RollbackRequest": {
+        "properties": {
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id"
+        ],
+        "title": "RollbackRequest",
+        "type": "object"
+      },
       "RunCreate": {
         "description": "Schema for creating a research run.",
         "properties": {
@@ -9431,6 +9550,40 @@
           "note_title"
         ],
         "title": "SaveThreadToNoteRequest",
+        "type": "object"
+      },
+      "ScanFindingResponse": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "ScanFindingResponse",
         "type": "object"
       },
       "SearchAnalytics": {
@@ -10684,6 +10837,136 @@
           "resolved_at"
         ],
         "title": "SecurityIncidentResponse",
+        "type": "object"
+      },
+      "SkillDiffResponse": {
+        "properties": {
+          "diff": {
+            "title": "Diff",
+            "type": "string"
+          },
+          "from_version": {
+            "title": "From Version",
+            "type": "integer"
+          },
+          "to_version": {
+            "title": "To Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_version",
+          "to_version",
+          "diff"
+        ],
+        "title": "SkillDiffResponse",
+        "type": "object"
+      },
+      "SkillDocumentRequest": {
+        "properties": {
+          "document_text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Document Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_text"
+        ],
+        "title": "SkillDocumentRequest",
+        "type": "object"
+      },
+      "SkillResponse": {
+        "properties": {
+          "active_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Version Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_archived": {
+            "title": "Is Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "versions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SkillVersionResponse"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active_version_id",
+          "is_archived"
+        ],
+        "title": "SkillResponse",
+        "type": "object"
+      },
+      "SkillVersionResponse": {
+        "properties": {
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scan_findings": {
+            "items": {
+              "$ref": "#/components/schemas/ScanFindingResponse"
+            },
+            "title": "Scan Findings",
+            "type": "array"
+          },
+          "scan_state": {
+            "title": "Scan State",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "name",
+          "description",
+          "content_hash",
+          "scan_state",
+          "scan_findings"
+        ],
+        "title": "SkillVersionResponse",
         "type": "object"
       },
       "SortOrder": {
@@ -29189,6 +29472,688 @@
         "summary": "Render Project Report",
         "tags": [
           "project-report"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills": {
+      "get": {
+        "operationId": "list_skills_api_v1_projects__project_id__skills_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillResponse"
+                  },
+                  "title": "Response List Skills Api V1 Projects  Project Id  Skills Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Skills",
+        "tags": [
+          "project-skills"
+        ]
+      },
+      "post": {
+        "operationId": "create_skill_api_v1_projects__project_id__skills_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Skill",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/change-requests/{request_id}/approve": {
+      "post": {
+        "operationId": "approve_change_request_api_v1_projects__project_id__skills_change_requests__request_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Approve Change Request",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/change-requests/{request_id}/reject": {
+      "post": {
+        "operationId": "reject_change_request_api_v1_projects__project_id__skills_change_requests__request_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reject Change Request",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/change-requests/{request_id}/rescan": {
+      "post": {
+        "operationId": "rescan_change_request_api_v1_projects__project_id__skills_change_requests__request_id__rescan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rescan Change Request",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}": {
+      "get": {
+        "operationId": "get_skill_api_v1_projects__project_id__skills__skill_name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Skill",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}/archive": {
+      "post": {
+        "operationId": "archive_skill_api_v1_projects__project_id__skills__skill_name__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Archive Skill",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}/diff": {
+      "get": {
+        "operationId": "diff_skill_versions_api_v1_projects__project_id__skills__skill_name__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_version",
+            "required": true,
+            "schema": {
+              "title": "From Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_version",
+            "required": true,
+            "schema": {
+              "title": "To Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillDiffResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Diff Skill Versions",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}/restore": {
+      "post": {
+        "operationId": "restore_skill_api_v1_projects__project_id__skills__skill_name__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Restore Skill",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}/rollback": {
+      "post": {
+        "operationId": "rollback_skill_api_v1_projects__project_id__skills__skill_name__rollback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rollback Skill",
+        "tags": [
+          "project-skills"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/skills/{skill_name}/versions": {
+      "post": {
+        "operationId": "propose_version_api_v1_projects__project_id__skills__skill_name__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "skill_name",
+            "required": true,
+            "schema": {
+              "title": "Skill Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Propose Version",
+        "tags": [
+          "project-skills"
         ]
       }
     },

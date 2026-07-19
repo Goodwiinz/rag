@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import ProjectSkill, ProjectSkillChangeRequest, ProjectSkillVersion
 
-from .access import get_authorized_project
+from .access import ProjectSkillNotFound, get_authorized_project
 from .scanner import scan_skill_document
 from .skill_document import parse_skill_document
 
@@ -55,7 +55,7 @@ class ProjectSkillCatalogService:
             )
         )
         if skill is None:
-            raise ProjectSkillCatalogError("skill not found")
+            raise ProjectSkillNotFound("skill not found")
         return skill
 
     async def create_skill(self, *, project_id, user_id, document_text: str):

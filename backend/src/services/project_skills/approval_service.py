@@ -187,3 +187,27 @@ class ProjectSkillApprovalService:
         version.scanner_version = scan.scanner_version
         await self._session.commit()
         return version
+
+    async def rescan_change_request(self, *, project_id, request_id, user_id):
+        """Rescan the immutable document attached to a pending request."""
+        await get_authorized_project(
+            self._session,
+            project_id=project_id,
+            user_id=user_id,
+            capability="admin",
+        )
+        request = await self._session.scalar(
+            select(ProjectSkillChangeRequest)
+            .join(ProjectSkill)
+            .where(
+                ProjectSkillChangeRequest.id == request_id,
+                ProjectSkill.project_id == project_id,
+            )
+        )
+        if request is None or request.proposed_version_id is None:
+            raise ProjectSkillApprovalError("change request has no scannable version")
+        return await self.rescan(
+            project_id=project_id,
+            version_id=request.proposed_version_id,
+            user_id=user_id,
+        )

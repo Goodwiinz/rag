@@ -69,6 +69,7 @@ from src.api.research import (
     pipeline_router,
     project_chat_router,
     project_report_router,
+    project_skills_router,
     projects_router,
     tone_engine_router,
     writer_router,
@@ -638,6 +639,7 @@ app.include_router(export_router, prefix="/api/v1")  # Thread export endpoints
 app.include_router(citations_router)  # Research Assistant citations endpoints
 app.include_router(projects_router)  # Research Assistant projects endpoints
 app.include_router(project_report_router)  # GET /api/v1/projects/{id}/report.html
+app.include_router(project_skills_router)  # Project skill catalog and staged approvals
 app.include_router(project_chat_router)  # Project-Chat integration endpoints
 app.include_router(drafts_router)  # Research Assistant drafts endpoints
 app.include_router(tone_engine_router)  # Scholarly Tone Engine endpoints
