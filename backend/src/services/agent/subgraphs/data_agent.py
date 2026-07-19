@@ -66,7 +66,15 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
-    messages = [SystemMessage(content=_build_data_system_prompt())] + sanitized
+    messages = [SystemMessage(content=_build_data_system_prompt())]
+    from src.services.agent.runtime_snapshot import render_project_skill_catalog
+
+    skill_catalog_prompt = render_project_skill_catalog(
+        state.get("project_skill_catalog", [])
+    )
+    if skill_catalog_prompt:
+        messages.append(SystemMessage(content=skill_catalog_prompt))
+    messages += sanitized
 
     settings = get_settings()
     use_synthesis = bool(
@@ -93,8 +101,10 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
         llm = build_lightweight_llm(max_tokens=4096)
         logger.debug("data_llm_node: using lightweight model for tool decision")
+    from src.services.agent._nodes_llm import tools_for_runtime_snapshot
+
     llm_with_tools = llm.bind_tools(
-        DATA_TOOLS,
+        tools_for_runtime_snapshot(DATA_TOOLS, state),
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     from src.services.agent.graph import _merge_run_config
@@ -271,7 +281,7 @@ def build_data_subgraph() -> StateGraph:
     """
     from src.services.agent.graph import make_filtered_tool_node
 
-    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS}
+    DATA_TOOL_NAMES = {t.name for t in DATA_TOOLS} | {"load_project_skill"}
     filtered_tool = make_filtered_tool_node(DATA_TOOL_NAMES)
 
     # Create v2 nodes

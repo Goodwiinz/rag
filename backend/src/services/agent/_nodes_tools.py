@@ -687,6 +687,20 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # When True, route_after_tool_node skips the compactor→llm re-plan loop
     # (saving ~8 s Azure p95) and goes straight to force_synthesis_node.
     tools_all_deduped: bool = len(fresh_calls) == 0 and len(cached) > 0
+    loaded_skill_versions = list(state.get("loaded_skill_versions", []))
+    for execution in tool_executions:
+        result = execution.get("result") if isinstance(execution, dict) else None
+        record = (
+            result.get("loaded_skill_version") if isinstance(result, dict) else None
+        )
+        if (
+            isinstance(record, dict)
+            and record.get("name")
+            and not any(
+                item.get("name") == record["name"] for item in loaded_skill_versions
+            )
+        ):
+            loaded_skill_versions.append(record)
 
     return {
         "messages": tool_messages,
@@ -696,6 +710,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         "last_error_info": last_error_info,
         "tool_loop_count": state.get("tool_loop_count", 0) + 1,
         "tools_all_deduped": tools_all_deduped,
+        "loaded_skill_versions": loaded_skill_versions,
     }
 
 

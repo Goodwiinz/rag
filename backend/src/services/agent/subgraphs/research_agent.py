@@ -142,7 +142,15 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     if direct_search is not None:
         return {"messages": [direct_search]}
 
-    messages = [SystemMessage(content=_build_research_system_prompt())] + sanitized
+    messages = [SystemMessage(content=_build_research_system_prompt())]
+    from src.services.agent.runtime_snapshot import render_project_skill_catalog
+
+    skill_catalog_prompt = render_project_skill_catalog(
+        state.get("project_skill_catalog", [])
+    )
+    if skill_catalog_prompt:
+        messages.append(SystemMessage(content=skill_catalog_prompt))
+    messages += sanitized
 
     settings = get_settings()
     # Post-tool synthesis turn → use the lightweight deployment. Mirrors the
@@ -181,8 +189,10 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         llm = build_lightweight_llm(max_tokens=4096)
         logger.debug("research_llm_node: using lightweight model for tool decision")
     # See graph.llm_node for rationale on parallel_tool_calls=False.
+    from src.services.agent._nodes_llm import tools_for_runtime_snapshot
+
     llm_with_tools = llm.bind_tools(
-        RESEARCH_TOOLS,
+        tools_for_runtime_snapshot(RESEARCH_TOOLS, state),
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     from src.services.agent.graph import (
@@ -438,7 +448,7 @@ def build_research_subgraph() -> StateGraph:
     """
     from src.services.agent.graph import make_filtered_tool_node
 
-    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS}
+    RESEARCH_TOOL_NAMES = {t.name for t in RESEARCH_TOOLS} | {"load_project_skill"}
     filtered_tool = make_filtered_tool_node(RESEARCH_TOOL_NAMES)
 
     # Create v2 nodes

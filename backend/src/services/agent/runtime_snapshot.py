@@ -141,6 +141,25 @@ def _state_catalog(catalog: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
     )
 
 
+def render_project_skill_catalog(
+    catalog: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> str:
+    """Render only frozen, compact catalog metadata for an LLM system prompt."""
+    entries = sorted(catalog or (), key=lambda item: item.get("name", ""))
+    if not entries:
+        return ""
+    lines = ["Project skills available for this turn (load only when relevant):"]
+    for item in entries[:MAX_ACTIVE_PROJECT_SKILLS]:
+        lines.append(
+            f"- {item.get('name', '')} (v{item.get('version', '')}): "
+            f"{item.get('description', '')}"
+        )
+    lines.append(
+        "Call load_project_skill(skill_name) to read the exact instructions for one listed skill."
+    )
+    return "\n".join(lines)
+
+
 async def create_runtime_snapshot(
     session: AsyncSession,
     *,

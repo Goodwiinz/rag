@@ -52,6 +52,19 @@ from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 logger = logging.getLogger(__name__)
 
 
+def tools_for_runtime_snapshot(base_tools: list, state: AgentState) -> list:
+    """Append the hidden loader only for a durable, non-empty frozen catalog."""
+    settings = get_settings()
+    if not (
+        settings.PROJECT_SKILL_RUNTIME_ENABLED
+        and state.get("runtime_snapshot_id")
+        and state.get("project_skill_catalog")
+    ):
+        return list(base_tools)
+    loader = TOOL_REGISTRY.descriptor("load_project_skill")
+    return [*base_tools, loader.tool] if loader is not None else list(base_tools)
+
+
 # ---------------------------------------------------------------------------
 # Intent-scoped tool subsets
 # ---------------------------------------------------------------------------
@@ -279,6 +292,14 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     dynamic_parts.append(_retrieval_context_part(retrieved))
 
+    from src.services.agent.runtime_snapshot import render_project_skill_catalog
+
+    skill_catalog_prompt = render_project_skill_catalog(
+        state.get("project_skill_catalog", [])
+    )
+    if skill_catalog_prompt:
+        dynamic_parts.append(skill_catalog_prompt)
+
     # Close the plan→execute handoff (see planner.render_plan_directive). The
     # planner writes state["plan"] but the executor only ever read messages,
     # so the plan was discarded and the model refused instead of acting.
@@ -300,8 +321,8 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Bind the per-turn tool subset. Conversational general turns ("hi") get
     # zero tools (see _tools_for_turn) so a greeting prompt stays small.
-    intent_tools = _tools_for_turn(
-        intent, last_user_msg=last_user_msg, retrieved=retrieved
+    intent_tools = tools_for_runtime_snapshot(
+        _tools_for_turn(intent, last_user_msg=last_user_msg, retrieved=retrieved), state
     )
 
     # Lightweight model selection. Two cases use the synthesis deployment:
