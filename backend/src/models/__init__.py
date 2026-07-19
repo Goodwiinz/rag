@@ -14,6 +14,7 @@ from .ab_testing import (
 )
 from .agent_hitl_audit import AgentHitlAudit
 from .agent_run import AgentRun
+from .agent_runtime_snapshot import AgentRuntimeSnapshot
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
 # Audit models
@@ -74,6 +75,7 @@ from .permission import (
 from .processing import JobPriority, JobStatus, JobType, ProcessingJob
 from .project_memory import ProjectMemory
 from .project_note import ProjectNote
+from .project_skill import ProjectSkill, ProjectSkillChangeRequest, ProjectSkillVersion
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
 from .quality_metrics import SearchSession
@@ -124,6 +126,7 @@ __all__ = [
     "Base",
     "AgentHitlAudit",
     "AgentRun",
+    "AgentRuntimeSnapshot",
     "BaseModel",
     # User models
     "User",
@@ -172,6 +175,9 @@ __all__ = [
     "CitationRelationship",
     "ProjectMemory",
     "ProjectNote",
+    "ProjectSkill",
+    "ProjectSkillVersion",
+    "ProjectSkillChangeRequest",
     "GeneratedDraft",
     "DraftCitation",
     "ProjectThread",
