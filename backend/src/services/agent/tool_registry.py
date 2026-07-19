@@ -1,0 +1,170 @@
+"""Code-owned descriptors for the agent's LangChain tools and policies.
+
+The registry deliberately stores only code-defined tool wrappers.  It is the
+single source of truth for model binding, graph routing, and execution policy;
+database records may reference descriptor metadata but never executable code.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum
+from hashlib import sha256
+import json
+from typing import Iterable
+
+from langchain_core.tools import BaseTool
+
+
+class AgentIntent(StrEnum):
+    """Top-level intents with curated tool bindings."""
+
+    RESEARCH = "research"
+    WRITING = "writing"
+    KNOWLEDGE_GRAPH = "knowledge_graph"
+    GENERAL = "general"
+
+
+class AgentSubgraph(StrEnum):
+    """Specialized graph branches that bind their own tool subsets."""
+
+    RESEARCH = "research"
+    WRITING = "writing"
+    DATA = "data"
+
+
+class ToolPolicyTag(StrEnum):
+    """Server-owned execution policy flags."""
+
+    DESTRUCTIVE = "destructive"
+    SLOW = "slow"
+    NO_OUTER_RETRY = "no_outer_retry"
+
+
+@dataclass(frozen=True)
+class ToolDescriptor:
+    """Immutable metadata for one decorated LangChain tool wrapper."""
+
+    name: str
+    tool: BaseTool
+    intents: frozenset[AgentIntent]
+    subgraphs: frozenset[AgentSubgraph]
+    policy_tags: frozenset[ToolPolicyTag]
+    enabled: bool = True
+
+
+class ToolRegistry:
+    """Validated, deterministic view over code-defined tool descriptors."""
+
+    METADATA_VERSION = "1"
+
+    def __init__(self, descriptors: Iterable[ToolDescriptor]) -> None:
+        self._descriptors = tuple(descriptors)
+        self._validate()
+        self._by_name = {
+            descriptor.name: descriptor for descriptor in self._descriptors
+        }
+        self._by_intent = {
+            intent: tuple(
+                descriptor
+                for descriptor in self._descriptors
+                if descriptor.enabled and intent in descriptor.intents
+            )
+            for intent in AgentIntent
+        }
+        self._by_subgraph = {
+            subgraph: tuple(
+                descriptor
+                for descriptor in self._descriptors
+                if descriptor.enabled and subgraph in descriptor.subgraphs
+            )
+            for subgraph in AgentSubgraph
+        }
+        self._metadata_hash = self._build_metadata_hash()
+
+    def _validate(self) -> None:
+        names: set[str] = set()
+        for descriptor in self._descriptors:
+            if not isinstance(descriptor, ToolDescriptor):
+                raise TypeError("registry entries must be ToolDescriptor instances")
+            if not descriptor.name:
+                raise ValueError("tool descriptor names must not be empty")
+            if descriptor.name in names:
+                raise ValueError(f"duplicate tool descriptor name: {descriptor.name}")
+            names.add(descriptor.name)
+            if not isinstance(descriptor.tool, BaseTool):
+                raise TypeError("tool descriptors require a LangChain BaseTool")
+            if descriptor.tool.name != descriptor.name:
+                raise ValueError(
+                    "tool descriptor name must match the LangChain tool name"
+                )
+            if not isinstance(descriptor.enabled, bool):
+                raise TypeError("tool descriptor enabled must be a bool")
+            if not all(
+                isinstance(intent, AgentIntent) for intent in descriptor.intents
+            ):
+                raise TypeError(
+                    "tool descriptor intents must contain AgentIntent values"
+                )
+            if not all(
+                isinstance(subgraph, AgentSubgraph) for subgraph in descriptor.subgraphs
+            ):
+                raise TypeError(
+                    "tool descriptor subgraphs must contain AgentSubgraph values"
+                )
+            if not all(
+                isinstance(tag, ToolPolicyTag) for tag in descriptor.policy_tags
+            ):
+                raise TypeError(
+                    "tool descriptor policy_tags must contain ToolPolicyTag values"
+                )
+            if (
+                ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
+                and ToolPolicyTag.SLOW not in descriptor.policy_tags
+            ):
+                raise ValueError("no_outer_retry policy requires the slow policy")
+
+    def _build_metadata_hash(self) -> str:
+        metadata = [
+            {
+                "name": descriptor.name,
+                "intents": sorted(intent.value for intent in descriptor.intents),
+                "subgraphs": sorted(
+                    subgraph.value for subgraph in descriptor.subgraphs
+                ),
+                "policy_tags": sorted(tag.value for tag in descriptor.policy_tags),
+                "enabled": descriptor.enabled,
+            }
+            for descriptor in self._descriptors
+        ]
+        canonical = json.dumps(metadata, sort_keys=True, separators=(",", ":"))
+        return sha256(canonical.encode("utf-8")).hexdigest()
+
+    def all_tools(self) -> tuple[BaseTool, ...]:
+        """Return enabled LangChain wrappers in declaration order."""
+        return tuple(
+            descriptor.tool for descriptor in self._descriptors if descriptor.enabled
+        )
+
+    def descriptors_for_intent(self, intent: str) -> tuple[ToolDescriptor, ...]:
+        """Return enabled descriptors for a known top-level intent."""
+        try:
+            return self._by_intent[AgentIntent(intent)]
+        except ValueError:
+            return ()
+
+    def descriptors_for_subgraph(self, subgraph: str) -> tuple[ToolDescriptor, ...]:
+        """Return enabled descriptors for a known specialized subgraph."""
+        try:
+            return self._by_subgraph[AgentSubgraph(subgraph)]
+        except ValueError:
+            return ()
+
+    def has_policy(self, name: str, tag: ToolPolicyTag) -> bool:
+        """Whether a registered descriptor carries a server-owned policy tag."""
+        descriptor = self._by_name.get(name)
+        return bool(descriptor and tag in descriptor.policy_tags)
+
+    def metadata_snapshot(self) -> dict[str, str]:
+        """Return stable registry metadata suitable for durable run snapshots."""
+        return {"version": self.METADATA_VERSION, "hash": self._metadata_hash}
