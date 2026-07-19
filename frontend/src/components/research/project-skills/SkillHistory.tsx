@@ -8,10 +8,18 @@ interface SkillHistoryProps {
   skill: ProjectSkill;
   versions: ProjectSkillVersion[];
   onRollback: (versionId: string) => void;
+  canEdit: boolean;
   isRollingBack?: boolean;
 }
 
-export function SkillHistory({ skill, versions, onRollback, isRollingBack }: SkillHistoryProps) {
+function scanVariant(scanState: string): 'success' | 'destructive' | 'warning' | 'outline' {
+  if (scanState === 'passed') return 'success';
+  if (scanState === 'blocked') return 'destructive';
+  if (scanState === 'pending') return 'outline';
+  return 'warning';
+}
+
+export function SkillHistory({ skill, versions, onRollback, canEdit, isRollingBack }: SkillHistoryProps) {
   return (
     <section aria-labelledby="skill-history-heading" className="rounded-lg border border-border bg-card p-4">
       <h2 id="skill-history-heading" className="font-medium">Version history</h2>
@@ -24,11 +32,11 @@ export function SkillHistory({ skill, versions, onRollback, isRollingBack }: Ski
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">Version {version.version}</span>
                   {isActive && <Badge variant="secondary">Active</Badge>}
-                  <Badge variant={version.scan_state === 'clean' ? 'success' : 'warning'}>{version.scan_state}</Badge>
+                  <Badge variant={scanVariant(version.scan_state)}>{version.scan_state}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{version.description}</p>
               </div>
-              {!isActive && (
+              {canEdit && !isActive && (
                 <Button
                   variant="outline"
                   size="sm"

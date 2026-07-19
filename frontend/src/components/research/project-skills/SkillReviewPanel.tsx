@@ -19,6 +19,7 @@ interface SkillReviewPanelProps {
   onApprove: (requestId: string, approval: { self_approval_acknowledged: boolean; warning_acknowledged: boolean; audit_note: string | null }) => Promise<unknown>;
   onReject: (requestId: string, auditNote: string) => Promise<unknown>;
   onRescan: (requestId: string) => Promise<unknown>;
+  onStale?: () => void;
   isApproving?: boolean;
 }
 
@@ -40,19 +41,22 @@ export function SkillReviewPanel({
   onApprove,
   onReject,
   onRescan,
+  onStale,
   isApproving,
 }: SkillReviewPanelProps) {
   const [warningAcknowledged, setWarningAcknowledged] = useState(false);
   const [selfApprovalAcknowledged, setSelfApprovalAcknowledged] = useState(false);
   const [note, setNote] = useState('');
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useState<{ text: string; isError: boolean }>();
   const versions = useMemo(
     () => [...findingVersions(skill)].sort((a, b) => b.version - a.version),
     [skill]
   );
   const activeVersion = skill.active_version;
-  const proposedVersion = versions.find((version) => version.id === request?.proposed_version_id) ?? versions[0];
-  const findings = versions.flatMap((version) => version.scan_findings);
+  const proposedVersion = versions.find((version) => version.id === request?.proposed_version_id);
+  const findings = request?.proposed_version_id
+    ? proposedVersion?.scan_findings ?? []
+    : [];
   const blockers = findings.filter((finding) => finding.severity === 'blocker');
   const warnings = findings.filter((finding) => finding.severity === 'warning');
   const isSelfApproval = Boolean(request && currentUserId === request.requester_id);
@@ -83,11 +87,34 @@ export function SkillReviewPanel({
         warning_acknowledged: warningAcknowledged,
         audit_note: note.trim() || null,
       });
-      setMessage('Approval recorded. The catalog has been refreshed.');
+      setMessage({ text: 'Approval recorded. The catalog has been refreshed.', isError: false });
     } catch (error) {
-      setMessage(errorStatus(error) === 409
-        ? 'This request was superseded by a newer change. The catalog has been refreshed.'
-        : 'The approval could not be completed. Review the latest catalog and try again.');
+      const isStale = errorStatus(error) === 409;
+      if (isStale) onStale?.();
+      setMessage({
+        text: isStale
+          ? 'This request was superseded by a newer change. The catalog has been refreshed.'
+          : 'The approval could not be completed. Review the latest catalog and try again.',
+        isError: true,
+      });
+    }
+  };
+
+  const reject = async () => {
+    try {
+      await onReject(request.id, note.trim());
+      setMessage({ text: 'Rejection recorded. The catalog has been refreshed.', isError: false });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'The rejection could not be completed.', isError: true });
+    }
+  };
+
+  const rescan = async () => {
+    try {
+      await onRescan(request.id);
+      setMessage({ text: 'Rescan requested. The catalog has been refreshed.', isError: false });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'The rescan could not be completed.', isError: true });
     }
   };
 
@@ -121,16 +148,14 @@ export function SkillReviewPanel({
           I acknowledge this is a self-approval and include an audit note.
         </label>
       )}
-      {(requiresNote || blockers.length > 0) && (
-        <>
-          <label htmlFor="review-audit-note" className="block text-sm font-medium">Audit note</label>
-          <Textarea id="review-audit-note" value={note} onChange={(event) => setNote(event.target.value)} />
-        </>
-      )}
-      {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
+      <>
+        <label htmlFor="review-audit-note" className="block text-sm font-medium">Audit note</label>
+        <Textarea id="review-audit-note" value={note} onChange={(event) => setNote(event.target.value)} />
+      </>
+      {message && <p role={message.isError ? 'alert' : 'status'} className="text-sm text-muted-foreground">{message.text}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => void onRescan(request.id)}>Rescan</Button>
-        <Button variant="outline" size="sm" disabled={!note.trim()} onClick={() => void onReject(request.id, note.trim())}>Reject</Button>
+        <Button variant="outline" size="sm" onClick={() => void rescan()}>Rescan</Button>
+        <Button variant="outline" size="sm" disabled={!note.trim()} onClick={() => void reject()}>Reject</Button>
         <Button disabled={!canApprove} isLoading={isApproving} onClick={() => void approve()}>Approve</Button>
       </div>
     </section>

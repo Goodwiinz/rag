@@ -25,6 +25,7 @@ import { SkillReviewPanel } from './project-skills/SkillReviewPanel';
 export function ProjectSkillsTab({ projectId }: { projectId: string }) {
   const [selectedSkillName, setSelectedSkillName] = useState<string>();
   const [showNewEditor, setShowNewEditor] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
   const { user } = useAuthStore();
   const catalog = useProjectSkillCatalog(projectId);
   const detail = useProjectSkill(projectId, selectedSkillName);
@@ -48,8 +49,25 @@ export function ProjectSkillsTab({ projectId }: { projectId: string }) {
   const selectedSkill = detail.data;
   const selectedRequest = data.pending_change_requests.find((request) => request.skill_name === selectedSkillName && request.status === 'pending');
   const stageArchive = async (skill: ProjectSkill) => {
-    if (skill.is_archived) await restore.mutateAsync(skill.name);
-    else await archive.mutateAsync(skill.name);
+    try {
+      setOperationError(undefined);
+      if (skill.is_archived) await restore.mutateAsync(skill.name);
+      else await archive.mutateAsync(skill.name);
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'The state change could not be staged.');
+    }
+  };
+  const stageRollback = async (versionId: string) => {
+    if (!selectedSkill) return;
+    try {
+      setOperationError(undefined);
+      await rollback.mutateAsync({
+        skillName: selectedSkill.name,
+        rollback: { version_id: versionId },
+      });
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : 'The rollback could not be staged.');
+    }
   };
 
   return (
@@ -61,30 +79,36 @@ export function ProjectSkillsTab({ projectId }: { projectId: string }) {
         </div>
         {data.capabilities.can_edit && <Button onClick={() => { setSelectedSkillName(undefined); setShowNewEditor(true); }}>New skill</Button>}
       </div>
-      <SkillList skills={data.skills} pendingRequests={data.pending_change_requests} selectedSkillName={selectedSkillName} onReview={setSelectedSkillName} onStageArchive={(skill) => void stageArchive(skill)} />
+      {operationError && <p role="alert" className="text-sm text-destructive">{operationError}</p>}
+      <SkillList skills={data.skills} pendingRequests={data.pending_change_requests} selectedSkillName={selectedSkillName} canEdit={data.capabilities.can_edit} onReview={setSelectedSkillName} onStageArchive={(skill) => void stageArchive(skill)} />
       {data.capabilities.can_edit && (showNewEditor || selectedSkill) && (
         <SkillEditor
           skillName={selectedSkill?.name}
           initialDocument={selectedSkill?.active_version?.document_text}
           isSubmitting={selectedSkill ? proposeVersion.isPending : create.isPending}
           onSubmit={async (documentText) => {
-            if (selectedSkill) {
-              await proposeVersion.mutateAsync({
-                skillName: selectedSkill.name,
-                document: { document_text: documentText },
-              });
-            } else {
-              await create.mutateAsync({ document_text: documentText });
+            try {
+              setOperationError(undefined);
+              if (selectedSkill) {
+                await proposeVersion.mutateAsync({
+                  skillName: selectedSkill.name,
+                  document: { document_text: documentText },
+                });
+              } else {
+                await create.mutateAsync({ document_text: documentText });
+              }
+              setShowNewEditor(false);
+            } catch (error) {
+              setOperationError(error instanceof Error ? error.message : 'The proposal could not be created.');
             }
-            setShowNewEditor(false);
           }}
         />
       )}
       {selectedSkillName && detail.isLoading && <div aria-busy="true" aria-label="Loading skill details" className="h-32 animate-pulse rounded-lg bg-muted" />}
       {selectedSkill && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <SkillHistory skill={selectedSkill} versions={selectedSkill.versions ?? []} isRollingBack={rollback.isPending} onRollback={(versionId) => void rollback.mutateAsync({ skillName: selectedSkill.name, rollback: { version_id: versionId } })} />
-          {data.capabilities.can_admin && <SkillReviewPanel projectId={projectId} skill={selectedSkill} request={selectedRequest} currentUserId={user?.id} isApproving={approve.isPending} onApprove={(requestId, approval) => approve.mutateAsync({ requestId, approval })} onReject={(requestId, auditNote) => reject.mutateAsync({ requestId, rejection: { audit_note: auditNote } })} onRescan={(requestId) => rescan.mutateAsync(requestId)} />}
+          <SkillHistory skill={selectedSkill} versions={selectedSkill.versions ?? []} canEdit={data.capabilities.can_edit} isRollingBack={rollback.isPending} onRollback={(versionId) => void stageRollback(versionId)} />
+          {data.capabilities.can_admin && <SkillReviewPanel projectId={projectId} skill={selectedSkill} request={selectedRequest} currentUserId={user?.id} isApproving={approve.isPending} onApprove={(requestId, approval) => approve.mutateAsync({ requestId, approval })} onReject={(requestId, auditNote) => reject.mutateAsync({ requestId, rejection: { audit_note: auditNote } })} onRescan={(requestId) => rescan.mutateAsync(requestId)} onStale={() => { void catalog.refetch(); void detail.refetch(); }} />}
         </div>
       )}
     </section>

@@ -18,7 +18,7 @@ vi.mock('@/stores/authStore', () => ({
 
 const skill = {
   id: 'skill-1', name: 'release-notes', active_version_id: 'version-1', is_archived: false,
-  active_version: { id: 'version-1', name: 'release-notes', version: 1, description: 'Writes release notes', document_text: '# v1', content_hash: 'hash', scan_state: 'clean', scan_findings: [] },
+  active_version: { id: 'version-1', name: 'release-notes', version: 1, description: 'Writes release notes', document_text: '# v1', content_hash: 'hash', scan_state: 'passed', scan_findings: [] },
 };
 const pending = {
   id: 'request-1', skill_id: 'skill-1', skill_name: 'release-notes', action: 'activate',
@@ -60,14 +60,68 @@ describe('ProjectSkillsTab', () => {
     expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument();
   });
 
-  it('blocks approval for blocker findings and requires warning acknowledgement and a note', async () => {
-    vi.mocked(projectSkillService.get).mockResolvedValue({ ...skill, versions: [{ ...skill.active_version, id: 'version-2', version: 2, scan_findings: [{ code: 'secret', severity: 'blocker', message: 'Secret found', line: 4 }] }] } as never);
+  it('does not let a historical blocker gate a clean proposed version', async () => {
+    vi.mocked(projectSkillService.get).mockResolvedValue({
+      ...skill,
+      versions: [
+        { ...skill.active_version, id: 'version-2', version: 2, scan_state: 'passed', scan_findings: [] },
+        { ...skill.active_version, scan_state: 'blocked', scan_findings: [{ code: 'secret', severity: 'blocker', message: 'Historical secret', line: 4 }] },
+      ],
+    } as never);
     renderCatalog();
     await screen.findByText('release-notes');
     fireEvent.click(screen.getByRole('button', { name: /review release-notes/i }));
     await waitFor(() => expect(projectSkillService.get).toHaveBeenCalledWith('project-1', 'release-notes'));
     expect(await screen.findByText('Review pending change')).toBeInTheDocument();
+    expect(screen.queryByText('Historical secret')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeEnabled();
+  });
+
+  it('blocks approval only for findings on the proposed version', async () => {
+    vi.mocked(projectSkillService.get).mockResolvedValue({
+      ...skill,
+      versions: [{ ...skill.active_version, id: 'version-2', version: 2, scan_state: 'blocked', scan_findings: [{ code: 'secret', severity: 'blocker', message: 'Proposed secret', line: 4 }] }],
+    } as never);
+    renderCatalog();
+    await screen.findByText('release-notes');
+    fireEvent.click(screen.getByRole('button', { name: /review release-notes/i }));
+    expect(await screen.findByText('Review pending change')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeDisabled();
+  });
+
+  it('always exposes an audit note so an admin can reject a clean proposal', async () => {
+    vi.mocked(projectSkillService.get).mockResolvedValue({ ...skill, versions: [{ ...skill.active_version, id: 'version-2', version: 2 }] } as never);
+    vi.mocked(projectSkillService.reject).mockResolvedValue(pending as never);
+    renderCatalog();
+    await screen.findByText('release-notes');
+    fireEvent.click(screen.getByRole('button', { name: /review release-notes/i }));
+    const auditNote = await screen.findByLabelText('Audit note');
+    fireEvent.change(auditNote, { target: { value: 'Please add citations.' } });
+    fireEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    await waitFor(() => expect(projectSkillService.reject).toHaveBeenCalledWith('project-1', 'request-1', { audit_note: 'Please add citations.' }));
+  });
+
+  it('keeps review history read-only for viewers', async () => {
+    vi.mocked(projectSkillService.get).mockResolvedValue({ ...skill, versions: [{ ...skill.active_version, id: 'version-2', version: 2 }, skill.active_version] } as never);
+    renderCatalog({ capabilities: { can_edit: false, can_admin: false } });
+    await screen.findByText('release-notes');
+    fireEvent.click(screen.getByRole('button', { name: /review release-notes/i }));
+    expect(await screen.findByText('Version history')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new skill|stage archive|stage restore|stage rollback/i })).not.toBeInTheDocument();
+  });
+
+  it('maps passed scans to the success badge and reports failed mutations', async () => {
+    vi.mocked(projectSkillService.create).mockRejectedValue(new Error('Network unavailable'));
+    const { unmount } = renderCatalog({ skills: [], pending_change_requests: [], capabilities: { can_edit: true, can_admin: false } });
+    expect(await screen.findByText('No project skills yet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /new skill/i }));
+    fireEvent.change(screen.getByLabelText('Skill document'), { target: { value: '# skill' } });
+    fireEvent.click(screen.getByRole('button', { name: /propose skill/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable');
+
+    unmount();
+    renderCatalog();
+    expect(await screen.findByText('Scan: passed')).toHaveClass('text-(--nous-terra)');
   });
 
   it('stages rollback from immutable history and explains a stale approval conflict', async () => {

@@ -8,6 +8,7 @@ interface SkillListProps {
   skills: ProjectSkill[];
   pendingRequests: ProjectSkillChangeRequest[];
   selectedSkillName?: string;
+  canEdit: boolean;
   onReview: (skillName: string) => void;
   onStageArchive: (skill: ProjectSkill) => void;
 }
@@ -16,6 +17,7 @@ export function SkillList({
   skills,
   pendingRequests,
   selectedSkillName,
+  canEdit,
   onReview,
   onStageArchive,
 }: SkillListProps) {
@@ -50,11 +52,7 @@ export function SkillList({
                 <p className="mt-1 text-sm text-muted-foreground">
                   {activeVersion?.description ?? 'No active version'}
                 </p>
-                {activeVersion && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Scan: {activeVersion.scan_state}
-                  </p>
-                )}
+                {activeVersion && <Badge variant={activeVersion.scan_state === 'passed' ? 'success' : activeVersion.scan_state === 'blocked' ? 'destructive' : 'warning'}>Scan: {activeVersion.scan_state}</Badge>}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -66,10 +64,10 @@ export function SkillList({
                   <History aria-hidden="true" />
                   Review {skill.name}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => onStageArchive(skill)}>
+                {canEdit && <Button variant="ghost" size="sm" onClick={() => onStageArchive(skill)}>
                   {skill.is_archived ? <FilePenLine aria-hidden="true" /> : <Archive aria-hidden="true" />}
                   {skill.is_archived ? 'Stage restore' : 'Stage archive'}
-                </Button>
+                </Button>}
               </div>
             </div>
           </li>
