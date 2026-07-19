@@ -27,6 +27,7 @@ import {
 import { ProjectHeader } from '@/components/research/ProjectHeader';
 import { DocumentList } from '@/components/research/DocumentList';
 import { ProjectKnowledgeTree } from '@/components/research/ProjectKnowledgeTree';
+import { ProjectSkillsTab } from '@/components/research/ProjectSkillsTab';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
@@ -47,6 +48,7 @@ import {
 import { useProjectStore } from '@/store/projectStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useProjectSkillCatalog } from '@/hooks/useProjectSkills';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 import {
@@ -74,7 +76,8 @@ type TabType =
   | 'chat'
   | 'matrix'
   | 'pipeline'
-  | 'knowledge';
+  | 'knowledge'
+  | 'skills';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -153,8 +156,16 @@ export default function ProjectDetailPage() {
     status: number;
     message: string;
   } | null>(null);
+  // The backend catalog is the availability source of truth. Do not expose a
+  // client-only feature flag for a capability that can be disabled server-side.
+  const skillsCatalog = useProjectSkillCatalog(
+    projectId,
+    mounted && isAuthenticated && Boolean(projectId)
+  );
 
   useEffect(() => {
+    // This pre-existing hydration guard intentionally flips after the client mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -272,6 +283,8 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (activeTab === 'drafts' && mounted && isAuthenticated && projectId) {
+      // The effect synchronizes server draft state when the tab becomes active.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadDrafts();
     }
   }, [activeTab, mounted, isAuthenticated, projectId, loadDrafts]);
@@ -284,6 +297,8 @@ export default function ProjectDetailPage() {
       isAuthenticated &&
       projectId
     ) {
+      // Agent mutations invalidate the server-backed draft view.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadDrafts();
     }
   }, [
@@ -633,8 +648,15 @@ export default function ProjectDetailPage() {
     { id: 'knowledge', label: 'Knowledge', icon: Network },
   ];
 
-  const allTabs = [...primaryTabs, ...secondaryTabs.map(t => ({ ...t, mobileLabel: t.label.slice(0, 4) }))];
-  const isSecondaryTabActive = secondaryTabs.some(t => t.id === activeTab);
+  if (skillsCatalog.isSuccess) {
+    secondaryTabs.push({ id: 'skills', label: 'Skills', icon: Sparkles });
+  }
+
+  const allTabs = [
+    ...primaryTabs,
+    ...secondaryTabs.map((t) => ({ ...t, mobileLabel: t.label.slice(0, 4) })),
+  ];
+  const isSecondaryTabActive = secondaryTabs.some((t) => t.id === activeTab);
 
   return (
     <div className="p-3 sm:p-6 pb-20 md:pb-6 max-w-7xl mx-auto">
@@ -749,11 +771,16 @@ export default function ProjectDetailPage() {
                   }`}
                   aria-label="More tabs"
                 >
-                  <MoreHorizontal aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <MoreHorizontal
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                  />
                   <span className="hidden sm:inline">More</span>
                   {isSecondaryTabActive && (
                     <span className="ml-0.5 sm:ml-1 text-[10px] sm:text-xs rounded-full px-1 sm:px-1.5 py-0.5 bg-primary/15 text-primary">
-                      {secondaryTabs.find(t => t.id === activeTab)?.label.slice(0, 4)}
+                      {secondaryTabs
+                        .find((t) => t.id === activeTab)
+                        ?.label.slice(0, 4)}
                     </span>
                   )}
                 </button>
@@ -1197,6 +1224,8 @@ export default function ProjectDetailPage() {
         {activeTab === 'knowledge' && (
           <ProjectKnowledgeTree projectId={projectId} />
         )}
+
+        {activeTab === 'skills' && <ProjectSkillsTab projectId={projectId} />}
       </div>
 
       <NoteEditor
@@ -1234,12 +1263,16 @@ export default function ProjectDetailPage() {
         onComplete={handleUploadComplete}
       />
 
-      <AlertDialog open={deleteNoteDialogOpen} onOpenChange={setDeleteNoteDialogOpen}>
+      <AlertDialog
+        open={deleteNoteDialogOpen}
+        onOpenChange={setDeleteNoteDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete note?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this note. This action cannot be undone.
+              This will permanently delete this note. This action cannot be
+              undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

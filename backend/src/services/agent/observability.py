@@ -15,6 +15,34 @@ from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+_PROJECT_SKILL_EVENTS = frozenset(
+    {
+        "registry_parity",
+        "snapshot",
+        "scan",
+        "proposal",
+        "approval",
+        "rejection",
+        "supersede",
+        "rescan",
+        "loader",
+    }
+)
+_PROJECT_SKILL_OUTCOMES = frozenset(
+    {
+        "match",
+        "mismatch",
+        "success",
+        "failure",
+        "skipped",
+        "rejected",
+        "passed",
+        "blocked",
+        "error",
+        "completed",
+    }
+)
+
 # LangGraph control-flow signals. interrupt() (HITL confirm for destructive
 # tools) raises GraphInterrupt, and Send/Command parent-bubbling raises
 # ParentCommand; both subclass GraphBubbleUp. They are normal control flow that
@@ -368,10 +396,72 @@ try:
         [0.0, 0.25, 0.5, 0.7, 0.85, 0.95, 1.0],
     )
 
+    # Project-skill rollout events intentionally have only low-cardinality,
+    # server-owned dimensions. Never attach a skill name, project/user ID, or
+    # instruction text: those values can be sensitive and are not needed for
+    # operational rollout decisions.
+    PROJECT_SKILL_EVENTS = _get_or_create_counter(
+        "project_skill_events_total",
+        "Project skill catalog, snapshot, and loader outcomes",
+        ["event", "outcome"],
+    )
+    PROJECT_SKILL_LOADED_SKILLS = _get_or_create_counter(
+        "project_skill_loaded_skills_total",
+        "Project skill documents loaded into agent turns",
+        [],
+    )
+    PROJECT_SKILL_LOADED_TOKENS = _get_or_create_counter(
+        "project_skill_loaded_tokens_total",
+        "Estimated project skill instruction tokens loaded into agent turns",
+        [],
+    )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
+    PROJECT_SKILL_EVENTS = None
+    PROJECT_SKILL_LOADED_SKILLS = None
+    PROJECT_SKILL_LOADED_TOKENS = None
     logger.debug("prometheus_client not available, metrics disabled")
+
+
+def record_project_skill_event(
+    event: str,
+    outcome: str,
+    *,
+    loaded_skill_count: int = 0,
+    loaded_skill_tokens: int = 0,
+    **_unsafe_details: object,
+) -> None:
+    """Emit safe, low-cardinality project-skill rollout telemetry.
+
+    Callers may have access to instructions, scanner findings, or user-provided
+    audit notes. This boundary deliberately ignores arbitrary details so those
+    values cannot reach indexed logs or metric labels by accident.
+    """
+    safe_event = event if event in _PROJECT_SKILL_EVENTS else "unknown"
+    safe_outcome = outcome if outcome in _PROJECT_SKILL_OUTCOMES else "unknown"
+    safe_count = max(0, int(loaded_skill_count))
+    safe_tokens = max(0, int(loaded_skill_tokens))
+    logger.info(
+        "project_skill_event",
+        extra={
+            "project_skill_event": safe_event,
+            "project_skill_outcome": safe_outcome,
+            "loaded_skill_count": safe_count,
+            "loaded_skill_tokens": safe_tokens,
+        },
+    )
+    if not _METRICS_AVAILABLE:
+        return
+    assert PROJECT_SKILL_EVENTS is not None
+    PROJECT_SKILL_EVENTS.labels(event=safe_event, outcome=safe_outcome).inc()
+    if safe_count:
+        assert PROJECT_SKILL_LOADED_SKILLS is not None
+        PROJECT_SKILL_LOADED_SKILLS.inc(safe_count)
+    if safe_tokens:
+        assert PROJECT_SKILL_LOADED_TOKENS is not None
+        PROJECT_SKILL_LOADED_TOKENS.inc(safe_tokens)
 
 
 # ---------------------------------------------------------------------------

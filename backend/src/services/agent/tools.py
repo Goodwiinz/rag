@@ -19,6 +19,14 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
 
+from src.services.agent.tool_registry import (
+    AgentIntent,
+    AgentSubgraph,
+    ToolDescriptor,
+    ToolPolicyTag,
+    ToolRegistry,
+)
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -780,30 +788,257 @@ async def forget_memory(
     )
 
 
+@tool
+async def load_project_skill(
+    skill_name: str,
+    config: RunnableConfig | None = None,
+) -> Dict[str, Any]:
+    """Load the frozen instructions for one relevant project skill.
+
+    Use only for a skill listed in this run's project-skill catalog.  The
+    server supplies the snapshot, user, and project context; never ask for or
+    invent identifiers.
+    """
+    config = config or {}
+    configurable = config.get("configurable", {})
+    snapshot_id = str(configurable.get("runtime_snapshot_id", "") or "")
+    project_id = str(configurable.get("project_id", "") or "")
+    if not snapshot_id or not project_id:
+        return {
+            "error_type": "runtime_snapshot_required",
+            "error": "Project skill loading requires server runtime snapshot context.",
+        }
+
+    from src.services.agent.tools_impl import _tool_load_project_skill
+
+    async with _tool_context(config) as (db, current_user, _page_ctx):
+        user_id = str(current_user.id) if current_user is not None else ""
+        return await _tool_load_project_skill(
+            {"skill_name": skill_name},
+            user_id=user_id,
+            project_id=project_id,
+            runtime_snapshot_id=snapshot_id,
+            db=db,
+        )
+
+
 # ---------------------------------------------------------------------------
-# Exported list
+# Code-owned registry and compatibility view
 # ---------------------------------------------------------------------------
 
-ALL_TOOLS = [
-    search_arxiv,
-    ingest_arxiv_papers,
-    search_documents,
-    create_project,
-    list_projects,
-    add_document_to_project,
-    create_project_note,
-    list_project_documents,
-    summarize_document,
-    compare_documents,
-    extract_entities,
-    search_knowledge_graph,
-    explore_entity_neighborhood,
-    find_entity_paths,
-    get_graph_stats,
-    create_draft,
-    export_bibliography,
-    execute_code,
-    search_external_database,
-    list_external_databases,
-    forget_memory,
-]
+TOOL_REGISTRY = ToolRegistry(
+    [
+        ToolDescriptor(
+            name="search_arxiv",
+            tool=search_arxiv,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 0),
+                (AgentSubgraph.WRITING, 5),
+            ),
+            policy_tags=frozenset(
+                {
+                    ToolPolicyTag.SLOW,
+                    ToolPolicyTag.NO_OUTER_RETRY,
+                    ToolPolicyTag.CONTEXT_FREE,
+                }
+            ),
+        ),
+        ToolDescriptor(
+            name="ingest_arxiv_papers",
+            tool=ingest_arxiv_papers,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 1),
+                (AgentSubgraph.WRITING, 6),
+            ),
+            policy_tags=frozenset(
+                {
+                    ToolPolicyTag.DESTRUCTIVE,
+                    ToolPolicyTag.SLOW,
+                    ToolPolicyTag.NO_OUTER_RETRY,
+                }
+            ),
+        ),
+        ToolDescriptor(
+            name="search_documents",
+            tool=search_documents,
+            intents=frozenset(
+                {
+                    AgentIntent.RESEARCH,
+                    AgentIntent.KNOWLEDGE_GRAPH,
+                    AgentIntent.GENERAL,
+                }
+            ),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 2), (AgentSubgraph.DATA, 5)),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="do_kb_retrieve",
+            tool=do_kb_retrieve,
+            intents=frozenset(),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 3),),
+            policy_tags=frozenset(),
+            exposed_in_all_tools=False,
+        ),
+        ToolDescriptor(
+            name="create_project",
+            tool=create_project,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 4),),
+            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+        ),
+        ToolDescriptor(
+            name="list_projects",
+            tool=list_projects,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 5),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="add_document_to_project",
+            tool=add_document_to_project,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 6),),
+            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+        ),
+        ToolDescriptor(
+            name="create_project_note",
+            tool=create_project_note,
+            intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 1),),
+            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+        ),
+        ToolDescriptor(
+            name="list_project_documents",
+            tool=list_project_documents,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.RESEARCH, 7), (AgentSubgraph.DATA, 6)),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="summarize_document",
+            tool=summarize_document,
+            intents=frozenset({AgentIntent.WRITING, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 3),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="compare_documents",
+            tool=compare_documents,
+            intents=frozenset({AgentIntent.WRITING}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 4),),
+            policy_tags=frozenset({ToolPolicyTag.SLOW}),
+        ),
+        ToolDescriptor(
+            name="extract_entities",
+            tool=extract_entities,
+            intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
+            subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 0),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="search_knowledge_graph",
+            tool=search_knowledge_graph,
+            intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH, AgentIntent.GENERAL}),
+            subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 1),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="explore_entity_neighborhood",
+            tool=explore_entity_neighborhood,
+            intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
+            subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 2),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="find_entity_paths",
+            tool=find_entity_paths,
+            intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
+            subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 3),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="get_graph_stats",
+            tool=get_graph_stats,
+            intents=frozenset({AgentIntent.KNOWLEDGE_GRAPH}),
+            subgraphs=frozenset({AgentSubgraph.DATA}),
+            subgraph_positions=((AgentSubgraph.DATA, 4),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="create_draft",
+            tool=create_draft,
+            intents=frozenset({AgentIntent.WRITING}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 0),),
+            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.SLOW}),
+        ),
+        ToolDescriptor(
+            name="export_bibliography",
+            tool=export_bibliography,
+            intents=frozenset({AgentIntent.WRITING}),
+            subgraphs=frozenset({AgentSubgraph.WRITING}),
+            subgraph_positions=((AgentSubgraph.WRITING, 2),),
+            policy_tags=frozenset(),
+        ),
+        ToolDescriptor(
+            name="execute_code",
+            tool=execute_code,
+            intents=frozenset({AgentIntent.RESEARCH, AgentIntent.KNOWLEDGE_GRAPH}),
+            subgraphs=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.DESTRUCTIVE}),
+        ),
+        ToolDescriptor(
+            name="search_external_database",
+            tool=search_external_database,
+            intents=frozenset(),
+            subgraphs=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
+        ),
+        ToolDescriptor(
+            name="list_external_databases",
+            tool=list_external_databases,
+            intents=frozenset(),
+            subgraphs=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_FREE}),
+        ),
+        ToolDescriptor(
+            name="load_project_skill",
+            tool=load_project_skill,
+            intents=frozenset(),
+            subgraphs=frozenset(),
+            policy_tags=frozenset({ToolPolicyTag.CONTEXT_REQUIRED}),
+            exposed_in_all_tools=False,
+            availability_condition="project_skill_catalog",
+        ),
+        ToolDescriptor(
+            name="forget_memory",
+            tool=forget_memory,
+            intents=frozenset(),
+            subgraphs=frozenset(),
+            policy_tags=frozenset(
+                {ToolPolicyTag.DESTRUCTIVE, ToolPolicyTag.CONTEXT_FREE}
+            ),
+        ),
+    ]
+)
+
+# Compatibility import for existing callers.  This view intentionally omits
+# the research-only do_kb_retrieve wrapper, preserving the prior ALL_TOOLS API.
+ALL_TOOLS = list(TOOL_REGISTRY.all_tools())

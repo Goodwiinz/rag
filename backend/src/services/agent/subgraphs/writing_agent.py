@@ -19,35 +19,13 @@ from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tools import (
-    compare_documents,
-    create_draft,
-    create_project_note,
-    export_bibliography,
-    ingest_arxiv_papers,
-    search_arxiv,
-    summarize_document,
-)
+from src.services.agent.tool_registry import ToolPolicyTag
+from src.services.agent.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 WRITING_TOOLS = [
-    create_draft,
-    create_project_note,
-    export_bibliography,
-    summarize_document,
-    compare_documents,
-    # search_arxiv (read-only) lets the agent resolve a paper given by TITLE to
-    # an arXiv id, so "make notes for <titles>" no longer dead-ends asking the
-    # user for ids it can find itself (trace 685b2fd1). Resolve → ingest →
-    # summarize/note.
-    search_arxiv,
-    # ingest_arxiv_papers brings a paper into the library so it can be
-    # summarized/noted: used after search_arxiv resolves a title, when the user
-    # supplies an arXiv id directly, or as the recovery path when
-    # summarize_document / compare_documents return error_type="recoverable"
-    # with suggestion="ingest_arxiv_papers". Destructive — HITL-gated.
-    ingest_arxiv_papers,
+    descriptor.tool for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("writing")
 ]
 
 WRITING_TOOL_NAMES_LIST = [t.name for t in WRITING_TOOLS]
@@ -64,11 +42,11 @@ MAX_WRITING_TOOL_LOOPS = 8
 # DESTRUCTIVE_TOOLS gate only fires from the top-level interrupt_node and
 # is bypassed once intent routes us into a subgraph, so the subgraph has
 # to enforce HITL itself for any tool that mutates user data.
-WRITING_DESTRUCTIVE_TOOLS = {
-    "create_project_note",
-    "create_draft",
-    "ingest_arxiv_papers",
-}
+WRITING_DESTRUCTIVE_TOOLS = frozenset(
+    descriptor.name
+    for descriptor in TOOL_REGISTRY.descriptors_for_subgraph("writing")
+    if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
+)
 
 
 def _build_writing_system_prompt() -> str:
@@ -103,7 +81,15 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
-    messages = [SystemMessage(content=_build_writing_system_prompt())] + sanitized
+    messages = [SystemMessage(content=_build_writing_system_prompt())]
+    from src.services.agent.runtime_snapshot import render_project_skill_catalog
+
+    skill_catalog_prompt = render_project_skill_catalog(
+        state.get("project_skill_catalog", [])
+    )
+    if skill_catalog_prompt:
+        messages.append(SystemMessage(content=skill_catalog_prompt))
+    messages += sanitized
 
     # Post-tool synthesis turn → use the synthesis deployment. Mirrors
     # research_llm_node + main llm_node. Trace 019e191a showed gpt-5
@@ -134,8 +120,10 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
         llm = build_lightweight_llm(max_tokens=4096)
         logger.debug("writing_llm_node: using lightweight model for tool decision")
+    from src.services.agent._nodes_llm import tools_for_runtime_snapshot
+
     llm_with_tools = llm.bind_tools(
-        WRITING_TOOLS,
+        tools_for_runtime_snapshot(WRITING_TOOLS, state),
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     from src.services.agent.graph import _merge_run_config
@@ -180,7 +168,12 @@ def writing_should_continue(state: AgentState) -> str:
     last = state["messages"][-1] if state["messages"] else None
     if isinstance(last, AIMessage) and last.tool_calls:
         if state.get("tool_loop_count", 0) < MAX_WRITING_TOOL_LOOPS:
-            if any(tc["name"] in WRITING_DESTRUCTIVE_TOOLS for tc in last.tool_calls):
+            if any(
+                TOOL_REGISTRY.has_policy_in_subgraph(
+                    tc["name"], ToolPolicyTag.DESTRUCTIVE, "writing"
+                )
+                for tc in last.tool_calls
+            ):
                 return "writing_interrupt_node"
             return "writing_tool_node"
         # Loop ceiling tripped while the model still wants more tools.
@@ -230,10 +223,7 @@ async def writing_force_synthesis_node(
 
     llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    from src.services.agent.graph import (
-        AGENT_LLM_TIMEOUT_SECONDS,
-        _merge_run_config,
-    )
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
 
     invoke_config = _merge_run_config(
         config,
@@ -280,7 +270,11 @@ async def writing_interrupt_node(state: AgentState, config: RunnableConfig) -> d
         # Defensive guard — see ``research_interrupt_node`` for rationale.
         return {"pending_confirmation": {}, "user_confirmed": False}
     destructive_calls = [
-        tc for tc in last.tool_calls if tc["name"] in WRITING_DESTRUCTIVE_TOOLS
+        tc
+        for tc in last.tool_calls
+        if TOOL_REGISTRY.has_policy_in_subgraph(
+            tc["name"], ToolPolicyTag.DESTRUCTIVE, "writing"
+        )
     ]
     tool_names = [tc["name"] for tc in destructive_calls]
 
@@ -357,7 +351,7 @@ def build_writing_subgraph() -> StateGraph:
     """
     from src.services.agent.graph import make_filtered_tool_node
 
-    WRITING_TOOL_NAMES = {t.name for t in WRITING_TOOLS}
+    WRITING_TOOL_NAMES = {t.name for t in WRITING_TOOLS} | {"load_project_skill"}
     filtered_tool = make_filtered_tool_node(WRITING_TOOL_NAMES)
 
     # Create v2 nodes

@@ -1506,6 +1506,20 @@ async def _run_agent_graph(
                 except Exception:
                     logger.warning("project memory load failed", exc_info=True)
 
+            from src.services.agent.runtime_snapshot import (
+                create_runtime_snapshot,
+                runtime_config_fields,
+                runtime_state_fields,
+            )
+
+            runtime_snapshot = await create_runtime_snapshot(
+                db,
+                user_id=current_user.id,
+                project_id=page_context.get("project_id"),
+                thread_id=getattr(thread_obj, "id", None),
+                job_id=job_id,
+            )
+
             initial_state = {
                 "messages": messages,
                 "page_context": page_context,
@@ -1527,6 +1541,9 @@ async def _run_agent_graph(
                 "last_error_info": {},
                 "user_id": str(current_user.id),
                 "model": request.model,
+                **runtime_state_fields(
+                    runtime_snapshot, page_context.get("project_id")
+                ),
             }
 
             config = {
@@ -1541,6 +1558,9 @@ async def _run_agent_graph(
                         getattr(current_user, "organization_id", "") or ""
                     ),
                     "page_context": page_context,
+                    **runtime_config_fields(
+                        runtime_snapshot.id, page_context.get("project_id")
+                    ),
                 },
                 # LangSmith run metadata — makes traces filterable per
                 # tenant/turn (saved views by user_id / org_id / thread_id).
@@ -1795,6 +1815,14 @@ async def _resume_agent_graph(
             # Verify thread ownership before resuming. Checkpoints without an
             # owner predate the ownership field and cannot be safely resumed.
             snapshot = await graph.aget_state(config)
+            if snapshot and snapshot.values:
+                from src.services.agent.runtime_snapshot import (
+                    resume_runtime_config_fields,
+                )
+
+                config["configurable"].update(
+                    resume_runtime_config_fields(snapshot.values)
+                )
             # Pre-resume checkpoint id -> deterministic assistant idempotency
             # key, captured BEFORE the resume advances the checkpoint so a
             # double-confirm derives the same key. Mirrors streaming.py's

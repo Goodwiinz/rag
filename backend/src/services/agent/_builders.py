@@ -28,22 +28,16 @@ from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
 from langgraph.types import RetryPolicy
 
-from src.services.agent._nodes_classify import (
-    preprocessing_node,
-    route_by_intent,
-)
+from src.services.agent._nodes_classify import preprocessing_node, route_by_intent
 from src.services.agent._nodes_llm import llm_node
 from src.services.agent._nodes_memory import memory_save_node
-from src.services.agent._nodes_tools import (
-    DESTRUCTIVE_TOOLS,
-    interrupt_node,
-    tool_node,
-)
+from src.services.agent._nodes_tools import interrupt_node, tool_node
 from src.services.agent.compactor import make_compactor_node
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
 from src.services.agent.state import AgentState
-from src.services.agent.tools import ALL_TOOLS
+from src.services.agent.tool_registry import ToolPolicyTag
+from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +84,10 @@ def should_continue(state: AgentState) -> str:
 
     if has_pending_tool_calls and state.get("tool_loop_count", 0) < MAX_TOOL_LOOPS:
         # Under budget — execute tools (or pause for confirmation).
-        has_destructive = any(tc["name"] in DESTRUCTIVE_TOOLS for tc in last.tool_calls)
+        has_destructive = any(
+            TOOL_REGISTRY.has_policy(tc["name"], ToolPolicyTag.DESTRUCTIVE)
+            for tc in last.tool_calls
+        )
         if has_destructive:
             return "interrupt_node"
         return "tool_node"

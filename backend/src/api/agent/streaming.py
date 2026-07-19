@@ -427,6 +427,19 @@ async def stream_event_generator(
             except Exception:
                 logger.warning("project memory load failed", exc_info=True)
 
+        from src.services.agent.runtime_snapshot import (
+            create_runtime_snapshot,
+            runtime_config_fields,
+            runtime_state_fields,
+        )
+
+        runtime_snapshot = await create_runtime_snapshot(
+            db,
+            user_id=current_user.id,
+            project_id=page_context.get("project_id"),
+            thread_id=getattr(thread_obj, "id", None),
+        )
+
         initial_state = {
             "messages": messages,
             "page_context": page_context,
@@ -448,6 +461,7 @@ async def stream_event_generator(
             "last_error_info": {},
             "user_id": str(current_user.id),
             "model": request_body.model,
+            **runtime_state_fields(runtime_snapshot, page_context.get("project_id")),
         }
 
         stream_thread_id = request_body.thread_id or str(_uuid.uuid4())
@@ -463,6 +477,9 @@ async def stream_event_generator(
                     getattr(current_user, "organization_id", "") or ""
                 ),
                 "page_context": page_context,
+                **runtime_config_fields(
+                    runtime_snapshot.id, page_context.get("project_id")
+                ),
             },
             # LangSmith run metadata — per-tenant/turn filterable traces.
             # Inherited by child runs; never carries secrets.
@@ -1068,6 +1085,9 @@ async def stream_confirm_event_generator(
         page_context = _page_context_to_dict(
             current_snapshot.values.get("page_context", {})
         )
+        from src.services.agent.runtime_snapshot import resume_runtime_config_fields
+
+        runtime_context = resume_runtime_config_fields(current_snapshot.values)
 
         # Resume idempotency key anchored to the interrupt CHECKPOINT — not
         # the thread's latest user client_message_id. A user can send a new
@@ -1153,6 +1173,7 @@ async def stream_confirm_event_generator(
                     getattr(current_user, "organization_id", "") or ""
                 ),
                 "page_context": page_context,
+                **runtime_context,
             },
         }
 

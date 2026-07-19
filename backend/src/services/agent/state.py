@@ -2,8 +2,8 @@
 
 from typing import Annotated, Any
 
-from typing_extensions import TypedDict
 from langgraph.graph import add_messages
+from typing_extensions import TypedDict
 
 
 class AgentState(TypedDict):
@@ -40,6 +40,9 @@ class AgentState(TypedDict):
     # (extracted from URLs, inherited from page_context,
     # or carried forward across turns via checkpoint)
     model: str  # Per-request Azure deployment override; "" ⇒ server default
+    runtime_snapshot_id: str  # Durable frozen skill/tool metadata for this turn
+    project_skill_catalog: list  # Compact model-safe skill metadata only
+    loaded_skill_versions: list  # Snapshot-audited versions loaded this turn
     # Reflection result of the latest LLM response; cleared at the start of
     # each turn so a stale value from turn N cannot trigger a spurious
     # revision at the start of turn N+1. Stored as ``Any`` to avoid a
