@@ -15,6 +15,8 @@ from typing import Iterable
 
 from langchain_core.tools import BaseTool
 
+from src.services.agent.observability import record_project_skill_event
+
 
 class AgentIntent(StrEnum):
     """Top-level intents with curated tool bindings."""
@@ -54,6 +56,7 @@ class ToolDescriptor:
     policy_tags: frozenset[ToolPolicyTag]
     enabled: bool = True
     exposed_in_all_tools: bool = True
+    availability_condition: str | None = None
     subgraph_positions: tuple[tuple[AgentSubgraph, int], ...] = ()
 
 
@@ -112,6 +115,13 @@ class ToolRegistry:
                 raise TypeError("tool descriptor enabled must be a bool")
             if not isinstance(descriptor.exposed_in_all_tools, bool):
                 raise TypeError("tool descriptor exposed_in_all_tools must be a bool")
+            if descriptor.availability_condition is not None and (
+                not isinstance(descriptor.availability_condition, str)
+                or not descriptor.availability_condition
+            ):
+                raise TypeError(
+                    "tool descriptor availability_condition must be a non-empty string"
+                )
             positions = dict(descriptor.subgraph_positions)
             if len(positions) != len(descriptor.subgraph_positions) or not all(
                 isinstance(subgraph, AgentSubgraph) and isinstance(position, int)
@@ -165,6 +175,7 @@ class ToolRegistry:
                 "policy_tags": sorted(tag.value for tag in descriptor.policy_tags),
                 "enabled": descriptor.enabled,
                 "exposed_in_all_tools": descriptor.exposed_in_all_tools,
+                "availability_condition": descriptor.availability_condition,
                 "subgraph_positions": [
                     (subgraph.value, position)
                     for subgraph, position in descriptor.subgraph_positions
@@ -231,8 +242,32 @@ class ToolRegistry:
         """Return stable registry metadata suitable for durable run snapshots."""
         return {"version": self.METADATA_VERSION, "hash": self._metadata_hash}
 
-    def frozen_descriptor_metadata(self) -> list[dict[str, object]]:
-        """JSON-safe code-owned descriptor projection for durable snapshots."""
+    def available_descriptor_names(
+        self, *, conditions: set[str] | frozenset[str] = frozenset()
+    ) -> tuple[str, ...]:
+        """Return descriptors available for a specific frozen runtime context."""
+        return tuple(
+            descriptor.name
+            for descriptor in self._descriptors
+            if descriptor.enabled
+            and (
+                descriptor.availability_condition is None
+                or descriptor.availability_condition in conditions
+            )
+        )
+
+    def record_parity_shadow(self, expected_tool_names: Iterable[str]) -> bool:
+        """Record a safe registry parity result without logging tool arguments."""
+        matches = tuple(expected_tool_names) == self.available_descriptor_names()
+        record_project_skill_event(
+            "registry_parity", "match" if matches else "mismatch"
+        )
+        return matches
+
+    def frozen_descriptor_metadata(
+        self, *, conditions: set[str] | frozenset[str] = frozenset()
+    ) -> list[dict[str, object]]:
+        """JSON-safe projection of descriptors available in a durable snapshot."""
         return [
             {
                 "name": item.name,
@@ -241,10 +276,12 @@ class ToolRegistry:
                 "policy_tags": sorted(value.value for value in item.policy_tags),
                 "enabled": item.enabled,
                 "exposed_in_all_tools": item.exposed_in_all_tools,
+                "availability_condition": item.availability_condition,
                 "subgraph_positions": [
                     [subgraph.value, position]
                     for subgraph, position in item.subgraph_positions
                 ],
             }
             for item in self._descriptors
+            if item.name in self.available_descriptor_names(conditions=conditions)
         ]

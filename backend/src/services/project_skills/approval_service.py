@@ -14,6 +14,7 @@ from src.models import (
     ProjectSkillVersion,
     ProjectSkillVersionScan,
 )
+from src.services.agent.observability import record_project_skill_event
 
 from .access import get_authorized_project
 from .catalog_service import ProjectSkillCatalogService
@@ -117,6 +118,7 @@ class ProjectSkillApprovalService:
             request.reviewed_at = datetime.now(timezone.utc)
             request.audit_note = audit_note
             await self._session.commit()
+            record_project_skill_event("supersede", "success")
             raise ProjectSkillConflict(
                 "change request was superseded by a newer active version"
             )
@@ -184,6 +186,7 @@ class ProjectSkillApprovalService:
         request.audit_note = audit_note
         await self._session.commit()
         await self._session.refresh(request)
+        record_project_skill_event("approval", "success")
         return request
 
     async def reject(self, *, project_id, request_id, user_id, audit_note: str):
@@ -199,6 +202,7 @@ class ProjectSkillApprovalService:
         request.audit_note = audit_note
         request.reviewed_at = datetime.now(timezone.utc)
         await self._session.commit()
+        record_project_skill_event("rejection", "success")
         return request
 
     async def rescan_change_request(self, *, project_id, request_id, user_id):
@@ -220,4 +224,5 @@ class ProjectSkillApprovalService:
             version=version, user_id=user_id
         )
         await self._session.commit()
+        record_project_skill_event("rescan", getattr(scan, "scan_state", "completed"))
         return version, scan

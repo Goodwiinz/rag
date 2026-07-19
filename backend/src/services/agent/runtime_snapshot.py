@@ -26,6 +26,7 @@ from src.models import (
     ProjectSkillVersion,
     ProjectSkillVersionScan,
 )
+from src.services.agent.observability import record_project_skill_event
 from src.services.agent.tools import TOOL_REGISTRY
 from src.services.project_skills.access import (
     ProjectSkillNotFound,
@@ -89,11 +90,7 @@ def empty_runtime_snapshot() -> RuntimeSnapshot:
         id=None,
         tool_registry_hash=metadata["hash"],
         tool_registry_version=metadata["version"],
-        tool_names=tuple(
-            descriptor.name
-            for descriptor in TOOL_REGISTRY.descriptors
-            if descriptor.enabled
-        ),
+        tool_names=TOOL_REGISTRY.available_descriptor_names(),
         project_skill_catalog=(),
         expires_at=None,
     )
@@ -219,16 +216,19 @@ async def create_runtime_snapshot(
     if not skill_runtime and not getattr(
         settings, "AGENT_TOOL_REGISTRY_ENFORCEMENT_ENABLED", False
     ):
+        record_project_skill_event("snapshot", "skipped")
         return empty_runtime_snapshot()
 
     actor_id = _as_uuid(user_id)
     scoped_project_id = _as_uuid(project_id)
     if actor_id is None:
+        record_project_skill_event("snapshot", "rejected")
         return empty_runtime_snapshot()
 
     if not skill_runtime and scoped_project_id is None:
         scoped_project_id = None
     elif scoped_project_id is None:
+        record_project_skill_event("snapshot", "rejected")
         return empty_runtime_snapshot()
 
     try:
@@ -240,20 +240,18 @@ async def create_runtime_snapshot(
                 capability="read",
             )
     except (ProjectSkillNotFound, PermissionError, ValueError):
+        record_project_skill_event("snapshot", "rejected")
         return empty_runtime_snapshot()
 
     metadata = TOOL_REGISTRY.metadata_snapshot()
-    tool_names = tuple(
-        descriptor.name
-        for descriptor in TOOL_REGISTRY.descriptors
-        if descriptor.enabled
-    )
     try:
         catalog = (
             await _eligible_catalog(session, project_id=scoped_project_id)
             if skill_runtime and scoped_project_id is not None
             else []
         )
+        conditions = {"project_skill_catalog"} if skill_runtime and catalog else set()
+        tool_names = TOOL_REGISTRY.available_descriptor_names(conditions=conditions)
         expires_at = datetime.now(timezone.utc) + timedelta(
             days=max(1, settings.PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS)
         )
@@ -264,7 +262,11 @@ async def create_runtime_snapshot(
             job_id=job_id,
             tool_registry_hash=metadata["hash"],
             tool_registry_version=metadata["version"],
-            tool_metadata={"descriptors": TOOL_REGISTRY.frozen_descriptor_metadata()},
+            tool_metadata={
+                "descriptors": TOOL_REGISTRY.frozen_descriptor_metadata(
+                    conditions=conditions
+                )
+            },
             skill_catalog=catalog,
             loaded_skill_versions=[],
             expires_at=expires_at,
@@ -278,8 +280,10 @@ async def create_runtime_snapshot(
         logger.warning(
             "runtime snapshot creation failed; continuing without skills", exc_info=True
         )
+        record_project_skill_event("snapshot", "failure")
         return empty_runtime_snapshot()
 
+    record_project_skill_event("snapshot", "success")
     return RuntimeSnapshot(
         id=str(row.id),
         tool_registry_hash=metadata["hash"],
@@ -292,6 +296,7 @@ async def create_runtime_snapshot(
 
 def _snapshot_error(error_type: str, error: str) -> dict[str, str]:
     """Keep loader failures structured for the model and tool audit trail."""
+    record_project_skill_event("loader", "rejected")
     return {"error_type": error_type, "error": error}
 
 
@@ -433,6 +438,12 @@ async def load_project_skill_from_snapshot(
                 "The project skill snapshot could not be updated.",
             )
 
+    record_project_skill_event(
+        "loader",
+        "success",
+        loaded_skill_count=1 if prior is None else 0,
+        loaded_skill_tokens=token_count if prior is None else 0,
+    )
     return {
         "name": normalized_name,
         "version": version.version,

@@ -1025,6 +1025,7 @@ TOOL_REGISTRY = ToolRegistry(
             subgraphs=frozenset(),
             policy_tags=frozenset({ToolPolicyTag.CONTEXT_REQUIRED}),
             exposed_in_all_tools=False,
+            availability_condition="project_skill_catalog",
         ),
         ToolDescriptor(
             name="forget_memory",

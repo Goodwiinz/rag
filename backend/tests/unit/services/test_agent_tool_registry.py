@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from unittest.mock import patch
 
 import pytest
 from langchain_core.tools import tool
@@ -37,6 +38,7 @@ def _descriptor(
     policy_tags: frozenset[ToolPolicyTag] = frozenset(),
     enabled: bool = True,
     exposed_in_all_tools: bool = True,
+    availability_condition: str | None = None,
     subgraph_positions: tuple[tuple[AgentSubgraph, int], ...] | None = None,
 ) -> ToolDescriptor:
     return ToolDescriptor(
@@ -47,6 +49,7 @@ def _descriptor(
         policy_tags=policy_tags,
         enabled=enabled,
         exposed_in_all_tools=exposed_in_all_tools,
+        availability_condition=availability_condition,
         subgraph_positions=(
             tuple((subgraph, 0) for subgraph in subgraphs)
             if subgraph_positions is None
@@ -127,6 +130,27 @@ class TestToolRegistry:
         hidden = ToolRegistry([_descriptor(exposed_in_all_tools=False)])
 
         assert exposed.metadata_snapshot()["hash"] != hidden.metadata_snapshot()["hash"]
+
+    def test_conditionally_available_descriptors_are_absent_without_a_condition(self):
+        registry = ToolRegistry(
+            [_descriptor(availability_condition="project_skill_catalog")]
+        )
+
+        assert registry.available_descriptor_names() == ()
+        assert registry.frozen_descriptor_metadata() == []
+        assert registry.available_descriptor_names(
+            conditions={"project_skill_catalog"}
+        ) == ("alpha_tool",)
+
+    def test_parity_shadow_records_only_match_or_mismatch(self):
+        registry = ToolRegistry([_descriptor()])
+
+        with patch(
+            "src.services.agent.tool_registry.record_project_skill_event"
+        ) as record_event:
+            assert registry.record_parity_shadow(("different",)) is False
+
+        record_event.assert_called_once_with("registry_parity", "mismatch")
 
     def test_rejects_duplicate_names_and_invalid_descriptor_contracts(self):
         with pytest.raises(ValueError, match="duplicate"):

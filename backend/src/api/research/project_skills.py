@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.config import get_settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
 from src.models import (
@@ -43,8 +44,20 @@ from src.services.project_skills.catalog_service import (
 )
 from src.services.project_skills.skill_document import SkillDocumentError
 
+
+def require_project_skill_catalog() -> None:
+    """Hide the optional catalog surface unless its server-side gate is enabled."""
+    if not get_settings().PROJECT_SKILL_CATALOG_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project skills are unavailable.",
+        )
+
+
 router = APIRouter(
-    prefix="/api/v1/projects/{project_id}/skills", tags=["project-skills"]
+    prefix="/api/v1/projects/{project_id}/skills",
+    tags=["project-skills"],
+    dependencies=[Depends(require_project_skill_catalog)],
 )
 
 

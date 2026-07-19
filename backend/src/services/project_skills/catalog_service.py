@@ -14,6 +14,7 @@ from src.models import (
     ProjectSkillVersion,
     ProjectSkillVersionScan,
 )
+from src.services.agent.observability import record_project_skill_event
 
 from .access import ProjectSkillNotFound, get_authorized_project
 from .scanner import SCANNER_VERSION, scan_skill_document
@@ -139,6 +140,7 @@ class ProjectSkillCatalogService:
         await self._session.refresh(skill)
         await self._session.refresh(version)
         await self._session.refresh(request)
+        record_project_skill_event("proposal", "success")
         return skill, version, request
 
     async def propose_version(
@@ -203,6 +205,7 @@ class ProjectSkillCatalogService:
             ) from error
         await self._session.refresh(version)
         await self._session.refresh(request)
+        record_project_skill_event("proposal", "success")
         return version, request
 
     async def stage_state_change(
@@ -266,6 +269,7 @@ class ProjectSkillCatalogService:
         self._session.add(request)
         await self._session.commit()
         await self._session.refresh(request)
+        record_project_skill_event("proposal", "success")
         return request
 
     async def _new_version(
@@ -333,4 +337,5 @@ class ProjectSkillCatalogService:
         )
         self._session.add(scan_row)
         await self._session.flush()
+        record_project_skill_event("scan", state)
         return scan_row

@@ -61,6 +61,7 @@ async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalo
     assert row.tool_registry_hash == "b" * 64
     assert row.tool_registry_version == "7"
     assert row.tool_metadata["descriptors"]
+    assert "load_project_skill" in snapshot.tool_names
     assert row.skill_catalog == [
         {
             "version_id": str(version_id),
@@ -78,6 +79,39 @@ async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalo
             "content_hash": "a" * 64,
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_snapshot_hides_conditional_loader_without_a_durable_catalog():
+    from src.services.agent.runtime_snapshot import create_runtime_snapshot
+
+    session = AsyncMock()
+    session.add = Mock()
+    session.scalars.return_value = SimpleNamespace(all=Mock(return_value=[]))
+    settings = SimpleNamespace(
+        PROJECT_SKILL_CATALOG_ENABLED=True,
+        PROJECT_SKILL_RUNTIME_ENABLED=True,
+        PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS=30,
+    )
+    with (
+        patch(
+            "src.services.agent.runtime_snapshot.get_authorized_project",
+            new=AsyncMock(return_value=SimpleNamespace()),
+        ),
+        patch(
+            "src.services.agent.runtime_snapshot.get_settings",
+            return_value=settings,
+        ),
+    ):
+        snapshot = await create_runtime_snapshot(
+            session, user_id=uuid4(), project_id=uuid4()
+        )
+
+    row = session.add.call_args.args[0]
+    assert "load_project_skill" not in snapshot.tool_names
+    assert "load_project_skill" not in {
+        descriptor["name"] for descriptor in row.tool_metadata["descriptors"]
+    }
 
 
 @pytest.mark.asyncio

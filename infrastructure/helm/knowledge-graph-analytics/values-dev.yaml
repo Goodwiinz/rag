@@ -135,6 +135,18 @@ backend:
     # Requires the celery worker to consume the `agent_runs` queue (-Q).
     - name: AGENT_DISPATCH_BACKEND
       value: "celery"
+    # Project skills rollout: enable the descriptor enforcement, catalog API,
+    # and progressive loader together in the shared dev environment only.
+    # Each remains independently reversible with a values-only deploy; do not
+    # copy these flags to values-production.yaml before cohort validation.
+    - name: AGENT_TOOL_REGISTRY_ENFORCEMENT_ENABLED
+      value: "true"
+    - name: PROJECT_SKILL_CATALOG_ENABLED
+      value: "true"
+    - name: PROJECT_SKILL_RUNTIME_ENABLED
+      value: "true"
+    - name: PROJECT_SKILL_SNAPSHOT_RETENTION_DAYS
+      value: "30"
     # Cap glibc per-thread arenas to reduce RSS bloat (default 8*CPU on
     # multi-core). Combined with WORKERS=1, cuts steady-state memory ~30-40%.
     - name: MALLOC_ARENA_MAX
