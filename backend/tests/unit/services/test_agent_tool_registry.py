@@ -36,6 +36,7 @@ def _descriptor(
     subgraphs: frozenset[AgentSubgraph] = frozenset(),
     policy_tags: frozenset[ToolPolicyTag] = frozenset(),
     enabled: bool = True,
+    exposed_in_all_tools: bool = True,
 ) -> ToolDescriptor:
     return ToolDescriptor(
         name=name,
@@ -44,6 +45,7 @@ def _descriptor(
         subgraphs=subgraphs,
         policy_tags=policy_tags,
         enabled=enabled,
+        exposed_in_all_tools=exposed_in_all_tools,
     )
 
 
@@ -114,6 +116,12 @@ class TestToolRegistry:
         )
         assert set(registry.metadata_snapshot()) == {"version", "hash"}
 
+    def test_metadata_hash_includes_all_tools_compatibility_visibility(self):
+        exposed = ToolRegistry([_descriptor()])
+        hidden = ToolRegistry([_descriptor(exposed_in_all_tools=False)])
+
+        assert exposed.metadata_snapshot()["hash"] != hidden.metadata_snapshot()["hash"]
+
     def test_rejects_duplicate_names_and_invalid_descriptor_contracts(self):
         with pytest.raises(ValueError, match="duplicate"):
             ToolRegistry([_descriptor(), _descriptor(tool_object=beta_tool)])
@@ -128,3 +136,169 @@ class TestToolRegistry:
             ToolRegistry(
                 [_descriptor(policy_tags=frozenset({ToolPolicyTag.NO_OUTER_RETRY}))]
             )
+
+
+@pytest.mark.unit
+class TestProductionToolRegistryParity:
+    LEGACY_ALL_TOOL_NAMES = [
+        "search_arxiv",
+        "ingest_arxiv_papers",
+        "search_documents",
+        "create_project",
+        "list_projects",
+        "add_document_to_project",
+        "create_project_note",
+        "list_project_documents",
+        "summarize_document",
+        "compare_documents",
+        "extract_entities",
+        "search_knowledge_graph",
+        "explore_entity_neighborhood",
+        "find_entity_paths",
+        "get_graph_stats",
+        "create_draft",
+        "export_bibliography",
+        "execute_code",
+        "search_external_database",
+        "list_external_databases",
+        "forget_memory",
+    ]
+
+    def test_all_tools_keeps_legacy_order_and_wrappers(self):
+        from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
+
+        assert [tool.name for tool in ALL_TOOLS] == self.LEGACY_ALL_TOOL_NAMES
+        assert tuple(ALL_TOOLS) == TOOL_REGISTRY.all_tools()
+        assert [
+            descriptor.tool
+            for descriptor in TOOL_REGISTRY.descriptors
+            if descriptor.exposed_in_all_tools
+        ] == ALL_TOOLS
+
+    def test_intent_and_subgraph_bindings_keep_legacy_names(self):
+        from src.services.agent.tools import TOOL_REGISTRY
+
+        expected_intents = {
+            "research": {
+                "search_arxiv",
+                "ingest_arxiv_papers",
+                "search_documents",
+                "create_project",
+                "list_projects",
+                "add_document_to_project",
+                "list_project_documents",
+                "execute_code",
+            },
+            "writing": {
+                "create_draft",
+                "create_project_note",
+                "export_bibliography",
+                "summarize_document",
+                "compare_documents",
+            },
+            "knowledge_graph": {
+                "extract_entities",
+                "search_knowledge_graph",
+                "explore_entity_neighborhood",
+                "find_entity_paths",
+                "get_graph_stats",
+                "search_documents",
+                "execute_code",
+            },
+            "general": {
+                "search_arxiv",
+                "ingest_arxiv_papers",
+                "search_documents",
+                "create_project",
+                "list_projects",
+                "add_document_to_project",
+                "list_project_documents",
+                "create_project_note",
+                "summarize_document",
+                "search_knowledge_graph",
+            },
+        }
+        expected_subgraphs = {
+            "research": {
+                "search_arxiv",
+                "ingest_arxiv_papers",
+                "search_documents",
+                "do_kb_retrieve",
+                "create_project",
+                "list_projects",
+                "add_document_to_project",
+                "list_project_documents",
+            },
+            "writing": {
+                "create_draft",
+                "create_project_note",
+                "export_bibliography",
+                "summarize_document",
+                "compare_documents",
+                "search_arxiv",
+                "ingest_arxiv_papers",
+            },
+            "data": {
+                "extract_entities",
+                "search_knowledge_graph",
+                "explore_entity_neighborhood",
+                "find_entity_paths",
+                "get_graph_stats",
+                "search_documents",
+                "list_project_documents",
+            },
+        }
+
+        for intent, names in expected_intents.items():
+            assert {
+                item.name for item in TOOL_REGISTRY.descriptors_for_intent(intent)
+            } == names
+        for subgraph, names in expected_subgraphs.items():
+            assert {
+                item.name for item in TOOL_REGISTRY.descriptors_for_subgraph(subgraph)
+            } == names
+
+    def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(self):
+        from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
+
+        descriptor = TOOL_REGISTRY.descriptor("do_kb_retrieve")
+
+        assert descriptor is not None
+        assert not descriptor.exposed_in_all_tools
+        assert "do_kb_retrieve" not in {tool.name for tool in ALL_TOOLS}
+        assert "do_kb_retrieve" in {
+            item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("research")
+        }
+
+    def test_policy_tags_keep_legacy_execution_policy(self):
+        from src.services.agent.tool_registry import ToolPolicyTag
+        from src.services.agent.tools import TOOL_REGISTRY
+
+        assert {
+            descriptor.name
+            for descriptor in TOOL_REGISTRY.descriptors
+            if ToolPolicyTag.DESTRUCTIVE in descriptor.policy_tags
+        } == {
+            "ingest_arxiv_papers",
+            "add_document_to_project",
+            "create_project",
+            "create_project_note",
+            "create_draft",
+            "execute_code",
+            "forget_memory",
+        }
+        assert {
+            descriptor.name
+            for descriptor in TOOL_REGISTRY.descriptors
+            if ToolPolicyTag.SLOW in descriptor.policy_tags
+        } == {
+            "ingest_arxiv_papers",
+            "create_draft",
+            "compare_documents",
+            "search_arxiv",
+        }
+        assert {
+            descriptor.name
+            for descriptor in TOOL_REGISTRY.descriptors
+            if ToolPolicyTag.NO_OUTER_RETRY in descriptor.policy_tags
+        } == {"search_arxiv", "ingest_arxiv_papers"}

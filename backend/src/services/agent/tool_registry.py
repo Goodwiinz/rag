@@ -51,6 +51,7 @@ class ToolDescriptor:
     subgraphs: frozenset[AgentSubgraph]
     policy_tags: frozenset[ToolPolicyTag]
     enabled: bool = True
+    exposed_in_all_tools: bool = True
 
 
 class ToolRegistry:
@@ -100,6 +101,8 @@ class ToolRegistry:
                 )
             if not isinstance(descriptor.enabled, bool):
                 raise TypeError("tool descriptor enabled must be a bool")
+            if not isinstance(descriptor.exposed_in_all_tools, bool):
+                raise TypeError("tool descriptor exposed_in_all_tools must be a bool")
             if not all(
                 isinstance(intent, AgentIntent) for intent in descriptor.intents
             ):
@@ -134,6 +137,7 @@ class ToolRegistry:
                 ),
                 "policy_tags": sorted(tag.value for tag in descriptor.policy_tags),
                 "enabled": descriptor.enabled,
+                "exposed_in_all_tools": descriptor.exposed_in_all_tools,
             }
             for descriptor in self._descriptors
         ]
@@ -143,8 +147,19 @@ class ToolRegistry:
     def all_tools(self) -> tuple[BaseTool, ...]:
         """Return enabled LangChain wrappers in declaration order."""
         return tuple(
-            descriptor.tool for descriptor in self._descriptors if descriptor.enabled
+            descriptor.tool
+            for descriptor in self._descriptors
+            if descriptor.enabled and descriptor.exposed_in_all_tools
         )
+
+    @property
+    def descriptors(self) -> tuple[ToolDescriptor, ...]:
+        """All registered descriptors in declaration order, including hidden tools."""
+        return self._descriptors
+
+    def descriptor(self, name: str) -> ToolDescriptor | None:
+        """Return a descriptor by its server-owned tool name, if registered."""
+        return self._by_name.get(name)
 
     def descriptors_for_intent(self, intent: str) -> tuple[ToolDescriptor, ...]:
         """Return enabled descriptors for a known top-level intent."""
