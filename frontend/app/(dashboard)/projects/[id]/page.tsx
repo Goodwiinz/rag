@@ -27,6 +27,7 @@ import {
 import { ProjectHeader } from '@/components/research/ProjectHeader';
 import { DocumentList } from '@/components/research/DocumentList';
 import { ProjectKnowledgeTree } from '@/components/research/ProjectKnowledgeTree';
+import { ProjectSkillsTab } from '@/components/research/ProjectSkillsTab';
 import { DraftGenerator } from '@/components/research/DraftGenerator';
 import { DraftViewer } from '@/components/research/DraftViewer';
 import { DraftGenerationProgress } from '@/components/research/DraftGenerationProgress';
@@ -47,6 +48,7 @@ import {
 import { useProjectStore } from '@/store/projectStore';
 import { useAgentChatStore } from '@/store/agentChatStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useProjectSkillCatalog } from '@/hooks/useProjectSkills';
 import { APIErrorClass } from '@/types/api';
 import type { ProjectNote, ProjectNoteCreate } from '@/services/projectService';
 import {
@@ -74,7 +76,8 @@ type TabType =
   | 'chat'
   | 'matrix'
   | 'pipeline'
-  | 'knowledge';
+  | 'knowledge'
+  | 'skills';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -153,6 +156,12 @@ export default function ProjectDetailPage() {
     status: number;
     message: string;
   } | null>(null);
+  // The backend catalog is the availability source of truth. Do not expose a
+  // client-only feature flag for a capability that can be disabled server-side.
+  const skillsCatalog = useProjectSkillCatalog(
+    projectId,
+    mounted && isAuthenticated && Boolean(projectId)
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -632,6 +641,10 @@ export default function ProjectDetailPage() {
     { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
     { id: 'knowledge', label: 'Knowledge', icon: Network },
   ];
+
+  if (skillsCatalog.isSuccess) {
+    secondaryTabs.push({ id: 'skills', label: 'Skills', icon: Sparkles });
+  }
 
   const allTabs = [...primaryTabs, ...secondaryTabs.map(t => ({ ...t, mobileLabel: t.label.slice(0, 4) }))];
   const isSecondaryTabActive = secondaryTabs.some(t => t.id === activeTab);
@@ -1197,6 +1210,8 @@ export default function ProjectDetailPage() {
         {activeTab === 'knowledge' && (
           <ProjectKnowledgeTree projectId={projectId} />
         )}
+
+        {activeTab === 'skills' && <ProjectSkillsTab projectId={projectId} />}
       </div>
 
       <NoteEditor
