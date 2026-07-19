@@ -223,10 +223,7 @@ async def writing_force_synthesis_node(
 
     llm = build_synthesis_llm(max_tokens=4096)
     # No bind_tools — force a pure text response.
-    from src.services.agent.graph import (
-        AGENT_LLM_TIMEOUT_SECONDS,
-        _merge_run_config,
-    )
+    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
 
     invoke_config = _merge_run_config(
         config,

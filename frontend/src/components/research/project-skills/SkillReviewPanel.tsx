@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactElement } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,14 @@ interface SkillReviewPanelProps {
   skill: ProjectSkill;
   request?: ProjectSkillChangeRequest;
   currentUserId?: string;
-  onApprove: (requestId: string, approval: { self_approval_acknowledged: boolean; warning_acknowledged: boolean; audit_note: string | null }) => Promise<unknown>;
+  onApprove: (
+    requestId: string,
+    approval: {
+      self_approval_acknowledged: boolean;
+      warning_acknowledged: boolean;
+      audit_note: string | null;
+    }
+  ) => Promise<unknown>;
   onReject: (requestId: string, auditNote: string) => Promise<unknown>;
   onRescan: (requestId: string) => Promise<unknown>;
   onStale?: () => void;
@@ -43,9 +51,10 @@ export function SkillReviewPanel({
   onRescan,
   onStale,
   isApproving,
-}: SkillReviewPanelProps) {
+}: SkillReviewPanelProps): ReactElement {
   const [warningAcknowledged, setWarningAcknowledged] = useState(false);
-  const [selfApprovalAcknowledged, setSelfApprovalAcknowledged] = useState(false);
+  const [selfApprovalAcknowledged, setSelfApprovalAcknowledged] =
+    useState(false);
   const [note, setNote] = useState('');
   const [message, setMessage] = useState<{ text: string; isError: boolean }>();
   const versions = useMemo(
@@ -53,13 +62,17 @@ export function SkillReviewPanel({
     [skill]
   );
   const activeVersion = skill.active_version;
-  const proposedVersion = versions.find((version) => version.id === request?.proposed_version_id);
+  const proposedVersion = versions.find(
+    (version) => version.id === request?.proposed_version_id
+  );
   const findings = request?.proposed_version_id
-    ? proposedVersion?.scan_findings ?? []
+    ? (proposedVersion?.scan_findings ?? [])
     : [];
   const blockers = findings.filter((finding) => finding.severity === 'blocker');
   const warnings = findings.filter((finding) => finding.severity === 'warning');
-  const isSelfApproval = Boolean(request && currentUserId === request.requester_id);
+  const isSelfApproval = Boolean(
+    request && currentUserId === request.requester_id
+  );
   const requiresNote = warnings.length > 0 || isSelfApproval;
   const diff = useProjectSkillDiff(
     projectId,
@@ -69,17 +82,21 @@ export function SkillReviewPanel({
   );
   const canApprove = Boolean(
     request &&
-      blockers.length === 0 &&
-      (!warnings.length || warningAcknowledged) &&
-      (!isSelfApproval || selfApprovalAcknowledged) &&
-      (!requiresNote || note.trim())
+    blockers.length === 0 &&
+    (!warnings.length || warningAcknowledged) &&
+    (!isSelfApproval || selfApprovalAcknowledged) &&
+    (!requiresNote || note.trim())
   );
 
   if (!request) {
-    return <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No pending review for this skill.</p>;
+    return (
+      <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+        No pending review for this skill.
+      </p>
+    );
   }
 
-  const approve = async () => {
+  const approve = async (): Promise<void> => {
     setMessage(undefined);
     try {
       await onApprove(request.id, {
@@ -87,7 +104,10 @@ export function SkillReviewPanel({
         warning_acknowledged: warningAcknowledged,
         audit_note: note.trim() || null,
       });
-      setMessage({ text: 'Approval recorded. The catalog has been refreshed.', isError: false });
+      setMessage({
+        text: 'Approval recorded. The catalog has been refreshed.',
+        isError: false,
+      });
     } catch (error) {
       const isStale = errorStatus(error) === 409;
       if (isStale) onStale?.();
@@ -100,63 +120,154 @@ export function SkillReviewPanel({
     }
   };
 
-  const reject = async () => {
+  const reject = async (): Promise<void> => {
     try {
       await onReject(request.id, note.trim());
-      setMessage({ text: 'Rejection recorded. The catalog has been refreshed.', isError: false });
+      setMessage({
+        text: 'Rejection recorded. The catalog has been refreshed.',
+        isError: false,
+      });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'The rejection could not be completed.', isError: true });
+      setMessage({
+        text:
+          error instanceof Error
+            ? error.message
+            : 'The rejection could not be completed.',
+        isError: true,
+      });
     }
   };
 
-  const rescan = async () => {
+  const rescan = async (): Promise<void> => {
     try {
       await onRescan(request.id);
-      setMessage({ text: 'Rescan requested. The catalog has been refreshed.', isError: false });
+      setMessage({
+        text: 'Rescan requested. The catalog has been refreshed.',
+        isError: false,
+      });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : 'The rescan could not be completed.', isError: true });
+      setMessage({
+        text:
+          error instanceof Error
+            ? error.message
+            : 'The rescan could not be completed.',
+        isError: true,
+      });
     }
   };
 
   return (
-    <section aria-labelledby="skill-review-heading" className="space-y-4 rounded-lg border border-border bg-card p-4">
+    <section
+      aria-labelledby="skill-review-heading"
+      className="space-y-4 rounded-lg border border-border bg-card p-4"
+    >
       <div>
-        <h2 id="skill-review-heading" className="font-medium">Review pending change</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{request.action} requested for {skill.name}</p>
+        <h2 id="skill-review-heading" className="font-medium">
+          Review pending change
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {request.action} requested for {skill.name}
+        </p>
       </div>
       {findings.length > 0 && (
         <div className="space-y-2" aria-label="Scanner findings">
           {findings.map((finding) => (
-            <Alert key={`${finding.code}-${finding.line ?? 0}`} variant={finding.severity === 'blocker' ? 'destructive' : 'default'}>
-              <AlertTitle>{finding.severity === 'blocker' ? 'Blocker' : 'Warning'}: {finding.code}</AlertTitle>
-              <AlertDescription>{finding.message}{finding.line ? ` (line ${finding.line})` : ''}</AlertDescription>
+            <Alert
+              key={`${finding.code}-${finding.line ?? 0}`}
+              variant={
+                finding.severity === 'blocker' ? 'destructive' : 'default'
+              }
+            >
+              <AlertTitle>
+                {finding.severity === 'blocker' ? 'Blocker' : 'Warning'}:{' '}
+                {finding.code}
+              </AlertTitle>
+              <AlertDescription>
+                {finding.message}
+                {finding.line ? ` (line ${finding.line})` : ''}
+              </AlertDescription>
             </Alert>
           ))}
         </div>
       )}
-      {diff.isLoading && <div aria-busy="true" aria-label="Loading canonical diff" className="h-24 animate-pulse rounded bg-muted" />}
-      {diff.data && <pre aria-label="Canonical diff" className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">{diff.data.diff || 'No textual changes.'}</pre>}
+      {diff.isLoading && (
+        <div
+          aria-busy="true"
+          aria-label="Loading canonical diff"
+          className="h-24 animate-pulse rounded bg-muted"
+        />
+      )}
+      {diff.data && (
+        <pre
+          aria-label="Canonical diff"
+          className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs"
+        >
+          {diff.data.diff || 'No textual changes.'}
+        </pre>
+      )}
       {warnings.length > 0 && (
         <label className="flex items-start gap-2 text-sm">
-          <Checkbox checked={warningAcknowledged} onCheckedChange={(checked) => setWarningAcknowledged(checked === true)} />
-          I acknowledge the scanner warnings and have recorded why this change is safe.
+          <Checkbox
+            checked={warningAcknowledged}
+            onCheckedChange={(checked) =>
+              setWarningAcknowledged(checked === true)
+            }
+          />
+          I acknowledge the scanner warnings and have recorded why this change
+          is safe.
         </label>
       )}
       {isSelfApproval && (
         <label className="flex items-start gap-2 text-sm">
-          <Checkbox checked={selfApprovalAcknowledged} onCheckedChange={(checked) => setSelfApprovalAcknowledged(checked === true)} />
+          <Checkbox
+            checked={selfApprovalAcknowledged}
+            onCheckedChange={(checked) =>
+              setSelfApprovalAcknowledged(checked === true)
+            }
+          />
           I acknowledge this is a self-approval and include an audit note.
         </label>
       )}
       <>
-        <label htmlFor="review-audit-note" className="block text-sm font-medium">Audit note</label>
-        <Textarea id="review-audit-note" value={note} onChange={(event) => setNote(event.target.value)} />
+        <label
+          htmlFor="review-audit-note"
+          className="block text-sm font-medium"
+        >
+          Audit note
+        </label>
+        <Textarea
+          id="review-audit-note"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
       </>
-      {message && <p role={message.isError ? 'alert' : 'status'} className="text-sm text-muted-foreground">{message.text}</p>}
+      {message && (
+        <p
+          role={message.isError ? 'alert' : 'status'}
+          className="text-sm text-muted-foreground"
+        >
+          {message.text}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => void rescan()}>Rescan</Button>
-        <Button variant="outline" size="sm" disabled={!note.trim()} onClick={() => void reject()}>Reject</Button>
-        <Button disabled={!canApprove} isLoading={isApproving} onClick={() => void approve()}>Approve</Button>
+        <Button variant="outline" size="sm" onClick={() => void rescan()}>
+          Rescan
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!note.trim()}
+          onClick={() => void reject()}
+        >
+          Reject
+        </Button>
+        <Button
+          disabled={!canApprove}
+          isLoading={isApproving}
+          onClick={() => void approve()}
+        >
+          Approve
+        </Button>
       </div>
     </section>
   );

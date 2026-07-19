@@ -24,19 +24,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from langchain_core.messages import (
-    AIMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.core.config import get_settings
 from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
 from src.services.agent._prompts import (
-    INTENT_PROMPTS,
     _LLM_NODE_STATIC_PROMPT,
+    INTENT_PROMPTS,
     _build_page_context_line,
     _merge_run_config,
     _runtime_model_line,

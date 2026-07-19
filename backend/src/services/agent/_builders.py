@@ -28,10 +28,7 @@ from langchain_core.messages import AIMessage
 from langgraph.graph import END, StateGraph
 from langgraph.types import RetryPolicy
 
-from src.services.agent._nodes_classify import (
-    preprocessing_node,
-    route_by_intent,
-)
+from src.services.agent._nodes_classify import preprocessing_node, route_by_intent
 from src.services.agent._nodes_llm import llm_node
 from src.services.agent._nodes_memory import memory_save_node
 from src.services.agent._nodes_tools import interrupt_node, tool_node

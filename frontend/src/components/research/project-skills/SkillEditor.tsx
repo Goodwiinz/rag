@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import type { ReactElement } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,28 +16,38 @@ export function SkillEditor({
   initialDocument = '',
   isSubmitting,
   onSubmit,
-}: SkillEditorProps) {
+}: SkillEditorProps): ReactElement {
   const [documentText, setDocumentText] = useState(initialDocument);
 
-  useEffect(() => setDocumentText(initialDocument), [initialDocument, skillName]);
-
-  const submitLabel = skillName ? `Propose update to ${skillName}` : 'Propose skill';
+  const submitLabel = skillName
+    ? `Propose update to ${skillName}`
+    : 'Propose skill';
   return (
-    <section aria-labelledby="skill-editor-heading" className="rounded-lg border border-border bg-card p-4">
+    <section
+      aria-labelledby="skill-editor-heading"
+      className="rounded-lg border border-border bg-card p-4"
+    >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="skill-editor-heading" className="font-medium">
-          {skillName ? `Propose a new version of ${skillName}` : 'New project skill'}
+          {skillName
+            ? `Propose a new version of ${skillName}`
+            : 'New project skill'}
         </h2>
         <span className="text-xs text-muted-foreground">SKILL.md only</span>
       </div>
-      <label htmlFor="skill-document" className="mt-3 block text-sm font-medium">
+      <label
+        htmlFor="skill-document"
+        className="mt-3 block text-sm font-medium"
+      >
         Skill document
       </label>
       <Textarea
         id="skill-document"
         value={documentText}
         onChange={(event) => setDocumentText(event.target.value)}
-        placeholder={'---\nname: research-summary\ndescription: Create cited source summaries\n---\n\nInstructions…'}
+        placeholder={
+          '---\nname: research-summary\ndescription: Create cited source summaries\n---\n\nInstructions…'
+        }
         className="mt-2 min-h-48 font-mono text-sm"
       />
       <div className="mt-3 flex justify-end">

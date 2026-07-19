@@ -1,22 +1,27 @@
 import { api } from '@/services/api-client';
 import type { components } from '@/types/generated/api';
 
-export type ProjectSkillCatalog = components['schemas']['ProjectSkillCatalogResponse'];
+export type ProjectSkillCatalog =
+  components['schemas']['ProjectSkillCatalogResponse'];
 export type ProjectSkill = components['schemas']['SkillResponse'];
 export type ProjectSkillVersion = components['schemas']['SkillVersionResponse'];
 export type ProjectSkillDiff = components['schemas']['SkillDiffResponse'];
-export type ProjectSkillChangeRequest = components['schemas']['ChangeRequestResponse'];
-export type ProjectSkillDocument = components['schemas']['SkillDocumentRequest'];
+export type ProjectSkillChangeRequest =
+  components['schemas']['ChangeRequestResponse'];
+export type ProjectSkillDocument =
+  components['schemas']['SkillDocumentRequest'];
 export type ProjectSkillApproval = components['schemas']['ApprovalRequest'];
 export type ProjectSkillRejection = components['schemas']['RejectRequest'];
 export type ProjectSkillRollback = components['schemas']['RollbackRequest'];
 
-const path = (projectId: string) => `/projects/${projectId}/skills`;
+const path = (projectId: string): string => `/projects/${projectId}/skills`;
 
 export const projectSkillService = {
   list: (projectId: string) => api.get<ProjectSkillCatalog>(path(projectId)),
   get: (projectId: string, skillName: string) =>
-    api.get<ProjectSkill>(`${path(projectId)}/${encodeURIComponent(skillName)}`),
+    api.get<ProjectSkill>(
+      `${path(projectId)}/${encodeURIComponent(skillName)}`
+    ),
   getDiff: (
     projectId: string,
     skillName: string,

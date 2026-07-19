@@ -18,15 +18,14 @@ import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.middleware.gzip import GZipMiddleware
 
 # Setup basic logging
 logger = logging.getLogger(__name__)
 
 from src.api.agent import agent_router
-from src.api.connectors import connectors_router
 from src.api.arxiv import (
     arxiv_bulk_router,
     arxiv_change_router,
@@ -38,6 +37,8 @@ from src.api.arxiv import (
 )
 from src.api.auth import auth_router, cli_auth_router
 from src.api.auth.api_keys import router as api_keys_router
+from src.api.connectors import connectors_router
+from src.api.diagnostics import diagnostics_router, sentry_debug_router
 from src.api.documents import (
     documents_router,
     figures_router,
@@ -80,18 +81,7 @@ from src.api.research_engine import (
     research_engine_runs_router,
     research_engine_steps_router,
 )
-from src.api.research_engine import (
-    research_engine_blueprints_router,
-    research_engine_projects_router,
-    research_engine_runs_router,
-    research_engine_steps_router,
-)
-from src.api.search import (
-    knowledge_graph_router,
-    search_quality_router,
-    search_router,
-)
-from src.api.diagnostics import diagnostics_router, sentry_debug_router
+from src.api.search import knowledge_graph_router, search_quality_router, search_router
 from src.api.security import compliance_router, encryption_router, rbac_router
 from src.api.threads import (
     stream_router,
@@ -103,10 +93,6 @@ from src.api.threads import (
 from src.core.config import settings
 from src.core.database import Base, engine
 from src.core.probes import ProbeAwareTrustedHostMiddleware
-from src.middleware.multi_tenancy import MultiTenancyMiddleware
-from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
-from src.middleware.security_headers import SecurityHeadersMiddleware
-from src.health.endpoints import router as health_router
 from src.core.security import auth_rate_limiter
 from src.exceptions import RAGException
 from src.exceptions.analytics_exceptions import AnalyticsException
@@ -115,6 +101,10 @@ from src.exceptions.error_handlers import (
     database_exception_handler,
     rag_exception_handler,
 )
+from src.health.endpoints import router as health_router
+from src.middleware.multi_tenancy import MultiTenancyMiddleware
+from src.middleware.rate_limiting import AnalyticsRateLimitMiddleware
+from src.middleware.security_headers import SecurityHeadersMiddleware
 
 # from src.services.documents.file_service import redis_client  # Not exported, not needed here
 
@@ -318,10 +308,7 @@ async def lifespan(app: FastAPI):
     # log claims readiness isn't blocked. Uses the same throwaway-env
     # predicate as ``require_durable_agent_state`` so the two gates can't drift.
     try:
-        from src.health.endpoints import (
-            resolve_startup_readiness,
-            set_llm_config_ready,
-        )
+        from src.health.endpoints import resolve_startup_readiness, set_llm_config_ready
         from src.services.agent.llm_factory import validate_llm_config
 
         llm_config_ok = validate_llm_config()
