@@ -1,6 +1,5 @@
 """Request and response schemas for the immutable project-skill catalog."""
 
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -37,6 +36,7 @@ class SkillVersionResponse(BaseModel):
     name: str
     description: str
     content_hash: str
+    document_text: str
     scan_state: str
     scan_findings: list[ScanFindingResponse]
 
@@ -56,6 +56,24 @@ class ChangeRequestResponse(BaseModel):
     proposed_version_id: UUID | None
     expected_active_version_id: UUID | None
     audit_note: str | None
+    skill_id: UUID
+    skill_name: str
+    requester_id: UUID
+    reviewer_id: UUID | None
+    warning_acknowledged: bool
+    created_at: str
+    reviewed_at: str | None
+
+
+class ProjectSkillCapabilities(BaseModel):
+    can_edit: bool
+    can_admin: bool
+
+
+class ProjectSkillCatalogResponse(BaseModel):
+    skills: list[SkillResponse]
+    pending_change_requests: list[ChangeRequestResponse]
+    capabilities: ProjectSkillCapabilities
 
 
 class SkillDiffResponse(BaseModel):

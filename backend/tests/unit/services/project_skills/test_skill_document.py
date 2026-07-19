@@ -41,3 +41,10 @@ def test_parses_canonical_skill_document_deterministically():
 def test_rejects_noncanonical_metadata(content, message):
     with pytest.raises(SkillDocumentError, match=message):
         parse_skill_document(content)
+
+
+def test_rejects_a_name_that_exceeds_the_database_identity_limit():
+    content = f"---\nname: {'a' * 129}\ndescription: x\n---\nbody"
+
+    with pytest.raises(SkillDocumentError, match="128"):
+        parse_skill_document(content)

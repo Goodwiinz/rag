@@ -66,18 +66,8 @@ def upgrade() -> None:
         sa.Column("version", sa.Integer(), nullable=False),
         sa.Column("instructions", sa.Text(), nullable=False),
         sa.Column("parsed_name", sa.String(length=128), nullable=False),
-        sa.Column("description", sa.String(length=240), nullable=False),
+        sa.Column("description", sa.Text(), nullable=False),
         sa.Column("content_hash", sa.String(length=64), nullable=False),
-        sa.Column(
-            "scan_state", sa.String(length=16), nullable=False, server_default="pending"
-        ),
-        sa.Column(
-            "scan_findings",
-            postgresql.JSONB(),
-            nullable=False,
-            server_default=sa.text("'[]'::jsonb"),
-        ),
-        sa.Column("scanner_version", sa.String(length=64), nullable=False),
         sa.Column("author_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["skill_id"], ["project_skills.id"], ondelete="RESTRICT"
@@ -85,10 +75,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["author_id"], ["users.id"], ondelete="RESTRICT"),
         sa.UniqueConstraint(
             "skill_id", "version", name="uq_project_skill_versions_skill_version"
-        ),
-        sa.CheckConstraint(
-            "scan_state IN ('pending', 'passed', 'blocked', 'error')",
-            name="ck_project_skill_versions_scan_state",
         ),
         sa.CheckConstraint(
             "version > 0", name="ck_project_skill_versions_positive_version"
@@ -105,6 +91,53 @@ def upgrade() -> None:
     )
     op.create_index(
         "ix_project_skill_versions_author_id", "project_skill_versions", ["author_id"]
+    )
+
+    op.create_table(
+        "project_skill_version_scans",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
+        sa.Column("deleted_at", sa.DateTime(timezone=True)),
+        sa.Column("version_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("scan_state", sa.String(length=16), nullable=False),
+        sa.Column(
+            "findings",
+            postgresql.JSONB(),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
+        sa.Column("scanner_version", sa.String(length=64), nullable=False),
+        sa.Column("scanned_by_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["version_id"], ["project_skill_versions.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(["scanned_by_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.CheckConstraint(
+            "scan_state IN ('pending', 'passed', 'blocked', 'error')",
+            name="ck_project_skill_version_scans_state",
+        ),
+    )
+    op.create_index(
+        "ix_project_skill_version_scans_id", "project_skill_version_scans", ["id"]
+    )
+    op.create_index(
+        "ix_project_skill_version_scans_version_id",
+        "project_skill_version_scans",
+        ["version_id"],
+    )
+    op.create_index(
+        "ix_project_skill_version_scans_scanned_by_id",
+        "project_skill_version_scans",
+        ["scanned_by_id"],
+    )
+    op.create_index(
+        "idx_project_skill_version_scans_version_created",
+        "project_skill_version_scans",
+        ["version_id", "created_at"],
     )
 
     op.create_foreign_key(
@@ -261,6 +294,22 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "idx_project_skill_version_scans_version_created",
+        table_name="project_skill_version_scans",
+    )
+    op.drop_index(
+        "ix_project_skill_version_scans_scanned_by_id",
+        table_name="project_skill_version_scans",
+    )
+    op.drop_index(
+        "ix_project_skill_version_scans_version_id",
+        table_name="project_skill_version_scans",
+    )
+    op.drop_index(
+        "ix_project_skill_version_scans_id", table_name="project_skill_version_scans"
+    )
+    op.drop_table("project_skill_version_scans")
     op.drop_index(
         "idx_agent_runtime_snapshots_project_created",
         table_name="agent_runtime_snapshots",

@@ -5,6 +5,7 @@ from src.models import (
     ProjectSkill,
     ProjectSkillChangeRequest,
     ProjectSkillVersion,
+    ProjectSkillVersionScan,
 )
 
 
@@ -41,16 +42,26 @@ def test_project_skill_versions_are_immutable_catalog_records():
         "parsed_name",
         "description",
         "content_hash",
-        "scan_state",
-        "scan_findings",
-        "scanner_version",
         "author_id",
     } <= set(columns.keys())
     assert "uq_project_skill_versions_skill_version" in _constraint_names(
         ProjectSkillVersion
     )
-    assert "ck_project_skill_versions_scan_state" in _constraint_names(
-        ProjectSkillVersion
+    assert "scan_state" not in columns
+
+
+def test_project_skill_scans_are_append_only_audit_records():
+    columns = ProjectSkillVersionScan.__table__.c
+
+    assert {
+        "version_id",
+        "scan_state",
+        "findings",
+        "scanner_version",
+        "scanned_by_id",
+    } <= set(columns.keys())
+    assert "ck_project_skill_version_scans_state" in _constraint_names(
+        ProjectSkillVersionScan
     )
 
 

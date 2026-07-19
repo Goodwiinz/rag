@@ -130,10 +130,13 @@ def _scan_document(
                 )
             )
 
-    for match in re.finditer(
-        r"\b(?:call|use)\s+`?([a-z][a-z0-9_]*)`?", instructions, re.IGNORECASE
-    ):
-        name = match.group(1)
+    tool_reference = re.compile(
+        r"\b(?:call|use)\s+(?:tool\s+)?`([a-z][a-z0-9_]*)`?"
+        r"|\b(?:call|use)\s+tool\s+([a-z][a-z0-9_]*)",
+        re.IGNORECASE,
+    )
+    for match in tool_reference.finditer(instructions):
+        name = match.group(1) or match.group(2)
         if name not in known_tool_names:
             findings.append(
                 _finding(

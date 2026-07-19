@@ -9540,6 +9540,8 @@ export interface components {
             action: string;
             /** Audit Note */
             audit_note: string | null;
+            /** Created At */
+            created_at: string;
             /** Expected Active Version Id */
             expected_active_version_id: string | null;
             /**
@@ -9549,8 +9551,26 @@ export interface components {
             id: string;
             /** Proposed Version Id */
             proposed_version_id: string | null;
+            /**
+             * Requester Id
+             * Format: uuid
+             */
+            requester_id: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewer Id */
+            reviewer_id: string | null;
+            /**
+             * Skill Id
+             * Format: uuid
+             */
+            skill_id: string;
+            /** Skill Name */
+            skill_name: string;
             /** Status */
             status: string;
+            /** Warning Acknowledged */
+            warning_acknowledged: boolean;
         };
         /**
          * ChatCompletionRequest
@@ -12468,6 +12488,21 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** ProjectSkillCapabilities */
+        ProjectSkillCapabilities: {
+            /** Can Admin */
+            can_admin: boolean;
+            /** Can Edit */
+            can_edit: boolean;
+        };
+        /** ProjectSkillCatalogResponse */
+        ProjectSkillCatalogResponse: {
+            capabilities: components["schemas"]["ProjectSkillCapabilities"];
+            /** Pending Change Requests */
+            pending_change_requests: components["schemas"]["ChangeRequestResponse"][];
+            /** Skills */
+            skills: components["schemas"]["SkillResponse"][];
+        };
         /**
          * ProjectThreadListResponse
          * @description List of threads linked to a project
@@ -13703,6 +13738,8 @@ export interface components {
             content_hash: string;
             /** Description */
             description: string;
+            /** Document Text */
+            document_text: string;
             /**
              * Id
              * Format: uuid
@@ -23807,7 +23844,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SkillResponse"][];
+                    "application/json": components["schemas"]["ProjectSkillCatalogResponse"];
                 };
             };
             /** @description Validation Error */

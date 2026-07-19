@@ -8,10 +8,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models import ProjectSkill, ProjectSkillChangeRequest, ProjectSkillVersion
+from src.models import (
+    ProjectSkill,
+    ProjectSkillChangeRequest,
+    ProjectSkillVersion,
+    ProjectSkillVersionScan,
+)
 
 from .access import get_authorized_project
-from .scanner import scan_skill_document
+from .catalog_service import ProjectSkillCatalogService
 
 
 class ProjectSkillApprovalError(ValueError):
@@ -19,7 +24,7 @@ class ProjectSkillApprovalError(ValueError):
 
 
 class ProjectSkillConflict(ProjectSkillApprovalError):
-    """The expected active version changed before the locked approval."""
+    """A terminal request or active version changed before this operation locked it."""
 
 
 def validate_approval_acknowledgements(
@@ -42,10 +47,54 @@ def validate_approval_acknowledgements(
 
 
 class ProjectSkillApprovalService:
-    """Locks one identity row and applies a compare-and-swap activation."""
+    """Uses one lock order: resolve IDs, lock skill, then lock and refresh request."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def _lock_request_and_skill(self, *, project_id, request_id, user_id):
+        """Return fresh locked rows; never decide from a stale request instance."""
+        await get_authorized_project(
+            self._session, project_id=project_id, user_id=user_id, capability="admin"
+        )
+        request_ref = await self._session.execute(
+            select(ProjectSkillChangeRequest.skill_id)
+            .join(ProjectSkill)
+            .where(
+                ProjectSkillChangeRequest.id == request_id,
+                ProjectSkill.project_id == project_id,
+            )
+        )
+        skill_id = request_ref.scalar_one_or_none()
+        if skill_id is None:
+            raise ProjectSkillApprovalError("change request not found")
+        skill = await self._session.scalar(
+            select(ProjectSkill)
+            .where(ProjectSkill.id == skill_id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+        request = await self._session.scalar(
+            select(ProjectSkillChangeRequest)
+            .where(ProjectSkillChangeRequest.id == request_id)
+            .options(selectinload(ProjectSkillChangeRequest.proposed_version))
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+        if skill is None or request is None:
+            raise ProjectSkillApprovalError("change request not found")
+        return skill, request
+
+    async def _latest_scan(self, version_id):
+        return await self._session.scalar(
+            select(ProjectSkillVersionScan)
+            .where(ProjectSkillVersionScan.version_id == version_id)
+            .order_by(
+                ProjectSkillVersionScan.created_at.desc(),
+                ProjectSkillVersionScan.id.desc(),
+            )
+            .limit(1)
+        )
 
     async def approve(
         self,
@@ -57,29 +106,11 @@ class ProjectSkillApprovalService:
         warning_acknowledged: bool = False,
         audit_note: str | None = None,
     ):
-        await get_authorized_project(
-            self._session, project_id=project_id, user_id=user_id, capability="admin"
+        skill, request = await self._lock_request_and_skill(
+            project_id=project_id, request_id=request_id, user_id=user_id
         )
-        request = await self._session.scalar(
-            select(ProjectSkillChangeRequest)
-            .join(ProjectSkill)
-            .where(
-                ProjectSkillChangeRequest.id == request_id,
-                ProjectSkill.project_id == project_id,
-            )
-            .options(selectinload(ProjectSkillChangeRequest.proposed_version))
-        )
-        if request is None:
-            raise ProjectSkillApprovalError("change request not found")
         if request.status != "pending":
             raise ProjectSkillConflict("change request is no longer pending")
-        skill = await self._session.scalar(
-            select(ProjectSkill)
-            .where(ProjectSkill.id == request.skill_id)
-            .with_for_update()
-        )
-        if skill is None:
-            raise ProjectSkillApprovalError("skill not found")
         if skill.active_version_id != request.expected_active_version_id:
             request.status = "superseded"
             request.reviewer_id = user_id
@@ -91,9 +122,14 @@ class ProjectSkillApprovalService:
             )
 
         version = request.proposed_version
-        findings = version.scan_findings if version is not None else []
+        latest_scan = (
+            await self._latest_scan(version.id) if version is not None else None
+        )
+        findings = latest_scan.findings if latest_scan is not None else []
         has_warnings = any(finding.get("severity") == "warning" for finding in findings)
-        if version is not None and version.scan_state != "passed":
+        if version is not None and (
+            latest_scan is None or latest_scan.scan_state != "passed"
+        ):
             raise ProjectSkillApprovalError(
                 "scanner blockers must be cleared before approval"
             )
@@ -130,8 +166,14 @@ class ProjectSkillApprovalService:
             skill.active_version_id = version.id
             skill.is_archived = False
         elif request.action == "archive":
+            if skill.active_version_id is None:
+                raise ProjectSkillApprovalError("cannot archive an inactive skill")
             skill.is_archived = True
         elif request.action == "restore":
+            if skill.active_version_id is None:
+                raise ProjectSkillApprovalError(
+                    "cannot restore a skill without an active version"
+                )
             skill.is_archived = False
         else:
             raise ProjectSkillApprovalError("unknown change-request action")
@@ -145,21 +187,13 @@ class ProjectSkillApprovalService:
         return request
 
     async def reject(self, *, project_id, request_id, user_id, audit_note: str):
-        await get_authorized_project(
-            self._session, project_id=project_id, user_id=user_id, capability="admin"
-        )
         if not audit_note or not audit_note.strip():
             raise ProjectSkillApprovalError("rejection requires an audit note")
-        request = await self._session.scalar(
-            select(ProjectSkillChangeRequest)
-            .join(ProjectSkill)
-            .where(
-                ProjectSkillChangeRequest.id == request_id,
-                ProjectSkill.project_id == project_id,
-            )
+        _skill, request = await self._lock_request_and_skill(
+            project_id=project_id, request_id=request_id, user_id=user_id
         )
-        if request is None or request.status != "pending":
-            raise ProjectSkillApprovalError("pending change request not found")
+        if request.status != "pending":
+            raise ProjectSkillConflict("change request is no longer pending")
         request.status = "rejected"
         request.reviewer_id = user_id
         request.audit_note = audit_note
@@ -167,47 +201,23 @@ class ProjectSkillApprovalService:
         await self._session.commit()
         return request
 
-    async def rescan(self, *, project_id, version_id, user_id):
-        await get_authorized_project(
-            self._session, project_id=project_id, user_id=user_id, capability="admin"
+    async def rescan_change_request(self, *, project_id, request_id, user_id):
+        """Append a scan result after the same skill/request lock ordering."""
+        _skill, request = await self._lock_request_and_skill(
+            project_id=project_id, request_id=request_id, user_id=user_id
         )
+        if request.status != "pending" or request.proposed_version_id is None:
+            raise ProjectSkillConflict(
+                "change request has no scannable pending version"
+            )
         version = await self._session.scalar(
             select(ProjectSkillVersion)
-            .join(ProjectSkill)
-            .where(
-                ProjectSkillVersion.id == version_id,
-                ProjectSkill.project_id == project_id,
-            )
+            .where(ProjectSkillVersion.id == request.proposed_version_id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
         )
-        if version is None:
-            raise ProjectSkillApprovalError("skill version not found")
-        scan = scan_skill_document(version.instructions)
-        version.scan_state = "blocked" if scan.is_blocking else "passed"
-        version.scan_findings = [finding.__dict__ for finding in scan.findings]
-        version.scanner_version = scan.scanner_version
+        scan = await ProjectSkillCatalogService(self._session).record_scan(
+            version=version, user_id=user_id
+        )
         await self._session.commit()
-        return version
-
-    async def rescan_change_request(self, *, project_id, request_id, user_id):
-        """Rescan the immutable document attached to a pending request."""
-        await get_authorized_project(
-            self._session,
-            project_id=project_id,
-            user_id=user_id,
-            capability="admin",
-        )
-        request = await self._session.scalar(
-            select(ProjectSkillChangeRequest)
-            .join(ProjectSkill)
-            .where(
-                ProjectSkillChangeRequest.id == request_id,
-                ProjectSkill.project_id == project_id,
-            )
-        )
-        if request is None or request.proposed_version_id is None:
-            raise ProjectSkillApprovalError("change request has no scannable version")
-        return await self.rescan(
-            project_id=project_id,
-            version_id=request.proposed_version_id,
-            user_id=user_id,
-        )
+        return version, scan

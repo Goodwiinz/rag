@@ -75,7 +75,12 @@ from .permission import (
 from .processing import JobPriority, JobStatus, JobType, ProcessingJob
 from .project_memory import ProjectMemory
 from .project_note import ProjectNote
-from .project_skill import ProjectSkill, ProjectSkillChangeRequest, ProjectSkillVersion
+from .project_skill import (
+    ProjectSkill,
+    ProjectSkillChangeRequest,
+    ProjectSkillVersion,
+    ProjectSkillVersionScan,
+)
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
 from .quality_metrics import SearchSession
@@ -178,6 +183,7 @@ __all__ = [
     "ProjectSkill",
     "ProjectSkillVersion",
     "ProjectSkillChangeRequest",
+    "ProjectSkillVersionScan",
     "GeneratedDraft",
     "DraftCitation",
     "ProjectThread",

@@ -33,6 +33,8 @@ def normalize_skill_name(name: str) -> str:
     """Validate and return the canonical lower-kebab-case skill identity."""
     if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
         raise SkillDocumentError("name must be lowercase kebab-case")
+    if len(name) > 128:
+        raise SkillDocumentError("name must not exceed 128 characters")
     return name
 
 

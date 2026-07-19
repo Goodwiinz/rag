@@ -83,10 +83,6 @@ class ProjectSkillVersion(BaseModel):
             "skill_id", "version", name="uq_project_skill_versions_skill_version"
         ),
         CheckConstraint(
-            "scan_state IN ('pending', 'passed', 'blocked', 'error')",
-            name="ck_project_skill_versions_scan_state",
-        ),
-        CheckConstraint(
             "version > 0", name="ck_project_skill_versions_positive_version"
         ),
     )
@@ -100,13 +96,8 @@ class ProjectSkillVersion(BaseModel):
     version = Column(Integer, nullable=False)
     instructions = Column(Text, nullable=False)
     parsed_name = Column(String(128), nullable=False)
-    description = Column(String(240), nullable=False)
+    description = Column(Text, nullable=False)
     content_hash = Column(String(64), nullable=False, index=True)
-    scan_state = Column(
-        String(16), nullable=False, default="pending", server_default="pending"
-    )
-    scan_findings = Column(JSONB, nullable=False, default=list, server_default="[]")
-    scanner_version = Column(String(64), nullable=False)
     author_id = Column(
         GUID(), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -115,6 +106,44 @@ class ProjectSkillVersion(BaseModel):
         "ProjectSkill", back_populates="versions", foreign_keys=[skill_id]
     )
     author = relationship("User", foreign_keys=[author_id])
+    scans = relationship(
+        "ProjectSkillVersionScan",
+        back_populates="version",
+        foreign_keys="ProjectSkillVersionScan.version_id",
+    )
+
+
+class ProjectSkillVersionScan(BaseModel):
+    """An append-only scanner result for one immutable version."""
+
+    __tablename__ = "project_skill_version_scans"
+    __table_args__ = (
+        CheckConstraint(
+            "scan_state IN ('pending', 'passed', 'blocked', 'error')",
+            name="ck_project_skill_version_scans_state",
+        ),
+        Index(
+            "idx_project_skill_version_scans_version_created",
+            "version_id",
+            "created_at",
+        ),
+    )
+
+    version_id = Column(
+        GUID(),
+        ForeignKey("project_skill_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    scan_state = Column(String(16), nullable=False)
+    findings = Column(JSONB, nullable=False, default=list, server_default="[]")
+    scanner_version = Column(String(64), nullable=False)
+    scanned_by_id = Column(
+        GUID(), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+
+    version = relationship("ProjectSkillVersion", back_populates="scans")
+    scanned_by = relationship("User", foreign_keys=[scanned_by_id])
 
 
 class ProjectSkillChangeRequest(BaseModel):

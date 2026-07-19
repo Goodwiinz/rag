@@ -11,10 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models import ProjectSkillChangeRequest, ProjectSkillVersion, User
+from src.models import (
+    ProjectSkill,
+    ProjectSkillChangeRequest,
+    ProjectSkillVersion,
+    ProjectSkillVersionScan,
+    User,
+)
 from src.schemas.project_skills import (
     ApprovalRequest,
     ChangeRequestResponse,
+    ProjectSkillCapabilities,
+    ProjectSkillCatalogResponse,
     RejectRequest,
     RollbackRequest,
     SkillDiffResponse,
@@ -31,6 +39,7 @@ from src.services.project_skills.approval_service import (
 from src.services.project_skills.catalog_service import (
     ProjectSkillCatalogError,
     ProjectSkillCatalogService,
+    ProjectSkillProposalConflict,
 )
 from src.services.project_skills.skill_document import SkillDocumentError
 
@@ -39,31 +48,47 @@ router = APIRouter(
 )
 
 
-def _version_response(version: ProjectSkillVersion) -> SkillVersionResponse:
+async def _version_response(
+    db: AsyncSession, version: ProjectSkillVersion
+) -> SkillVersionResponse:
+    scan = await db.scalar(
+        select(ProjectSkillVersionScan)
+        .where(ProjectSkillVersionScan.version_id == version.id)
+        .order_by(
+            ProjectSkillVersionScan.created_at.desc(), ProjectSkillVersionScan.id.desc()
+        )
+        .limit(1)
+    )
     return SkillVersionResponse(
         id=version.id,
         version=version.version,
         name=version.parsed_name,
         description=version.description,
         content_hash=version.content_hash,
-        scan_state=version.scan_state,
-        scan_findings=version.scan_findings or [],
+        document_text=version.instructions,
+        scan_state=scan.scan_state if scan is not None else "error",
+        scan_findings=scan.findings if scan is not None else [],
     )
 
 
-def _skill_response(
-    skill, versions: list[ProjectSkillVersion] | None = None
+async def _skill_response(
+    db: AsyncSession, skill, versions: list[ProjectSkillVersion] | None = None
 ) -> SkillResponse:
     return SkillResponse(
         id=skill.id,
         name=skill.normalized_name,
         active_version_id=skill.active_version_id,
         is_archived=skill.is_archived,
-        versions=[_version_response(version) for version in versions or []],
+        versions=[await _version_response(db, version) for version in versions or []],
     )
 
 
-def _request_response(request: ProjectSkillChangeRequest) -> ChangeRequestResponse:
+async def _request_response(
+    db: AsyncSession, request: ProjectSkillChangeRequest
+) -> ChangeRequestResponse:
+    skill_name = await db.scalar(
+        select(ProjectSkill.normalized_name).where(ProjectSkill.id == request.skill_id)
+    )
     return ChangeRequestResponse(
         id=request.id,
         action=request.action,
@@ -71,6 +96,13 @@ def _request_response(request: ProjectSkillChangeRequest) -> ChangeRequestRespon
         proposed_version_id=request.proposed_version_id,
         expected_active_version_id=request.expected_active_version_id,
         audit_note=request.audit_note,
+        skill_id=request.skill_id,
+        skill_name=skill_name,
+        requester_id=request.requester_id,
+        reviewer_id=request.reviewer_id,
+        warning_acknowledged=request.warning_acknowledged,
+        created_at=request.created_at.isoformat(),
+        reviewed_at=request.reviewed_at.isoformat() if request.reviewed_at else None,
     )
 
 
@@ -79,7 +111,7 @@ def _translate_error(error: Exception) -> None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project or skill not found"
         ) from error
-    if isinstance(error, ProjectSkillConflict):
+    if isinstance(error, (ProjectSkillConflict, ProjectSkillProposalConflict)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(error)
         ) from error
@@ -92,17 +124,23 @@ def _translate_error(error: Exception) -> None:
     raise error
 
 
-@router.get("", response_model=list[SkillResponse])
+@router.get("", response_model=ProjectSkillCatalogResponse)
 async def list_skills(
     project_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        skills = await ProjectSkillCatalogService(db).list_skills(
-            project_id=project_id, user_id=current_user.id
+        skills, pending, capabilities = await ProjectSkillCatalogService(
+            db
+        ).list_catalog(project_id=project_id, user_id=current_user.id)
+        return ProjectSkillCatalogResponse(
+            skills=[await _skill_response(db, skill) for skill in skills],
+            pending_change_requests=[
+                await _request_response(db, request) for request in pending
+            ],
+            capabilities=ProjectSkillCapabilities(**capabilities),
         )
-        return [_skill_response(skill) for skill in skills]
     except Exception as error:
         _translate_error(error)
 
@@ -122,7 +160,7 @@ async def create_skill(
             user_id=current_user.id,
             document_text=payload.document_text,
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -146,7 +184,7 @@ async def approve_change_request(
             warning_acknowledged=payload.warning_acknowledged,
             audit_note=payload.audit_note,
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -168,7 +206,7 @@ async def reject_change_request(
             user_id=current_user.id,
             audit_note=payload.audit_note,
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -183,10 +221,10 @@ async def rescan_change_request(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        version = await ProjectSkillApprovalService(db).rescan_change_request(
+        version, _scan = await ProjectSkillApprovalService(db).rescan_change_request(
             project_id=project_id, request_id=request_id, user_id=current_user.id
         )
-        return _version_response(version)
+        return await _version_response(db, version)
     except Exception as error:
         _translate_error(error)
 
@@ -210,7 +248,7 @@ async def propose_version(
             user_id=current_user.id,
             document_text=payload.document_text,
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -233,7 +271,7 @@ async def archive_skill(
             user_id=current_user.id,
             action="archive",
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -256,7 +294,7 @@ async def restore_skill(
             user_id=current_user.id,
             action="restore",
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -281,7 +319,7 @@ async def rollback_skill(
             action="rollback",
             target_version_id=payload.version_id,
         )
-        return _request_response(request)
+        return await _request_response(db, request)
     except Exception as error:
         _translate_error(error)
 
@@ -347,6 +385,6 @@ async def get_skill(
                 )
             ).all()
         )
-        return _skill_response(skill, versions)
+        return await _skill_response(db, skill, versions)
     except Exception as error:
         _translate_error(error)

@@ -1812,6 +1812,10 @@
             ],
             "title": "Audit Note"
           },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
           "expected_active_version_id": {
             "anyOf": [
               {
@@ -1841,9 +1845,50 @@
             ],
             "title": "Proposed Version Id"
           },
+          "requester_id": {
+            "format": "uuid",
+            "title": "Requester Id",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Id"
+          },
+          "skill_id": {
+            "format": "uuid",
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "skill_name": {
+            "title": "Skill Name",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "warning_acknowledged": {
+            "title": "Warning Acknowledged",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1852,7 +1897,14 @@
           "status",
           "proposed_version_id",
           "expected_active_version_id",
-          "audit_note"
+          "audit_note",
+          "skill_id",
+          "skill_name",
+          "requester_id",
+          "reviewer_id",
+          "warning_acknowledged",
+          "created_at",
+          "reviewed_at"
         ],
         "title": "ChangeRequestResponse",
         "type": "object"
@@ -8289,6 +8341,52 @@
         "title": "ProjectNoteUpdate",
         "type": "object"
       },
+      "ProjectSkillCapabilities": {
+        "properties": {
+          "can_admin": {
+            "title": "Can Admin",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "can_edit",
+          "can_admin"
+        ],
+        "title": "ProjectSkillCapabilities",
+        "type": "object"
+      },
+      "ProjectSkillCatalogResponse": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/ProjectSkillCapabilities"
+          },
+          "pending_change_requests": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeRequestResponse"
+            },
+            "title": "Pending Change Requests",
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillResponse"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "skills",
+          "pending_change_requests",
+          "capabilities"
+        ],
+        "title": "ProjectSkillCatalogResponse",
+        "type": "object"
+      },
       "ProjectThreadListResponse": {
         "description": "List of threads linked to a project",
         "properties": {
@@ -10932,6 +11030,10 @@
             "title": "Description",
             "type": "string"
           },
+          "document_text": {
+            "title": "Document Text",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -10963,6 +11065,7 @@
           "name",
           "description",
           "content_hash",
+          "document_text",
           "scan_state",
           "scan_findings"
         ],
@@ -29495,11 +29598,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SkillResponse"
-                  },
-                  "title": "Response List Skills Api V1 Projects  Project Id  Skills Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ProjectSkillCatalogResponse"
                 }
               }
             },
