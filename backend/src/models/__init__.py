@@ -47,6 +47,11 @@ from .document_processing import (
     ProcessingStage,
     QualityMetricType,
 )
+
+# Model import order below is dependency-sensitive (notably evaluation models
+# must follow User and Organization), so keep it explicit rather than allowing
+# isort to move imports across those boundaries.
+# isort: off
 from .draft_citation import DraftCitation
 
 # Encrypted user models
@@ -56,21 +61,10 @@ from .encrypted_user import (
     EncryptionAuditLog,
 )
 from .entity import Entity, EntityType, ExtractionMethod, entity_relationships
-
-# Evaluation models (must import after User/Organization for monkey-patched relationships)
-# Evaluation models (import after User and Organization to avoid circular dependencies)
-from .evaluation import (
-    EvaluationComparison,
-    EvaluationDataset,
-    EvaluationJob,
-    EvaluationMetric,
-    EvaluationReport,
-    EvaluationStatus,
-    EvaluationThreshold,
-)
 from .extraction_matrix import ExtractionCell, ExtractionMatrix
-from .generated_draft import GeneratedDraft
 from .integrity_score import IntegrityScore
+from .research_pipeline import ResearchPipeline
+from .generated_draft import GeneratedDraft
 from .message_attachment import MessageAttachment
 from .organization import Organization, StorageTier
 from .performance_log import MetricCategory, PerformanceLevel, PerformanceLog
@@ -95,15 +89,6 @@ from .project_skill import (
 from .project_thread import ProjectThread, ProjectThreadLinkType
 from .quality import EvaluationType, MetricScope, MetricType, QualityMetric
 from .quality_metrics import SearchSession
-
-# Research Engine models
-from .research_blueprint import ResearchBlueprint
-from .research_evidence import GroundingStatus, ResearchEvidence
-from .research_pipeline import ResearchPipeline
-from .research_project import ResearchProject
-from .research_run import ResearchRun, RunStatus
-from .research_source import ResearchSource
-from .research_step import ExecutionMode, ResearchStep, StepType
 from .search import SearchQuery, SearchResult, SearchType
 from .thread import Thread, ThreadStatus
 from .user import User, UserRole
@@ -111,8 +96,40 @@ from .user import User, UserRole
 # Analytics models (import after base models to avoid circular dependencies)
 from .user_session import SessionStatus, UserSession
 
+# Evaluation models (import after User and Organization to avoid circular dependencies)
+from .evaluation import (
+    EvaluationComparison,
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationThreshold,
+)
+
+# Research Engine models
+from .research_blueprint import ResearchBlueprint
+from .research_evidence import GroundingStatus, ResearchEvidence
+from .research_project import ResearchProject
+from .research_run import ResearchRun, RunStatus
+from .research_source import ResearchSource
+from .research_step import ExecutionMode, ResearchStep, StepType
+
+# Evaluation models (must import after User/Organization for monkey-patched relationships)
+from .evaluation import (
+    EvaluationComparison,
+    EvaluationDataset,
+    EvaluationJob,
+    EvaluationMetric,
+    EvaluationReport,
+    EvaluationStatus,
+    EvaluationThreshold,
+)
+
 # Thread-centric chat models (Terminal Observatory)
 from .workspace import Workspace, WorkspaceMember, WorkspaceRole
+
+# isort: on
 
 # Export all models for easy importing
 __all__ = [
