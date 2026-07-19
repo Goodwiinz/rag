@@ -301,7 +301,10 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
     }
 
     // Mark all steps as completed when document is indexed (regardless of progress prop)
-    if (document.processing_status === 'indexed') {
+    if (
+      document.processing_status === 'indexed' ||
+      document.processing_status === 'completed'
+    ) {
       setSteps((prevSteps) =>
         prevSteps.map((step) => ({
           ...step,
@@ -313,7 +316,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   }, [currentStep, progress, error, document.processing_status]);
 
   const status = document.processing_status;
-  const isCompleted = status === 'indexed';
+  const isCompleted = status === 'indexed' || status === 'completed';
   const hasError = status === 'failed' || error;
   // If completed, always show 100%; otherwise use progress or step-based calculation
   const overallProgress = error
@@ -341,7 +344,8 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
   const getStatusText = () => {
     if (isCompleted) return 'Processing completed';
     if (hasError) return 'Processing failed';
-    if (status === 'queued') return 'Queued for processing';
+    if (status === 'queued' || status === 'pending')
+      return 'Queued for processing';
     if (status === 'processing') return currentStep || 'Processing...';
     return 'Preparing to process';
   };
@@ -384,7 +388,7 @@ export const ProcessingStatus: React.FC<ProcessingStatusProps> = ({
             </span>
           )}
         </div>
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           <div className="relative w-16 h-2 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(

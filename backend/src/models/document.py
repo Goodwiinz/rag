@@ -80,22 +80,6 @@ class Document(BaseModel):
     # DigitalOcean Knowledge Base data source (Phase 2 dual-write)
     do_kb_data_source_uuid = Column(String(64), nullable=True, index=True)
     do_kb_indexed_at = Column(DateTime(timezone=True), nullable=True)
-    # Per-document DO KB indexing health: indexed | skipped | failed | timeout
-    do_kb_index_status = Column(String(20), nullable=True, index=True)
-
-    # Per-satellite fan-out truth (audit D1). Values from
-    # src.shared.enums.SatelliteSyncStatus (pending | completed | failed);
-    # NULL = never attempted. Satellite failures are non-fatal by design (the
-    # document still reaches COMPLETED), so these columns are the only record
-    # that a satellite index drifted — the scheduled reconciler
-    # (src.tasks.reconcile_tasks) re-drives rows marked 'failed'.
-    # Outcome of the last Neo4j knowledge-graph indexing attempt:
-    neo4j_index_status = Column(String(20), nullable=True, index=True)
-    neo4j_indexed_at = Column(DateTime(timezone=True), nullable=True)
-    # Outcome of the last DO KB sync attempt (data-source registration).
-    # Distinct from do_kb_index_status, which tracks the KB-side indexing
-    # lifecycle after a successful registration.
-    do_kb_sync_status = Column(String(20), nullable=True, index=True)
 
     # Access control
     is_public = Column(Boolean, default=False, nullable=False)
@@ -146,8 +130,6 @@ class Document(BaseModel):
         Index('idx_document_status_created', 'processing_status', 'created_at'),
         Index('idx_document_embedded_indexed', 'is_embedded', 'is_indexed'),
         Index('idx_document_org_public', 'organization_id', 'is_public'),
-        # Backs the default GET /documents list: WHERE org ORDER BY created_at DESC
-        Index('idx_document_org_created', 'organization_id', 'created_at'),
     )
 
     def __repr__(self):
@@ -283,28 +265,38 @@ class Document(BaseModel):
         return self.content_text[:max_length] + "..."
 
     def get_mapped_status(self) -> str:
-        """Get processing status mapped to the public API vocabulary.
-
-        Delegates to :class:`~src.shared.enums.ApiDocumentStatus` — the single
-        source of truth for the db->api status translation.
-        """
-        from src.shared.enums import ApiDocumentStatus
-
-        return ApiDocumentStatus.from_db(self.processing_status).value
+        """Get processing status mapped to frontend-compatible values"""
+        status_mapping = {
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
+            "retrying": "processing",  # Map retrying to processing
+        }
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        return status_mapping.get(backend_status, "queued")
 
     def to_dict(self, include_content: bool = False) -> dict:
         """Convert to dictionary"""
-        from src.shared.enums import ApiDocumentStatus
-
         data = super().to_dict()
 
         # Convert enum values
         data["document_type"] = self.document_type.value if self.document_type else None
 
-        # Map processing status to the public API vocabulary
-        data["processing_status"] = ApiDocumentStatus.from_db(
-            self.processing_status
-        ).value
+        # Map processing status to frontend-compatible lowercase values
+        status_mapping = {
+            "pending": "queued",
+            "processing": "processing",
+            "completed": "indexed",
+            "failed": "failed",
+            "retrying": "processing",
+        }
+        backend_status = (
+            self.processing_status.value if self.processing_status else None
+        )
+        data["processing_status"] = status_mapping.get(backend_status, "queued")
 
         # Add computed fields
         data["file_size_mb"] = self.file_size_mb
@@ -312,10 +304,6 @@ class Document(BaseModel):
         data["is_processing_complete"] = self.is_processing_complete
         data["is_processing_successful"] = self.is_processing_successful
         data["can_be_searched"] = self.can_be_searched()
-        data["do_kb_index_status"] = self.do_kb_index_status
-        # Per-satellite fan-out truth (audit D1)
-        data["neo4j_index_status"] = self.neo4j_index_status
-        data["do_kb_sync_status"] = self.do_kb_sync_status
 
         # Include content if requested
         if not include_content:

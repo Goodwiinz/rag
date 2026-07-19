@@ -232,28 +232,6 @@ def initialize_default_metrics():
     create_metrics(
         [
             MetricConfig(
-                name="rag_do_kb_read_total",
-                description=(
-                    "DO KB primary-read outcomes on the RAG path, labeled by "
-                    "`outcome` (success, do_kb_empty, do_kb_error_404, "
-                    "do_kb_error_other, do_kb_timeout, project_scope_empty, "
-                    "fallback_used). A rising do_kb_error_404 means a KB was "
-                    "deleted on DO's side and retrieval has silently degraded."
-                ),
-                unit="reads",
-            ),
-            MetricConfig(
-                name="do_kb_ingest_total",
-                description=(
-                    "DO KB document ingest/sync outcomes, labeled by `status` "
-                    "(ok, provision_failed, provision_error, skipped_no_source, "
-                    "add_data_source_failed, persist_failed, "
-                    "indexing_kick_failed, unsynced). Rising non-ok statuses "
-                    "mean documents are silently not reaching the org's KB."
-                ),
-                unit="documents",
-            ),
-            MetricConfig(
                 name="rag_answer_relevancy_score",
                 description="RAG answer relevancy score",
                 unit="score",

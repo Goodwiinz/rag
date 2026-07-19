@@ -48,7 +48,7 @@ async def test_set_job_explicit_user_id_wins(monkeypatch):
 
 @pytest.mark.unit
 def test_sync_set_job_preserves_user_id_on_overwrite():
-    from src.services.agent.agent_execution_service import _get_job, _set_job
+    from src.api.agent.jobs import _get_job, _set_job
 
     _set_job("j2", {"status": "running", "user_id": "u2"})
     _set_job("j2", {"status": "completed", "result": {}})

@@ -276,6 +276,7 @@ async def async_main(
     client = AgentAPIClient(
         base_url=base_url,
         token=resolved_auth.token,
+        organization_id=resolved_auth.organization_id,
     )
 
     state = CLISessionState(debug=debug, cli_session_id=uuid.uuid4().hex)
@@ -307,7 +308,10 @@ async def async_main(
                     emit_line(str(exc))
                     continue
                 if login_result is not None:
-                    client.update_auth(login_result.token)
+                    client.update_auth(
+                        login_result.token,
+                        login_result.organization_id,
+                    )
                 continue
 
             if raw_input.strip().startswith("/"):
@@ -355,6 +359,7 @@ async def login_main(
     client = AgentAPIClient(
         base_url=base_url,
         token=resolved_auth.token,
+        organization_id=resolved_auth.organization_id,
     )
     try:
         try:
@@ -364,7 +369,7 @@ async def login_main(
             return 1
         if result is None:
             return 1
-        client.update_auth(result.token)
+        client.update_auth(result.token, result.organization_id)
         return 0
     finally:
         await client.aclose()

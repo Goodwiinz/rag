@@ -5,11 +5,6 @@ jobs survive server restarts and can be shared across multiple workers.
 
 The in-memory ``OrderedDict`` is kept as an L1 read cache (write-through)
 so the hot path (polling) avoids a Redis round-trip.
-
-Every status write is additionally projected into the durable ``agent_runs``
-Postgres table via ``schedule_run_projection`` (fire-and-forget, log-and-
-continue) so a run's lifecycle survives Redis failover — Redis stays
-authoritative; the poll endpoint only reads Postgres on a Redis miss.
 """
 
 from __future__ import annotations
@@ -23,7 +18,6 @@ from threading import Lock
 from typing import Any, Optional
 
 from src.core.config import get_settings
-from src.shared.enums import JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -119,108 +113,12 @@ async def _get_redis() -> Optional[Any]:  # noqa: ANN401
     return _redis
 
 
-async def get_redis() -> Optional[Any]:  # noqa: ANN401
-    """Public alias for the shared lazy Redis client (used by stream_buffer)."""
-    return await _get_redis()
-
-
 async def close_redis() -> None:
     """Close the Redis connection (called during shutdown)."""
     global _redis
     if _redis is not None:
         await _redis.close()
         _redis = None
-
-
-# ---------------------------------------------------------------------------
-# Durable projection (agent_runs) — fire-and-forget write-through
-# ---------------------------------------------------------------------------
-
-# Strong references to in-flight projection tasks so the event loop cannot
-# garbage-collect them mid-write (same pattern as jobs._background_tasks).
-_projection_tasks: set = set()
-
-
-def _projection_enabled() -> bool:
-    """Whether to schedule the background agent_runs projection at all.
-
-    Disabled under ``ENVIRONMENT=testing``: pytest closes each test's event
-    loop as soon as the test returns, so a fire-and-forget task scheduled
-    here outlives its loop. With the CI sqlite database that leaves an
-    aiosqlite ``_connection_worker_thread`` (non-daemon) blocked on a future
-    whose loop is already closed — the worker process never exits and the
-    unit-test job hangs. Projection *scheduling* is pinned by tests that
-    monkeypatch this to True (with ``record_job_status`` mocked); the
-    projection body is covered against an explicit session in
-    test_agent_run_service.py.
-    """
-    try:
-        return get_settings().ENVIRONMENT != "testing"
-    except Exception:  # pragma: no cover — settings must never break writes
-        return True
-
-
-def _on_projection_done(task) -> None:
-    """Drop a finished projection task and surface unexpected errors."""
-    _projection_tasks.discard(task)
-    try:
-        task.result()
-    except asyncio.CancelledError:
-        pass
-    except Exception:
-        # record_job_status already swallows its own failures; this catches
-        # anything raised before it ran (e.g. import errors).
-        logger.exception("agent_runs projection task failed")
-
-
-def schedule_run_projection(job_id: str, data: dict) -> None:
-    """Fire-and-forget the ``agent_runs`` Postgres projection for a write.
-
-    Snapshots the few projected fields synchronously so a later mutation of
-    *data* (the same dict the L1 cache holds) cannot race the background
-    write. Never blocks and never raises: Redis stays authoritative — a
-    skipped/failed projection only narrows the failover fallback.
-
-    No-op under ``ENVIRONMENT=testing`` (see ``_projection_enabled``) so no
-    background task can outlive a test's event loop.
-    """
-    if not _projection_enabled():
-        return
-    status = data.get("status")
-    if not status:
-        return
-    request = data.get("request")
-    result = data.get("result")
-    payload = {
-        "status": status,
-        "user_id": data.get("user_id"),
-        "organization_id": data.get("organization_id"),
-        "error": data.get("error"),
-        "thread_id": (
-            data.get("thread_id")
-            or (request.get("thread_id") if isinstance(request, dict) else None)
-            or (result.get("thread_id") if isinstance(result, dict) else None)
-        ),
-    }
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return  # no loop — sync caller outside async context; best-effort skip
-
-    try:
-        from src.services.agent.agent_run_service import record_job_status
-
-        task = loop.create_task(record_job_status(job_id, payload))
-        _projection_tasks.add(task)
-        task.add_done_callback(_on_projection_done)
-    except Exception:
-        # The projection is strictly best-effort — scheduling problems must
-        # never break the authoritative Redis/L1 write path.
-        logger.warning(
-            "Failed to schedule agent_runs projection for job %s",
-            job_id,
-            exc_info=True,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -284,20 +182,9 @@ async def set_job(job_id: str, data: dict) -> None:
         # writer stamps user_id explicitly; this is a same-process backstop.
         if "user_id" not in data and existing is not None and existing.get("user_id"):
             data["user_id"] = existing["user_id"]
-        # Same carry-forward for tenancy: replacement writes typically omit
-        # organization_id; keep it so the agent_runs projection stays scoped.
-        if (
-            "organization_id" not in data
-            and existing is not None
-            and existing.get("organization_id")
-        ):
-            data["organization_id"] = existing["organization_id"]
         if existing is None or _is_newer_or_equal(data, existing):
             _l1[job_id] = data
         _l1_maybe_cleanup()
-
-    # Durable projection (fire-and-forget; Redis stays authoritative).
-    schedule_run_projection(job_id, data)
 
     # L2: Redis
     await set_job_redis_only(job_id, data)
@@ -326,9 +213,7 @@ async def set_job_redis_only(job_id: str, data: dict) -> None:
             logger.exception("Failed to write job %s to Redis", job_id)
 
 
-async def _cas_in_memory(
-    job_id: str, expected: JobStatus | str, new_status: JobStatus | str
-) -> str:
+async def _cas_in_memory(job_id: str, expected: str, new_status: str) -> str:
     """Compare-and-set the status using the store API (L1 + write-through).
 
     Used when Redis is unavailable (single process ⇒ the L1 lock is sufficient)
@@ -351,9 +236,7 @@ async def _cas_in_memory(
     return "claimed"
 
 
-async def compare_and_set_status(
-    job_id: str, expected: JobStatus | str, new_status: JobStatus | str
-) -> str:
+async def compare_and_set_status(job_id: str, expected: str, new_status: str) -> str:
     """Atomically flip a job's status from *expected* to *new_status*.
 
     Returns one of: ``"claimed"`` (transition applied — caller is the winner),
@@ -423,9 +306,6 @@ async def compare_and_set_status(
         cached = _l1.get(job_id)
         if cached is not None:
             cached["status"] = new_status
-    # Project the claimed transition (the in-memory fallback path projects via
-    # set_job inside _cas_in_memory; this covers the Redis WATCH/MULTI path).
-    schedule_run_projection(job_id, job)
     return "claimed"
 
 
@@ -460,48 +340,6 @@ async def get_job(job_id: str) -> Optional[dict]:
             logger.exception("Failed to read job %s from Redis", job_id)
 
     return None
-
-
-async def get_job_fresh(job_id: str) -> Optional[dict]:
-    """Redis-first job read for cross-process freshness; L1 fallback.
-
-    ``get_job`` prefers the process-local L1 cache, which is only coherent
-    with writes made by THIS process. When the run's writer is a different
-    process — Celery dispatch mode, or a confirm/poll landing on a different
-    API replica — a previously-seeded L1 entry goes permanently stale (a
-    ``running`` record would 409 every confirm and spin the poller for the
-    full 1h TTL). Poll/confirm reads therefore consult Redis first and fold
-    the fresh copy back into L1 under the monotonic guard (so an in-flight
-    newer local write is never clobbered). Degrades to the plain L1 read when
-    Redis is unavailable — identical to today's single-process behavior.
-    """
-    redis_client = await _get_redis()
-    if redis_client is not None:
-        try:
-            raw = await redis_client.get(f"{_JOB_KEY_PREFIX}{job_id}")
-            if raw is not None:
-                data = _json.loads(raw)
-                with _l1_lock:
-                    existing = _l1.get(job_id)
-                    if existing is None or _is_newer_or_equal(data, existing):
-                        _l1[job_id] = data
-                        return data
-                    # L1 holds a strictly newer local write (fire-and-forget
-                    # Redis write still in flight) — prefer it.
-                    return existing
-            # Redis miss (TTL/failover): fall through to L1 so a record that
-            # only ever lived locally (Redis down at write time) still reads.
-        except Exception:
-            logger.exception("Failed to read job %s from Redis", job_id)
-    with _l1_lock:
-        _l1_maybe_cleanup()
-        cached = _l1.get(job_id)
-        if cached is None:
-            return None
-        if time.time() - cached.get("created_at", 0) > _JOB_TTL_SECONDS:
-            del _l1[job_id]
-            return None
-        return cached
 
 
 async def delete_job(job_id: str) -> None:

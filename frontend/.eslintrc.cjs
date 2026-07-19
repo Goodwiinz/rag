@@ -5,9 +5,6 @@ module.exports = {
     'node_modules/**',
     '.next/**',
     'out/**',
-    // Auto-generated from backend/openapi.json via `pnpm generate:api-types`
-    // (audit C5 REST contract ratchet). Never hand-edited, so never linted.
-    'src/types/generated/**',
     '**/*.test.ts',
     '**/*.test.tsx',
     '**/*.spec.ts',

@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { useCitationsForThread } from '@/hooks';
 import { AgentActivityPanel } from './AgentActivityPanel';
 import { AllCitationsPanel } from './AllCitationsPanel';
 import { ContextPanel } from './ContextPanel';
@@ -39,12 +38,11 @@ export function ContextRail({
   className,
 }: ContextRailProps) {
   const threadLabel = threadId ? `thread · ${threadId.slice(0, 8)}` : null;
-  const { allCitations, relatedResults } = useCitationsForThread();
 
   return (
     <aside
       className={cn(
-        'flex flex-col gap-3 overflow-y-auto px-3 py-3 bg-(--nous-bg-1)',
+        'flex flex-col gap-3 overflow-y-auto px-3 py-3 bg-[var(--nous-bg-1)]',
         className
       )}
       aria-label="Chat context rail"
@@ -60,15 +58,14 @@ export function ContextRail({
         onProjectBound={onProjectBound}
       />
       <WorkingFoldersPanel
-        allCitations={allCitations}
         projectId={projectId}
         workspaceName={workspaceName}
         onSelect={onSelect}
       />
       <AgentActivityPanel threadId={threadId} />
       <ProgressPanel threadId={threadId} />
-      <RelatedResultsPanel relatedResults={relatedResults} />
-      <AllCitationsPanel allCitations={allCitations} />
+      <RelatedResultsPanel />
+      <AllCitationsPanel />
       <ContextPanel ragEnabled={ragEnabled} workspaceName={workspaceName} />
     </aside>
   );

@@ -561,7 +561,7 @@ class TestAuthentication(SecurityTestBase):
             "",  # Empty token
             "invalid_token",  # Random string
             "Bearer invalid_token",  # With Bearer prefix
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",  # Valid format, wrong signature
+            "JWT_REDACTED",  # Valid format, wrong signature
             "Bearer " + "a" * 1000,  # Very long token
             "Bearer null",
             "Bearer undefined",
@@ -623,9 +623,9 @@ class TestAuthentication(SecurityTestBase):
         # This tests if the server properly validates the algorithm
         malicious_tokens = [
             # Token with 'none' algorithm
-            "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6ImFkbWluIn0.",
+            "JWT_REDACTED",
             # Token with HS256 but signed with public key as secret
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwicm9sZSI6ImFkbWluIn0.test",
+            "JWT_REDACTED",
         ]
         
         results = {"passed": 0, "failed": 0}

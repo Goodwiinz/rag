@@ -52,15 +52,6 @@ class MetadataSource(str, Enum):
     MANUAL = "manual"
 
 
-class CitationVerdict(str, Enum):
-    """CiteCheck-style faithfulness verdicts for draft citations."""
-
-    EXACT = "exact"  # claim fully supported by the source
-    MINOR = "minor"  # supported with small imprecision/overstatement
-    MAJOR = "major"  # unsupported, contradicted, or identity mismatch
-    UNVERIFIED = "unverified"  # provider outage / LLM timeout — not a miss
-
-
 # ============================================================================
 # T019: Citation Schemas (User Story 2)
 # ============================================================================

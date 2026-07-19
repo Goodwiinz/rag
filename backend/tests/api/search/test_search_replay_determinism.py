@@ -38,7 +38,7 @@ def test_hybrid_search_replay_returns_identical_deterministic_payload() -> None:
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     deterministic_response = SearchResponse(
         query="determinism replay",

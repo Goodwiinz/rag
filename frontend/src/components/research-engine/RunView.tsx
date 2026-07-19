@@ -41,24 +41,24 @@ const STATUS_BADGE: Record<
     label: 'Running',
   },
   paused: {
-    bg: 'bg-(--nous-helios)/10',
-    text: 'text-(--nous-helios)',
-    border: 'border-(--nous-helios)/30',
-    dot: 'bg-(--nous-helios)',
+    bg: 'bg-[var(--nous-helios)]/10',
+    text: 'text-[var(--nous-helios)]',
+    border: 'border-[var(--nous-helios)]/30',
+    dot: 'bg-[var(--nous-helios)]',
     label: 'Paused',
   },
   completed: {
-    bg: 'bg-(--nous-terra)/10',
-    text: 'text-(--nous-terra)',
-    border: 'border-(--nous-terra)/30',
-    dot: 'bg-(--nous-terra)',
+    bg: 'bg-[var(--nous-terra)]/10',
+    text: 'text-[var(--nous-terra)]',
+    border: 'border-[var(--nous-terra)]/30',
+    dot: 'bg-[var(--nous-terra)]',
     label: 'Completed',
   },
   failed: {
-    bg: 'bg-(--nous-mars)/10',
-    text: 'text-(--nous-mars)',
-    border: 'border-(--nous-mars)/30',
-    dot: 'bg-(--nous-mars)',
+    bg: 'bg-[var(--nous-mars)]/10',
+    text: 'text-[var(--nous-mars)]',
+    border: 'border-[var(--nous-mars)]/30',
+    dot: 'bg-[var(--nous-mars)]',
     label: 'Failed',
   },
 };
@@ -270,19 +270,19 @@ export function RunView({ runId }: RunViewProps) {
     return (
       <div
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-xl border border-(--nous-mars)/30 bg-(--nous-mars)/10 p-4"
+        className="flex flex-col items-start gap-3 rounded-xl border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 p-4"
       >
         <div className="flex items-start gap-2">
           <AlertCircle
             aria-hidden="true"
-            className="h-5 w-5 shrink-0 text-(--nous-mars)"
+            className="h-5 w-5 shrink-0 text-[var(--nous-mars)]"
           />
           <span className="text-sm text-foreground">{error}</span>
         </div>
         <button
           type="button"
           onClick={() => fetchRun()}
-          className="rounded text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="rounded text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Retry
         </button>
@@ -293,11 +293,11 @@ export function RunView({ runId }: RunViewProps) {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-5 shadow-xs">
+      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Go back"
         >
           <ArrowLeft aria-hidden="true" className="h-5 w-5" />
@@ -343,7 +343,7 @@ export function RunView({ runId }: RunViewProps) {
             type="button"
             onClick={handlePause}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 rounded-lg border border-(--nous-helios)/30 bg-(--nous-helios)/10 px-3 py-1.5 text-xs font-medium text-(--nous-helios) transition-colors hover:bg-(--nous-helios)/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--nous-helios)]/30 bg-[var(--nous-helios)]/10 px-3 py-1.5 text-xs font-medium text-[var(--nous-helios)] transition-colors hover:bg-[var(--nous-helios)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {actionLoading ? (
               <Loader2
@@ -361,7 +361,7 @@ export function RunView({ runId }: RunViewProps) {
             type="button"
             onClick={handleResume}
             disabled={actionLoading}
-            className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {actionLoading ? (
               <Loader2

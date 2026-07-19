@@ -437,7 +437,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 type="button"
                 aria-label="Clear search filter"
                 onClick={() => onSearchChange('')}
-                className="rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X aria-hidden="true" className="h-3 w-3" />
               </button>
@@ -455,7 +455,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 type="button"
                 aria-label={`Remove ${formatEntityType(type)} filter`}
                 onClick={() => removeTypeFilter(type)}
-                className="rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X aria-hidden="true" className="h-3 w-3" />
               </button>
@@ -472,7 +472,7 @@ export const EntityFilters: React.FC<EntityFiltersProps> = ({
                 type="button"
                 aria-label="Clear confidence filter"
                 onClick={() => onConfidenceChange([0, 100])}
-                className="rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X aria-hidden="true" className="h-3 w-3" />
               </button>

@@ -4,21 +4,10 @@ Phase 1 foundation: client, provisioner, models. One KB per organization,
 lazy-provisioned on first ingest. Replaces Qdrant via migrate-then-cutover.
 """
 
-from .backfill import (
-    BackfillReport,
-    ReprovisionResult,
-    backfill_org,
-    iter_organizations_to_backfill,
-    reprovision_org,
-)
+from .backfill import BackfillReport, backfill_org, iter_organizations_to_backfill
 from .backfill_model import DOKBBackfillProgress
 from .client import DOKnowledgeBaseClient, DOKnowledgeBaseError, get_do_kb_client
-from .ingest import (
-    canonical_text_key,
-    sync_document_to_kb,
-    sync_documents_to_kb,
-    unsync_document_from_kb,
-)
+from .ingest import sync_document_to_kb, sync_documents_to_kb
 from .models import Chunk, DataSource, IndexingJob, KnowledgeBase, RetrieveResult
 from .provisioner import ensure_kb_for_org
 from .resolve import resolve_and_filter_chunks
@@ -32,16 +21,12 @@ __all__ = [
     "DOKnowledgeBaseError",
     "IndexingJob",
     "KnowledgeBase",
-    "ReprovisionResult",
     "RetrieveResult",
     "backfill_org",
-    "canonical_text_key",
     "ensure_kb_for_org",
     "get_do_kb_client",
     "iter_organizations_to_backfill",
-    "reprovision_org",
     "resolve_and_filter_chunks",
     "sync_document_to_kb",
     "sync_documents_to_kb",
-    "unsync_document_from_kb",
 ]

@@ -30,6 +30,7 @@ import httpx
 from backend.src.main import app
 from backend.src.api.websocket import manager as v1_manager
 from backend.src.api.websocket_v2 import connection_manager as v2_manager
+from backend.src.monitoring.api.websocket_handlers import websocket_manager as monitoring_manager
 
 # Test configuration
 API_BASE_URL = "http://localhost:8000"

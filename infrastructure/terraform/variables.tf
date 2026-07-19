@@ -247,6 +247,18 @@ variable "neo4j_instance_type" {
   default     = "db.r5.large"
 }
 
+variable "qdrant_enabled" {
+  description = "Enable Qdrant vector database"
+  type        = bool
+  default     = true
+}
+
+variable "qdrant_instance_type" {
+  description = "Qdrant instance type"
+  type        = string
+  default     = "r5.large"
+}
+
 # Logging Configuration
 variable "enable_cloudwatch_logs" {
   description = "Enable CloudWatch logging"

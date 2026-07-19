@@ -51,7 +51,7 @@ async def _async_session_yielding(db):
 
 async def test_run_agent_graph_marks_job_cancelled_and_reraises():
     from src.api.agent.execute import AgentExecuteRequest, _set_job, _get_job
-    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.api.agent.jobs import _run_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
@@ -92,7 +92,7 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
-            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
         ),
     ):
@@ -107,7 +107,7 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
 
 async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
     from src.api.agent.execute import _set_job, _get_job
-    from src.services.agent.agent_execution_service import _resume_agent_graph
+    from src.api.agent.jobs import _resume_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
@@ -139,7 +139,7 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
-            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
         ),
     ):
@@ -156,7 +156,7 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
     """Regression check: the new CancelledError handler must not swallow
     plain Exception failures, which still need ``status="failed"``."""
     from src.api.agent.execute import AgentExecuteRequest, _set_job, _get_job
-    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.api.agent.jobs import _run_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
@@ -196,7 +196,7 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
-            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
         ),
     ):
@@ -223,7 +223,7 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
     from langgraph.types import Interrupt
 
     from src.api.agent.execute import _set_job, _get_job
-    from src.services.agent.agent_execution_service import _resume_agent_graph
+    from src.api.agent.jobs import _resume_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
@@ -262,7 +262,7 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
         ),
         patch("src.services.agent.graph.compile_agent_graph", return_value=mock_graph),
         patch(
-            "src.services.agent.agent_execution_service.AsyncSessionLocal",
+            "src.api.agent.jobs.AsyncSessionLocal",
             return_value=_async_session_yielding(db),
         ),
     ):

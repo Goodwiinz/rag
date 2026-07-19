@@ -19,19 +19,6 @@ def _generate_dev_secret() -> str:
     return secrets.token_urlsafe(32)
 
 
-# ``ENVIRONMENT`` values that mark an explicit local/CI throwaway process.
-# Only these environments may silently degrade LangGraph durability
-# (checkpointer / long-term memory store) to in-memory backends when the
-# Postgres init fails. Deliberately does NOT include ``dev``: the DOKS
-# ``dev`` deployment is a shared, long-lived environment (Supabase
-# Postgres, real users + synthetic traffic) where a silent MemorySaver /
-# InMemoryStore fallback breaks HITL resume and cross-restart memory
-# invisibly (system-design audit finding X3).
-MEMORY_FALLBACK_ENVIRONMENTS = frozenset(
-    {"development", "testing", "local", "test", "ci"}
-)
-
-
 def _longest_literal_hostname_run(pattern: str) -> int:
     """Longest contiguous literal hostname segment (project slug specificity)."""
     pattern = re.sub(r"\[[^\]]+\](?:[+*?]|\{[^}]+\})?", "", pattern)
@@ -77,53 +64,6 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = ""
 
-    # Break-glass override for durable agent state: when True, the LangGraph
-    # checkpointer / memory store may fall back to non-durable in-memory
-    # backends on Postgres init failure even in a shared environment.
-    # The fallback silently breaks HITL resume and cross-restart memory
-    # while chat_messages keep persisting — set this only to keep a
-    # deployment limping through a known Postgres outage (values flip, no
-    # image rebuild), and revert as soon as the outage is over.
-    ALLOW_MEMORY_FALLBACK: bool = False
-
-    @property
-    def is_throwaway_environment(self) -> bool:
-        """Whether ``ENVIRONMENT`` names an explicit local/CI throwaway process.
-
-        Keyed on ``MEMORY_FALLBACK_ENVIRONMENTS`` — the single source of truth
-        for "is this a disposable local/test/CI boot?" (``development``,
-        ``testing``, ``local``, ``test``, ``ci``). Deliberately excludes
-        ``dev``: the DOKS ``dev`` deployment is a shared, long-lived,
-        load-balanced environment and must behave like a strict env for
-        readiness / durability gating.
-
-        Reuse this predicate anywhere behaviour must relax only for throwaway
-        boots (agent-state durability, readiness gating) instead of
-        re-deriving an env allowlist — a drifted second/third list is how the
-        live ``ENVIRONMENT=dev`` deployment slips through the wrong branch.
-        """
-        return self.ENVIRONMENT.strip().lower() in MEMORY_FALLBACK_ENVIRONMENTS
-
-    @property
-    def require_durable_agent_state(self) -> bool:
-        """Whether agent state (checkpointer / memory store) must be durable.
-
-        True by default: any shared or deployed environment (``dev``,
-        ``staging``, ``production``, or anything unrecognised) must fail
-        loudly when the Postgres-backed checkpointer or memory store cannot
-        initialise, instead of silently degrading to in-memory state.
-
-        False only when the environment is an explicit local/CI throwaway
-        (``is_throwaway_environment``) or the ``ALLOW_MEMORY_FALLBACK``
-        break-glass override is set. Keyed on "is this a throwaway
-        process?", never on a hard-coded allowlist of strict env names —
-        the old ``("production", "staging")`` gate never fired in the live
-        ``ENVIRONMENT=dev`` deployment (audit finding X3).
-        """
-        if self.ALLOW_MEMORY_FALLBACK:
-            return False
-        return not self.is_throwaway_environment
-
     # Canonical public URL of the frontend (e.g. https://www.goodwiinz.tech).
     # Used to build redirect targets like the CLI device-flow auth page.
     # Decoupled from CORS_ORIGINS so reordering the allowlist can't break login.
@@ -143,6 +83,7 @@ class Settings(BaseSettings):
         "Origin,"
         "X-Request-ID,"
         "X-Correlation-ID,"
+        "X-Organization-ID,"
         "X-Client-Version,"
         "Cache-Control"
     )
@@ -231,14 +172,16 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
 
-    # Figure extraction (PyMuPDF, Phase 1) — embedded raster figures + caption
-    # heuristics during PDF ingestion. Off by default; flip per-env in Infisical.
-    FIGURE_EXTRACTION_ENABLED: bool = False
+    # Qdrant — DEPRECATED. Retained as optional settings so legacy services
+    # in src/services/search/* still import; no runtime cluster expected.
+    QDRANT_URL: Optional[str] = None
+    QDRANT_API_KEY: Optional[str] = None
 
     # DigitalOcean Knowledge Base (GenAI Platform / GradientAI)
     # Public Preview — API may churn. One KB per organization.
     DO_KB_ENABLED: bool = False
-    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads
+    DO_KB_SHADOW_READ: bool = False  # Phase 4a: dual-read for eval, no user impact
+    DO_KB_PRIMARY_READ: bool = False  # Phase 4b: DO KB serves reads, Qdrant fallback
     DO_API_TOKEN: Optional[str] = None
     DO_KB_REGION: Optional[str] = None  # e.g. "tor1", "nyc3"
     DO_KB_PROJECT_ID: Optional[str] = None
@@ -256,11 +199,6 @@ class Settings(BaseSettings):
     DO_KB_INDEXING_TIMEOUT_SECONDS: float = 120.0
     DO_KB_RERANKING_ENABLED: Optional[bool] = True
     DO_KB_SEARCH_TYPE: Optional[str] = None
-    # Pre-flight guard: PDFs over EITHER threshold get text-extracted locally
-    # before DO KB sync, so the canonical .txt path is used instead of the raw
-    # PDF (DO's server-side parser times out on large/complex PDFs).
-    DO_KB_FORCE_TEXT_PDF_PAGES: int = 100
-    DO_KB_FORCE_TEXT_PDF_SIZE_MB: int = 5
 
     # JWT Configuration
     JWT_SECRET_KEY: str = ""
@@ -270,15 +208,6 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Default refresh token lifetime
     REMEMBER_ME_REFRESH_TOKEN_DAYS: int = 30  # Extended session for "Remember Me"
     CLI_TOKEN_EXPIRE_DAYS: int = 30  # Long-lived CLI device tokens
-    # When True, a CLI-token revocation check that cannot reach the revocation
-    # store (Redis error / outage) DENIES the token (fail-closed) instead of
-    # the historical fail-open. This hardens against a Redis outage or failover
-    # silently un-revoking every revoked CLI token, at the cost of CLI auth
-    # availability while the store is unreachable. A plain miss (store reachable,
-    # no revoked-before cutoff for the user) still allows regardless of this
-    # flag. Default False preserves current behavior — flip to True to harden;
-    # rollback is a flag flip, no logic redeploy. (audit D7)
-    CLI_TOKEN_REVOCATION_FAIL_CLOSED: bool = False
 
     @model_validator(mode="after")
     def _enforce_debug_off_in_prod(self):
@@ -473,120 +402,12 @@ class Settings(BaseSettings):
     # user intent.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
-    # Citation-faithfulness reviewer pass in draft generation (WS1).
-    # Default off: merge inert, flip in values-dev after verify.
-    # When flipping on in dev, no secret is needed — boolean env only;
-    # if ever sourced from Infisical, add DRAFT_CITATION_REVIEW_ENABLED
-    # to the /do-kb path per project convention.
-    DRAFT_CITATION_REVIEW_ENABLED: bool = False
-
-    # Option B server-side history rebuild. When True, the agent stream ignores
-    # all but the newest user turn in the request and rebuilds conversation
-    # context from the LangGraph checkpoint (source of truth), seeding it from
-    # the DB when the checkpoint is empty. When False (default), the legacy
-    # client-resent-history path is used unchanged. Flag-gated rollout: enable
-    # on dev only after soak; the frontend send-only-newest change must NOT ship
-    # until this is on in that environment.
-    #
-    # Requires the client to send a client_message_id on the newest user turn
-    # (the /chat surface does when NEXT_PUBLIC_SERVER_CANONICAL_CHAT is on) — it
-    # is the idempotency key that keeps two same-content turns distinct and a
-    # retry a no-op. Turns without one safely fall back to the legacy path, so
-    # enabling this where cmids aren't sent just makes it a no-op, never a bug.
-    AGENT_SERVER_SIDE_HISTORY: bool = False
-
-    # Audit P1.3 (X1 dispatch half): where POST /agent/execute runs the turn.
-    # "background" (default) keeps today's FastAPI BackgroundTasks path —
-    # fire-and-forget on the API pod, lost on pod death. "celery" enqueues the
-    # turn to the dedicated `agent_runs` queue after durably committing the
-    # agent_runs row (flush-before-external), so a duplicate delivery no-ops
-    # on the execution lease and a crashed worker's run is reaped by the
-    # sweeper. Values-level rollback: flip back to "background" — no image
-    # rebuild. Unknown values degrade to "background" with a warning (a typo
-    # in values must not crash the pod at boot).
-    AGENT_DISPATCH_BACKEND: str = "background"
-
-    # Execution-lease TTL the Celery runner stamps on the agent_runs row when
-    # it claims a job. Must exceed the graph's own 360s hard timeout so a live
-    # run can never look lease-expired to the sweeper.
-    AGENT_RUN_EXECUTION_LEASE_SECONDS: int = 600
-
-    # Audit P1.4 (X1 recovery half + D7): beat sweepers for stale agent runs
-    # and stuck processing jobs. Default on; values-controllable kill switch.
-    SWEEPERS_ENABLED: bool = True
-
-    # A non-terminal agent_runs row with no status write for this long is
-    # considered dead (graph hard timeout is 360s) and swept to failed.
-    AGENT_RUN_STALE_AFTER_SECONDS: int = 1800
-
-    # awaiting_confirmation is a legitimately-parked state — a user may take
-    # a while to confirm. Sweep it only after the Redis job record (TTL 1h)
-    # is guaranteed gone and the confirm can no longer succeed anyway.
-    AGENT_RUN_STALE_AWAITING_AFTER_SECONDS: int = 7200
-
-    # A non-terminal processing_jobs row with no update for this long is
-    # definitively stuck: Celery's hard time limit is 600s, so 30 min of
-    # silence means the task was killed/lost without a terminal write (D7 —
-    # cleanup_old_jobs only ever deletes terminal rows).
-    PROCESSING_JOB_STUCK_AFTER_SECONDS: int = 1800
-
-    # Audit D5 (P2.5): data-retention beat tasks (src/tasks/retention_tasks.py).
-    # Two-stage safety: RETENTION_ENABLED is the kill switch (tasks no-op when
-    # false); RETENTION_APPLY is the dry-run gate — false (default) only LOGS
-    # what it would delete, true performs the deletes. Both default-safe, so
-    # nothing is removed until an operator flips RETENTION_APPLY=true.
-    RETENTION_ENABLED: bool = True
-    RETENTION_APPLY: bool = False
-    # Threads soft-deleted (is_deleted=True) longer than this are hard-deleted
-    # (chat_messages + LangGraph checkpoint rows + the thread row).
-    RETENTION_SOFT_DELETED_THREAD_DAYS: int = 30
-    # Synthetic-traffic checkpoint threads ('synthetic-<key>-<epoch_ms>') older
-    # than this — by their embedded timestamp — are purged as machine noise,
-    # regardless of soft-delete state. Closes the ~72-threads/day synthetic
-    # checkpoint leak.
-    RETENTION_SYNTHETIC_THREAD_DAYS: int = 7
-    # Append-only analytics_events / audit_events / rag_queries rows older than
-    # this are purged (these tables never shrink otherwise). Conservative.
-    RETENTION_APPEND_ONLY_DAYS: int = 180
-    # Rows touched per table per batch, and max batches per append-only run
-    # (bounded work per beat tick).
-    RETENTION_BATCH_SIZE: int = 500
-    RETENTION_MAX_BATCHES: int = 20
-    # Audit P2.3 (D1): scheduled satellite reconciler. Satellite indexing
-    # (Neo4j KG / DO KB) is best-effort during ingestion; failures are
-    # recorded per-document (neo4j_index_status / do_kb_sync_status =
-    # 'failed') and the beat task src.tasks.reconcile_tasks picks them up.
-    # Two-stage safety: RECONCILER_ENABLED=true only REPORTS what it would
-    # re-drive; actual re-driving additionally requires RECONCILER_APPLY=true
-    # (default off — flip in values once report output looks sane).
-    RECONCILER_ENABLED: bool = True
-    RECONCILER_APPLY: bool = False
-    # Rate cap: at most this many documents re-driven (or listed, in
-    # report-only mode) per run. Neo4j re-drive re-runs spaCy extraction and
-    # DO KB re-drive re-uploads canonical text, so keep runs small.
-    RECONCILER_MAX_DOCS_PER_RUN: int = 25
-    # Page size for the org-scoped keyset iteration inside one run.
-    RECONCILER_BATCH_SIZE: int = 100
-
     # Per-turn append-only iteration ledger (K-Dense rowan-autosearch
     # pattern). When AGENT_LEDGER_DIR is set, every memory_save_node turn
     # writes runs/<thread_id>/iterations/<turn_n>.json with a full audit
     # record (intent, plan, tool_executions, retrieved_contexts summary,
     # ai_response, reflection_result, tokens, timing). Empty disables.
     AGENT_LEDGER_DIR: Optional[str] = None
-
-    # Re-score DO KB chunks with the Azure Cohere cross-encoder after
-    # resolve/filter. DO KB Public Preview returns no scores (we synthesize
-    # 1.0-0.05*rank); this replaces them with calibrated relevance. Requires
-    # COHERE_RERANK_ENDPOINT + COHERE_RERANK_API_KEY (already provisioned).
-    AGENT_DOKB_COHERE_RERANK: bool = False
-
-    # PaperQA2-style gather-evidence inside do_kb_retrieve: rerank-ordered
-    # chunks get per-chunk contextual relevance summaries + verbatim quotes
-    # from the lightweight LLM, enabling narrow-then-broad iteration within
-    # the existing tool-loop ceiling. Adds up to 5 lightweight LLM calls
-    # (~20s budget) per do_kb_retrieve call.
-    AGENT_ITERATIVE_RETRIEVAL: bool = False
 
     # Azure AI Cohere Reranking Configuration
     COHERE_RERANK_ENDPOINT: Optional[str] = None
@@ -655,6 +476,23 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Neo4j URI must start with bolt://, neo4j://, bolt+s://, or neo4j+s://"
             )
+        return v
+
+    @field_validator("QDRANT_API_KEY")
+    @classmethod
+    def validate_qdrant_api_key(cls, v):
+        # Allow None or empty string for local development, but validate format if provided
+        if v is not None and v != "" and len(v) < 10:
+            raise ValueError("Qdrant API key must be at least 10 characters long")
+        return v
+
+    @field_validator("QDRANT_URL")
+    @classmethod
+    def validate_qdrant_url(cls, v):
+        if v is None or v == "":
+            return v
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Qdrant URL must start with http:// or https://")
         return v
 
     @field_validator("MAX_FILE_SIZE_MB")
@@ -738,6 +576,8 @@ class Settings(BaseSettings):
             )
         if self.DO_KB_PRIMARY_READ and not self.DO_KB_ENABLED:
             raise ValueError("DO_KB_PRIMARY_READ requires DO_KB_ENABLED=True")
+        if self.DO_KB_SHADOW_READ and not self.DO_KB_ENABLED:
+            raise ValueError("DO_KB_SHADOW_READ requires DO_KB_ENABLED=True")
         return self
 
     class Config:

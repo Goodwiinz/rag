@@ -180,7 +180,7 @@ function CommandPalette({
         onClick={onClose}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-(--nous-erebus)/50" />
+        <div className="absolute inset-0 bg-[var(--nous-erebus)]/50" />
 
         {/* Palette */}
         <motion.div
@@ -189,20 +189,20 @@ function CommandPalette({
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl overflow-hidden rounded-(--nous-radius-lg) border border-(--nous-border-1) bg-(--nous-bg-2) shadow-(--nous-shadow-lg)"
+          className="relative w-full max-w-2xl overflow-hidden rounded-[var(--nous-radius-lg)] border border-[var(--nous-border-1)] bg-[var(--nous-bg-2)] shadow-[var(--nous-shadow-lg)]"
         >
           {/* Search Input */}
-          <div className="flex items-center gap-3 px-4 py-4 border-b border-(--nous-border-1)">
-            <Search className="w-5 h-5 text-(--nous-sol)" />
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-[var(--nous-border-1)]">
+            <Search className="w-5 h-5 text-[var(--nous-sol)]" />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 bg-transparent text-(--nous-fg-1) text-sm outline-hidden"
+              className="flex-1 bg-transparent text-[var(--nous-fg-1)] text-sm outline-none"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             />
             <kbd
-              className="px-2 py-1 rounded bg-(--nous-border-1) text-[10px] text-(--nous-fg-3)"
+              className="px-2 py-1 rounded bg-[var(--nous-border-1)] text-[10px] text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               ESC
@@ -214,7 +214,7 @@ function CommandPalette({
             {Object.entries(groupedCommands).map(([category, cmds]) => (
               <div key={category} className="mb-4">
                 <div
-                  className="px-3 py-2 text-[10px] text-(--nous-fg-3) uppercase tracking-wider"
+                  className="px-3 py-2 text-[10px] text-[var(--nous-fg-3)] uppercase tracking-wider"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   {category === 'actions' ? '⚡ Quick Actions' : '🔗 Navigate'}
@@ -227,8 +227,8 @@ function CommandPalette({
                       className={cn(
                         'w-full flex items-center gap-3 px-3 py-3 rounded transition-all',
                         globalIdx === selectedIndex
-                          ? 'bg-(--nous-sol)/10 border border-(--nous-sol)/30'
-                          : 'hover:bg-(--nous-bg-3)'
+                          ? 'bg-[var(--nous-sol)]/10 border border-[var(--nous-sol)]/30'
+                          : 'hover:bg-[var(--nous-bg-3)]'
                       )}
                       onClick={() => {
                         onExecute?.(cmd.id);
@@ -239,16 +239,16 @@ function CommandPalette({
                         className={cn(
                           'w-4 h-4',
                           globalIdx === selectedIndex
-                            ? 'text-(--nous-sol)'
-                            : 'text-(--nous-fg-3)'
+                            ? 'text-[var(--nous-sol)]'
+                            : 'text-[var(--nous-fg-3)]'
                         )}
                       />
                       <span
                         className={cn(
                           'flex-1 text-left text-sm',
                           globalIdx === selectedIndex
-                            ? 'text-(--nous-sol)'
-                            : 'text-(--nous-fg-1)'
+                            ? 'text-[var(--nous-sol)]'
+                            : 'text-[var(--nous-fg-1)]'
                         )}
                         style={{ fontFamily: 'var(--nous-font-ui)' }}
                       >
@@ -256,7 +256,7 @@ function CommandPalette({
                       </span>
                       {cmd.shortcut && (
                         <kbd
-                          className="px-1.5 py-0.5 rounded bg-(--nous-border-1) text-[10px] text-(--nous-fg-3)"
+                          className="px-1.5 py-0.5 rounded bg-[var(--nous-border-1)] text-[10px] text-[var(--nous-fg-3)]"
                           style={{ fontFamily: 'var(--nous-font-ui)' }}
                         >
                           {cmd.shortcut}
@@ -270,9 +270,9 @@ function CommandPalette({
 
             {filteredCommands.length === 0 && (
               <div className="text-center py-8">
-                <Search className="w-8 h-8 text-(--nous-border-1) mx-auto mb-2" />
+                <Search className="w-8 h-8 text-[var(--nous-border-1)] mx-auto mb-2" />
                 <p
-                  className="text-sm text-(--nous-fg-3)"
+                  className="text-sm text-[var(--nous-fg-3)]"
                   style={{ fontFamily: 'var(--nous-font-ui)' }}
                 >
                   No results found
@@ -282,22 +282,22 @@ function CommandPalette({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-(--nous-border-1) bg-(--nous-bg-2)">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]">
             <div
-              className="flex items-center gap-4 text-[10px] text-(--nous-fg-3)"
+              className="flex items-center gap-4 text-[10px] text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-(--nous-border-1)">↑↓</kbd>{' '}
+                <kbd className="px-1 rounded bg-[var(--nous-border-1)]">↑↓</kbd>{' '}
                 Navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 rounded bg-(--nous-border-1)">↵</kbd>{' '}
+                <kbd className="px-1 rounded bg-[var(--nous-border-1)]">↵</kbd>{' '}
                 Select
               </span>
             </div>
             <span
-              className="text-[10px] text-(--nous-fg-3)"
+              className="text-[10px] text-[var(--nous-fg-3)]"
               style={{ fontFamily: 'var(--nous-font-ui)' }}
             >
               {filteredCommands.length} results
@@ -383,7 +383,7 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-(--nous-bg-1) overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--nous-bg-1)] overflow-hidden">
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content */}
@@ -402,6 +402,8 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
             onSelect={(node) => {
               // Per design + Task 1 verification: note/draft detail routes don't
               // exist yet, so navigate to the project page as a stable fallback.
+              // Document previews (kind: 'document' | 'external') are still a
+              // follow-up wiring through the chat page's CitationPanel state.
               if (
                 (node.kind === 'note' || node.kind === 'draft') &&
                 projectId
@@ -409,25 +411,11 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
                 router.push(`/projects/${projectId}`);
                 return;
               }
-              // Document/external previews open the chat page's CitationPanel
-              // with a synthetic citation. The panel state lives inside
-              // ChatPageContent (a child of this layout), so hand it over via
-              // a window event — same idiom as 'populate-chat-input'.
-              if (node.kind === 'document' || node.kind === 'external') {
-                window.dispatchEvent(
-                  new CustomEvent('open-citation-panel', {
-                    detail: {
-                      ...(node.kind === 'document'
-                        ? { documentId: node.id }
-                        : { externalReferenceId: node.id }),
-                      title: node.title,
-                      score: 0,
-                    },
-                  })
-                );
-              }
+              // TODO(follow-up): open CitationPanel with a synthetic citation
+              // for kind === 'document' | 'external'.
+              console.log('[ContextRail] preview', node);
             }}
-            className="hidden lg:flex shrink-0 w-[320px] border-l border-(--nous-border-1)"
+            className="hidden lg:flex shrink-0 w-[320px] border-l border-[var(--nous-border-1)]"
           />
         )}
       </div>

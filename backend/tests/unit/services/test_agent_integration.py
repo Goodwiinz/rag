@@ -357,29 +357,19 @@ class TestPageContextValidation:
 
 
 class TestResumePersistence:
-    """Test that _resume_agent_graph persists the resumed assistant turn.
+    """Test that _resume_agent_graph persists messages."""
 
-    The confirm path persists ONLY the assistant row (the user row was written
-    up-front by the initial /execute run). It resolves the thread via
-    ``db.get(Thread, ...)`` and returns that thread's ids in the response — it
-    no longer round-trips through the removed ``_persist_thread_messages`` shim.
-    """
-
-    async def test_resume_persists_assistant_only(self):
-        """After graph.ainvoke, the assistant row is persisted and the user
-        row is NOT re-persisted on the confirm path."""
+    async def test_resume_calls_persist(self):
+        """After graph.ainvoke in resume, _persist_thread_messages should be called."""
         from langchain_core.messages import AIMessage
 
         from src.api.agent.execute import _resume_agent_graph
 
         job_id = str(uuid4())
-        thread_id = str(uuid4())
         user = _make_mock_user("user-111")
         db = _make_mock_db()
-        db.get = AsyncMock(
-            return_value=SimpleNamespace(id=thread_id, conversation_id="conv-1")
-        )
 
+        # Pre-create the job with a request
         _set_job(
             job_id,
             {
@@ -392,7 +382,6 @@ class TestResumePersistence:
                     "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
-                    "thread_id": thread_id,
                 },
             },
         )
@@ -415,16 +404,12 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.api.agent.jobs._persist_thread_messages",
                 new_callable=AsyncMock,
-                return_value="assistant-row-1",
-            ) as mock_persist_assistant,
+                return_value=("thread-1", "conv-1"),
+            ) as mock_persist,
             patch(
-                "src.services.agent.agent_execution_service._persist_user_message",
-                new_callable=AsyncMock,
-            ) as mock_persist_user,
-            patch(
-                "src.services.agent.agent_execution_service.AsyncSessionLocal",
+                "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -435,13 +420,14 @@ class TestResumePersistence:
 
             await _resume_agent_graph(job_id, True, user)
 
-        mock_persist_assistant.assert_awaited_once()
-        assert (
-            mock_persist_assistant.await_args.kwargs["content"]
-            == "Done, paper ingested."
-        )
-        # The user row is never re-persisted on the confirm path.
-        mock_persist_user.assert_not_awaited()
+        # _persist_thread_messages should have been called
+        mock_persist.assert_called_once()
+        call_args = mock_persist.call_args
+        assert call_args[0][0] is db
+        assert call_args[0][1] is user
+        # The request should be reconstructed from the stored job
+        assert isinstance(call_args[0][2], AgentExecuteRequest)
+        assert call_args[0][3] == "Done, paper ingested."
 
     async def test_resume_uses_original_thread_id_when_present(self):
         """Resume should use the stored request thread_id, not the transient job id."""
@@ -453,9 +439,6 @@ class TestResumePersistence:
         thread_id = str(uuid4())
         user = _make_mock_user("user-222")
         db = _make_mock_db()
-        db.get = AsyncMock(
-            return_value=SimpleNamespace(id=thread_id, conversation_id="conv-1")
-        )
 
         _set_job(
             job_id,
@@ -492,12 +475,12 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.api.agent.jobs._persist_thread_messages",
                 new_callable=AsyncMock,
-                return_value="assistant-row-1",
+                return_value=("thread-1", "conv-1"),
             ),
             patch(
-                "src.services.agent.agent_execution_service.AsyncSessionLocal",
+                "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -512,19 +495,14 @@ class TestResumePersistence:
         assert config["configurable"]["thread_id"] == thread_id
 
     async def test_resume_result_includes_persisted_thread_ids(self):
-        """Resume responses return the thread and conversation IDs resolved
-        from the thread row."""
+        """Resume responses should return the thread and conversation IDs from persistence."""
         from langchain_core.messages import AIMessage
 
         from src.api.agent.execute import _resume_agent_graph
 
         job_id = str(uuid4())
-        thread_id = str(uuid4())
         user = _make_mock_user("user-333")
         db = _make_mock_db()
-        db.get = AsyncMock(
-            return_value=SimpleNamespace(id=thread_id, conversation_id="conv-77")
-        )
 
         _set_job(
             job_id,
@@ -538,7 +516,6 @@ class TestResumePersistence:
                     "model": "model-router",
                     "use_rag": True,
                     "max_context_docs": 5,
-                    "thread_id": thread_id,
                 },
             },
         )
@@ -561,12 +538,12 @@ class TestResumePersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.api.agent.jobs._persist_thread_messages",
                 new_callable=AsyncMock,
-                return_value="assistant-row-1",
+                return_value=("thread-99", "conv-77"),
             ),
             patch(
-                "src.services.agent.agent_execution_service.AsyncSessionLocal",
+                "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_mock_async_session(),
             ),
         ):
@@ -579,7 +556,7 @@ class TestResumePersistence:
 
         job = _get_job(job_id)
         assert job["status"] == "completed"
-        assert job["result"]["thread_id"] == thread_id
+        assert job["result"]["thread_id"] == "thread-99"
         assert job["result"]["conversation_id"] == "conv-77"
 
 
@@ -670,6 +647,11 @@ class TestSSEStreamPersistence:
             patch(
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
+            patch(
+                "src.api.agent.streaming._persist_thread_messages",
+                new_callable=AsyncMock,
+                return_value=("thread-1", "conv-1"),
+            ),
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -699,12 +681,7 @@ class TestSSEStreamPersistence:
         assert config["configurable"]["page_context"] == expected_context
 
     def test_stream_confirm_persists_resumed_messages(self, client):
-        """SSE /stream/confirm should persist the resumed assistant turn.
-
-        The confirm path persists ONLY the assistant row (the user row was
-        already persisted up-front on the original /stream request). It must
-        not re-insert the user row — that was the duplicate-user-message bug.
-        """
+        """SSE /stream/confirm should persist the resumed assistant turn."""
         from langchain_core.messages import AIMessage, HumanMessage
 
         thread_id = str(uuid4())
@@ -742,14 +719,10 @@ class TestSSEStreamPersistence:
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.api.agent.streaming._persist_thread_messages",
                 new_callable=AsyncMock,
-                return_value="assistant-row-id",
-            ) as mock_persist_assistant,
-            patch(
-                "src.services.agent.agent_execution_service._persist_user_message",
-                new_callable=AsyncMock,
-            ) as mock_persist_user,
+                return_value=("thread-9", "conv-9"),
+            ) as mock_persist,
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock(
@@ -765,15 +738,15 @@ class TestSSEStreamPersistence:
 
         assert response.status_code == 200
         assert "event: done" in body
-        # Assistant row must be persisted (assistant-only — no user row).
-        mock_persist_assistant.assert_called_once()
-        assert mock_persist_assistant.call_args.kwargs["thread_id"] == thread_id
-        assert (
-            mock_persist_assistant.call_args.kwargs["content"]
-            == "The paper was ingested."
-        )
-        # The user row must NOT be re-persisted on the confirm path.
-        mock_persist_user.assert_not_called()
+        mock_persist.assert_called_once()
+
+        persisted_request = mock_persist.call_args.args[2]
+        assert isinstance(persisted_request, AgentExecuteRequest)
+        assert persisted_request.thread_id == thread_id
+        assert len(persisted_request.messages) == 1
+        assert persisted_request.messages[0].role == "user"
+        assert persisted_request.messages[0].content == "ingest this paper"
+        assert persisted_request.page_context.project_name == "Atlas"
 
     def test_stream_confirm_rejects_snapshot_without_user_id(self, client):
         """SSE /stream/confirm must not resume legacy ownerless checkpoints."""
@@ -797,6 +770,10 @@ class TestSSEStreamPersistence:
             patch(
                 "src.services.agent.graph.compile_agent_graph",
             ) as mock_compile,
+            patch(
+                "src.api.agent.streaming._persist_thread_messages",
+                new_callable=AsyncMock,
+            ) as mock_persist,
         ):
             mock_graph = MagicMock()
             mock_graph.astream_events = Mock()
@@ -811,3 +788,4 @@ class TestSSEStreamPersistence:
         assert response.status_code == 200
         assert "Thread not found" in body
         mock_graph.astream_events.assert_not_called()
+        mock_persist.assert_not_called()

@@ -87,7 +87,7 @@ async def test_done_event_does_not_wait_on_commit(
 
     bg = _MockBackgroundTasks()
 
-    from src.services.agent import agent_execution_service as jobs_mod
+    from src.api.agent import jobs as jobs_mod
     from src.api.agent import streaming as streaming_mod
 
     with (
@@ -116,7 +116,7 @@ async def test_done_event_does_not_wait_on_commit(
         async for event in streaming_mod.stream_event_generator(
             body, fastapi_request, user, background_tasks=bg
         ):
-            if "event: done" in event:
+            if event.startswith("event: done"):
                 done_seen_at = time.perf_counter() - t0
                 break
 

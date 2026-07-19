@@ -152,31 +152,6 @@ describe('ChatSidebar', () => {
     ).toBeInTheDocument();
   });
 
-  it('truncates a persisted list preview with the same sidebar limit', () => {
-    render(
-      <ChatSidebar
-        {...defaultProps}
-        conversations={[
-          {
-            id: 'conv-preview-long',
-            title: 'Long persisted preview',
-            messages: [],
-            previewText:
-              'This persisted transcript preview is intentionally longer than sixty characters so the row stays compact',
-            updatedAt: Date.now(),
-            messageCount: 2,
-          },
-        ]}
-      />
-    );
-
-    expect(
-      screen.getByText(
-        'This persisted transcript preview is intentionally longer th…'
-      )
-    ).toBeInTheDocument();
-  });
-
   it('highlights active conversation', () => {
     render(<ChatSidebar {...defaultProps} activeId="conv-1" />);
     const activeRow = screen.getByText('Alpha Chat').closest('button');

@@ -1,7 +1,7 @@
 'use client';
 
-import { ComposerPrimitive } from '@assistant-ui/react';
 import { cn } from '@/lib/utils';
+import { AVAILABLE_MODELS, ModelSelector } from './ModelSelector';
 import {
   SlashCommandMenu,
   SLASH_LISTBOX_ID,
@@ -9,6 +9,7 @@ import {
 } from './SlashCommandMenu';
 import { useSlashCommandMenu } from './useSlashCommandMenu';
 import type { SlashCommand, SlashCommandId } from './slashCommands';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
   Image as ImageIcon,
@@ -27,8 +28,14 @@ interface ChatInputProps {
   isLoading: boolean;
   enableRAG: boolean;
   onRAGToggle: (enabled: boolean) => void;
+  isRAGLoading?: boolean;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onAttach?: (files: FileList) => void;
+  selectedModelId?: string;
+  onModelChange?: (id: string) => void;
+  // Phase-aware status pill (shown only while generating)
+  isStreaming?: boolean;
+  streamingContent?: string;
   // Slash commands
   onCommand?: (id: SlashCommandId) => void;
 }
@@ -65,8 +72,13 @@ export function ChatInput({
   isLoading,
   enableRAG,
   onRAGToggle,
+  isRAGLoading,
   inputRef,
   onAttach,
+  selectedModelId,
+  onModelChange,
+  isStreaming,
+  streamingContent,
   onCommand,
 }: ChatInputProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -75,6 +87,7 @@ export function ChatInput({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const reduceMotion = useReducedMotion();
   const menu = useSlashCommandMenu(value);
 
   // Local attachment receipts — chips shown in the composer for files the user
@@ -111,16 +124,6 @@ export function ChatInput({
       const target = prev.find((a) => a.id === id);
       if (target?.url) URL.revokeObjectURL(target.url);
       return prev.filter((a) => a.id !== id);
-    });
-  };
-
-  // Clear composer chips + revoke their blob URLs once a message is sent —
-  // otherwise stale chips linger into the next turn and every image object URL
-  // leaks until unmount.
-  const clearAttachments = (): void => {
-    setAttachments((prev) => {
-      prev.forEach((a) => a.url && URL.revokeObjectURL(a.url));
-      return [];
     });
   };
 
@@ -222,16 +225,7 @@ export function ChatInput({
       e.preventDefault();
       if (!isLoading && value.trim() && !isOverLimit) {
         onSubmit();
-        clearAttachments();
       }
-    }
-  };
-
-  const handleComposerSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-    e.preventDefault();
-    if (!isLoading && value.trim() && !isOverLimit) {
-      onSubmit();
-      clearAttachments();
     }
   };
 
@@ -247,15 +241,30 @@ export function ChatInput({
       ? menu.filtered[menu.highlightedIndex]
       : undefined;
 
+  // Phase-aware status: shown only while generating.
+  const statusPhase: 'retrieving' | 'writing' | 'reflecting' | null = !isLoading
+    ? null
+    : isRAGLoading
+      ? 'retrieving'
+      : isStreaming && (streamingContent?.length ?? 0) > 0
+        ? 'writing'
+        : 'reflecting';
+  const statusLabel =
+    statusPhase === 'retrieving'
+      ? 'Nous is reading sources…'
+      : statusPhase === 'writing'
+        ? 'Nous is writing…'
+        : 'Nous is reflecting…';
+
   return (
     <div
-      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-4 border-t"
+      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px_+_env(safe-area-inset-bottom))] md:pb-4 border-t"
       style={{
         background: 'var(--nous-bg-1)',
         borderColor: 'var(--nous-border-1)',
       }}
     >
-      <div className="relative max-w-(--nous-chat-col) mx-auto">
+      <div className="relative max-w-[var(--nous-chat-col)] mx-auto">
         <SlashCommandMenu
           open={menu.isOpen}
           commands={menu.filtered}
@@ -263,24 +272,23 @@ export function ChatInput({
           onHighlight={menu.setHighlightedIndex}
           onRun={runCommand}
         />
-        <ComposerPrimitive.Root
-          onSubmit={handleComposerSubmit}
+        <motion.div
           className="rounded-[14px] overflow-hidden"
           style={{
             background: 'var(--nous-bg-2)',
             border: `1px solid ${
-              isFocused
-                ? 'rgba(var(--nous-sol-rgb), 0.4)'
-                : 'var(--nous-border-1)'
+              isFocused ? 'rgba(212, 160, 57, 0.4)' : 'var(--nous-border-1)'
             }`,
             boxShadow: isFocused
-              ? '0 0 0 3px rgba(var(--nous-sol-rgb), 0.10), 0 8px 24px rgba(var(--nous-erebus-rgb), 0.06)'
-              : '0 1px 2px rgba(var(--nous-erebus-rgb), 0.04)',
+              ? '0 0 0 3px rgba(212, 160, 57, 0.10), 0 8px 24px rgba(10,10,14,0.06)'
+              : '0 1px 2px rgba(10,10,14,0.04)',
             transition:
               'border-color 260ms var(--nous-ease-out), box-shadow 260ms var(--nous-ease-out)',
           }}
+          animate={isFocused ? { y: -1 } : { y: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         >
-          {/* Top strip — live status, Ultra Thinking, counter */}
+          {/* Top strip — live status, Ultra Thinking, model, counter */}
           <div
             className="flex items-center justify-between gap-2 px-3 py-2 border-b"
             style={{
@@ -289,6 +297,44 @@ export function ChatInput({
             }}
           >
             <div className="flex items-center gap-2 min-w-0">
+              <AnimatePresence>
+                {statusPhase && (
+                  <motion.div
+                    key="nous-status"
+                    role="status"
+                    aria-live="polite"
+                    initial={reduceMotion ? false : { opacity: 0, y: 2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 2 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="inline-flex items-center gap-2 rounded-full shrink-0"
+                    style={{
+                      padding: '4px 11px 4px 9px',
+                      background: 'var(--nous-bg-2)',
+                      border: '1px solid var(--nous-border-1)',
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{
+                        background: 'var(--nous-sol)',
+                        boxShadow: '0 0 0 3px rgba(212, 160, 57, 0.18)',
+                        animation: 'nous-pulse 1.4s ease-in-out infinite',
+                      }}
+                    />
+                    <span
+                      className="font-nous-mono text-[10px] font-medium whitespace-nowrap"
+                      style={{
+                        color: 'var(--nous-fg-2)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      {statusLabel}
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <button
                 type="button"
                 onClick={() => onRAGToggle(!enableRAG)}
@@ -310,7 +356,7 @@ export function ChatInput({
                   background: enableRAG ? 'var(--nous-aurum)' : 'transparent',
                   border: `1px solid ${
                     enableRAG
-                      ? 'rgba(var(--nous-sol-rgb), 0.25)'
+                      ? 'rgba(212, 160, 57, 0.25)'
                       : 'var(--nous-border-1)'
                   }`,
                 }}
@@ -322,7 +368,7 @@ export function ChatInput({
                       ? 'var(--nous-sol)'
                       : 'var(--nous-fg-3)',
                     boxShadow: enableRAG
-                      ? '0 0 5px rgba(var(--nous-sol-rgb), 0.5)'
+                      ? '0 0 5px rgba(212,160,57,0.5)'
                       : 'none',
                   }}
                 />
@@ -338,6 +384,16 @@ export function ChatInput({
                   Ultra Thinking
                 </span>
               </button>
+
+              {onModelChange && (
+                <div className="hidden sm:block">
+                  <ModelSelector
+                    models={AVAILABLE_MODELS}
+                    selectedModelId={selectedModelId}
+                    onModelChange={onModelChange}
+                  />
+                </div>
+              )}
             </div>
 
             <div
@@ -426,7 +482,7 @@ export function ChatInput({
                       onClick={() => removeAttachment(att.id)}
                       aria-label={`Remove ${att.name}`}
                       title="Remove"
-                      className="grid place-items-center w-6 h-6 rounded transition-colors hover:bg-(--nous-aurum)"
+                      className="grid place-items-center w-6 h-6 rounded transition-colors hover:bg-[var(--nous-aurum)]"
                       style={{ color: 'var(--nous-fg-3)' }}
                     >
                       <X className="w-3 h-3" strokeWidth={2} />
@@ -436,34 +492,32 @@ export function ChatInput({
               </ul>
             )}
 
-            <ComposerPrimitive.Input asChild>
-              <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder="Ask anything, or paste a passage to discuss…"
-                rows={1}
-                disabled={isDisabled}
-                aria-expanded={menu.isOpen}
-                aria-controls={menu.isOpen ? SLASH_LISTBOX_ID : undefined}
-                aria-activedescendant={
-                  activeCommand ? slashOptionId(activeCommand.id) : undefined
-                }
-                aria-autocomplete="list"
-                aria-invalid={isOverLimit || undefined}
-                aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
-                className="w-full bg-transparent resize-none outline-hidden font-nous-body text-[16px]"
-                style={{
-                  color: 'var(--nous-fg-1)',
-                  lineHeight: '1.6',
-                  minHeight: '48px',
-                  maxHeight: '200px',
-                }}
-              />
-            </ComposerPrimitive.Input>
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Ask anything, or paste a passage to discuss…"
+              rows={1}
+              disabled={isDisabled}
+              aria-expanded={menu.isOpen}
+              aria-controls={menu.isOpen ? SLASH_LISTBOX_ID : undefined}
+              aria-activedescendant={
+                activeCommand ? slashOptionId(activeCommand.id) : undefined
+              }
+              aria-autocomplete="list"
+              aria-invalid={isOverLimit || undefined}
+              aria-describedby={isOverLimit ? 'nous-input-limit' : undefined}
+              className="w-full bg-transparent resize-none outline-none font-nous-body text-[16px]"
+              style={{
+                color: 'var(--nous-fg-1)',
+                lineHeight: '1.6',
+                minHeight: '48px',
+                maxHeight: '200px',
+              }}
+            />
 
             {isOverLimit && (
               <p
@@ -586,7 +640,7 @@ export function ChatInput({
                     onChange('/');
                     textareaRef.current?.focus();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-(--nous-aurum)"
+                  className="inline-flex items-center gap-1.5 rounded-md ml-1.5 min-h-[44px] font-nous-mono text-[10px] cursor-pointer transition-colors hover:bg-[var(--nous-aurum)]"
                   style={{
                     padding: '4px 8px',
                     border: '1px solid var(--nous-border-1)',
@@ -614,15 +668,14 @@ export function ChatInput({
 
               {isLoading ? (
                 <button
-                  type="button"
                   onClick={onStop}
                   className="inline-flex items-center gap-2 font-medium rounded-lg transition-all active:scale-[0.97]"
                   style={{
                     padding: '8px 16px',
                     fontSize: '12px',
                     letterSpacing: '0.01em',
-                    background: 'rgba(var(--nous-mars-rgb), 0.1)',
-                    border: '1px solid rgba(var(--nous-mars-rgb), 0.4)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
                     color: 'var(--nous-mars)',
                   }}
                 >
@@ -631,33 +684,31 @@ export function ChatInput({
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  onClick={onSubmit}
                   disabled={!value.trim() || isDisabled || isOverLimit}
                   title={
                     isOverLimit
                       ? `Message is over the ${maxChars}-character limit`
                       : 'Send (Enter)'
                   }
-                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="group inline-flex items-center gap-2 font-semibold rounded-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     padding: '8px 16px',
                     fontSize: '12px',
                     letterSpacing: '0.01em',
-                    background: 'var(--nous-sol)',
-                    color: 'var(--nous-erebus)',
-                    boxShadow: '0 1px 2px rgba(var(--nous-sol-rgb), 0.2)',
+                    background: 'var(--nous-erebus)',
+                    color: 'white',
+                    boxShadow: '0 1px 2px rgba(10,10,14,0.1)',
                   }}
                   onMouseEnter={(e) => {
                     if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.background = 'var(--nous-helios)';
                       e.currentTarget.style.boxShadow =
-                        '0 4px 12px rgba(var(--nous-sol-rgb), 0.3)';
+                        '0 4px 12px rgba(10,10,14,0.12)';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'var(--nous-sol)';
                     e.currentTarget.style.boxShadow =
-                      '0 1px 2px rgba(var(--nous-sol-rgb), 0.2)';
+                      '0 1px 2px rgba(10,10,14,0.1)';
                   }}
                 >
                   Send
@@ -669,7 +720,7 @@ export function ChatInput({
               )}
             </div>
           </div>
-        </ComposerPrimitive.Root>
+        </motion.div>
 
         <div
           className="font-nous-mono text-[10px] text-center mt-2 opacity-60 hidden sm:block"

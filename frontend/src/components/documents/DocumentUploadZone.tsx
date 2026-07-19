@@ -202,14 +202,14 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   const getStatusColor = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return 'text-(--nous-terra) bg-(--nous-terra)/10 border-(--nous-terra)/30';
+        return 'text-[var(--nous-terra)] bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30';
       case 'processing':
       case 'uploading':
-        return 'text-(--nous-fg-accent-safe) bg-(--nous-sol)/10 border-(--nous-sol)/30';
+        return 'text-[var(--nous-fg-accent-safe)] bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30';
       case 'failed':
-        return 'text-(--nous-mars) bg-(--nous-mars)/10 border-(--nous-mars)/30';
+        return 'text-[var(--nous-mars)] bg-[var(--nous-mars)]/10 border-[var(--nous-mars)]/30';
       default:
-        return 'text-foreground bg-(--nous-bg-2) border-border';
+        return 'text-foreground bg-[var(--nous-bg-2)] border-border';
     }
   };
 
@@ -585,15 +585,15 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   const getStatusIcon = (status: UploadedFile['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircleIcon className="h-5 w-5 text-(--nous-terra)" />;
+        return <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
       case 'processing':
       case 'uploading':
         return (
-          <ClockIcon className="h-5 w-5 text-(--nous-fg-accent-safe) animate-spin" />
+          <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)] animate-spin" />
         );
       case 'failed':
         return (
-          <ExclamationTriangleIcon className="h-5 w-5 text-(--nous-mars)" />
+          <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-mars)]" />
         );
       default:
         return <DocumentPlusIcon className="h-5 w-5 text-muted-foreground" />;
@@ -613,7 +613,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CloudArrowUpIcon className="h-6 w-6 text-(--nous-fg-accent-safe)" />
+            <CloudArrowUpIcon className="h-6 w-6 text-[var(--nous-fg-accent-safe)]" />
             Enhanced Document Upload
           </CardTitle>
           <CardDescription className="text-foreground">
@@ -627,12 +627,12 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
             className={cn(
               'flex items-center justify-between p-4 rounded-lg border',
               getUploadStateMessage().type === 'success'
-                ? 'bg-(--nous-terra)/10 border-(--nous-terra)/30 text-(--nous-terra)'
+                ? 'bg-[var(--nous-terra)]/10 border-[var(--nous-terra)]/30 text-[var(--nous-terra)]'
                 : getUploadStateMessage().type === 'processing'
-                  ? 'bg-(--nous-sol)/10 border-(--nous-sol)/30 text-(--nous-fg-accent-safe)'
+                  ? 'bg-[var(--nous-sol)]/10 border-[var(--nous-sol)]/30 text-[var(--nous-fg-accent-safe)]'
                   : getUploadStateMessage().type === 'ready'
-                    ? 'bg-(--nous-corona)/10 border-(--nous-corona)/30 text-(--nous-corona)'
-                    : 'bg-(--nous-bg-2) border-border text-foreground'
+                    ? 'bg-[var(--nous-corona)]/10 border-[var(--nous-corona)]/30 text-[var(--nous-corona)]'
+                    : 'bg-[var(--nous-bg-2)] border-border text-foreground'
             )}
             role="status"
             aria-live={getUploadStateMessage().ariaLive}
@@ -676,8 +676,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               className={cn(
                 'relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200',
                 isDragActive
-                  ? 'border-(--nous-sol) bg-(--nous-sol)/10 scale-[1.02]'
-                  : 'border-border hover:border-border hover:bg-(--nous-bg-3)',
+                  ? 'border-[var(--nous-sol)] bg-[var(--nous-sol)]/10 scale-[1.02]'
+                  : 'border-border hover:border-border hover:bg-[var(--nous-bg-3)]',
                 isUploading && 'opacity-50 cursor-not-allowed'
               )}
               role="button"
@@ -687,8 +687,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               <input {...getInputProps()} />
 
               <div className="space-y-4">
-                <div className="mx-auto w-16 h-16 bg-linear-to-br from-(--nous-sol)/10 to-(--nous-sol)/20 rounded-full flex items-center justify-center">
-                  <CloudArrowUpIcon className="h-8 w-8 text-(--nous-fg-accent-safe)" />
+                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-[var(--nous-sol)]/10 to-[var(--nous-sol)]/20 rounded-full flex items-center justify-center">
+                  <CloudArrowUpIcon className="h-8 w-8 text-[var(--nous-fg-accent-safe)]" />
                 </div>
 
                 <div>
@@ -794,11 +794,11 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                   {/* Authentication Status Indicator */}
                   <div className="flex items-center space-x-1 text-xs">
                     {authLoading ? (
-                      <ClockIcon className="w-3 h-3 text-(--nous-corona)" />
+                      <ClockIcon className="w-3 h-3 text-[var(--nous-corona)]" />
                     ) : isAuthenticated ? (
-                      <CheckCircleIcon className="w-3 h-3 text-(--nous-terra)" />
+                      <CheckCircleIcon className="w-3 h-3 text-[var(--nous-terra)]" />
                     ) : (
-                      <ExclamationTriangleIcon className="w-3 h-3 text-(--nous-mars)" />
+                      <ExclamationTriangleIcon className="w-3 h-3 text-[var(--nous-mars)]" />
                     )}
                     <span className="text-muted-foreground">
                       {authLoading
@@ -813,7 +813,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     <Button
                       onClick={uploadAllFiles}
                       disabled={isUploading || authLoading || !isAuthenticated}
-                      className="bg-(--nous-sol) hover:bg-(--nous-sol)/90"
+                      className="bg-[var(--nous-sol)] hover:bg-[var(--nous-sol)]/90"
                       aria-label={
                         isUploading
                           ? 'Upload in progress, please wait'
@@ -974,7 +974,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {(file.status === 'uploading' ||
                       file.status === 'processing') && (
                       <div
-                        className="px-4 py-3 bg-(--nous-bg-2)"
+                        className="px-4 py-3 bg-[var(--nous-bg-2)]"
                         role="status"
                         aria-live="polite"
                         aria-atomic="true"
@@ -999,10 +999,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                           aria-valuemin={0}
                           aria-valuemax={100}
                           aria-labelledby={`progress-status-${file.id} file-name-${file.id}`}
-                          className="w-full bg-(--nous-bg-3) rounded-full h-2"
+                          className="w-full bg-[var(--nous-bg-3)] rounded-full h-2"
                         >
                           <div
-                            className="bg-(--nous-sol) h-2 rounded-full transition-all duration-300 ease-out"
+                            className="bg-[var(--nous-sol)] h-2 rounded-full transition-all duration-300 ease-out"
                             style={{ width: `${file.progress}%` }}
                             aria-hidden="true"
                           />
@@ -1012,10 +1012,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Error Display */}
                     {file.error && (
-                      <div role="alert" className="px-4 py-3 rounded-(--nous-radius-md) border border-(--nous-mars)/30 bg-(--nous-mars)/10">
+                      <div role="alert" className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10">
                         <div className="flex items-start space-x-2">
-                          <ExclamationTriangleIcon className="h-5 w-5 text-(--nous-mars) mt-0.5" />
-                          <div className="text-sm text-(--nous-mars)">
+                          <ExclamationTriangleIcon className="h-5 w-5 text-[var(--nous-mars)] mt-0.5" />
+                          <div className="text-sm text-[var(--nous-mars)]">
                             {file.error}
                           </div>
                         </div>
@@ -1024,10 +1024,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Success Display */}
                     {file.result && (
-                      <div className="px-4 py-3 rounded-(--nous-radius-md) border border-(--nous-terra)/30 bg-(--nous-terra)/10">
+                      <div className="px-4 py-3 rounded-[var(--nous-radius-md)] border border-[var(--nous-terra)]/30 bg-[var(--nous-terra)]/10">
                         <div className="flex items-start space-x-2">
-                          <CheckCircleIcon className="h-5 w-5 text-(--nous-terra) mt-0.5" />
-                          <div className="text-sm text-(--nous-terra)">
+                          <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)] mt-0.5" />
+                          <div className="text-sm text-[var(--nous-terra)]">
                             <div className="font-medium">
                               Processing completed successfully
                             </div>
@@ -1043,8 +1043,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
                     {/* Quality Score */}
                     {file.qualityScore && (
-                      <div className="px-4 py-2 rounded-(--nous-radius-md) border border-(--nous-corona)/30 bg-(--nous-corona)/10">
-                        <div className="flex items-center space-x-2 text-sm text-(--nous-corona)">
+                      <div className="px-4 py-2 rounded-[var(--nous-radius-md)] border border-[var(--nous-corona)]/30 bg-[var(--nous-corona)]/10">
+                        <div className="flex items-center space-x-2 text-sm text-[var(--nous-corona)]">
                           <SparklesIcon className="h-4 w-4" />
                           <span>
                             Quality Score: {Math.round(file.qualityScore * 100)}
@@ -1058,10 +1058,10 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {file.securityScan && (
                       <div
                         className={cn(
-                          'px-4 py-2 rounded-(--nous-radius-md) border',
+                          'px-4 py-2 rounded-[var(--nous-radius-md)] border',
                           file.securityScan.scan_status === 'passed'
-                            ? 'border-(--nous-terra)/30 bg-(--nous-terra)/10 text-(--nous-terra)'
-                            : 'border-(--nous-mars)/30 bg-(--nous-mars)/10 text-(--nous-mars)'
+                            ? 'border-[var(--nous-terra)]/30 bg-[var(--nous-terra)]/10 text-[var(--nous-terra)]'
+                            : 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10 text-[var(--nous-mars)]'
                         )}
                       >
                         <div className="flex items-center space-x-2 text-sm">
@@ -1075,7 +1075,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
                     {showAdvancedOptions &&
                       file.expanded &&
                       file.status === 'pending' && (
-                        <div className="px-4 py-4 bg-(--nous-bg-2) border-t space-y-4">
+                        <div className="px-4 py-4 bg-[var(--nous-bg-2)] border-t space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="md:col-span-2">
                               <Label htmlFor={`title-${file.id}`}>Title</Label>

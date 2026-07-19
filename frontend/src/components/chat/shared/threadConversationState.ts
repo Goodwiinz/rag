@@ -1,4 +1,4 @@
-import type { Thread } from '@/types/workspace';
+import type { ChatMessage, ThreadDetail } from '@/types/workspace';
 
 export interface ConversationStateMessage {
   id?: string;
@@ -19,26 +19,23 @@ export interface ConversationStateItem {
   messageCount?: number;
 }
 
-export function upsertConversationFromThread<T extends ConversationStateItem>(
+type MapDbMessageToUiMessage = (message: ChatMessage) => ConversationStateMessage;
+
+export function upsertConversationFromThreadDetail<T extends ConversationStateItem>(
   conversations: T[],
-  thread: Thread,
-  messages: ConversationStateMessage[] = []
+  thread: ThreadDetail,
+  mapDbMessageToUiMessage: MapDbMessageToUiMessage
 ): T[] {
+  const mappedMessages = thread.messages.map(mapDbMessageToUiMessage);
   const nextConversation = {
     id: thread.id,
     title: thread.title || 'New Chat',
-    messages,
+    messages: mappedMessages,
     createdAt: new Date(thread.created_at).getTime(),
     updatedAt: new Date(thread.updated_at).getTime(),
     threadId: thread.id,
     conversationId: thread.conversation_id,
-    // Store-backed pages use ascending display order, so the final row is the
-    // newest message and therefore the correct sidebar preview.
-    previewText:
-      messages[messages.length - 1]?.content ??
-      thread.last_message_preview ??
-      thread.summary ??
-      undefined,
+    previewText: mappedMessages[mappedMessages.length - 1]?.content,
     messageCount: thread.message_count,
   } as T;
 
@@ -51,8 +48,6 @@ export function upsertConversationFromThread<T extends ConversationStateItem>(
   }
 
   return conversations.map((conversation, index) =>
-    index === existingIndex
-      ? { ...conversation, ...nextConversation }
-      : conversation
+    index === existingIndex ? { ...conversation, ...nextConversation } : conversation
   );
 }

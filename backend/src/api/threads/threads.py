@@ -37,7 +37,6 @@ from src.schemas.chat import (  # Thread schemas; Bulk thread schemas; Message s
     ThreadResponse,
     ThreadUpdate,
 )
-from src.services.agent._pii_redact import redact_tool_executions
 from src.services.threads.chat_service import ChatService, get_chat_service
 from src.services.threads.thread_event_service import thread_event_service
 
@@ -724,7 +723,6 @@ async def get_thread_context(
     "/{thread_id}/messages",
     response_model=ChatMessageResponse,
     status_code=status.HTTP_201_CREATED,
-    deprecated=True,
 )
 async def create_message(
     thread_id: UUID,
@@ -733,18 +731,7 @@ async def create_message(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    [DEPRECATED] Create a new message in a thread.
-
-    Audit finding C4: three public POST create-message routes coexist but only
-    the flat ``POST /api/v2/messages`` (``create_message_standalone`` in
-    ``api/threads/workspaces.py``) is called by any client — it is the
-    canonical route. This nested variant has no live callers (frontend, CLI,
-    scripts, or synthetic traffic) and is kept only for a deprecation window.
-    New clients MUST use ``POST /api/v2/messages`` with ``thread_id`` in the
-    body. Slated for removal in a follow-up cleanup PR once the window closes.
-
-    See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
-    date and criteria.
+    Create a new message in a thread.
     """
     # Ensure thread_id matches
     if data.thread_id != thread_id:
@@ -1057,12 +1044,6 @@ def _format_message_response(message) -> ChatMessageResponse:
         content=message.content,
         token_count=message.token_count,
         latency_ms=message.latency_ms,
-        stopped=message.stopped,
-        # Serve-time redaction of persisted raw tool args (see execute.py
-        # get_thread_messages — same finding, same funnel discipline).
-        tool_executions=redact_tool_executions(message.tool_executions),
-        plan=message.plan,
-        token_usage=message.token_usage,
         model_name=message.model_name,
         model_version=message.model_version,
         tool_name=message.tool_name,

@@ -51,6 +51,11 @@ def create_sample_knowledge_graph():
                     "description": "Database optimized for vector similarity search",
                 },
                 {
+                    "name": "Qdrant",
+                    "type": "Technology",
+                    "description": "Vector similarity search engine",
+                },
+                {
                     "name": "Multimodal RAG",
                     "type": "System",
                     "description": "Retrieval-augmented generation system supporting multiple data types",
@@ -79,6 +84,7 @@ def create_sample_knowledge_graph():
                 ("Entity Extraction", "PART_OF", "Natural Language Processing"),
                 ("Multimodal RAG", "USES", "Knowledge Graph"),
                 ("Multimodal RAG", "USES", "Vector Database"),
+                ("Vector Database", "IMPLEMENTED_BY", "Qdrant"),
                 ("Natural Language Processing", "ENABLES", "Entity Extraction"),
             ]
 

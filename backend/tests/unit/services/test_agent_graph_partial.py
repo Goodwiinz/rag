@@ -37,12 +37,12 @@ def _make_initial_state(user_msg: str = "find papers on transformers") -> dict:
 
 
 def _make_config(thread_id: str | None = None) -> dict:
-    # Ids-only configurable (audit B8) — never a live session / ORM user.
+    user = Mock(id=uuid4(), organization_id=uuid4())
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid4()),
-            "user_id": str(uuid4()),
-            "organization_id": str(uuid4()),
+            "db": AsyncMock(),
+            "current_user": user,
             "page_context": {"type": "unknown"},
         }
     }
@@ -224,11 +224,11 @@ class TestIndividualNodes:
         project_id and replied "I'm not using any project yet"."""
         from src.services.agent.graph import rag_node
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -253,11 +253,11 @@ class TestIndividualNodes:
         and the CLI still sends type='chat'."""
         from src.services.agent.graph import rag_node
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": AsyncMock(return_value=[]),
             }
         }
@@ -288,11 +288,11 @@ class TestIndividualNodes:
                 }
             ]
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "search_fn": mock_search,
             }
         }
@@ -323,11 +323,11 @@ class TestIndividualNodes:
         async def mock_search(query: str, user_id: str):
             return [{"document_id": "d1", "title": "T", "content": "c", "score": 0.9}]
 
+        user = Mock(id=uuid4(), organization_id=uuid4())
         config = {
             "configurable": {
                 "thread_id": str(uuid4()),
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": user,
                 "page_context": {"type": "unknown"},
                 "search_fn": mock_search,
             }
@@ -493,7 +493,7 @@ class TestPartialExecution:
 
         # Mock execute_tool to avoid real API calls
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):
@@ -678,7 +678,7 @@ class TestHumanInTheLoopFlow:
 
         # Now resume with confirmation
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ):
@@ -745,7 +745,7 @@ class TestHumanInTheLoopFlow:
         assert "__interrupt__" in result, "Research graph should pause with an interrupt"
 
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"status": "success", "document_ids": ["doc-uuid-1"]},
         ) as mock_execute_tool:
@@ -862,7 +862,7 @@ class TestHumanInTheLoopFlow:
         mock_response = AIMessage(content="No papers found.")
         mock_llm.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         with patch(
-            "src.services.agent.tools_impl.execute_tool",
+            "src.api.agent.execute.execute_tool",
             new_callable=AsyncMock,
             return_value={"results": [], "total": 0},
         ):

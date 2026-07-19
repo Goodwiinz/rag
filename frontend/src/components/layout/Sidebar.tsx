@@ -43,7 +43,7 @@ const NavItem = ({
       )}
     >
       <Icon className={cn(
-        "h-5 w-5 shrink-0 transition-colors",
+        "h-5 w-5 flex-shrink-0 transition-colors",
         isActive ? "text-foreground" : "text-muted-foreground"
       )} />
       {!isCollapsed && (
@@ -116,7 +116,7 @@ export const Sidebar = ({ isOpen, setIsOpen, className }: SidebarProps) => {
           type="button"
           onClick={handleToggle}
           className={cn(
-            "h-14 w-full flex items-center border-b px-3 cursor-pointer hover:bg-accent/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+            "h-14 w-full flex items-center border-b px-3 cursor-pointer hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
             isCollapsed ? "justify-center" : "gap-2"
           )}
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}

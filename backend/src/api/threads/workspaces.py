@@ -12,7 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.orm import selectinload
 
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
@@ -59,8 +59,6 @@ from src.schemas.chat import (  # Workspace schemas; Conversation schemas; Threa
 
 logger = logging.getLogger(__name__)
 
-THREAD_PREVIEW_MAX_CHARS = 240
-
 router = APIRouter(prefix="/api/v2/workspaces", tags=["workspaces"])
 
 # Standalone router for flat API paths (used by frontend)
@@ -79,8 +77,9 @@ async def create_workspace(
 ):
     """Create a new workspace"""
     user_org_id = getattr(current_user, "organization_id", None)
-    if request.organization_id is not None and str(request.organization_id) != str(
-        user_org_id
+    if (
+        request.organization_id is not None
+        and str(request.organization_id) != str(user_org_id)
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -430,10 +429,11 @@ async def list_conversations(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # Fetch conversations (no thread rows — see the aggregate below)
+    # Fetch conversations with eager-loaded threads
     offset = (page - 1) * limit
     stmt = (
         select(Conversation)
+        .options(selectinload(Conversation.threads))
         .where(*base_conditions)
         .order_by(Conversation.last_activity_at.desc())
         .offset(offset)
@@ -442,35 +442,8 @@ async def list_conversations(
     result = await db.execute(stmt)
     conversations = result.scalars().all()
 
-    # Size the sidebar badges with ONE grouped COUNT/SUM over this page's
-    # conversations instead of selectinload-ing every thread row (all columns)
-    # per conversation. Mirrors the unfiltered Conversation.threads relationship
-    # (hard-delete cascade, no is_deleted filter), so thread_count matches
-    # len(self.threads) and message_count matches the per-thread sum exactly.
-    counts: dict[UUID, tuple[int, int]] = {}
-    conv_ids = [c.id for c in conversations]
-    if conv_ids:
-        agg_stmt = (
-            select(
-                Thread.conversation_id,
-                func.count(Thread.id),
-                func.coalesce(func.sum(Thread.message_count), 0),
-            )
-            .where(Thread.conversation_id.in_(conv_ids))
-            .group_by(Thread.conversation_id)
-        )
-        agg_result = await db.execute(agg_stmt)
-        counts = {row[0]: (row[1], row[2]) for row in agg_result.all()}
-
     return ConversationListResponse(
-        conversations=[
-            _conversation_to_response(
-                c,
-                thread_count=counts.get(c.id, (0, 0))[0],
-                message_count=counts.get(c.id, (0, 0))[1],
-            )
-            for c in conversations
-        ],
+        conversations=[_conversation_to_response(c) for c in conversations],
         total=total,
         page=page,
         limit=limit,
@@ -650,26 +623,22 @@ async def list_threads(
 
     # Fetch threads
     offset = (page - 1) * limit
-    preview_expr = _last_message_preview_expression()
     stmt = (
-        select(Thread, preview_expr)
+        select(Thread)
         .where(*base_conditions)
         .order_by(Thread.last_message_at.desc())
         .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
-    thread_rows = result.all()
+    threads = result.scalars().all()
 
     return ThreadListResponse(
-        threads=[
-            _thread_to_response(thread, last_message_preview=preview)
-            for thread, preview in thread_rows
-        ],
+        threads=[_thread_to_response(t) for t in threads],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(thread_rows)) < total,
+        has_more=(offset + len(threads)) < total,
     )
 
 
@@ -760,7 +729,6 @@ async def delete_thread(
     "/{workspace_id}/conversations/{conversation_id}/threads/{thread_id}/messages",
     response_model=ChatMessageResponse,
     status_code=status.HTTP_201_CREATED,
-    deprecated=True,
 )
 async def create_message(
     workspace_id: UUID,
@@ -770,23 +738,7 @@ async def create_message(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """[DEPRECATED] Create a new message in a thread.
-
-    Audit finding C4: three public POST create-message routes coexist but only
-    the flat ``POST /api/v2/messages`` (``create_message_standalone`` below) is
-    called by any client — it is the canonical route. This deeply-nested
-    workspace variant has no live callers (frontend, CLI, scripts, or synthetic
-    traffic); it already delegates to ``ChatService.create_message`` and is kept
-    only for a deprecation window. New clients MUST use ``POST /api/v2/messages``
-    with ``thread_id`` in the body. Slated for removal in a follow-up cleanup PR
-    once the window closes.
-
-    See ``docs/decisions/api-deprecation-window.md`` for the deletion-eligible
-    date and criteria.
-    """
-    # Validate the path hierarchy (workspace/conversation/thread + soft-delete
-    # filters) before delegating; the 403 for non-editors is this route's
-    # documented behavior.
+    """Create a new message in a thread"""
     thread = await _get_thread_or_404(
         db, workspace_id, conversation_id, thread_id, current_user
     )
@@ -794,40 +746,48 @@ async def create_message(
     if not thread.conversation.workspace.can_user_edit(str(current_user.id)):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    # Delegate to the canonical ChatService.create_message. This route used to
-    # reimplement it and drifted (same as the v2 standalone route, fixed in
-    # #1051): it accepted but silently discarded latency_ms, stopped, and
-    # attachment_ids, skipped token accounting, and lacked the org-ownership
-    # guard on attachments. The path thread_id is authoritative — this route
-    # always wrote to it and ignored any body thread_id.
-    from src.services.threads.chat_service import get_chat_service
+    message = ChatMessage(
+        thread_id=thread_id,
+        user_id=current_user.id if request.role.value == "user" else None,
+        role=MessageRole(request.role.value),
+        content=request.content,
+    )
+    db.add(message)
+    await db.flush()  # Flush to get message.id for citations
 
-    request.thread_id = thread_id
-    service = get_chat_service(db)
-    message = await service.create_message(request, current_user.id)
-    if not message:
-        raise HTTPException(
-            status_code=404, detail="Thread not found or insufficient permissions"
-        )
+    # Handle citations (for assistant messages with RAG sources)
+    if request.citations:
+        for cit in request.citations:
+            citation = Citation(
+                message_id=message.id,
+                document_id=cit.document_id,  # May be None for external refs
+                external_reference_id=cit.external_reference_id,
+                document_title=cit.document_title,
+                document_type=cit.document_type,
+                chunk_index=cit.chunk_index,
+                chunk_id=cit.chunk_id,
+                snippet=cit.snippet,
+                page_number=cit.page_number,
+                score=cit.score,
+                rerank_score=cit.rerank_score,
+            )
+            db.add(citation)
+
+    # Update thread stats
+    thread.message_count = (thread.message_count or 0) + 1
+    thread.last_message_at = datetime.utcnow()
+
+    # Update conversation activity
+    thread.conversation.last_activity_at = datetime.utcnow()
+
+    await db.commit()
 
     # Re-query with eager loading to get citations with document info
     stmt = (
         select(ChatMessage)
         .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
         )
         .where(ChatMessage.id == message.id)
     )
@@ -867,20 +827,8 @@ async def list_messages(
     stmt = (
         select(ChatMessage)
         .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
         )
         .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
         .order_by(ChatMessage.created_at.asc())
@@ -1346,9 +1294,9 @@ def _workspace_to_response(workspace: Workspace) -> WorkspaceResponse:
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=(
-            len(workspace.conversations) if workspace.conversations else 0
-        ),
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
@@ -1366,9 +1314,9 @@ def _workspace_to_detail_response(workspace: Workspace) -> WorkspaceDetailRespon
         owner_id=workspace.owner_id,
         organization_id=workspace.organization_id,
         member_count=len(workspace.members) if workspace.members else 0,
-        conversation_count=(
-            len(workspace.conversations) if workspace.conversations else 0
-        ),
+        conversation_count=len(workspace.conversations)
+        if workspace.conversations
+        else 0,
         collection_count=len(workspace.collections) if workspace.collections else 0,
         created_at=workspace.created_at,
         updated_at=workspace.updated_at,
@@ -1392,18 +1340,8 @@ def _member_to_response(member: WorkspaceMember) -> WorkspaceMemberResponse:
     )
 
 
-def _conversation_to_response(
-    conversation: Conversation,
-    thread_count: int | None = None,
-    message_count: int | None = None,
-) -> ConversationResponse:
-    """Convert Conversation model to response schema.
-
-    thread_count/message_count may be supplied from a grouped COUNT/SUM so the
-    list path need not selectinload every thread row per conversation just to
-    size the sidebar badges. When omitted (single-conversation callers that
-    already eager-load threads), they fall back to the loaded relationship.
-    """
+def _conversation_to_response(conversation: Conversation) -> ConversationResponse:
+    """Convert Conversation model to response schema"""
     return ConversationResponse(
         id=conversation.id,
         workspace_id=conversation.workspace_id,
@@ -1413,52 +1351,22 @@ def _conversation_to_response(
         is_pinned=conversation.is_pinned,
         last_activity_at=conversation.last_activity_at,
         created_by_id=conversation.created_by_id,
-        thread_count=(
-            thread_count
-            if thread_count is not None
-            else conversation.thread_count
-        ),
-        message_count=(
-            message_count
-            if message_count is not None
-            else (
-                sum(t.message_count or 0 for t in conversation.threads)
-                if conversation.threads
-                else 0
-            )
-        ),
+        thread_count=conversation.thread_count,
+        message_count=sum(t.message_count or 0 for t in conversation.threads)
+        if conversation.threads
+        else 0,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
 
 
-def _last_message_preview_expression():
-    """Latest non-deleted message excerpt for a thread-list row."""
-    return (
-        select(func.substr(ChatMessage.content, 1, THREAD_PREVIEW_MAX_CHARS))
-        .where(
-            ChatMessage.thread_id == Thread.id,
-            ChatMessage.is_deleted == False,
-            ChatMessage.role.in_([MessageRole.USER, MessageRole.ASSISTANT]),
-        )
-        .order_by(ChatMessage.created_at.desc())
-        .limit(1)
-        .correlate(Thread)
-        .scalar_subquery()
-        .label("last_message_preview")
-    )
-
-
-def _thread_to_response(
-    thread: Thread, last_message_preview: Optional[str] = None
-) -> ThreadResponse:
+def _thread_to_response(thread: Thread) -> ThreadResponse:
     """Convert Thread model to response schema"""
     return ThreadResponse(
         id=thread.id,
         conversation_id=thread.conversation_id,
         title=thread.title or thread.generate_title(),
         summary=thread.summary,
-        last_message_preview=last_message_preview,
         status=thread.status.value if thread.status else "active",
         last_message_at=thread.last_message_at,
         message_count=thread.message_count or 0,
@@ -1513,16 +1421,12 @@ def _message_to_response(message: ChatMessage) -> ChatMessageResponse:
         tool_call_id=message.tool_call_id,
         feedback_rating=message.feedback_rating,
         feedback_text=message.feedback_text,
-        citations=(
-            [_citation_to_response(c) for c in message.citations]
-            if message.citations
-            else []
-        ),
-        attachments=(
-            [_attachment_to_response(a) for a in message.attachments]
-            if message.attachments
-            else []
-        ),
+        citations=[_citation_to_response(c) for c in message.citations]
+        if message.citations
+        else [],
+        attachments=[_attachment_to_response(a) for a in message.attachments]
+        if message.attachments
+        else [],
         created_at=message.created_at,
         updated_at=message.updated_at,
     )
@@ -1537,11 +1441,9 @@ def _citation_to_response(citation: Citation) -> CitationResponse:
         chunk_index=citation.chunk_index,
         chunk_id=citation.chunk_id,
         snippet=citation.snippet,
-        snippet_preview=(
-            citation.snippet[:200] + "..."
-            if citation.snippet and len(citation.snippet) > 200
-            else citation.snippet
-        ),
+        snippet_preview=citation.snippet[:200] + "..."
+        if citation.snippet and len(citation.snippet) > 200
+        else citation.snippet,
         page_number=citation.page_number,
         score=citation.score,
         rerank_score=citation.rerank_score,
@@ -1565,11 +1467,9 @@ def _attachment_to_response(attachment) -> MessageAttachmentResponse:
         display_name=attachment.display_name,
         thumbnail_url=attachment.thumbnail_url,
         document_title=attachment.document.title if attachment.document else None,
-        document_type=(
-            attachment.document.document_type.value
-            if attachment.document and attachment.document.document_type
-            else None
-        ),
+        document_type=attachment.document.document_type.value
+        if attachment.document and attachment.document.document_type
+        else None,
         mime_type=attachment.document.mime_type if attachment.document else None,
     )
 
@@ -1599,11 +1499,9 @@ def _collection_to_detail_response(collection: Collection) -> CollectionDetailRe
                     {
                         "id": str(cd.document.id),
                         "title": cd.document.title,
-                        "document_type": (
-                            cd.document.document_type.value
-                            if cd.document.document_type
-                            else None
-                        ),
+                        "document_type": cd.document.document_type.value
+                        if cd.document.document_type
+                        else None,
                         "sort_order": cd.sort_order,
                     }
                 )
@@ -1901,23 +1799,6 @@ async def list_messages_standalone(
     thread_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    order: str = Query(
-        "asc",
-        pattern="^(asc|desc)$",
-        description=(
-            "asc = chronological page/offset (default). desc = newest-first "
-            "cursor window: returns the most recent `limit` messages (older than "
-            "`before_id` when given), newest→oldest; the client reverses for "
-            "display. `has_more` then means older messages remain."
-        ),
-    ),
-    before_id: Optional[UUID] = Query(
-        None,
-        description=(
-            "desc-order cursor: return only messages strictly OLDER than this "
-            "message id. Ignored when order=asc."
-        ),
-    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1949,61 +1830,28 @@ async def list_messages_standalone(
     count_result = await db.execute(count_stmt)
     total = count_result.scalar() or 0
 
-    # load_only: the message responses render only title/type/mime of a
-    # cited/attached Document — never content_text/content_summary/search_vector
-    # (the heavy extracted body). Loading only the 3 read columns keeps
-    # content_text off the wire on every paged fetch.
-    base_stmt = select(ChatMessage).options(
-        selectinload(ChatMessage.citations)
-        .selectinload(Citation.document)
-        .load_only(Document.title, Document.document_type, Document.mime_type),
-        selectinload(ChatMessage.attachments)
-        .selectinload(MessageAttachment.document)
-        .load_only(Document.title, Document.document_type, Document.mime_type),
-    ).where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
-
-    if order == "desc":
-        # Newest-first cursor window (long-thread paging): the most recent
-        # `limit` messages, optionally older than `before_id`, returned
-        # newest→oldest (the client reverses for chronological display). A
-        # +1-row sentinel — not offset+len<total — decides `has_more`, so a
-        # cursor page never re-fetches itself forever.
-        if before_id is not None:
-            cursor_at = (
-                await db.execute(
-                    select(ChatMessage.created_at).where(
-                        ChatMessage.id == before_id,
-                        ChatMessage.thread_id == thread_id,
-                    )
-                )
-            ).scalar_one_or_none()
-            if cursor_at is not None:
-                base_stmt = base_stmt.where(ChatMessage.created_at < cursor_at)
-        rows = (
-            await db.execute(
-                base_stmt.order_by(ChatMessage.created_at.desc()).limit(limit + 1)
-            )
-        ).scalars().all()
-        has_more = len(rows) > limit
-        messages = rows[:limit]  # newest→oldest; client reverses
-    else:
-        # Chronological page/offset (default, backward-compatible).
-        offset = (page - 1) * limit
-        messages = (
-            await db.execute(
-                base_stmt.order_by(ChatMessage.created_at.asc())
-                .offset(offset)
-                .limit(limit)
-            )
-        ).scalars().all()
-        has_more = (offset + len(messages)) < total
+    # Query with eager loading of citations and their documents
+    offset = (page - 1) * limit
+    msg_stmt = (
+        select(ChatMessage)
+        .options(
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
+        )
+        .where(ChatMessage.thread_id == thread_id, ChatMessage.is_deleted == False)
+        .order_by(ChatMessage.created_at.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+    msg_result = await db.execute(msg_stmt)
+    messages = msg_result.scalars().all()
 
     return ChatMessageListResponse(
         messages=[_message_to_response(m) for m in messages],
         total=total,
         page=page,
         limit=limit,
-        has_more=has_more,
+        has_more=(offset + len(messages)) < total,
     )
 
 
@@ -2015,47 +1863,72 @@ async def create_message_standalone(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new message (standalone route - uses thread_id from request body).
+    """Create a new message (standalone route - uses thread_id from request body)"""
+    thread_stmt = select(Thread).where(
+        Thread.id == request.thread_id, Thread.is_deleted == False
+    )
+    thread_result = await db.execute(thread_stmt)
+    thread = thread_result.scalars().first()
 
-    CANONICAL create-message route (audit finding C4). This flat
-    ``POST /api/v2/messages`` is the only create-message route any client calls
-    (frontend ``workspaceService.createMessage``); the two nested variants
-    (``POST /api/v2/threads/{thread_id}/messages`` and
-    ``POST /api/v2/workspaces/.../threads/{thread_id}/messages``) are deprecated
-    and awaiting removal. Route new clients here.
-    """
-    # Delegate to the canonical ChatService.create_message. This route used to
-    # reimplement it and drifted: it accepted but silently discarded
-    # latency_ms, stopped, and attachment_ids (so legacy-mode clients lost the
-    # stopped badge / response time on reload), skipped token accounting, and
-    # lacked the org-ownership guard on attachments.
-    from src.services.threads.chat_service import get_chat_service
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
 
-    service = get_chat_service(db)
-    message = await service.create_message(request, current_user.id)
-    if not message:
-        raise HTTPException(
-            status_code=404, detail="Thread not found or insufficient permissions"
-        )
+    conv_stmt = select(Conversation).where(
+        Conversation.id == thread.conversation_id, Conversation.is_deleted == False
+    )
+    conv_result = await db.execute(conv_stmt)
+    conversation = conv_result.scalars().first()
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    workspace = await _get_workspace_or_404(db, conversation.workspace_id, current_user)
+
+    if not workspace.can_user_edit(str(current_user.id)):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    message = ChatMessage(
+        thread_id=request.thread_id,
+        user_id=current_user.id if request.role.value == "user" else None,
+        role=MessageRole(request.role.value),
+        content=request.content,
+    )
+    db.add(message)
+    await db.flush()  # Flush to get message.id for citations
+
+    # Handle citations (for assistant messages with RAG sources)
+    if request.citations:
+        for cit in request.citations:
+            citation = Citation(
+                message_id=message.id,
+                document_id=cit.document_id,  # May be None for external refs
+                external_reference_id=cit.external_reference_id,
+                document_title=cit.document_title,
+                document_type=cit.document_type,
+                chunk_index=cit.chunk_index,
+                chunk_id=cit.chunk_id,
+                snippet=cit.snippet,
+                page_number=cit.page_number,
+                score=cit.score,
+                rerank_score=cit.rerank_score,
+            )
+            db.add(citation)
+
+    # Update thread stats
+    thread.message_count = (thread.message_count or 0) + 1
+    thread.last_message_at = datetime.utcnow()
+
+    # Update conversation activity
+    conversation.last_activity_at = datetime.utcnow()
+
+    await db.commit()
 
     # Re-query with eager loading to get citations with document info
     stmt = (
         select(ChatMessage)
         .options(
-            # load_only: the message responses render only title/type/mime of a
-            # cited/attached Document — never content_text/content_summary/
-            # search_vector (the heavy extracted body). Loading only the 3 read
-            # columns keeps content_text off the wire on every paged fetch.
-            selectinload(ChatMessage.citations)
-            .selectinload(Citation.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
-            selectinload(ChatMessage.attachments)
-            .selectinload(MessageAttachment.document)
-            .load_only(
-                Document.title, Document.document_type, Document.mime_type
-            ),
+            selectinload(ChatMessage.citations).selectinload(Citation.document),
+            selectinload(ChatMessage.attachments).selectinload(MessageAttachment.document),
         )
         .where(ChatMessage.id == message.id)
     )
@@ -2255,26 +2128,22 @@ async def list_threads_standalone(
 
     # Fetch threads
     offset = (page - 1) * limit
-    preview_expr = _last_message_preview_expression()
     stmt = (
-        select(Thread, preview_expr)
+        select(Thread)
         .where(*base_conditions)
         .order_by(Thread.last_message_at.desc())
         .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
-    thread_rows = result.all()
+    threads = result.scalars().all()
 
     return ThreadListResponse(
-        threads=[
-            _thread_to_response(thread, last_message_preview=preview)
-            for thread, preview in thread_rows
-        ],
+        threads=[_thread_to_response(t) for t in threads],
         total=total,
         page=page,
         limit=limit,
-        has_more=(offset + len(thread_rows)) < total,
+        has_more=(offset + len(threads)) < total,
     )
 
 

@@ -66,11 +66,12 @@ def _make_state(user_msg: str) -> dict:
 
 
 def _make_config(thread_id: str | None = None) -> dict:
+    user = Mock(id=uuid4(), organization_id=uuid4())
     return {
         "configurable": {
             "thread_id": thread_id or str(uuid4()),
-            "user_id": str(uuid4()),
-            "organization_id": str(uuid4()),
+            "db": AsyncMock(),
+            "current_user": user,
             "page_context": {"type": "unknown"},
         }
     }
@@ -119,7 +120,7 @@ def _mock_infra():
             ),
             # Mock tool execution (needs DB, external APIs)
             patch(
-                "src.services.agent.tools_impl.execute_tool",
+                "src.api.agent.execute.execute_tool",
                 new=AsyncMock(return_value={"results": [], "total": 0, "message": "Mocked tool result"}),
             ),
         ):
@@ -280,7 +281,7 @@ class TestAgentErrorResilience:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                "src.services.agent.tools_impl.execute_tool",
+                "src.api.agent.execute.execute_tool",
                 new=AsyncMock(side_effect=Exception("Service unavailable")),
             ),
         ):

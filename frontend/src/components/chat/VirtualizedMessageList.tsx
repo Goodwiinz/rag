@@ -4,36 +4,25 @@ import React, {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import { VariableSizeList as List } from 'react-window';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { InlineAgentSummary } from '@/components/chat/shared/InlineAgentSummary';
 import { ChatBubble } from '@/components/chat/shared/ChatBubble';
-import { AuiMessageByIndex } from '@/components/chat/aui/AuiMessage';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  CommandAction,
+  CommandOutput,
+} from '@/components/chat/commandOutput';
 import type { Citation } from '@/utils/citationParser';
 
+const VIRTUALIZATION_THRESHOLD = 75;
 const OVERSCAN_COUNT = 5;
 const DEFAULT_ROW_HEIGHT = 120;
 const MEASURE_PADDING = 8;
-
-/**
- * Total pixel height of the first `addedCount` rows — the amount to shift the
- * scroll offset by on a prepend so the visible messages stay anchored.
- * Extracted so the delta math is unit-testable without react-window in jsdom.
- */
-export function prependScrollDelta(
-  addedCount: number,
-  getItemSize: (index: number) => number
-): number {
-  let delta = 0;
-  for (let i = 0; i < addedCount; i++) delta += getItemSize(i);
-  return delta;
-}
 
 interface VirtualizedMessageListProps {
   messages: ChatPageMessage[];
@@ -121,29 +110,22 @@ const MessageRow = memo(function MessageRow({ index, style, data }: RowProps) {
       {message.role === 'assistant' && isLast && !storeIsStreaming && (
         <InlineAgentSummary threadId={activeThreadId} />
       )}
-      {isLast &&
-      isLoading &&
-      !storeIsStreaming &&
-      message.role === 'assistant' ? (
-        <ChatBubble
-          message={message}
-          index={index}
-          modelName="NOUS"
-          isTyping
-          onRetry={() => onRegenerate(index)}
-          onCitationClick={onCitationClick}
-          thinkingLabel={thinkingLabel}
-        />
-      ) : (
-        <AuiMessageByIndex
-          index={index}
-          message={message}
-          onRetry={
-            message.role === 'assistant' ? () => onRegenerate(index) : undefined
-          }
-          onCitationClick={onCitationClick}
-        />
-      )}
+      <ChatBubble
+        message={message}
+        index={index}
+        modelName={message.role === 'assistant' ? 'NOUS' : undefined}
+        isTyping={
+          isLast &&
+          isLoading &&
+          !storeIsStreaming &&
+          message.role === 'assistant'
+        }
+        onRetry={
+          message.role === 'assistant' ? () => onRegenerate(index) : undefined
+        }
+        onCitationClick={onCitationClick}
+        thinkingLabel={thinkingLabel}
+      />
     </>
   );
 
@@ -212,10 +194,8 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
   const thinkingLabel = isRetrievingRag ? 'Reading sources' : 'Reflecting';
 
   // Scroll-to-top detection for loading older messages
-  const lastScrollOffsetRef = useRef(0);
   const handleScroll = useCallback(
     ({ scrollOffset }: { scrollOffset: number }) => {
-      lastScrollOffsetRef.current = scrollOffset;
       if (
         onLoadOlder &&
         hasMore &&
@@ -250,31 +230,6 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       DEFAULT_ROW_HEIGHT,
     [messages]
   );
-
-  const prevFirstIdRef = useRef<string | undefined>(messages[0]?.id);
-  // On prepend the indices shift by the added count: react-window's cached
-  // offsets are stale (heights are id-keyed and survive, but offsets are
-  // positional) and the current pixel offset now points at different rows.
-  // Reset the offset cache and shift the scroll position by the estimated
-  // height of the new rows so the visible messages stay anchored.
-  // ponytail: unmeasured new rows use DEFAULT_ROW_HEIGHT, so the anchor can
-  // be off by (actual - 120)px per row until measurement lands; store real
-  // heights from the API response if this is ever noticeable.
-  useLayoutEffect(() => {
-    const firstId = messages[0]?.id;
-    const prevCount = prevMessageCountRef.current;
-    const isPrepend =
-      messages.length > prevCount &&
-      currentLastId === prevLastIdRef.current &&
-      firstId !== prevFirstIdRef.current;
-    if (isPrepend && listRef.current) {
-      const added = messages.length - prevCount;
-      listRef.current.resetAfterIndex(0);
-      const delta = prependScrollDelta(added, getItemSize);
-      listRef.current.scrollTo(lastScrollOffsetRef.current + delta);
-    }
-    prevFirstIdRef.current = firstId;
-  }, [messages, currentLastId, getItemSize]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -330,7 +285,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
         <div className="flex justify-center py-2">
           <button
             onClick={onLoadOlder}
-            className="text-xs font-medium text-(--nous-fg-2) hover:text-(--nous-sol) transition-colors"
+            className="text-xs font-medium text-[var(--nous-fg-2)] hover:text-[var(--nous-sol)] transition-colors"
           >
             Load older messages
           </button>
@@ -338,7 +293,7 @@ export const VirtualizedMessageList = memo(function VirtualizedMessageList({
       )}
       {isLoadingOlder && (
         <div className="flex justify-center py-2">
-          <span className="text-xs font-medium text-(--nous-fg-2)">
+          <span className="text-xs font-medium text-[var(--nous-fg-2)]">
             Loading older messages...
           </span>
         </div>

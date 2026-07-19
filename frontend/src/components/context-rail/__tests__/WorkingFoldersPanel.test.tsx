@@ -1,17 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { WorkingFoldersPanel } from '../WorkingFoldersPanel';
+import { useCitationsForThread } from '@/hooks';
 import { useProjectWorkingFolders } from '../hooks/useProjectWorkingFolders';
 
+vi.mock('@/hooks', () => ({
+  useCitationsForThread: vi.fn(),
+}));
 vi.mock('../hooks/useProjectWorkingFolders', () => ({
   useProjectWorkingFolders: vi.fn(),
 }));
 
+const mockedUseCitationsForThread = vi.mocked(useCitationsForThread);
 const mockedUseProjectWorkingFolders = vi.mocked(useProjectWorkingFolders);
 
 describe('WorkingFoldersPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedUseCitationsForThread.mockReturnValue({
+      allCitations: [],
+      relatedResults: [],
+      activeDocument: null,
+    });
     mockedUseProjectWorkingFolders.mockReturnValue({
       documents: undefined,
       notes: undefined,
@@ -22,7 +32,7 @@ describe('WorkingFoldersPanel', () => {
   });
 
   it('renders empty state when no project is bound', () => {
-    render(<WorkingFoldersPanel allCitations={[]} />);
+    render(<WorkingFoldersPanel />);
     expect(
       screen.getByText(/no files yet — cited sources will appear here/i)
     ).toBeInTheDocument();
@@ -39,7 +49,7 @@ describe('WorkingFoldersPanel', () => {
       isLoading: false,
       errors: {},
     });
-    render(<WorkingFoldersPanel allCitations={[]} projectId="p1" />);
+    render(<WorkingFoldersPanel projectId="p1" />);
     expect(screen.getByText('This thread')).toBeInTheDocument();
     expect(screen.getByText('Sources')).toBeInTheDocument();
     expect(screen.getByText('Notes')).toBeInTheDocument();
@@ -55,7 +65,7 @@ describe('WorkingFoldersPanel', () => {
       isLoading: false,
       errors: {},
     });
-    render(<WorkingFoldersPanel allCitations={[]} projectId="p1" />);
+    render(<WorkingFoldersPanel projectId="p1" />);
     expect(
       screen.getByText(/no files yet — cited sources will appear here/i)
     ).toBeInTheDocument();

@@ -1,12 +1,8 @@
 """LangGraph tool wrappers for agent tools.
 
 Each tool delegates to the existing implementation in
-``src.services.agent.tools_impl``. The LangGraph ``RunnableConfig.configurable``
-dict carries **scalar identifiers only** (``user_id`` / ``organization_id`` /
-``thread_id`` / ``page_context``) — never a live ``AsyncSession`` or ORM
-``User`` (audit B8). Wrappers that need database access open a fresh
-tool-call-scoped session via :func:`~src.services.agent.tool_session.tool_session`
-and re-load the acting user org-scoped with ``resolve_tool_user``.
+``src.api.agent.execute`` and extracts ``db`` / ``current_user`` /
+``page_context`` from the LangGraph ``RunnableConfig.configurable`` dict.
 """
 
 import asyncio
@@ -14,10 +10,12 @@ import functools
 import inspect
 import logging
 import re
-from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -105,39 +103,16 @@ def _validate_connector_name(value: Optional[str]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _get_ids(config: RunnableConfig) -> Tuple[str, str, dict]:
-    """Extract (user_id, organization_id, page_context) from config.
-
-    The configurable carries scalar ids only (audit B8) — never a live
-    session or ORM user.
-    """
+def _get_context(
+    config: RunnableConfig,
+) -> Tuple[Optional[AsyncSession], Optional[User], dict]:
+    """Extract db session, current user, and page context from config."""
     configurable = config.get("configurable", {})
     return (
-        str(configurable.get("user_id", "") or ""),
-        str(configurable.get("organization_id", "") or ""),
-        configurable.get("page_context", {}) or {},
+        configurable.get("db"),
+        configurable.get("current_user"),
+        configurable.get("page_context", {}),
     )
-
-
-@asynccontextmanager
-async def _tool_context(config: RunnableConfig) -> AsyncIterator[tuple]:
-    """Yield ``(session, current_user, page_context)`` for one tool call.
-
-    Opens a fresh tool-call-scoped session and re-loads the acting user
-    org-scoped from the ids in ``configurable`` (audit B8). ``current_user``
-    is ``None`` when the ids are missing/invalid — implementations already
-    fail closed with "Authentication required" in that case.
-    """
-    from src.services.agent.tool_session import resolve_tool_user, tool_session
-
-    user_id, organization_id, page_ctx = _get_ids(config)
-    async with tool_session() as session:
-        current_user = await resolve_tool_user(session, user_id, organization_id)
-        # Release the resolve transaction's connection back to the pool while
-        # the (possibly slow) tool body runs; expire_on_commit=False keeps
-        # the loaded User usable.
-        await session.commit()
-        yield session, current_user, page_ctx
 
 
 def _resolve_project_id(
@@ -196,7 +171,7 @@ async def search_arxiv(
     academic publications, or scientific articles.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_search_arxiv
+    from src.api.agent.execute import _tool_search_arxiv
 
     args: Dict[str, Any] = {
         "query": query,
@@ -221,20 +196,20 @@ async def ingest_arxiv_papers(
     target a different project.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_ingest_arxiv
+    from src.api.agent.execute import _tool_ingest_arxiv
 
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        user_id = str(current_user.id) if current_user else ""
-        # Cap batch size — ingestion is heavy and a hallucinated 100-paper
-        # batch will saturate the worker pool and trip downstream timeouts.
-        capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
-        resolved_project_id = _resolve_project_id(project_id, page_ctx)
-        return await _tool_ingest_arxiv(
-            {"paper_ids": capped_ids, "project_id": resolved_project_id},
-            user_id,
-            db,
-            current_user,
-        )
+    db, current_user, page_ctx = _get_context(config)
+    user_id = str(current_user.id) if current_user else ""
+    # Cap batch size — ingestion is heavy and a hallucinated 100-paper
+    # batch will saturate the worker pool and trip downstream timeouts.
+    capped_ids = list(paper_ids or [])[:_MAX_INGEST_BATCH]
+    resolved_project_id = _resolve_project_id(project_id, page_ctx)
+    return await _tool_ingest_arxiv(
+        {"paper_ids": capped_ids, "project_id": resolved_project_id},
+        user_id,
+        db,
+        current_user,
+    )
 
 
 @tool
@@ -245,17 +220,17 @@ async def search_documents(
 ) -> Dict[str, Any]:
     """Search the user's indexed documents by title or content."""
     config = config or {}
-    from src.services.agent.tools_impl import _tool_search_documents
+    from src.api.agent.execute import _tool_search_documents
 
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_search_documents(
-            {
-                "query": query,
-                "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
-            },
-            db,
-            current_user,
-        )
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_search_documents(
+        {
+            "query": query,
+            "max_results": _clamp_int(max_results, lo=1, hi=_MAX_RESULTS_CAP),
+        },
+        db,
+        current_user,
+    )
 
 
 @tool
@@ -264,27 +239,21 @@ async def do_kb_retrieve(
     top_k: int = 8,
     config: RunnableConfig | None = None,
 ) -> Dict[str, Any]:
-    """Semantic retrieval over the organization's DigitalOcean Knowledge Base.
-
-    When evidence mode is on, each chunk includes 'relevance' (0-10), a
-    'summary' of how it bears on the query, and a verbatim 'quote'. Cite
-    using the quote. If top relevance is below 5, call this tool again
-    with a narrower or broader reformulation instead of settling for weak
-    evidence."""
+    """Semantic retrieval over the organization's DigitalOcean Knowledge Base."""
     config = config or {}
-    from src.services.agent.tools_impl import _tool_do_kb_retrieve
+    from src.api.agent.execute import _tool_do_kb_retrieve
 
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        # Forward active project_id so the retrieval result is scoped to the
-        # current project and does not leak sibling-project documents.
-        project_id = _resolve_project_id(None, page_ctx)
-        args: Dict[str, Any] = {
-            "query": query,
-            "top_k": _clamp_int(top_k, lo=1, hi=20),
-        }
-        if project_id:
-            args["project_id"] = project_id
-        return await _tool_do_kb_retrieve(args, db, current_user)
+    db, current_user, page_ctx = _get_context(config)
+    # Forward active project_id so the retrieval result is scoped to the
+    # current project and does not leak sibling-project documents.
+    project_id = _resolve_project_id(None, page_ctx)
+    args: Dict[str, Any] = {
+        "query": query,
+        "top_k": _clamp_int(top_k, lo=1, hi=20),
+    }
+    if project_id:
+        args["project_id"] = project_id
+    return await _tool_do_kb_retrieve(args, db, current_user)
 
 
 @tool
@@ -299,17 +268,17 @@ async def add_document_to_project(
     project is inferred from the page context.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_add_document_to_project
+    from src.api.agent.execute import _tool_add_document_to_project
 
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        resolved_pid = _resolve_project_id(project_id, page_ctx)
-        if not resolved_pid:
-            return _missing_project_error("add_document_to_project")
-        return await _tool_add_document_to_project(
-            {"document_id": document_id, "project_id": resolved_pid},
-            db,
-            current_user,
-        )
+    db, current_user, page_ctx = _get_context(config)
+    resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("add_document_to_project")
+    return await _tool_add_document_to_project(
+        {"document_id": document_id, "project_id": resolved_pid},
+        db,
+        current_user,
+    )
 
 
 @tool
@@ -326,8 +295,9 @@ async def create_project(
     If *workspace_id* is omitted, the user's first workspace is used.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_create_project
+    from src.api.agent.execute import _tool_create_project
 
+    db, current_user, _ = _get_context(config)
     args: Dict[str, Any] = {"name": name}
     if description:
         args["description"] = description
@@ -337,8 +307,7 @@ async def create_project(
         args["tags"] = tags
     if workspace_id:
         args["workspace_id"] = workspace_id
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_create_project(args, db, current_user)
+    return await _tool_create_project(args, db, current_user)
 
 
 @tool
@@ -355,20 +324,20 @@ async def create_project_note(
     project is inferred from the page context.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_create_project_note
+    from src.api.agent.execute import _tool_create_project_note
 
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        resolved_pid = _resolve_project_id(project_id, page_ctx)
-        if not resolved_pid:
-            return _missing_project_error("create_project_note")
-        args: Dict[str, Any] = {
-            "title": title,
-            "content": content,
-            "project_id": resolved_pid,
-        }
-        if tags:
-            args["tags"] = tags
-        return await _tool_create_project_note(args, db, current_user)
+    db, current_user, page_ctx = _get_context(config)
+    resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_project_note")
+    args: Dict[str, Any] = {
+        "title": title,
+        "content": content,
+        "project_id": resolved_pid,
+    }
+    if tags:
+        args["tags"] = tags
+    return await _tool_create_project_note(args, db, current_user)
 
 
 @tool
@@ -386,8 +355,9 @@ async def list_projects(
     over asking the user to provide a project_id.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_list_projects
+    from src.api.agent.execute import _tool_list_projects
 
+    db, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {
         "limit": _clamp_int(limit, lo=1, hi=_MAX_PROJECT_LIMIT),
     }
@@ -397,8 +367,7 @@ async def list_projects(
         args["tag"] = tag
     if search:
         args["search"] = search
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_list_projects(args, db, current_user)
+    return await _tool_list_projects(args, db, current_user)
 
 
 @tool
@@ -420,21 +389,21 @@ async def list_project_documents(
     ``has_more`` so subsequent calls can paginate when needed.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_list_project_documents
+    from src.api.agent.execute import _tool_list_project_documents
 
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        resolved_pid = _resolve_project_id(project_id, page_ctx)
-        if not resolved_pid:
-            return _missing_project_error("list_project_documents")
-        return await _tool_list_project_documents(
-            {
-                "project_id": resolved_pid,
-                "limit": _clamp_int(limit, lo=1, hi=500),
-                "offset": _clamp_int(offset, lo=0, hi=2**31 - 1),
-            },
-            db,
-            current_user,
-        )
+    db, current_user, page_ctx = _get_context(config)
+    resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("list_project_documents")
+    return await _tool_list_project_documents(
+        {
+            "project_id": resolved_pid,
+            "limit": _clamp_int(limit, lo=1, hi=500),
+            "offset": _clamp_int(offset, lo=0, hi=2**31 - 1),
+        },
+        db,
+        current_user,
+    )
 
 
 @tool
@@ -447,12 +416,12 @@ async def summarize_document(
     Use when the user asks for a summary or overview of a specific document.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_summarize_document
+    from src.api.agent.execute import _tool_summarize_document
 
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_summarize_document(
-            {"document_id": document_id}, db, current_user
-        )
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_summarize_document(
+        {"document_id": document_id}, db, current_user
+    )
 
 
 @tool
@@ -467,15 +436,15 @@ async def compare_documents(
     between two or more documents.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_compare_documents
+    from src.api.agent.execute import _tool_compare_documents
 
     _COMPARISON_TYPES = {"general", "methodology", "findings", "themes"}
     safe_type = type if type in _COMPARISON_TYPES else "general"
+    db, current_user, _page_ctx = _get_context(config)
     capped_ids = list(document_ids or [])[:_MAX_COMPARE_DOCUMENTS]
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_compare_documents(
-            {"document_ids": capped_ids, "type": safe_type}, db, current_user
-        )
+    return await _tool_compare_documents(
+        {"document_ids": capped_ids, "type": safe_type}, db, current_user
+    )
 
 
 @tool
@@ -489,12 +458,10 @@ async def extract_entities(
     or concepts mentioned in a document.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_extract_entities
+    from src.api.agent.execute import _tool_extract_entities
 
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_extract_entities(
-            {"document_id": document_id}, db, current_user
-        )
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_extract_entities({"document_id": document_id}, db, current_user)
 
 
 @tool
@@ -509,13 +476,13 @@ async def search_knowledge_graph(
     in the research corpus, or wants to explore entity relationships.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_search_knowledge_graph
+    from src.api.agent.execute import _tool_search_knowledge_graph
 
+    _db, current_user, _page_ctx = _get_context(config)
     args: Dict[str, Any] = {"query": query}
     if entity_types:
         args["entity_types"] = entity_types
-    async with _tool_context(config) as (_db, current_user, _page_ctx):
-        return await _tool_search_knowledge_graph(args, current_user)
+    return await _tool_search_knowledge_graph(args, current_user)
 
 
 @tool
@@ -533,17 +500,17 @@ async def explore_entity_neighborhood(
     First use search_knowledge_graph to find the entity_id.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_explore_entity_neighborhood
+    from src.api.agent.execute import _tool_explore_entity_neighborhood
 
-    async with _tool_context(config) as (_db, current_user, _page_ctx):
-        return await _tool_explore_entity_neighborhood(
-            {
-                "entity_id": entity_id,
-                "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
-                "limit": _clamp_int(limit, lo=1, hi=_MAX_GRAPH_LIMIT),
-            },
-            current_user,
-        )
+    _db, current_user, _page_ctx = _get_context(config)
+    return await _tool_explore_entity_neighborhood(
+        {
+            "entity_id": entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+            "limit": _clamp_int(limit, lo=1, hi=_MAX_GRAPH_LIMIT),
+        },
+        current_user,
+    )
 
 
 @tool
@@ -560,17 +527,17 @@ async def find_entity_paths(
     First use search_knowledge_graph to find both entity IDs.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_find_entity_paths
+    from src.api.agent.execute import _tool_find_entity_paths
 
-    async with _tool_context(config) as (_db, current_user, _page_ctx):
-        return await _tool_find_entity_paths(
-            {
-                "source_entity_id": source_entity_id,
-                "target_entity_id": target_entity_id,
-                "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
-            },
-            current_user,
-        )
+    _db, current_user, _page_ctx = _get_context(config)
+    return await _tool_find_entity_paths(
+        {
+            "source_entity_id": source_entity_id,
+            "target_entity_id": target_entity_id,
+            "max_depth": _clamp_int(max_depth, lo=1, hi=_MAX_GRAPH_DEPTH),
+        },
+        current_user,
+    )
 
 
 @tool
@@ -584,10 +551,10 @@ async def get_graph_stats(
     of the knowledge base, or wants an overview of what's in the graph.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_get_graph_stats
+    from src.api.agent.execute import _tool_get_graph_stats
 
-    async with _tool_context(config) as (_db, current_user, _page_ctx):
-        return await _tool_get_graph_stats({}, current_user)
+    _db, current_user, _page_ctx = _get_context(config)
+    return await _tool_get_graph_stats({}, current_user)
 
 
 @tool
@@ -603,19 +570,19 @@ async def create_draft(
     research around specific themes.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_create_draft
+    from src.api.agent.execute import _tool_create_draft
 
     _DRAFT_STYLES = {"academic", "technical", "summary"}
     safe_style = style if style in _DRAFT_STYLES else "academic"
-    async with _tool_context(config) as (db, current_user, page_ctx):
-        resolved_pid = _resolve_project_id(project_id, page_ctx)
-        if not resolved_pid:
-            return _missing_project_error("create_draft")
-        return await _tool_create_draft(
-            {"project_id": resolved_pid, "themes": themes, "style": safe_style},
-            db,
-            current_user,
-        )
+    db, current_user, page_ctx = _get_context(config)
+    resolved_pid = _resolve_project_id(project_id, page_ctx)
+    if not resolved_pid:
+        return _missing_project_error("create_draft")
+    return await _tool_create_draft(
+        {"project_id": resolved_pid, "themes": themes, "style": safe_style},
+        db,
+        current_user,
+    )
 
 
 @tool
@@ -630,12 +597,12 @@ async def export_bibliography(
     for one or more documents. Supports bibtex, apa, ieee, and mla formats.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_export_bibliography
+    from src.api.agent.execute import _tool_export_bibliography
 
-    async with _tool_context(config) as (db, current_user, _page_ctx):
-        return await _tool_export_bibliography(
-            {"document_ids": document_ids, "format": format}, db, current_user
-        )
+    db, current_user, _page_ctx = _get_context(config)
+    return await _tool_export_bibliography(
+        {"document_ids": document_ids, "format": format}, db, current_user
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -663,22 +630,22 @@ async def execute_code(
     persist between executions, so you can build on previous results.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_execute_code
+    from src.api.agent.execute import _tool_execute_code
 
     configurable = config.get("configurable", {})
     thread_id = configurable.get("thread_id", "default")
+    current_user = configurable.get("current_user")
 
-    async with _tool_context(config) as (_db, current_user, _page_ctx):
-        return await _tool_execute_code(
-            {
-                "code": code,
-                "description": description,
-                "language": language,
-                "packages": packages,
-            },
-            thread_id=thread_id,
-            current_user=current_user,
-        )
+    return await _tool_execute_code(
+        {
+            "code": code,
+            "description": description,
+            "language": language,
+            "packages": packages,
+        },
+        thread_id=thread_id,
+        current_user=current_user,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -708,7 +675,7 @@ async def search_external_database(
     available in the local document store.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_search_external_database
+    from src.api.agent.execute import _tool_search_external_database
 
     args: Dict[str, Any] = {
         "query": query,
@@ -745,7 +712,7 @@ async def list_external_databases(
     ``domain`` to filter by category.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_list_external_databases
+    from src.api.agent.execute import _tool_list_external_databases
 
     args: Dict[str, Any] = {}
     safe_domain = _validate_connector_name(domain)
@@ -771,10 +738,10 @@ async def forget_memory(
     a summary of which memories were deleted.
     """
     config = config or {}
-    from src.services.agent.tools_impl import _tool_forget_memory
+    from src.api.agent.tools_impl import _tool_forget_memory
 
-    # Memory is keyed by the scalar user_id — no session or ORM user needed.
-    user_id, _org_id, page_ctx = _get_ids(config)
+    _db, current_user, page_ctx = _get_context(config)
+    user_id = str(current_user.id) if current_user else ""
     return await _tool_forget_memory(
         query=query, user_id=user_id, page_context=page_ctx
     )

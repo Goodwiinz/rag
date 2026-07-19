@@ -37,10 +37,14 @@ def build_execute_payload(
     return payload
 
 
-def build_stream_headers(*, token: str = "") -> dict[str, str]:
+def build_stream_headers(
+    *, token: str = "", organization_id: str = ""
+) -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if organization_id:
+        headers["X-Organization-ID"] = organization_id
     return headers
 
 
@@ -50,6 +54,7 @@ class AgentAPIClient:
         *,
         base_url: str,
         token: str = "",
+        organization_id: str = "",
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._owns_client = http_client is None
@@ -57,10 +62,15 @@ class AgentAPIClient:
             base_url=base_url.rstrip("/"),
             timeout=httpx.Timeout(connect=5.0, read=None, write=5.0, pool=5.0),
         )
-        self._headers = build_stream_headers(token=token)
+        self._headers = build_stream_headers(
+            token=token, organization_id=organization_id
+        )
 
-    def update_auth(self, token: str) -> None:
-        self._headers = build_stream_headers(token=token)
+    def update_auth(self, token: str, organization_id: str) -> None:
+        self._headers = build_stream_headers(
+            token=token,
+            organization_id=organization_id,
+        )
 
     async def aclose(self) -> None:
         if self._owns_client:

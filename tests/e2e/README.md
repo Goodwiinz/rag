@@ -111,7 +111,7 @@ API_BASE_URL=http://localhost:8000
 
 # Test Credentials
 TEST_ADMIN_EMAIL=admin@test.com
-TEST_ADMIN_PASSWORD=admin123456
+TEST_ADMIN_PASSWORD=REDACTED456
 
 # Database Connections
 TEST_DATABASE_URL=postgresql://test_user:test_password@localhost:5432/rag_test_db

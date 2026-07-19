@@ -80,6 +80,7 @@ start_backend() {
         -e NEO4J_URI=bolt://neo4j:7687 \
         -e NEO4J_USER=neo4j \
         -e NEO4J_PASSWORD=neo4j_password \
+        -e QDRANT_URL=http://qdrant:6333 \
         -e REDIS_URL=redis://redis:6379/0 \
         -e ENVIRONMENT=development \
         -e LOG_LEVEL=info \

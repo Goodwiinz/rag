@@ -149,7 +149,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                   {formatField(key)}
                 </dt>
                 <dd>
-                  <pre className="text-xs font-(--nous-font-mono) bg-muted/50 p-3 rounded-md border border-border text-muted-foreground overflow-auto custom-scrollbar">
+                  <pre className="text-xs font-[var(--nous-font-mono)] bg-muted/50 p-3 rounded-md border border-border text-muted-foreground overflow-auto custom-scrollbar">
                     {JSON.stringify(value, null, 2)}
                   </pre>
                 </dd>
@@ -191,7 +191,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
             <div className="flex items-center gap-1.5">
               <span>ID</span>
-              <span className="font-(--nous-font-mono) text-foreground">
+              <span className="font-[var(--nous-font-mono)] text-foreground">
                 {entity.id.substring(0, 8)}
               </span>
             </div>
@@ -275,7 +275,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
 
         <TabsContent value="overview" className="mt-0 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-border bg-card shadow-xs">
+            <Card className="border-border bg-card shadow-sm">
               <CardHeader className="border-b border-border py-3 bg-muted/30">
                 <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Info
@@ -290,7 +290,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
                   <span className="text-sm text-muted-foreground">
                     Entity ID
                   </span>
-                  <span className="text-xs font-(--nous-font-mono) text-foreground truncate">
+                  <span className="text-xs font-[var(--nous-font-mono)] text-foreground truncate">
                     {entity.id}
                   </span>
                 </div>
@@ -327,7 +327,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
               </CardContent>
             </Card>
 
-            <Card className="border-border bg-card shadow-xs flex flex-col">
+            <Card className="border-border bg-card shadow-sm flex flex-col">
               <CardHeader className="border-b border-border py-3 bg-muted/30">
                 <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                   <FileText
@@ -364,7 +364,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="relationships" className="mt-0">
-          <Card className="border-border bg-card shadow-xs overflow-hidden">
+          <Card className="border-border bg-card shadow-sm overflow-hidden">
             <CardHeader className="border-b border-border py-3 bg-muted/30 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Network
@@ -524,7 +524,7 @@ export const EntityDetail: React.FC<EntityDetailProps> = ({
         </TabsContent>
 
         <TabsContent value="metadata" className="mt-0">
-          <Card className="border-border bg-card shadow-xs">
+          <Card className="border-border bg-card shadow-sm">
             <CardHeader className="border-b border-border py-3 bg-muted/30">
               <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Code2

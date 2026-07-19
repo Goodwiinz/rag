@@ -60,6 +60,16 @@ spec:
             secretKeyRef:
               name: rag-secrets
               key: neo4j-password
+        - name: QDRANT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: QDRANT_URL
+        - name: QDRANT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: rag-secrets
+              key: qdrant-api-key
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -172,6 +182,11 @@ spec:
             secretKeyRef:
               name: rag-secrets
               key: neo4j-password
+        - name: QDRANT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: rag-config
+              key: QDRANT_URL
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:

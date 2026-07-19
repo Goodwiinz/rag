@@ -12,11 +12,9 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Text,
-    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -42,33 +40,6 @@ class ChatMessage(BaseModel):
     """
 
     __tablename__ = "chat_messages"
-    __table_args__ = (
-        # Partial unique index backing the ON CONFLICT idempotency upsert in
-        # jobs._persist_user_message. Declared on the model so create_all
-        # (local docker-compose bootstrap) produces it too — on deployed
-        # clusters it already exists via migrations v0a1b2c3d4e5 /
-        # ensure_upsert_uq_constraints; the predicate must stay byte-identical
-        # to those migrations or ON CONFLICT inference breaks.
-        Index(
-            "uq_chat_messages_thread_client_msg_user",
-            "thread_id",
-            "client_message_id",
-            unique=True,
-            postgresql_where=text("client_message_id IS NOT NULL AND role = 'user'"),
-        ),
-        # Assistant-role mirror (migration y7z8a9b0c1d2) backing the
-        # idempotent assistant insert in jobs._persist_assistant_message —
-        # same byte-identical-predicate rule as above.
-        Index(
-            "uq_chat_messages_thread_client_msg_assistant",
-            "thread_id",
-            "client_message_id",
-            unique=True,
-            postgresql_where=text(
-                "client_message_id IS NOT NULL AND role = 'assistant'"
-            ),
-        ),
-    )
 
     # Parent relationship
     thread_id = Column(
@@ -110,13 +81,6 @@ class ChatMessage(BaseModel):
         ),
     )
     tool_executions = Column(JSONB, nullable=True)  # Agent tool execution details
-
-    # Per-turn agent provenance (assistant rows only) — survives page reload.
-    # plan: [{step, description, tool, args_hint, depends_on}] from the planner.
-    # token_usage: {input_tokens, output_tokens} aggregated across the turn's
-    # chat-model calls.
-    plan = Column(JSONB, nullable=True)
-    token_usage = Column(JSONB, nullable=True)
 
     # Feedback
     feedback_rating = Column(Integer, nullable=True)  # 1-5 rating

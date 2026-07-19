@@ -54,15 +54,15 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
   const getStrategyColor = (strategy: string) => {
     switch (strategy) {
       case 'expansion':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'simplification':
-        return 'bg-(--nous-terra)/15 text-(--nous-terra)';
+        return 'bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]';
       case 'temporal_adaptation':
-        return 'bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)';
+        return 'bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]';
       case 'domain_enhancement':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       default:
-        return 'bg-(--nous-bg-3) text-(--nous-fg-1)';
+        return 'bg-[var(--nous-bg-3)] text-[var(--nous-fg-1)]';
     }
   };
 
@@ -72,23 +72,23 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
       case 'expansion':
         return (
           <SparklesIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'simplification':
         return (
           <LightBulbIcon
-            className={cn(iconClass, 'text-(--nous-terra)')}
+            className={cn(iconClass, 'text-[var(--nous-terra)]')}
           />
         );
       case 'temporal_adaptation':
         return (
-          <ClockIcon className={cn(iconClass, 'text-(--nous-fg-accent-safe)')} />
+          <ClockIcon className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')} />
         );
       case 'domain_enhancement':
         return (
           <AcademicCapIcon
-            className={cn(iconClass, 'text-(--nous-corona)')}
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
           />
         );
       default:
@@ -104,23 +104,23 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
       case 'modality':
         return (
           <DocumentTextIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'date_range':
         return (
-          <ClockIcon className={cn(iconClass, 'text-(--nous-terra)')} />
+          <ClockIcon className={cn(iconClass, 'text-[var(--nous-terra)]')} />
         );
       case 'file_type':
         return (
           <FunnelIcon
-            className={cn(iconClass, 'text-(--nous-fg-accent-safe)')}
+            className={cn(iconClass, 'text-[var(--nous-fg-accent-safe)]')}
           />
         );
       case 'entity':
         return (
           <SparklesIcon
-            className={cn(iconClass, 'text-(--nous-corona)')}
+            className={cn(iconClass, 'text-[var(--nous-corona)]')}
           />
         );
       default:
@@ -161,7 +161,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
             <h3 className="text-lg font-semibold text-foreground mb-3">
               Original Query
             </h3>
-            <div className="p-4 bg-(--nous-bg-2) rounded-lg">
+            <div className="p-4 bg-[var(--nous-bg-2)] rounded-lg">
               <p className="text-foreground italic">
                 "{rewrite.original_query}"
               </p>
@@ -232,11 +232,11 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   </div>
 
                   {expandedQuery === index && (
-                    <div className="mt-3 p-3 bg-(--nous-sol)/10 rounded">
-                      <h4 className="text-sm font-medium text-(--nous-fg-accent-safe) mb-2">
+                    <div className="mt-3 p-3 bg-[var(--nous-sol)]/10 rounded">
+                      <h4 className="text-sm font-medium text-[var(--nous-fg-accent-safe)] mb-2">
                         Reasoning:
                       </h4>
-                      <p className="text-sm text-(--nous-fg-accent-safe)">
+                      <p className="text-sm text-[var(--nous-fg-accent-safe)]">
                         {rewrittenQuery.reasoning}
                       </p>
                     </div>
@@ -258,9 +258,9 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {rewrite.expanded_terms.map((term, index) => (
                     <div
                       key={index}
-                      className="flex items-center space-x-1 bg-(--nous-terra)/10 rounded-full px-3 py-1"
+                      className="flex items-center space-x-1 bg-[var(--nous-terra)]/10 rounded-full px-3 py-1"
                     >
-                      <span className="text-sm font-medium text-(--nous-terra)">
+                      <span className="text-sm font-medium text-[var(--nous-terra)]">
                         {term}
                       </span>
                     </div>
@@ -279,9 +279,9 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {rewrite.removed_terms.map((term, index) => (
                     <div
                       key={index}
-                      className="flex items-center space-x-1 bg-(--nous-mars)/10 rounded-full px-3 py-1"
+                      className="flex items-center space-x-1 bg-[var(--nous-mars)]/10 rounded-full px-3 py-1"
                     >
-                      <span className="text-sm font-medium text-(--nous-mars)">
+                      <span className="text-sm font-medium text-[var(--nous-mars)]">
                         {term}
                       </span>
                     </div>
@@ -301,7 +301,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                 {rewrite.suggested_filters.map((filter, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-(--nous-corona)/10 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-[var(--nous-corona)]/10 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
                       {getFilterIcon(filter.type)}
@@ -329,7 +329,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
               Intent Context
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="p-3 bg-(--nous-bg-2) rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Primary Intent
                 </span>
@@ -337,7 +337,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.primary_intent.replace('_', ' ')}
                 </span>
               </div>
-              <div className="p-3 bg-(--nous-bg-2) rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Complexity
                 </span>
@@ -345,7 +345,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.complexity}
                 </span>
               </div>
-              <div className="p-3 bg-(--nous-bg-2) rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Temporal
                 </span>
@@ -353,7 +353,7 @@ const RewriteDetail: React.FC<RewriteDetailProps> = ({
                   {intent.temporal_aspect}
                 </span>
               </div>
-              <div className="p-3 bg-(--nous-bg-2) rounded">
+              <div className="p-3 bg-[var(--nous-bg-2)] rounded">
                 <span className="text-xs font-medium text-foreground block">
                   Domain
                 </span>
@@ -649,12 +649,12 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
   return (
     <div className={cn('space-y-3', className)}>
       {/* Rewrite Summary */}
-      <div className="flex items-center justify-between p-3 bg-(--nous-bg-2) rounded-lg">
+      <div className="flex items-center justify-between p-3 bg-[var(--nous-bg-2)] rounded-lg">
         <div className="flex items-center space-x-3">
           {isRewriting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--nous-terra) border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--nous-terra)] border-t-transparent" />
           ) : (
-            <ArrowPathIcon className="h-4 w-4 text-(--nous-terra)" />
+            <ArrowPathIcon className="h-4 w-4 text-[var(--nous-terra)]" />
           )}
           <div>
             <div className="flex items-center space-x-2">
@@ -662,7 +662,7 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
                 Query Enhancement:
               </span>
               {rewrite ? (
-                <span className="text-sm font-semibold text-(--nous-terra)">
+                <span className="text-sm font-semibold text-[var(--nous-terra)]">
                   {rewrite.rewritten_queries.length} optimization
                   {rewrite.rewritten_queries.length !== 1 ? 's' : ''} available
                 </span>
@@ -699,12 +699,12 @@ export const QueryRewriter: React.FC<QueryRewriterProps> = ({
 
       {/* Applied Rewrite Indicator */}
       {appliedRewrite && (
-        <div className="flex items-center space-x-2 p-3 bg-(--nous-terra)/10 rounded-lg">
-          <CheckCircleIcon className="h-4 w-4 text-(--nous-terra)" />
-          <span className="text-sm font-medium text-(--nous-terra)">
+        <div className="flex items-center space-x-2 p-3 bg-[var(--nous-terra)]/10 rounded-lg">
+          <CheckCircleIcon className="h-4 w-4 text-[var(--nous-terra)]" />
+          <span className="text-sm font-medium text-[var(--nous-terra)]">
             Applied optimization:
           </span>
-          <span className="text-sm text-(--nous-terra) italic">
+          <span className="text-sm text-[var(--nous-terra)] italic">
             "{appliedRewrite}"
           </span>
           <Button

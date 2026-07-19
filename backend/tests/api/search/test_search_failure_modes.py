@@ -65,7 +65,7 @@ def test_hybrid_search_returns_insufficient_evidence_when_coverage_is_low() -> N
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     hybrid_response = SearchResponse(
         query="rag hallucination mitigation",
@@ -120,7 +120,7 @@ def test_hybrid_search_returns_conflicting_evidence_when_top_hits_disagree() -> 
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     hybrid_response = SearchResponse(
         query="is technique X effective",
@@ -183,7 +183,7 @@ def test_hybrid_search_returns_no_match_when_confidence_is_too_low() -> None:
     mock_user.organization_id = "test-org-id"
 
     app.dependency_overrides[search_module.get_current_user] = lambda: mock_user
-    app.dependency_overrides[search_module.get_db_sync] = lambda: Mock()
+    app.dependency_overrides[search_module.get_db] = lambda: Mock()
 
     hybrid_response = SearchResponse(
         query="rare out-of-domain query",

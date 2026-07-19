@@ -52,11 +52,12 @@ def _make_initial_state(
 
 
 def _make_config() -> dict:
+    user = Mock(id=uuid4(), organization_id=uuid4())
     return {
         "configurable": {
             "thread_id": str(uuid4()),
-            "user_id": str(uuid4()),
-            "organization_id": str(uuid4()),
+            "db": AsyncMock(),
+            "current_user": user,
             "page_context": {"type": "unknown"},
         }
     }

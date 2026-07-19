@@ -2,7 +2,7 @@ name: Agent Regression Eval
 
 # Runs the LangSmith golden-set sweep against the compiled agent graph.
 # Scheduled weekly + manual dispatch. Self-hosted runner so the backend
-# stack (Postgres, Redis, Neo4j) is reachable.
+# stack (Postgres, Redis, Qdrant, Neo4j) is reachable.
 
 on:
   schedule:
@@ -39,10 +39,12 @@ jobs:
       AZURE_OPENAI_EMBEDDING_ENDPOINT: ${{ secrets.AZURE_OPENAI_EMBEDDING_ENDPOINT }}
       AZURE_OPENAI_EMBEDDING_API_KEY: ${{ secrets.AZURE_OPENAI_EMBEDDING_API_KEY }}
       DATABASE_URL: ${{ secrets.EVAL_DATABASE_URL }}
+      QDRANT_URL: ${{ secrets.EVAL_QDRANT_URL }}
       NEO4J_URI: ${{ secrets.EVAL_NEO4J_URI }}
       NEO4J_USER: ${{ secrets.EVAL_NEO4J_USER }}
       NEO4J_PASSWORD: ${{ secrets.EVAL_NEO4J_PASSWORD }}
       REDIS_URL: ${{ secrets.EVAL_REDIS_URL }}
+      # DigitalOcean Knowledge Base (replaces Qdrant)
       DO_KB_ENABLED: "true"
       DO_API_TOKEN: ${{ secrets.EVAL_DO_API_TOKEN }}
       DO_KB_REGION: ${{ secrets.EVAL_DO_KB_REGION }}

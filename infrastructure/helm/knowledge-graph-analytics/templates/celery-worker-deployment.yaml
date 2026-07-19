@@ -40,23 +40,15 @@ spec:
             - --max-tasks-per-child=100
             - --max-memory-per-child=900000
             - -Q
-            # agent_runs: AGENT_DISPATCH_BACKEND=celery turns (audit P1.3).
-            # Consuming the (empty) queue while the flag is "background" is
-            # free; without it here a values-level flag flip would enqueue
-            # turns nobody consumes.
-            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing,agent_runs
+            - celery,document_processing,high_priority,low_priority,entity_processing,graph_processing
           envFrom:
             {{- if .Values.backend.envFrom }}
             {{- toYaml .Values.backend.envFrom | nindent 12 }}
             {{- end }}
-          # Shared backend.env merged with per-component overrides (e.g. a
-          # smaller DB pool budget than the request-serving backend) into a
-          # UNIQUE-by-name list, component value winning. A plain append would
-          # emit duplicate env names, which the kubelet tolerates (last wins)
-          # but ArgoCD's strategic-merge-patch rejects (env list is keyed by
-          # `name`) — breaking sync for the whole app. See mergedEnv helper.
           env:
-            {{- include "knowledge-graph-analytics.mergedEnv" (dict "base" .Values.backend.env "override" .Values.celeryWorker.env) | nindent 12 }}
+            {{- if .Values.backend.env }}
+            {{- toYaml .Values.backend.env | nindent 12 }}
+            {{- end }}
           resources:
             {{- if .Values.celeryWorker.resources }}
             {{- toYaml .Values.celeryWorker.resources | nindent 12 }}

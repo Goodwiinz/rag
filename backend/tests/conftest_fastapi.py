@@ -21,6 +21,7 @@ os.environ.setdefault("ENVIRONMENT", "testing")
 os.environ.setdefault("LOG_LEVEL", "INFO")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 
 @pytest.fixture(scope="session")

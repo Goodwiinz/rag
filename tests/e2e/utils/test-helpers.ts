@@ -9,7 +9,7 @@ export const TEST_DATA = {
   USERS: {
     ADMIN: {
       email: process.env.TEST_ADMIN_EMAIL || 'admin@multimodal-rag.com',
-      password: process.env.TEST_ADMIN_PASSWORD || 'admin123',
+      password: process.env.TEST_ADMIN_PASSWORD || 'REDACTED',
       name: 'Admin User',
     },
     USER: {
@@ -19,7 +19,7 @@ export const TEST_DATA = {
     },
     ORG_ADMIN: {
       email: process.env.TEST_ORG_ADMIN_EMAIL || 'lab-admin@multimodal-rag.com',
-      password: process.env.TEST_ORG_ADMIN_PASSWORD || 'admin123',
+      password: process.env.TEST_ORG_ADMIN_PASSWORD || 'REDACTED',
       name: 'Lab Admin',
     },
   },

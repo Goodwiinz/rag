@@ -35,7 +35,7 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-(--nous-border-1) bg-(--nous-bg-1)/95 backdrop-blur-md safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/95 backdrop-blur-md safe-area-bottom"
       style={{ fontFamily: 'var(--nous-font-ui)' }}
     >
       <div className="flex items-center justify-around h-14">
@@ -50,8 +50,8 @@ export function MobileTabBar() {
               className={cn(
                 'flex flex-col items-center justify-center gap-1 flex-1 h-full transition-colors',
                 isActive
-                  ? 'text-(--nous-sol)'
-                  : 'text-(--nous-fg-3) active:text-(--nous-fg-1)'
+                  ? 'text-[var(--nous-sol)]'
+                  : 'text-[var(--nous-fg-3)] active:text-[var(--nous-fg-1)]'
               )}
             >
               <Icon className="w-5 h-5" strokeWidth={isActive ? 2.2 : 1.8} />
@@ -59,7 +59,7 @@ export function MobileTabBar() {
                 {label}
               </span>
               {isActive && (
-                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-(--nous-sol)" />
+                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-[var(--nous-sol)]" />
               )}
             </Link>
           );

@@ -26,7 +26,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.agent.execute import router
-from src.services.agent.agent_execution_service import (
+from src.api.agent.jobs import (
     _clear_stale_pending_confirmation,
     _get_job,
     _resume_agent_graph,
@@ -165,14 +165,14 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
     graph.ainvoke.assert_not_called()
     job = _get_job(job_id)
     assert job is not None
-    assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
+    assert job["status"] == "error"
     assert "already consumed" in (job.get("error") or "").lower()
 
 
@@ -201,7 +201,11 @@ async def test_resume_proceeds_when_interrupt_present():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch(
+            "src.api.agent.jobs._persist_thread_messages",
+            new=AsyncMock(return_value=("", "")),
+        ),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
@@ -232,14 +236,14 @@ async def test_resume_rejects_ownerless_checkpoint():
             "src.services.agent.checkpointer.get_checkpointer",
             new=AsyncMock(return_value=None),
         ),
-        patch("src.services.agent.agent_execution_service.AsyncSessionLocal", return_value=_async_session_cm()),
+        patch("src.api.agent.jobs.AsyncSessionLocal", return_value=_async_session_cm()),
     ):
         await _resume_agent_graph(job_id, confirmed=True, current_user=user)
 
     graph.ainvoke.assert_not_called()
     job = _get_job(job_id)
     assert job is not None
-    assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
+    assert job["status"] == "error"
     assert job["error"] == "Thread not found"
 
 
@@ -332,13 +336,6 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
     }
 
     with (
-        # The endpoint's validation read is Redis-first (get_job_fresh — P1.3
-        # cross-process freshness); the CAS's in-memory fallback still reads
-        # via get_job. Patch both to serve the Redis-only record.
-        patch(
-            "src.services.agent.job_store.get_job_fresh",
-            new=AsyncMock(return_value=redis_job),
-        ),
         patch(
             "src.services.agent.job_store.get_job",
             new=AsyncMock(return_value=redis_job),

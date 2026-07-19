@@ -1,5 +1,3 @@
-import toast from 'react-hot-toast';
-
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
 import { getNewChatUrl } from '@/components/chat/shared/chatNavigation';
 import { ChatConversation } from '@/hooks/chat/chatTypes';
@@ -100,10 +98,7 @@ export function useChatThreadActions({
         )
       );
     } catch (err) {
-      // The dialog already closed optimistically, so without this the title
-      // silently stays the old value and the rename looks like it worked.
       console.error('[Chat] Rename failed', err);
-      toast.error('Could not rename the conversation. Please try again.');
     }
   }, [renameDialog, setConversations]);
 
@@ -126,7 +121,6 @@ export function useChatThreadActions({
       }
     } catch (err) {
       console.error('[Chat] Delete failed', err);
-      toast.error('Could not delete the conversation. Please try again.');
     }
   }, [
     deleteDialog,
@@ -158,9 +152,6 @@ export function useChatThreadActions({
       }
     } catch (err) {
       console.error('[Chat] Bulk delete failed', err);
-      toast.error(
-        'Could not delete the selected conversations. Please try again.'
-      );
     }
   }, [
     bulkDeleteDialog,

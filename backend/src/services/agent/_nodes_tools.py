@@ -117,14 +117,12 @@ def _scrub_tool_args(args: dict) -> dict:
 
 
 def _hitl_actor(config: RunnableConfig) -> tuple[str, str, str]:
-    """(user_id, org_id, thread_id) for audit logging, from the run config.
-
-    The configurable carries scalar ids only (audit B8) — never an ORM User.
-    """
+    """(user_id, org_id, thread_id) for audit logging, from the run config."""
     configurable = (config or {}).get("configurable", {}) if config else {}
+    cu = configurable.get("current_user")
     return (
-        str(configurable.get("user_id", "") or ""),
-        str(configurable.get("organization_id", "") or ""),
+        str(getattr(cu, "id", "") or ""),
+        str(getattr(cu, "organization_id", "") or ""),
         str(configurable.get("thread_id", "") or ""),
     )
 
@@ -285,20 +283,7 @@ async def interrupt_node(state: AgentState, config: RunnableConfig) -> dict:
 
 TOOL_TIMEOUT_SECONDS = 30
 _SLOW_TOOL_TIMEOUT_SECONDS = 120  # ingest, draft generation, etc.
-# search_arxiv is in the slow tier because its worst-case internal path
-# exceeds the 30s default: 3s rate gate + 20s httpx timeout + 2s sleep +
-# a second attempt inside arxiv_service._make_request (~45-50s aggregate).
-# Dev traces 019f2a48-9083 / 019f2245-cf9d show every search_arxiv call
-# dying with TimeoutError at exactly 30s and the agent re-issuing the
-# same query 4x (steps 3/6/9/12) until the loop cap kills the turn. The
-# wall clock stays bounded by the service's internal timeouts; the 120s
-# cap is only the backstop.
-_SLOW_TOOLS = {
-    "ingest_arxiv_papers",
-    "create_draft",
-    "compare_documents",
-    "search_arxiv",
-}
+_SLOW_TOOLS = {"ingest_arxiv_papers", "create_draft", "compare_documents"}
 
 # Tools that already handle their own retry/backoff internally. Outer
 # retry_transient stacks on top and amplifies wall-clock — trace 019e040b
@@ -429,22 +414,17 @@ async def _execute_single_tool(
         try:
             configurable = config.get("configurable", {})
 
-            # Scalar identifiers only (audit B8) — the executor
-            # (tools_impl.execute_tool) opens its own tool_session() and
-            # re-loads the acting user org-scoped. Never pull a live
-            # AsyncSession / ORM User out of the LangGraph config.
-            user_id = str(configurable.get("user_id", "") or "")
-            organization_id = str(configurable.get("organization_id", "") or "")
-            thread_id = str(configurable.get("thread_id", "") or "")
+            current_user = configurable.get("current_user")
 
             async def _call_tool(args: dict):
                 return await asyncio.wait_for(
                     tool_executor(
                         tool_name=tool_name,
                         args=args,
-                        user_id=user_id,
-                        organization_id=organization_id,
-                        thread_id=thread_id,
+                        user_id=str(current_user.id) if current_user else "",
+                        db=configurable.get("db"),
+                        current_user=current_user,
+                        thread_id=configurable.get("thread_id") or "",
                     ),
                     timeout=timeout,
                 )
@@ -546,13 +526,9 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
     # turn. The cached result is returned with a "[deduped...]" prefix so
     # the model sees both the data and a stop signal.
     from src.services.agent.tool_dedupe import (
-        FAILED_RETRY_THRESHOLD,
         build_deduped_execution_entry,
         build_deduped_tool_message,
-        build_failure_capped_execution_entry,
-        build_failure_capped_tool_message,
         find_cached_tool_results,
-        find_repeated_failures,
     )
 
     # Inject page_context project_id before computing dedupe keys so a repeat
@@ -562,22 +538,7 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
         _with_injected_project_id(tc, page_context) for tc in last_message.tool_calls
     ]
     cached = find_cached_tool_results(deduped_calls, state["messages"], tool_executions)
-    # Circuit breaker: identical (tool, args) that already FAILED twice this
-    # turn is not executed again — the model gets an explicit stop-retrying
-    # error instead (traces 019f2a48-9083 / 019f2245-cf9d: 4x identical
-    # retries per turn until the loop cap).
-    capped = {
-        tc_id: prior
-        for tc_id, prior in find_repeated_failures(
-            deduped_calls, state["messages"], tool_executions
-        ).items()
-        if tc_id not in cached
-    }
-    fresh_calls = [
-        tc
-        for tc in last_message.tool_calls
-        if tc["id"] not in cached and tc["id"] not in capped
-    ]
+    fresh_calls = [tc for tc in last_message.tool_calls if tc["id"] not in cached]
 
     # Execute all NEW tool calls concurrently with semaphore limiting
     tasks = [_execute_single_tool(tc, config, page_context) for tc in fresh_calls]
@@ -594,23 +555,6 @@ async def tool_node(state: AgentState, config: RunnableConfig) -> dict:
             prior = cached[tc["id"]]
             tool_messages.append(build_deduped_tool_message(tc["id"], prior))
             tool_executions.append(build_deduped_execution_entry(tc["id"], tc, prior))
-            continue
-        if tc["id"] in capped:
-            prior = capped[tc["id"]]
-            # Counts toward the error ceiling: two identical failures mean
-            # the "transient" story is over for this turn.
-            error_count += 1
-            last_error = "repeated_failure: identical args already failed this turn"
-            any_failure = True
-            all_success = False
-            tool_messages.append(
-                build_failure_capped_tool_message(
-                    tc["id"], tc, prior, FAILED_RETRY_THRESHOLD
-                )
-            )
-            tool_executions.append(
-                build_failure_capped_execution_entry(tc["id"], tc, prior)
-            )
             continue
         r = fresh_by_id.get(tc["id"])
         if r is None:

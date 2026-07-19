@@ -78,7 +78,7 @@ export function SidebarLayout({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {showHeader && (
-            <header className="flex h-12 sm:h-14 shrink-0 items-center gap-3 border-b border-(--nous-border-1) bg-(--nous-bg-1)/95 backdrop-blur-sm px-3 sm:px-4">
+            <header className="flex h-12 sm:h-14 shrink-0 items-center gap-3 border-b border-[var(--nous-border-1)] bg-[var(--nous-bg-1)]/95 backdrop-blur px-3 sm:px-4">
               {showBreadcrumb && (
                 <Breadcrumb>
                   <BreadcrumbList className="text-xs">

@@ -386,7 +386,7 @@ export function AnalyticsTable<T extends Record<string, any>>({
                                 onClick={() => action.onClick(row, index)}
                                 className={cn(
                                   action.variant === 'destructive' &&
-                                    'text-(--nous-mars)'
+                                    'text-[var(--nous-mars)]'
                                 )}
                               >
                                 <action.icon className="h-4 w-4 mr-2" />

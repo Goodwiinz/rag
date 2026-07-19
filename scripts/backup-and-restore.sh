@@ -197,6 +197,39 @@ backup_neo4j() {
     fi
 }
 
+# Backup Qdrant data
+backup_qdrant() {
+    log_info "Starting Qdrant data backup..."
+
+    local pod_name=$(kubectl get pods -n "$NAMESPACE" -l app=qdrant -o jsonpath='{.items[0].metadata.name}')
+    if [ -z "$pod_name" ]; then
+        log_error "Qdrant pod not found"
+        return 1
+    fi
+
+    local backup_file="$BACKUP_DIR/qdrant_backup_${TIMESTAMP}.tar.gz"
+
+    log_info "Creating Qdrant data archive from pod: $pod_name"
+    kubectl exec -n "$NAMESPACE" "$pod_name" -- tar -czf /tmp/qdrant_backup.tar.gz -C /qdrant/storage storage
+
+    # Copy the archive
+    kubectl cp "$NAMESPACE/$pod_name:/tmp/qdrant_backup.tar.gz" "$backup_file"
+
+    if [ $? -eq 0 ]; then
+        log_success "Qdrant backup completed: $backup_file"
+
+        # Upload to S3 if AWS credentials are available
+        if aws sts get-caller-identity &>/dev/null; then
+            local s3_key="backups/qdrant/qdrant_backup_${TIMESTAMP}.tar.gz"
+            aws s3 cp "$backup_file" "s3://knowledge-graph-analytics-backups/$s3_key"
+            log_success "Qdrant backup uploaded to S3: $s3_key"
+        fi
+    else
+        log_error "Qdrant backup failed"
+        return 1
+    fi
+}
+
 # Backup Kubernetes configurations
 backup_kubernetes_configs() {
     log_info "Starting Kubernetes configuration backup..."
@@ -430,6 +463,7 @@ main() {
             backup_postgresql
             backup_redis
             backup_neo4j
+            backup_qdrant
             backup_kubernetes_configs
             backup_application_files
             create_velero_backup
@@ -476,6 +510,7 @@ Components backed up:
     - PostgreSQL database
     - Redis cache
     - Neo4j graph database
+    - Qdrant vector database
     - Kubernetes configurations
     - Application files
     - Velero cluster backup

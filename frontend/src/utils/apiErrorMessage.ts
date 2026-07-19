@@ -1,51 +1,39 @@
-import { parseErrorBody } from '@/utils/parseErrorBody';
-
 /**
  * Extract a human-readable message from an error thrown by the API client.
  *
- * The API client rejects with an `APIErrorClass` whose `.error` is the backend
- * envelope `{ message, status_code, type, details? }` and whose `.message`
- * mirrors that envelope message. This helper resolves the best available
- * message from either the thrown error itself or, if the error carries a raw
- * response body, from that body — delegating the precedence rules to the
- * shared `parseErrorBody`.
+ * Axios rejects with `err.message === "Request failed with status code 4xx"`
+ * for non-2xx responses — that's useless in a toast. The useful detail lives
+ * on `err.response.data` as either `detail` (FastAPI convention) or
+ * `message` (legacy). This helper walks that chain and falls back sensibly.
  *
- * Safe to call with any unknown value; returns `fallback` if nothing readable
- * is found.
+ * Safe to call with any unknown value; returns `fallback` if nothing
+ * readable is found.
  */
 export function getApiErrorMessage(err: unknown, fallback: string): string {
   if (typeof err === 'object' && err !== null) {
-    const candidate = err as {
-      error?: unknown;
+    const maybeAxios = err as {
       response?: { data?: unknown };
       message?: unknown;
     };
-
-    // Thrown APIErrorClass (or any object shaped like the backend envelope):
-    // parse `{ error: { message, ... } }` directly.
-    if (typeof candidate.error === 'object' && candidate.error !== null) {
-      const parsed = parseErrorBody(err);
-      if (parsed.message !== 'Request failed') {
-        return parsed.message;
+    const data = maybeAxios.response?.data;
+    if (typeof data === 'string' && data.trim()) {
+      return data;
+    }
+    if (typeof data === 'object' && data !== null) {
+      const body = data as { detail?: unknown; message?: unknown };
+      if (typeof body.detail === 'string' && body.detail.trim()) {
+        return body.detail;
+      }
+      if (typeof body.message === 'string' && body.message.trim()) {
+        return body.message;
       }
     }
-
-    // Legacy / interceptor-wrapped errors that carry the raw response body.
-    if (candidate.response?.data !== undefined) {
-      const parsed = parseErrorBody(candidate.response.data);
-      if (parsed.message !== 'Request failed') {
-        return parsed.message;
-      }
-    }
-
-    if (typeof candidate.message === 'string' && candidate.message.trim()) {
-      return candidate.message;
+    if (typeof maybeAxios.message === 'string' && maybeAxios.message.trim()) {
+      return maybeAxios.message;
     }
   }
-
   if (err instanceof Error && err.message) {
     return err.message;
   }
-
   return fallback;
 }

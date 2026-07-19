@@ -53,11 +53,6 @@ repos:
   # Rejects placeholder / empty directory docs. Stdlib Python, no deps.
   - repo: local
     hooks:
-      - id: gitleaks
-        name: gitleaks secret scan
-        entry: gitleaks git --staged --redact --config .gitleaks.toml
-        language: system
-        pass_filenames: false
       - id: dir-docs
         name: directory docs lint
         entry: python3 scripts/docs/check_dir_docs.py

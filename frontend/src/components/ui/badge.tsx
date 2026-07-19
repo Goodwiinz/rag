@@ -11,7 +11,7 @@ const badgeVariants = cva(
   // gap-1.5 intentionally omitted from the base to avoid double-spacing with
   // existing call sites that already apply mr-1/ml-1 on icons. NOUS variants
   // that expect built-in icon spacing should use gap utility at the call site.
-  'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
@@ -23,14 +23,14 @@ const badgeVariants = cva(
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground',
         success:
-          'border-transparent bg-(--nous-terra)/15 text-(--nous-terra)',
+          'border-transparent bg-[var(--nous-terra)]/15 text-[var(--nous-terra)]',
         warning:
-          'border-transparent bg-(--nous-corona)/15 text-(--nous-corona)',
+          'border-transparent bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]',
         info: 'border-transparent bg-muted text-muted-foreground',
         accent:
-          'border-transparent bg-(--nous-sol) text-white hover:bg-(--nous-helios)',
+          'border-transparent bg-[var(--nous-sol)] text-white hover:bg-[var(--nous-helios)]',
         muted:
-          'border-transparent bg-(--nous-aurum) text-(--nous-sol-safe)',
+          'border-transparent bg-[var(--nous-aurum)] text-[var(--nous-sol-safe)]',
       },
     },
     defaultVariants: {

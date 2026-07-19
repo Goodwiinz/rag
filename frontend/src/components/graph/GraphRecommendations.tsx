@@ -490,19 +490,19 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
   const getPriorityColor = (priority: Recommendation['priority']) => {
     switch (priority) {
       case 'high':
-        return 'border-(--nous-mars)/30 bg-(--nous-mars)/10';
+        return 'border-[var(--nous-mars)]/30 bg-[var(--nous-mars)]/10';
       case 'medium':
-        return 'border-(--nous-corona)/30 bg-(--nous-corona)/10';
+        return 'border-[var(--nous-corona)]/30 bg-[var(--nous-corona)]/10';
       case 'low':
-        return 'border-border bg-(--nous-bg-2)';
+        return 'border-border bg-[var(--nous-bg-2)]';
     }
   };
 
   // Get confidence color
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-(--nous-terra)';
-    if (confidence >= 0.6) return 'text-(--nous-corona)';
-    return 'text-(--nous-mars)';
+    if (confidence >= 0.8) return 'text-[var(--nous-terra)]';
+    if (confidence >= 0.6) return 'text-[var(--nous-corona)]';
+    return 'text-[var(--nous-mars)]';
   };
 
   // Load recommendations on mount
@@ -558,7 +558,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                             : filters.types.filter((t) => t !== type);
                           setFilters((prev) => ({ ...prev, types: newTypes }));
                         }}
-                        className="rounded border-border text-(--nous-fg-accent-safe) focus:ring-(--nous-sol) mr-2"
+                        className="rounded border-border text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] mr-2"
                       />
                       <span className="text-sm capitalize">{type}</span>
                     </label>
@@ -587,7 +587,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                             categories: newCategories,
                           }));
                         }}
-                        className="rounded border-border text-(--nous-fg-accent-safe) focus:ring-(--nous-sol) mr-2"
+                        className="rounded border-border text-[var(--nous-fg-accent-safe)] focus:ring-[var(--nous-sol)] mr-2"
                       />
                       <span className="text-sm capitalize">{category}</span>
                     </label>
@@ -645,7 +645,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
       {isLoading ? (
         <Card>
           <CardContent className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-(--nous-sol) border-t-transparent mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--nous-sol)] border-t-transparent mx-auto mb-4"></div>
             <p className="text-muted-foreground">
               Generating recommendations...
             </p>
@@ -686,9 +686,9 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
               >
                 <div className="flex items-start space-x-4">
                   {/* Icon */}
-                  <div className="shrink-0">
+                  <div className="flex-shrink-0">
                     <div className="p-2 bg-background rounded-lg border">
-                      <RecommendationIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
+                      <RecommendationIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     </div>
                   </div>
 
@@ -731,7 +731,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                             key={index}
                             className="flex items-start space-x-2"
                           >
-                            <StarIcon className="h-3 w-3 text-(--nous-sol) mt-0.5 shrink-0" />
+                            <StarIcon className="h-3 w-3 text-[var(--nous-sol)] mt-0.5 flex-shrink-0" />
                             <span>{reason}</span>
                           </li>
                         ))}
@@ -787,7 +787,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                   </div>
 
                   {/* Dismiss */}
-                  <div className="shrink-0">
+                  <div className="flex-shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -838,7 +838,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-(--nous-bg-2) rounded">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded">
                   <div className="text-lg font-bold">
                     {Math.round(selectedRecommendation.confidence * 100)}%
                   </div>
@@ -846,19 +846,19 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                     Confidence
                   </div>
                 </div>
-                <div className="text-center p-3 bg-(--nous-bg-2) rounded">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded">
                   <div className="text-lg font-bold">
                     {Math.round(selectedRecommendation.relevanceScore * 100)}%
                   </div>
                   <div className="text-sm text-muted-foreground">Relevance</div>
                 </div>
-                <div className="text-center p-3 bg-(--nous-bg-2) rounded">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded">
                   <div className="text-lg font-bold capitalize">
                     {selectedRecommendation.priority}
                   </div>
                   <div className="text-sm text-muted-foreground">Priority</div>
                 </div>
-                <div className="text-center p-3 bg-(--nous-bg-2) rounded">
+                <div className="text-center p-3 bg-[var(--nous-bg-2)] rounded">
                   <div className="text-lg font-bold capitalize">
                     {selectedRecommendation.category}
                   </div>
@@ -873,7 +873,7 @@ export const GraphRecommendations: React.FC<GraphRecommendationsProps> = ({
                 <ul className="space-y-2">
                   {selectedRecommendation.reasoning.map((reason, index) => (
                     <li key={index} className="flex items-start space-x-2">
-                      <span className="text-(--nous-fg-accent-safe)">•</span>
+                      <span className="text-[var(--nous-fg-accent-safe)]">•</span>
                       <span className="text-sm">{reason}</span>
                     </li>
                   ))}

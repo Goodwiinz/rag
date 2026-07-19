@@ -16,7 +16,6 @@
  */
 
 import { API_CONFIG, APIErrorClass, DEFAULT_HEADERS } from '@/types/api';
-import { parseErrorBody } from '@/utils/parseErrorBody';
 import { ZodSchema } from 'zod';
 
 // ============================================================================
@@ -49,6 +48,7 @@ export class APIClient {
   private baseURL: string;
   private token: string | null = null;
   private explicitToken: string | null = null;
+  private organizationId: string | null = null;
   private defaultTimeout: number;
 
   constructor(baseURL: string = API_CONFIG.BASE_URL) {
@@ -60,14 +60,16 @@ export class APIClient {
   // Authentication
   // --------------------------------------------------------------------------
 
-  setAuth(token: string): void {
+  setAuth(token: string, organizationId: string): void {
     this.explicitToken = token;
     this.token = token;
+    this.organizationId = organizationId;
   }
 
   clearAuth(): void {
     this.explicitToken = null;
     this.token = null;
+    this.organizationId = null;
   }
 
   /** Load auth from the CURRENT Supabase session before each request.
@@ -102,6 +104,8 @@ export class APIClient {
         data: { session },
       } = await supabase.auth.getSession();
       this.token = session?.access_token ?? null;
+      this.organizationId =
+        session?.user?.user_metadata?.organization_id ?? null;
     } catch (error) {
       console.warn('Failed to load auth from Supabase session:', error);
     }
@@ -114,6 +118,9 @@ export class APIClient {
 
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    if (this.organizationId) {
+      headers['X-Organization-ID'] = this.organizationId;
     }
 
     return headers;
@@ -409,6 +416,9 @@ export class APIClient {
       if (this.token) {
         xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
       }
+      if (this.organizationId) {
+        xhr.setRequestHeader('X-Organization-ID', this.organizationId);
+      }
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -511,7 +521,7 @@ export class APIClient {
   private async handleErrorResponse(
     response: Response
   ): Promise<APIErrorClass> {
-    let errorData: unknown = {};
+    let errorData: Record<string, unknown> = {};
 
     try {
       errorData = await response.json();
@@ -519,22 +529,14 @@ export class APIClient {
       // Response body may not be JSON
     }
 
-    // The backend rewrites every error into the structured envelope
-    // `{ error: { message, status_code, type, details? } }`. Parse it so the
-    // user sees the real cause, and surface `type` so callers can branch on
-    // auth_error / rate_limit instead of only the raw HTTP status text.
-    const parsed = parseErrorBody(errorData, response.statusText);
-    const rawDetails =
-      typeof errorData === 'object' && errorData !== null
-        ? (errorData as Record<string, unknown>)
-        : undefined;
-
     return new APIErrorClass({
-      message: parsed.message,
+      message:
+        (errorData.detail as string) ||
+        (errorData.message as string) ||
+        response.statusText,
       status_code: response.status,
-      type: parsed.type ?? 'http_error',
-      details: parsed.details ?? rawDetails,
-      ...(parsed.silent !== undefined ? { silent: parsed.silent } : {}),
+      type: 'http_error',
+      details: errorData as Record<string, unknown>,
     });
   }
 

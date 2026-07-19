@@ -164,11 +164,11 @@
 
 | File | Line | Issue |
 |------|------|-------|
-| `config/docker-compose/docker-compose.development.yml` | 379, 380 | `MINIO_ROOT_USER=minioadmin` / `MINIO_ROOT_PASSWORD=minioadmin123` |
+| `config/docker-compose/docker-compose.development.yml` | 379, 380 | `MINIO_ROOT_USER=minioadmin` / `MINIO_ROOT_PASSWORD=minioREDACTED` |
 | `config/docker-compose/docker-compose.services.yml` | 291 | `POSTGRES_PASSWORD=postgres` |
 | `config/docker-compose/docker-compose.services.yml` | 330 | `NEO4J_AUTH=neo4j/neo4jpassword` |
 | `config/docker-compose/docker-compose.services.yml` | 417 | `GF_SECURITY_ADMIN_PASSWORD=admin` |
-| `config/docker-compose/docker-compose.websocket.yml` | 336 | `GF_SECURITY_ADMIN_PASSWORD=admin123` |
+| `config/docker-compose/docker-compose.websocket.yml` | 336 | `GF_SECURITY_ADMIN_PASSWORD=REDACTED` |
 | `config/docker-compose/docker-compose.azure.yml` | 145 | `NEO4J_AUTH=neo4j/neo4jpassword` |
 | `config/docker-compose/docker-compose.websocket.yml` | 48 | `NEO4J_PASSWORD=neo4jpassword` |
 | `config/docker-compose/docker-compose.security.yml` | 18 | `SECRET_KEY=security-test-secret-key` |

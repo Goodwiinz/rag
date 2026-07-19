@@ -2,7 +2,6 @@
 File upload and management API endpoints
 """
 
-import logging
 import os
 from datetime import datetime
 from typing import List, Optional
@@ -10,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -22,76 +21,15 @@ from src.core.dependencies import (
 )
 from src.models.document import Document, DocumentType, ProcessingStatus
 from src.models.organization import Organization
-from src.models.processing import JobStatus, ProcessingJob
 from src.models.user import User, UserRole
 from src.services.documents.file_service import FileService, get_file_service
-from src.shared.enums import ApiDocumentStatus
-from src.shared.pagination import Page, PaginationParams
 
 router = APIRouter(prefix="/files", tags=["files"])
-
-
-# Module-level logger: the except handlers in list_files / get_file_statistics /
-# cancel_upload reference `logger`; before this it existed only as a local inside
-# upload_file, so those error paths raised NameError and masked the real error.
-logger = logging.getLogger(__name__)
 
 
 def _escape_like(value: str) -> str:
     """Escape SQL LIKE special characters."""
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def _list_files_filters(
-    organization: Organization,
-    document_type: Optional[DocumentType],
-    processing_status: Optional[str],
-    search: Optional[str],
-) -> List[ColumnElement]:
-    """Build the WHERE clause for the file list endpoint.
-
-    Repo rule (audit C10 / count-filter-drift): the count query and the result
-    query MUST apply the *same* filters. Both route through this single helper
-    so a predicate added to one can never silently drift from the other — a
-    drifted count over-reports ``total`` and manufactures phantom "next" pages.
-
-    Raises ``HTTPException(400)`` for an unknown ``processing_status`` (kept
-    here so count + results reject identically).
-    """
-    conditions: List[ColumnElement] = [
-        Document.organization_id == organization.id,
-        Document.is_deleted == False,  # noqa: E712
-    ]
-
-    if document_type:
-        conditions.append(Document.document_type == document_type)
-
-    if processing_status:
-        # This router emits public status names ('queued'/'indexed') in its
-        # upload response, so a client filtering by what it received sends those
-        # back. Comparing them raw against the ProcessingStatus enum column
-        # raised LookupError -> 500. Translate via the shared vocabulary (single
-        # source of truth), keeping the validated-enum injection-prevention
-        # pattern — only known values reach the query.
-        try:
-            mapped = ApiDocumentStatus.to_db(processing_status)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid processing_status: {processing_status}",
-            )
-        conditions.append(Document.processing_status == mapped)
-
-    if search:
-        escaped_search = _escape_like(search)
-        conditions.append(
-            or_(
-                Document.title.ilike(f"%{escaped_search}%"),
-                Document.filename.ilike(f"%{escaped_search}%"),
-            )
-        )
-
-    return conditions
 
 
 # Request/Response Models
@@ -105,7 +43,7 @@ class FileUploadResponse(BaseModel):
     file_size_bytes: int
     file_size_mb: float
     mime_type: str
-    processing_status: ApiDocumentStatus
+    processing_status: str
     upload_timestamp: str
     created_at: str
     message: str
@@ -113,15 +51,10 @@ class FileUploadResponse(BaseModel):
 
 
 class FileListResponse(BaseModel):
-    # Wire-compatible shape (key ``files``, not ``items``): kept stable for
-    # existing consumers. ``has_more`` is additive and derived from ``total`` +
-    # the returned slice via ``Page.create`` — never hand-set, so it can't claim
-    # a page that doesn't exist.
     files: List[dict]
     total: int
     page: int
     size: int
-    has_more: bool
 
 
 class FileStatsResponse(BaseModel):
@@ -148,6 +81,9 @@ async def upload_file(
     """Upload a file to the system"""
 
     # Debug logging
+    import logging
+
+    logger = logging.getLogger(__name__)
     logger.info(f"📤 Upload Request Debug:")
     logger.info(f"  - User ID: {current_user.id}")
     logger.info(f"  - User Email: {current_user.email}")
@@ -217,8 +153,14 @@ async def upload_file(
             is_public=is_public,
         )
 
-        # Map backend status to the public API vocabulary
-        frontend_status = ApiDocumentStatus.from_db(document.processing_status)
+        # Map backend status to frontend expected status
+        status_mapping = {
+            "PENDING": "queued",
+            "PROCESSING": "processing",
+            "COMPLETED": "indexed",
+            "FAILED": "failed",
+        }
+        frontend_status = status_mapping.get(document.processing_status.value, "queued")
 
         return FileUploadResponse(
             document_id=str(document.id),
@@ -243,7 +185,8 @@ async def upload_file(
 
 @router.get("/", response_model=FileListResponse)
 async def list_files(
-    pagination: PaginationParams = Depends(),
+    page: int = 1,
+    size: int = 20,
     document_type: Optional[DocumentType] = None,
     processing_status: Optional[str] = None,
     search: Optional[str] = None,
@@ -251,19 +194,31 @@ async def list_files(
     organization: Organization = Depends(get_current_organization),
     db: AsyncSession = Depends(get_db),
 ):
-    """List files in the organization.
-
-    Pagination is validated by the shared ``PaginationParams`` dependency
-    (``page >= 1``, ``1 <= size <= 100`` — out-of-range fails closed with 422),
-    and the count + result queries share ``_list_files_filters`` so ``total``
-    and ``has_more`` can never drift (audit C10).
-    """
+    """List files in the organization"""
     try:
-        # Single source of truth for the WHERE clause, applied identically to
-        # the count and the result query.
-        conditions = _list_files_filters(
-            organization, document_type, processing_status, search
-        )
+        from sqlalchemy import or_
+
+        # Build conditions
+        conditions = [
+            Document.organization_id == organization.id,
+            Document.is_deleted == False,
+        ]
+
+        # Apply filters
+        if document_type:
+            conditions.append(Document.document_type == document_type)
+
+        if processing_status:
+            conditions.append(Document.processing_status == processing_status)
+
+        if search:
+            escaped_search = _escape_like(search)
+            conditions.append(
+                or_(
+                    Document.title.ilike(f"%{escaped_search}%"),
+                    Document.filename.ilike(f"%{escaped_search}%"),
+                )
+            )
 
         # Count total results
         count_stmt = select(func.count(Document.id)).where(*conditions)
@@ -271,33 +226,18 @@ async def list_files(
         total = count_result.scalar() or 0
 
         # Fetch documents with pagination
-        stmt = (
-            select(Document)
-            .where(*conditions)
-            .offset(pagination.offset)
-            .limit(pagination.size)
-        )
+        offset = (page - 1) * size
+        stmt = select(Document).where(*conditions).offset(offset).limit(size)
         result = await db.execute(stmt)
         documents = result.scalars().all()
 
-        # Page.create derives has_more from the true total + the returned slice.
-        page = Page.create(
-            items=[doc.to_dict() for doc in documents],
-            total=total,
-            params=pagination,
-        )
-
         return FileListResponse(
-            files=page.items,
-            total=page.total,
-            page=page.page,
-            size=page.size,
-            has_more=page.has_more,
+            files=[doc.to_dict() for doc in documents],
+            total=total,
+            page=page,
+            size=size,
         )
 
-    except HTTPException:
-        # e.g. the 400 for an invalid processing_status — don't mask it as 500.
-        raise
     except Exception as e:
         logger.error(f"Error in list_files: {e}")
         raise HTTPException(
@@ -381,14 +321,6 @@ async def download_file(
 
         bucket, key = parse_storage_key(document.storage_path)
         helper = StorageHelper()
-        # Verify the object exists before redirecting: a blind presign+302 for
-        # a missing object serves the storage provider's raw XML error (and
-        # bucket hostname) instead of a clean app 404, unlike the local branch.
-        if not helper.object_exists(bucket, key):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
         signed_url = helper.create_signed_url(bucket, key, expires_in=3600)
         return RedirectResponse(url=signed_url, status_code=302)
 
@@ -400,13 +332,9 @@ async def download_file(
     if document.storage_backend == "s3" and document.storage_path:
         from src.core.s3_client import S3StorageHelper
 
-        s3_helper = S3StorageHelper()
-        if not s3_helper.object_exists(document.storage_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found in storage",
-            )
-        signed_url = s3_helper.create_signed_url(document.storage_path, expires_in=3600)
+        signed_url = S3StorageHelper().create_signed_url(
+            document.storage_path, expires_in=3600
+        )
         return RedirectResponse(url=signed_url, status_code=302)
 
     # Local file path
@@ -468,7 +396,7 @@ async def update_file_metadata(
             document.is_public = is_public
 
         await db.commit()
-        await db.refresh(document)
+        db.refresh(document)
 
         return {
             "message": "File metadata updated successfully",
@@ -476,7 +404,7 @@ async def update_file_metadata(
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -567,11 +495,7 @@ async def get_file_metadata(
         )
 
     return {
-        # `document.metadata` is SQLAlchemy's reserved declarative MetaData
-        # registry, not the document's JSON metadata — returning it makes
-        # jsonable_encoder raise and the endpoint 500 on every call. The JSON
-        # column is `document_metadata`, exposed via get_metadata().
-        "metadata": document.get_metadata(),
+        "metadata": document.metadata,
         "file_info": {
             "id": str(document.id),
             "title": document.title,
@@ -609,6 +533,7 @@ async def cancel_upload(
             )
 
         # First, check if upload_id exists in processing jobs
+        from src.models.processing import ProcessingJob
 
         job_stmt = select(ProcessingJob).where(
             ProcessingJob.celery_task_id == upload_id, ProcessingJob.is_deleted == False
@@ -625,25 +550,17 @@ async def cancel_upload(
                     detail="You can only cancel your own uploads",
                 )
 
-            # Check if job can be cancelled. JobStatus is a plain PyEnum, so the
-            # old `status not in ["pending", "running"]` compared enum members
-            # to strings — always True, so every cancel early-returned and the
-            # block below was dead (and would have written the raw string
-            # "cancelled" into the enum column). Compare against enum members.
-            if processing_job.status not in (
-                JobStatus.PENDING,
-                JobStatus.QUEUED,
-                JobStatus.RUNNING,
-                JobStatus.RETRYING,
-            ):
+            # Check if job can be cancelled (only pending or running jobs)
+            if processing_job.status not in ["pending", "running"]:
                 return {
-                    "message": f"Cannot cancel job in {processing_job.status.value} state",
+                    "message": f"Cannot cancel job in {processing_job.status} state",
                     "upload_id": upload_id,
-                    "job_status": processing_job.status.value,
+                    "job_status": processing_job.status,
                 }
 
-            # cancel_job() sets status=CANCELLED + completed_at + duration.
-            processing_job.cancel_job()
+            # Update job status to cancelled
+            processing_job.status = "cancelled"
+            processing_job.completed_at = datetime.utcnow()
             processing_job.error_message = "Upload cancelled by user"
             await db.commit()
 
@@ -695,7 +612,7 @@ async def cancel_upload(
     except HTTPException:
         raise
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         logger.error(f"Failed to cancel upload: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -742,46 +659,13 @@ async def reprocess_file(
         document.processing_started_at = None
         document.processing_completed_at = None
 
-        # Create + enqueue an actual ProcessingJob. The old code only reset the
-        # status and committed — it created no job and dispatched no task, so
-        # nothing ever picked the document up (there is no PENDING sweeper); it
-        # sat PENDING forever while the API falsely reported "queued". Mirror
-        # documents.py reprocess_document: flush -> delay -> commit so a broker
-        # failure rolls back the status reset too (no stranded document).
-        from src.models.processing import JobPriority, JobType
-
-        processing_job = ProcessingJob(
-            job_type=JobType.DOCUMENT_INGESTION,
-            status=JobStatus.PENDING,
-            priority=JobPriority.NORMAL,
-            document_id=document.id,
-            organization_id=organization.id,
-            created_by_user_id=current_user.id,
-            parameters={
-                "document_id": str(document.id),
-                "file_path": document.file_path,
-                "document_type": document.document_type.value,
-                "mime_type": document.mime_type,
-            },
-            config={"max_retries": 3, "timeout_seconds": 300},
-            total_steps=5,
-            queue_name="document_processing",
-        )
-        db.add(processing_job)
-        await db.flush()
-
-        from src.tasks.processing_tasks import process_document_ingestion
-
-        process_document_ingestion.delay(str(processing_job.id))
-
         await db.commit()
 
         return {
             "message": "File queued for reprocessing",
             "processing_status": document.processing_status.value,
-            "job_id": str(processing_job.id),
         }
 
     except Exception as e:
-        await db.rollback()
+        db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

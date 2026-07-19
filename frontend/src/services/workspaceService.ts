@@ -147,16 +147,8 @@ export const workspaceService = {
     return api.post<Thread>(`${API_PREFIX}/threads`, data);
   },
 
-  async getThread(
-    threadId: string,
-    options: { includeMessages?: boolean } = {}
-  ): Promise<ThreadDetail> {
-    const params = new URLSearchParams({
-      include_messages: String(options.includeMessages ?? true),
-    });
-    return api.get<ThreadDetail>(
-      `${API_PREFIX}/threads/${threadId}?${params.toString()}`
-    );
+  async getThread(threadId: string): Promise<ThreadDetail> {
+    return api.get<ThreadDetail>(`${API_PREFIX}/threads/${threadId}`);
   },
 
   async updateThread(threadId: string, data: ThreadUpdate): Promise<Thread> {

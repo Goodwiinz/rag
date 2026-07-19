@@ -19,22 +19,23 @@ query
 
 ## Key files
 
-| File                         | Purpose                                                                                                                                   |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `base.py`                    | `SearchQuery`, `SearchResult`, `SearchSource` enum, abstract `SearchExecutor`                                                             |
-| `orchestrator.py`            | Async orchestrator: parallel executor dispatch, RRF fusion, Cohere rerank, Redis cache, Prometheus metrics                                |
-| `hybrid_search_service.py`   | Legacy sync orchestrator used by the documents API; `search()` and `search_with_diagnostics()` with full `RetrievalTrace`                 |
-| `vector_search_service.py`   | Embeds query (Cohere → Azure OpenAI → local fallback), calls `vector_service`, also handles document indexing and `reindex_all_content()` |
-| `vector_service.py`          | Thin Qdrant client wrapper: insert/search/delete, circuit-breaker guarded                                                                 |
-| `bm25_service.py`            | Produces `SparseVector` (k1=1.5, b=0.75, vocab=30 000) for BM25-dense hybrid inside `search_documents_hybrid()`                           |
-| `fulltext_search_service.py` | PostgreSQL `to_tsvector` / `ts_rank` search with `<mark>` snippet highlighting                                                            |
-| `cohere_rerank_service.py`   | Azure-hosted Cohere rerank API; `rerank()` async + `rerank_sync()` sync; falls back to original order on failure                          |
-| `fusion.py`                  | `ResultFusion` — weighted RRF with multi-source boost (×1.2) used by `SearchOrchestrator`                                                 |
-| `reranker.py`                | Thin wrapper around `cohere_rerank_service` used by `SearchOrchestrator`                                                                  |
-| `cache.py`                   | Redis-backed result cache keyed on query text + filters                                                                                   |
-| `metrics.py`                 | Prometheus counters/histograms for search latency and source failures                                                                     |
-| `search_service.py`          | Thin facade wiring together older service instances                                                                                       |
-| `search_quality_service.py`  | Offline evaluation helpers (precision@K, coverage scoring)                                                                                |
+| File                                      | Purpose                                                                                                                                   |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `base.py`                                 | `SearchQuery`, `SearchResult`, `SearchSource` enum, abstract `SearchExecutor`                                                             |
+| `orchestrator.py`                         | Async orchestrator: parallel executor dispatch, RRF fusion, Cohere rerank, Redis cache, Prometheus metrics                                |
+| `hybrid_search_service.py`                | Legacy sync orchestrator used by the documents API; `search()` and `search_with_diagnostics()` with full `RetrievalTrace`                 |
+| `vector_search_service.py`                | Embeds query (Cohere → Azure OpenAI → local fallback), calls `vector_service`, also handles document indexing and `reindex_all_content()` |
+| `vector_service.py`                       | Thin Qdrant client wrapper: insert/search/delete, circuit-breaker guarded                                                                 |
+| `bm25_service.py`                         | Produces `SparseVector` (k1=1.5, b=0.75, vocab=30 000) for BM25-dense hybrid inside `search_documents_hybrid()`                           |
+| `fulltext_search_service.py`              | PostgreSQL `to_tsvector` / `ts_rank` search with `<mark>` snippet highlighting                                                            |
+| `cohere_rerank_service.py`                | Azure-hosted Cohere rerank API; `rerank()` async + `rerank_sync()` sync; falls back to original order on failure                          |
+| `fusion.py`                               | `ResultFusion` — weighted RRF with multi-source boost (×1.2) used by `SearchOrchestrator`                                                 |
+| `reranker.py`                             | Thin wrapper around `cohere_rerank_service` used by `SearchOrchestrator`                                                                  |
+| `cache.py`                                | Redis-backed result cache keyed on query text + filters                                                                                   |
+| `metrics.py`                              | Prometheus counters/histograms for search latency and source failures                                                                     |
+| `search_service.py`                       | Thin facade wiring together older service instances                                                                                       |
+| `multi_agent_search_service.py` / `v2.py` | Experimental multi-agent search variants                                                                                                  |
+| `search_quality_service.py`               | Offline evaluation helpers (precision@K, coverage scoring)                                                                                |
 
 ## Search modes
 

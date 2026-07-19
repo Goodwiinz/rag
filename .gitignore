@@ -58,14 +58,6 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
-# Terraform and IaC secret material
-*.tfstate
-*.tfstate.*
-*.tfvars
-!*.tfvars.example
-.terraform/
-**/.terraform/
-
 # Logs
 logs/
 *.log
@@ -86,9 +78,6 @@ coverage.xml
 
 # Dependency directories
 node_modules/
-# Also ignore a node_modules *symlink* (a file, not a dir) — the trailing-slash
-# pattern above only matches directories, so a stray symlink can slip through.
-node_modules
 
 # Optional npm cache directory
 .npm
@@ -195,22 +184,9 @@ actions-runner/
 
 # Auto Claude data directory
 .auto-claude/
-.claude/
-**/.claude/
-# Exception: the /nous-loop command is sanitized, repo-shared tooling
-# (restored after the #969 purge; everything else in .claude/ stays out).
-!.claude/
-.claude/*
-!.claude/commands/
-.claude/commands/*
-!.claude/commands/nous-loop.md
 serena_repo/
-.serena/
-.opencode/
-.mcp.json
 
 # GoodFlows session files (contain local paths)
-.goodflows/
 .goodflows/context/sessions/*.json
 
 # Serena Docker config (local paths)

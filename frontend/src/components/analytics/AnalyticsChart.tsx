@@ -444,12 +444,12 @@ export function AnalyticsChart({
                   {trend.direction === 'up' ? (
                     <TrendingUp
                       aria-hidden="true"
-                      className="mr-1 h-3 w-3 text-(--nous-terra)"
+                      className="mr-1 h-3 w-3 text-[var(--nous-terra)]"
                     />
                   ) : (
                     <TrendingDown
                       aria-hidden="true"
-                      className="mr-1 h-3 w-3 text-(--nous-mars)"
+                      className="mr-1 h-3 w-3 text-[var(--nous-mars)]"
                     />
                   )}
                   {trend.value.toFixed(1)}%

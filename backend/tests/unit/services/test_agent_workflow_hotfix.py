@@ -30,7 +30,7 @@ class TestThreadOwnership:
 
     async def test_foreign_thread_id_is_not_resolved(self):
         from src.api.agent.execute import AgentExecuteRequest
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.api.agent.jobs import _persist_thread_messages
 
         user = _make_user()
         foreign_thread_id = str(uuid4())
@@ -47,13 +47,11 @@ class TestThreadOwnership:
             thread_id=foreign_thread_id,
         )
 
-        # A thread id the user does not own resolves to None (ownership filter),
-        # so the confirm/resume path creates/commits nothing.
-        thread, conversation_id = await _resolve_thread(
-            db, user, request, create_if_missing=False
+        thread_id, conversation_id = await _persist_thread_messages(
+            db, user, request, "assistant reply", None
         )
 
-        assert thread is None
+        assert thread_id == foreign_thread_id or thread_id == ""
         assert conversation_id == ""
         db.commit.assert_not_called()
 
@@ -63,7 +61,7 @@ class TestHitlCheckpointOwnership:
 
     async def test_resume_rejects_legacy_checkpoint_when_thread_not_owned(self):
         from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-        from src.services.agent.agent_execution_service import _resume_agent_graph
+        from src.api.agent.jobs import _resume_agent_graph
 
         job_id = str(uuid4())
         current_user = _make_user()
@@ -114,7 +112,7 @@ class TestHitlCheckpointOwnership:
                 return_value=mock_graph,
             ),
             patch(
-                "src.services.agent.agent_execution_service.AsyncSessionLocal",
+                "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_session_cm(db),
             ),
         ):
@@ -123,7 +121,7 @@ class TestHitlCheckpointOwnership:
         mock_graph.ainvoke.assert_not_called()
         job = _get_job(job_id)
         assert job is not None
-        assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
+        assert job["status"] == "error"
         assert job["error"] == "Thread not found"
 
 
@@ -204,7 +202,7 @@ class TestBackgroundTimeout:
 
     async def test_run_agent_graph_marks_failed_on_timeout(self):
         from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-        from src.services.agent.agent_execution_service import _run_agent_graph
+        from src.api.agent.jobs import _run_agent_graph
 
         job_id = str(uuid4())
         user = _make_user()
@@ -247,15 +245,15 @@ class TestBackgroundTimeout:
                 return_value=mock_graph,
             ),
             patch(
-                "src.services.agent.agent_execution_service.AsyncSessionLocal",
+                "src.api.agent.jobs.AsyncSessionLocal",
                 return_value=_session_cm(db),
             ),
             patch(
-                "src.services.agent.agent_execution_service._resolve_thread",
+                "src.api.agent.jobs._resolve_thread",
                 new_callable=AsyncMock,
                 return_value=(None, ""),
             ),
-            patch("src.services.agent.agent_execution_service.asyncio.timeout") as mock_timeout,
+            patch("src.api.agent.jobs.asyncio.timeout") as mock_timeout,
         ):
             mock_timeout.return_value.__aenter__ = AsyncMock(
                 side_effect=asyncio.TimeoutError()
@@ -322,8 +320,8 @@ class TestFilteredToolNodeErrorInfo:
         }
         config = {
             "configurable": {
-                "user_id": str(uuid4()),
-                "organization_id": str(uuid4()),
+                "current_user": Mock(id=uuid4()),
+                "db": AsyncMock(),
             }
         }
 

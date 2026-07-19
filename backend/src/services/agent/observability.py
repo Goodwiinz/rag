@@ -309,28 +309,6 @@ try:
         [],
     )
 
-    # User-turn persistence failures on the agent hot path (P2.6 / audit D3).
-    # The user row is a single idempotent INSERT written BEFORE the LLM call;
-    # historically its failure was swallowed (warn-and-continue), so the
-    # LangGraph checkpoint could accumulate a turn the chat_messages store
-    # never recorded — a permanent divergence the user can't see. Bumped by
-    # _persist_user_message_guarded after a retry still fails, so the drop is
-    # observable instead of silent.
-    agent_dualstore_user_turn_persist_failures_total = _get_or_create_counter(
-        "agent_dualstore_user_turn_persist_failures_total",
-        "User-turn persistence failures after one retry on the agent hot path",
-        [],
-    )
-
-    # Detected (not repaired) divergence between the LangGraph checkpoint's
-    # HumanMessage count and the persisted chat_messages user-row count for a
-    # thread (P2.6 / audit D3). Detection only; re-seed repair is a follow-up.
-    agent_dualstore_divergence_detected_total = _get_or_create_counter(
-        "agent_dualstore_divergence_detected_total",
-        "Threads where checkpoint human-count and chat user-row count diverged",
-        [],
-    )
-
     # Quality histogram: max similarity score returned per recall call.
     # Trace evidence showed score=null for every recalled item — once the
     # store has a semantic index wired this histogram surfaces whether
@@ -442,18 +420,6 @@ def record_execution_duration(intent: str, status: str, duration: float):
     """Record agent execution duration."""
     if _METRICS_AVAILABLE:
         AGENT_EXECUTION_DURATION.labels(intent=intent, status=status).observe(duration)
-
-
-def record_node_duration(node: str, status: str, duration: float) -> None:
-    """Record a sub-node / phase duration into the shared node histogram.
-
-    Lets phases that don't go through ``track_node_execution`` (e.g. the
-    subtasks ``preprocessing_node`` fans out via ``asyncio.gather``, which
-    otherwise emit no traced run) surface on the same
-    ``agent_node_duration_seconds`` dashboard.
-    """
-    if _METRICS_AVAILABLE:
-        AGENT_NODE_DURATION.labels(node=node, status=status).observe(duration)
 
 
 def record_token_usage(model: str, prompt_tokens: int, completion_tokens: int):

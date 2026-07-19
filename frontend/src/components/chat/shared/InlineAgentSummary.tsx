@@ -54,9 +54,9 @@ export function InlineAgentSummary({
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'group inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[11px] transition-colors',
-          'border-(--nous-border-1) bg-(--nous-bg-2)/60',
-          'text-(--nous-fg-3) hover:text-(--nous-fg-1)',
-          'hover:border-(--nous-sol)/30'
+          'border-[var(--nous-border-1)] bg-[var(--nous-bg-2)]/60',
+          'text-[var(--nous-fg-3)] hover:text-[var(--nous-fg-1)]',
+          'hover:border-[var(--nous-sol)]/30'
         )}
         style={{ fontFamily: 'var(--nous-font-ui)' }}
         aria-expanded={open}
@@ -66,10 +66,10 @@ export function InlineAgentSummary({
           className={cn(
             'h-3 w-3 shrink-0',
             run.state === 'running' && activeSteps.length > 0
-              ? 'animate-pulse text-(--nous-sol)'
+              ? 'animate-pulse text-[var(--nous-sol)]'
               : run.state === 'error'
-                ? 'text-(--nous-mars)'
-                : 'text-(--nous-fg-3)'
+                ? 'text-[var(--nous-mars)]'
+                : 'text-[var(--nous-fg-3)]'
           )}
         />
         <span>{summary}</span>
@@ -93,12 +93,12 @@ export function InlineAgentSummary({
                 className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
                   step.status === 'active' &&
-                    'animate-pulse bg-(--nous-sol)',
-                  step.status === 'done' && 'bg-(--nous-sol)/60',
-                  step.status === 'error' && 'bg-(--nous-mars)'
+                    'animate-pulse bg-[var(--nous-sol)]',
+                  step.status === 'done' && 'bg-[var(--nous-sol)]/60',
+                  step.status === 'error' && 'bg-[var(--nous-mars)]'
                 )}
               />
-              <span className="text-(--nous-fg-3)">
+              <span className="text-[var(--nous-fg-3)]">
                 {toolStatusLabel(step.tool, step.status)}
               </span>
             </li>

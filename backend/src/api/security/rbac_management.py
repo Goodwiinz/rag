@@ -633,18 +633,8 @@ async def cleanup_expired_assignments(
     _: str = Depends(require_permission_dep("system_admin")),
 ):
     """Clean up expired role assignments"""
-    # Derived before the try so the 401 is not swallowed by the broad except
-    # below. organization_id comes from the authenticated tenant context, never
-    # client input — the cleanup is scoped to the caller's org.
-    organization_id = get_current_tenant_id()
-    if not organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Organization context required",
-        )
-
     try:
-        expired_count = rbac_service.cleanup_expired_assignments(organization_id)
+        expired_count = rbac_service.cleanup_expired_assignments()
 
         return {
             "message": "Cleanup completed",

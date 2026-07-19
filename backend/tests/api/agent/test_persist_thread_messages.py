@@ -23,8 +23,9 @@ import pytest
 from sqlalchemy import func, select
 
 from src.api.agent.execute import AgentExecuteRequest, AgentMessage
-from src.services.agent.agent_execution_service import _persist_assistant_message, _persist_user_message
+from src.api.agent.jobs import _persist_assistant_message, _persist_user_message
 from src.models.chat_message import ChatMessage, MessageRole
+
 
 pytestmark = pytest.mark.integration
 
@@ -68,7 +69,9 @@ async def test_duplicate_user_turn_is_idempotent(
     db_session.info["_created"]["chat_messages"].extend(row_ids)
 
 
-async def test_user_then_assistant_round_trip(db_session, thread_factory, user_factory):
+async def test_user_then_assistant_round_trip(
+    db_session, thread_factory, user_factory
+):
     thread = await thread_factory()
     user = await user_factory()
     cmid = uuid4()
@@ -121,68 +124,3 @@ async def test_user_message_no_op_without_thread_id(db_session, user_factory):
     )
     inserted = await _persist_user_message(db_session, user, req)
     assert inserted is False
-
-
-async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_factory):
-    """Plan + per-turn token usage persist on the assistant row and read back
-    intact, so a page reload can rehydrate turn provenance from the DB."""
-    from uuid import UUID
-
-    thread = await thread_factory()
-    plan = [
-        {
-            "step": 1,
-            "description": "Search documents for transformers",
-            "tool": "search_documents",
-            "args_hint": {"query": "transformers"},
-            "depends_on": [],
-        },
-        {
-            "step": 2,
-            "description": "Summarize findings",
-            "tool": "summarize",
-            "args_hint": {},
-            "depends_on": [1],
-        },
-    ]
-    usage = {"input_tokens": 1200, "output_tokens": 340}
-
-    msg_id = await _persist_assistant_message(
-        db_session,
-        thread_id=str(thread.id),
-        content="answer",
-        model_name="gpt-5-mini",
-        tool_executions_out=None,
-        plan=plan,
-        token_usage=usage,
-    )
-
-    row = await db_session.get(ChatMessage, UUID(msg_id))
-    assert row is not None
-    assert row.plan == plan
-    assert row.token_usage == usage
-
-    db_session.info["_created"]["chat_messages"].append(row.id)
-
-
-async def test_assistant_without_provenance_persists_null_columns(
-    db_session, thread_factory
-):
-    """Rows persisted without plan/usage (legacy path, stop path) stay NULL."""
-    from uuid import UUID
-
-    thread = await thread_factory()
-    msg_id = await _persist_assistant_message(
-        db_session,
-        thread_id=str(thread.id),
-        content="answer",
-        model_name="gpt-5-mini",
-        tool_executions_out=None,
-    )
-
-    row = await db_session.get(ChatMessage, UUID(msg_id))
-    assert row is not None
-    assert row.plan is None
-    assert row.token_usage is None
-
-    db_session.info["_created"]["chat_messages"].append(row.id)

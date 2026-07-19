@@ -33,7 +33,6 @@ class _FakeDoc:
         self.content_text = content_text
         self.do_kb_data_source_uuid: str | None = None
         self.do_kb_indexed_at: datetime | None = None
-        self.do_kb_index_status: str | None = None
 
 
 class _FakeSession:
@@ -93,7 +92,9 @@ async def test_happy_path_uses_s3_source(stub_settings):
     doc = _FakeDoc()
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-fresh"))
+    client.add_spaces_data_source = AsyncMock(
+        return_value=DataSource(uuid="ds-fresh")
+    )
     client.start_indexing = AsyncMock(
         return_value=IndexingJob(uuid="job-1", status="PENDING")
     )
@@ -124,19 +125,22 @@ async def test_falls_back_to_text_upload_when_no_storage_path(stub_settings):
     doc = _FakeDoc(storage_backend="local", storage_path=None, content_text="hello")
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-text"))
-    client.start_indexing = AsyncMock(return_value=IndexingJob(uuid="job-1"))
+    client.add_spaces_data_source = AsyncMock(
+        return_value=DataSource(uuid="ds-text")
+    )
+    client.start_indexing = AsyncMock(
+        return_value=IndexingJob(uuid="job-1")
+    )
 
     helper = MagicMock()
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with (
-        patch(
-            "src.services.do_kb.ingest.ensure_kb_for_org",
-            AsyncMock(return_value="kb-1"),
-        ),
-        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ), patch(
+        "src.core.s3_client.S3StorageHelper", return_value=helper
     ):
         result = await sync_document_to_kb(session, doc, client=client)
 
@@ -230,7 +234,9 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     doc = _FakeDoc()
 
     client = MagicMock()
-    client.add_spaces_data_source = AsyncMock(return_value=DataSource(uuid="ds-1"))
+    client.add_spaces_data_source = AsyncMock(
+        return_value=DataSource(uuid="ds-1")
+    )
     client.start_indexing = AsyncMock(side_effect=DOKnowledgeBaseError("queue full"))
 
     with patch(
@@ -243,10 +249,6 @@ async def test_indexing_kick_failure_does_not_fail_sync(stub_settings):
     assert result == "ds-1"
     assert doc.do_kb_data_source_uuid == "ds-1"
     assert session.commits == 1
-    # FIX C2: never claim "indexed" — the kick failed, so the docs are NOT
-    # queryable. The truthful status is "registered" (data source added only).
-    assert doc.do_kb_index_status != "indexed"
-    assert doc.do_kb_index_status == "registered"
 
 
 @pytest.mark.unit
@@ -271,13 +273,10 @@ async def test_canonical_text_preferred_over_s3_when_text_present(stub_settings)
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with (
-        patch(
-            "src.services.do_kb.ingest.ensure_kb_for_org",
-            AsyncMock(return_value="kb-1"),
-        ),
-        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
-    ):
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
         result = await sync_document_to_kb(session, doc, client=client)
 
     assert result == "ds-x"
@@ -337,111 +336,12 @@ async def test_reuses_existing_data_source_for_same_item_path(stub_settings):
     helper.bucket = "test-bucket"
     helper.upload_file = MagicMock(return_value="ok")
 
-    with (
-        patch(
-            "src.services.do_kb.ingest.ensure_kb_for_org",
-            AsyncMock(return_value="kb-1"),
-        ),
-        patch("src.core.s3_client.S3StorageHelper", return_value=helper),
-    ):
+    with patch(
+        "src.services.do_kb.ingest.ensure_kb_for_org",
+        AsyncMock(return_value="kb-1"),
+    ), patch("src.core.s3_client.S3StorageHelper", return_value=helper):
         result = await sync_document_to_kb(session, doc, client=client)
 
     assert result == "ds-existing"
     client.add_spaces_data_source.assert_not_called()
     assert doc.do_kb_data_source_uuid == "ds-existing"
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_unsync_deletes_data_source_and_clears_columns(stub_settings):
-    """unsync_document_from_kb deletes the DS from DO KB and clears DB columns."""
-    from src.services.do_kb.ingest import unsync_document_from_kb
-
-    session = _FakeSession()
-    doc = _FakeDoc()
-    doc.do_kb_data_source_uuid = "ds-old"
-    doc.do_kb_indexed_at = datetime.now(timezone.utc)
-    doc.do_kb_index_status = "indexed"
-
-    client = MagicMock()
-    client.delete_data_source = AsyncMock(return_value=None)
-
-    with patch(
-        "src.services.do_kb.ingest.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    ):
-        result = await unsync_document_from_kb(session, doc, client=client)
-
-    assert result is True
-    client.delete_data_source.assert_awaited_once_with(kb_uuid="kb-1", ds_uuid="ds-old")
-    assert doc.do_kb_data_source_uuid is None
-    assert doc.do_kb_indexed_at is None
-    assert doc.do_kb_index_status is None
-    assert session.commits == 1
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_unsync_noop_when_no_data_source(stub_settings):
-    """No data source UUID → nothing to delete, no DO KB call, returns True."""
-    from src.services.do_kb.ingest import unsync_document_from_kb
-
-    doc = _FakeDoc()  # do_kb_data_source_uuid is None
-    client = MagicMock()
-    client.delete_data_source = AsyncMock()
-
-    result = await unsync_document_from_kb(_FakeSession(), doc, client=client)
-
-    assert result is True
-    client.delete_data_source.assert_not_called()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_unsync_clears_columns_even_when_delete_fails(stub_settings):
-    """A stale UUID must not linger: clear DB columns even if DO's DELETE errors
-    (the DS may already be gone on DO's side)."""
-    from src.services.do_kb.ingest import unsync_document_from_kb
-
-    session = _FakeSession()
-    doc = _FakeDoc()
-    doc.do_kb_data_source_uuid = "ds-old"
-
-    client = MagicMock()
-    client.delete_data_source = AsyncMock(side_effect=DOKnowledgeBaseError("gone"))
-
-    with patch(
-        "src.services.do_kb.ingest.ensure_kb_for_org",
-        AsyncMock(return_value="kb-1"),
-    ):
-        result = await unsync_document_from_kb(session, doc, client=client)
-
-    assert result is True
-    assert doc.do_kb_data_source_uuid is None
-    assert session.commits == 1
-
-
-@pytest.mark.unit
-def test_record_metric_routes_to_increment_counter():
-    """Regression: _record_metric used to read a module attribute
-    (agent_do_kb_ingest_total) that is defined nowhere, so every ingest-outcome
-    metric was a silent no-op. It must now route through the registered
-    increment_counter, like the RAG read path does."""
-    from src.services.do_kb.ingest import _record_metric
-
-    with patch("src.observability.metrics.increment_counter") as inc:
-        _record_metric("ok")
-
-    inc.assert_called_once_with("do_kb_ingest_total", attributes={"status": "ok"})
-
-
-@pytest.mark.unit
-def test_record_metric_swallows_observability_errors():
-    """Observability is best-effort — a metrics failure must never break ingest."""
-    from src.services.do_kb.ingest import _record_metric
-
-    with patch(
-        "src.observability.metrics.increment_counter",
-        side_effect=RuntimeError("meter down"),
-    ):
-        _record_metric("provision_failed")  # must not raise

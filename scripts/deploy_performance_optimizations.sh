@@ -161,6 +161,53 @@ apply_redis_optimizations() {
     fi
 }
 
+# Function to configure Qdrant optimizations
+configure_qdrant_optimizations() {
+    log "Configuring Qdrant performance optimizations..."
+
+    # Check if Qdrant is running
+    if ! curl -f -s "http://localhost:6333/health" > /dev/null 2>&1; then
+        log_error "Qdrant is not running"
+        return 1
+    fi
+
+    # Create optimized collections with performance settings
+    cat <<EOF > /tmp/qdrant_collections.json
+{
+  "vectors": {
+    "size": 1536,
+    "distance": "Cosine",
+    "hnsw_config": {
+      "m": 16,
+      "ef_construct": 100,
+      "ef_search": 64,
+      "full_scan_threshold": 10000,
+      "max_indexing_threads": 4
+    },
+    "quantization_config": {
+      "scalar": {
+        "type": "int8",
+        "ram": true
+      }
+    },
+    "on_disk": true
+  },
+  "optimizers_config": {
+    "deleted_threshold": 0.2,
+    "vacuum_min_vector_number": 1000,
+    "default_segment_number": 2,
+    "max_segment_size": 200000,
+    "memmap_threshold": 50000,
+    "indexing_threshold": 20000,
+    "flush_interval_sec": 5,
+    "max_optimization_threads": 4
+  }
+}
+EOF
+
+    log_success "Qdrant optimization configuration prepared"
+}
+
 # Function to setup monitoring
 setup_monitoring() {
     log "Setting up performance monitoring..."
@@ -193,6 +240,10 @@ scrape_configs:
   - job_name: 'neo4j'
     static_configs:
       - targets: ['neo4j:2004']
+
+  - job_name: 'qdrant'
+    static_configs:
+      - targets: ['qdrant:6333']
 
   - job_name: 'node-exporter'
     static_configs:
@@ -324,6 +375,15 @@ services:
       - NEO4J_dbms_memory_heap_max__size=4G
       - NEO4J_dbms_memory_pagecache_size=2G
 
+  qdrant:
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        reservations:
+          memory: 2G
+          cpus: '1'
 EOF
 
     log_success "Docker resource optimizations configured"
@@ -377,6 +437,7 @@ main() {
     apply_database_optimizations
     apply_neo4j_optimizations
     apply_redis_optimizations
+    configure_qdrant_optimizations
     setup_monitoring
 
     # Restart services with new configurations
@@ -405,6 +466,7 @@ main() {
 - PostgreSQL: Applied performance indexes, memory configuration, and connection pooling
 - Neo4j: Created optimized indexes and full-text search capabilities
 - Redis: Configured memory optimization and persistence settings
+- Qdrant: Set up vector optimization and quantization
 
 ### Application Optimizations
 - Backend API: Implemented response caching, rate limiting, and async processing

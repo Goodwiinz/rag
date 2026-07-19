@@ -597,6 +597,46 @@ def cached(
     return decorator
 
 
+def cache_aside(
+    ttl: int = 300,
+    namespace: str = "default",
+    refresh_threshold: float = 0.8,  # Refresh when 80% of TTL has passed
+):
+    """
+    Cache-aside pattern with background refresh.
+
+    When cache is near expiry, refreshes in background while returning stale value.
+    """
+
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        _refresh_tasks: dict[str, asyncio.Task] = {}
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> T:
+            if not cache_config.enabled:
+                return await func(*args, **kwargs)
+
+            cache_key = generate_cache_key(namespace, func.__name__, *args, **kwargs)
+            cache = get_cache()
+
+            # Get cached value with TTL info
+            cached_value = await cache.get(cache_key, namespace)
+
+            if cached_value is not None:
+                # Check if we need background refresh
+                # (Would need TTL checking from Redis - simplified here)
+                return cached_value
+
+            # Execute and cache
+            result = await func(*args, **kwargs)
+            await cache.set(cache_key, result, ttl, namespace)
+            return result
+
+        return wrapper
+
+    return decorator
+
+
 # =============================================================================
 # Cache Invalidation Helpers
 # =============================================================================
@@ -625,3 +665,40 @@ async def invalidate_namespace(namespace: str):
     cache = get_cache()
     pattern = f"{cache_config.key_prefix}:{namespace}:*"
     await cache.invalidate_pattern(pattern, namespace)
+
+
+# =============================================================================
+# Cache Warming
+# =============================================================================
+
+
+async def warm_cache(
+    func: Callable,
+    args_list: list[tuple],
+    namespace: str = "default",
+    concurrency: int = 5,
+):
+    """
+    Pre-populate cache with common queries.
+
+    Usage:
+        common_queries = [
+            (("machine learning",), {}),
+            (("deep learning",), {}),
+            (("neural networks",), {}),
+        ]
+        await warm_cache(search_documents, common_queries, "search")
+    """
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def warm_one(args, kwargs):
+        async with semaphore:
+            try:
+                await func(*args, **kwargs)
+                logger.debug(f"Warmed cache for {func.__name__}{args}")
+            except Exception as e:
+                logger.warning(f"Failed to warm cache for {func.__name__}{args}: {e}")
+
+    tasks = [warm_one(args, kwargs) for args, kwargs in args_list]
+    await asyncio.gather(*tasks, return_exceptions=True)
+    logger.info(f"Cache warming complete for {namespace}: {len(tasks)} entries")

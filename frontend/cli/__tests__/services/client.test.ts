@@ -18,9 +18,7 @@ test('returns Authorization header when token is present', () => {
   });
   const headers = getCliAuthHeaders();
   expect(headers['Authorization']).toBe('Bearer tok_test');
-  // The backend derives org from the authenticated user; the dead
-  // X-Organization-ID header must not be sent.
-  expect(headers['X-Organization-ID']).toBeUndefined();
+  expect(headers['X-Organization-ID']).toBe('org_1');
 });
 
 test('throws when not logged in', () => {

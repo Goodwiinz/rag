@@ -40,7 +40,7 @@ docker-compose -f docker-compose.observability.yml ps
 
 ### 2. Access Services
 
-- **Grafana**: http://localhost:3001 (admin/admin123)
+- **Grafana**: http://localhost:3001 (admin/REDACTED)
 - **Jaeger**: http://localhost:16686
 - **Prometheus**: http://localhost:9090
 - **Kibana**: http://localhost:5601

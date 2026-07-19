@@ -22,16 +22,10 @@ export interface APIError {
   error: {
     message: string;
     status_code: number;
-    type:
-      | 'validation_error'
-      | 'processing_error'
-      | 'auth_error'
-      | 'rate_limit'
-      | 'internal_error'
-      | 'http_error';
+    type: 'validation_error' | 'processing_error' | 'auth_error' | 'rate_limit' | 'internal_error' | 'http_error';
     details?: Record<string, any>;
     timestamp?: string;
-    silent?: boolean; // If true, don't show console errors (used for optional endpoints that may not exist)
+    silent?: boolean;  // If true, don't show console errors (used for optional endpoints that may not exist)
   };
 }
 
@@ -80,10 +74,11 @@ export const API_CONFIG = {
 
 export const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
-  Accept: 'application/json',
+  'Accept': 'application/json',
 };
 
-export const getAuthHeaders = (token: string) => ({
-  Authorization: `Bearer ${token}`,
+export const getAuthHeaders = (token: string, organizationId: string) => ({
+  'Authorization': `Bearer ${token}`,
+  'X-Organization-ID': organizationId,
   'X-Client-Version': '1.0.0',
 });

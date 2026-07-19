@@ -115,7 +115,7 @@ VERSION=1.0.0
 TZ=UTC
 
 # Grafana Configuration
-GRAFANA_ADMIN_PASSWORD=admin123
+GRAFANA_ADMIN_PASSWORD=REDACTED
 GRAFANA_SMTP_ENABLED=false
 
 # Prometheus Configuration
@@ -262,7 +262,7 @@ display_access_info() {
     print_success "Monitoring stack is now running!"
     echo
     echo "Access URLs:"
-    echo "  Grafana:       http://localhost:3001 (admin/admin123)"
+    echo "  Grafana:       http://localhost:3001 (admin/REDACTED)"
     echo "  Prometheus:    http://localhost:9090"
     echo "  Jaeger:        http://localhost:16686"
     echo "  Loki:          http://localhost:3100"

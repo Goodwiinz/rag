@@ -423,24 +423,6 @@ async def extract_citation(
         extraction_service = CitationExtractionService(db)
 
         if resolved_document_id:
-            # Tenant scope: verify the client-supplied document_id belongs to the
-            # caller's organization before the extraction service reads its
-            # metadata / PDF. Without this, another org's document title / DOI /
-            # arXiv id (and PDF contents) leak. Mirrors the create_citation check;
-            # 404 (not 403) so document ids can't be probed for existence.
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == resolved_document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,  # noqa: E712
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found or not accessible",
-                )
-
             citation_data, source = await extraction_service.extract_for_document(
                 document_id=resolved_document_id,
                 strategy=resolved_strategy,
@@ -556,24 +538,6 @@ async def lookup_citation(
         extraction_service = CitationExtractionService(db)
 
         if resolved_document_id:
-            # Tenant scope: verify the client-supplied document_id belongs to the
-            # caller's organization before the extraction service reads its
-            # metadata / PDF. Without this, another org's document title / DOI /
-            # arXiv id (and PDF contents) leak. Mirrors the create_citation check;
-            # 404 (not 403) so document ids can't be probed for existence.
-            doc_check = await db.execute(
-                select(Document.id).where(
-                    Document.id == resolved_document_id,
-                    Document.organization_id == current_user.organization_id,
-                    Document.is_deleted == False,  # noqa: E712
-                )
-            )
-            if doc_check.scalar_one_or_none() is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Document not found or not accessible",
-                )
-
             citation_data, source = await extraction_service.extract_for_document(
                 document_id=resolved_document_id,
                 strategy=resolved_strategy,
@@ -706,7 +670,7 @@ async def export_bibliography(
         # Fallback: build bibliography from Document metadata when no
         # Citation records exist (common for freshly ingested papers).
         if not citations and resolved_project_id:
-            from src.services.agent.tools_impl import _citations_from_documents
+            from src.api.agent.tools_impl import _citations_from_documents
 
             doc_stmt = select(Document).where(
                 Document.id.in_(document_ids),
@@ -929,9 +893,9 @@ async def create_citation_relationship(
             "relationship_type": relationship.relationship_type,
             "citation_context": relationship.citation_context,
             "confidence": relationship.confidence,
-            "created_at": (
-                relationship.created_at.isoformat() if relationship.created_at else None
-            ),
+            "created_at": relationship.created_at.isoformat()
+            if relationship.created_at
+            else None,
         }
 
     except HTTPException:

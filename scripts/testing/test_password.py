@@ -14,7 +14,7 @@ db_url = "postgresql://postgres:postgres@localhost:5432/multimodal_rag_dev"
 engine = create_engine(db_url)
 
 email = "admin@multimodal-rag.com"
-password = "admin123"
+password = "REDACTED"
 
 with engine.connect() as conn:
     result = conn.execute(text("SELECT password_hash FROM users WHERE email = :email"), {"email": email})

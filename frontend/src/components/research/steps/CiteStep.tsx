@@ -59,7 +59,7 @@ export const CiteStep: React.FC<CiteStepProps> = ({
               const format = e.target.value as typeof bibFormat;
               setBibFormat(format);
             }}
-            className="px-3 py-1.5 bg-background border border-border rounded text-sm text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+            className="px-3 py-1.5 bg-background border border-border rounded text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="bibtex">BibTeX</option>
             <option value="ieee">IEEE</option>

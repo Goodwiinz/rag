@@ -6,7 +6,7 @@
  *   2. Entity search works — typing a term filters the visible list
  *   3. Entity type filter works — selecting a type shows only that type
  *
- * Auth: admin@multimodal-rag.com / admin123
+ * Auth: admin@multimodal-rag.com / REDACTED
  * Backend: FastAPI on :8000, Frontend: Next.js on :3000
  */
 
@@ -18,7 +18,7 @@ import { EntitiesPage } from '../pages/EntitiesPage';
 // Credentials (match the dev users documented in CLAUDE.md)
 // ---------------------------------------------------------------------------
 const ADMIN_EMAIL = 'admin@multimodal-rag.com';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_PASSWORD = 'REDACTED';
 
 // ---------------------------------------------------------------------------
 // Shared login helper — performs UI login and returns once redirected away

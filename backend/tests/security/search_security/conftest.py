@@ -308,16 +308,20 @@ def search_service_mocks():
 
     with patch('src.api.search.search.hybrid_search_service') as hybrid_mock:
         with patch('src.api.search.search.fulltext_search_service') as fulltext_mock:
-            mock_response = _make_mock_search_response()
+            with patch('src.services.search.vector_search_service.vector_search_service') as vector_mock:
 
-            hybrid_mock.search.return_value = mock_response
-            fulltext_mock.search.return_value = mock_response
-            fulltext_mock._get_search_suggestions.return_value = ['suggestion1', 'suggestion2']
+                mock_response = _make_mock_search_response()
 
-            mocks['hybrid'] = hybrid_mock
-            mocks['fulltext'] = fulltext_mock
+                hybrid_mock.search.return_value = mock_response
+                fulltext_mock.search.return_value = mock_response
+                vector_mock.search.return_value = mock_response
+                fulltext_mock._get_search_suggestions.return_value = ['suggestion1', 'suggestion2']
 
-            yield mocks
+                mocks['hybrid'] = hybrid_mock
+                mocks['fulltext'] = fulltext_mock
+                mocks['vector'] = vector_mock
+
+                yield mocks
 
 
 class SecurityTestCase:

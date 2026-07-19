@@ -22,7 +22,6 @@ import magic
 from fastapi import Depends, HTTPException, UploadFile, status
 from PIL import Image
 from pypdf import PdfReader
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 # ClamAV integration - only available if properly configured
@@ -1010,21 +1009,8 @@ class EnhancedFileService:
         custom_metadata: Dict[str, Any],
         validation_result: Dict[str, Any],
     ) -> Document:
-        """Process and store uploaded file with enhanced validation.
-
-        DEPRECATED: prefer :class:`FileService.upload_file` (async), the canonical
-        upload entry point wired to the live ``POST /files/upload`` endpoint. This
-        service backs the unregistered ``/api/v2/documents/upload`` router only.
-        See ``docs/decisions/upload-path.md``.
-        """
+        """Process and store uploaded file with enhanced validation"""
         document = None  # bound for the except cleanup if commit fails post-upload
-        # Track whether the document row durably committed. The storage object is
-        # committed BEFORE the DB rows, and the DB writes span two commits (row,
-        # then quota). If the SECOND commit fails, the row is already live, so a
-        # bare rollback + object-delete would strand a live PENDING row (whose
-        # checksum then blocks re-upload) with its backing object gone. Mirror
-        # FileService: reverse the committed row first, delete the object second.
-        document_committed = False
         try:
             basic = validation_result["basic_validation"]
             original_ext = Path(file.filename).suffix
@@ -1162,63 +1148,20 @@ class EnhancedFileService:
             self.db.add(document)
             self.db.commit()
             self.db.refresh(document)
-            document_committed = True
 
-            # Atomically update organization storage usage
-            self.db.execute(
-                Organization.storage_usage_update(organization.id, basic["file_size"])
-            )
+            # Update organization storage usage
+            organization.update_storage_usage(basic["file_size"])
             self.db.commit()
 
             return document
 
-        except HTTPException:
-            # e.g. the dedup 409 — surface as-is instead of wrapping into a
-            # FileStorageError (which turned a duplicate upload into a 500).
-            self.db.rollback()
-            if document is not None:
-                self._best_effort_delete_object(document)
-            raise
-        except IntegrityError as e:
-            # The check-then-insert dedup can race: two concurrent identical
-            # uploads both pass _find_org_duplicate, and the partial unique
-            # index uq_documents_org_checksum_live rejects the loser here. Map
-            # it to the same 409 the pre-check returns.
-            self.db.rollback()
-            if document is not None:
-                self._best_effort_delete_object(document)
-            if "uq_documents_org_checksum_live" in str(getattr(e, "orig", e)):
-                raise HTTPException(status_code=409, detail=self._DUPLICATE_DETAIL)
-            raise FileStorageError(f"Failed to upload file: {str(e)}")
         except Exception as e:
             self.db.rollback()
             # The storage object was uploaded BEFORE the failed commit, so a
             # rollback alone orphans it (and, with the org-scoped content-hash
             # dedup, a stale orphan can block re-uploading the same content).
-            #
-            # If the failure happened AFTER the document row committed (e.g. the
-            # quota update commit failed), the row is already live: rollback only
-            # discards the uncommitted quota change, leaving a PENDING row whose
-            # checksum blocks re-upload. Reverse that row first (soft-delete frees
-            # the checksum from uq_documents_org_checksum_live); only delete the
-            # object once the row is gone, so we never orphan a live row from its
-            # backing file. If the reversal itself fails, keep the object as a
-            # sweepable orphan. Mirrors FileService.upload_file.
-            reversal_ok = not document_committed
-            if document_committed and document is not None:
-                try:
-                    document.soft_delete()
-                    self.db.commit()
-                    reversal_ok = True
-                except Exception:
-                    self.db.rollback()
-                    logger.warning(
-                        "upload rollback: failed to reverse committed row for "
-                        "document %s; leaving storage object as a sweepable orphan",
-                        getattr(document, "id", None),
-                        exc_info=True,
-                    )
-            if reversal_ok and document is not None:
+            # Best-effort delete the object before surfacing the error.
+            if document is not None:
                 self._best_effort_delete_object(document)
             raise FileStorageError(f"Failed to upload file: {str(e)}")
 

@@ -80,14 +80,14 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
       product: 'bg-pink-100 text-pink-800 border-pink-200',
     };
     return (
-      colors[type] || 'bg-(--nous-bg-3) text-foreground border-border'
+      colors[type] || 'bg-[var(--nous-bg-3)] text-foreground border-border'
     );
   };
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.9) return 'text-(--nous-terra)';
-    if (confidence >= 0.7) return 'text-(--nous-corona)';
-    return 'text-(--nous-mars)';
+    if (confidence >= 0.9) return 'text-[var(--nous-terra)]';
+    if (confidence >= 0.7) return 'text-[var(--nous-corona)]';
+    return 'text-[var(--nous-mars)]';
   };
 
   const formatDate = (dateString: string) => {
@@ -139,12 +139,12 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
     return (
       <div className={cn('p-6', className)}>
         <div className="animate-pulse">
-          <div className="h-8 bg-(--nous-bg-3) rounded w-3/4 mb-4"></div>
-          <div className="h-4 bg-(--nous-bg-3) rounded w-1/2 mb-2"></div>
-          <div className="h-4 bg-(--nous-bg-3) rounded w-1/3 mb-6"></div>
+          <div className="h-8 bg-[var(--nous-bg-3)] rounded w-3/4 mb-4"></div>
+          <div className="h-4 bg-[var(--nous-bg-3)] rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-[var(--nous-bg-3)] rounded w-1/3 mb-6"></div>
           <div className="space-y-4">
-            <div className="h-32 bg-(--nous-bg-3) rounded"></div>
-            <div className="h-32 bg-(--nous-bg-3) rounded"></div>
+            <div className="h-32 bg-[var(--nous-bg-3)] rounded"></div>
+            <div className="h-32 bg-[var(--nous-bg-3)] rounded"></div>
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
   return (
     <div className={cn('h-full flex flex-col', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b bg-(--nous-bg-2)">
+      <div className="flex items-center justify-between p-6 border-b bg-[var(--nous-bg-2)]">
         <div className="flex items-center space-x-3">
           {onClose && (
             <Button onClick={onClose} variant="ghost" size="sm">
@@ -206,7 +206,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
             <BookmarkIcon
               className={cn(
                 'h-4 w-4',
-                isBookmarked && 'text-(--nous-fg-accent-safe) fill-current'
+                isBookmarked && 'text-[var(--nous-fg-accent-safe)] fill-current'
               )}
             />
           </Button>
@@ -264,9 +264,9 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           onKeyDown={(event) => handleTabKeyDown(event, 0)}
           onClick={() => setActiveTab('overview')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'overview'
-              ? 'border-(--nous-sol) text-(--nous-fg-accent-safe)'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -285,9 +285,9 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           onKeyDown={(event) => handleTabKeyDown(event, 1)}
           onClick={() => setActiveTab('relationships')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'relationships'
-              ? 'border-(--nous-sol) text-(--nous-fg-accent-safe)'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -306,9 +306,9 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           onKeyDown={(event) => handleTabKeyDown(event, 2)}
           onClick={() => setActiveTab('documents')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'documents'
-              ? 'border-(--nous-sol) text-(--nous-fg-accent-safe)'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -327,9 +327,9 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
           onKeyDown={(event) => handleTabKeyDown(event, 3)}
           onClick={() => setActiveTab('timeline')}
           className={cn(
-            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+            'py-3 px-4 border-b-2 font-medium text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
             activeTab === 'timeline'
-              ? 'border-(--nous-sol) text-(--nous-fg-accent-safe)'
+              ? 'border-[var(--nous-sol)] text-[var(--nous-fg-accent-safe)]'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
@@ -435,7 +435,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                     {mentionContexts.slice(0, 3).map((context, index) => (
                       <div
                         key={index}
-                        className="p-3 bg-(--nous-bg-2) rounded-lg"
+                        className="p-3 bg-[var(--nous-bg-2)] rounded-lg"
                       >
                         <p className="text-sm text-foreground italic">
                           "{context.snippet}"
@@ -484,7 +484,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
-                          <Badge className="bg-(--nous-sol)/15 text-(--nous-fg-accent-safe)">
+                          <Badge className="bg-[var(--nous-sol)]/15 text-[var(--nous-fg-accent-safe)]">
                             {relationship.relationship_type}
                           </Badge>
                           <span
@@ -582,7 +582,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
-                    <CheckCircleIcon className="h-5 w-5 text-(--nous-terra)" />
+                    <CheckCircleIcon className="h-5 w-5 text-[var(--nous-terra)]" />
                     <div>
                       <div className="font-medium">First Appearance</div>
                       <div className="text-sm text-muted-foreground">
@@ -592,7 +592,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <ClockIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
+                    <ClockIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <div>
                       <div className="font-medium">Last Mention</div>
                       <div className="text-sm text-muted-foreground">
@@ -602,7 +602,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <ChartBarIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
+                    <ChartBarIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
                     <div>
                       <div className="font-medium">Total Mentions</div>
                       <div className="text-sm text-muted-foreground">
@@ -631,7 +631,7 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({
                       .map((document) => (
                         <div
                           key={document.id}
-                          className="flex items-center space-x-3 p-3 bg-(--nous-bg-2) rounded-lg"
+                          className="flex items-center space-x-3 p-3 bg-[var(--nous-bg-2)] rounded-lg"
                         >
                           <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
                           <div className="flex-1">

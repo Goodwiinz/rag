@@ -260,7 +260,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
         <button
           type="button"
           onClick={() => router.push('/research-engine')}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
           Back to projects
@@ -282,7 +282,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
       <button
         type="button"
         onClick={() => router.push('/research-engine')}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
       >
         <ArrowLeft aria-hidden="true" className="h-4 w-4" />
         Back to projects
@@ -299,7 +299,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             type="text"
             value={blueprintName}
             onChange={(e) => setBlueprintName(e.target.value)}
-            className="text-xl font-semibold bg-transparent text-foreground border-none outline-hidden w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded placeholder:text-muted-foreground/60 transition-colors"
+            className="text-xl font-semibold bg-transparent text-foreground border-none outline-none w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded placeholder:text-muted-foreground/60 transition-colors"
             placeholder="Blueprint name"
           />
           {project && (
@@ -314,7 +314,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             type="button"
             onClick={handleSave}
             disabled={saving || !blueprintName.trim() || !!globalParamsError}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-primary/40 hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:border-primary/40 hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {saving ? (
               <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -329,7 +329,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
               type="button"
               onClick={handleStartRun}
               disabled={starting || steps.length === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {starting ? (
                 <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
@@ -357,7 +357,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             <button
               type="button"
               onClick={fetchData}
-              className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+              className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
             >
               Retry
             </button>
@@ -375,7 +375,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
             <button
               type="button"
               onClick={handleAddStep}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <Plus aria-hidden="true" className="h-3.5 w-3.5" />
               Add step
@@ -390,7 +390,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
               <button
                 type="button"
                 onClick={handleAddStep}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary rounded-lg border border-border hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <Plus aria-hidden="true" className="h-3.5 w-3.5" />
                 Add your first step
@@ -414,7 +414,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
         {/* Global parameters sidebar */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-card shadow-xs p-4">
+          <div className="rounded-xl border border-border bg-card shadow-sm p-4">
             <h3 className="text-sm font-medium text-foreground mb-3">
               Global parameters
             </h3>
@@ -444,7 +444,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                     })
                   }
                   placeholder="Research topic"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
@@ -470,7 +470,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
@@ -496,7 +496,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                       return next;
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-hidden focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                 />
               </div>
 
@@ -540,7 +540,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
                 onChange={(e) => handleGlobalParamsChange(e.target.value)}
                 rows={6}
                 aria-invalid={!!globalParamsError}
-                className={`w-full px-3 py-2 rounded-lg bg-background border text-xs font-mono text-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
+                className={`w-full px-3 py-2 rounded-lg bg-background border text-xs font-mono text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none transition-colors ${
                   globalParamsError
                     ? 'border-destructive/50 focus:border-destructive'
                     : 'border-border focus:border-primary'
@@ -556,7 +556,7 @@ export function BlueprintEditor({ projectId }: BlueprintEditorProps) {
 
           {/* Blueprint info */}
           {blueprint && (
-            <div className="rounded-xl border border-border bg-card shadow-xs p-4">
+            <div className="rounded-xl border border-border bg-card shadow-sm p-4">
               <h3 className="text-sm font-medium text-foreground mb-2">
                 Blueprint info
               </h3>

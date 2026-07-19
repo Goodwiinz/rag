@@ -1,12 +1,20 @@
 """
 Search Services Module
 
-Base search types shared across search implementations (see base.py).
-The orchestrator/fusion/reranker/cache/metrics pipeline that used to live
-here had zero live construction sites and was removed.
+This module provides a modular, testable search architecture that supports:
+- Multi-source search (vector, graph, keyword)
+- Result fusion using Reciprocal Rank Fusion (RRF)
+- Cohere/custom reranking
+- Search metrics and analytics
+- Caching
 """
 
 from .base import SearchExecutor, SearchQuery, SearchResult, SearchSource
+from .cache import SearchCache
+from .fusion import ResultFusion
+from .metrics import SearchMetrics
+from .orchestrator import SearchOrchestrator
+from .reranker import SearchReranker
 
 __all__ = [
     # Base types
@@ -14,4 +22,10 @@ __all__ = [
     "SearchResult",
     "SearchExecutor",
     "SearchSource",
+    # Orchestrator services
+    "SearchOrchestrator",
+    "ResultFusion",
+    "SearchReranker",
+    "SearchMetrics",
+    "SearchCache",
 ]

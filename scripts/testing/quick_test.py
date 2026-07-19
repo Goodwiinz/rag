@@ -277,6 +277,13 @@ class RAGPlatformTester:
         except:
             services["redis"] = False
 
+        # Test Qdrant (Vector DB)
+        try:
+            response = self.session.get(f"{self.base_url}/api/health/qdrant", timeout=5)
+            services["qdrant"] = response.status_code == 200
+        except:
+            services["qdrant"] = False
+
         # Test Neo4j (Knowledge Graph)
         try:
             response = self.session.get(f"{self.base_url}/api/health/neo4j", timeout=5)

@@ -114,7 +114,7 @@ export function ToolExecutionCard({ execution }: ToolExecutionCardProps) {
       {/* Expanded details */}
       {isExpanded && execution.result != null && (
         <div className="border-t border-border/30 px-3 py-2 max-h-[200px] overflow-y-auto bg-muted/10">
-          <pre className="whitespace-pre-wrap wrap-break-word text-[11px] text-muted-foreground leading-relaxed">
+          <pre className="whitespace-pre-wrap break-words text-[11px] text-muted-foreground leading-relaxed">
             {typeof execution.result === 'string'
               ? execution.result
               : JSON.stringify(

@@ -1,13 +1,4 @@
 {{- if .Values.networkPolicy.enabled }}
-{{- $np := .Values.networkPolicy }}
-{{/*
-  Sub-flags default defensively: ingress ON (a NetworkPolicy with no rule types
-  is pointless), egress OFF (locking egress is the risky half — the external
-  managed deps, Supabase / DO Redis / DO Spaces / Azure OpenAI, brick the app if
-  a single destination is missed, so it is opt-in per-env, not the default).
-*/}}
-{{- $ingressEnabled := dig "ingress" "enabled" true $np }}
-{{- $egressEnabled := dig "egress" "enabled" false $np }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -16,63 +7,31 @@ metadata:
     app.kubernetes.io/component: backend
     {{- include "knowledge-graph-analytics.labels" . | nindent 4 }}
 spec:
-  # Scope to the backend pods ONLY. Neo4j (and celery) share the chart's
-  # selectorLabels, so a bare selectorLabels podSelector would also default-deny
-  # ingress to Neo4j and break backend/celery -> bolt:7687. Do not broaden this.
   podSelector:
     matchLabels:
       app.kubernetes.io/component: backend
       {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 6 }}
   policyTypes:
-    {{- if $ingressEnabled }}
     - Ingress
-    {{- end }}
-    {{- if $egressEnabled }}
     - Egress
-    {{- end }}
-  {{- if $ingressEnabled }}
-  # Default-deny ingress to the backend, with explicit allows below. Kubelet
-  # health probes originate from the node (not a pod) and are NOT matched here;
-  # DOKS/Cilium allows host->pod by default, so probes keep working — verify on
-  # the live cluster before enabling (see values-dev.yaml checklist).
   ingress:
+    # Allow traffic from ingress controller
     - from:
-        {{- if $np.ingressControllerNamespace }}
-        # Public API traffic via the shared (cluster-level) ingress-nginx.
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ $np.ingressControllerNamespace }}
-        {{- end }}
-        {{- if $np.monitoringNamespace }}
-        # Prometheus scrape of /metrics (served on the same app port).
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ $np.monitoringNamespace }}
-        {{- end }}
-        # Intra-release pods (backend<->backend, celery, synthetic-traffic).
-        - podSelector:
-            matchLabels:
-              {{- include "knowledge-graph-analytics.selectorLabels" . | nindent 14 }}
+              kubernetes.io/metadata.name: ingress-nginx
       ports:
-        # Pod port (targetPort/containerPort), NOT the Service port: kube-proxy
-        # DNATs the Service port to targetPort before the packet reaches the pod,
-        # so NetworkPolicy matches targetPort. In dev/staging/prod the Service is
-        # :80 -> pod :8000; matching .service.port here would block all ingress.
         - protocol: TCP
-          port: {{ .Values.backend.service.targetPort }}
-  {{- end }}
-  {{- if $egressEnabled }}
-  # Egress lockdown is OPT-IN (egress.enabled). DNS MUST be allowed first or
-  # every outbound lookup fails — the classic NetworkPolicy self-inflicted outage.
+          port: 8000
   egress:
-    # DNS resolution (kube-dns / CoreDNS).
+    # DNS resolution
     - to: []
       ports:
         - protocol: TCP
           port: 53
         - protocol: UDP
           port: 53
-    # PostgreSQL — Supabase (external managed): pooler + direct ports.
+    # PostgreSQL
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -81,16 +40,16 @@ spec:
           port: 25060
         - protocol: TCP
           port: 5432
-    # Redis — DO Managed (external): TLS + non-TLS ports.
+    # Redis
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
-          port: 25061
-        - protocol: TCP
           port: 6379
-    # Neo4j (in-cluster bolt).
+        - protocol: TCP
+          port: 25061
+    # Neo4j (in-cluster)
     - to:
         - podSelector:
             matchLabels:
@@ -98,12 +57,19 @@ spec:
       ports:
         - protocol: TCP
           port: 7687
-    # HTTPS egress: Azure OpenAI, DO Spaces, Supabase REST/Auth, Cohere.
+    # Qdrant (in-cluster)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
+    # HTTPS outbound (APIs: Cohere, OpenAI, Supabase, DO Spaces)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 443
-  {{- end }}
 {{- end }}

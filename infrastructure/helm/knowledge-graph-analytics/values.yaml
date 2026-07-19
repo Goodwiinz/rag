@@ -51,11 +51,6 @@ backend:
   enabled: true
   replicaCount: 3
 
-  # Graceful drain for long-lived WebSocket connections (see backend-deployment.yaml).
-  # terminationGracePeriodSeconds must exceed terminationDrainSeconds + socket close.
-  terminationDrainSeconds: 15
-  terminationGracePeriodSeconds: 45
-
   image:
     repository: your-registry/knowledge-graph-backend
     tag: "1.0.0"
@@ -144,23 +139,11 @@ backend:
 
   healthCheck:
     enabled: true
-    # path        -> liveness + startup (process-alive /health handler)
-    # readinessPath -> readiness (dependency-aware /health/readiness handler)
-    # Split so a dependency outage removes a pod from the LB (readiness)
-    # without restarting it (liveness). Readiness timing has safe floors
-    # enforced in the template (periodSeconds >= 10, failureThreshold >= 3).
     path: /health
-    livenessPath: /health
-    startupPath: /health
-    readinessPath: /health/readiness
     initialDelaySeconds: 60
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
-    readinessInitialDelaySeconds: 5
-    readinessPeriodSeconds: 10
-    readinessTimeoutSeconds: 5
-    readinessFailureThreshold: 3
 
 # Celery Worker Configuration
 celeryWorker:
@@ -340,6 +323,27 @@ neo4j:
         - apoc
         - graph-data-science
 
+# Qdrant Configuration
+qdrant:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "gp2"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  config:
+    service:
+      api_key: ""
+      http_port: 6333
+      grpc_port: 6334
+
 # Prometheus Configuration
 prometheus:
   enabled: true
@@ -376,6 +380,9 @@ prometheus:
         - job_name: 'neo4j'
           static_configs:
             - targets: ['neo4j:2004']
+        - job_name: 'qdrant'
+          static_configs:
+            - targets: ['qdrant:6333']
 
 # Grafana Configuration
 grafana:
@@ -484,25 +491,12 @@ podSecurityPolicy:
       - 'persistentVolumeClaim'
 
 # Network Policies
-# Rendered by templates/networkpolicy.yaml. The policy targets the BACKEND pods
-# only (component=backend) — Neo4j/celery share selectorLabels, so a broader
-# selector would wrongly default-deny their ingress. `ingress`/`egress.enabled`
-# gate the two rule sets independently; egress lockdown is opt-in because the
-# external managed deps (Supabase / DO Redis / DO Spaces / Azure OpenAI) make it
-# the risky half.
 networkPolicy:
   enabled: true
   ingress:
     enabled: true
   egress:
     enabled: true
-  # Namespace of the shared, cluster-level ingress-nginx controller allowed to
-  # reach the backend. Override per-env if the controller lives elsewhere; set
-  # empty to drop the allow.
-  ingressControllerNamespace: ingress-nginx
-  # Namespace where Prometheus runs and scrapes the backend /metrics endpoint
-  # (same port as the app). Set empty to drop the allow.
-  monitoringNamespace: monitoring
 
 # Pod Disruption Budget
 podDisruptionBudget:
@@ -541,10 +535,13 @@ serviceAccount:
 rbac:
   create: true
 
-# Note: no Neo4j backup/DR automation ships with this chart. The knowledge
-# graph is derived data — DR is a rebuild via scripts/repair_kg.py, and PVC
-# loss is accepted on dev. See docs/decisions/neo4j-dr.md. Revisit before
-# production promotion.
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: "30d"
+  storageClass: "gp2"
+  storageSize: "50Gi"
 
 # Synthetic traffic generator — drives the compiled LangGraph agent in-process
 # to produce continuous LangSmith traces. Disabled by default; enabled only in
@@ -553,54 +550,3 @@ syntheticTraffic:
   enabled: false
   schedule: "*/20 * * * *"
   args: ["--rotate"]
-
-# ──────────────────────────────────────────────
-# KEDA queue-depth autoscaling for the celery-worker (audit P1.6 / finding X5)
-# ──────────────────────────────────────────────
-# SCAFFOLD, OFF by default. Renders templates/keda-scaledobject.yaml (a KEDA
-# ScaledObject + TriggerAuthentication) ONLY when enabled: true. Requires the
-# KEDA operator to be installed in the cluster first — see
-# docs/decisions/worker-autoscaling.md for the rationale (KEDA over
-# prometheus-adapter) and the full install/rollback checklist.
-#
-# When enabled=true the plain CPU/memory worker HPA (templates/hpa.yaml) is
-# suppressed (mutual exclusion) because KEDA reconciles its own HPA.
-keda:
-  enabled: false
-  # min/max mirror the plain worker HPA it replaces. Kept modest on purpose:
-  # queue-depth scaling reacts to backlog, not resource pressure.
-  minReplicaCount: 1
-  maxReplicaCount: 3
-  # How often KEDA polls the Redis list length (seconds).
-  pollingInterval: 30
-  # Seconds of empty-queue before scaling back toward minReplicaCount.
-  cooldownPeriod: 300
-  # HPA scale-down stabilization; matches the conservative window of the plain
-  # worker HPA so long-running indexing/LLM tasks aren't interrupted.
-  scaleDownStabilizationSeconds: 600
-  redis:
-    # The existing secret carrying the DO Managed Redis connection. KEDA's redis
-    # scaler needs host/port/password as DISCRETE keys, NOT the full rediss://
-    # URL the app consumes via REDIS_URL — ensure the /redis Infisical folder
-    # exposes these keys (or point the *Key fields at the ones it has) before
-    # flipping enabled: true.
-    authSecretName: redis-credentials
-    hostKey: REDIS_HOST
-    portKey: REDIS_PORT
-    passwordKey: REDIS_PASSWORD
-    # DO Managed Redis is not created with an ACL username by default; leave
-    # empty to omit the username auth param. Set to a secret key to enable it.
-    usernameKey: ""
-    # DO Managed Redis uses rediss:// (TLS). "true" → KEDA enableTLS.
-    enableTLS: "true"
-    databaseIndex: "0"
-  # One redis-list trigger per queue that matters. KEDA scales on the MAX
-  # desired replicas across triggers, so a backlog on either queue scales up.
-  # listLength is the target items-per-replica (~10). Kept to the two hottest
-  # queues (celery default + document_processing) — add high_priority /
-  # agent_runs here if they develop their own backlog.
-  triggers:
-    - queue: celery
-      listLength: "10"
-    - queue: document_processing
-      listLength: "10"

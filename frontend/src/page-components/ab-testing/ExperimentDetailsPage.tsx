@@ -20,7 +20,7 @@ export const ExperimentDetailsPage: React.FC = () => {
             Experiment Not Found
           </h1>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-white rounded-lg shadow p-6">
           <p className="text-red-600">
             Experiment ID is missing. Please select a valid experiment.
           </p>
@@ -43,7 +43,7 @@ export const ExperimentDetailsPage: React.FC = () => {
         </h1>
         <p className="text-foreground">ID: {id}</p>
       </div>
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow p-6">
         <p className="text-foreground">
           View detailed experiment results and metrics.
         </p>

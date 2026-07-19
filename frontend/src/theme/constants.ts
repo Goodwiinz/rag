@@ -121,7 +121,7 @@ export const SEMANTIC_COLORS = {
 
 /**
  * CSS variable names matching the values defined in globals.css
- * Use these for className strings: `text-(--nous-sol)`
+ * Use these for className strings: `text-[var(--nous-sol)]`
  */
 export const CSS_VARS = {
   // Primary colors

@@ -253,14 +253,14 @@ async def test_async_main_login_command_updates_auth_and_continues(
     from src.cli.types import CLIEvent
 
     stream_bodies: list[dict[str, object]] = []
-    updated_auth: list[str] = []
+    updated_auth: list[tuple[str, str]] = []
 
     class FakeAgentAPIClient:
         def __init__(self, **kwargs: object) -> None:
             self.kwargs = kwargs
 
-        def update_auth(self, token: str) -> None:
-            updated_auth.append(token)
+        def update_auth(self, token: str, organization_id: str) -> None:
+            updated_auth.append((token, organization_id))
 
         async def stream_message(
             self, request_body: dict[str, object]
@@ -297,7 +297,7 @@ async def test_async_main_login_command_updates_auth_and_continues(
     )
 
     assert exit_code == 0
-    assert updated_auth == ["cli-token"]
+    assert updated_auth == [("cli-token", "org-1")]
     sent_messages = stream_bodies[0]["messages"]
     assert len(sent_messages) == 1
     sent_msg = sent_messages[0]

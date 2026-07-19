@@ -117,25 +117,14 @@ def search_threads_get(
     A more RESTful alternative to POST for simple searches.
     """
     try:
-        parsed_status = (
-            [ThreadStatus(s) for s in status_filter] if status_filter else None
-        )
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "Invalid status_filter value(s). Valid values: "
-                f"{[e.value for e in ThreadStatus]}"
-            ),
-        )
-
-    try:
         # Build filter object
         filters = (
             ThreadSearchFilter(
                 conversation_id=conversation_id,
                 workspace_id=workspace_id,
-                status=parsed_status,
+                status=[ThreadStatus(s) for s in status_filter]
+                if status_filter
+                else None,
                 date_from=date_from,
                 date_to=date_to,
                 min_message_count=min_message_count,
@@ -259,17 +248,6 @@ def search_messages_get(
     A more RESTful alternative to POST for simple searches.
     """
     try:
-        parsed_roles = [MessageRole(r) for r in roles] if roles else None
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "Invalid roles value(s). Valid values: "
-                f"{[e.value for e in MessageRole]}"
-            ),
-        )
-
-    try:
         # Build filter object
         filters = (
             MessageSearchFilter(
@@ -277,7 +255,7 @@ def search_messages_get(
                 conversation_id=conversation_id,
                 workspace_id=workspace_id,
                 user_id=user_id,
-                roles=parsed_roles,
+                roles=[MessageRole(r) for r in roles] if roles else None,
                 date_from=date_from,
                 date_to=date_to,
                 has_citations=has_citations,

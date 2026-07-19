@@ -83,7 +83,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
 
       {/* Success banner */}
       <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-        <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+        <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
         <div>
           <p className="text-sm font-medium text-primary">Pipeline complete</p>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -101,7 +101,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="p-3 bg-primary/10 rounded-lg">
             <FileText className="h-5 w-5 text-primary" />
@@ -121,7 +121,7 @@ export const ExportStep: React.FC<ExportStepProps> = ({
             setShowExportModal(true);
           }}
           disabled={!currentDraft}
-          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-primary/30 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className="p-3 bg-primary/10 rounded-lg">
             <Download className="h-5 w-5 text-primary" />

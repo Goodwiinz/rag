@@ -1,0 +1,407 @@
+# Docker Compose for Corrected Graph Services Architecture
+# This file defines the three microservices that correct the architectural violation
+# where graph algorithms were incorrectly placed in frontend
+
+version: '3.8'
+
+services:
+  # Neo4j Database with Graph Data Science Library (shared by all graph services)
+  neo4j-graph:
+    image: neo4j:5.14-community
+    container_name: rag-neo4j-graph
+    environment:
+      NEO4J_AUTH: neo4j/ragpassword2024
+      NEO4J_dbms_memory_heap_initial__size: 1G
+      NEO4J_dbms_memory_heap_max__size: 4G
+      NEO4J_dbms_memory_pagecache_size: 2G
+      NEO4J_dbms_default__database: rag_graph
+      NEO4J_dbms_security_procedures_unrestricted: graph-data-science.*,apoc.*
+      NEO4J_dbms_security_procedures_allowlist: graph-data-science.*,apoc.*
+      NEO4J_PLUGINS: '["graph-data-science", "apoc"]'
+      NEO4J_dbms_log_query_level: INFO
+      NEO4J_dbms_logs_debug_level: INFO
+    ports:
+      - "7474:7474"    # HTTP
+      - "7687:7687"    # Bolt
+    volumes:
+      - neo4j_graph_data:/data
+      - neo4j_graph_logs:/logs
+      - neo4j_graph_import:/var/lib/neo4j/import
+      - neo4j_graph_plugins:/plugins
+      - ./database/neo4j-init.cypher:/docker-entrypoint-initdb.d/init.cypher
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "ragpassword2024", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # PostgreSQL for metadata and analytics (enhanced for graph operations)
+  postgres-graph:
+    image: postgres:15-alpine
+    container_name: rag-postgres-graph
+    environment:
+      POSTGRES_DB: rag_graph
+      POSTGRES_USER: rag_user
+      POSTGRES_PASSWORD: rag_password2024
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_graph_data:/var/lib/postgresql/data
+      - ./database/graph-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/graph-indexes.sql:/docker-entrypoint-initdb.d/02-indexes.sql
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_user -d rag_graph"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for caching and session management (optimized for graph workloads)
+  redis-graph:
+    image: redis:7-alpine
+    container_name: rag-redis-graph
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_graph_data:/data
+      - ./redis/redis-graph.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Knowledge Graph Service (Port 8003) - CORRECTED: Entity extraction and CRUD operations
+  knowledge-graph-service:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.knowledge-graph
+    container_name: rag-knowledge-graph-service
+    environment:
+      - SERVICE_NAME=knowledge-graph
+      - SERVICE_PORT=8003
+      - NEO4J_URI=bolt://neo4j-graph:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=ragpassword2024
+      - DATABASE_URL=postgresql://rag_user:rag_password2024@postgres-graph:5432/rag_graph
+      - REDIS_URL=redis://redis-graph:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_CONNECTION_POOL_SIZE=50
+      - ENTITY_CONFIDENCE_THRESHOLD=0.7
+      - RELATIONSHIP_CONFIDENCE_THRESHOLD=0.6
+      - ENABLE_WEB_SOCKET_UPDATES=true
+      - CACHE_TTL_SECONDS=3600
+    ports:
+      - "8003:8003"
+    depends_on:
+      neo4j-graph:
+        condition: service_healthy
+      postgres-graph:
+        condition: service_healthy
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Graph Analytics Service (Port 8009) - CORRECTED: All graph algorithms moved here
+  graph-analytics-service:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.graph-analytics
+    container_name: rag-graph-analytics-service
+    environment:
+      - SERVICE_NAME=graph-analytics
+      - SERVICE_PORT=8009
+      - NEO4J_URI=bolt://neo4j-graph:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=ragpassword2024
+      - DATABASE_URL=postgresql://rag_user:rag_password2024@postgres-graph:5432/rag_graph
+      - REDIS_URL=redis://redis-graph:6379
+      - CELERY_BROKER_URL=redis://redis-graph:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis-graph:6379/1
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_GRAPH_SIZE_FOR_CENTRALITY=10000
+      - MAX_GRAPH_SIZE_FOR_COMMUNITIES=50000
+      - MAX_CONCURRENT_JOBS=10
+      - JOB_TIMEOUT_SECONDS=3600
+      - ENABLE_BACKGROUND_PROCESSING=true
+      - ENABLE_SCHEDULING=true
+    ports:
+      - "8009:8009"
+      - "9009:9009"  # Metrics port
+    depends_on:
+      neo4j-graph:
+        condition: service_healthy
+      postgres-graph:
+        condition: service_healthy
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Celery Worker for Graph Analytics Service
+  graph-analytics-worker:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.graph-analytics
+    container_name: rag-graph-analytics-worker
+    command: celery -A graph_analytics_service.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=100
+    environment:
+      - SERVICE_NAME=graph-analytics-worker
+      - NEO4J_URI=bolt://neo4j-graph:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=ragpassword2024
+      - DATABASE_URL=postgresql://rag_user:rag_password2024@postgres-graph:5432/rag_graph
+      - REDIS_URL=redis://redis-graph:6379
+      - CELERY_BROKER_URL=redis://redis-graph:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis-graph:6379/1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WORKER_LOG_LEVEL=INFO
+      - WORKER_PREFETCH_MULTIPLIER=1
+      - WORKER_MAX_TASKS_PER_CHILD=100
+      - WORKER_DISABLE_RATE_LIMITS=false
+    depends_on:
+      neo4j-graph:
+        condition: service_healthy
+      postgres-graph:
+        condition: service_healthy
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '0.75'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Celery Beat for scheduled analytics jobs
+  graph-analytics-scheduler:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.graph-analytics
+    container_name: rag-graph-analytics-scheduler
+    command: celery -A graph_analytics_service.celery_app beat --loglevel=info --schedule=/app/celerybeat-schedule
+    environment:
+      - SERVICE_NAME=graph-analytics-scheduler
+      - NEO4J_URI=bolt://neo4j-graph:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=ragpassword2024
+      - DATABASE_URL=postgresql://rag_user:rag_password2024@postgres-graph:5432/rag_graph
+      - REDIS_URL=redis://redis-graph:6379
+      - CELERY_BROKER_URL=redis://redis-graph:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis-graph:6379/1
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - BEAT_LOGLEVEL=INFO
+    depends_on:
+      neo4j-graph:
+        condition: service_healthy
+      postgres-graph:
+        condition: service_healthy
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+      - ./analytics-schedule:/app/celerybeat-schedule
+
+  # Graph Visualization API Service (Port 8010) - CORRECTED: Data preparation and layout computation
+  graph-visualization-service:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.graph-visualization
+    container_name: rag-graph-visualization-service
+    environment:
+      - SERVICE_NAME=graph-visualization
+      - SERVICE_PORT=8010
+      - NEO4J_URI=bolt://neo4j-graph:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=ragpassword2024
+      - DATABASE_URL=postgresql://rag_user:rag_password2024@postgres-graph:5432/rag_graph
+      - REDIS_URL=redis://redis-graph:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-jwt-key-change-in-production}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_GRAPH_SIZE_FOR_REALTIME=5000
+      - MAX_GRAPH_SIZE_FOR_INTERACTIVE=20000
+      - DEFAULT_BATCH_SIZE=500
+      - ENABLE_PERFORMANCE_OPTIMIZATION=true
+      - CACHE_TTL_SECONDS=1800
+      - MAX_MEMORY_MB=2048
+      - MAX_CPU_TIME_SECONDS=120
+    ports:
+      - "8010:8010"
+      - "9010:9010"  # Metrics port
+    depends_on:
+      neo4j-graph:
+        condition: service_healthy
+      postgres-graph:
+        condition: service_healthy
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '0.75'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Flower for Celery monitoring (optional)
+  flower:
+    build:
+      context: ./backend/src/services
+      dockerfile: Dockerfile.graph-analytics
+    container_name: rag-flower
+    command: celery -A graph_analytics_service.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    environment:
+      - CELERY_BROKER_URL=redis://redis-graph:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis-graph:6379/1
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis-graph:
+        condition: service_healthy
+    networks:
+      - graph-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Nginx Load Balancer for Graph Services
+  nginx-graph:
+    image: nginx:alpine
+    container_name: rag-nginx-graph
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx-graph.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - knowledge-graph-service
+      - graph-analytics-service
+      - graph-visualization-service
+    networks:
+      - graph-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - production
+
+  # Prometheus for Graph Services Monitoring
+  prometheus-graph:
+    image: prom/prometheus:v2.45.0
+    container_name: rag-prometheus-graph
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus-graph.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-graph-data:/prometheus
+    depends_on:
+      - knowledge-graph-service
+      - graph-analytics-service
+      - graph-visualization-service
+    networks:
+      - graph-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+volumes:
+  neo4j_graph_data:
+  neo4j_graph_logs:
+  neo4j_graph_import:
+  neo4j_graph_plugins:
+  postgres_graph_data:
+  redis_graph_data:
+  prometheus-graph-data:
+
+networks:
+  graph-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

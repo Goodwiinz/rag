@@ -179,7 +179,7 @@ export function GlobalAgentChat() {
       {/* Panel mode — floating popup (used on narrow viewports or when collapsed) */}
       {uiMode === 'panel' && (
         <div
-          className="fixed bottom-[88px] right-6 z-50 w-[400px] h-[560px] max-sm:w-full max-sm:h-dvh max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:rounded-t-xl bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"
+          className="fixed bottom-[88px] right-6 z-50 w-[400px] h-[560px] max-sm:w-full max-sm:h-[100dvh] max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:rounded-t-xl bg-background border border-border rounded-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"
           role="dialog"
           aria-modal="true"
           aria-label="Agent chat panel"

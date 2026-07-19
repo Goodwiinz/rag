@@ -290,12 +290,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
     switch (type) {
       case 'entity_created':
         return (
-          <UserGroupIcon className="h-5 w-5 text-(--nous-fg-accent-safe)" />
+          <UserGroupIcon className="h-5 w-5 text-[var(--nous-fg-accent-safe)]" />
         );
       case 'relationship_formed':
-        return <ArrowPathIcon className="h-5 w-5 text-(--nous-terra)" />;
+        return <ArrowPathIcon className="h-5 w-5 text-[var(--nous-terra)]" />;
       case 'document_added':
-        return <DocumentTextIcon className="h-5 w-5 text-(--nous-fg-3)" />;
+        return <DocumentTextIcon className="h-5 w-5 text-[var(--nous-fg-3)]" />;
       default:
         return <ClockIcon className="h-5 w-5 text-muted-foreground" />;
     }
@@ -305,11 +305,11 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
   const getEventColor = (importance: TimelineEvent['importance']) => {
     switch (importance) {
       case 'high':
-        return 'border-(--nous-mars)/40 bg-(--nous-mars)/10';
+        return 'border-[var(--nous-mars)]/40 bg-[var(--nous-mars)]/10';
       case 'medium':
-        return 'border-(--nous-corona)/40 bg-(--nous-corona)/10';
+        return 'border-[var(--nous-corona)]/40 bg-[var(--nous-corona)]/10';
       case 'low':
-        return 'border-border bg-(--nous-bg-2)';
+        return 'border-border bg-[var(--nous-bg-2)]';
     }
   };
 
@@ -334,11 +334,11 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
   const getImportanceBadgeColor = (importance: TimelineEvent['importance']) => {
     switch (importance) {
       case 'high':
-        return 'bg-(--nous-mars)/15 text-(--nous-mars)';
+        return 'bg-[var(--nous-mars)]/15 text-[var(--nous-mars)]';
       case 'medium':
-        return 'bg-(--nous-corona)/15 text-(--nous-corona)';
+        return 'bg-[var(--nous-corona)]/15 text-[var(--nous-corona)]';
       case 'low':
-        return 'bg-(--nous-bg-3) text-foreground';
+        return 'bg-[var(--nous-bg-3)] text-foreground';
     }
   };
 
@@ -443,7 +443,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           : filters.eventTypes.filter((t) => t !== type);
                         updateFilters({ eventTypes: newTypes });
                       }}
-                      className="rounded border-border text-(--nous-sol) focus:ring-(--nous-sol) mr-2"
+                      className="rounded border-border text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] mr-2"
                     />
                     <span className="text-sm">
                       {type
@@ -479,7 +479,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           : filters.entityTypes.filter((t) => t !== type);
                         updateFilters({ entityTypes: newTypes });
                       }}
-                      className="rounded border-border text-(--nous-sol) focus:ring-(--nous-sol) mr-2"
+                      className="rounded border-border text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] mr-2"
                     />
                     <span className="text-sm capitalize">{type}</span>
                   </label>
@@ -504,7 +504,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                           : filters.importance.filter((i) => i !== importance);
                         updateFilters({ importance: newImportance });
                       }}
-                      className="rounded border-border text-(--nous-sol) focus:ring-(--nous-sol) mr-2"
+                      className="rounded border-border text-[var(--nous-sol)] focus:ring-[var(--nous-sol)] mr-2"
                     />
                     <span className="text-sm capitalize">{importance}</span>
                   </label>
@@ -570,12 +570,12 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                     'flex items-start space-x-4 p-4 rounded-lg border cursor-pointer hover:shadow-md transition-shadow',
                     getEventColor(event.importance),
                     selectedEvent?.id === event.id &&
-                      'ring-2 ring-(--nous-sol)'
+                      'ring-2 ring-[var(--nous-sol)]'
                   )}
                   onClick={() => setSelectedEvent(event)}
                 >
                   {/* Event Icon */}
-                  <div className="shrink-0 mt-1">
+                  <div className="flex-shrink-0 mt-1">
                     {getEventIcon(event.type)}
                   </div>
 
@@ -748,7 +748,7 @@ export const EntityTimeline: React.FC<EntityTimelineProps> = ({
                   <h5 className="font-medium text-foreground mb-2">
                     Metadata:
                   </h5>
-                  <div className="bg-(--nous-bg-2) rounded p-3 text-sm">
+                  <div className="bg-[var(--nous-bg-2)] rounded p-3 text-sm">
                     {Object.entries(selectedEvent.metadata).map(
                       ([key, value]) => (
                         <div key={key}>

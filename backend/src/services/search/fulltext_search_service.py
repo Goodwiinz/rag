@@ -670,33 +670,6 @@ class FullTextSearchService:
             db.rollback()
             raise
 
-    # Same tsvector build as update_document_search_vector, but for the async
-    # ingest paths (arXiv REST + agent tool) that hold an AsyncSession. Those
-    # paths persist Documents as COMPLETED but never ran the sync updater, so
-    # documents.search_vector stayed NULL and Postgres fulltext (which requires
-    # `search_vector @@ plainto_tsquery`) could never surface them.
-    _SEARCH_VECTOR_SQL = text("""
-        UPDATE documents
-        SET search_vector =
-            setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-            setweight(to_tsvector('english', coalesce(content_text, '')), 'B') ||
-            setweight(to_tsvector('english', coalesce(content_summary, '')), 'C') ||
-            setweight(to_tsvector('english', coalesce(array_to_string(tags, ' '), '')), 'D')
-        WHERE id = ANY(:document_ids)
-        """)
-
-    async def async_update_document_search_vectors(self, document_ids, db) -> None:
-        """Build search_vector for the given documents on an AsyncSession.
-
-        Best-effort within the caller's transaction: the caller decides when to
-        commit. Raises on failure so the caller can log — never leaves a half
-        state, since it's a single set-based UPDATE.
-        """
-        ids = [str(d) for d in document_ids if d]
-        if not ids:
-            return
-        await db.execute(self._SEARCH_VECTOR_SQL, {"document_ids": ids})
-
     def get_search_analytics(
         self, organization_id: str = None, days: int = 30
     ) -> Dict[str, Any]:
