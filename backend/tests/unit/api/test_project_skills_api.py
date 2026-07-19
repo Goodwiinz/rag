@@ -14,7 +14,7 @@ from src.api.research.project_skills import (
 from src.services.project_skills.catalog_service import ProjectSkillProposalConflict
 
 
-def test_project_skill_router_exposes_staged_catalog_routes_once():
+def test_project_skill_router_exposes_staged_catalog_routes_once() -> None:
     paths = {route.path for route in router.routes}
 
     assert "/api/v1/projects/{project_id}/skills" in paths
@@ -31,14 +31,14 @@ def test_project_skill_router_exposes_staged_catalog_routes_once():
     assert "/api/v1/projects/{project_id}/skills/{skill_name}/rollback" in paths
 
 
-def test_create_uniqueness_conflict_translates_to_http_409():
+def test_create_uniqueness_conflict_translates_to_http_409() -> None:
     with pytest.raises(HTTPException) as error:
         _translate_error(ProjectSkillProposalConflict("duplicate normalized name"))
 
     assert error.value.status_code == 409
 
 
-def test_disabled_catalog_is_a_non_leaking_feature_unavailable_404():
+def test_disabled_catalog_is_a_non_leaking_feature_unavailable_404() -> None:
     with (
         patch(
             "src.api.research.project_skills.get_settings",

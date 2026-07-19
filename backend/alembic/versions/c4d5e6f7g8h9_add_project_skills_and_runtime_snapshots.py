@@ -6,7 +6,7 @@ Create Date: 2026-07-19
 """
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import op  # type: ignore[attr-defined]
 from sqlalchemy.dialects import postgresql
 
 revision = "c4d5e6f7g8h9"

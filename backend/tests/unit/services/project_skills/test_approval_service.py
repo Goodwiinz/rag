@@ -8,7 +8,7 @@ from src.services.project_skills.approval_service import (
 )
 
 
-def test_self_approval_requires_explicit_acknowledgement_and_note():
+def test_self_approval_requires_explicit_acknowledgement_and_note() -> None:
     with pytest.raises(ProjectSkillApprovalError, match="self-approval"):
         validate_approval_acknowledgements(
             is_self_approval=True,
@@ -27,7 +27,7 @@ def test_self_approval_requires_explicit_acknowledgement_and_note():
     )
 
 
-def test_warnings_require_acknowledgement_and_note():
+def test_warnings_require_acknowledgement_and_note() -> None:
     with pytest.raises(ProjectSkillApprovalError, match="warnings"):
         validate_approval_acknowledgements(
             is_self_approval=False,

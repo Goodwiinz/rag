@@ -1,7 +1,8 @@
 """Authorization and proposal contracts for the project-skill catalog."""
 
 from types import SimpleNamespace
-from uuid import uuid4
+from typing import Any
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -11,7 +12,7 @@ from src.services.project_skills.access import (
 )
 
 
-def _workspace(owner_id, role=None):
+def _workspace(owner_id: UUID, role: str | None = None) -> Any:
     workspace = SimpleNamespace(owner_id=owner_id)
     workspace.can_user_edit = lambda user_id: role == "editor" or user_id == owner_id
     workspace.can_user_admin = lambda user_id: role == "admin" or user_id == owner_id
@@ -19,7 +20,7 @@ def _workspace(owner_id, role=None):
     return workspace
 
 
-def test_viewer_can_read_but_not_propose():
+def test_viewer_can_read_but_not_propose() -> None:
     user_id = uuid4()
     workspace = _workspace(uuid4(), role="viewer")
 
@@ -28,7 +29,7 @@ def test_viewer_can_read_but_not_propose():
         assert_workspace_access(workspace, user_id, "edit")
 
 
-def test_editor_can_propose_but_not_approve():
+def test_editor_can_propose_but_not_approve() -> None:
     user_id = uuid4()
     workspace = _workspace(uuid4(), role="editor")
 

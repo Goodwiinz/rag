@@ -8,7 +8,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalog():
+async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalog() -> (
+    None
+):
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     user_id = uuid4()
@@ -82,7 +84,7 @@ async def test_snapshot_commits_frozen_registry_and_verified_active_skill_catalo
 
 
 @pytest.mark.asyncio
-async def test_snapshot_hides_conditional_loader_without_a_durable_catalog():
+async def test_snapshot_hides_conditional_loader_without_a_durable_catalog() -> None:
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     session = AsyncMock()
@@ -115,7 +117,7 @@ async def test_snapshot_hides_conditional_loader_without_a_durable_catalog():
 
 
 @pytest.mark.asyncio
-async def test_unverified_or_disabled_turn_has_no_snapshot_catalog():
+async def test_unverified_or_disabled_turn_has_no_snapshot_catalog() -> None:
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     session = AsyncMock()
@@ -147,7 +149,7 @@ async def test_unverified_or_disabled_turn_has_no_snapshot_catalog():
 
 
 @pytest.mark.asyncio
-async def test_persistence_failure_never_returns_an_in_memory_catalog():
+async def test_persistence_failure_never_returns_an_in_memory_catalog() -> None:
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     session = AsyncMock()
@@ -179,7 +181,7 @@ async def test_persistence_failure_never_returns_an_in_memory_catalog():
 
 
 @pytest.mark.asyncio
-async def test_only_the_latest_passed_scan_makes_an_active_skill_eligible():
+async def test_only_the_latest_passed_scan_makes_an_active_skill_eligible() -> None:
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     skill = SimpleNamespace(
@@ -216,7 +218,7 @@ async def test_only_the_latest_passed_scan_makes_an_active_skill_eligible():
 
 
 @pytest.mark.asyncio
-async def test_catalog_is_hard_capped_to_32_even_if_query_returns_more_rows():
+async def test_catalog_is_hard_capped_to_32_even_if_query_returns_more_rows() -> None:
     from src.services.agent.runtime_snapshot import create_runtime_snapshot
 
     skills = [

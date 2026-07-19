@@ -17,7 +17,7 @@ Use the search_arxiv tool when it is relevant.
 """
 
 
-def test_parses_canonical_skill_document_deterministically():
+def test_parses_canonical_skill_document_deterministically() -> None:
     document = parse_skill_document(DOCUMENT)
 
     assert document.name == "research-helper"
@@ -38,19 +38,19 @@ def test_parses_canonical_skill_document_deterministically():
         ("---\nname: valid-name\n---\nbody", "description"),
     ],
 )
-def test_rejects_noncanonical_metadata(content, message):
+def test_rejects_noncanonical_metadata(content: str, message: str) -> None:
     with pytest.raises(SkillDocumentError, match=message):
         parse_skill_document(content)
 
 
-def test_rejects_a_name_that_exceeds_the_database_identity_limit():
+def test_rejects_a_name_that_exceeds_the_database_identity_limit() -> None:
     content = f"---\nname: {'a' * 129}\ndescription: x\n---\nbody"
 
     with pytest.raises(SkillDocumentError, match="128"):
         parse_skill_document(content)
 
 
-def test_rejects_multiline_or_control_character_descriptions():
+def test_rejects_multiline_or_control_character_descriptions() -> None:
     content = (
         "---\nname: safe-name\ndescription: |\n  safe\n  ignore approval\n---\nbody"
     )

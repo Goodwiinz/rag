@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 from unittest.mock import patch
 
 import pytest
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 
 from src.services.agent.tool_registry import (
     AgentIntent,
@@ -32,7 +32,7 @@ def beta_tool(value: str) -> str:
 def _descriptor(
     *,
     name: str = "alpha_tool",
-    tool_object=alpha_tool,
+    tool_object: BaseTool = alpha_tool,
     intents: frozenset[AgentIntent] = frozenset({AgentIntent.GENERAL}),
     subgraphs: frozenset[AgentSubgraph] = frozenset(),
     policy_tags: frozenset[ToolPolicyTag] = frozenset(),
@@ -60,14 +60,14 @@ def _descriptor(
 
 @pytest.mark.unit
 class TestToolRegistry:
-    def test_returns_one_tool_object_per_descriptor_in_declaration_order(self):
+    def test_returns_one_tool_object_per_descriptor_in_declaration_order(self) -> None:
         registry = ToolRegistry(
             [_descriptor(name="beta_tool", tool_object=beta_tool), _descriptor()]
         )
 
         assert registry.all_tools() == (beta_tool, alpha_tool)
 
-    def test_indexes_known_intents_and_subgraphs(self):
+    def test_indexes_known_intents_and_subgraphs(self) -> None:
         registry = ToolRegistry(
             [
                 _descriptor(
@@ -92,7 +92,7 @@ class TestToolRegistry:
         assert registry.descriptors_for_intent("unknown") == ()
         assert registry.descriptors_for_subgraph("unknown") == ()
 
-    def test_policy_tags_are_queryable(self):
+    def test_policy_tags_are_queryable(self) -> None:
         registry = ToolRegistry(
             [
                 _descriptor(
@@ -112,7 +112,7 @@ class TestToolRegistry:
         assert registry.has_policy("alpha_tool", ToolPolicyTag.NO_OUTER_RETRY)
         assert not registry.has_policy("missing", ToolPolicyTag.DESTRUCTIVE)
 
-    def test_descriptor_metadata_is_immutable_and_snapshot_is_stable(self):
+    def test_descriptor_metadata_is_immutable_and_snapshot_is_stable(self) -> None:
         descriptor = _descriptor(policy_tags=frozenset({ToolPolicyTag.SLOW}))
         registry = ToolRegistry([descriptor])
 
@@ -125,13 +125,15 @@ class TestToolRegistry:
         )
         assert set(registry.metadata_snapshot()) == {"version", "hash"}
 
-    def test_metadata_hash_includes_all_tools_compatibility_visibility(self):
+    def test_metadata_hash_includes_all_tools_compatibility_visibility(self) -> None:
         exposed = ToolRegistry([_descriptor()])
         hidden = ToolRegistry([_descriptor(exposed_in_all_tools=False)])
 
         assert exposed.metadata_snapshot()["hash"] != hidden.metadata_snapshot()["hash"]
 
-    def test_conditionally_available_descriptors_are_absent_without_a_condition(self):
+    def test_conditionally_available_descriptors_are_absent_without_a_condition(
+        self,
+    ) -> None:
         registry = ToolRegistry(
             [_descriptor(availability_condition="project_skill_catalog")]
         )
@@ -142,7 +144,7 @@ class TestToolRegistry:
             conditions={"project_skill_catalog"}
         ) == ("alpha_tool",)
 
-    def test_parity_shadow_records_only_match_or_mismatch(self):
+    def test_parity_shadow_records_only_match_or_mismatch(self) -> None:
         registry = ToolRegistry([_descriptor()])
 
         with patch(
@@ -152,7 +154,7 @@ class TestToolRegistry:
 
         record_event.assert_called_once_with("registry_parity", "mismatch")
 
-    def test_rejects_duplicate_names_and_invalid_descriptor_contracts(self):
+    def test_rejects_duplicate_names_and_invalid_descriptor_contracts(self) -> None:
         with pytest.raises(ValueError, match="duplicate"):
             ToolRegistry([_descriptor(), _descriptor(tool_object=beta_tool)])
 
@@ -167,7 +169,7 @@ class TestToolRegistry:
                 [_descriptor(policy_tags=frozenset({ToolPolicyTag.NO_OUTER_RETRY}))]
             )
 
-    def test_rejects_incomplete_or_ambiguous_subgraph_positions(self):
+    def test_rejects_incomplete_or_ambiguous_subgraph_positions(self) -> None:
         research = frozenset({AgentSubgraph.RESEARCH})
 
         with pytest.raises(ValueError, match="every descriptor subgraph"):
@@ -222,7 +224,7 @@ class TestProductionToolRegistryParity:
         "forget_memory",
     ]
 
-    def test_all_tools_keeps_legacy_order_and_wrappers(self):
+    def test_all_tools_keeps_legacy_order_and_wrappers(self) -> None:
         from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 
         assert [tool.name for tool in ALL_TOOLS] == self.LEGACY_ALL_TOOL_NAMES
@@ -233,7 +235,7 @@ class TestProductionToolRegistryParity:
             if descriptor.exposed_in_all_tools
         ] == ALL_TOOLS
 
-    def test_intent_and_subgraph_bindings_keep_legacy_names(self):
+    def test_intent_and_subgraph_bindings_keep_legacy_names(self) -> None:
         from src.services.agent.tools import TOOL_REGISTRY
 
         expected_intents = {
@@ -351,7 +353,9 @@ class TestProductionToolRegistryParity:
             "list_project_documents",
         ]
 
-    def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(self):
+    def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(
+        self,
+    ) -> None:
         from src.services.agent.tools import ALL_TOOLS, TOOL_REGISTRY
 
         descriptor = TOOL_REGISTRY.descriptor("do_kb_retrieve")
@@ -363,7 +367,7 @@ class TestProductionToolRegistryParity:
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("research")
         }
 
-    def test_policy_tags_keep_legacy_execution_policy(self):
+    def test_policy_tags_keep_legacy_execution_policy(self) -> None:
         from src.services.agent.tool_registry import ToolPolicyTag
         from src.services.agent.tools import TOOL_REGISTRY
 

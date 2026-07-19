@@ -2,22 +2,24 @@
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.research.project_skills import (
     approve_change_request,
     get_skill,
     list_skills,
 )
+from src.models import Collection, User
 from src.schemas.project_skills import ApprovalRequest, SkillDocumentRequest
 from src.services.project_skills.catalog_service import ProjectSkillCatalogService
 
 
-def test_api_rejects_empty_skill_document():
+def test_api_rejects_empty_skill_document() -> None:
     with pytest.raises(ValidationError):
         SkillDocumentRequest(document_text="")
 
 
-def test_api_requires_explicit_acknowledgement_fields():
+def test_api_requires_explicit_acknowledgement_fields() -> None:
     request = ApprovalRequest(
         self_approval_acknowledged=True,
         warning_acknowledged=True,
@@ -29,8 +31,8 @@ def test_api_requires_explicit_acknowledgement_fields():
 
 @pytest.mark.asyncio
 async def test_catalog_endpoint_includes_pending_capabilities_and_canonical_history(
-    test_db, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     document = "---\nname: endpoint-skill\ndescription: Endpoint contract.\n---\nUse search_arxiv.\n"
     await ProjectSkillCatalogService(test_db).create_skill(
         project_id=test_project.id, user_id=test_user.id, document_text=document
@@ -54,8 +56,8 @@ async def test_catalog_endpoint_includes_pending_capabilities_and_canonical_hist
 
 @pytest.mark.asyncio
 async def test_catalog_endpoint_includes_active_version_summary(
-    test_db, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     document = "---\nname: active-summary\ndescription: Active list summary.\n---\nUse search_arxiv.\n"
     _skill, _version, request = await ProjectSkillCatalogService(test_db).create_skill(
         project_id=test_project.id, user_id=test_user.id, document_text=document

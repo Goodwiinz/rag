@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from langchain_core.messages import AIMessage
 
+from src.services.agent.state import AgentState
+
 
 @pytest.mark.unit
-def test_main_llm_binding_queries_registry_for_intent(monkeypatch):
+def test_main_llm_binding_queries_registry_for_intent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent import _nodes_llm
 
     expected = [Mock(name="registry_tool")]
@@ -23,7 +28,9 @@ def test_main_llm_binding_queries_registry_for_intent(monkeypatch):
 
 
 @pytest.mark.unit
-def test_main_routing_queries_registry_destructive_policy(monkeypatch):
+def test_main_routing_queries_registry_destructive_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent import _builders
 
     registry = Mock()
@@ -31,15 +38,20 @@ def test_main_routing_queries_registry_destructive_policy(monkeypatch):
     monkeypatch.setattr(_builders, "TOOL_REGISTRY", registry)
 
     route = _builders.should_continue(
-        {
-            "messages": [
-                AIMessage(
-                    content="",
-                    tool_calls=[{"id": "call-1", "name": "search_arxiv", "args": {}}],
-                )
-            ],
-            "tool_loop_count": 0,
-        }
+        cast(
+            AgentState,
+            {
+                "messages": [
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {"id": "call-1", "name": "search_arxiv", "args": {}}
+                        ],
+                    )
+                ],
+                "tool_loop_count": 0,
+            },
+        )
     )
 
     assert route == "interrupt_node"
@@ -47,7 +59,9 @@ def test_main_routing_queries_registry_destructive_policy(monkeypatch):
 
 
 @pytest.mark.unit
-def test_subgraph_routing_requires_descriptor_policy_and_scope(monkeypatch):
+def test_subgraph_routing_requires_descriptor_policy_and_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent.subgraphs import research_agent, writing_agent
 
     registry = Mock()
@@ -55,15 +69,18 @@ def test_subgraph_routing_requires_descriptor_policy_and_scope(monkeypatch):
     registry.has_policy_in_subgraph.return_value = False
     monkeypatch.setattr(research_agent, "TOOL_REGISTRY", registry)
     monkeypatch.setattr(writing_agent, "TOOL_REGISTRY", registry)
-    state = {
-        "messages": [
-            AIMessage(
-                content="",
-                tool_calls=[{"id": "call-1", "name": "execute_code", "args": {}}],
-            )
-        ],
-        "tool_loop_count": 0,
-    }
+    state = cast(
+        AgentState,
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[{"id": "call-1", "name": "execute_code", "args": {}}],
+                )
+            ],
+            "tool_loop_count": 0,
+        },
+    )
 
     assert research_agent.research_should_continue(state) == "research_tool_node"
     assert writing_agent.writing_should_continue(state) == "writing_tool_node"
@@ -71,7 +88,9 @@ def test_subgraph_routing_requires_descriptor_policy_and_scope(monkeypatch):
 
 
 @pytest.mark.unit
-async def test_disabled_registry_tool_is_rejected_without_dispatch(monkeypatch):
+async def test_disabled_registry_tool_is_rejected_without_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent import tools, tools_impl
     from src.services.agent.tool_registry import ToolRegistry
 
@@ -94,7 +113,9 @@ async def test_disabled_registry_tool_is_rejected_without_dispatch(monkeypatch):
 
 
 @pytest.mark.unit
-async def test_filtered_node_rejects_registered_name_when_disabled(monkeypatch):
+async def test_filtered_node_rejects_registered_name_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from src.services.agent import _nodes_tools, tools
     from src.services.agent.tool_registry import ToolRegistry
 

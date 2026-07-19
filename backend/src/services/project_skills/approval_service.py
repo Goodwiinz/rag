@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import cast
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,7 +55,9 @@ class ProjectSkillApprovalService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def _lock_request_and_skill(self, *, project_id, request_id, user_id):
+    async def _lock_request_and_skill(
+        self, *, project_id: UUID, request_id: UUID, user_id: UUID
+    ) -> tuple[ProjectSkill, ProjectSkillChangeRequest]:
         """Return fresh locked rows; never decide from a stale request instance."""
         await get_authorized_project(
             self._session, project_id=project_id, user_id=user_id, capability="admin"
@@ -84,29 +88,32 @@ class ProjectSkillApprovalService:
         )
         if skill is None or request is None:
             raise ProjectSkillApprovalError("change request not found")
-        return skill, request
+        return cast(ProjectSkill, skill), cast(ProjectSkillChangeRequest, request)
 
-    async def _latest_scan(self, version_id):
-        return await self._session.scalar(
-            select(ProjectSkillVersionScan)
-            .where(ProjectSkillVersionScan.version_id == version_id)
-            .order_by(
-                ProjectSkillVersionScan.created_at.desc(),
-                ProjectSkillVersionScan.id.desc(),
-            )
-            .limit(1)
+    async def _latest_scan(self, version_id: UUID) -> ProjectSkillVersionScan | None:
+        return cast(
+            ProjectSkillVersionScan | None,
+            await self._session.scalar(
+                select(ProjectSkillVersionScan)
+                .where(ProjectSkillVersionScan.version_id == version_id)
+                .order_by(
+                    ProjectSkillVersionScan.created_at.desc(),
+                    ProjectSkillVersionScan.id.desc(),
+                )
+                .limit(1)
+            ),
         )
 
     async def approve(
         self,
         *,
-        project_id,
-        request_id,
-        user_id,
+        project_id: UUID,
+        request_id: UUID,
+        user_id: UUID,
         self_approval_acknowledged: bool = False,
         warning_acknowledged: bool = False,
         audit_note: str | None = None,
-    ):
+    ) -> ProjectSkillChangeRequest:
         skill, request = await self._lock_request_and_skill(
             project_id=project_id, request_id=request_id, user_id=user_id
         )
@@ -189,7 +196,14 @@ class ProjectSkillApprovalService:
         record_project_skill_event("approval", "success")
         return request
 
-    async def reject(self, *, project_id, request_id, user_id, audit_note: str):
+    async def reject(
+        self,
+        *,
+        project_id: UUID,
+        request_id: UUID,
+        user_id: UUID,
+        audit_note: str,
+    ) -> ProjectSkillChangeRequest:
         if not audit_note or not audit_note.strip():
             raise ProjectSkillApprovalError("rejection requires an audit note")
         _skill, request = await self._lock_request_and_skill(
@@ -205,7 +219,9 @@ class ProjectSkillApprovalService:
         record_project_skill_event("rejection", "success")
         return request
 
-    async def rescan_change_request(self, *, project_id, request_id, user_id):
+    async def rescan_change_request(
+        self, *, project_id: UUID, request_id: UUID, user_id: UUID
+    ) -> tuple[ProjectSkillVersion, ProjectSkillVersionScan]:
         """Append a scan result after the same skill/request lock ordering."""
         _skill, request = await self._lock_request_and_skill(
             project_id=project_id, request_id=request_id, user_id=user_id
@@ -220,9 +236,11 @@ class ProjectSkillApprovalService:
             .execution_options(populate_existing=True)
             .with_for_update()
         )
+        if version is None:
+            raise ProjectSkillConflict("proposed version no longer exists")
         scan = await ProjectSkillCatalogService(self._session).record_scan(
-            version=version, user_id=user_id
+            version=cast(ProjectSkillVersion, version), user_id=user_id
         )
         await self._session.commit()
         record_project_skill_event("rescan", getattr(scan, "scan_state", "completed"))
-        return version, scan
+        return cast(ProjectSkillVersion, version), scan

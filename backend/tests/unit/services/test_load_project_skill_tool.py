@@ -8,7 +8,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_loader_requires_server_snapshot_context_and_never_accepts_ids_from_model():
+async def test_loader_requires_server_snapshot_context_and_never_accepts_ids_from_model() -> (
+    None
+):
     from src.services.agent.tools import load_project_skill
 
     schema = load_project_skill.args_schema.model_json_schema()
@@ -29,7 +31,7 @@ async def test_loader_requires_server_snapshot_context_and_never_accepts_ids_fro
 
 
 @pytest.mark.asyncio
-async def test_loader_returns_exact_frozen_version_and_records_unique_load():
+async def test_loader_returns_exact_frozen_version_and_records_unique_load() -> None:
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id = uuid4()
@@ -90,7 +92,7 @@ async def test_loader_returns_exact_frozen_version_and_records_unique_load():
 
 
 @pytest.mark.asyncio
-async def test_loader_rejects_wrong_project_and_unknown_name():
+async def test_loader_rejects_wrong_project_and_unknown_name() -> None:
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id = uuid4()
@@ -135,7 +137,9 @@ async def test_loader_rejects_wrong_project_and_unknown_name():
 
 
 @pytest.mark.asyncio
-async def test_loader_rejects_a_fourth_unique_skill_before_reading_the_version():
+async def test_loader_rejects_a_fourth_unique_skill_before_reading_the_version() -> (
+    None
+):
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id = uuid4()
@@ -180,7 +184,9 @@ async def test_loader_rejects_a_fourth_unique_skill_before_reading_the_version()
 
 
 @pytest.mark.asyncio
-async def test_loader_enforces_aggregate_token_limit_before_returning_instructions():
+async def test_loader_enforces_aggregate_token_limit_before_returning_instructions() -> (
+    None
+):
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id = uuid4()
@@ -229,7 +235,7 @@ async def test_loader_enforces_aggregate_token_limit_before_returning_instructio
 
 
 @pytest.mark.asyncio
-async def test_loader_rejects_mutated_instructions_with_a_stale_stored_hash():
+async def test_loader_rejects_mutated_instructions_with_a_stale_stored_hash() -> None:
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id, user_id, project_id, version_id = uuid4(), uuid4(), uuid4(), uuid4()
@@ -274,7 +280,7 @@ async def test_loader_rejects_mutated_instructions_with_a_stale_stored_hash():
 
 
 @pytest.mark.asyncio
-async def test_loader_rejects_snapshot_version_owned_by_another_project():
+async def test_loader_rejects_snapshot_version_owned_by_another_project() -> None:
     from src.services.agent.runtime_snapshot import load_project_skill_from_snapshot
 
     snapshot_id, user_id, project_id, version_id = uuid4(), uuid4(), uuid4(), uuid4()

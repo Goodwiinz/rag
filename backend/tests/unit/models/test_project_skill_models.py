@@ -1,5 +1,7 @@
 """Metadata contracts for the immutable project-skill catalog."""
 
+from typing import Any
+
 from src.models import (
     AgentRuntimeSnapshot,
     ProjectSkill,
@@ -9,13 +11,13 @@ from src.models import (
 )
 
 
-def _constraint_names(model):
+def _constraint_names(model: type[Any]) -> set[str]:
     return {
         constraint.name for constraint in model.__table__.constraints if constraint.name
     }
 
 
-def test_project_skill_identity_is_project_scoped_and_versioned():
+def test_project_skill_identity_is_project_scoped_and_versioned() -> None:
     columns = ProjectSkill.__table__.c
 
     assert {
@@ -32,7 +34,7 @@ def test_project_skill_identity_is_project_scoped_and_versioned():
     assert columns.active_version_id.foreign_keys
 
 
-def test_project_skill_versions_are_immutable_catalog_records():
+def test_project_skill_versions_are_immutable_catalog_records() -> None:
     columns = ProjectSkillVersion.__table__.c
 
     assert {
@@ -50,7 +52,7 @@ def test_project_skill_versions_are_immutable_catalog_records():
     assert "scan_state" not in columns
 
 
-def test_project_skill_scans_are_append_only_audit_records():
+def test_project_skill_scans_are_append_only_audit_records() -> None:
     columns = ProjectSkillVersionScan.__table__.c
 
     assert {
@@ -65,7 +67,7 @@ def test_project_skill_scans_are_append_only_audit_records():
     )
 
 
-def test_change_requests_capture_staged_audit_state():
+def test_change_requests_capture_staged_audit_state() -> None:
     columns = ProjectSkillChangeRequest.__table__.c
 
     assert {
@@ -86,7 +88,7 @@ def test_change_requests_capture_staged_audit_state():
     assert "ck_project_skill_change_requests_status" in names
 
 
-def test_runtime_snapshot_freezes_transport_neutral_metadata():
+def test_runtime_snapshot_freezes_transport_neutral_metadata() -> None:
     columns = AgentRuntimeSnapshot.__table__.c
 
     assert {

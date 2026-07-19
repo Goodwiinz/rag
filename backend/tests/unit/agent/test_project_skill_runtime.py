@@ -1,10 +1,15 @@
 """Runtime prompt/binding contracts for frozen project skills."""
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import patch
 
+from src.services.agent.state import AgentState
 
-def test_skill_catalog_prompt_is_compact_deterministic_and_instructs_loader_use():
+
+def test_skill_catalog_prompt_is_compact_deterministic_and_instructs_loader_use() -> (
+    None
+):
     from src.services.agent.runtime_snapshot import render_project_skill_catalog
 
     prompt = render_project_skill_catalog(
@@ -24,13 +29,16 @@ def test_skill_catalog_prompt_is_compact_deterministic_and_instructs_loader_use(
     assert "a" * 64 not in prompt
 
 
-def test_main_loader_binding_requires_enabled_runtime_and_frozen_catalog():
+def test_main_loader_binding_requires_enabled_runtime_and_frozen_catalog() -> None:
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
-    state = {
-        "runtime_snapshot_id": "snapshot-1",
-        "project_skill_catalog": [{"name": "literature-review"}],
-    }
+    state = cast(
+        AgentState,
+        {
+            "runtime_snapshot_id": "snapshot-1",
+            "project_skill_catalog": [{"name": "literature-review"}],
+        },
+    )
     with patch(
         "src.services.agent._nodes_llm.get_settings",
         return_value=SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True),
@@ -45,7 +53,7 @@ def test_main_loader_binding_requires_enabled_runtime_and_frozen_catalog():
         assert tools_for_runtime_snapshot([], state) == []
 
 
-def test_shared_initial_and_resume_runtime_fields_cover_both_transports():
+def test_shared_initial_and_resume_runtime_fields_cover_both_transports() -> None:
     from src.services.agent.runtime_snapshot import (
         RuntimeSnapshot,
         resume_runtime_config_fields,
@@ -78,16 +86,19 @@ def test_shared_initial_and_resume_runtime_fields_cover_both_transports():
     }
 
 
-def test_all_subgraph_tool_sets_use_the_same_runtime_loader_gate():
+def test_all_subgraph_tool_sets_use_the_same_runtime_loader_gate() -> None:
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
     from src.services.agent.subgraphs.data_agent import DATA_TOOLS
     from src.services.agent.subgraphs.research_agent import RESEARCH_TOOLS
     from src.services.agent.subgraphs.writing_agent import WRITING_TOOLS
 
-    state = {
-        "runtime_snapshot_id": "snapshot-1",
-        "project_skill_catalog": [{"name": "skill"}],
-    }
+    state = cast(
+        AgentState,
+        {
+            "runtime_snapshot_id": "snapshot-1",
+            "project_skill_catalog": [{"name": "skill"}],
+        },
+    )
     with patch(
         "src.services.agent._nodes_llm.get_settings",
         return_value=SimpleNamespace(PROJECT_SKILL_RUNTIME_ENABLED=True),

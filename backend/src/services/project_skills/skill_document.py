@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from hashlib import sha256
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -71,7 +71,10 @@ def parse_skill_document(text: str) -> SkillDocument:
     if set(metadata) != {"name", "description"}:
         raise SkillDocumentError("frontmatter must contain only name and description")
 
-    name = normalize_skill_name(metadata.get("name"))
+    raw_name = metadata.get("name")
+    if not isinstance(raw_name, str):
+        raise SkillDocumentError("name must be lowercase kebab-case")
+    name = normalize_skill_name(raw_name)
     description = metadata.get("description")
     if not isinstance(description, str) or not description.strip():
         raise SkillDocumentError("description must be a non-empty string")

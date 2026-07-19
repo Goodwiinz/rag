@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -23,14 +24,15 @@ def assert_workspace_access(
     workspace: Workspace, user_id: UUID, capability: str
 ) -> None:
     """Enforce the project workspace's roles without substituting org membership."""
+    workspace_user_id = str(user_id)
     if capability == "read":
-        allowed = workspace.is_member(user_id) or str(workspace.owner_id) == str(
-            user_id
-        )
+        allowed = workspace.is_member(workspace_user_id) or str(
+            workspace.owner_id
+        ) == str(user_id)
     elif capability == "edit":
-        allowed = workspace.can_user_edit(user_id)
+        allowed = workspace.can_user_edit(workspace_user_id)
     elif capability == "admin":
-        allowed = workspace.can_user_admin(user_id)
+        allowed = workspace.can_user_admin(workspace_user_id)
     else:
         raise ValueError(f"unknown project-skill capability: {capability}")
     if not allowed:
@@ -41,10 +43,13 @@ async def get_authorized_project(
     session: AsyncSession, *, project_id: UUID, user_id: UUID, capability: str
 ) -> Collection:
     """Load a project plus workspace membership, returning not-found before access leaks."""
-    project = await session.scalar(
-        select(Collection)
-        .where(Collection.id == project_id, Collection.is_deleted.is_(False))
-        .options(selectinload(Collection.workspace).selectinload(Workspace.members))
+    project = cast(
+        Collection | None,
+        await session.scalar(
+            select(Collection)
+            .where(Collection.id == project_id, Collection.is_deleted.is_(False))
+            .options(selectinload(Collection.workspace).selectinload(Workspace.members))
+        ),
     )
     if project is None or project.workspace is None:
         raise ProjectSkillNotFound("project not found")

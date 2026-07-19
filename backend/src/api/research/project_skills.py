@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+from typing import NoReturn
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -85,7 +86,9 @@ async def _version_response(
 
 
 async def _skill_response(
-    db: AsyncSession, skill, versions: list[ProjectSkillVersion] | None = None
+    db: AsyncSession,
+    skill: ProjectSkill,
+    versions: list[ProjectSkillVersion] | None = None,
 ) -> SkillResponse:
     active_version = (
         await db.get(ProjectSkillVersion, skill.active_version_id)
@@ -129,7 +132,7 @@ async def _request_response(
     )
 
 
-def _translate_error(error: Exception) -> None:
+def _translate_error(error: Exception) -> NoReturn:
     if isinstance(error, ProjectSkillNotFound):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Project or skill not found"
@@ -152,7 +155,7 @@ async def list_skills(
     project_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ProjectSkillCatalogResponse:
     try:
         skills, pending, capabilities = await ProjectSkillCatalogService(
             db
@@ -176,7 +179,7 @@ async def create_skill(
     payload: SkillDocumentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         _skill, _version, request = await ProjectSkillCatalogService(db).create_skill(
             project_id=project_id,
@@ -197,7 +200,7 @@ async def approve_change_request(
     payload: ApprovalRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         request = await ProjectSkillApprovalService(db).approve(
             project_id=project_id,
@@ -221,7 +224,7 @@ async def reject_change_request(
     payload: RejectRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         request = await ProjectSkillApprovalService(db).reject(
             project_id=project_id,
@@ -242,7 +245,7 @@ async def rescan_change_request(
     request_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> SkillVersionResponse:
     try:
         version, _scan = await ProjectSkillApprovalService(db).rescan_change_request(
             project_id=project_id, request_id=request_id, user_id=current_user.id
@@ -263,7 +266,7 @@ async def propose_version(
     payload: SkillDocumentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         _version, request = await ProjectSkillCatalogService(db).propose_version(
             project_id=project_id,
@@ -286,7 +289,7 @@ async def archive_skill(
     skill_name: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         request = await ProjectSkillCatalogService(db).stage_state_change(
             project_id=project_id,
@@ -309,7 +312,7 @@ async def restore_skill(
     skill_name: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         request = await ProjectSkillCatalogService(db).stage_state_change(
             project_id=project_id,
@@ -333,7 +336,7 @@ async def rollback_skill(
     payload: RollbackRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ChangeRequestResponse:
     try:
         request = await ProjectSkillCatalogService(db).stage_state_change(
             project_id=project_id,
@@ -355,7 +358,7 @@ async def diff_skill_versions(
     to_version: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> SkillDiffResponse:
     try:
         skill = await ProjectSkillCatalogService(db).get_skill(
             project_id=project_id, skill_name=skill_name, user_id=current_user.id
@@ -394,7 +397,7 @@ async def get_skill(
     skill_name: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> SkillResponse:
     try:
         skill = await ProjectSkillCatalogService(db).get_skill(
             project_id=project_id, skill_name=skill_name, user_id=current_user.id

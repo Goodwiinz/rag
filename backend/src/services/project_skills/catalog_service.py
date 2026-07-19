@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import cast
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +37,9 @@ class ProjectSkillCatalogService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list_skills(self, *, project_id, user_id):
+    async def list_skills(
+        self, *, project_id: UUID, user_id: UUID
+    ) -> list[ProjectSkill]:
         await get_authorized_project(
             self._session, project_id=project_id, user_id=user_id, capability="read"
         )
@@ -52,14 +56,16 @@ class ProjectSkillCatalogService:
             ).all()
         )
 
-    async def list_catalog(self, *, project_id, user_id):
+    async def list_catalog(
+        self, *, project_id: UUID, user_id: UUID
+    ) -> tuple[list[ProjectSkill], list[ProjectSkillChangeRequest], dict[str, bool]]:
         project = await get_authorized_project(
             self._session, project_id=project_id, user_id=user_id, capability="read"
         )
         skills = await self.list_skills(project_id=project_id, user_id=user_id)
         workspace = project.workspace
-        can_edit = workspace.can_user_edit(user_id)
-        can_admin = workspace.can_user_admin(user_id)
+        can_edit = workspace.can_user_edit(str(user_id))
+        can_admin = workspace.can_user_admin(str(user_id))
         pending_query = (
             select(ProjectSkillChangeRequest)
             .join(ProjectSkill)
@@ -77,7 +83,12 @@ class ProjectSkillCatalogService:
         return skills, pending, {"can_edit": can_edit, "can_admin": can_admin}
 
     async def get_skill(
-        self, *, project_id, skill_name: str, user_id, capability: str = "read"
+        self,
+        *,
+        project_id: UUID,
+        skill_name: str,
+        user_id: UUID,
+        capability: str = "read",
     ) -> ProjectSkill:
         await get_authorized_project(
             self._session, project_id=project_id, user_id=user_id, capability=capability
@@ -91,9 +102,11 @@ class ProjectSkillCatalogService:
         )
         if skill is None:
             raise ProjectSkillNotFound("skill not found")
-        return skill
+        return cast(ProjectSkill, skill)
 
-    async def create_skill(self, *, project_id, user_id, document_text: str):
+    async def create_skill(
+        self, *, project_id: UUID, user_id: UUID, document_text: str
+    ) -> tuple[ProjectSkill, ProjectSkillVersion, ProjectSkillChangeRequest]:
         await get_authorized_project(
             self._session, project_id=project_id, user_id=user_id, capability="edit"
         )
@@ -144,8 +157,13 @@ class ProjectSkillCatalogService:
         return skill, version, request
 
     async def propose_version(
-        self, *, project_id, skill_name: str, user_id, document_text: str
-    ):
+        self,
+        *,
+        project_id: UUID,
+        skill_name: str,
+        user_id: UUID,
+        document_text: str,
+    ) -> tuple[ProjectSkillVersion, ProjectSkillChangeRequest]:
         skill = await self.get_skill(
             project_id=project_id,
             skill_name=skill_name,
@@ -211,12 +229,12 @@ class ProjectSkillCatalogService:
     async def stage_state_change(
         self,
         *,
-        project_id,
+        project_id: UUID,
         skill_name: str,
-        user_id,
+        user_id: UUID,
         action: str,
-        target_version_id=None,
-    ):
+        target_version_id: UUID | None = None,
+    ) -> ProjectSkillChangeRequest:
         if action not in {"archive", "restore", "rollback"}:
             raise ProjectSkillCatalogError("unsupported state-change action")
         skill = await self.get_skill(
@@ -276,7 +294,7 @@ class ProjectSkillCatalogService:
         self,
         *,
         skill: ProjectSkill,
-        user_id,
+        user_id: UUID,
         document_text: str,
         version_number: int,
         existing_names: set[str],
@@ -304,7 +322,7 @@ class ProjectSkillCatalogService:
         self,
         *,
         version: ProjectSkillVersion,
-        user_id,
+        user_id: UUID,
         existing_names: set[str] | None = None,
     ) -> ProjectSkillVersionScan:
         """Append scan evidence; never mutate the canonical version row."""

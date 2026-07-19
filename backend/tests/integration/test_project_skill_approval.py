@@ -7,9 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
+    Collection,
     ProjectSkill,
     ProjectSkillVersion,
     ProjectSkillVersionScan,
+    User,
+    Workspace,
     WorkspaceMember,
     WorkspaceRole,
 )
@@ -29,8 +32,12 @@ def _document(name: str, body: str = "Use search_arxiv for papers.") -> str:
 
 @pytest.mark.asyncio
 async def test_owner_approves_editor_proposal_and_activates_immutable_version(
-    test_db: AsyncSession, test_project, test_workspace, test_user, other_user
-):
+    test_db: AsyncSession,
+    test_project: Collection,
+    test_workspace: Workspace,
+    test_user: User,
+    other_user: User,
+) -> None:
     test_db.add(
         WorkspaceMember(
             id=uuid4(),
@@ -64,8 +71,8 @@ async def test_owner_approves_editor_proposal_and_activates_immutable_version(
 
 @pytest.mark.asyncio
 async def test_stale_approval_is_superseded_by_expected_active_version_cas(
-    test_db: AsyncSession, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     catalog = ProjectSkillCatalogService(test_db)
     skill, _version_one, first_request = await catalog.create_skill(
         project_id=test_project.id,
@@ -114,8 +121,8 @@ async def test_stale_approval_is_superseded_by_expected_active_version_cas(
 
 @pytest.mark.asyncio
 async def test_rescan_appends_history_without_mutating_an_immutable_version(
-    test_db: AsyncSession, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     catalog = ProjectSkillCatalogService(test_db)
     _skill, version, request = await catalog.create_skill(
         project_id=test_project.id,
@@ -148,8 +155,8 @@ async def test_rescan_appends_history_without_mutating_an_immutable_version(
 
 @pytest.mark.asyncio
 async def test_terminal_request_cannot_be_overwritten_by_a_later_terminal_action(
-    test_db: AsyncSession, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     _skill, _version, request = await ProjectSkillCatalogService(test_db).create_skill(
         project_id=test_project.id,
         user_id=test_user.id,
@@ -176,8 +183,8 @@ async def test_terminal_request_cannot_be_overwritten_by_a_later_terminal_action
 
 @pytest.mark.asyncio
 async def test_overlong_description_is_persisted_as_a_blocked_auditable_scan(
-    test_db: AsyncSession, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     document = f"---\nname: long-description\ndescription: {'x' * 241}\n---\nUse search_arxiv.\n"
     _skill, version, _request = await ProjectSkillCatalogService(test_db).create_skill(
         project_id=test_project.id, user_id=test_user.id, document_text=document
@@ -195,8 +202,8 @@ async def test_overlong_description_is_persisted_as_a_blocked_auditable_scan(
 
 @pytest.mark.asyncio
 async def test_archive_cannot_be_staged_for_an_inactive_skill(
-    test_db: AsyncSession, test_project, test_user
-):
+    test_db: AsyncSession, test_project: Collection, test_user: User
+) -> None:
     skill, _version, _request = await ProjectSkillCatalogService(test_db).create_skill(
         project_id=test_project.id,
         user_id=test_user.id,

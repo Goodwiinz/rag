@@ -2,8 +2,12 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
 
-def test_project_skill_telemetry_emits_only_safe_dimensions(caplog):
+
+def test_project_skill_telemetry_emits_only_safe_dimensions(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     from src.services.agent.observability import record_project_skill_event
 
     caplog.set_level("INFO")
@@ -38,7 +42,7 @@ def test_project_skill_telemetry_emits_only_safe_dimensions(caplog):
     assert "SECRET_TOKEN" not in caplog.text
 
 
-def test_project_skill_telemetry_bounds_metric_dimensions():
+def test_project_skill_telemetry_bounds_metric_dimensions() -> None:
     from src.services.agent.observability import record_project_skill_event
 
     counter = Mock()
