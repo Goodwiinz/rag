@@ -16,7 +16,7 @@ from src.models import (
 )
 
 from .access import ProjectSkillNotFound, get_authorized_project
-from .scanner import scan_skill_document
+from .scanner import SCANNER_VERSION, scan_skill_document
 from .skill_document import parse_skill_document
 
 
@@ -129,7 +129,13 @@ class ProjectSkillCatalogService:
             status="pending",
         )
         self._session.add(request)
-        await self._session.commit()
+        try:
+            await self._session.commit()
+        except IntegrityError as error:
+            await self._session.rollback()
+            raise ProjectSkillProposalConflict(
+                "another proposal created this normalized skill name; retry"
+            ) from error
         await self._session.refresh(skill)
         await self._session.refresh(version)
         await self._session.refresh(request)
@@ -317,7 +323,7 @@ class ProjectSkillCatalogService:
                     "line": None,
                 }
             ]
-            scanner_version = "1"
+            scanner_version = SCANNER_VERSION
         scan_row = ProjectSkillVersionScan(
             version_id=version.id,
             scan_state=state,

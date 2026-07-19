@@ -1813,6 +1813,7 @@
             "title": "Audit Note"
           },
           "created_at": {
+            "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
@@ -1853,6 +1854,7 @@
           "reviewed_at": {
             "anyOf": [
               {
+                "format": "date-time",
                 "type": "string"
               },
               {
@@ -10977,6 +10979,16 @@
       },
       "SkillResponse": {
         "properties": {
+          "active_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkillVersionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "active_version_id": {
             "anyOf": [
               {
@@ -11003,7 +11015,6 @@
             "type": "string"
           },
           "versions": {
-            "default": [],
             "items": {
               "$ref": "#/components/schemas/SkillVersionResponse"
             },

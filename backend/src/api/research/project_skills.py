@@ -74,11 +74,21 @@ async def _version_response(
 async def _skill_response(
     db: AsyncSession, skill, versions: list[ProjectSkillVersion] | None = None
 ) -> SkillResponse:
+    active_version = (
+        await db.get(ProjectSkillVersion, skill.active_version_id)
+        if skill.active_version_id is not None
+        else None
+    )
     return SkillResponse(
         id=skill.id,
         name=skill.normalized_name,
         active_version_id=skill.active_version_id,
         is_archived=skill.is_archived,
+        active_version=(
+            await _version_response(db, active_version)
+            if active_version is not None
+            else None
+        ),
         versions=[await _version_response(db, version) for version in versions or []],
     )
 
@@ -101,8 +111,8 @@ async def _request_response(
         requester_id=request.requester_id,
         reviewer_id=request.reviewer_id,
         warning_acknowledged=request.warning_acknowledged,
-        created_at=request.created_at.isoformat(),
-        reviewed_at=request.reviewed_at.isoformat() if request.reviewed_at else None,
+        created_at=request.created_at,
+        reviewed_at=request.reviewed_at,
     )
 
 

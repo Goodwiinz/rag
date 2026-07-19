@@ -9540,7 +9540,10 @@ export interface components {
             action: string;
             /** Audit Note */
             audit_note: string | null;
-            /** Created At */
+            /**
+             * Created At
+             * Format: date-time
+             */
             created_at: string;
             /** Expected Active Version Id */
             expected_active_version_id: string | null;
@@ -13715,6 +13718,7 @@ export interface components {
         };
         /** SkillResponse */
         SkillResponse: {
+            active_version?: components["schemas"]["SkillVersionResponse"] | null;
             /** Active Version Id */
             active_version_id: string | null;
             /**
@@ -13726,11 +13730,8 @@ export interface components {
             is_archived: boolean;
             /** Name */
             name: string;
-            /**
-             * Versions
-             * @default []
-             */
-            versions: components["schemas"]["SkillVersionResponse"][];
+            /** Versions */
+            versions?: components["schemas"]["SkillVersionResponse"][];
         };
         /** SkillVersionResponse */
         SkillVersionResponse: {
