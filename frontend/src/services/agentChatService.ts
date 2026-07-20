@@ -338,8 +338,10 @@ export interface ThreadMessagesResponse {
  * Treat it exactly like 'failed'.
  */
 export type AgentJobStatus =
+  | 'queued'
   | 'running'
   | 'awaiting_confirmation'
+  | 'stopping'
   | 'completed'
   | 'failed'
   | 'error'
@@ -360,8 +362,10 @@ export function isTerminalJobStatus(status: AgentJobStatus): boolean {
     case 'error':
     case 'cancelled':
       return true;
+    case 'queued':
     case 'running':
     case 'awaiting_confirmation':
+    case 'stopping':
       return false;
     default: {
       // Compile-time exhaustiveness; at runtime an unknown status (from a
