@@ -166,6 +166,8 @@ export class EntityErrorBoundary extends React.Component<
             >
               <button
                 onClick={this.handleReset}
+                aria-label="Retry loading entity"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4A039] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0f0a]"
                 style={{
                   width: '100%',
                   padding: '0.625rem 1rem',

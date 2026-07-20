@@ -381,8 +381,9 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                     <span className="text-xs font-mono text-(--nous-fg-1)">{alias}</span>
                     <button
                       type="button"
+                      aria-label="Remove alias"
                       onClick={() => removeAlias(index)}
-                      className="text-(--nous-fg-3) hover:text-red-400 p-0.5 rounded transition-colors"
+                      className="text-(--nous-fg-3) hover:text-red-400 p-0.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
                     >
                       <X className="h-3 w-3" />
                     </button>

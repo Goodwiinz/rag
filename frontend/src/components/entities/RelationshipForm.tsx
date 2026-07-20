@@ -185,6 +185,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                 type="button"
                 variant="ghost"
                 size="sm"
+                aria-label="Clear target entity"
                 onClick={() => {
                   setSelectedTarget(null);
                   setFormData(prev => ({ ...prev, target_entity_id: '' }));
@@ -212,7 +213,8 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                     <button
                       key={entity.id}
                       type="button"
-                      className="w-full text-left px-4 py-2 hover:bg-(--nous-bg-3) flex items-center justify-between border-b border-(--nous-border-1) last:border-0 group"
+                      aria-label={`Select target entity ${entity.name}`}
+                      className="w-full text-left px-4 py-2 hover:bg-(--nous-bg-3) flex items-center justify-between border-b border-(--nous-border-1) last:border-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
                       onClick={() => selectTargetEntity(entity)}
                     >
                       <div>
@@ -338,6 +340,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
+                  aria-label="Remove evidence"
                   onClick={() => removeEvidence(index)}
                   className="h-6 w-6 text-(--nous-fg-3) hover:text-red-400 hover:bg-red-400/10 p-0"
                 >
