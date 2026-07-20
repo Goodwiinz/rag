@@ -287,7 +287,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       ...prev,
       metadata: {
         ...prev.metadata,
-        aliases: prev.metadata.aliases?.filter((_, i) => i !== index) || []
+        aliases: prev.metadata.aliases?.filter((_alias: string, i: number) => i !== index) || []
       }
     }));
   };
@@ -386,7 +386,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
             <Label className="text-xs font-mono text-(--nous-fg-3) uppercase tracking-widest">Known_Aliases</Label>
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2 mb-2">
-                {formData.metadata.aliases?.map((alias, index) => (
+                {formData.metadata.aliases?.map((alias: string, index: number) => (
                   <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-(--nous-bg-3) border border-(--nous-border-1) rounded">
                     <span className="text-xs font-mono text-(--nous-fg-1)">{alias}</span>
                     <button
