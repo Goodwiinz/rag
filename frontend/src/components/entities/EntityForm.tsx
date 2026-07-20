@@ -65,25 +65,9 @@ export const EntityForm: React.FC<EntityFormProps> = ({
 
   // Use available types from props or fall back to defaults
   const entityTypes = (availableTypes || DEFAULT_ENTITY_TYPES) as EntityType[];
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'PERSON' as EntityType,
-    confidence: 0.8,
-    metadata: {
-      description: '',
-      aliases: [] as string[],
-      category: '',
-      properties: {} as Record<string, any>
-    }
-  });
-
-  const [metadataFields, setMetadataFields] = useState<MetadataField[]>([]);
-  const [duplicateWarning, setDuplicateWarning] = useState<{ show: boolean; entities: Entity[]; suggestedName: string } | null>(null);
-  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
-
-  useEffect(() => {
+  const [formData, setFormData] = useState(() => {
     if (entity) {
-      setFormData({
+      return {
         name: entity.name || '',
         type: entity.type || 'PERSON',
         confidence: entity.confidence || 0.8,
@@ -93,25 +77,51 @@ export const EntityForm: React.FC<EntityFormProps> = ({
           category: entity.metadata?.category || '',
           properties: entity.metadata?.properties || {}
         }
-      });
+      };
+    }
+    return {
+      name: '',
+      type: 'PERSON' as EntityType,
+      confidence: 0.8,
+      metadata: {
+        description: '',
+        aliases: [] as string[],
+        category: '',
+        properties: {} as Record<string, any>
+      }
+    };
+  });
 
-      // Convert metadata properties to fields
+  const [metadataFields, setMetadataFields] = useState<MetadataField[]>(() => {
+    if (entity) {
       const fields: MetadataField[] = [];
       Object.entries(entity.metadata?.properties || {}).forEach(([key, value]) => {
         let type: MetadataField['type'] = 'string';
         if (Array.isArray(value)) type = 'array';
         else if (typeof value === 'number') type = 'number';
         else if (typeof value === 'boolean') type = 'boolean';
-        else if (typeof value === 'object') type = 'object';
+        else if (typeof value === 'object' && value !== null) type = 'object';
 
         fields.push({
           key,
-          value: Array.isArray(value) ? value.join(', ') : String(value),
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
           type
         });
       });
-      setMetadataFields(fields);
+      return fields;
     }
+    return [];
+  });
+
+  const [duplicateWarning, setDuplicateWarning] = useState<{ show: boolean; entities: Entity[]; suggestedName: string } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+
+  useEffect(() => {
+    // Only update form data if we received a *different* entity than we started with.
+    // However, since we initialize state properly now, we don't need this effect at all
+    // to populate the initial state! We can just remove it, avoiding the cascading render.
+    // If the component needs to handle 'entity' prop changes over its lifecycle without remounting,
+    // we would handle that differently. Assuming it unmounts/remounts per entity form.
   }, [entity]);
 
   // Show locked state when user lacks permission

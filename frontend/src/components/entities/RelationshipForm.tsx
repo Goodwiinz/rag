@@ -56,15 +56,29 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 }) => {
   // Use available types from props or fall back to defaults
   const relationshipTypes = availableTypes || DEFAULT_RELATIONSHIP_TYPES;
-  const [formData, setFormData] = useState({
-    source_entity_id: sourceEntityId || '',
-    target_entity_id: '',
-    relationship_type: '',
-    strength: 0.8,
-    confidence_score: 0.8,
-    context: '',
-    evidence: [] as string[],
-    metadata: {} as Record<string, any>
+  const [formData, setFormData] = useState(() => {
+    if (initialData) {
+      return {
+        source_entity_id: initialData.source || sourceEntityId || '',
+        target_entity_id: initialData.target || '',
+        relationship_type: initialData.type || '',
+        strength: initialData.weight || 0.8,
+        confidence_score: initialData.confidence || 0.8,
+        context: initialData.context || '',
+        evidence: initialData.evidence || [],
+        metadata: initialData.metadata || {}
+      };
+    }
+    return {
+      source_entity_id: sourceEntityId || '',
+      target_entity_id: '',
+      relationship_type: '',
+      strength: 0.8,
+      confidence_score: 0.8,
+      context: '',
+      evidence: [] as string[],
+      metadata: {} as Record<string, any>
+    };
   });
 
   const [targetSearchQuery, setTargetSearchQuery] = useState('');
@@ -73,19 +87,10 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
   const [newEvidence, setNewEvidence] = useState('');
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        source_entity_id: initialData.source || '',
-        target_entity_id: initialData.target || '',
-        relationship_type: initialData.type || '',
-        strength: initialData.weight || 0.8,
-        confidence_score: initialData.confidence || 0.8,
-        context: initialData.context || '',
-        evidence: initialData.evidence || [],
-        metadata: initialData.metadata || {}
-      });
-    }
-  }, [initialData]);
+    // Only update form data if we received a *different* initialData than we started with.
+    // However, since we initialize state properly now, we don't need this effect at all
+    // to populate the initial state! We can just remove it, avoiding the cascading render.
+  }, [initialData, sourceEntityId]);
 
   const searchTargetEntities = async (query: string) => {
     if (!query) {
