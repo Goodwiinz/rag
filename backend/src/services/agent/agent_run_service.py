@@ -103,6 +103,9 @@ async def upsert_run(
         return None
     org_uuid = _coerce_uuid(organization_id)
     user_uuid = _coerce_uuid(user_id)
+    # thread_id is a GUID column now; legacy callers pass strings (sometimes
+    # the non-uuid job-id fallback) — drop what cannot bind.
+    thread_uuid = _coerce_uuid(thread_id)
 
     run = await db.get(AgentRun, job_id)
     if run is None:
@@ -117,7 +120,7 @@ async def upsert_run(
             job_id=job_id,
             organization_id=org_uuid,
             user_id=user_uuid,
-            thread_id=thread_id,
+            thread_id=thread_uuid,
             status=normalized.value,
             error=error,
             idempotency_key=idempotency_key,
@@ -126,11 +129,36 @@ async def upsert_run(
         try:
             await db.commit()
         except IntegrityError:
-            # Concurrent creator won the PK race — fall through to update.
+            # Two causes: a concurrent creator won the PK race (fall through
+            # to update), or thread_id is a dangling uuid — the legacy job-id
+            # fallback for thread-less runs is uuid-valid but not a threads
+            # row, so the FK rejects it. Retry once without the correlation:
+            # losing thread linkage is fine, losing the status projection is
+            # not (audit X1).
             await db.rollback()
             run = await db.get(AgentRun, job_id)
-            if run is None:  # pragma: no cover — PK conflict implies presence
-                return None
+            if run is None:
+                if thread_uuid is None:  # pragma: no cover — PK race implies row
+                    return None
+                run = AgentRun(
+                    job_id=job_id,
+                    organization_id=org_uuid,
+                    user_id=user_uuid,
+                    thread_id=None,
+                    status=normalized.value,
+                    error=error,
+                    idempotency_key=idempotency_key,
+                )
+                db.add(run)
+                try:
+                    await db.commit()
+                except IntegrityError:  # pragma: no cover — PK race on retry
+                    await db.rollback()
+                    run = await db.get(AgentRun, job_id)
+                    if run is None:
+                        return None
+                else:
+                    return run
         else:
             return run
 
@@ -145,11 +173,23 @@ async def upsert_run(
         run.organization_id = org_uuid
     if run.user_id is None and user_uuid is not None:
         run.user_id = user_uuid
-    if run.thread_id is None and thread_id:
-        run.thread_id = thread_id
+    if run.thread_id is None and thread_uuid is not None:
+        run.thread_id = thread_uuid
     if run.idempotency_key is None and idempotency_key:
         run.idempotency_key = idempotency_key
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Dangling thread backfill (legacy job-id fallback) — keep the status
+        # transition, drop the correlation.
+        await db.rollback()
+        run = await db.get(AgentRun, job_id)
+        if run is None:  # pragma: no cover
+            return None
+        run.status = normalized.value
+        run.error = error
+        run.updated_at = _utcnow()
+        await db.commit()
     return run
 
 

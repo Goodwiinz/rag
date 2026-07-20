@@ -53,6 +53,7 @@ def _job_id() -> str:
 
 async def test_upsert_creates_then_updates(session_factory):
     job_id = _job_id()
+    thread_uuid = uuid.uuid4()
     async with session_factory() as db:
         run = await svc.upsert_run(
             db,
@@ -60,7 +61,7 @@ async def test_upsert_creates_then_updates(session_factory):
             status=JobStatus.RUNNING,
             organization_id=str(ORG_A),
             user_id=str(USER_A),
-            thread_id="t-1",
+            thread_id=str(thread_uuid),
         )
         assert run is not None
         assert run.status == "running"
@@ -71,7 +72,24 @@ async def test_upsert_creates_then_updates(session_factory):
         assert run.status == "completed"
         # Tenancy survives a replace-style write that omitted it.
         assert run.organization_id == ORG_A
-        assert run.thread_id == "t-1"
+        assert run.thread_id == thread_uuid
+
+
+async def test_upsert_drops_non_uuid_thread_correlation(session_factory):
+    """thread_id is a GUID column now — free-form legacy strings are dropped
+    rather than poisoning the bind (the run row itself must still persist)."""
+    job_id = _job_id()
+    async with session_factory() as db:
+        run = await svc.upsert_run(
+            db,
+            job_id=job_id,
+            status=JobStatus.RUNNING,
+            user_id=str(USER_A),
+            thread_id="t-1",
+        )
+        assert run is not None
+        assert run.status == "running"
+        assert run.thread_id is None
 
 
 async def test_upsert_normalizes_legacy_error_alias(session_factory):
@@ -321,12 +339,13 @@ async def test_list_stale_runs_selects_sweepable_candidates(session_factory):
 
 async def test_record_job_status_projects_job_store_payload(session_factory):
     job_id = _job_id()
+    nested_thread = uuid.uuid4()
     payload = {
         "status": "completed",
         "user_id": str(USER_A),
         "organization_id": str(ORG_A),
         "thread_id": None,
-        "request": {"thread_id": "thread-9"},
+        "request": {"thread_id": str(nested_thread)},
         "error": None,
     }
     with patch("src.core.database.AsyncSessionLocal", session_factory):
@@ -337,7 +356,7 @@ async def test_record_job_status_projects_job_store_payload(session_factory):
         assert run is not None
         assert run.status == "completed"
         assert run.organization_id == ORG_A
-        assert run.thread_id == "thread-9"  # extracted from nested request
+        assert run.thread_id == nested_thread  # extracted from nested request
 
 
 async def test_record_job_status_never_raises(session_factory):

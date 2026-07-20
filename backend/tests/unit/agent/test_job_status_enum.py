@@ -24,8 +24,10 @@ pytestmark = pytest.mark.unit
 def test_exact_wire_value_set():
     """The canonical wire strings — 'error' is intentionally NOT a member."""
     assert {s.value for s in JobStatus} == {
+        "queued",
         "running",
         "awaiting_confirmation",
+        "stopping",
         "completed",
         "failed",
         "cancelled",
