@@ -147,11 +147,14 @@ and display-safe excerpts.
 
 ### Approvals
 
-The existing HITL audit/checkpoint logic remains the execution safeguard. Add a
-stable `approval_id`, `run_id`, `tool_call_id`, and decision state to its
-durable representation. `approval.required` and `approval.resolved` events
-refer to that record. Approval resolution uses a compare-and-swap transition,
-so retries cannot execute a destructive tool twice.
+The existing HITL checkpoint logic remains the execution safeguard. Add a
+mutable `agent_run_approvals` command-state table with a stable `approval_id`,
+`run_id`, `tool_call_id`, pending/resolved state, decision, and resolver. Keep
+the existing `agent_hitl_audit` table append-only: a successful compare-and-swap
+decision writes its immutable audit row. `approval.required` and
+`approval.resolved` events refer to the approval record. Approval resolution
+uses a compare-and-swap transition, so retries cannot execute a destructive
+tool twice.
 
 ## Versioned Event Contract
 
