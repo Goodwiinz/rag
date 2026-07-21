@@ -66,12 +66,13 @@ export function Pagination({
         <span className="text-(--nous-fg-1) font-bold">{totalItems}</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <nav aria-label="Pagination" className="flex items-center gap-2">
         <button
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
           title="First Page"
+          aria-label="First Page"
         >
           <ChevronsLeft className="w-4 h-4 text-(--nous-fg-1)" />
         </button>
@@ -79,8 +80,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
           title="Previous Page"
+          aria-label="Previous Page"
         >
           <ChevronLeft className="w-4 h-4 text-(--nous-fg-1)" />
         </button>
@@ -93,8 +95,10 @@ export function Pagination({
               <button
                 key={page}
                 onClick={() => onPageChange(page as number)}
+                aria-label={`Page ${page}`}
+                aria-current={currentPage === page ? 'page' : undefined}
                 className={cn(
-                  "min-w-[32px] h-8 rounded-md font-mono text-xs font-bold transition-all",
+                  "min-w-[32px] h-8 rounded-md font-mono text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]",
                   currentPage === page
                     ? "bg-(--nous-sol) text-(--nous-bg-1) shadow-[0_0_10px_var(--nous-sol-glow)]"
                     : "text-(--nous-fg-3) hover:text-(--nous-fg-1) hover:bg-(--nous-bg-3)"
@@ -109,8 +113,9 @@ export function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
           title="Next Page"
+          aria-label="Next Page"
         >
           <ChevronRight className="w-4 h-4 text-(--nous-fg-1)" />
         </button>
@@ -118,12 +123,13 @@ export function Pagination({
         <button
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
-          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+          className="p-2 rounded-lg border border-(--nous-border-1) hover:bg-(--nous-bg-2) disabled:opacity-30 disabled:hover:bg-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]"
           title="Last Page"
+          aria-label="Last Page"
         >
           <ChevronsRight className="w-4 h-4 text-(--nous-fg-1)" />
         </button>
-      </div>
+      </nav>
     </div>
   );
 }
