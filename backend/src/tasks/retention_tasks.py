@@ -54,12 +54,14 @@ from sqlalchemy import (
     Table,
     column,
     delete,
+)
+from sqlalchemy import func as sa_func
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import (
     select,
     table,
     text,
 )
-from sqlalchemy import func as sa_func
-from sqlalchemy import inspect as sa_inspect
 
 from src.core.config import get_settings
 from src.core.database import SessionLocal
