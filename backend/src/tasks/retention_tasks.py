@@ -47,21 +47,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import (
-    Column,
-    DateTime,
-    MetaData,
-    Table,
-    column,
-    delete,
-)
+from sqlalchemy import Column, DateTime, MetaData, Table, column, delete
 from sqlalchemy import func as sa_func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import (
-    select,
-    table,
-    text,
-)
+from sqlalchemy import select, table, text
 
 from src.core.config import get_settings
 from src.core.database import SessionLocal
