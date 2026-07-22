@@ -50,7 +50,7 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, MetaData, Table
 from sqlalchemy import func as sa_func
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import select, text
+from sqlalchemy import column, delete, select, table, text
 
 from src.core.config import get_settings
 from src.core.database import SessionLocal
@@ -136,28 +136,22 @@ def _count_checkpoint_rows(db, thread_id: str) -> int:
     for tbl in _CHECKPOINT_TABLES:
         if not _table_exists(db, tbl):
             continue
-        row = db.execute(
-            text(f"SELECT COUNT(*) FROM {tbl} WHERE thread_id = :tid"),  # noqa: S608
-            {"tid": thread_id},
-        ).scalar()
+        t = table(tbl, column("thread_id"))
+        stmt = select(sa_func.count()).select_from(t).where(t.c.thread_id == thread_id)
+        row = db.execute(stmt).scalar()
         total += int(row or 0)
     return total
 
 
 def _delete_checkpoint_rows(db, thread_id: str) -> int:
-    """Delete every checkpoint row for *thread_id*; return rows removed.
-
-    Table names are a fixed internal allowlist (``_CHECKPOINT_TABLES``), never
-    user input, so the f-string interpolation is safe; the thread_id is bound.
-    """
+    """Delete every checkpoint row for *thread_id*; return rows removed."""
     deleted = 0
     for tbl in _CHECKPOINT_TABLES:
         if not _table_exists(db, tbl):
             continue
-        res = db.execute(
-            text(f"DELETE FROM {tbl} WHERE thread_id = :tid"),  # noqa: S608
-            {"tid": thread_id},
-        )
+        t = table(tbl, column("thread_id"))
+        stmt = delete(t).where(t.c.thread_id == thread_id)
+        res = db.execute(stmt)
         deleted += int(res.rowcount or 0)
     return deleted
 

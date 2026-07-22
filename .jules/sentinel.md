@@ -26,3 +26,7 @@
 **Vulnerability:** HTTP 500 error handlers in the `backend/src/api/research/export.py` module were returning the raw exception string to the client (`raise HTTPException(status_code=500, detail=f"Export failed: {e}")`). This leaks internal implementation specifics such as file paths, database constraints, or third-party service errors.
 **Learning:** Over-informative HTTP exception messages provide debugging convenience at the cost of security, allowing attackers to infer backend structure or state from the client side.
 **Prevention:** Rely on secure server-side logging for detailed exceptions (`logger.error(e)`) and return generic, non-descriptive messages like "Export failed" in the `detail` parameter of 500 error responses sent to the client.
+## 2025-02-12 - Fixing Bandit B608 for dynamic table queries
+**Vulnerability:** Hardcoded SQL expressions (SQL injection vectors) via string interpolation `text(f"SELECT COUNT(*) FROM {tbl}")` inside retention tasks.
+**Learning:** Even if `tbl` is restricted internally or comes from an allowlist, passing formatted strings to `text()` triggers B608 security warnings. Using `# noqa: S608` bypasses the linter but leaves the underlying anti-pattern intact.
+**Prevention:** Use SQLAlchemy Core constructs such as `table(tbl, column("thread_id"))` paired with `select()` or `delete()` to construct dynamic queries securely and compliantly without resorting to string interpolation.
