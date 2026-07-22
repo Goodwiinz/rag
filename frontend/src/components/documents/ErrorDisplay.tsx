@@ -177,9 +177,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
         </span>
         {onRetry && (
           <button
+            type="button"
             onClick={onRetry}
             className={cn(
-              "text-xs px-2 py-1 rounded hover:bg-black/5 transition-colors",
+              "text-xs px-2 py-1 rounded hover:bg-black/5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               getTextStyles(severity)
             )}
           >
@@ -188,9 +189,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
         )}
         {onDismiss && (
           <button
+            type="button"
             onClick={onDismiss}
             className={cn(
-              "p-1 rounded hover:bg-black/5 transition-colors",
+              "p-1 rounded hover:bg-black/5 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               getTextStyles(severity)
             )}
             aria-label="Dismiss"
@@ -230,8 +232,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             {errorDetails && showDetails && (
               <div className="mt-2">
                 <button
+                  type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-xs underline hover:no-underline"
+                  aria-expanded={isExpanded}
+                  className="text-xs underline hover:no-underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   {isExpanded ? 'Hide' : 'Show'} details
                 </button>
@@ -248,9 +252,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 
         {onDismiss && (
           <button
+            type="button"
             onClick={onDismiss}
             className={cn(
-              "p-1 rounded hover:bg-black/5 transition-colors ml-2",
+              "p-1 rounded hover:bg-black/5 transition-colors ml-2 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               getTextStyles(severity)
             )}
             aria-label="Dismiss"
@@ -265,9 +270,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
         <div className="flex items-center space-x-2 mt-4 pt-3 border-t border-current/20">
           {onRetry && (
             <button
+              type="button"
               onClick={onRetry}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded hover:bg-black/10 transition-colors",
+                "px-3 py-1.5 text-sm font-medium rounded hover:bg-black/10 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 getTextStyles(severity)
               )}
             >
@@ -278,9 +284,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
           {actions?.map((action, index) => (
             <button
               key={index}
+              type="button"
               onClick={action.onClick}
               className={cn(
-                "px-3 py-1.5 text-sm font-medium rounded transition-colors",
+                "px-3 py-1.5 text-sm font-medium rounded transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 action.variant === 'primary' && "bg-primary text-primary-foreground hover:bg-primary/90",
                 action.variant === 'secondary' && "hover:bg-black/10",
                 action.variant === 'destructive' && "bg-destructive text-destructive-foreground hover:bg-destructive/90",
