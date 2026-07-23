@@ -113,38 +113,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
   const [duplicateWarning, setDuplicateWarning] = useState<{ show: boolean; entities: Entity[]; suggestedName: string } | null>(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
-  useEffect(() => {
-    if (entity) {
-      setFormData({
-        name: entity.name || '',
-        type: entity.type || 'PERSON',
-        confidence: entity.confidence || 0.8,
-        metadata: {
-          description: entity.metadata?.description || '',
-          aliases: entity.metadata?.aliases || [],
-          category: entity.metadata?.category || '',
-          properties: entity.metadata?.properties || {}
-        }
-      });
-
-      // Convert metadata properties to fields
-      const fields: MetadataField[] = [];
-      Object.entries(entity.metadata?.properties || {}).forEach(([key, value]) => {
-        let type: MetadataField['type'] = 'string';
-        if (Array.isArray(value)) type = 'array';
-        else if (typeof value === 'number') type = 'number';
-        else if (typeof value === 'boolean') type = 'boolean';
-        else if (typeof value === 'object') type = 'object';
-
-        fields.push({
-          key,
-          value: Array.isArray(value) ? value.join(', ') : String(value),
-          type
-        });
-      });
-      setMetadataFields(fields);
-    }
-  }, [entity]);
+  // Removed useEffect to prevent cascading renders.
 
   // Show locked state when user lacks permission
   if (!hasPermission) {
@@ -309,7 +278,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
       ...prev,
       metadata: {
         ...prev.metadata,
-        aliases: prev.metadata.aliases?.filter((_, i) => i !== index) || []
+        aliases: prev.metadata.aliases?.filter((_: string, i: number) => i !== index) || []
       }
     }));
   };
@@ -408,7 +377,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
             <Label className="text-xs font-mono text-(--nous-fg-3) uppercase tracking-widest">Known_Aliases</Label>
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2 mb-2">
-                {formData.metadata.aliases?.map((alias, index) => (
+                {formData.metadata.aliases?.map((alias: string, index: number) => (
                   <div key={index} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-(--nous-bg-3) border border-(--nous-border-1) rounded">
                     <span className="text-xs font-mono text-(--nous-fg-1)">{alias}</span>
                     <button

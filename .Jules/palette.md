@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2026-07-23 - `set-state-in-effect` Performance Gotchas
+**Learning:** Initializing component states via `useEffect` matching incoming props triggers a react-hooks/set-state-in-effect lint failure because calling `setState` inside an effect creates cascading re-renders that damage performance.
+**Action:** Always initialize component state based on incoming props lazily inside the `useState` callback instead of running it through a `useEffect` on mount.
