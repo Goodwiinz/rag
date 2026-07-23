@@ -381,8 +381,9 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                     <span className="text-xs font-mono text-(--nous-fg-1)">{alias}</span>
                     <button
                       type="button"
+                      aria-label="Remove alias"
                       onClick={() => removeAlias(index)}
-                      className="text-(--nous-fg-3) hover:text-red-400 p-0.5 rounded transition-colors"
+                      className="text-(--nous-fg-3) hover:text-red-400 p-0.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -404,6 +405,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 <Button
                   type="button"
                   variant="outline"
+                  aria-label="Add alias"
                   onClick={(e) => {
                     const input = e.currentTarget.parentElement?.querySelector('input');
                     if (input) {
@@ -411,7 +413,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                       input.value = '';
                     }
                   }}
-                  className="border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-1) hover:text-(--nous-sol) hover:border-(--nous-sol)"
+                  className="border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-1) hover:text-(--nous-sol) hover:border-(--nous-sol) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -478,8 +480,9 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
+                  aria-label="Remove custom field"
                   onClick={() => removeMetadataField(index)}
-                  className="h-8 w-8 text-red-500/50 hover:text-red-400 hover:bg-red-400/10"
+                  className="h-8 w-8 text-red-500/50 hover:text-red-400 hover:bg-red-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
