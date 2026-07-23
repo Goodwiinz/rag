@@ -3,8 +3,8 @@
  * Terminal Observatory themed entity form with duplicate detection
  */
 
-import React, { useState, useEffect } from 'react';
-import { Save, X, Plus, Trash2, AlertTriangle, Loader2, Database, Tag, Shield, Terminal, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Save, X, Plus, Trash2, AlertTriangle, Loader2, Database, Shield, Terminal, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Entity, EntityType } from '@/types/entity';
 import { entityService } from '@/services/entityService';
 import { useEntityPermissions } from '@/hooks/useEntityPermissions';
-import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 interface EntityFormProps {

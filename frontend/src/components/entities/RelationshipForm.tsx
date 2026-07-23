@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link, Save, X, Search, Terminal, Shield, Plus, Trash2 } from 'lucide-react';
+import { Link, Save, X, Search, Terminal, Shield, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,6 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Entity, GraphEdge } from '@/types/entity';
 import { entityService } from '@/services/entityService';
-import { cn } from '@/lib/utils';
 
 interface RelationshipFormProps {
   sourceEntityId?: string;
