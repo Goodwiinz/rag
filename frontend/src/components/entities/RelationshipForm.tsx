@@ -56,26 +56,10 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 }) => {
   // Use available types from props or fall back to defaults
   const relationshipTypes = availableTypes || DEFAULT_RELATIONSHIP_TYPES;
-  const [formData, setFormData] = useState({
-    source_entity_id: sourceEntityId || '',
-    target_entity_id: '',
-    relationship_type: '',
-    strength: 0.8,
-    confidence_score: 0.8,
-    context: '',
-    evidence: [] as string[],
-    metadata: {} as Record<string, any>
-  });
-
-  const [targetSearchQuery, setTargetSearchQuery] = useState('');
-  const [targetSearchResults, setTargetSearchResults] = useState<Entity[]>([]);
-  const [selectedTarget, setSelectedTarget] = useState<Entity | null>(null);
-  const [newEvidence, setNewEvidence] = useState('');
-
-  useEffect(() => {
+  const [formData, setFormData] = useState(() => {
     if (initialData) {
-      setFormData({
-        source_entity_id: initialData.source || '',
+      return {
+        source_entity_id: initialData.source || sourceEntityId || '',
         target_entity_id: initialData.target || '',
         relationship_type: initialData.type || '',
         strength: initialData.weight || 0.8,
@@ -83,9 +67,26 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
         context: initialData.context || '',
         evidence: initialData.evidence || [],
         metadata: initialData.metadata || {}
-      });
+      };
     }
-  }, [initialData]);
+    return {
+      source_entity_id: sourceEntityId || '',
+      target_entity_id: '',
+      relationship_type: '',
+      strength: 0.8,
+      confidence_score: 0.8,
+      context: '',
+      evidence: [] as string[],
+      metadata: {} as Record<string, any>
+    };
+  });
+
+  const [targetSearchQuery, setTargetSearchQuery] = useState('');
+  const [targetSearchResults, setTargetSearchResults] = useState<Entity[]>([]);
+  const [selectedTarget, setSelectedTarget] = useState<Entity | null>(null);
+  const [newEvidence, setNewEvidence] = useState('');
+
+  // Removed useEffect setting state to avoid cascading renders. State initialized above.
 
   const searchTargetEntities = async (query: string) => {
     if (!query) {

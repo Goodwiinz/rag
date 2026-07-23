@@ -65,19 +65,51 @@ export const EntityForm: React.FC<EntityFormProps> = ({
 
   // Use available types from props or fall back to defaults
   const entityTypes = (availableTypes || DEFAULT_ENTITY_TYPES) as EntityType[];
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'PERSON' as EntityType,
-    confidence: 0.8,
-    metadata: {
-      description: '',
-      aliases: [] as string[],
-      category: '',
-      properties: {} as Record<string, any>
+  const [formData, setFormData] = useState(() => {
+    if (entity) {
+      return {
+        name: entity.name || '',
+        type: (entity.type || 'PERSON') as EntityType,
+        confidence: entity.confidence || 0.8,
+        metadata: {
+          description: entity.metadata?.description || '',
+          aliases: entity.metadata?.aliases || [],
+          category: entity.metadata?.category || '',
+          properties: entity.metadata?.properties || {}
+        }
+      };
     }
+    return {
+      name: '',
+      type: 'PERSON' as EntityType,
+      confidence: 0.8,
+      metadata: {
+        description: '',
+        aliases: [] as string[],
+        category: '',
+        properties: {} as Record<string, any>
+      }
+    };
   });
 
-  const [metadataFields, setMetadataFields] = useState<MetadataField[]>([]);
+  const [metadataFields, setMetadataFields] = useState<MetadataField[]>(() => {
+    if (entity && entity.metadata?.properties) {
+      return Object.entries(entity.metadata.properties).map(([key, value]) => {
+        let type: MetadataField['type'] = 'string';
+        if (typeof value === 'number') type = 'number';
+        else if (typeof value === 'boolean') type = 'boolean';
+        else if (Array.isArray(value)) type = 'array';
+        else if (typeof value === 'object') type = 'object';
+
+        return {
+          key,
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          type
+        };
+      });
+    }
+    return [];
+  });
   const [duplicateWarning, setDuplicateWarning] = useState<{ show: boolean; entities: Entity[]; suggestedName: string } | null>(null);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
