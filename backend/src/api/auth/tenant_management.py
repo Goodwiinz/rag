@@ -194,7 +194,9 @@ async def create_organization(
         return OrganizationResponse(**organization.to_dict())
 
     except ConfigurationException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -257,7 +259,9 @@ async def update_organization(
             user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -290,7 +294,9 @@ async def upgrade_storage_tier(
             user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=e.user_friendly_message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -320,7 +326,9 @@ async def get_storage_quota_status(
             user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.user_friendly_message)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=e.user_friendly_message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -408,7 +416,9 @@ async def validate_organization_limits(
             user_role=e.details.get("user_role", "unknown"),
         )
     except ConfigurationException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e.user_friendly_message)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=e.user_friendly_message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
