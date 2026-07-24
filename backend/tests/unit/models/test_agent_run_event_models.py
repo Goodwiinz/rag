@@ -7,10 +7,11 @@ break, not a refactor. See docs/plans/2026-07-20-hermes-event-runtime-design.md.
 """
 
 import uuid
+from collections.abc import AsyncIterator
 
 import pytest
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.models.agent_run import AgentRun
 from src.models.agent_run_event import AgentRunEvent
@@ -95,7 +96,7 @@ def test_idempotency_uniqueness_is_tenant_scoped() -> None:
 
 
 @pytest.fixture
-async def session_factory():
+async def session_factory() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(AgentRun.__table__.create)
@@ -105,7 +106,9 @@ async def session_factory():
     await engine.dispose()
 
 
-async def test_duplicate_sequence_is_rejected(session_factory) -> None:
+async def test_duplicate_sequence_is_rejected(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     job_id = str(uuid.uuid4())
     async with session_factory() as db:
         db.add(AgentRun(job_id=job_id, status="queued", user_id=uuid.uuid4()))
@@ -121,11 +124,14 @@ async def test_duplicate_sequence_is_rejected(session_factory) -> None:
             await db.commit()
 
 
-async def test_last_event_seq_defaults_to_zero(session_factory) -> None:
+async def test_last_event_seq_defaults_to_zero(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
     job_id = str(uuid.uuid4())
     async with session_factory() as db:
         db.add(AgentRun(job_id=job_id, status="queued", user_id=uuid.uuid4()))
         await db.commit()
         run = await db.get(AgentRun, job_id)
+        assert run is not None
         assert run.last_event_seq == 0
         assert run.lease_generation == 0
