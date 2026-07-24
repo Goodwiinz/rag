@@ -28,8 +28,9 @@ not aliases in _nodes_rag:
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -121,6 +122,38 @@ async def test_slow_do_kb_retrieve_returns_none_quickly():
 
     # Must return None (triggering fallback) — not the slow chunk list
     assert result is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_primary_read_deadline_includes_session_and_kb_resolution():
+    """The complete primary-read stage must fit inside the hot-path deadline."""
+
+    async def _slow_resolve(*_args, **_kwargs):
+        await asyncio.sleep(0.3)
+        return "kb-uuid-123"
+
+    started = time.monotonic()
+    with (
+        patch("src.core.config.settings", new=_mock_settings(timeout=0.05)),
+        patch(
+            "src.services.agent.tool_session.tool_session",
+            new=_make_mock_session(),
+        ),
+        patch(
+            "src.services.do_kb.retrieval.resolve_org_kb_uuid",
+            new=_slow_resolve,
+        ),
+    ):
+        result = await _try_primary_do_kb_read(
+            query="summarize this project",
+            user_id=_USER_ID,
+            organization_id=_ORG_ID,
+        )
+    elapsed = time.monotonic() - started
+
+    assert result is None
+    assert elapsed < 0.15
 
 
 # ---------------------------------------------------------------------------

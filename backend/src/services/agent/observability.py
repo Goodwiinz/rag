@@ -4,10 +4,8 @@ Provides custom metrics and tracing for agent execution monitoring.
 Dual approach: LangSmith for LangGraph tracing + OpenTelemetry/Prometheus for custom metrics.
 """
 
-import asyncio
 import logging
 import os
-import threading
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
@@ -56,26 +54,6 @@ try:
     _CONTROL_FLOW_EXC: tuple = (_GraphBubbleUp,)
 except ImportError:  # pragma: no cover - langgraph always present in app runtime
     _CONTROL_FLOW_EXC = ()
-
-# Cached LangSmith client for run patching (intent tagging). Building one per
-# call re-reads env + sets up a session; cache it behind a lock.
-_LS_CLIENT: Any = None
-_LS_CLIENT_LOCK = threading.Lock()
-# Strong refs to in-flight fire-and-forget tag patches so the loop can't GC them.
-_TAG_TASKS: set = set()
-
-
-def _get_ls_client() -> Any:
-    global _LS_CLIENT
-    if _LS_CLIENT is not None:
-        return _LS_CLIENT
-    with _LS_CLIENT_LOCK:
-        if _LS_CLIENT is None:
-            from langsmith import Client
-
-            _LS_CLIENT = Client()
-    return _LS_CLIENT
-
 
 # ---------------------------------------------------------------------------
 # LangSmith configuration
@@ -184,25 +162,12 @@ def get_langsmith_base_url() -> str:
 
 
 def tag_trace_intent(intent: str) -> None:
-    """Best-effort: tag the current LangSmith ROOT run with the classified
-    intent so top-level traces are filterable by intent in the UI.
+    """Best-effort: tag the active run without PATCHing the live trace root.
 
-    The earlier RunTree-walk approach (``add_tags`` on the run reached by
-    walking ``parent_run``) did NOT land: under ``astream_events`` the
-    ``parent_run`` chain is often not populated, so the walk tagged the
-    current node, not the trace root — and even then a local mutation never
-    PATCHed the already-uploaded root run. Instead, identify the root by
-    ``RunTree.trace_id`` (== the root run's id) and PATCH it directly via
-    ``Client.update_run(run_id=trace_id, tags=[...])``.
-
-    Only TAGS are patched (not ``extra``/metadata) so the root's tenant
-    metadata (user_id/org_id/thread_id/job_id, set in the invoke config) is
-    never clobbered. The root carries no tags by config, so replacing tags
-    with ``[intent:<x>]`` is safe.
-
-    The patch is dispatched fire-and-forget (``asyncio.to_thread``) so the
-    HTTP call never adds latency to the hot-path node. No-op when intent is
-    empty, the SDK is absent, or there is no active run context. Never raises.
+    LangSmith can treat a mid-run ``Client.update_run`` as the root's terminal
+    payload. That closes the root before later subgraph children finish,
+    corrupting root latency and outputs. The active preprocessing run is
+    instead tagged locally and will upload the tag with its natural end event.
     """
     if not intent:
         return
@@ -212,28 +177,11 @@ def tag_trace_intent(intent: str) -> None:
         rt = get_current_run_tree()
         if rt is None:
             return
-        root_id = getattr(rt, "trace_id", None)
-        if root_id is None:
+        if getattr(rt, "trace_id", None) is None:
             return
 
         tag = f"intent:{intent}"
-        root_id_str = str(root_id)
-
-        def _patch() -> None:
-            try:
-                _get_ls_client().update_run(run_id=root_id_str, tags=[tag])
-            except Exception:
-                logger.debug("tag_trace_intent patch failed", exc_info=True)
-
-        # Fire-and-forget off the hot path. preprocessing_node is always inside
-        # a running loop; fall back to inline if somehow not.
-        try:
-            loop = asyncio.get_running_loop()
-            task = loop.create_task(asyncio.to_thread(_patch))
-            _TAG_TASKS.add(task)
-            task.add_done_callback(_TAG_TASKS.discard)
-        except RuntimeError:
-            _patch()
+        rt.add_tags([tag])
     except Exception:
         logger.debug("tag_trace_intent failed", exc_info=True)
 

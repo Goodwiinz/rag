@@ -8,7 +8,7 @@ Tools: create_draft, create_project_note, export_bibliography,
 import asyncio
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
@@ -82,6 +82,11 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_writing_system_prompt())]
+    retrieved = state.get("retrieved_contexts", [])
+    if retrieved:
+        from src.services.agent._nodes_llm import _retrieval_context_part
+
+        messages.append(SystemMessage(content=_retrieval_context_part(retrieved)))
     from src.services.agent.runtime_snapshot import render_project_skill_catalog
 
     skill_catalog_prompt = render_project_skill_catalog(
@@ -95,10 +100,23 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     # research_llm_node + main llm_node. Trace 019e191a showed gpt-5
     # spending 70s on prose synthesis after a tool result.
     settings = get_settings()
+    last_user_query = next(
+        (
+            message.content
+            for message in reversed(sanitized)
+            if isinstance(message, HumanMessage) and isinstance(message.content, str)
+        ),
+        "",
+    )
+    from src.services.agent.planner import _is_grounded_summary_flow
+
+    grounded_direct_synthesis = bool(
+        retrieved and _is_grounded_summary_flow(last_user_query)
+    )
     use_synthesis = bool(
         settings.AGENT_LIGHTWEIGHT_SYNTHESIS
         and sanitized
-        and isinstance(sanitized[-1], ToolMessage)
+        and (isinstance(sanitized[-1], ToolMessage) or grounded_direct_synthesis)
     )
 
     # Inject the planner's plan on the pre-tool pass so the executor follows
@@ -122,8 +140,13 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         logger.debug("writing_llm_node: using lightweight model for tool decision")
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
+    bound_tools = (
+        []
+        if grounded_direct_synthesis
+        else tools_for_runtime_snapshot(WRITING_TOOLS, state)
+    )
     llm_with_tools = llm.bind_tools(
-        tools_for_runtime_snapshot(WRITING_TOOLS, state),
+        bound_tools,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
     from src.services.agent.graph import _merge_run_config

@@ -288,6 +288,35 @@ async def _try_primary_do_kb_read(
     organization_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> Optional[List[dict]]:
+    """Run the complete primary-read stage inside the hot-path deadline."""
+    from src.core.config import settings as _kb_cfg
+
+    timeout = float(_kb_cfg.DO_KB_RETRIEVE_TIMEOUT_SECONDS)
+    try:
+        return await asyncio.wait_for(
+            _try_primary_do_kb_read_impl(
+                query,
+                user_id,
+                organization_id,
+                project_id,
+            ),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "do_kb primary read exceeded %.1fs — falling back",
+            timeout,
+        )
+        _record_do_kb_read("do_kb_timeout")
+        return None
+
+
+async def _try_primary_do_kb_read_impl(
+    query: str,
+    user_id: Optional[str],
+    organization_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+) -> Optional[List[dict]]:
     """Phase 4b: return DO KB chunks shaped like rag_node contexts.
 
     Returns None when primary read is disabled, the org has no KB, or the
