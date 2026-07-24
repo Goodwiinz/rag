@@ -129,6 +129,47 @@ async def test_terminal_states_are_absorbing(session_factory):
         assert run2.status == "running"
 
 
+@pytest.mark.parametrize(
+    "status",
+    [
+        JobStatus.QUEUED,
+        JobStatus.RUNNING,
+        JobStatus.AWAITING_CONFIRMATION,
+        JobStatus.STOPPING,
+    ],
+)
+def test_non_terminal_run_statuses(status: JobStatus) -> None:
+    assert status.is_terminal is False
+
+
+@pytest.mark.parametrize(
+    "status", [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]
+)
+def test_terminal_run_statuses(status: JobStatus) -> None:
+    assert status.is_terminal is True
+
+
+async def test_terminal_absorbs_stopping(session_factory):
+    """A delayed ``stopping`` projection must not resurrect a cancelled run."""
+    job_id = _job_id()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db, job_id=job_id, status=JobStatus.CANCELLED, user_id=str(USER_A)
+        )
+        run = await svc.upsert_run(db, job_id=job_id, status=JobStatus.STOPPING)
+        assert run.status == "cancelled"
+
+
+async def test_queued_to_running_transition(session_factory):
+    job_id = _job_id()
+    async with session_factory() as db:
+        await svc.upsert_run(
+            db, job_id=job_id, status=JobStatus.QUEUED, user_id=str(USER_A)
+        )
+        run = await svc.upsert_run(db, job_id=job_id, status=JobStatus.RUNNING)
+        assert run.status == "running"
+
+
 async def test_upsert_backfills_but_never_overwrites_tenancy(session_factory):
     job_id = _job_id()
     async with session_factory() as db:

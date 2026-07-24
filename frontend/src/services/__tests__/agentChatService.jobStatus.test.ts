@@ -32,8 +32,10 @@ import { isTerminalJobStatus, type AgentJobStatus } from '../agentChatService';
 // Compile-time exhaustiveness: adding a member to AgentJobStatus without a
 // row here is a type error. Runtime: the table drives the truth-table test.
 const TRUTH_TABLE = {
+  queued: false,
   running: false,
   awaiting_confirmation: false,
+  stopping: false,
   completed: true,
   failed: true,
   error: true, // legacy alias for 'failed' — one-release transition
@@ -52,8 +54,10 @@ describe('isTerminalJobStatus', () => {
     const classified = Object.keys(TRUTH_TABLE).sort();
     expect(classified).toEqual(
       [
+        'queued',
         'running',
         'awaiting_confirmation',
+        'stopping',
         'completed',
         'failed',
         'error',
