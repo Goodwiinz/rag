@@ -2,7 +2,7 @@
 
 The backend used to write six untyped status strings (running, completed,
 awaiting_confirmation, failed, error, cancelled) while the frontend typed
-four. JobStatus is now the single source of truth: five canonical members,
+four. JobStatus is now the single source of truth: seven canonical members,
 with "error" collapsed into FAILED (accepted as an inbound alias for one
 release, never written). These tests pin the exact value set, the alias
 mapping, the terminal classification, and JSON transparency — the properties
@@ -24,8 +24,10 @@ pytestmark = pytest.mark.unit
 def test_exact_wire_value_set():
     """The canonical wire strings — 'error' is intentionally NOT a member."""
     assert {s.value for s in JobStatus} == {
+        "queued",
         "running",
         "awaiting_confirmation",
+        "stopping",
         "completed",
         "failed",
         "cancelled",
@@ -47,8 +49,10 @@ def test_unknown_status_still_raises():
 @pytest.mark.parametrize(
     ("status", "terminal"),
     [
+        (JobStatus.QUEUED, False),
         (JobStatus.RUNNING, False),
         (JobStatus.AWAITING_CONFIRMATION, False),
+        (JobStatus.STOPPING, False),
         (JobStatus.COMPLETED, True),
         (JobStatus.FAILED, True),
         (JobStatus.CANCELLED, True),

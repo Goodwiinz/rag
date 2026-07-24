@@ -11502,9 +11502,15 @@ export interface components {
          *     write ``FAILED``; ``"error"`` is accepted as an inbound alias when reading
          *     records written by pre-collapse code (one-release transition, see
          *     ``_missing_``).
+         *
+         *     ``QUEUED`` (run created, worker not started) and ``STOPPING`` (cancel
+         *     requested, not yet acknowledged) belong to the durable run lifecycle:
+         *     queued → running ⇄ awaiting_confirmation → completed|failed|cancelled,
+         *     with stopping as a visible transient before cancelled. Both are
+         *     non-terminal; terminal states are absorbing.
          * @enum {string}
          */
-        JobStatus: "running" | "awaiting_confirmation" | "completed" | "failed" | "cancelled";
+        JobStatus: "queued" | "running" | "awaiting_confirmation" | "stopping" | "completed" | "failed" | "cancelled";
         /** JobStatusResponse */
         JobStatusResponse: {
             /** Confirmation */
