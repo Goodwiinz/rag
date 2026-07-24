@@ -14,6 +14,7 @@ from .ab_testing import (
 )
 from .agent_hitl_audit import AgentHitlAudit
 from .agent_run import AgentRun
+from .agent_run_event import AgentRunEvent
 from .agent_runtime_snapshot import AgentRuntimeSnapshot
 from .analytics_event import AnalyticsEvent, EventSeverity, EventType
 
@@ -137,6 +138,7 @@ __all__ = [
     "Base",
     "AgentHitlAudit",
     "AgentRun",
+    "AgentRunEvent",
     "AgentRuntimeSnapshot",
     "BaseModel",
     # User models

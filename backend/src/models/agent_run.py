@@ -20,7 +20,18 @@ cross-tenant.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, Column, DateTime, Index, String, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from src.shared.enums import JobStatus
@@ -55,24 +66,74 @@ class AgentRun(Base):
     organization_id = Column(GUID(), nullable=True)
     user_id = Column(GUID(), nullable=True)
 
-    # Correlation — which conversation the run belongs to (uuid string or the
-    # job-id fallback the graph uses for thread-less runs).
-    thread_id = Column(String(255), nullable=True)
+    # Correlation — the thread this run produces a turn for. Was a free-form
+    # String(255) (uuid or job-id fallback); the run-events migration nulls
+    # dangling correlations and converts to a real FK.
+    thread_id = Column(
+        GUID(), ForeignKey("threads.id", ondelete="SET NULL"), nullable=True
+    )
+    conversation_id = Column(
+        GUID(), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    project_id = Column(
+        GUID(), ForeignKey("collections.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Transcript linkage — the committed user turn that started the run and
+    # (once terminal) the assistant message it projected.
+    user_message_id = Column(
+        GUID(), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    assistant_message_id = Column(
+        GUID(), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Frozen tool registry + approved skill versions for the whole run;
+    # HITL resume reuses this snapshot, never creates another.
+    runtime_snapshot_id = Column(
+        GUID(),
+        ForeignKey("agent_runtime_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     # Lifecycle status; values constrained to the JobStatus domain.
     status = Column(String(32), nullable=False)
 
-    # Client idempotency key for a future dedupe of /execute retries.
-    # Unique where not null (partial index) — nothing writes it yet.
+    # Client idempotency: the raw client_message_id for the turn plus the
+    # derived idempotency_key. Unique per user where not null — tenant-scoped
+    # so keys cannot collide across users/organizations.
+    client_message_id = Column(String(255), nullable=True)
     idempotency_key = Column(String(255), nullable=True)
 
-    # Lease fields for the next-PR sweeper: a worker claims a stuck run by
+    # High-water mark of agent_run_events.seq — bumped in the same transaction
+    # as every event insert (under the run-row lock that allocates seq).
+    last_event_seq = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+
+    # Lease fields for the sweeper/worker: a worker claims a stuck run by
     # writing its identity + expiry atomically (see claim_lease in the service).
+    # lease_generation increments on each takeover so a fenced-out worker's
+    # late writes can be rejected.
     lease_owner = Column(String(255), nullable=True)
     lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    lease_generation = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
 
-    # Client-safe error message for failed/cancelled runs.
+    # Lifecycle timestamps (created_at/updated_at below are row bookkeeping).
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    cancel_requested_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Structured failure: machine-readable code + client-safe message.
+    error_code = Column(String(64), nullable=True)
     error = Column(Text, nullable=True)
+
+    # Terminal accounting and free-form run annotations (attribute is
+    # run_metadata because SQLAlchemy reserves .metadata).
+    usage = Column(JSONB, nullable=True)
+    run_metadata = Column(JSONB, nullable=True)
 
     # Client-side defaults keep ORM-written timestamps timezone-aware on every
     # backend (sqlite tests included); server_default covers raw SQL inserts.
@@ -95,12 +156,30 @@ class AgentRun(Base):
         Index("idx_agent_runs_org_updated", "organization_id", "updated_at"),
         # Sweeper scan: non-terminal runs ordered by staleness.
         Index("idx_agent_runs_status_updated", "status", "updated_at"),
+        # Tenant-scoped idempotency: a retried /execute resolves to its
+        # existing run; keys cannot collide across users.
         Index(
-            "uq_agent_runs_idempotency_key",
+            "uq_agent_runs_user_idempotency_key",
+            "user_id",
             "idempotency_key",
             unique=True,
             postgresql_where=text("idempotency_key IS NOT NULL"),
             sqlite_where=text("idempotency_key IS NOT NULL"),
+        ),
+        # One non-terminal run per thread — the concurrency invariant the run
+        # API converts into HTTP 409 with the active run's id.
+        Index(
+            "uq_agent_runs_active_thread",
+            "thread_id",
+            unique=True,
+            postgresql_where=text(
+                "thread_id IS NOT NULL AND status IN "
+                "('queued', 'running', 'awaiting_confirmation', 'stopping')"
+            ),
+            sqlite_where=text(
+                "thread_id IS NOT NULL AND status IN "
+                "('queued', 'running', 'awaiting_confirmation', 'stopping')"
+            ),
         ),
         CheckConstraint(AGENT_RUN_STATUS_CHECK, name="ck_agent_runs_status"),
     )
