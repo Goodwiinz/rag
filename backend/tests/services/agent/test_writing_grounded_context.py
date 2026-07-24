@@ -61,6 +61,7 @@ async def test_writing_node_injects_retrieved_context() -> None:
     ):
         await writing_llm_node(_grounded_state(), config={})
 
+    assert bound.ainvoke.await_args is not None
     messages = bound.ainvoke.await_args.args[0]
     system_text = "\n".join(
         str(message.content)
