@@ -110,6 +110,10 @@ _WRITING_CONJUNCTION_RE = re.compile(
 _SIMPLE_WRITING_VERBS: frozenset[str] = frozenset(
     {"summarize", "summarise", "create", "draft", "write"}
 )
+_CONTEXTUAL_WRITING_PREFIX_RE = re.compile(r"^(?:based on|using|from)\b", re.IGNORECASE)
+_WRITING_VERB_RE = re.compile(
+    r"\b(?:summarize|summarise|create|draft|write)\b", re.IGNORECASE
+)
 
 
 def _is_simple_writing_flow(query: str) -> bool:
@@ -136,7 +140,11 @@ def _is_simple_writing_flow(query: str) -> bool:
         return False
 
     first_word = words[0].lower().rstrip(_LEADING_PUNCTUATION)
-    if first_word not in _SIMPLE_WRITING_VERBS:
+    direct_imperative = first_word in _SIMPLE_WRITING_VERBS
+    contextual_imperative = bool(
+        _CONTEXTUAL_WRITING_PREFIX_RE.search(query) and _WRITING_VERB_RE.search(query)
+    )
+    if not direct_imperative and not contextual_imperative:
         return False
 
     # Questions starting with a writing verb ("what should I write?") are not
@@ -160,6 +168,13 @@ def _is_simple_writing_flow(query: str) -> bool:
         return False
 
     return True
+
+
+def _is_grounded_summary_flow(query: str) -> bool:
+    """Return True when retrieved context can answer a simple summary directly."""
+    return _is_simple_writing_flow(query) and bool(
+        re.search(r"\bsummari[sz]e\b", query, re.IGNORECASE)
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -66,6 +66,10 @@ def test_planner_llm_timeout_is_8() -> None:
         "write a short summary",
         "create a note",
         "summarize this",
+        (
+            "Based on the documents in this project, summarize the main "
+            "research topic in two sentences."
+        ),
     ],
     ids=[
         "summarize-doc",
@@ -77,6 +81,7 @@ def test_planner_llm_timeout_is_8() -> None:
         "write-summary",
         "create-note-bare",
         "summarize-this",
+        "contextual-project-summary",
     ],
 )
 def test_is_simple_writing_flow_true(query: str) -> None:

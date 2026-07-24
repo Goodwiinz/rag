@@ -1,0 +1,125 @@
+"""Regression tests for project-grounded writing turns."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+from src.services.agent.subgraphs.writing_agent import writing_llm_node
+
+
+def _grounded_state(
+    query: str = (
+        "Based on the documents in this project, summarize the main "
+        "research topic in two sentences."
+    ),
+) -> dict:
+    return {
+        "messages": [HumanMessage(content=query)],
+        "page_context": {
+            "type": "project",
+            "project_id": "00000000-0000-0000-0000-000000000001",
+        },
+        "retrieved_contexts": [
+            {
+                "title": "Project paper",
+                "content": "The project studies grounded retrieval systems.",
+            }
+        ],
+        "plan": [],
+    }
+
+
+def _settings() -> SimpleNamespace:
+    return SimpleNamespace(
+        AGENT_LIGHTWEIGHT_SYNTHESIS=True,
+        AGENT_PARALLEL_TOOL_CALLS=False,
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_writing_node_injects_retrieved_context() -> None:
+    llm = MagicMock()
+    bound = MagicMock()
+    bound.ainvoke = AsyncMock(return_value=AIMessage(content="Grounded summary"))
+    llm.bind_tools.return_value = bound
+
+    with (
+        patch("src.core.config.get_settings", return_value=_settings()),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=llm,
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=llm,
+        ),
+    ):
+        await writing_llm_node(_grounded_state(), config={})
+
+    assert bound.ainvoke.await_args is not None
+    messages = bound.ainvoke.await_args.args[0]
+    system_text = "\n".join(
+        str(message.content)
+        for message in messages
+        if isinstance(message, SystemMessage)
+    )
+    assert "Retrieved context:" in system_text
+    assert "[Doc 1] Project paper:" in system_text
+    assert "The project studies grounded retrieval systems." in system_text
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_grounded_simple_summary_binds_no_tools() -> None:
+    llm = MagicMock()
+    bound = MagicMock()
+    bound.ainvoke = AsyncMock(return_value=AIMessage(content="Grounded summary"))
+    llm.bind_tools.return_value = bound
+
+    with (
+        patch("src.core.config.get_settings", return_value=_settings()),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=llm,
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=llm,
+        ),
+    ):
+        await writing_llm_node(_grounded_state(), config={})
+
+    llm.bind_tools.assert_called_once_with([], parallel_tool_calls=False)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_grounded_create_note_request_keeps_writing_tools() -> None:
+    llm = MagicMock()
+    bound = MagicMock()
+    bound.ainvoke = AsyncMock(return_value=AIMessage(content="Creating note"))
+    llm.bind_tools.return_value = bound
+    state = _grounded_state(
+        "Based on the documents in this project, create a note about the topic."
+    )
+
+    with (
+        patch("src.core.config.get_settings", return_value=_settings()),
+        patch(
+            "src.services.agent.llm_factory.build_synthesis_llm",
+            return_value=llm,
+        ),
+        patch(
+            "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=llm,
+        ),
+    ):
+        await writing_llm_node(state, config={})
+
+    bound_tools = llm.bind_tools.call_args.args[0]
+    assert any(tool.name == "create_project_note" for tool in bound_tools)
