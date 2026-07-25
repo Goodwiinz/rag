@@ -17,7 +17,16 @@ from src.core.openai_endpoint import classify_openai_endpoint
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_LIGHTWEIGHT_MODEL = "model-router"
+
+def _main_chat_deployment() -> str:
+    """The configured chat deployment — same chain ``graph._build_llm`` uses."""
+    settings = get_settings()
+    return (
+        settings.AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+        or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+        or ""
+    )
+
 
 # Cache built chat models keyed by the builder's input args. Constructing a
 # ChatOpenAI/AzureChatOpenAI spins up an HTTP client (~30-50ms); the synthesis
@@ -39,17 +48,27 @@ def reset_llm_caches() -> None:
 
 
 def _resolve_lightweight_deployment() -> str:
+    """Lightweight deployment, falling back to the main chat deployment.
+
+    The fallback used to be ``model-router``, which meant an unset or blank
+    secret silently put the router back inside the agent loop — the exact
+    configuration that produced the 30s timeout cap on research_llm_node
+    (trace 019e1da5). Falling back to the configured chat deployment keeps a
+    misconfigured environment on the model the operator actually chose, and
+    makes "one deployment everywhere" the natural result of leaving the
+    per-role overrides unset.
+    """
     settings = get_settings()
-    return settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT or _DEFAULT_LIGHTWEIGHT_MODEL
+    return settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT or _main_chat_deployment()
 
 
 def _resolve_synthesis_deployment() -> str:
-    """Synthesis deploy falls back to lightweight when unset."""
+    """Synthesis deploy falls back to lightweight, then the main deployment."""
     settings = get_settings()
     return (
         settings.AZURE_OPENAI_SYNTHESIS_DEPLOYMENT
         or settings.AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT
-        or _DEFAULT_LIGHTWEIGHT_MODEL
+        or _main_chat_deployment()
     )
 
 
@@ -152,8 +171,9 @@ def build_lightweight_llm(
     """Build a LangChain chat model for lightweight auxiliary tasks.
 
     Targets the deployment configured via
-    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` (defaults to ``model-router``).
-    Used by classifier, planner complexity check, reflection, compactor.
+    ``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT``, falling back to the main chat
+    deployment. Used by classifier, planner complexity check, reflection,
+    compactor — never a tool-calling turn.
     """
     key = (temperature, max_tokens, request_timeout, use_responses_api)
     cached = _LIGHTWEIGHT_LLM_CACHE.get(key)
@@ -182,10 +202,11 @@ def build_synthesis_llm(
 ) -> BaseChatModel:
     """Build a LangChain chat model for post-tool prose synthesis.
 
-    Targets ``AZURE_OPENAI_SYNTHESIS_DEPLOYMENT`` and falls back to the
-    lightweight deployment when unset, so existing single-knob deployments
-    keep working. Lets ops put a stronger model (e.g. gpt-5-mini) on the
-    final-answer path while routing/classify stay on cheap nano.
+    Targets ``AZURE_OPENAI_SYNTHESIS_DEPLOYMENT``, falling back to the
+    lightweight deployment and then to the main chat deployment, so existing
+    single-knob deployments keep working and leaving every override unset
+    runs one deployment everywhere. Set it only to make prose cheaper than
+    the tool-decision path — not the other way round.
     """
     key = (temperature, max_tokens, request_timeout, use_responses_api)
     cached = _SYNTHESIS_LLM_CACHE.get(key)
