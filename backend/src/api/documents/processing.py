@@ -88,9 +88,10 @@ async def start_document_processing(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        logger.error("Failed to start processing: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start processing: {str(e)}",
+            detail="Failed to start processing",
         )
 
 
@@ -267,7 +268,8 @@ async def start_batch_processing(
                 }
             )
         except Exception as e:
-            errors.append({"document_id": str(document.id), "error": str(e)})
+            logger.error("Failed to process document in batch: %s", str(e))
+            errors.append({"document_id": str(document.id), "error": "Internal server error"})
 
     return {
         "message": f"Batch processing initiated for {len(results)} documents",
@@ -323,9 +325,10 @@ async def retry_failed_jobs(
         return {"message": message, "retried_count": retried_count}
 
     except Exception as e:
+        logger.error("Failed to retry jobs: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retry jobs: {str(e)}",
+            detail="Failed to retry jobs",
         )
 
 
@@ -384,9 +387,10 @@ async def cancel_processing_job(
 
     except Exception as e:
         db.rollback()
+        logger.error("Failed to cancel job: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel job: {str(e)}",
+            detail="Failed to cancel job",
         )
 
 
@@ -469,9 +473,10 @@ async def get_queue_status(
         }
 
     except Exception as e:
+        logger.error("Failed to get queue status: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get queue status: {str(e)}",
+            detail="Failed to get queue status",
         )
 
 
@@ -513,7 +518,8 @@ async def cleanup_old_jobs(
 
     except Exception as e:
         db.rollback()
+        logger.error("Failed to cleanup jobs: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cleanup jobs: {str(e)}",
+            detail="Failed to cleanup jobs",
         )
