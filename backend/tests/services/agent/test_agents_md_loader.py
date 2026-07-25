@@ -47,6 +47,24 @@ def test_research_protocol_tells_the_model_to_call_named_destructive_tools():
 
 
 @pytest.mark.unit
+def test_research_protocol_resolves_project_ambiguity_with_tools():
+    """The recovered reply hedged on *project* ambiguity, not just the gate.
+
+    Verbatim from the 03:00 run's checkpoint (thread
+    ``synthetic-ingest-1784948427422``): "Do you want me to create the project
+    named synthtraffic-… if it doesn't already exist, and then add the paper
+    to it? If the project already exists, please confirm…" — a question
+    ``list_projects``/``create_project`` answers without a round trip.
+    """
+    from src.services.agent.subgraphs.agents_md_loader import load_agents_md
+
+    body = load_agents_md("research").lower()
+
+    assert "resolve, don't interrogate" in body
+    assert "list_projects" in body and "create_project" in body
+
+
+@pytest.mark.unit
 def test_writing_loader_returns_non_empty():
     from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 

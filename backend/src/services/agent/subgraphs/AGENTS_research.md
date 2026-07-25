@@ -35,6 +35,7 @@ Each turn:
 
 ## Heuristics
 
+- **Resolve, don't interrogate.** When the user names a project that may or may not exist, find out with `list_projects` / `create_project` instead of asking them which one they meant — they already told you the name. "Do you want me to create it if it doesn't exist, or use the existing one?" is a question your tools answer faster than the user can.
 - **Stay near the user's stated topic.** Don't pivot to adjacent areas unless asked.
 - **Diversify within an iteration only when explicitly broadening.** A single search with `recency_days=365` and the right query usually beats 3 narrower ones.
 - **Cite by title + arXiv ID** in the response, not just IDs.
