@@ -330,10 +330,40 @@ MISSING_INTERRUPT_FLAG = "MISSING-INTERRUPT"
 # the interrupt fired, the resume loop just never cleared it.
 UNRESOLVED_INTERRUPT_FLAG = "INTERRUPT-UNRESOLVED"
 
-# Flag for an expect_interrupt run where a tool ran and failed. The interrupt
-# fired and was confirmed, so the run *looks* finished — but the destructive
-# action it exists to exercise did not happen.
+# Flag for a run where a tool ran and failed after a confirmed interrupt. The
+# resume makes the run *look* finished — but the action it gated did not
+# happen.
 TOOL_FAILED_FLAG = "TOOL-FAILED"
+
+# The tool layer writes exactly three statuses. Two of them are successes:
+# "deduped" means an identical call already succeeded this turn and its
+# cached result was reused (``tool_dedupe.build_deduped_execution_entry``;
+# the cache only admits ``completed`` candidates). Mirrors the success test
+# in ``reflection.py`` — treating "deduped" as failure would flag a healthy
+# run whenever the agent repeated a call, which is common.
+SUCCESS_TOOL_STATUSES = ("completed", "deduped")
+
+
+def failed_tool_names(executions: Any) -> tuple[str, ...]:
+    """Names of tool executions that genuinely failed.
+
+    Transient failures are excluded on the same terms the agent's own
+    reflection guard uses (``result.error_type == "transient"``): an arXiv
+    429 or an upstream timeout says nothing about whether the agent did its
+    job, and flagging those rebuilds the noise floor this signal exists to
+    stay below.
+    """
+    names: list[str] = []
+    for te in executions or []:
+        if not isinstance(te, dict):
+            continue
+        if te.get("status") in SUCCESS_TOOL_STATUSES:
+            continue
+        result = te.get("result")
+        if isinstance(result, dict) and result.get("error_type") == "transient":
+            continue
+        names.append(str(te.get("tool_name") or "?"))
+    return tuple(names)
 
 
 def classify_turn(scenario: Scenario, result: TurnResult) -> str:
@@ -367,10 +397,14 @@ def classify_turn(scenario: Scenario, result: TurnResult) -> str:
         return "INTERRUPT"
     if result.interrupted:  # resumes > 0: MAX_HITL_RESUMES exhausted
         return f"{UNRESOLVED_INTERRUPT_FLAG}({result.resumes})"
-    # Scoped to expect_interrupt scenarios on purpose: elsewhere a failed tool
-    # is often transient and expected (arXiv 429/timeout on research_arxiv),
-    # and flagging those would restore the noise this signal exists to avoid.
-    if scenario.expect_interrupt and result.failed_tools:
+    # Gated on a *confirmed* interrupt rather than on expect_interrupt: a
+    # resume is direct evidence a destructive tool actually ran, it excludes
+    # research_arxiv's transient 429s (nothing interrupts there), it covers
+    # writing_draft — whose create_draft/create_project_note are destructive
+    # despite the scenario not declaring expect_interrupt — and it leaves the
+    # resumes == 0 row to MISSING-INTERRUPT, which is the honest diagnosis
+    # when no interrupt ever fired.
+    if result.resumes > 0 and result.failed_tools:
         return f"{TOOL_FAILED_FLAG}({','.join(result.failed_tools)})"
     if result.resumes > 0:
         return f"confirmed({result.resumes})"
@@ -531,13 +565,7 @@ async def run_scenario(
         intent = final_state.get("intent", "") or ""
         executions = final_state.get("tool_executions", []) or []
         tool_executions_count = len(executions)
-        # "completed" is the success status the tool layer writes; anything
-        # else (failed, or a shape we don't recognize) is not a success.
-        failed_tools = tuple(
-            str(te.get("tool_name") or "?")
-            for te in executions
-            if isinstance(te, dict) and te.get("status") != "completed"
-        )
+        failed_tools = failed_tool_names(executions)
         for msg in reversed(final_state.get("messages", []) or []):
             if getattr(msg, "type", None) == "ai" and getattr(msg, "content", None):
                 assistant_preview = str(msg.content)[:160]
@@ -564,7 +592,8 @@ async def run_scenario(
             expected="destructive tool completes",
             tool_executions=tool_executions_count,
             failed_tools=list(failed_tools),
-            reason="tool ran and failed — the interrupt fired but the action did not happen",
+            resumes=resumes,
+            reason="tool failed after a confirmed interrupt — the action did not happen",
         )
     if flag == MISSING_INTERRUPT_FLAG:
         log.warning(

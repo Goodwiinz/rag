@@ -15,10 +15,12 @@ import pytest
 from scripts.synthetic_traffic import (
     MISSING_INTERRUPT_FLAG,
     SCENARIOS,
+    SUCCESS_TOOL_STATUSES,
     TOOL_FAILED_FLAG,
     Scenario,
     TurnResult,
     classify_turn,
+    failed_tool_names,
 )
 
 pytestmark = pytest.mark.unit
@@ -89,14 +91,33 @@ def test_the_06_26_run_that_confirmed_but_ingested_nothing() -> None:
     assert classify_turn(_INTERRUPTING, result) == "TOOL-FAILED(ingest_arxiv_papers)"
 
 
-def test_transient_tool_failure_is_not_flagged_outside_interrupt_scenarios() -> None:
-    """research_arxiv hits arXiv 429/timeouts routinely.
+def test_a_failure_without_a_confirmed_interrupt_stays_missing_interrupt() -> None:
+    """A failed tool must not mask the "never reached" diagnosis.
 
-    Flagging those would rebuild the noise floor this signal exists to stay
-    below, so the check is scoped to expect_interrupt scenarios.
+    An arXiv hiccup on the search step followed by a prose answer means no
+    interrupt ever fired — MISSING-INTERRUPT is the honest flag, and the
+    TOOL-FAILED warning would otherwise claim an interrupt that did not
+    happen.
     """
+    result = _result(resumes=0, failed_tools=("search_arxiv",))
+    assert classify_turn(_INTERRUPTING, result) == MISSING_INTERRUPT_FLAG
+
+
+def test_no_interrupt_no_expectation_is_still_ok() -> None:
     result = _result(scenario="research_arxiv", failed_tools=("search_arxiv",))
     assert classify_turn(_PLAIN, result) == "ok"
+
+
+def test_writing_draft_shaped_run_is_covered_despite_no_expect_interrupt() -> None:
+    """create_draft / create_project_note are destructive and do interrupt.
+
+    writing_draft does not declare expect_interrupt, so gating on that field
+    would have left an identical fake-success hole one scenario over.
+    """
+    result = _result(
+        scenario="writing_draft", resumes=1, failed_tools=("create_draft",)
+    )
+    assert classify_turn(_PLAIN, result) == "TOOL-FAILED(create_draft)"
 
 
 def test_a_raised_exception_still_outranks_a_failed_tool() -> None:
@@ -156,6 +177,56 @@ def test_result_carries_its_flag_for_the_sweep_summary() -> None:
     result = _result()
     result.flag = classify_turn(_INTERRUPTING, result)
     assert result.flag == MISSING_INTERRUPT_FLAG
+
+
+def test_deduped_is_a_success_not_a_failure() -> None:
+    """``deduped`` means an identical call already succeeded this turn.
+
+    ``tool_dedupe`` only caches ``completed`` results, and the agent's own
+    reflection guard counts ``("completed", "deduped")`` as success. Reading
+    it as failure would flag a healthy run whenever the agent repeated a
+    call — which the live ingest trace does (two ``list_projects``).
+    """
+    assert SUCCESS_TOOL_STATUSES == ("completed", "deduped")
+    executions = [
+        {"tool_name": "list_projects", "status": "completed"},
+        {"tool_name": "list_projects", "status": "deduped"},
+    ]
+    assert failed_tool_names(executions) == ()
+
+
+def test_extraction_picks_out_real_failures() -> None:
+    executions = [
+        {"tool_name": "ingest_arxiv_papers", "status": "failed"},
+        {"tool_name": "list_projects", "status": "completed"},
+    ]
+    assert failed_tool_names(executions) == ("ingest_arxiv_papers",)
+
+
+def test_extraction_skips_transient_failures() -> None:
+    """arXiv 429s and upstream timeouts say nothing about the agent.
+
+    Same predicate the reflection guard uses: result.error_type == transient.
+    """
+    executions = [
+        {
+            "tool_name": "search_arxiv",
+            "status": "failed",
+            "result": {"error_type": "transient", "error": "429"},
+        },
+        {
+            "tool_name": "ingest_arxiv_papers",
+            "status": "failed",
+            "result": {"error_type": "recoverable", "error": "Invalid project_id"},
+        },
+    ]
+    assert failed_tool_names(executions) == ("ingest_arxiv_papers",)
+
+
+def test_extraction_tolerates_junk_entries() -> None:
+    assert failed_tool_names(None) == ()
+    assert failed_tool_names([None, "nonsense", 7]) == ()
+    assert failed_tool_names([{"status": "failed"}]) == ("?",)
 
 
 def test_catalogue_still_declares_interrupting_scenarios() -> None:
