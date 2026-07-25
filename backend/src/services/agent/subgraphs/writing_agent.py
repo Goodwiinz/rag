@@ -128,16 +128,22 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         plan_directive = render_plan_directive(state.get("plan"))
         if plan_directive:
             messages.insert(1, SystemMessage(content=plan_directive))
+    # Hoisted above the branch: _build_llm is used inside it, so importing
+    # after would NameError.
+    from src.services.agent.graph import _build_llm, _merge_run_config
+
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("writing_llm_node: using synthesis model after ToolMessage")
     else:
-        from src.services.agent.llm_factory import build_lightweight_llm
-
-        llm = build_lightweight_llm(max_tokens=4096)
-        logger.debug("writing_llm_node: using lightweight model for tool decision")
+        # Tool-decision turn runs on the main deployment — see the note in
+        # research_agent.research_llm_node. Multi-step function calling is the
+        # job small tiers are worst at, and create_draft / create_project_note
+        # are destructive, so a wrong call costs a confirmation round trip.
+        llm = _build_llm(model_override=state.get("model") or None)
+        logger.debug("writing_llm_node: using main model for tool decision")
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
     bound_tools = (
@@ -149,7 +155,6 @@ async def writing_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         bound_tools,
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    from src.services.agent.graph import _merge_run_config
 
     invoke_config = _merge_run_config(
         config,

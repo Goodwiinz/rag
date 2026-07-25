@@ -451,6 +451,10 @@ class Settings(BaseSettings):
     # Accepted values: "minimal" | "low" | "medium" | "high"
     # Defaults tuned for fast responses; raise to "medium" for tougher tasks.
     AGENT_MAIN_REASONING_EFFORT: str = "low"
+    # Governs classify / plan / reflect / compact / synthesis only — never a
+    # tool-calling turn. Subgraph tool decisions run on the main deployment
+    # under AGENT_MAIN_REASONING_EFFORT, because multi-step function calling
+    # is where the small tiers collapse.
     AGENT_LIGHTWEIGHT_REASONING_EFFORT: str = "minimal"
 
     # Bound Azure LLM call wall-clock to prevent model-router hangs. LangSmith
@@ -476,6 +480,10 @@ class Settings(BaseSettings):
     # search_arxiv per round, 13+ total over 4 rounds, 95s wall). Flip to
     # True only when comparing two documents in parallel is the explicit
     # user intent.
+    #
+    # Trap if you do flip it: parallel tool calls are unsupported at
+    # reasoning_effort="minimal". Moot today because this is False, but any
+    # node still running at "minimal" would break the moment both are on.
     AGENT_PARALLEL_TOOL_CALLS: bool = False
 
     # Project-skill runtime rollout gates.  All default off so deploying the

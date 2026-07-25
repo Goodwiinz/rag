@@ -58,6 +58,12 @@ async def test_writing_node_injects_retrieved_context() -> None:
             "src.services.agent.llm_factory.build_lightweight_llm",
             return_value=llm,
         ),
+        # Tool-decision turns build the main LLM now, not the lightweight
+        # one — without this the node reaches the real Azure config guard.
+        patch(
+            "src.services.agent.graph._build_llm",
+            return_value=llm,
+        ),
     ):
         await writing_llm_node(_grounded_state(), config={})
 
@@ -91,6 +97,12 @@ async def test_grounded_simple_summary_binds_no_tools() -> None:
             "src.services.agent.llm_factory.build_lightweight_llm",
             return_value=llm,
         ),
+        # Tool-decision turns build the main LLM now, not the lightweight
+        # one — without this the node reaches the real Azure config guard.
+        patch(
+            "src.services.agent.graph._build_llm",
+            return_value=llm,
+        ),
     ):
         await writing_llm_node(_grounded_state(), config={})
 
@@ -116,6 +128,12 @@ async def test_grounded_create_note_request_keeps_writing_tools() -> None:
         ),
         patch(
             "src.services.agent.llm_factory.build_lightweight_llm",
+            return_value=llm,
+        ),
+        # Tool-decision turns build the main LLM now, not the lightweight
+        # one — without this the node reaches the real Azure config guard.
+        patch(
+            "src.services.agent.graph._build_llm",
             return_value=llm,
         ),
     ):

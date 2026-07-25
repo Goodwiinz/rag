@@ -326,18 +326,22 @@ async def llm_node(state: AgentState, config: RunnableConfig) -> dict:
     #    reasoning already happened before the tool call; this turn is
     #    pure prose synthesis. Saves ~5-15s.
     #
-    # 2. intent="general" turn (no project/research/writing context).
-    #    "hi", "thanks", capability questions, small talk — gpt-5 burns
-    #    ~700 reasoning tokens deciding whether to call a tool. The
-    #    synthesis tier handles these in 2-3s. Trace 019e19f2 showed
-    #    "hi" took 13s on gpt-5.
+    # 2. No tools bound this turn. Nothing can be called, so there is no
+    #    decision to make and the cheap tier is strictly correct. "hi",
+    #    "thanks" and small talk land here because _tools_for_turn strips
+    #    tools for greetings — trace 019e19f2 ("hi" took 13s on gpt-5) stays
+    #    fixed. This used to test intent == "general", which was a proxy for
+    #    the same thing and a wrong one: general turns that DO carry the full
+    #    tool set were sent to the cheap tier and then asked to choose among
+    #    them. Deciding which tool to call is the job the small tiers are
+    #    worst at, so derive the condition instead of proxying for it.
     #
     # Both cases gated by AGENT_LIGHTWEIGHT_SYNTHESIS so a single env var
     # disables the optimisation if quality regresses.
     settings = get_settings()
     last_is_tool_msg = bool(sanitized) and isinstance(sanitized[-1], ToolMessage)
     use_synthesis = settings.AGENT_LIGHTWEIGHT_SYNTHESIS and (
-        last_is_tool_msg or intent == "general"
+        last_is_tool_msg or not intent_tools
     )
     try:
         if use_synthesis:

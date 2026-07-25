@@ -206,6 +206,14 @@ def build_synthesis_llm(
         max_tokens=max_tokens,
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
+        # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the
+        # lightweight tier on purpose. That coupling used to be a defect —
+        # it set the effort for tool-calling turns too — but tool decisions
+        # now run on the main deployment, so every caller left here is prose
+        # or a short classification, and "minimal" is the right setting for
+        # them. Add AGENT_SYNTHESIS_REASONING_EFFORT only if synthesis
+        # quality measurably regresses; a knob for a value that should not
+        # vary is debt.
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
     )
     _SYNTHESIS_LLM_CACHE[key] = llm
