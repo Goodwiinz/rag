@@ -269,7 +269,9 @@ async def start_batch_processing(
             )
         except Exception as e:
             logger.error("Failed to process document in batch: %s", str(e))
-            errors.append({"document_id": str(document.id), "error": "Internal server error"})
+            errors.append(
+                {"document_id": str(document.id), "error": "Internal server error"}
+            )
 
     return {
         "message": f"Batch processing initiated for {len(results)} documents",
