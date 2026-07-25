@@ -107,7 +107,7 @@ from src.services.agent.tools_impl import (  # noqa: F401
     _tool_summarize_document,
     execute_tool,
 )
-from src.shared.enums import TERMINAL_STREAM_EVENTS, JobStatus
+from src.shared.enums import TERMINAL_STREAM_EVENTS, AgentStreamEvent, JobStatus
 
 from .streaming import (  # noqa: F401
     _SSE_HEADERS,
@@ -679,6 +679,78 @@ async def get_graph_trace(
     return {"mermaid": diagram, "thread_id": thread_id}
 
 
+async def _single_frame(frame: str):
+    """One-frame SSE body."""
+    yield frame
+
+
+async def _pending_confirmation_frame(
+    thread_id: str, current_user: User
+) -> Optional[str]:
+    """SSE ``confirmation`` frame when the graph is parked on a HITL interrupt.
+
+    Reads the checkpoint directly rather than the stream buffer: the buffer's
+    active pointer is cleared the moment a stream ends, while the interrupt
+    outlives it and is only resolved by ``/confirm`` or discarded by the next
+    turn. Detection mirrors ``streaming.py`` — ``aget_state`` plus
+    ``snapshot.tasks[*].interrupts`` — because with a checkpointer attached
+    ``interrupt()`` returns state rather than raising ``GraphInterrupt``.
+
+    Best-effort: any failure returns None so resume degrades to its previous
+    204 instead of failing the request.
+    """
+    import json as _json
+
+    try:
+        from src.services.agent.checkpointer import get_checkpointer
+        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent.memory import get_memory_store
+
+        checkpointer = await get_checkpointer()
+        store = await get_memory_store()
+        graph = compile_agent_graph(checkpointer=checkpointer, store=store)
+
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "user_id": str(current_user.id),
+                "organization_id": str(
+                    getattr(current_user, "organization_id", "") or ""
+                ),
+            }
+        }
+        snapshot = await graph.aget_state(config)
+        if snapshot is None:
+            return None
+
+        confirmation: Dict[str, Any] = {}
+        for task in snapshot.tasks or ():
+            for intr in getattr(task, "interrupts", ()) or ():
+                confirmation = getattr(intr, "value", {}) or {}
+                break
+            if confirmation:
+                break
+        if not confirmation:
+            return None
+
+        payload = {"thread_id": thread_id, "confirmation": confirmation}
+        logger.info(
+            "Re-delivering pending HITL confirmation on resume for thread %s",
+            thread_id,
+        )
+        return (
+            f"event: {AgentStreamEvent.CONFIRMATION.value}\n"
+            f"data: {_json.dumps(payload)}\n\n"
+        )
+    except Exception:
+        logger.warning(
+            "Failed to check for a pending confirmation on resume for thread %s",
+            thread_id,
+            exc_info=True,
+        )
+        return None
+
+
 @router.get("/stream/resume/{thread_id}")
 async def resume_stream(
     request: Request,
@@ -711,6 +783,18 @@ async def resume_stream(
 
     sid = await _stream_buffer.active_stream_id(thread_id)
     if sid is None:
+        # No live stream — but the graph may still be parked on a HITL
+        # interrupt. The confirmation frame was emitted on a stream that has
+        # since ended, so a client that missed it (backgrounded tab, reconnect,
+        # dropped frame) had no way to ever get it back: this returned 204
+        # forever while the run sat waiting for an answer. The user sees a
+        # turn that produced nothing, re-sends, and the pending interrupt is
+        # discarded as abandoned. Re-deliver it instead.
+        frame = await _pending_confirmation_frame(thread_id, current_user)
+        if frame is not None:
+            return StreamingResponse(
+                _single_frame(frame), media_type="text/event-stream"
+            )
         return Response(status_code=204)
 
     async def replay():
