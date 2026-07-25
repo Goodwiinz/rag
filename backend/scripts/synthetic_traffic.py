@@ -313,6 +313,10 @@ class TurnResult:
     tool_executions: int
     assistant_preview: str
     error: Optional[str] = None
+    # Derived once by run_scenario via classify_turn; the sweep summary reads
+    # it rather than re-deriving from the key, which would couple the summary
+    # to the catalogue and KeyError after all the agent work is done.
+    flag: str = ""
 
 
 # Flag for a scenario that declared ``expect_interrupt`` but never produced
@@ -520,6 +524,7 @@ async def run_scenario(
     )
 
     flag = classify_turn(scenario, result)
+    result.flag = flag
     if flag == MISSING_INTERRUPT_FLAG:
         log.warning(
             "synthetic_traffic.expectation_unmet",
@@ -710,11 +715,7 @@ async def _main(args: argparse.Namespace) -> int:
         # whether the model reaches a destructive tool is nondeterministic, so
         # failing the CronJob on it would trade a silent miss for a noisy one.
         # The flag + this counter are the signal to alert on.
-        unmet = [
-            r
-            for r in results
-            if classify_turn(SCENARIOS_BY_KEY[r.scenario], r) == MISSING_INTERRUPT_FLAG
-        ]
+        unmet = [r for r in results if r.flag == MISSING_INTERRUPT_FLAG]
         log.info(
             "synthetic_traffic.sweep_done",
             scenarios=len(results),

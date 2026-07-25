@@ -86,6 +86,20 @@ def test_error_outranks_the_unmet_expectation() -> None:
     assert flag == "ERROR IngestionError: timed out"
 
 
+def test_result_carries_its_flag_for_the_sweep_summary() -> None:
+    """``sweep_done`` counts off ``TurnResult.flag``.
+
+    It used to re-derive the flag from the scenario key, so a scenario that
+    was not in the catalogue (an ad-hoc prompt, say) would KeyError in the
+    summary — after every agent call had already run, and before the
+    ``cleanup()`` pass that soft-deletes the synthetic projects.
+    """
+    assert TurnResult.__dataclass_fields__["flag"].default == ""
+    result = _result()
+    result.flag = classify_turn(_INTERRUPTING, result)
+    assert result.flag == MISSING_INTERRUPT_FLAG
+
+
 def test_catalogue_still_declares_interrupting_scenarios() -> None:
     """If these lose the flag, the assertion above silently stops applying."""
     keys = {s.key for s in SCENARIOS if s.expect_interrupt}
