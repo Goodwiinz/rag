@@ -173,21 +173,29 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         if plan_directive:
             messages.insert(1, SystemMessage(content=plan_directive))
 
+    # Hoisted above the branch: _build_llm is used inside it, so importing
+    # after would NameError.
+    from src.services.agent.graph import (
+        AGENT_LLM_TIMEOUT_SECONDS,
+        _build_llm,
+        _merge_run_config,
+    )
+
     if use_lightweight_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm
 
         llm = build_synthesis_llm(max_tokens=4096)
         logger.debug("research_llm_node: using synthesis model after ToolMessage")
     else:
-        # Tool-decision turn: route off model-router to the lightweight
-        # deployment (gpt-5-mini). LangSmith showed model-router hitting the
-        # 30s timeout cap on research_llm_node (trace 019e1da5) while gpt-5-mini
-        # handles the same node in <10s. Lightweight builder also defaults
-        # reasoning_effort=minimal (cheap tool name + query string decision).
-        from src.services.agent.llm_factory import build_lightweight_llm
-
-        llm = build_lightweight_llm(max_tokens=4096)
-        logger.debug("research_llm_node: using lightweight model for tool decision")
+        # Tool-decision turn: the main deployment, deliberately. Multi-step
+        # function calling is where model tier dominates — benchmarks put the
+        # top tier around 72% at 5 required calls against ~16% for the small
+        # ones, and this node drives an 8-loop tool path. The cheap tier used
+        # to sit here only because the main deployment was model-router,
+        # which hit the 30s cap (trace 019e1da5); that is no longer the
+        # deployment, so the workaround goes with it.
+        llm = _build_llm(model_override=state.get("model") or None)
+        logger.debug("research_llm_node: using main model for tool decision")
     # See graph.llm_node for rationale on parallel_tool_calls=False.
     from src.services.agent._nodes_llm import tools_for_runtime_snapshot
 
@@ -195,7 +203,6 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
         tools_for_runtime_snapshot(RESEARCH_TOOLS, state),
         parallel_tool_calls=settings.AGENT_PARALLEL_TOOL_CALLS,
     )
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS, _merge_run_config
 
     invoke_config = _merge_run_config(
         config,
