@@ -68,6 +68,18 @@ def test_confirmed_after_resume() -> None:
     assert classify_turn(_INTERRUPTING, result) == "confirmed(2)"
 
 
+def test_still_interrupted_after_resuming_is_not_ok() -> None:
+    """MAX_HITL_RESUMES exhausted with the interrupt still pending.
+
+    The old expression fell through to ``ok`` here as well — a turn that
+    never finished confirming reported success.
+    """
+    result = _result(interrupted=True, resumes=3)
+    assert classify_turn(_INTERRUPTING, result) == "INTERRUPT-UNRESOLVED(3)"
+    # Not specific to interrupt-expecting scenarios.
+    assert classify_turn(_PLAIN, result) == "INTERRUPT-UNRESOLVED(3)"
+
+
 def test_error_outranks_the_unmet_expectation() -> None:
     """An exception is the more actionable fact; do not mask it."""
     flag = classify_turn(_INTERRUPTING, _result(error="IngestionError: timed out"))

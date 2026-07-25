@@ -319,6 +319,10 @@ class TurnResult:
 # one. Distinct from ERROR (nothing raised) and from ok (nothing happened).
 MISSING_INTERRUPT_FLAG = "MISSING-INTERRUPT"
 
+# Flag for a run still interrupted after MAX_HITL_RESUMES confirmations —
+# the interrupt fired, the resume loop just never cleared it.
+UNRESOLVED_INTERRUPT_FLAG = "INTERRUPT-UNRESOLVED"
+
 
 def classify_turn(scenario: Scenario, result: TurnResult) -> str:
     """Summarize one turn as the flag recorded in ``scenario_done``.
@@ -331,12 +335,18 @@ def classify_turn(scenario: Scenario, result: TurnResult) -> str:
     unnoticed. The interrupt *detection* was fixed once already (see the
     __interrupt__ note in run_scenario); the expectation was never asserted,
     so a regression of that same class stays silent.
+
+    Still-interrupted-after-resuming is called out separately: the old
+    expression fell through to ``ok`` there too, which reads as success for a
+    turn whose HITL loop ran out of confirmations without finishing.
     """
     if result.error:
         return f"ERROR {result.error}"
     if result.interrupted and result.resumes == 0:
         return "INTERRUPT"
-    if result.resumes > 0 and not result.interrupted:
+    if result.interrupted:  # resumes > 0: MAX_HITL_RESUMES exhausted
+        return f"{UNRESOLVED_INTERRUPT_FLAG}({result.resumes})"
+    if result.resumes > 0:
         return f"confirmed({result.resumes})"
     if scenario.expect_interrupt:
         return MISSING_INTERRUPT_FLAG
