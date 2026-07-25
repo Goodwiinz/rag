@@ -27,23 +27,30 @@ def test_research_protocol_tells_the_model_to_call_named_destructive_tools():
     — the model answered in prose and never called ``ingest_arxiv_papers``,
     so the HITL interrupt that gates the tool never got the chance to ask.
     The old line ("trigger user confirmation. Don't fire them speculatively.")
-    both duplicated the system's own gate and contradicted the loop example
-    at "user pasted an arXiv ID, ingest it".
-
-    Pins the two properties that resolve it: the gate is described as the
-    system's, and an explicit instruction is carved out of "speculatively".
+    contradicted both the loop example three lines above ("user pasted an
+    arXiv ID, ingest it") and SHARED_AGENT_RULES, which is appended *after*
+    the driver protocol and already says the destructive class is one the
+    runtime interrupts so "you just call them" (``_prompts.py``). The model
+    followed the more specific protocol line. The fix removes the
+    contradiction rather than restating the shared rule.
     """
     from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 
-    body = load_agents_md("research")
+    # Normalize markdown emphasis away — these pins are about wording, not
+    # about whether a word happens to be bolded.
+    body = load_agents_md("research").lower().replace("*", "")
 
-    # The confirmation belongs to the system, not to a prose question.
-    assert "calling one does not perform it" in body.lower()
-    # An already-named target is not speculation.
-    assert "call the tool" in body.lower()
-    assert "did *not* ask for" in body.lower()
-    # The bare imperative that produced the hedge must not stand alone.
-    assert "trigger user confirmation. Don't fire them speculatively." not in body
+    # The gate belongs to the runtime, not to a prose question.
+    assert "gated by the runtime" in body
+    # An explicit instruction is not speculation, and should be acted on.
+    assert "call them when the user has named the target" in body
+    assert "not acting on an explicit instruction" in body
+
+    # The hedge must not come back in any capitalization or emphasis, and
+    # "don't ask first" must not quietly invert.
+    assert "don't fire them speculatively" not in body
+    assert "do not fire them speculatively" not in body
+    assert "do not ask first" in body
 
 
 @pytest.mark.unit
