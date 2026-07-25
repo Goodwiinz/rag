@@ -223,6 +223,80 @@ def test_extraction_skips_transient_failures() -> None:
     assert failed_tool_names(executions) == ("ingest_arxiv_papers",)
 
 
+def test_zero_document_ingest_counts_even_though_status_is_completed() -> None:
+    """The incident this flag is named for, which status alone misses.
+
+    ``_tool_ingest_arxiv`` returns ``{"status": "ingestion_failed",
+    "ingested_count": 0}`` with **no** top-level ``error`` key, and
+    ``_nodes_tools`` only downgrades to ``status="failed"`` when
+    ``"error" in result``. So a run that imported nothing records
+    ``completed`` and would otherwise sail through as ``confirmed(n)``.
+    """
+    executions = [
+        {
+            "tool_name": "ingest_arxiv_papers",
+            "status": "completed",
+            "result": {"status": "ingestion_failed", "ingested_count": 0},
+        }
+    ]
+    assert failed_tool_names(executions) == ("ingest_arxiv_papers",)
+
+
+def test_partial_ingest_also_counts() -> None:
+    executions = [
+        {
+            "tool_name": "ingest_arxiv_papers",
+            "status": "completed",
+            "result": {"status": "ingestion_partial", "ingested_count": 1},
+        }
+    ]
+    assert failed_tool_names(executions) == ("ingest_arxiv_papers",)
+
+
+def test_successful_ingest_is_not_flagged() -> None:
+    executions = [
+        {
+            "tool_name": "ingest_arxiv_papers",
+            "status": "completed",
+            "result": {"status": "ingestion_complete", "ingested_count": 1},
+        }
+    ]
+    assert failed_tool_names(executions) == ()
+
+
+def test_failed_then_retried_successfully_is_not_a_failure() -> None:
+    """Recovering from a bad argument is the behaviour we want, not a fault."""
+    executions = [
+        {"tool_name": "ingest_arxiv_papers", "status": "failed"},
+        {"tool_name": "list_projects", "status": "completed"},
+        {"tool_name": "ingest_arxiv_papers", "status": "completed"},
+    ]
+    assert failed_tool_names(executions) == ()
+
+
+def test_circuit_broken_duplicate_is_not_counted_twice() -> None:
+    """``tool_dedupe`` caps repeated identical failures with a stub entry.
+
+    It carries ``status="failed"`` and ``result=None``, so the transient
+    skip cannot see through it — counting it would double-report the
+    failure it caps and resurrect a transient one that was skipped.
+    """
+    executions = [
+        {
+            "tool_name": "search_arxiv",
+            "status": "failed",
+            "result": {"error_type": "transient", "error": "429"},
+        },
+        {
+            "tool_name": "search_arxiv",
+            "status": "failed",
+            "result": None,
+            "capped_from": "call_1",
+        },
+    ]
+    assert failed_tool_names(executions) == ()
+
+
 def test_extraction_tolerates_junk_entries() -> None:
     assert failed_tool_names(None) == ()
     assert failed_tool_names([None, "nonsense", 7]) == ()

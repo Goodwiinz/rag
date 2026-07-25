@@ -343,23 +343,60 @@ TOOL_FAILED_FLAG = "TOOL-FAILED"
 # run whenever the agent repeated a call, which is common.
 SUCCESS_TOOL_STATUSES = ("completed", "deduped")
 
+# A tool can report status="completed" and still have done nothing: the
+# ingest tool returns ``{"status": "ingestion_failed", "ingested_count": 0}``
+# with NO top-level "error" key, and ``_nodes_tools`` only downgrades an
+# execution to "failed" when ``"error" in result``. So a zero-document ingest
+# — the exact incident this flag exists for — arrives here looking successful.
+# Mirrors ``reflection._INGEST_FAILURE_STATUSES``.
+FAILED_RESULT_STATUSES = ("ingestion_failed", "ingestion_partial")
 
-def failed_tool_names(executions: Any) -> tuple[str, ...]:
-    """Names of tool executions that genuinely failed.
 
-    Transient failures are excluded on the same terms the agent's own
-    reflection guard uses (``result.error_type == "transient"``): an arXiv
-    429 or an upstream timeout says nothing about whether the agent did its
-    job, and flagging those rebuilds the noise floor this signal exists to
-    stay below.
-    """
-    names: list[str] = []
-    for te in executions or []:
-        if not isinstance(te, dict):
+def _later_success(executions: list, start: int, tool_name: str) -> bool:
+    """True when the same tool succeeds after index ``start``."""
+    for te in executions[start + 1 :]:
+        if not isinstance(te, dict) or te.get("tool_name") != tool_name:
             continue
         if te.get("status") in SUCCESS_TOOL_STATUSES:
+            return True
+    return False
+
+
+def failed_tool_names(executions: Any) -> tuple[str, ...]:
+    """Names of tool executions that genuinely failed and were not recovered.
+
+    Three exclusions, each guarding against a false alarm:
+
+    * **Transient failures** — same terms the agent's own reflection guard
+      uses (``result.error_type == "transient"``). An arXiv 429 or an upstream
+      timeout says nothing about whether the agent did its job.
+    * **Circuit-broken duplicates** — ``tool_dedupe`` appends a
+      ``capped_from`` entry after repeated identical failures. The failure it
+      caps is already in this list, so counting the cap double-reports it, and
+      resurrects a transient failure that was deliberately skipped.
+    * **Failed-then-retried** — if the same tool succeeds later in the turn,
+      the agent recovered. Flagging that would punish exactly the behaviour we
+      want from it.
+
+    Conversely a ``completed`` execution whose *result* reports an ingest
+    failure counts: status alone does not mean the work happened.
+    """
+    items = list(executions or [])
+    names: list[str] = []
+    for idx, te in enumerate(items):
+        if not isinstance(te, dict):
             continue
         result = te.get("result")
+        result_status = result.get("status") if isinstance(result, dict) else None
+        if (
+            te.get("status") in SUCCESS_TOOL_STATUSES
+            and result_status not in FAILED_RESULT_STATUSES
+        ):
+            continue
+        if te.get("capped_from") is not None:
+            continue
+        if _later_success(items, idx, te.get("tool_name")):
+            continue
         if isinstance(result, dict) and result.get("error_type") == "transient":
             continue
         names.append(str(te.get("tool_name") or "?"))
@@ -593,7 +630,10 @@ async def run_scenario(
             tool_executions=tool_executions_count,
             failed_tools=list(failed_tools),
             resumes=resumes,
-            reason="tool failed after a confirmed interrupt — the action did not happen",
+            # Deliberately does not claim the failed tool WAS the destructive
+            # one, or that it failed after the interrupt — execution entries
+            # carry no timestamps, so neither is knowable here.
+            reason="a tool failed unrecovered during a run with a confirmed interrupt",
         )
     if flag == MISSING_INTERRUPT_FLAG:
         log.warning(
