@@ -15,6 +15,7 @@ import pytest
 from scripts.synthetic_traffic import (
     MISSING_INTERRUPT_FLAG,
     SCENARIOS,
+    TOOL_FAILED_FLAG,
     Scenario,
     TurnResult,
     classify_turn,
@@ -30,6 +31,7 @@ def _result(
     resumes: int = 0,
     tool_executions: int = 0,
     error: Optional[str] = None,
+    failed_tools: tuple[str, ...] = (),
 ) -> TurnResult:
     """A turn shaped like the live 00:40 ingest run: nothing happened."""
     return TurnResult(
@@ -41,6 +43,7 @@ def _result(
         tool_executions=tool_executions,
         assistant_preview="",
         error=error,
+        failed_tools=failed_tools,
     )
 
 
@@ -66,6 +69,61 @@ def test_interrupt_awaiting_confirmation() -> None:
 def test_confirmed_after_resume() -> None:
     result = _result(interrupted=False, resumes=2, tool_executions=3)
     assert classify_turn(_INTERRUPTING, result) == "confirmed(2)"
+
+
+def test_the_06_26_run_that_confirmed_but_ingested_nothing() -> None:
+    """Exact shape of the live run on image 1a34508, verified against the DB.
+
+    ``flag=confirmed(1) resumes=1 tool_executions=3`` — HITL fired and was
+    confirmed, so it read as success. The tool record showed
+    ``ingest_arxiv_papers`` **failed** ("Invalid project_id …; expected a
+    UUID"), the agent then called ``list_projects`` twice and stopped, and
+    ``documents`` gained zero rows. ``confirmed(n)`` must not outrank that.
+    """
+    result = _result(
+        interrupted=False,
+        resumes=1,
+        tool_executions=3,
+        failed_tools=("ingest_arxiv_papers",),
+    )
+    assert classify_turn(_INTERRUPTING, result) == "TOOL-FAILED(ingest_arxiv_papers)"
+
+
+def test_transient_tool_failure_is_not_flagged_outside_interrupt_scenarios() -> None:
+    """research_arxiv hits arXiv 429/timeouts routinely.
+
+    Flagging those would rebuild the noise floor this signal exists to stay
+    below, so the check is scoped to expect_interrupt scenarios.
+    """
+    result = _result(scenario="research_arxiv", failed_tools=("search_arxiv",))
+    assert classify_turn(_PLAIN, result) == "ok"
+
+
+def test_a_raised_exception_still_outranks_a_failed_tool() -> None:
+    result = _result(
+        error="IngestionError: boom", failed_tools=("ingest_arxiv_papers",)
+    )
+    assert classify_turn(_INTERRUPTING, result) == "ERROR IngestionError: boom"
+
+
+def test_pending_interrupt_outranks_a_failed_tool() -> None:
+    """Awaiting confirmation is the state to report; the turn isn't over."""
+    result = _result(interrupted=True, failed_tools=("ingest_arxiv_papers",))
+    assert classify_turn(_INTERRUPTING, result) == "INTERRUPT"
+
+
+def test_all_tools_completed_still_confirms() -> None:
+    """The fix must not label a genuinely successful run as failed."""
+    result = _result(resumes=1, tool_executions=2, failed_tools=())
+    assert classify_turn(_INTERRUPTING, result) == "confirmed(1)"
+
+
+def test_flag_prefix_is_stable_for_the_sweep_counter() -> None:
+    """sweep_done counts unmet expectations with ``startswith``."""
+    result = _result(resumes=1, failed_tools=("a", "b"))
+    flag = classify_turn(_INTERRUPTING, result)
+    assert flag.startswith(TOOL_FAILED_FLAG)
+    assert flag == "TOOL-FAILED(a,b)"
 
 
 def test_still_interrupted_after_resuming_is_not_ok() -> None:
