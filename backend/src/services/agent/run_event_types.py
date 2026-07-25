@@ -207,7 +207,9 @@ def validate_payload(
     """
     typed = RunEventType(event_type)  # ValueError on unknown — never persist it
     model = PAYLOAD_MODELS[typed]
-    validated = model.model_validate(payload).model_dump(mode="json", exclude_none=True)
+    validated: dict[str, Any] = model.model_validate(payload).model_dump(
+        mode="json", exclude_none=True
+    )
     size = len(json.dumps(validated, separators=(",", ":")))
     if size > MAX_PAYLOAD_BYTES:
         raise PayloadTooLargeError(
