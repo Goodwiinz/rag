@@ -317,6 +317,9 @@ class TurnResult:
     # it rather than re-deriving from the key, which would couple the summary
     # to the catalogue and KeyError after all the agent work is done.
     flag: str = ""
+    # Names of tools whose execution reported status != completed. A count of
+    # executions says a tool ran, not that it worked.
+    failed_tools: tuple[str, ...] = ()
 
 
 # Flag for a scenario that declared ``expect_interrupt`` but never produced
@@ -326,6 +329,78 @@ MISSING_INTERRUPT_FLAG = "MISSING-INTERRUPT"
 # Flag for a run still interrupted after MAX_HITL_RESUMES confirmations —
 # the interrupt fired, the resume loop just never cleared it.
 UNRESOLVED_INTERRUPT_FLAG = "INTERRUPT-UNRESOLVED"
+
+# Flag for a run where a tool ran and failed after a confirmed interrupt. The
+# resume makes the run *look* finished — but the action it gated did not
+# happen.
+TOOL_FAILED_FLAG = "TOOL-FAILED"
+
+# The tool layer writes exactly three statuses. Two of them are successes:
+# "deduped" means an identical call already succeeded this turn and its
+# cached result was reused (``tool_dedupe.build_deduped_execution_entry``;
+# the cache only admits ``completed`` candidates). Mirrors the success test
+# in ``reflection.py`` — treating "deduped" as failure would flag a healthy
+# run whenever the agent repeated a call, which is common.
+SUCCESS_TOOL_STATUSES = ("completed", "deduped")
+
+# A tool can report status="completed" and still have done nothing: the
+# ingest tool returns ``{"status": "ingestion_failed", "ingested_count": 0}``
+# with NO top-level "error" key, and ``_nodes_tools`` only downgrades an
+# execution to "failed" when ``"error" in result``. So a zero-document ingest
+# — the exact incident this flag exists for — arrives here looking successful.
+# Mirrors ``reflection._INGEST_FAILURE_STATUSES``.
+FAILED_RESULT_STATUSES = ("ingestion_failed", "ingestion_partial")
+
+
+def _later_success(executions: list, start: int, tool_name: str) -> bool:
+    """True when the same tool succeeds after index ``start``."""
+    for te in executions[start + 1 :]:
+        if not isinstance(te, dict) or te.get("tool_name") != tool_name:
+            continue
+        if te.get("status") in SUCCESS_TOOL_STATUSES:
+            return True
+    return False
+
+
+def failed_tool_names(executions: Any) -> tuple[str, ...]:
+    """Names of tool executions that genuinely failed and were not recovered.
+
+    Three exclusions, each guarding against a false alarm:
+
+    * **Transient failures** — same terms the agent's own reflection guard
+      uses (``result.error_type == "transient"``). An arXiv 429 or an upstream
+      timeout says nothing about whether the agent did its job.
+    * **Circuit-broken duplicates** — ``tool_dedupe`` appends a
+      ``capped_from`` entry after repeated identical failures. The failure it
+      caps is already in this list, so counting the cap double-reports it, and
+      resurrects a transient failure that was deliberately skipped.
+    * **Failed-then-retried** — if the same tool succeeds later in the turn,
+      the agent recovered. Flagging that would punish exactly the behaviour we
+      want from it.
+
+    Conversely a ``completed`` execution whose *result* reports an ingest
+    failure counts: status alone does not mean the work happened.
+    """
+    items = list(executions or [])
+    names: list[str] = []
+    for idx, te in enumerate(items):
+        if not isinstance(te, dict):
+            continue
+        result = te.get("result")
+        result_status = result.get("status") if isinstance(result, dict) else None
+        if (
+            te.get("status") in SUCCESS_TOOL_STATUSES
+            and result_status not in FAILED_RESULT_STATUSES
+        ):
+            continue
+        if te.get("capped_from") is not None:
+            continue
+        if _later_success(items, idx, te.get("tool_name")):
+            continue
+        if isinstance(result, dict) and result.get("error_type") == "transient":
+            continue
+        names.append(str(te.get("tool_name") or "?"))
+    return tuple(names)
 
 
 def classify_turn(scenario: Scenario, result: TurnResult) -> str:
@@ -343,6 +418,15 @@ def classify_turn(scenario: Scenario, result: TurnResult) -> str:
     Still-interrupted-after-resuming is called out separately: the old
     expression fell through to ``ok`` there too, which reads as success for a
     turn whose HITL loop ran out of confirmations without finishing.
+
+    ``TOOL-FAILED`` closes the successor to that hole. Once the agent started
+    calling its tools, an ingest run reported ``confirmed(1)`` with three
+    executions while the paper was never imported: the first
+    ``ingest_arxiv_papers`` call failed on a bad argument and the agent
+    wandered off into ``list_projects`` instead of retrying. Interrupt fired,
+    resume confirmed, zero documents created — and the summary said
+    ``errored=0, expectations_unmet=0``. Ranked above ``confirmed`` because a
+    failed destructive tool is the more actionable fact about that turn.
     """
     if result.error:
         return f"ERROR {result.error}"
@@ -350,6 +434,15 @@ def classify_turn(scenario: Scenario, result: TurnResult) -> str:
         return "INTERRUPT"
     if result.interrupted:  # resumes > 0: MAX_HITL_RESUMES exhausted
         return f"{UNRESOLVED_INTERRUPT_FLAG}({result.resumes})"
+    # Gated on a *confirmed* interrupt rather than on expect_interrupt: a
+    # resume is direct evidence a destructive tool actually ran, it excludes
+    # research_arxiv's transient 429s (nothing interrupts there), it covers
+    # writing_draft — whose create_draft/create_project_note are destructive
+    # despite the scenario not declaring expect_interrupt — and it leaves the
+    # resumes == 0 row to MISSING-INTERRUPT, which is the honest diagnosis
+    # when no interrupt ever fired.
+    if result.resumes > 0 and result.failed_tools:
+        return f"{TOOL_FAILED_FLAG}({','.join(result.failed_tools)})"
     if result.resumes > 0:
         return f"confirmed({result.resumes})"
     if scenario.expect_interrupt:
@@ -504,9 +597,12 @@ async def run_scenario(
     intent = ""
     assistant_preview = ""
     tool_executions_count = 0
+    failed_tools: tuple[str, ...] = ()
     if final_state:
         intent = final_state.get("intent", "") or ""
-        tool_executions_count = len(final_state.get("tool_executions", []) or [])
+        executions = final_state.get("tool_executions", []) or []
+        tool_executions_count = len(executions)
+        failed_tools = failed_tool_names(executions)
         for msg in reversed(final_state.get("messages", []) or []):
             if getattr(msg, "type", None) == "ai" and getattr(msg, "content", None):
                 assistant_preview = str(msg.content)[:160]
@@ -521,10 +617,24 @@ async def run_scenario(
         tool_executions=tool_executions_count,
         assistant_preview=assistant_preview,
         error=error,
+        failed_tools=failed_tools,
     )
 
     flag = classify_turn(scenario, result)
     result.flag = flag
+    if flag.startswith(TOOL_FAILED_FLAG):
+        log.warning(
+            "synthetic_traffic.expectation_unmet",
+            scenario=scenario.key,
+            expected="destructive tool completes",
+            tool_executions=tool_executions_count,
+            failed_tools=list(failed_tools),
+            resumes=resumes,
+            # Deliberately does not claim the failed tool WAS the destructive
+            # one, or that it failed after the interrupt — execution entries
+            # carry no timestamps, so neither is knowable here.
+            reason="a tool failed unrecovered during a run with a confirmed interrupt",
+        )
     if flag == MISSING_INTERRUPT_FLAG:
         log.warning(
             "synthetic_traffic.expectation_unmet",
@@ -715,7 +825,15 @@ async def _main(args: argparse.Namespace) -> int:
         # whether the model reaches a destructive tool is nondeterministic, so
         # failing the CronJob on it would trade a silent miss for a noisy one.
         # The flag + this counter are the signal to alert on.
-        unmet = [r for r in results if r.flag == MISSING_INTERRUPT_FLAG]
+        # Both shapes of "the destructive action did not happen": never
+        # reached (MISSING-INTERRUPT) and reached-but-failed (TOOL-FAILED).
+        # Counting only the first is what let a confirmed(1) run that ingested
+        # nothing report expectations_unmet=0.
+        unmet = [
+            r
+            for r in results
+            if r.flag == MISSING_INTERRUPT_FLAG or r.flag.startswith(TOOL_FAILED_FLAG)
+        ]
         log.info(
             "synthetic_traffic.sweep_done",
             scenarios=len(results),
