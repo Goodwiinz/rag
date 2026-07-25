@@ -139,9 +139,13 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
             {isAuthenticated ? (
               <div className="relative" ref={userMenuRef}>
                 <button
+                  type="button"
+                  aria-label="User menu"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all",
+                    "flex items-center gap-2 px-3 py-1.5 rounded border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     userMenuOpen
                       ? "border-primary/40 bg-primary/10"
                       : "border-white/10 bg-white/2 hover:border-white/20"
@@ -168,7 +172,7 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
 
                 {/* Dropdown */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-card shadow-xl shadow-black/50 overflow-hidden">
+                  <div role="menu" className="absolute right-0 top-full mt-2 w-48 rounded border border-white/10 bg-card shadow-xl shadow-black/50 overflow-hidden">
                     {/* User info */}
                     <div className="px-3 py-2 border-b border-white/10 bg-white/2">
                       <p className="text-xs font-mono text-white/80">{user?.email}</p>
@@ -176,19 +180,21 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                     </div>
 
                     {/* Menu items */}
-                    <div className="py-1">
+                    <div className="py-1" role="none">
                       <Link
                         href="/settings"
+                        role="menuitem"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-white/10"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         Settings
                       </Link>
                       <Link
                         href="/analytics"
+                        role="menuitem"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-mono text-white/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:bg-white/10"
                       >
                         <BarChart3 className="w-3.5 h-3.5" />
                         Analytics
@@ -196,13 +202,15 @@ export function SimpleLayout({ children, showHeader = true }: SimpleLayoutProps)
                     </div>
 
                     {/* Logout */}
-                    <div className="border-t border-white/10 py-1">
+                    <div className="border-t border-white/10 py-1" role="none">
                       <button
+                        type="button"
+                        role="menuitem"
                         onClick={() => {
                           setUserMenuOpen(false);
                           handleLogout();
                         }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors focus-visible:outline-none focus-visible:bg-red-500/20"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Sign Out
