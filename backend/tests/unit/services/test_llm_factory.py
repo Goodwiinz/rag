@@ -1,8 +1,12 @@
-"""Unit tests for ``llm_factory`` lightweight deployment resolution.
+"""Unit tests for ``llm_factory`` deployment resolution.
 
-Verifies that ``_resolve_lightweight_deployment`` correctly reads
-``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` and falls back to ``model-router``
-when the env var is unset or empty.
+``_resolve_lightweight_deployment`` reads
+``AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT`` and falls back to the **main chat
+deployment** when unset or empty. It used to fall back to ``model-router``,
+which meant a blank secret silently put the router back inside the agent
+loop — the configuration behind the 30s timeout cap on research_llm_node
+(trace 019e1da5). Leaving the per-role overrides unset is now the supported
+way to run one deployment everywhere.
 """
 
 from __future__ import annotations
@@ -15,18 +19,30 @@ def _set_lightweight_settings(monkeypatch, value):
     from src.core.config import get_settings
 
     settings = get_settings()
-    monkeypatch.setattr(settings, "AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT", value, raising=False)
+    monkeypatch.setattr(
+        settings, "AZURE_OPENAI_LIGHTWEIGHT_DEPLOYMENT", value, raising=False
+    )
+
+
+def _set_main_deployment(monkeypatch, value):
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(
+        settings, "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", value, raising=False
+    )
 
 
 @pytest.mark.unit
 class TestResolveLightweightDeployment:
-    def test_default_when_unset(self, monkeypatch):
-        """When env var is None (unset), should return model-router."""
+    def test_falls_back_to_main_deployment_when_unset(self, monkeypatch):
+        """Unset override == run the main deployment, never the router."""
         _set_lightweight_settings(monkeypatch, None)
+        _set_main_deployment(monkeypatch, "gpt-5.6-luna")
 
         from src.services.agent.llm_factory import _resolve_lightweight_deployment
 
-        assert _resolve_lightweight_deployment() == "model-router"
+        assert _resolve_lightweight_deployment() == "gpt-5.6-luna"
 
     def test_custom_value(self, monkeypatch):
         """When env var is set to a custom deployment, should return that value."""
@@ -36,13 +52,33 @@ class TestResolveLightweightDeployment:
 
         assert _resolve_lightweight_deployment() == "gpt-5-mini"
 
-    def test_empty_string_falls_back(self, monkeypatch):
-        """When env var is empty string (falsy), should fall back to model-router."""
+    def test_empty_string_falls_back_to_main_deployment(self, monkeypatch):
+        """A blank secret is the realistic misconfiguration, not an unset one."""
         _set_lightweight_settings(monkeypatch, "")
+        _set_main_deployment(monkeypatch, "gpt-5.6-luna")
 
         from src.services.agent.llm_factory import _resolve_lightweight_deployment
 
-        assert _resolve_lightweight_deployment() == "model-router"
+        assert _resolve_lightweight_deployment() == "gpt-5.6-luna"
+
+    def test_never_resolves_to_model_router_implicitly(self, monkeypatch):
+        """The router must not re-enter the agent loop through a blank value."""
+        _set_lightweight_settings(monkeypatch, "")
+        _set_main_deployment(monkeypatch, "gpt-5.6-luna")
+
+        from src.services.agent.llm_factory import (
+            _resolve_lightweight_deployment,
+            _resolve_synthesis_deployment,
+        )
+
+        monkeypatch.setattr(
+            __import__("src.core.config", fromlist=["get_settings"]).get_settings(),
+            "AZURE_OPENAI_SYNTHESIS_DEPLOYMENT",
+            "",
+            raising=False,
+        )
+        assert _resolve_lightweight_deployment() != "model-router"
+        assert _resolve_synthesis_deployment() != "model-router"
 
 
 @pytest.mark.unit
