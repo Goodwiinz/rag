@@ -369,14 +369,22 @@ celeryBeat:
   resources:
     # memory request == limit so beat is never "over request" and is not a
     # first-choice eviction target. It was OOM-evicted using ~686Mi against a
-    # 384Mi request. If it leaks past 768Mi it is OOMKilled and restarts
-    # cleanly (beat is a singleton scheduler), keeping memory bounded.
+    # 384Mi request, which is why this was raised to 768Mi.
+    #
+    # 768Mi then stopped being survivable: the scheduler OOMKilled during
+    # startup (log ends at the celery banner, before the first tick) and
+    # crashlooped, so no beat-scheduled task ran at all. This is a floor, not
+    # a leak — celery-worker runs the same image and the same
+    # src.tasks.celery_app import graph and sits at ~1.16Gi idle, so merely
+    # importing the app costs more than beat's whole limit. 1536Mi clears the
+    # import cost with headroom; if it ever does leak past that it is
+    # OOMKilled and restarts cleanly (beat is a singleton scheduler).
     limits:
       cpu: 200m
-      memory: 768Mi
+      memory: 1536Mi
     requests:
       cpu: 50m
-      memory: 768Mi
+      memory: 1536Mi
 prometheus:
   enabled: false
 grafana:
