@@ -315,6 +315,34 @@ class TurnResult:
     error: Optional[str] = None
 
 
+# Flag for a scenario that declared ``expect_interrupt`` but never produced
+# one. Distinct from ERROR (nothing raised) and from ok (nothing happened).
+MISSING_INTERRUPT_FLAG = "MISSING-INTERRUPT"
+
+
+def classify_turn(scenario: Scenario, result: TurnResult) -> str:
+    """Summarize one turn as the flag recorded in ``scenario_done``.
+
+    ``expect_interrupt`` scenarios drive destructive tools (project creation,
+    arXiv ingest), so the HITL interrupt is the observable proof the tool was
+    actually reached. Without this check a run where the agent answered in
+    prose and called nothing is indistinguishable from a successful ingest —
+    both logged ``flag=ok, errored=0``, which is how a live no-op ingest went
+    unnoticed. The interrupt *detection* was fixed once already (see the
+    __interrupt__ note in run_scenario); the expectation was never asserted,
+    so a regression of that same class stays silent.
+    """
+    if result.error:
+        return f"ERROR {result.error}"
+    if result.interrupted and result.resumes == 0:
+        return "INTERRUPT"
+    if result.resumes > 0 and not result.interrupted:
+        return f"confirmed({result.resumes})"
+    if scenario.expect_interrupt:
+        return MISSING_INTERRUPT_FLAG
+    return "ok"
+
+
 async def run_scenario(
     scenario: Scenario,
     graph: Any,
@@ -481,11 +509,15 @@ async def run_scenario(
         error=error,
     )
 
-    flag = "INTERRUPT" if (interrupted and resumes == 0) else "ok"
-    if resumes > 0 and not interrupted:
-        flag = f"confirmed({resumes})"
-    if error:
-        flag = f"ERROR {error}"
+    flag = classify_turn(scenario, result)
+    if flag == MISSING_INTERRUPT_FLAG:
+        log.warning(
+            "synthetic_traffic.expectation_unmet",
+            scenario=scenario.key,
+            expected="interrupt",
+            tool_executions=tool_executions_count,
+            reason="destructive tool never reached — agent answered without it",
+        )
     over = " OVER-BUDGET" if wall >= scenario.budget_s else ""
     log.info(
         "synthetic_traffic.scenario_done",
@@ -664,11 +696,21 @@ async def _main(args: argparse.Namespace) -> int:
 
         total_wall = sum(r.wall_clock_s for r in results)
         errored = [r for r in results if r.error]
+        # Counted and logged, but deliberately not folded into the exit code:
+        # whether the model reaches a destructive tool is nondeterministic, so
+        # failing the CronJob on it would trade a silent miss for a noisy one.
+        # The flag + this counter are the signal to alert on.
+        unmet = [
+            r
+            for r in results
+            if classify_turn(SCENARIOS_BY_KEY[r.scenario], r) == MISSING_INTERRUPT_FLAG
+        ]
         log.info(
             "synthetic_traffic.sweep_done",
             scenarios=len(results),
             total_wall_s=round(total_wall, 2),
             errored=len(errored),
+            expectations_unmet=len(unmet),
         )
 
         # Always run cleanup at the end (unless this was a --cleanup-only run)
