@@ -4,15 +4,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  PieChart, 
-  TrendingUp, 
-  Network, 
+import {
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  Network,
   Database,
   Activity,
   Loader2,
-  RefreshCw 
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,7 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
     try {
       setLoading(true);
       const data = await entityService.getAnalytics();
-      
+
       // Convert backend format to component format
       const formattedData: GraphAnalytics = {
         total_entities: data.total_entities,
@@ -79,7 +79,7 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
         avg_confidence_score: null, // Not available from backend yet
         timestamp: new Date().toISOString(),
       };
-      
+
       setAnalytics(formattedData);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -90,6 +90,7 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     const load = async () => {
       try {
         await fetchAnalytics();
@@ -208,7 +209,7 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-mono font-bold text-(--purple)">
-              {analytics.graph_density !== null 
+              {analytics.graph_density !== null
                 ? `${(analytics.graph_density * 100).toFixed(2)}%`
                 : 'N/A'}
             </p>

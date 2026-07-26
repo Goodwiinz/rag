@@ -73,8 +73,8 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
   const [newEvidence, setNewEvidence] = useState('');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (initialData) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         source_entity_id: initialData.source || '',
         target_entity_id: initialData.target || '',
@@ -159,10 +159,10 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
       {formData.source_entity_id && (
         <div className="space-y-2">
           <Label className="text-xs font-mono text-(--nous-fg-3) uppercase tracking-widest">Source_Entity_ID</Label>
-          <Input 
-            value={formData.source_entity_id} 
-            disabled 
-            className="bg-(--nous-bg-3) border-(--nous-border-1) font-mono text-sm text-(--nous-fg-3) cursor-not-allowed opacity-70" 
+          <Input
+            value={formData.source_entity_id}
+            disabled
+            className="bg-(--nous-bg-3) border-(--nous-border-1) font-mono text-sm text-(--nous-fg-3) cursor-not-allowed opacity-70"
           />
         </div>
       )}
@@ -322,8 +322,8 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
               }}
               className="bg-(--nous-bg-1) border-(--nous-border-1) font-mono text-sm text-(--nous-fg-1) placeholder:text-(--nous-fg-3) focus:border-(--nous-sol)"
             />
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={addEvidence}
               variant="outline"
               className="border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-1) hover:text-(--nous-sol) hover:border-(--nous-sol)"
@@ -357,15 +357,15 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
 
       {/* Actions */}
       <div className="flex justify-end space-x-3">
-        <Button 
-          type="button" 
-          variant="outline" 
+        <Button
+          type="button"
+          variant="outline"
           onClick={onCancel}
           className="font-mono text-xs border-(--nous-border-1) hover:bg-(--nous-bg-3) text-(--nous-fg-1)"
         >
           ABORT_OP
         </Button>
-        <Button 
+        <Button
           type="submit"
           className="font-mono text-xs bg-(--nous-sol) text-(--nous-bg-1) hover:shadow-[0_0_15px_var(--nous-sol-glow)]"
         >
