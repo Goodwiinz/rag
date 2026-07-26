@@ -116,6 +116,26 @@ async def _acquire_arxiv_rate_slot() -> Optional[float]:
         return None
 
 
+def _parse_arxiv_date(value: Any) -> Optional[datetime]:
+    """Parse an arXiv timestamp, or None when it cannot be parsed.
+
+    ``published`` is absent or empty on two real paths: an arXiv API *error*
+    entry (errors come back as an HTTP 200 Atom feed, not an HTTP error), and
+    the metadata-miss stub the agent tool builds when a lookup was rate-limited
+    (``tools_impl._tool_ingest_arxiv``). Both used to reach
+    ``datetime.fromisoformat("")`` and kill the whole ingest with
+    ``Invalid isoformat string: ''`` — losing the papers whose metadata was
+    fine. A missing date should cost a field, not the run.
+    """
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        logger.warning("Unparseable arXiv date %r — storing None", value)
+        return None
+
+
 class ArXivIngestionService:
     """
     Service for ingesting arXiv papers into the RAG system
@@ -339,9 +359,11 @@ class ArXivIngestionService:
 
                     # Apply date filtering if specified
                     if date_from or date_to:
-                        pub_date = datetime.fromisoformat(
-                            paper_data["published"].replace("Z", "+00:00")
-                        )
+                        pub_date = _parse_arxiv_date(paper_data.get("published"))
+                        if pub_date is None:
+                            # Undated entry cannot satisfy a date window;
+                            # skip it rather than abort the whole scan.
+                            continue
                         # Ensure pub_date is timezone-aware
                         if pub_date.tzinfo is None:
                             pub_date = pub_date.replace(tzinfo=timezone.utc)
@@ -392,19 +414,30 @@ class ArXivIngestionService:
 
     def _parse_arxiv_entry(self, entry: Element, namespaces: Dict) -> Dict[str, Any]:
         """Parse a single arXiv entry from XML"""
+
         # Basic metadata
-        paper_id = entry.find("atom:id", namespaces).text.split("/")[-1]
-        title = entry.find("atom:title", namespaces).text.strip()
-        abstract = entry.find("atom:summary", namespaces).text.strip()
-        published = entry.find("atom:published", namespaces).text
-        updated = entry.find("atom:updated", namespaces).text
+        # arXiv returns errors as an HTTP 200 Atom feed whose single entry has
+        # none of these children, so a chained .find(...).text raises
+        # AttributeError on None and takes the whole search down with it.
+        def _text(tag: str, default: str = "") -> str:
+            el = entry.find(tag, namespaces)
+            return (el.text or default).strip() if el is not None else default
+
+        raw_id = _text("atom:id")
+        paper_id = raw_id.split("/")[-1] if raw_id else ""
+        title = _text("atom:title")
+        abstract = _text("atom:summary")
+        published = _text("atom:published")
+        updated = _text("atom:updated")
 
         # Authors
         authors = []
         authors_detailed = []
         for author in entry.findall("atom:author", namespaces):
-            name = author.find("atom:name", namespaces).text
-            authors.append(name)
+            name_el = author.find("atom:name", namespaces)
+            name = (name_el.text or "").strip() if name_el is not None else ""
+            if name:
+                authors.append(name)
 
             affils = []
             # Try to find affiliation using arxiv namespace
@@ -620,16 +653,14 @@ class ArXivIngestionService:
                 else paper["abstract"]
             ),
             "authors": paper["authors"],
-            "publication_date": datetime.fromisoformat(
-                paper["published"].replace("Z", "+00:00")
-            ),
+            "publication_date": _parse_arxiv_date(paper.get("published")),
             "categories": paper["categories"],
             "tags": paper["categories"],  # Use categories as tags
             "arxiv_id": paper_id,
             "arxiv_categories": paper["categories"],
-            "arxiv_primary_category": paper["primary_category"],
+            "arxiv_primary_category": paper.get("primary_category"),
             "journal_reference": paper.get("journal_ref"),
-            "doi": paper["links"].get("doi"),
+            "doi": (paper.get("links") or {}).get("doi"),
             "comment": paper.get("comment"),
             "source": "arxiv",
             "language": "en",
