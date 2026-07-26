@@ -262,7 +262,8 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
                 <button
                   key={item.entity_type}
                   onClick={() => onTypeClick?.(item.entity_type as EntityType)}
-                  className="w-full space-y-1 text-left hover:bg-(--nous-bg-3) p-2 rounded-md transition-colors cursor-pointer"
+                  type="button"
+                  className="w-full space-y-1 text-left hover:bg-(--nous-bg-3) p-2 rounded-md transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-1 focus-visible:ring-offset-(--nous-bg-2)"
                   title={`Click to filter by ${item.entity_type}`}
                 >
                   <div className="flex justify-between text-xs font-mono">
