@@ -17,7 +17,6 @@ from src.services.research_engine.connectors.rag_store_connector import (
     RagStoreConnector,
 )
 
-
 # ---------------------------------------------------------------------------
 # SourceDocument
 # ---------------------------------------------------------------------------
@@ -105,7 +104,16 @@ class TestArxivConnector:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.services.research_engine.connectors.arxiv_connector.httpx.AsyncClient", return_value=mock_client):
+        with (
+            patch(
+                "src.services.research_engine.connectors.arxiv_connector.httpx.AsyncClient",
+                return_value=mock_client,
+            ),
+            patch(
+                "src.services.arxiv.arxiv_service._acquire_arxiv_rate_slot",
+                AsyncMock(return_value=0.0),
+            ),
+        ):
             connector = ArxivConnector()
             results = await connector.search("test query", max_results=10)
 
@@ -120,8 +128,11 @@ class TestArxivConnector:
         assert results[1].title == "Test Paper Two"
         assert results[1].authors == ["Charlie"]
 
+        # https (the plain-HTTP endpoint redirects and leaks the query on the
+        # way) and follow_redirects, now that the connector goes through the
+        # shared arXiv rate gate like every other caller.
         mock_client.get.assert_called_once_with(
-            "http://export.arxiv.org/api/query",
+            "https://export.arxiv.org/api/query",
             params={
                 "search_query": "all:test query",
                 "start": 0,
@@ -129,6 +140,7 @@ class TestArxivConnector:
                 "sortBy": "relevance",
                 "sortOrder": "descending",
             },
+            follow_redirects=True,
         )
 
 
@@ -168,7 +180,10 @@ class TestSemanticScholarConnector:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.services.research_engine.connectors.semantic_scholar_connector.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "src.services.research_engine.connectors.semantic_scholar_connector.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             connector = SemanticScholarConnector()
             results = await connector.search("deep learning", max_results=10)
 
@@ -203,7 +218,10 @@ class TestSemanticScholarConnector:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.services.research_engine.connectors.semantic_scholar_connector.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "src.services.research_engine.connectors.semantic_scholar_connector.httpx.AsyncClient",
+            return_value=mock_client,
+        ):
             connector = SemanticScholarConnector(api_key="my-secret-key")
             results = await connector.search("query")
 
