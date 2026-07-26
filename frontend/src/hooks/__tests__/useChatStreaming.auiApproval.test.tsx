@@ -112,3 +112,100 @@ describe('useChatStreaming in-band HITL approval', () => {
     });
   });
 });
+
+describe('the approval card survives the stream ending', () => {
+  beforeEach(() => {
+    streamMessageMock.mockReset();
+    streamConfirmMock.mockClear();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // The live incident: "Start a project about rag testing" raised a HITL
+  // interrupt server-side, the SSE stream ended, and the user saw nothing —
+  // no card, composer locked, Stop doing nothing. They re-sent twice and each
+  // retry discarded the interrupt ("Abandoned HITL interrupt silently
+  // dropped"). Two user rows, no assistant row.
+  //
+  // The existing test above passes on the broken code because it calls
+  // onConfirmation and onDone synchronously: React never commits between
+  // them, so the effect that appends the approval message hasn't run yet when
+  // the unwind replaces the array. The real stream yields the confirmation
+  // frame, awaits a Redis round-trip, then closes — which is a real gap.
+  it('keeps the approval message when the stream closes after a commit', async () => {
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+
+    let current: ChatPageMessage[] = [];
+    const setMessages = vi.fn((m: unknown) => {
+      current =
+        typeof m === 'function'
+          ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
+          : (m as ChatPageMessage[]);
+    });
+
+    streamMessageMock.mockImplementation(async (_r: unknown, cb: Cb) => {
+      cb.onConfirmation('agent-thread-1', {
+        tool_name: 'create_project',
+        tool_args: { name: 'rag testing' },
+      });
+      // Let React flush the approval effect before the stream unwinds —
+      // this is the window the production SSE path leaves open.
+      await new Promise((r) => setTimeout(r, 0));
+      cb.onDone({});
+    });
+
+    const params = makeParams(setMessages);
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('start a project about rag testing');
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(
+      current.filter((m) => m.pendingApproval).length,
+      'the approval card must not be deleted by the stream unwind — without ' +
+        'it the user has a locked composer and no way to answer'
+    ).toBe(1);
+  });
+
+  it('handleStop clears a pending confirmation so the composer unlocks', async () => {
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+
+    let current: ChatPageMessage[] = [];
+    const setMessages = vi.fn((m: unknown) => {
+      current =
+        typeof m === 'function'
+          ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
+          : (m as ChatPageMessage[]);
+    });
+
+    streamMessageMock.mockImplementation(async (_r: unknown, cb: Cb) => {
+      cb.onConfirmation('agent-thread-1', {
+        tool_name: 'create_project',
+        tool_args: { name: 'rag testing' },
+      });
+      cb.onDone({});
+    });
+
+    const params = makeParams(setMessages);
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('start a project');
+    });
+    expect(result.current.pendingConfirmation).not.toBeNull();
+
+    await act(async () => {
+      result.current.handleStop();
+    });
+
+    expect(
+      result.current.pendingConfirmation,
+      'ChatSurface keeps isBusy true while this is set, so Stop must clear it'
+    ).toBeNull();
+  });
+});

@@ -169,6 +169,28 @@ function toActivityPlanItems(
  * the turn started before any thread existed (new chat), which matches a
  * null displayed-thread id.
  */
+/**
+ * Replace the transcript without destroying a pending HITL approval.
+ *
+ * The approval card lives in the local overlay as a `pendingApproval` message
+ * (see the P4 effect). Several unwind paths used to `setMessages(snapshot)`
+ * with an array captured *before* the turn — silently deleting the card the
+ * user has to act on, while `pendingConfirmation` stayed set and kept the
+ * composer locked. The gate was then unrecoverable without a reload.
+ */
+export function replacePreservingApproval(
+  next: ChatPageMessage[]
+): (prev: ChatPageMessage[]) => ChatPageMessage[] {
+  return (prev) => {
+    const approvals = prev.filter((m) => m.pendingApproval);
+    if (approvals.length === 0) return next;
+    const carried = approvals.filter(
+      (a) => !next.some((n) => n.runtimeId === a.runtimeId)
+    );
+    return [...next, ...carried];
+  };
+}
+
 export function confirmationBelongsToThread(
   pending: PendingConfirmation | null,
   displayedThreadId: string | null
@@ -669,7 +691,15 @@ export function useChatStreaming(
           // it as an in-band approval part). On error, onError already replaced
           // the placeholder with the error bubble — leave it.
           if (streamHadConfirmation && !streamHadError && isTurnDisplayed()) {
-            setMessages(newMessages);
+            setMessages(replacePreservingApproval(newMessages));
+          }
+          if (streamHadConfirmation && currentThreadId) {
+            // The stream really did end; the run is parked on the user, not
+            // running. Leaving it 'running' kept the activity rail spinning
+            // and let the resume effect fire the moment isLoading cleared.
+            useAgentActivityStore
+              .getState()
+              .finishRun(currentThreadId, 'stopped');
           }
           useChatStore.setState({
             isStreaming: false,
@@ -706,8 +736,9 @@ export function useChatStreaming(
               setMessages([...newMessages, emptyResponseMessage]);
           } else if (isTurnDisplayed()) {
             // Quiet/stopped unwind with no content: drop the placeholder so no
-            // empty streaming bubble is left behind.
-            setMessages(newMessages);
+            // empty streaming bubble is left behind — but keep any pending
+            // approval, which this path used to delete on every HITL pause.
+            setMessages(replacePreservingApproval(newMessages));
           }
           useChatStore.setState({
             isStreaming: false,
@@ -878,10 +909,7 @@ export function useChatStreaming(
   );
 
   const handleSubmit = useCallback(
-    async (
-      contentOverride?: string,
-      historyOverride?: ChatPageMessage[]
-    ) => {
+    async (contentOverride?: string, historyOverride?: ChatPageMessage[]) => {
       if (submitLockRef.current) return;
       const rawContent =
         typeof contentOverride === 'string' ? contentOverride : input;
@@ -1107,12 +1135,18 @@ export function useChatStreaming(
       useAgentActivityStore.getState().finishRun(runThread, 'stopped');
     }
 
+    // Stop is the user's escape hatch, and a pending confirmation is one of
+    // the states it has to clear: ChatSurface keeps `isBusy` true while
+    // `pendingConfirmation` is set, so leaving it meant Stop disabled the
+    // composer permanently instead of freeing it.
+    setPendingConfirmation(null);
+
     // The store-driven streaming path (used by the non-cloud chat) finalizes
     // through its own action; keep that contract intact.
     if (storeIsStreaming) {
       storeStopStreaming();
     }
-  }, [storeIsStreaming, storeStopStreaming]);
+  }, [setPendingConfirmation, storeIsStreaming, storeStopStreaming]);
 
   // ---- Resume an in-flight stream on mount / thread switch ----
   // If the activity store still records a running run for the displayed
@@ -1122,6 +1156,12 @@ export function useChatStreaming(
   useEffect(() => {
     const threadId = activeThreadId;
     if (!threadId || isLoading) return;
+    // A pending confirmation means the graph is deliberately parked waiting
+    // for this user — not an interrupted stream to recover. Resuming here
+    // fired on every HITL pause: it rendered a phantom "Reflecting" bubble
+    // under the card, its empty replay wiped the card, and its 204 closed the
+    // activity rail while the graph was still interrupted.
+    if (pendingConfirmation) return;
     if (useChatStore.getState().isStreaming) return;
     const run = useAgentActivityStore.getState().runs[threadId];
     if (!run || run.state !== 'running') return;
@@ -1152,7 +1192,14 @@ export function useChatStreaming(
     });
     // storeIsStreaming is a dep so a thread with a stale run gets re-checked
     // once another thread's live stream ends (the guard above reads fresh).
-  }, [activeThreadId, isLoading, messages, runStreamTurn, storeIsStreaming]);
+  }, [
+    activeThreadId,
+    isLoading,
+    messages,
+    pendingConfirmation,
+    runStreamTurn,
+    storeIsStreaming,
+  ]);
 
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
