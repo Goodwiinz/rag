@@ -145,6 +145,37 @@ def _retry_after_seconds(headers: Any, *, default: float, cap: float = 15.0) -> 
         return default
 
 
+# arXiv's API gate does not cover PDF fetches, and ingest_papers gathers a
+# whole batch at once against a connector with limit=10 — so a 10-paper ingest
+# opened ten simultaneous connections to arxiv.org/pdf. That is the least
+# polite thing this service does, and it is invisible to the Redis slot gate.
+#
+# Deliberately a concurrency cap, NOT the 3s API gate: ten papers serialized at
+# 3s is ~27s of pure waiting inside the 50s tool budget
+# (AGENT_LLM_TIMEOUT_SECONDS), which would trade a burst for a guaranteed
+# timeout — the same trade test_deep_queue_proceeds_now rejects for the API
+# path. Three at a time removes the burst while a 10-paper batch still fits.
+_MAX_CONCURRENT_PDF_DOWNLOADS = 3
+_pdf_semaphore: Optional[asyncio.Semaphore] = None
+_pdf_semaphore_loop: Any = None
+
+
+def _pdf_download_semaphore() -> asyncio.Semaphore:
+    """Per-event-loop semaphore for arxiv.org PDF fetches.
+
+    Rebuilt when the running loop changes: a module-level Semaphore binds to
+    the loop that created it, and this service runs under both uvicorn and
+    Celery workers.
+    """
+    global _pdf_semaphore, _pdf_semaphore_loop
+
+    loop = asyncio.get_running_loop()
+    if _pdf_semaphore is None or _pdf_semaphore_loop is not loop:
+        _pdf_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_PDF_DOWNLOADS)
+        _pdf_semaphore_loop = loop
+    return _pdf_semaphore
+
+
 def _parse_arxiv_date(value: Any) -> Optional[datetime]:
     """Parse an arXiv timestamp, or None when it cannot be parsed.
 
@@ -550,10 +581,15 @@ class ArXivIngestionService:
             async with aiofiles.open(pdf_path, "rb") as f:
                 return await f.read()
 
-        # Download with retry
+        # Download with retry, capped so a whole batch cannot open one
+        # connection per paper. Acquired around the network call only — the
+        # cache hit above and the disk write below hold no slot.
         for attempt in range(self.MAX_RETRIES):
             try:
-                async with self.session.get(pdf_url) as response:
+                async with (
+                    _pdf_download_semaphore(),
+                    self.session.get(pdf_url) as response,
+                ):
                     response.raise_for_status()
 
                     # Save to file
