@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic';
 import { SidebarLayout } from '@/components/layout/SidebarLayout';
-import { MobileTabBar } from '@/components/layout/MobileTabBar';
 import { usePathname } from 'next/navigation';
 import { useNotificationBridge } from '@/hooks/useNotificationBridge';
 
@@ -36,7 +35,6 @@ export default function DashboardLayoutClient({
       rightPanel={<GlobalAgentChat />}
     >
       {children}
-      <MobileTabBar />
     </SidebarLayout>
   );
 }

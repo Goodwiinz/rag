@@ -17,7 +17,12 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 interface ChatInputProps {
   value: string;
@@ -48,6 +53,11 @@ type SpeechRecognitionInstance = {
 };
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
+/** Speech-recognition availability cannot change for the life of the page. */
+function _subscribeNever(): () => void {
+  return () => {};
+}
+
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null;
   const w = window as unknown as {
@@ -74,7 +84,16 @@ export function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  // Browser capability, read through useSyncExternalStore so the server
+  // snapshot is explicitly `false`. It used to be useState(false) + a mount
+  // effect, which is a setState-in-effect (an extra render) — and it could not
+  // simply become a lazy initializer, because getSpeechRecognition() reads
+  // `window` and would hydrate mismatched.
+  const voiceSupported = useSyncExternalStore(
+    _subscribeNever,
+    () => getSpeechRecognition() !== null,
+    () => false
+  );
   const menu = useSlashCommandMenu(value);
 
   // Local attachment receipts — chips shown in the composer for files the user
@@ -90,7 +109,11 @@ export function ChatInput({
   // Keep a live ref so the unmount cleanup revokes the current object URLs
   // without re-running on every attachment change.
   const attachmentsRef = useRef<Attachment[]>(attachments);
-  attachmentsRef.current = attachments;
+  // Written in an effect rather than during render (react-hooks/refs): the
+  // only reader is the unmount cleanup below, so post-commit timing is fine.
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   const addFiles = (files: FileList): void => {
     const next: Attachment[] = Array.from(files).map((file) => {
@@ -123,10 +146,6 @@ export function ChatInput({
       return [];
     });
   };
-
-  useEffect(() => {
-    setVoiceSupported(getSpeechRecognition() !== null);
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -249,7 +268,7 @@ export function ChatInput({
 
   return (
     <div
-      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-4 border-t"
+      className="z-40 px-2 sm:px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-4 border-t"
       style={{
         background: 'var(--nous-bg-1)',
         borderColor: 'var(--nous-border-1)',
