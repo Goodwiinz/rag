@@ -209,3 +209,57 @@ describe('the approval card survives the stream ending', () => {
     ).toBeNull();
   });
 });
+
+describe('a failed Approve keeps the gate', () => {
+  beforeEach(() => {
+    streamMessageMock.mockReset();
+    streamConfirmMock.mockClear();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // The `finally` cleared pendingConfirmation unconditionally, so a 500 or a
+  // dropped connection on POST /agent/stream/confirm discarded the gate while
+  // the backend graph stayed interrupted. The card vanished, the composer
+  // unlocked, and the only remaining move — retyping — is what discards the
+  // interrupt server-side ("Abandoned HITL interrupt silently dropped").
+  it('retains pendingConfirmation when the confirm request throws', async () => {
+    const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
+
+    let current: ChatPageMessage[] = [];
+    const setMessages = vi.fn((m: unknown) => {
+      current =
+        typeof m === 'function'
+          ? (m as (p: ChatPageMessage[]) => ChatPageMessage[])(current)
+          : (m as ChatPageMessage[]);
+    });
+
+    streamMessageMock.mockImplementation(async (_r: unknown, cb: Cb) => {
+      cb.onConfirmation('agent-thread-1', {
+        tool_name: 'create_project',
+        tool_args: { name: 'rag testing' },
+      });
+      cb.onDone({});
+    });
+    streamConfirmMock.mockRejectedValue(new Error('network down'));
+
+    const params = makeParams(setMessages);
+    const { result } = renderHook(() => useChatStreaming(params), { wrapper });
+
+    await act(async () => {
+      await result.current.handleSubmit('start a project');
+    });
+    expect(result.current.pendingConfirmation).not.toBeNull();
+
+    await act(async () => {
+      await result.current.handleConfirmation(true);
+    });
+
+    expect(
+      result.current.pendingConfirmation,
+      'the graph is still interrupted — dropping the gate strands it with no ' +
+        'way to answer, and retyping discards the interrupt server-side'
+    ).not.toBeNull();
+  });
+});
