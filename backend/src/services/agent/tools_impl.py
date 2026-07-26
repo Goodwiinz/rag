@@ -46,6 +46,10 @@ INGEST_STATUS_FAILED = "ingestion_failed"
 # should NOT treat this as ordinary success; `link_error` carries the cause.
 INGEST_STATUS_COMPLETE_LINK_FAILED = "ingestion_complete_link_failed"
 
+# Statuses that mean the requested work did not happen. Mirrors
+# ``reflection._INGEST_FAILURE_STATUSES``; kept in sync deliberately.
+_INGEST_FAILURE_STATUSES = frozenset({INGEST_STATUS_FAILED, INGEST_STATUS_PARTIAL})
+
 
 # Cache the LLM client used by summarize/compare tools at module scope so
 # we don't pay the ~50ms client-build cost on every invocation. Mirrors the
@@ -1465,7 +1469,7 @@ async def _tool_ingest_arxiv(
                 )
                 message += f" Details: {reasons}."
 
-            return {
+            result: Dict[str, Any] = {
                 "status": status,
                 "paper_ids": paper_ids,
                 "document_ids": document_ids,
@@ -1478,6 +1482,20 @@ async def _tool_ingest_arxiv(
                 "kb_sync_failed": kb_sync_failed,
                 "message": message,
             }
+
+            # A zero/partial ingest must reach the graph as a FAILURE. The tool
+            # layer classifies on a top-level "error" key (_nodes_tools:
+            # `if "error" in result`), so a payload that only carries
+            # status="ingestion_failed" was recorded status="completed":
+            # the error ceiling never tripped, tool_dedupe cached the failure
+            # as a good result and short-circuited the retry, and
+            # find_repeated_failures never saw it, so the circuit breaker was
+            # bypassed too. A run that imported nothing was indistinguishable
+            # from success in agent state.
+            if status in _INGEST_FAILURE_STATUSES:
+                result["error"] = message
+
+            return result
     except Exception as e:
         logger.error("ArXiv ingest tool failed", exc_info=e)
         return {"error": f"Ingestion failed: {str(e)}", "paper_ids": paper_ids}
