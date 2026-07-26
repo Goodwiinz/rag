@@ -123,7 +123,16 @@ async def test_429_is_retried_after_reserving_another_slot() -> None:
 
 def test_parser_is_defusedxml_not_stdlib() -> None:
     """Repo convention: never stdlib XML on network-fed input (XXE/billion laughs)."""
-    src = Path("src/services/research_engine/connectors/arxiv_connector.py").read_text()
+    # Resolve from this file, not the CWD: pytest runs from the repo root in
+    # CI and from backend/ locally, and a relative path only works in one.
+    src = (
+        Path(__file__).resolve().parents[3]
+        / "src"
+        / "services"
+        / "research_engine"
+        / "connectors"
+        / "arxiv_connector.py"
+    ).read_text()
 
     assert "from defusedxml import" in src
     assert "import xml.etree.ElementTree" not in src
