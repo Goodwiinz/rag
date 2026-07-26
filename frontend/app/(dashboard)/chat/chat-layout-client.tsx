@@ -383,7 +383,12 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-(--nous-bg-1) overflow-hidden">
+    {/* h-full, not h-screen: the parent shell is h-svh (SidebarLayout), and
+          h-screen is 100vh — the LARGE viewport. On a phone with the URL bar
+          showing, 100vh exceeds 100svh, so this column overflowed its scroll
+          parent and the composer's action row fell below the fold, under the
+          fixed MobileTabBar. */}
+      <div className="h-full flex flex-col bg-(--nous-bg-1) overflow-hidden">
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content */}
