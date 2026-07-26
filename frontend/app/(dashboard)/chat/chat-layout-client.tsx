@@ -122,12 +122,22 @@ function CommandPalette({
     [commands, query]
   );
 
-  useEffect(() => {
+  // Reset on open via the "adjust state when a prop changes" pattern rather
+  // than in an effect: setState inside an effect triggers a second render pass
+  // (react-hooks/set-state-in-effect). Pre-existing, fixed here because the
+  // changed-file ratchet requires touched files to be error-clean.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
-      inputRef.current?.focus();
       setQuery('');
       setSelectedIndex(0);
     }
+  }
+
+  // Focus is a DOM side effect, so it stays in an effect.
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
   useEffect(() => {
@@ -382,8 +392,13 @@ function ChatLayoutContent({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // h-full, not h-screen: the parent shell is h-svh (SidebarLayout), and
+  // h-screen is 100vh — the LARGE viewport. On a phone with the URL bar
+  // showing, 100vh exceeds 100svh, so this column overflowed its scroll parent
+  // and the composer's action row fell below the fold, under the fixed
+  // MobileTabBar.
   return (
-    <div className="h-screen flex flex-col bg-(--nous-bg-1) overflow-hidden">
+    <div className="h-full flex flex-col bg-(--nous-bg-1) overflow-hidden">
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Main Content */}
