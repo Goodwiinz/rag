@@ -306,7 +306,10 @@ def test_extraction_tolerates_junk_entries() -> None:
 def test_catalogue_still_declares_interrupting_scenarios() -> None:
     """If these lose the flag, the assertion above silently stops applying."""
     keys = {s.key for s in SCENARIOS if s.expect_interrupt}
-    assert keys == {"create_project", "ingest"}
+    # writing_draft joined them: create_draft / create_project_note are in
+    # WRITING_DESTRUCTIVE_TOOLS, so a genuine save raises the interrupt. It
+    # previously ran zero tools and logged flag=ok.
+    assert keys == {"create_project", "ingest", "writing_draft"}
 
 
 def test_ingest_prompt_rotates_its_paper_id() -> None:
@@ -335,3 +338,33 @@ def test_rotation_is_deterministic_within_a_window() -> None:
 
     assert _rotating_paper_id() == _rotating_paper_id()
     assert _rotating_paper_id() in INGEST_PAPER_IDS
+
+
+def test_the_writing_run_that_did_nothing_and_said_ok() -> None:
+    """Live shape from dev: writing_draft, 0 tools, flag=ok.
+
+    create_draft and create_project_note are in WRITING_DESTRUCTIVE_TOOLS, so
+    a genuine save always raises the HITL interrupt. The scenario declared no
+    expectation, so a run that wrote prose and saved nothing was
+    indistinguishable from one that saved a note — the same fake-success shape
+    as the ingest scenario, one scenario over.
+    """
+    from scripts.synthetic_traffic import SCENARIOS_BY_KEY
+
+    writing = SCENARIOS_BY_KEY["writing_draft"]
+    assert writing.expect_interrupt
+
+    result = _result(scenario="writing_draft", resumes=0, tool_executions=0)
+    assert classify_turn(writing, result) == MISSING_INTERRUPT_FLAG
+
+
+def test_the_writing_prompt_asks_for_something_only_a_tool_can_do() -> None:
+    """An ambiguous prompt makes the expectation unfair.
+
+    "Draft a short note" is satisfiable with prose, so demanding an interrupt
+    would flag honest behaviour. The prompt has to ask for persistence.
+    """
+    from scripts.synthetic_traffic import SCENARIOS_BY_KEY
+
+    prompt = SCENARIOS_BY_KEY["writing_draft"].prompt.lower()
+    assert "save" in prompt or "library" in prompt

@@ -140,8 +140,21 @@ SCENARIOS: List[Scenario] = [
     ),
     Scenario(
         key="writing_draft",
-        prompt="Draft a short note summarizing the key ideas behind RAG.",
+        # "Draft a short note" is ambiguous — the model can satisfy it with
+        # prose and never touch a tool, which is exactly what it did while
+        # reporting flag=ok. Ask for something only create_draft /
+        # create_project_note can deliver, so the destructive path is really
+        # exercised.
+        prompt=(
+            "Write a short note summarizing the key ideas behind RAG and "
+            "save it to my library."
+        ),
         budget_s=45.0,
+        # create_draft and create_project_note are both in
+        # WRITING_DESTRUCTIVE_TOOLS, so a real save always raises the HITL
+        # interrupt. Without this the scenario had no expectation at all and a
+        # zero-tool run was indistinguishable from success.
+        expect_interrupt=True,
         page_context={"type": "general"},
     ),
     Scenario(
