@@ -20,6 +20,16 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
         "recoverable",
         "Use document UUIDs from ingest_arxiv_papers, not arXiv paper IDs.",
     ),
+    ("create_project_note", "project_id is required"): (
+        "recoverable",
+        "Call list_projects for an existing project_id, or create_project "
+        "first, then retry with that id.",
+    ),
+    ("create_draft", "project_id is required"): (
+        "recoverable",
+        "Call list_projects for an existing project_id, or create_project "
+        "first, then retry with that id.",
+    ),
     ("ingest_arxiv_papers", "timed out"): (
         "transient",
         "ArXiv ingestion timed out. Try fewer papers (max 3 at a time).",
@@ -72,6 +82,7 @@ _TRANSIENT_ERROR_KEYWORDS = (
 @dataclass(frozen=True)
 class ToolError:
     """Structured tool error with category and actionable suggestion."""
+
     category: ErrorCategory
     message: str
     suggestion: str = ""
@@ -99,10 +110,16 @@ def classify_error(tool_name: str, exc: Exception) -> ToolError:
 
     # Check user_fixable before transient (PermissionError is a subclass of OSError)
     if isinstance(exc, _USER_FIXABLE_EXCEPTIONS):
-        return ToolError(category="user_fixable", message=msg, suggestion="Check your permissions or ask the user for help.")
+        return ToolError(
+            category="user_fixable",
+            message=msg,
+            suggestion="Check your permissions or ask the user for help.",
+        )
 
     if isinstance(exc, _TRANSIENT_EXCEPTIONS):
-        return ToolError(category="transient", message=msg, suggestion="Retrying automatically...")
+        return ToolError(
+            category="transient", message=msg, suggestion="Retrying automatically..."
+        )
 
     # Check hints by keyword
     msg_lower = msg.lower()
@@ -173,9 +190,24 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
         return ToolError(category="transient", message=error_msg)
 
     # 5. Recoverable input-shape errors (LLM can usually retry differently).
+    #
+    # "<param> is required" belongs here and used to fall through to fatal:
+    # a missing argument is the most recoverable failure there is — the model
+    # can fetch the value and call again. Observed live: create_project_note
+    # wrote a full note, was rejected for a missing project_id, and the fatal
+    # classification told the agent not to recover, so the work was discarded
+    # (synthetic writing_draft, TOOL-FAILED(create_project_note)).
     if any(
         kw in msg_lower
-        for kw in ("not found", "does not exist", "no results", "invalid")
+        for kw in (
+            "not found",
+            "does not exist",
+            "no results",
+            "invalid",
+            "is required",
+            "missing required",
+            "must be provided",
+        )
     ):
         return ToolError(
             category="recoverable",
@@ -212,7 +244,7 @@ async def retry_transient(
         except _TRANSIENT_EXCEPTIONS as e:
             last_exc = e
             if attempt < max_attempts - 1:
-                delay = base_delay * (2 ** attempt)
+                delay = base_delay * (2**attempt)
                 logger.info(
                     "Transient error (attempt %d/%d), retrying in %.1fs: %s",
                     attempt + 1,
