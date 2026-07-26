@@ -18,6 +18,8 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
+from pydantic import Field
+from typing_extensions import Annotated
 
 from src.services.agent.tool_registry import (
     AgentIntent,
@@ -196,7 +198,7 @@ async def search_arxiv(
     query: str,
     max_results: int = 5,
     categories: Optional[List[str]] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search arXiv for academic papers.
 
@@ -218,8 +220,16 @@ async def search_arxiv(
 @tool
 async def ingest_arxiv_papers(
     paper_ids: List[str],
-    project_id: Optional[str] = None,
-    config: RunnableConfig | None = None,
+    project_id: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                "UUID of an existing project, as returned by list_projects or "
+                "create_project. NOT the project name — a name is rejected."
+            )
+        ),
+    ] = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Ingest arXiv papers into the RAG system for indexing and search.
 
@@ -249,7 +259,7 @@ async def ingest_arxiv_papers(
 async def search_documents(
     query: str,
     max_results: int = 10,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search the user's indexed documents by title or content."""
     config = config or {}
@@ -270,7 +280,7 @@ async def search_documents(
 async def do_kb_retrieve(
     query: str,
     top_k: int = 8,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Semantic retrieval over the organization's DigitalOcean Knowledge Base.
 
@@ -299,7 +309,7 @@ async def do_kb_retrieve(
 async def add_document_to_project(
     document_id: str,
     project_id: Optional[str] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Add an existing document to a research project.
 
@@ -327,7 +337,7 @@ async def create_project(
     research_goals: Optional[str] = None,
     tags: Optional[List[str]] = None,
     workspace_id: Optional[str] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Create a new research project (folder) for organizing papers, documents, and notes.
 
@@ -355,7 +365,7 @@ async def create_project_note(
     content: str,
     project_id: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Create a markdown note in a research project.
 
@@ -385,7 +395,7 @@ async def list_projects(
     tag: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = 20,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """List the user's research projects.
 
@@ -414,7 +424,7 @@ async def list_project_documents(
     project_id: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """List documents in a research project, ordered newest first.
 
@@ -448,7 +458,7 @@ async def list_project_documents(
 @tool
 async def summarize_document(
     document_id: str,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Summarize a document's content.
 
@@ -467,7 +477,7 @@ async def summarize_document(
 async def compare_documents(
     document_ids: List[str],
     type: str = "general",
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Compare multiple documents to find similarities, differences, and shared themes.
 
@@ -489,7 +499,7 @@ async def compare_documents(
 @tool
 async def extract_entities(
     document_id: str,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Extract named entities (people, organizations, concepts, etc.) from a document.
 
@@ -509,7 +519,7 @@ async def extract_entities(
 async def search_knowledge_graph(
     query: str,
     entity_types: Optional[List[str]] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search the knowledge graph for entities and their relationships.
 
@@ -531,7 +541,7 @@ async def explore_entity_neighborhood(
     entity_id: str,
     max_depth: int = 2,
     limit: int = 30,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Explore an entity's neighborhood in the knowledge graph.
 
@@ -559,7 +569,7 @@ async def find_entity_paths(
     source_entity_id: str,
     target_entity_id: str,
     max_depth: int = 3,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Find relationship paths between two entities in the knowledge graph.
 
@@ -583,7 +593,7 @@ async def find_entity_paths(
 
 @tool
 async def get_graph_stats(
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Get statistics about the knowledge graph.
 
@@ -603,7 +613,7 @@ async def create_draft(
     themes: List[str],
     project_id: Optional[str] = None,
     style: str = "academic",
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Generate a literature review draft for a project based on themes.
 
@@ -630,7 +640,7 @@ async def create_draft(
 async def export_bibliography(
     document_ids: List[str],
     format: str = "bibtex",
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Export bibliography/references for documents in a specific citation format.
 
@@ -657,7 +667,7 @@ async def execute_code(
     description: str,
     language: str = "python",
     packages: Optional[List[str]] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Execute Python code in a sandboxed E2B environment.
 
@@ -701,7 +711,7 @@ async def search_external_database(
     domain: Optional[str] = None,
     max_results: int = 10,
     filters: Optional[Dict[str, Any]] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Search external databases (PubMed, UniProt, ChEMBL, PubChem, FRED, SEC EDGAR, etc.).
 
@@ -744,7 +754,7 @@ async def search_external_database(
 @tool
 async def list_external_databases(
     domain: Optional[str] = None,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """List the external database connectors available to the agent.
 
@@ -770,7 +780,7 @@ async def list_external_databases(
 @tool
 async def forget_memory(
     query: str,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Forget previously-saved memories that match *query*.
 
@@ -791,7 +801,7 @@ async def forget_memory(
 @tool
 async def load_project_skill(
     skill_name: str,
-    config: RunnableConfig | None = None,
+    config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Load the frozen instructions for one relevant project skill.
 
