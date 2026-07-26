@@ -1308,6 +1308,7 @@ export function useChatStreaming(
       // clearing it — previously the event was dropped and the graph was
       // left interrupted with no way to resume from the UI.
       let nestedConfirmation: PendingConfirmation | null = null;
+      let confirmThrew = false;
       // Set when onDone/onError committed a bubble — the post-stream abort
       // path below must not double-commit.
       let confirmCommitted = false;
@@ -1540,13 +1541,21 @@ export function useChatStreaming(
           timestamp: Date.now(),
         };
         if (isConfirmDisplayed()) setMessages([...confirmMessages, msg]);
+        confirmThrew = true;
         await reconcileConfirmationUser('confirmation-exception');
       } finally {
         // Close out the agent activity rail — the interrupt left the run
         // "running" and neither onDone (confirm path) nor handleStop
         // (activeRunThreadRef is null here) ever finished it (round-3 M1).
         // A nested interrupt keeps the run open: the turn isn't over.
-        if (!nestedConfirmation && pendingConfirmation.workspaceThreadId) {
+        // A failed attempt leaves the graph interrupted, so the run is not
+        // over either — only finish it when the turn genuinely ended.
+        const confirmFailed = confirmHadError || confirmThrew;
+        if (
+          !nestedConfirmation &&
+          !confirmFailed &&
+          pendingConfirmation.workspaceThreadId
+        ) {
           useAgentActivityStore
             .getState()
             .finishRun(
@@ -1555,8 +1564,17 @@ export function useChatStreaming(
             );
         }
         // A nested interrupt re-arms the banner with the new confirmation
-        // (carrying the turn's accumulated provenance); otherwise clear it.
-        setPendingConfirmation(nestedConfirmation);
+        // (carrying the turn's accumulated provenance).
+        //
+        // On failure KEEP the current gate. Clearing it on a 500 or a dropped
+        // connection stranded the backend: the graph stays interrupted, the
+        // card disappears, and the only remaining move is to retype — which
+        // discards the interrupt server-side ("Abandoned HITL interrupt
+        // silently dropped"). Retaining it lets the user press Approve again,
+        // and handleStop is the escape hatch if they'd rather abandon it.
+        setPendingConfirmation(
+          nestedConfirmation ?? (confirmFailed ? pendingConfirmation : null)
+        );
         setIsConfirming(false);
         confirmLockRef.current = false;
         stoppedByUserRef.current = false;
