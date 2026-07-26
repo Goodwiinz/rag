@@ -307,3 +307,31 @@ def test_catalogue_still_declares_interrupting_scenarios() -> None:
     """If these lose the flag, the assertion above silently stops applying."""
     keys = {s.key for s in SCENARIOS if s.expect_interrupt}
     assert keys == {"create_project", "ingest"}
+
+
+def test_ingest_prompt_rotates_its_paper_id() -> None:
+    """A fixed id makes the scenario unsatisfiable after its first success.
+
+    Content-hash dedup (uq_documents_org_checksum_live) correctly rejects a
+    second copy of the same paper, so hardcoding 1706.03762 meant every run
+    after 2026-07-18 reported a failure for a pipeline that was working.
+    """
+    from scripts.synthetic_traffic import (
+        INGEST_PAPER_IDS,
+        SCENARIOS_BY_KEY,
+        _expand_prompt,
+    )
+
+    assert len(set(INGEST_PAPER_IDS)) > 1, "one id is the bug this fixes"
+
+    expanded = _expand_prompt(SCENARIOS_BY_KEY["ingest"])
+    assert "{paper}" not in expanded and "{ts}" not in expanded
+    assert any(pid in expanded for pid in INGEST_PAPER_IDS)
+
+
+def test_rotation_is_deterministic_within_a_window() -> None:
+    """Two pods in the same window must agree; consecutive windows must not."""
+    from scripts.synthetic_traffic import INGEST_PAPER_IDS, _rotating_paper_id
+
+    assert _rotating_paper_id() == _rotating_paper_id()
+    assert _rotating_paper_id() in INGEST_PAPER_IDS

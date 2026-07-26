@@ -83,6 +83,34 @@ def _ts() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%S")
 
 
+# Rotating arXiv ids for the ingest scenario. A single hardcoded id made the
+# scenario unsatisfiable after its first success: content-hash dedup
+# (uq_documents_org_checksum_live) correctly rejects the second copy, so every
+# run from 2026-07-18 onward reported TOOL-FAILED for a pipeline that was
+# working. Rotating keeps the destructive path genuinely exercised; the ids are
+# well-known, stable papers that will not 404.
+INGEST_PAPER_IDS = (
+    "1706.03762",  # Attention Is All You Need
+    "1810.04805",  # BERT
+    "2005.11401",  # RAG
+    "1907.11692",  # RoBERTa
+    "2005.14165",  # GPT-3
+    "1512.03385",  # ResNet
+)
+
+
+def _rotating_paper_id() -> str:
+    """Pick an id from the pool by clock, like _choose_scenario_rotate does.
+
+    Deterministic within a window and stateless, so two pods in the same window
+    agree — and consecutive runs differ, which is the point.
+    """
+    import time
+
+    window = int(time.time() // ROTATE_WINDOW_S)
+    return INGEST_PAPER_IDS[window % len(INGEST_PAPER_IDS)]
+
+
 SCENARIOS: List[Scenario] = [
     Scenario(
         key="greeting",
@@ -127,7 +155,8 @@ SCENARIOS: List[Scenario] = [
     Scenario(
         key="ingest",
         prompt=(
-            f"Ingest the arXiv paper 1706.03762 into a project named {SYNTH_PREFIX}{{ts}}"
+            "Ingest the arXiv paper {paper} into a project named "
+            f"{SYNTH_PREFIX}{{ts}}"
         ),
         budget_s=60.0,
         expect_interrupt=True,
@@ -139,8 +168,10 @@ SCENARIOS_BY_KEY: Dict[str, Scenario] = {s.key: s for s in SCENARIOS}
 
 
 def _expand_prompt(scenario: Scenario) -> str:
-    """Substitute ``{ts}`` with a UTC timestamp so project names are unique."""
-    return scenario.prompt.replace("{ts}", _ts())
+    """Fill ``{ts}`` (unique project name) and ``{paper}`` (rotating arXiv id)."""
+    return scenario.prompt.replace("{ts}", _ts()).replace(
+        "{paper}", _rotating_paper_id()
+    )
 
 
 # ---------------------------------------------------------------------------
