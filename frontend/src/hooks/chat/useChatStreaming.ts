@@ -236,7 +236,7 @@ export interface UseChatStreamingReturn {
    * state) to the thread that actually owns the stream, without touching the
    * global single-flight `storeIsStreaming` the composer blocks on. */
   streamingThreadId: string | null;
-  streamingTimestampRef: React.MutableRefObject<number>;
+  streamingTimestampRef: React.MutableRefObject<number | null>;
 }
 
 // ============================================
@@ -305,7 +305,7 @@ export function useChatStreaming(
   // double-click can't fire streamConfirm twice client-side (the server
   // now also claims atomically — this is defense in depth).
   const confirmLockRef = useRef(false);
-  const streamingTimestampRef = useRef(Date.now());
+  const streamingTimestampRef = useRef<number | null>(null);
   const streamingRafRef = useRef<number | null>(null);
   const pendingStreamContentRef = useRef<string | null>(null);
   // rAF-batched SSE seq cursor (same pattern as streamingRafRef for tokens):

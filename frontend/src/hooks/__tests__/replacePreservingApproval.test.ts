@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { replacePreservingApproval } from '@/hooks/chat/useChatStreaming';
 import type { ChatPageMessage } from '@/hooks/chat/chatTypes';
 
-const msg = (id: string, extra: Partial<ChatPageMessage> = {}) =>
+const msg = (id: string, extra: Partial<ChatPageMessage> = {}): ChatPageMessage =>
   ({
     runtimeId: id,
     source: 'local-only',
@@ -26,7 +26,7 @@ const msg = (id: string, extra: Partial<ChatPageMessage> = {}) =>
     ...extra,
   }) as ChatPageMessage;
 
-const approval = (id = 'approval:w1:t1') =>
+const approval = (id = 'approval:w1:t1'): ChatPageMessage =>
   msg(id, { pendingApproval: { toolName: 'create_project', args: {} } });
 
 describe('replacePreservingApproval', () => {
