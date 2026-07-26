@@ -46,7 +46,13 @@ logger = logging.getLogger(__name__)
 # arXiv's per-IP limit. Redis-down / unset degrades to the per-process gate.
 _ARXIV_RATE_KEY = "arxiv:rategate"
 _ARXIV_MIN_INTERVAL_MS = 3000  # arXiv's minimum 3s between requests
-_ARXIV_MAX_WAIT_MS = 15000  # if the queue is deeper than this, proceed (may 429)
+# Deep enough for a real ingest batch to queue, bounded by the caller's budget.
+# At 15000 only ~5 slots fit, so a 10-paper ingest (the tool's own cap) sent
+# everything past request ~6 through with NO reservation — the gate became a
+# burst generator at exactly the batch size it was meant to smooth. 30s queues
+# the full batch while staying inside AGENT_LLM_TIMEOUT_SECONDS (50s); going
+# higher would trade a 429 for a guaranteed tool-call timeout.
+_ARXIV_MAX_WAIT_MS = 30000
 _ARXIV_GATE_TTL_MS = 20000  # key self-expires so a quiet period resets the gate
 # Atomically reserve the next slot: slot = max(now, last + interval); persist it
 # and return how long THIS caller must wait. -1 => queue too deep, don't reserve.
@@ -106,14 +112,37 @@ async def _acquire_arxiv_rate_slot() -> Optional[float]:
             _ARXIV_GATE_TTL_MS,
         )
         wait_ms = int(res)
-        # -1 (queue too deep) => proceed now rather than pile up; the 429 loop +
-        # the graceful-degrade prompt handle an actual rate-limit if it happens.
+        # -1 (queue deeper than the cap) => proceed now rather than pile up.
+        # Deliberate, and pinned by test_deep_queue_proceeds_now: the caller
+        # sits inside AGENT_LLM_TIMEOUT_SECONDS (50s), so waiting the cap would
+        # spend the whole budget and time out — a worse failure than a 429,
+        # which at least surfaces a clean "rate limited, try again" to the user.
         return 0.0 if wait_ms < 0 else wait_ms / 1000.0
     except Exception:
         # Transient Redis error: fall back to the per-process gate THIS call
         # (don't permanently disable — Redis may recover).
         logger.debug("arXiv shared rate gate unavailable; per-process gate only")
         return None
+
+
+def _retry_after_seconds(headers: Any, *, default: float, cap: float = 15.0) -> float:
+    """Seconds to wait from a Retry-After header, clamped to ``cap``.
+
+    Accepts the delta-seconds form (arXiv sends that). A date-form or absent
+    header falls back to ``default``. Clamped because the caller sits inside a
+    tool-call timeout — honouring a literal 60s would just move the failure.
+    """
+    raw = None
+    try:
+        raw = headers.get("Retry-After") or headers.get("retry-after")
+    except Exception:
+        return default
+    if not raw:
+        return default
+    try:
+        return max(0.0, min(float(str(raw).strip()), cap))
+    except (TypeError, ValueError):
+        return default
 
 
 def _parse_arxiv_date(value: Any) -> Optional[datetime]:
@@ -210,7 +239,11 @@ class ArXivIngestionService:
                         saw_rate_limit = True
                         if attempt == max_attempts - 1:
                             break
-                        wait = 3.0
+                        # arXiv sends Retry-After on 429 (its own message says
+                        # "try again in 60 seconds"); retrying after a fixed 3s
+                        # guaranteed a second 429. Honour the header, clamped so
+                        # a large value cannot outlive the caller's timeout.
+                        wait = _retry_after_seconds(response.headers, default=3.0)
                         logger.warning(
                             "ArXiv rate limited (429), attempt %d/%d, retrying in %ss...",
                             attempt + 1,
