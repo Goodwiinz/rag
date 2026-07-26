@@ -128,8 +128,7 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                         setSourceId(entity.id);
                         setSearchQuery({ ...searchQuery, source: entity.name });
                       }}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-inset"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors"
                     >
                       <div className="text-(--nous-fg-1)">{entity.name}</div>
                       <div className="text-(--nous-fg-3)">{entity.type}</div>
@@ -159,8 +158,7 @@ export const PathFinder: React.FC<PathFinderProps> = ({ entities, onEntityClick 
                         setTargetId(entity.id);
                         setSearchQuery({ ...searchQuery, target: entity.name });
                       }}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-inset"
+                      className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-(--nous-bg-3) transition-colors"
                     >
                       <div className="text-(--nous-fg-1)">{entity.name}</div>
                       <div className="text-(--nous-fg-3)">{entity.type}</div>

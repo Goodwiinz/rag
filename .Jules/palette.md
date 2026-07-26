@@ -13,6 +13,3 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
-## 2024-05-19 - Focus-Visible Utility Usage (Tailwind v4)
-**Learning:** Native `<button>` elements styled as list items or interactive dropdown choices often lose their default browser outlines. When adding Tailwind `focus-visible` classes to restore accessibility, note that the project uses Tailwind v4, so the correct utility for removing outlines is `outline-hidden` (not the deprecated `outline-none`).
-**Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add updated `focus-visible` utility classes (e.g., `focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.

@@ -213,7 +213,7 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                     <button
                       key={entity.id}
                       type="button"
-                      className="w-full text-left px-4 py-2 hover:bg-(--nous-bg-3) flex items-center justify-between border-b border-(--nous-border-1) last:border-0 group focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-(--nous-sol) focus-visible:ring-inset"
+                      className="w-full text-left px-4 py-2 hover:bg-(--nous-bg-3) flex items-center justify-between border-b border-(--nous-border-1) last:border-0 group"
                       onClick={() => selectTargetEntity(entity)}
                     >
                       <div>

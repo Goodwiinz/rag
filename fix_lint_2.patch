@@ -1,9 +1,0 @@
---- frontend/src/components/entities/GraphAnalyticsDashboard.tsx
-+++ frontend/src/components/entities/GraphAnalyticsDashboard.tsx
-@@ -91,7 +91,6 @@
-
-   useEffect(() => {
--    // eslint-disable-next-line react-hooks/set-state-in-effect
-     const load = async () => {
-       try {
-         await fetchAnalytics();

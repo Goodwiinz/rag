@@ -90,14 +90,8 @@ export const GraphAnalyticsDashboard: React.FC<GraphAnalyticsDashboardProps> = (
   };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        await fetchAnalytics();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    load();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAnalytics();
   }, []);
 
   if (loading) {
