@@ -1132,6 +1132,31 @@ async def _tool_search_arxiv(args: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": f"ArXiv search failed: {str(e)}", "query": query}
 
 
+async def _existing_document_id(
+    db: AsyncSession, organization_id: Any, checksum: Optional[str]
+) -> Optional[Any]:
+    """Live document id for this org's copy of ``checksum``, if any.
+
+    Mirrors the partial unique index ``uq_documents_org_checksum_live``
+    (organization_id, checksum_sha256) WHERE NOT is_deleted — so the lookup
+    matches exactly what the database would reject.
+    """
+    if not checksum:
+        return None
+    from sqlalchemy import select as _select
+
+    stmt = (
+        _select(Document.id)
+        .where(
+            Document.organization_id == organization_id,
+            Document.checksum_sha256 == checksum,
+            Document.is_deleted.is_(False),
+        )
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def _tool_ingest_arxiv(
     args: Dict[str, Any],
     user_id: str,
@@ -1241,6 +1266,7 @@ async def _tool_ingest_arxiv(
                     failed_papers[pid] = "PDF download or content extraction failed"
 
             document_ids = []
+            reused_document_ids: set = set()
             kb_sync_failed = False
             if ingested and current_user:
                 # KEPT fresh sessions (audit B8 judgment): ingest is
@@ -1268,6 +1294,32 @@ async def _tool_ingest_arxiv(
                                     document_id,
                                 )
                                 promoted_storage.append(storage_fields)
+
+                                # Content-hash dedup is a PARTIAL unique index
+                                # (organization_id, checksum_sha256) over live
+                                # rows. Re-ingesting a paper the org already
+                                # has previously raised UniqueViolationError
+                                # out of the atomic begin() block, so ONE
+                                # duplicate destroyed the whole batch — nine
+                                # new papers lost to the tenth being familiar.
+                                # Reuse the existing row instead: the paper is
+                                # in the library, which is what the user asked
+                                # for, and the project link below still runs.
+                                existing_id = await _existing_document_id(
+                                    fresh_db,
+                                    current_user.organization_id,
+                                    storage_fields.get("checksum_sha256"),
+                                )
+                                if existing_id is not None:
+                                    logger.info(
+                                        "arxiv ingest: paper already in library "
+                                        "(document %s), reusing",
+                                        existing_id,
+                                    )
+                                    document_ids.append(str(existing_id))
+                                    reused_document_ids.add(str(existing_id))
+                                    continue
+
                                 document = Document(
                                     id=document_id,
                                     title=getattr(doc, "title", "Untitled"),
@@ -1437,6 +1489,13 @@ async def _tool_ingest_arxiv(
             else:
                 status = INGEST_STATUS_COMPLETE
                 message = f"Ingested {ingested_count} paper(s) into the RAG system."
+
+            if reused_document_ids:
+                n = len(reused_document_ids)
+                message += (
+                    f" {n} of these {'was' if n == 1 else 'were'} already in "
+                    "your library; reused the existing copy."
+                )
 
             if linked_project_name:
                 message += f" Attached to project '{linked_project_name}'."
