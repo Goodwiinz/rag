@@ -3,10 +3,11 @@ Celery task for executing research workflows.
 """
 
 import asyncio
+import functools
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from celery import current_app
@@ -64,10 +65,14 @@ def _create_provider(model_id: str):
             )
         )
 
-    if lower.startswith("ollama/") or lower.startswith("llama") or lower.startswith(
-        "mistral"
+    if (
+        lower.startswith("ollama/")
+        or lower.startswith("llama")
+        or lower.startswith("mistral")
     ):
-        ollama_model = normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        ollama_model = (
+            normalized.split("/", 1)[1] if lower.startswith("ollama/") else normalized
+        )
         return OllamaProvider(
             ProviderConfig(
                 provider_type="ollama",
@@ -97,16 +102,37 @@ def _build_providers(steps: list) -> dict:
     return providers
 
 
-async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]:
-    """Search the existing hybrid RAG index for local-store style connector output."""
+async def _search_rag_store(
+    query: str, max_results: int = 50, *, organization_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Search the existing hybrid RAG index for local-store style connector output.
+
+    MUST be scoped to the run owner's ``organization_id``. ``hybrid_search_service``
+    forwards it to ``fulltext_search_service``, which applies the tenant filter
+    only ``if organization_id:`` — so passing nothing means *no filter*, and a
+    research run would surface (and copy ``full_text`` from) every tenant's
+    documents. The HTTP path already scopes this (``api/research_engine/runs.py``);
+    the Celery path did not.
+
+    Fails closed: an unresolved organization returns no local results rather
+    than silently searching every tenant.
+    """
     from src.models.search_schemas import SearchQuery
     from src.services.search.hybrid_search_service import hybrid_search_service
+
+    if not organization_id:
+        logger.error(
+            "rag_store search skipped: no organization_id resolved for this run — "
+            "refusing to run an org-unfiltered search"
+        )
+        return {"results": []}
 
     loop = asyncio.get_running_loop()
     response = await loop.run_in_executor(
         None,
         lambda: hybrid_search_service.search(
-            SearchQuery(query=query, limit=max_results, search_type="hybrid")
+            SearchQuery(query=query, limit=max_results, search_type="hybrid"),
+            organization_id=organization_id,
         ),
     )
 
@@ -131,16 +157,42 @@ async def _search_rag_store(query: str, max_results: int = 50) -> Dict[str, Any]
     return {"results": results}
 
 
-def _build_connectors() -> dict:
-    """Create connector instances for the workflow."""
+def _build_connectors(organization_id: Optional[str] = None) -> dict:
+    """Create connector instances for the workflow.
+
+    ``organization_id`` (the run owner's) is bound into the rag_store search so
+    the local-index connector only ever returns this tenant's documents —
+    mirrors ``api/research_engine/runs.py::_build_connectors``.
+    """
+    rag_search = functools.partial(_search_rag_store, organization_id=organization_id)
     return {
         "arxiv": ArxivConnector(),
         "semantic_scholar": SemanticScholarConnector(),
         "crossref": CrossrefConnector(mailto=settings.CROSSREF_MAILTO),
         "pubmed": PubMedConnector(api_key=settings.NCBI_API_KEY),
         "web": SemanticScholarConnector(),  # fallback alias
-        "rag_store": RagStoreConnector(search_fn=_search_rag_store),
+        "rag_store": RagStoreConnector(search_fn=rag_search),
     }
+
+
+def _resolve_run_organization_id(db: Any, blueprint: Any) -> Optional[str]:
+    """Owning organization for a run: blueprint → project → owner → org.
+
+    ``ResearchRun`` carries no tenant column of its own, so the owner is
+    reached through the blueprint's project. Returns None when it cannot be
+    resolved; callers must treat that as "do not search", never as "search
+    everything".
+    """
+    from src.models.research_project import ResearchProject
+    from src.models.user import User
+
+    org_id = (
+        db.query(User.organization_id)
+        .join(ResearchProject, ResearchProject.owner_id == User.id)
+        .filter(ResearchProject.id == blueprint.project_id)
+        .scalar()
+    )
+    return str(org_id) if org_id else None
 
 
 async def _run_engine(engine: WorkflowEngine, blueprint_dict: dict, run_id: UUID):
@@ -203,7 +255,9 @@ def execute_research_workflow(run_id: str):
 
         # Build connectors and providers
         steps = blueprint.steps or []
-        connectors = _build_connectors()
+        connectors = _build_connectors(
+            organization_id=_resolve_run_organization_id(db, blueprint)
+        )
         providers = _build_providers(steps)
 
         # Build engine
@@ -219,9 +273,7 @@ def execute_research_workflow(run_id: str):
         }
 
         # Run the async engine from the synchronous Celery worker
-        events = asyncio.run(
-            _run_engine(engine, blueprint_dict, UUID(run_id))
-        )
+        events = asyncio.run(_run_engine(engine, blueprint_dict, UUID(run_id)))
 
         # Process events — collect step records, commit in one transaction
         total_tokens = 0
@@ -240,24 +292,30 @@ def execute_research_workflow(run_id: str):
                 if step_index < len(steps):
                     step_def = steps[step_index]
 
-                step_records.append(ResearchStep(
-                    run_id=run.id,
-                    step_index=event.get("step_index", 0),
-                    step_type=step_def.get("type", "unknown"),
-                    model_id=step_def.get("model_id")
-                    or _get_step_params(step_def).get("model_id"),
-                    temperature=step_def.get("temperature")
-                    if step_def.get("temperature") is not None
-                    else _get_step_params(step_def).get("temperature", 0.0),
-                    seed=step_def.get("seed")
-                    if step_def.get("seed") is not None
-                    else _get_step_params(step_def).get("seed"),
-                    output=event.get("output"),
-                    quality_marks=event.get("quality_marks"),
-                    token_count=event.get("token_count", 0),
-                    started_at=datetime.now(timezone.utc),
-                    completed_at=datetime.now(timezone.utc),
-                ))
+                step_records.append(
+                    ResearchStep(
+                        run_id=run.id,
+                        step_index=event.get("step_index", 0),
+                        step_type=step_def.get("type", "unknown"),
+                        model_id=step_def.get("model_id")
+                        or _get_step_params(step_def).get("model_id"),
+                        temperature=(
+                            step_def.get("temperature")
+                            if step_def.get("temperature") is not None
+                            else _get_step_params(step_def).get("temperature", 0.0)
+                        ),
+                        seed=(
+                            step_def.get("seed")
+                            if step_def.get("seed") is not None
+                            else _get_step_params(step_def).get("seed")
+                        ),
+                        output=event.get("output"),
+                        quality_marks=event.get("quality_marks"),
+                        token_count=event.get("token_count", 0),
+                        started_at=datetime.now(timezone.utc),
+                        completed_at=datetime.now(timezone.utc),
+                    )
+                )
 
             elif event_type == "run_complete":
                 final_status = RunStatus.COMPLETED.value
@@ -293,9 +351,7 @@ def execute_research_workflow(run_id: str):
 
         db.commit()
 
-        logger.info(
-            f"Research workflow {run_id} finished with status={final_status}"
-        )
+        logger.info(f"Research workflow {run_id} finished with status={final_status}")
 
         return {
             "status": final_status,
