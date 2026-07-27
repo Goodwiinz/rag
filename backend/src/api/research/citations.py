@@ -105,7 +105,13 @@ async def _ensure_project_access(
     result = await db.execute(
         select(Collection.id)
         .join(Workspace, Collection.workspace_id == Workspace.id)
-        .where(and_(Collection.id == project_id, Workspace.owner_id == current_user.id))
+        .where(
+            and_(
+                Collection.id == project_id,
+                Workspace.owner_id == current_user.id,
+                Collection.is_deleted.is_(False),
+            )
+        )
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(

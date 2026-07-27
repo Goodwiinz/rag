@@ -33,13 +33,7 @@ from sqlalchemy.orm import selectinload
 from src.core.config import get_settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user
-from src.models import (
-    Collection,
-    CollectionDocument,
-    ProjectNote,
-    User,
-    Workspace,
-)
+from src.models import Collection, CollectionDocument, ProjectNote, User, Workspace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/projects", tags=["project-report"])
@@ -123,6 +117,7 @@ async def render_project_report(
                 and_(
                     Collection.id == project_id,
                     Workspace.owner_id == current_user.id,
+                    Collection.is_deleted.is_(False),
                 )
             )
         )
@@ -177,7 +172,9 @@ async def render_project_report(
             "id": str(project.id),
             "name": getattr(project, "name", "Untitled project"),
             "description": getattr(project, "description", "") or "",
-            "created_at": project.created_at.isoformat() if project.created_at else None,
+            "created_at": (
+                project.created_at.isoformat() if project.created_at else None
+            ),
         },
         documents=documents,
         notes=notes,

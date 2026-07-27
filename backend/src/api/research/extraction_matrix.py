@@ -18,12 +18,12 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import Collection, CollectionDocument, Workspace
 from src.models.document import Document
 from src.models.extraction_matrix import ExtractionCell, ExtractionMatrix
 from src.models.user import User
 from src.services.research.extraction_matrix_service import ExtractionMatrixService
-from src.core.dependencies import get_current_user
 from src.shared.scispace_schemas import (
     CreateMatrixRequest,
     ExtractionCellResponse,
@@ -85,6 +85,7 @@ async def _validate_project_ownership(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
+                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -404,8 +405,9 @@ async def trigger_extraction(
     # Fetch documents and run extraction inline
     extraction_service = ExtractionMatrixService()
 
-    from src.core.config import settings
     import openai
+
+    from src.core.config import settings
 
     azure_key = settings.AZURE_OPENAI_CHAT_API_KEY or settings.AZURE_OPENAI_API_KEY
     azure_endpoint = (

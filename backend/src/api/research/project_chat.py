@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Collection,
@@ -31,7 +32,6 @@ from src.models import (
     Workspace,
 )
 from src.schemas.chat import ThreadCreate
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     LinkThreadRequest,
     NoteCreate,
@@ -70,6 +70,7 @@ async def _get_project_with_auth(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
+                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -265,9 +266,7 @@ async def start_chat_from_project(
             conversation_id=conversation_id,
             project_thread_id=project_thread.id,
             # Pydantic coerces the stored strings to UUIDs (field is List[UUID])
-            document_scope=(thread.rag_document_scope or {}).get(
-                "document_ids", []
-            ),
+            document_scope=(thread.rag_document_scope or {}).get("document_ids", []),
         )
 
     except HTTPException:

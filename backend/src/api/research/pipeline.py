@@ -9,15 +9,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 
-from sqlalchemy import and_, select
-
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import Collection, User, Workspace
 from src.services.research.pipeline_service import PipelineService
-from src.core.dependencies import get_current_user
 
 logger = get_logger()
 router = APIRouter(
@@ -63,7 +62,13 @@ async def _ensure_project_access(
     result = await db.execute(
         select(Collection.id)
         .join(Workspace, Collection.workspace_id == Workspace.id)
-        .where(and_(Collection.id == project_id, Workspace.owner_id == current_user.id))
+        .where(
+            and_(
+                Collection.id == project_id,
+                Workspace.owner_id == current_user.id,
+                Collection.is_deleted.is_(False),
+            )
+        )
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Project not found")

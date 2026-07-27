@@ -99,7 +99,7 @@ class TestListProjects:
         clauses = [db.where(i) for i in range(1, len(db.statements))]
         assert clauses, "no project query was issued"
         for clause in clauses:
-            assert "is_deleted" in clause, (
+            assert "is_deleted is false" in clause, (
                 "list_projects returned soft-deleted projects, which every "
                 "write path then rejects as 'not found or access denied'"
             )
@@ -113,8 +113,43 @@ class TestListProjects:
         page = [db.where(i) for i in indexes if "count" not in db.sql(i)]
 
         assert count and page, "expected both a count query and a page query"
-        assert all("is_deleted" in c for c in count)
-        assert all("is_deleted" in c for c in page)
+        assert all("is_deleted is false" in c for c in count)
+        assert all("is_deleted is false" in c for c in page)
+
+
+class TestNoUnfilteredOwnershipQueries:
+    """The predicate was missing in nine places, not one.
+
+    Every project-ownership query is a hand-rolled copy of the same
+    ``Collection.id == … AND Workspace.owner_id == current_user.id`` pair, and
+    each copy that forgets ``is_deleted`` re-creates the bug for its own
+    feature. A static sweep guards all of them at once; individual tests would
+    have to be remembered for the tenth copy.
+    """
+
+    def test_every_ownership_query_filters_soft_deleted(self) -> None:
+        import re
+        from pathlib import Path
+
+        src = Path(__file__).resolve().parents[3] / "src"
+        pattern = re.compile(
+            r"Collection\.id ==[^\n]*\n(?:[^\n]*\n){0,3}?"
+            r"[^\n]*Workspace\.owner_id == current_user\.id"
+        )
+
+        offenders = []
+        for path in src.rglob("*.py"):
+            text = path.read_text()
+            for match in pattern.finditer(text):
+                window = text[match.start() : match.end() + 220]
+                if "is_deleted" not in window:
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{path.relative_to(src)}:{line}")
+
+        assert not offenders, (
+            "these ownership queries can hand out soft-deleted projects that "
+            "every write path then rejects: " + ", ".join(offenders)
+        )
 
 
 class TestGetProjectForUser:
@@ -125,11 +160,10 @@ class TestGetProjectForUser:
         from src.services.research.project_service import ProjectService
 
         db = _DB(workspace_id=uuid4())
-        db._calls = 1  # skip the workspace-lookup branch
 
         with pytest.raises(HTTPException):
             await ProjectService(db).get_project_for_user(
                 project_id=uuid4(), user_id=uuid4()
             )
 
-        assert "is_deleted" in db.where(0)
+        assert "is_deleted is false" in db.where(0)
