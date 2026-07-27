@@ -20,13 +20,13 @@ from src.services.diagnostics.diagnostics_store import (
     TRACE_KEY_PREFIX,
     TRACE_TTL_SECONDS,
     DiagnosticsStore,
+    _index_key,
 )
 from src.services.diagnostics.retrieval_diagnostics import (
     ContextDiagnostics,
     RetrievalTrace,
     SourceDiagnostics,
 )
-
 
 # ============================================================================
 # Factories
@@ -60,7 +60,7 @@ def _make_trace(**overrides) -> RetrievalTrace:
         "search_type": "hybrid",
     }
     defaults.update(overrides)
-    return RetrievalTrace(**defaults)
+    return RetrievalTrace(organization_id="test-org", **defaults)
 
 
 def _make_sync_redis():
@@ -144,7 +144,8 @@ class TestStoreTrace:
 
         redis.zadd.assert_called_once()
         call_args = redis.zadd.call_args[0]
-        assert call_args[0] == TRACE_INDEX_KEY
+        # The index is per tenant, so it follows the trace's owner.
+        assert call_args[0] == _index_key("test-org")
         # Second arg should be a dict with trace_id as key
         assert "indexed-trace" in call_args[1]
 
@@ -157,14 +158,15 @@ class TestStoreTrace:
 
         await store.store_trace(trace)
 
-        redis.zremrangebyrank.assert_called_once_with(TRACE_INDEX_KEY, 0, -1001)
+        redis.zremrangebyrank.assert_called_once_with(_index_key("test-org"), 0, -1001)
 
     @pytest.mark.asyncio
     async def test_returns_false_when_redis_none(self) -> None:
         """store_trace() should return False when no Redis client is available."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.store_trace(_make_trace())
@@ -245,7 +247,8 @@ class TestGetTrace:
         """get_trace() should return None when no Redis client is available."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_trace("any-id")
@@ -280,7 +283,7 @@ class TestGetRecentTraces:
         store = DiagnosticsStore(redis_client=redis)
         await store.get_recent_traces(limit=10, offset=5)
 
-        redis.zrevrange.assert_called_once_with(TRACE_INDEX_KEY, 5, 14)
+        redis.zrevrange.assert_called_once_with(_index_key(None), 5, 14)
 
     @pytest.mark.asyncio
     async def test_returns_summaries(self) -> None:
@@ -323,7 +326,8 @@ class TestGetRecentTraces:
         """get_recent_traces() should return empty list when Redis is None."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_recent_traces()
@@ -476,7 +480,8 @@ class TestGetAggregateStats:
         """get_aggregate_stats() should return error dict when Redis is None."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_aggregate_stats()
@@ -501,7 +506,12 @@ class TestUpdateTraceEvaluation:
 
         store = DiagnosticsStore(redis_client=redis)
         scores = {"precision_at_3": 0.85, "mrr": 0.92}
-        result = await store.update_trace_evaluation("eval-update", "eval-xyz", scores)
+        result = await store.update_trace_evaluation(
+            "eval-update",
+            "eval-xyz",
+            scores,
+            organization_id="test-org",
+        )
 
         assert result is True
 
@@ -520,7 +530,10 @@ class TestUpdateTraceEvaluation:
 
         store = DiagnosticsStore(redis_client=redis)
         result = await store.update_trace_evaluation(
-            "nonexistent", "eval-1", {"mrr": 0.5}
+            "nonexistent",
+            "eval-1",
+            {"mrr": 0.5},
+            organization_id="test-org",
         )
 
         assert result is False
@@ -533,7 +546,12 @@ class TestUpdateTraceEvaluation:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        await store.update_trace_evaluation("roundtrip", "eval-rt", {"mrr": 0.8})
+        await store.update_trace_evaluation(
+            "roundtrip",
+            "eval-rt",
+            {"mrr": 0.8},
+            organization_id="test-org",
+        )
 
         stored_call = redis.set.call_args[0]
         stored_data = json.loads(stored_call[1])
