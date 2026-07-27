@@ -224,8 +224,12 @@ async def ingest_arxiv_papers(
         Optional[str],
         Field(
             description=(
-                "UUID of an existing project, as returned by list_projects or "
-                "create_project. NOT the project name — a name is rejected."
+                # Deliberately does not name create_project: this tool is bound
+                # to writing as well as research, and create_project is
+                # research-only, so naming it points half the callers at a tool
+                # they cannot invoke.
+                "UUID of an existing project, as returned by list_projects. "
+                "NOT the project name — a name is rejected."
             )
         ),
     ] = None,
@@ -434,8 +438,7 @@ async def list_project_documents(
         limit: Maximum number of documents to return (default 100, max 500).
         offset: Number of documents to skip for pagination (default 0).
 
-    The response includes ``total``, ``returned``, ``limit``, ``offset``, and
-    ``has_more`` so subsequent calls can paginate when needed.
+    Returns pagination fields (``total``/``returned``/``has_more``).
     """
     config = config or {}
     from src.services.agent.tools_impl import _tool_list_project_documents
@@ -912,10 +915,15 @@ TOOL_REGISTRY = ToolRegistry(
             # can only interrogate the user ("which project should I put this
             # in?") — measured on dev at 5 runs out of 5. Read-only and
             # untagged, so binding it adds no destructive surface.
-            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            # DATA too: list_project_documents is bound there and its
+            # _missing_project_error tells the model to "call list_projects".
+            subgraphs=frozenset(
+                {AgentSubgraph.RESEARCH, AgentSubgraph.WRITING, AgentSubgraph.DATA}
+            ),
             subgraph_positions=(
                 (AgentSubgraph.RESEARCH, 5),
                 (AgentSubgraph.WRITING, 7),
+                (AgentSubgraph.DATA, 7),
             ),
             policy_tags=frozenset(),
         ),
@@ -939,8 +947,23 @@ TOOL_REGISTRY = ToolRegistry(
             name="list_project_documents",
             tool=list_project_documents,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 7), (AgentSubgraph.DATA, 6)),
+            # Writing needs it too: summarize_document is bound *only* to
+            # writing, and when it is handed a project id (trace 019f4386) its
+            # error *message* tells the model to call list_project_documents —
+            # a tool writing did not have, so make_filtered_tool_node answered
+            # that call with "not available in this context".
+            # The payload's own "suggestion" field never reaches the model:
+            # _nodes_tools rebuilds the ToolMessage via
+            # classify_error_from_payload, which drops it. Tracked separately.
+            # Read-only and untagged.
+            subgraphs=frozenset(
+                {AgentSubgraph.RESEARCH, AgentSubgraph.DATA, AgentSubgraph.WRITING}
+            ),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 7),
+                (AgentSubgraph.DATA, 6),
+                (AgentSubgraph.WRITING, 8),
+            ),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(

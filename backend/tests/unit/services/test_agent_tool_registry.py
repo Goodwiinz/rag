@@ -301,8 +301,13 @@ class TestProductionToolRegistryParity:
                 # without this the writing executor could only ask the user
                 # for one — measured on dev at 5 runs out of 5.
                 "list_projects",
+                # summarize_document is writing-only and its recoverable hint
+                # names this tool; without the binding the advice is dead.
+                "list_project_documents",
             },
             "data": {
+                # list_project_documents' _missing_project_error names this.
+                "list_projects",
                 "extract_entities",
                 "search_knowledge_graph",
                 "explore_entity_neighborhood",
@@ -344,8 +349,9 @@ class TestProductionToolRegistryParity:
             "compare_documents",
             "search_arxiv",
             "ingest_arxiv_papers",
-            # Appended at position 7 so the existing order is untouched.
+            # Appended at positions 7 and 8 so the existing order is untouched.
             "list_projects",
+            "list_project_documents",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
@@ -357,6 +363,7 @@ class TestProductionToolRegistryParity:
             "get_graph_stats",
             "search_documents",
             "list_project_documents",
+            "list_projects",
         ]
 
     def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(
