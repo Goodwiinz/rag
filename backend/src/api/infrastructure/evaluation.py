@@ -6,15 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Body,
-    Depends,
-    HTTPException,
-    Path,
-    Query,
-)
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -122,7 +114,6 @@ class DatasetEvaluationRequest(BaseModel):
 @router.post("/jobs", response_model=Dict[str, Any])
 async def create_evaluation_job(
     request: DatasetEvaluationRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -182,8 +173,20 @@ async def create_evaluation_job(
         db.add(dataset)
         db.commit()
 
-        # Start evaluation task in background
-        background_tasks.add_task(run_rag_triad_evaluation.delay, str(job.id))
+        # Enqueue inline so a broker failure reaches the caller — see the note
+        # in create_batch_evaluation_job.
+        try:
+            run_rag_triad_evaluation.delay(str(job.id))
+        except Exception:
+            logger.exception(
+                "evaluation enqueue failed for job %s — marking failed", job.id
+            )
+            job.fail_job("Evaluation queue unavailable; the job was not started.")
+            db.commit()
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Created evaluation job {job.id} for user {current_user.id}")
 
@@ -206,7 +209,6 @@ async def create_evaluation_job(
 @router.post("/jobs/batch", response_model=Dict[str, Any])
 async def create_batch_evaluation_job(
     request: BatchEvaluationRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -235,10 +237,26 @@ async def create_batch_evaluation_job(
         db.commit()
         db.refresh(job)
 
-        # Start batch evaluation task in background
-        background_tasks.add_task(
-            run_batch_evaluation.delay, str(job.id), request.queries
-        )
+        # Enqueue LAST, inline, and inside try — the row is durable first, so
+        # the worker's claim always finds it. Going through
+        # ``background_tasks.add_task`` deferred the enqueue until after the
+        # response was sent, so a broker failure could not be reported: the
+        # caller received a job_id for a job that would never run and would
+        # poll a "pending" row forever. Mirrors the dispatch in
+        # ``api/agent/execute.py`` and the sibling ``/real-time`` endpoint.
+        try:
+            run_batch_evaluation.delay(str(job.id), request.queries)
+        except Exception:
+            logger.exception(
+                "batch evaluation enqueue failed for job %s — marking failed",
+                job.id,
+            )
+            job.fail_job("Evaluation queue unavailable; the job was not started.")
+            db.commit()
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Created batch evaluation job {job.id} for user {current_user.id}")
 
@@ -448,7 +466,6 @@ async def get_evaluation_metrics(
 @router.post("/comparisons", response_model=Dict[str, Any])
 async def create_evaluation_comparison(
     request: ComparisonRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -485,15 +502,23 @@ async def create_evaluation_comparison(
                 status_code=404, detail="Comparison evaluation job not found"
             )
 
-        # Start comparison task in background
-        background_tasks.add_task(
-            run_comparison_evaluation.delay,
-            request.name,
-            request.baseline_job_id,
-            request.comparison_job_id,
-            str(current_user.id),
-            str(current_user.organization_id),
-        )
+        # Enqueue inline: this endpoint reports "started", so a deferred
+        # enqueue that fails post-response would report a comparison that
+        # never runs. See the note in create_batch_evaluation_job.
+        try:
+            run_comparison_evaluation.delay(
+                request.name,
+                request.baseline_job_id,
+                request.comparison_job_id,
+                str(current_user.id),
+                str(current_user.organization_id),
+            )
+        except Exception:
+            logger.exception("comparison enqueue failed for %s", request.name)
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started evaluation comparison: {request.name}")
 
@@ -565,7 +590,6 @@ async def list_evaluation_comparisons(
 async def trigger_evaluation_report(
     job_id: str,
     report_type: str,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -592,8 +616,17 @@ async def trigger_evaluation_report(
                 detail="Evaluation job must be completed to generate report",
             )
 
-        # Start report generation task in background
-        background_tasks.add_task(generate_evaluation_report.delay, job_id, report_type)
+        # Enqueue inline: the endpoint reports "started". The module-global
+        # shadowing hazard noted above was only ever visible because the
+        # AttributeError was swallowed post-response — inline, it surfaces.
+        try:
+            generate_evaluation_report.delay(job_id, report_type)
+        except Exception:
+            logger.exception("report enqueue failed for job %s", job_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Report queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started {report_type} report generation for job {job_id}")
 
