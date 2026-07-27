@@ -456,7 +456,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
               <p className="text-xs font-mono">NO_CUSTOM_FIELDS</p>
             </div>
           ) : (
-            metadataFields.map((field, index) => (
+            metadataFields.map((field: MetadataField, index: number) => (
               <div key={index} className="flex items-center space-x-2">
                 <Input
                   placeholder="KEY"
@@ -546,7 +546,7 @@ export const EntityForm: React.FC<EntityFormProps> = ({
                 An entity with the name <span className="text-(--nous-fg-1) font-bold">{formData.name}</span> and type <span className="text-(--nous-fg-1) font-bold">{formData.type}</span> already exists:
               </p>
               <div className="space-y-2">
-                {duplicateWarning.entities.map((dup) => (
+                {duplicateWarning.entities.map((dup: Entity) => (
                   <Card key={dup.id} className="p-3 bg-(--nous-bg-3) border-(--nous-border-1)">
                     <div className="text-xs font-mono">
                       <div className="font-bold text-(--nous-fg-1)">{dup.name}</div>
