@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
+from kombu.exceptions import OperationalError
 from pydantic import BaseModel, Field
 
 from src.core.database import get_db_sync
@@ -110,6 +111,28 @@ class DatasetEvaluationRequest(BaseModel):
     )
 
 
+def _fail_job_quietly(db, job, job_id_str: str) -> None:
+    """Best-effort "the queue rejected this" marker on an already-committed row.
+
+    The sync ``SessionLocal`` leaves ``expire_on_commit=True`` (unlike
+    ``AsyncSessionLocal``), so ``job`` is expired here and ``fail_job`` reads
+    ``started_at`` — a lazy refresh. When the outage is shared infrastructure
+    rather than Redis alone, that refresh (or the commit) raises *inside* the
+    except block, escapes to the outer 500 handler, and the caller loses the
+    503 this path exists to deliver. Swallow it: an unmarked row is a smaller
+    problem than a misreported status.
+    """
+    logger.exception(
+        "evaluation enqueue failed for job %s — marking failed", job_id_str
+    )
+    try:
+        job.fail_job("Evaluation queue unavailable; the job was not started.")
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("could not mark evaluation job %s failed", job_id_str)
+
+
 # Evaluation job endpoints
 @router.post("/jobs", response_model=Dict[str, Any])
 async def create_evaluation_job(
@@ -175,14 +198,11 @@ async def create_evaluation_job(
 
         # Enqueue inline so a broker failure reaches the caller — see the note
         # in create_batch_evaluation_job.
+        job_id_str = str(job.id)
         try:
-            run_rag_triad_evaluation.delay(str(job.id))
-        except Exception:
-            logger.exception(
-                "evaluation enqueue failed for job %s — marking failed", job.id
-            )
-            job.fail_job("Evaluation queue unavailable; the job was not started.")
-            db.commit()
+            run_rag_triad_evaluation.delay(job_id_str)
+        except OperationalError:
+            _fail_job_quietly(db, job, job_id_str)
             raise HTTPException(
                 status_code=503,
                 detail="Evaluation queue unavailable. Please retry.",
@@ -244,15 +264,11 @@ async def create_batch_evaluation_job(
         # caller received a job_id for a job that would never run and would
         # poll a "pending" row forever. Mirrors the dispatch in
         # ``api/agent/execute.py`` and the sibling ``/real-time`` endpoint.
+        job_id_str = str(job.id)
         try:
-            run_batch_evaluation.delay(str(job.id), request.queries)
-        except Exception:
-            logger.exception(
-                "batch evaluation enqueue failed for job %s — marking failed",
-                job.id,
-            )
-            job.fail_job("Evaluation queue unavailable; the job was not started.")
-            db.commit()
+            run_batch_evaluation.delay(job_id_str, request.queries)
+        except OperationalError:
+            _fail_job_quietly(db, job, job_id_str)
             raise HTTPException(
                 status_code=503,
                 detail="Evaluation queue unavailable. Please retry.",
@@ -287,13 +303,20 @@ async def evaluate_real_time(
     """
     try:
         # Start real-time evaluation task
-        task = run_real_time_evaluation.delay(
-            request.query,
-            request.generated_answer,
-            request.retrieved_context,
-            request.reference_answer,
-            str(current_user.organization_id),
-        )
+        try:
+            task = run_real_time_evaluation.delay(
+                request.query,
+                request.generated_answer,
+                request.retrieved_context,
+                request.reference_answer,
+                str(current_user.organization_id),
+            )
+        except OperationalError:
+            logger.exception("real-time evaluation enqueue failed")
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started real-time evaluation for user {current_user.id}")
 
@@ -513,7 +536,7 @@ async def create_evaluation_comparison(
                 str(current_user.id),
                 str(current_user.organization_id),
             )
-        except Exception:
+        except OperationalError:
             logger.exception("comparison enqueue failed for %s", request.name)
             raise HTTPException(
                 status_code=503,
@@ -616,12 +639,13 @@ async def trigger_evaluation_report(
                 detail="Evaluation job must be completed to generate report",
             )
 
-        # Enqueue inline: the endpoint reports "started". The module-global
-        # shadowing hazard noted above was only ever visible because the
-        # AttributeError was swallowed post-response — inline, it surfaces.
+        # Enqueue inline: the endpoint reports "started". Only broker errors
+        # become 503 — the module-global shadowing hazard noted above raises
+        # AttributeError, which must reach the 500 handler rather than be
+        # reported to the caller as a retryable outage.
         try:
             generate_evaluation_report.delay(job_id, report_type)
-        except Exception:
+        except OperationalError:
             logger.exception("report enqueue failed for job %s", job_id)
             raise HTTPException(
                 status_code=503,
