@@ -203,6 +203,7 @@ async def create_thread(
                 and_(
                     Collection.id == data.project_id,
                     Workspace.owner_id == current_user.id,
+                    Collection.is_deleted.is_(False),
                 )
             )
         )

@@ -52,7 +52,14 @@ class ProjectService:
                 "has_prev": False,
             }
 
-        filters = [Collection.workspace_id.in_(workspace_ids)]
+        # Soft-deleted projects are still rows in ``collections``. Every write
+        # path (_verify_project_ownership, project_skills access, the RAG node)
+        # filters them out, so listing them hands callers ids that are then
+        # rejected as "Project not found or access denied".
+        filters = [
+            Collection.workspace_id.in_(workspace_ids),
+            Collection.is_deleted.is_(False),
+        ]
         if workspace_id:
             filters.append(Collection.workspace_id == workspace_id)
         if project_status:
@@ -163,6 +170,7 @@ class ProjectService:
                 and_(
                     Collection.id == project_id,
                     Workspace.owner_id == user_id,
+                    Collection.is_deleted.is_(False),
                 )
             )
         )

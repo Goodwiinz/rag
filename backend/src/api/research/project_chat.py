@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 from structlog import get_logger
 
 from src.core.database import get_db
+from src.core.dependencies import get_current_user
 from src.models import (
     ChatMessage,
     Collection,
@@ -31,7 +32,6 @@ from src.models import (
     Workspace,
 )
 from src.schemas.chat import ThreadCreate
-from src.core.dependencies import get_current_user
 from src.shared.research_schemas import (
     LinkThreadRequest,
     NoteCreate,
@@ -70,6 +70,7 @@ async def _get_project_with_auth(
             and_(
                 Collection.id == project_id,
                 Workspace.owner_id == current_user.id,
+                Collection.is_deleted.is_(False),
             )
         )
     )
@@ -265,9 +266,7 @@ async def start_chat_from_project(
             conversation_id=conversation_id,
             project_thread_id=project_thread.id,
             # Pydantic coerces the stored strings to UUIDs (field is List[UUID])
-            document_scope=(thread.rag_document_scope or {}).get(
-                "document_ids", []
-            ),
+            document_scope=(thread.rag_document_scope or {}).get("document_ids", []),
         )
 
     except HTTPException:
@@ -511,6 +510,11 @@ async def unlink_thread_from_project(
                     ProjectThread.project_id != project_id,
                     ProjectThread.is_deleted == False,
                     Workspace.owner_id == current_user.id,
+                    # The link row can be live while its project is soft
+                    # deleted; without this, unlinking repoints
+                    # thread.source_project_id at a dead project and every
+                    # later agent turn on the thread fails to resolve it.
+                    Collection.is_deleted.is_(False),
                 )
             )
             .order_by(ProjectThread.linked_at.desc(), ProjectThread.id.desc())
