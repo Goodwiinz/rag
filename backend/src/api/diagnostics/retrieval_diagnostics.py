@@ -58,7 +58,6 @@ class WeightExperimentResponse(BaseModel):
     results: List[WeightExperimentResult]
 
 
-
 def _require_tenant(current_user: User) -> str:
     """The caller's tenant, or 403.
 

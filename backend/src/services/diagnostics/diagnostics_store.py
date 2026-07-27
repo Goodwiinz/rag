@@ -266,7 +266,10 @@ class DiagnosticsStore:
             return {"error": str(e)}
 
     async def update_trace_evaluation(
-        self, trace_id: str, evaluation_id: str, scores: Dict[str, float],
+        self,
+        trace_id: str,
+        evaluation_id: str,
+        scores: Dict[str, float],
         organization_id: str,
     ) -> bool:
         """Update a trace with evaluation results (called by background eval)."""
