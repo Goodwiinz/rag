@@ -323,10 +323,10 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
             />
             <Button 
               type="button" 
-              aria-label="Add evidence"
+                      aria-label="Add evidence"
               onClick={addEvidence}
               variant="outline"
-              className="border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-1) hover:text-(--nous-sol) hover:border-(--nous-sol) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+                      className="border-(--nous-border-1) bg-(--nous-bg-3) text-(--nous-fg-1) hover:text-(--nous-sol) hover:border-(--nous-sol) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -339,9 +339,9 @@ export const RelationshipForm: React.FC<RelationshipFormProps> = ({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label="Remove evidence"
+                          aria-label="Remove evidence"
                   onClick={() => removeEvidence(index)}
-                  className="h-6 w-6 text-(--nous-fg-3) hover:text-red-400 hover:bg-red-400/10 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
+                          className="h-6 w-6 text-(--nous-fg-3) hover:text-red-400 hover:bg-red-400/10 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--nous-sol)"
                 >
                   <X className="h-3 w-3" />
                 </Button>

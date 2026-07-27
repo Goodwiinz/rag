@@ -149,7 +149,7 @@ function EntityManagementContent() {
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    setMounted(true);
+    setTimeout(() => setMounted(true), 0);
 
     // Initialize state from URL params
     const tab = searchParams.get('tab');
@@ -157,11 +157,13 @@ function EntityManagementContent() {
     const page = searchParams.get('page');
     const types = searchParams.get('types');
 
-    if (tab) setActiveTab(tab);
-    if (page) setCurrentPage(parseInt(page));
-    if (types) {
-      setSelectedTypes(types.split(',') as EntityType[]);
-    }
+    setTimeout(() => {
+      if (tab) setActiveTab(tab);
+      if (page) setCurrentPage(parseInt(page));
+      if (types) {
+        setSelectedTypes(types.split(',') as EntityType[]);
+      }
+    }, 0);
   }, []);
 
   // Update URL when state changes
@@ -291,13 +293,13 @@ function EntityManagementContent() {
 
   // Initial load
   useEffect(() => {
-    fetchEntities();
+    setTimeout(() => fetchEntities(), 0);
   }, [fetchEntities]);
 
   // Fetch relationships and connected entities when switching to graph tab
   useEffect(() => {
     if (activeTab === 'graph' && graphEntities.length === 0) {
-      fetchRelationships();
+      setTimeout(() => fetchRelationships(), 0);
     }
   }, [activeTab, graphEntities.length, fetchRelationships]);
 
@@ -505,7 +507,7 @@ function EntityManagementContent() {
       setSourceEntityId(null);
       // Refresh relationships if on graph tab
       if (activeTab === 'graph') {
-        fetchRelationships();
+        setTimeout(() => fetchRelationships(), 0);
       }
     } catch (error) {
       logEntityPageError('Error creating relationship', error);
@@ -531,7 +533,7 @@ function EntityManagementContent() {
         key: 'r',
         ctrl: true,
         action: () => {
-          fetchEntities();
+          setTimeout(() => fetchEntities(), 0);
           if (activeTab === 'graph') fetchRelationships();
         },
         description: 'Refresh data',
@@ -622,7 +624,7 @@ function EntityManagementContent() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    fetchEntities();
+                    setTimeout(() => fetchEntities(), 0);
                     if (activeTab === 'graph') fetchRelationships();
                   }}
                   disabled={loading}
@@ -678,7 +680,7 @@ function EntityManagementContent() {
                 <Button
                   onClick={() => {
                     setServiceUnavailable(false);
-                    fetchEntities();
+                    setTimeout(() => fetchEntities(), 0);
                     if (activeTab === 'graph') fetchRelationships();
                   }}
                   variant="outline"
@@ -1074,7 +1076,7 @@ function EntityManagementContent() {
                       await entityService.createEntity(createRequest);
                       toast.success('Entity created successfully');
                       setEditDialogOpen(false);
-                      fetchEntities();
+                      setTimeout(() => fetchEntities(), 0);
                     } catch (error) {
                       logEntityPageError('Error creating entity', error);
                       toast.error('Failed to create entity');
