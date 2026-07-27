@@ -306,6 +306,8 @@ class TestProductionToolRegistryParity:
                 "list_project_documents",
             },
             "data": {
+                # list_project_documents' _missing_project_error names this.
+                "list_projects",
                 "extract_entities",
                 "search_knowledge_graph",
                 "explore_entity_neighborhood",
@@ -361,6 +363,7 @@ class TestProductionToolRegistryParity:
             "get_graph_stats",
             "search_documents",
             "list_project_documents",
+            "list_projects",
         ]
 
     def test_research_only_tool_is_registered_but_hidden_from_legacy_all_tools(

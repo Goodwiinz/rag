@@ -22,13 +22,11 @@ TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
     ),
     ("create_project_note", "project_id is required"): (
         "recoverable",
-        "Call list_projects for an existing project_id, or create_project "
-        "first, then retry with that id.",
+        "Call list_projects for an existing project_id, then retry with " "that id.",
     ),
     ("create_draft", "project_id is required"): (
         "recoverable",
-        "Call list_projects for an existing project_id, or create_project "
-        "first, then retry with that id.",
+        "Call list_projects for an existing project_id, then retry with " "that id.",
     ),
     ("ingest_arxiv_papers", "timed out"): (
         "transient",

@@ -40,7 +40,16 @@ class TestMissingParameter:
         err = _classify("create_project_note", "project_id is required")
 
         assert "list_projects" in (err.suggestion or "")
-        assert "create_project" in (err.suggestion or "")
+
+    def test_the_hint_does_not_promise_a_tool_writing_cannot_call(self) -> None:
+        """This hint fires only for create_project_note / create_draft, both of
+        which are bound to the writing subgraph alone. ``create_project`` is
+        research-only, so naming it sent the writing executor after a tool it
+        has no binding for — the same dead-end as #1284.
+        """
+        err = _classify("create_project_note", "project_id is required")
+
+        assert "create_project " not in (err.suggestion or "")
 
     def test_create_draft_gets_the_same_hint(self) -> None:
         err = _classify("create_draft", "project_id is required")

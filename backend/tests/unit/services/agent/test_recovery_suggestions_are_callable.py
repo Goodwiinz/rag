@@ -1,112 +1,184 @@
-"""A recovery suggestion must name a tool the caller can actually call.
+"""Advice that names a tool must name one the caller can reach.
 
-``summarize_document`` is bound **only** to the writing subgraph. When it is
-handed a project id instead of a document id — a real agent mistake, trace
-019f4386, which is why the branch exists — it returns::
-
-    {"error": "'<id>' is a project id, not a document id. Call
-      list_project_documents(project_id=...) ...",
-     "error_type": "recoverable",
-     "suggestion": "list_project_documents"}
-
-``list_project_documents`` was bound to research and data, never to writing.
-So the one subgraph that can reach this error was the one subgraph that could
-not follow the advice: the classification says "recoverable", the model
-retries, and the tool it is told to use is not in its binding. The user's
-summarize request dies there.
+``summarize_document`` is bound **only** to the writing subgraph. Handed a
+project id instead of a document id — a real agent mistake, trace 019f4386,
+which is why the branch exists — it answers with prose telling the model to
+``Call list_project_documents(project_id=...)``. That tool was bound to
+research and data, never to writing, so ``make_filtered_tool_node`` replied
+"not available in this context" and the summarize request died there.
 
 Same shape as #1284, where a shared prompt rule told the writing executor to
-call ``list_projects`` before that tool was bound to writing. A rule or hint
-naming an unreachable tool is worse than no hint — the model burns its retry
-budget, or invents the call in prose.
+call ``list_projects`` before that tool was bound to writing.
 
-The sweep below is the general guard: every ``"suggestion"`` a tool emits must
-be bound wherever that tool is bound.
+**What actually reaches the model.** A tool's own ``error_type`` and
+``suggestion`` keys do *not*: ``_nodes_tools`` rebuilds the ToolMessage from
+``classify_error_from_payload``, which reads only ``payload["error"]`` and
+re-derives the category. Verified against the real payload — the tool returns
+``error_type="recoverable", suggestion="list_project_documents"`` and the model
+receives ``{"error": "…", "error_type": "fatal"}``. So the guard below scans
+**message prose** and the ``TOOL_ERROR_HINTS`` table, which are delivered, and
+not the stripped ``suggestion`` field. (That the classifier discards
+tool-authored hints — and downgrades them to ``fatal``, telling the agent not
+to recover — is a separate bug, tracked on its own.)
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Iterable, List, Set
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-_SUBGRAPHS = ("research", "writing", "data")
+_AGENT = Path(__file__).resolve().parents[4] / "src" / "services" / "agent"
+
+
+def _subgraph_names() -> List[str]:
+    """Derived, so a new subgraph cannot silently fall out of coverage."""
+    from src.services.agent.tool_registry import AgentSubgraph
+
+    return [s.value for s in AgentSubgraph]
 
 
 def _bindings() -> Dict[str, Set[str]]:
     from src.services.agent.tools import TOOL_REGISTRY
 
     bound: Dict[str, Set[str]] = {}
-    for subgraph in _SUBGRAPHS:
+    for subgraph in _subgraph_names():
         for descriptor in TOOL_REGISTRY.descriptors_for_subgraph(subgraph):
             bound.setdefault(descriptor.name, set()).add(subgraph)
     return bound
 
 
-def _unfollowable() -> list[str]:
-    """(tool, suggestion) pairs where the suggestion is out of reach."""
-    bound = _bindings()
-    source = (
-        Path(__file__).resolve().parents[4]
-        / "src"
-        / "services"
-        / "agent"
-        / "tools_impl.py"
-    ).read_text()
+def _unfollowable(
+    sources: Iterable[tuple[str, str]] | None = None,
+    bound: Dict[str, Set[str]] | None = None,
+) -> List[str]:
+    """Advice naming a tool the emitting tool's subgraphs cannot call.
 
-    problems: list[str] = []
-    for match in re.finditer(r"async def _tool_(\w+)\(", source):
-        name = match.group(1)
-        nxt = source.find("\nasync def ", match.end())
-        body = source[match.end() : nxt if nxt > 0 else len(source)]
-        for suggestion in set(re.findall(r'"suggestion":\s*"([a-z_]+)"', body)):
-            if name not in bound or suggestion not in bound:
-                continue  # not a subgraph tool, or free-text advice
-            missing = bound[name] - bound[suggestion]
+    Params are injectable so the guard itself can be tested against planted
+    input rather than only against a tree that currently passes.
+    """
+    bound = _bindings() if bound is None else bound
+    if sources is None:
+        sources = [
+            (p.name, (_AGENT / p.name).read_text())
+            for p in (_AGENT / "tools_impl.py", _AGENT / "tools.py")
+        ]
+
+    known = set(bound)
+    problems: List[str] = []
+    for filename, source in sources:
+        for match in re.finditer(r"(?:async )?def (?:_tool_)?(\w+)\(", source):
+            name = match.group(1)
+            if name not in known:
+                continue
+            nxt = source.find("\ndef ", match.end())
+            nxt_async = source.find("\nasync def ", match.end())
+            end = min(x for x in (nxt, nxt_async, len(source)) if x > 0)
+            # Comments are not delivered to the model — only docstrings, Field
+            # descriptions and error strings are. Scanning them would flag the
+            # very notes that explain why a tool is *not* named.
+            body = "\n".join(
+                line
+                for line in source[match.end() : end].splitlines()
+                if not line.lstrip().startswith("#")
+            )
+            # Every other tool named anywhere in this tool's error strings.
+            named = {
+                other
+                for other in known
+                if other != name and re.search(rf"\b{other}\b", body)
+            }
+            for other in named:
+                missing = bound[name] - bound[other]
+                if missing:
+                    problems.append(
+                        f"{filename}:{name} (in {sorted(bound[name])}) points at "
+                        f"{other} (only in {sorted(bound[other])}) — unreachable "
+                        f"from {sorted(missing)}"
+                    )
+    return problems
+
+
+def _hint_problems() -> List[str]:
+    """TOOL_ERROR_HINTS entries survive classification and are delivered."""
+    from src.services.agent.error_recovery import TOOL_ERROR_HINTS
+
+    bound = _bindings()
+    problems: List[str] = []
+    for (tool, _fragment), (_category, hint) in TOOL_ERROR_HINTS.items():
+        if tool not in bound:
+            continue
+        for other in bound:
+            if other == tool or not re.search(rf"\b{other}\b", hint):
+                continue
+            missing = bound[tool] - bound[other]
             if missing:
                 problems.append(
-                    f"{name} (in {sorted(bound[name])}) suggests {suggestion} "
-                    f"(only in {sorted(bound[suggestion])}) — unreachable from "
-                    f"{sorted(missing)}"
+                    f"hint for {tool} names {other}, unreachable from {sorted(missing)}"
                 )
     return problems
 
 
-class TestWritingCanFollowItsOwnHint:
+class TestWritingCanFollowItsOwnAdvice:
     def test_list_project_documents_is_bound_to_writing(self) -> None:
-        bound = _bindings()
-
-        assert "writing" in bound["list_project_documents"], (
-            "summarize_document is writing-only and tells the model to call "
-            "list_project_documents; without the binding that advice is dead"
+        assert "writing" in _bindings()["list_project_documents"], (
+            "summarize_document is writing-only and its error tells the model "
+            "to call list_project_documents; without the binding that is dead"
         )
 
-    def test_the_other_subgraphs_keep_it(self) -> None:
-        bound = _bindings()
-
-        assert {"research", "data"} <= bound["list_project_documents"]
+    def test_other_subgraphs_keep_it(self) -> None:
+        assert {"research", "data"} <= _bindings()["list_project_documents"]
 
     def test_binding_adds_no_destructive_surface(self) -> None:
         from src.services.agent.graph import DESTRUCTIVE_TOOLS
 
         assert "list_project_documents" not in DESTRUCTIVE_TOOLS
+        assert "list_projects" not in DESTRUCTIVE_TOOLS
 
 
-class TestEverySuggestionIsReachable:
-    def test_no_tool_suggests_something_its_subgraph_lacks(self) -> None:
+class TestDeliveredHintsAreReachable:
+    def test_no_tool_error_hint_names_an_unreachable_tool(self) -> None:
+        assert not _hint_problems(), "; ".join(_hint_problems())
+
+    def test_no_tool_message_points_at_an_unreachable_tool(self) -> None:
         problems = _unfollowable()
 
-        assert not problems, "unfollowable recovery hints: " + "; ".join(problems)
+        assert not problems, "unfollowable advice: " + "; ".join(problems)
 
-    def test_the_sweep_detects_a_planted_mismatch(self) -> None:
-        """A guard nobody tested is a guard that passes vacuously."""
-        bound = _bindings()
 
-        # summarize_document is writing-only; search_documents is not bound to
-        # writing, so it stands in for a hint the writing executor can't follow.
-        assert bound["summarize_document"] == {"writing"}
-        assert "writing" not in bound.get("search_documents", set())
+class TestTheGuardActuallyGuards:
+    """A guard nobody tested is a guard that passes vacuously."""
+
+    def test_it_flags_a_planted_mismatch(self) -> None:
+        planted = [
+            (
+                "fake.py",
+                "async def _tool_summarize_document(x):\n"
+                '    return {"error": "Call list_project_documents first."}\n',
+            )
+        ]
+        bound = {"summarize_document": {"writing"}, "list_project_documents": {"data"}}
+
+        problems = _unfollowable(planted, bound)
+
+        assert problems, "the sweep must catch advice its subgraph cannot follow"
+        assert "list_project_documents" in problems[0]
+
+    def test_it_stays_quiet_when_the_tool_is_reachable(self) -> None:
+        planted = [
+            (
+                "fake.py",
+                "async def _tool_summarize_document(x):\n"
+                '    return {"error": "Call list_project_documents first."}\n',
+            )
+        ]
+        bound = {
+            "summarize_document": {"writing"},
+            "list_project_documents": {"data", "writing"},
+        }
+
+        assert _unfollowable(planted, bound) == []
