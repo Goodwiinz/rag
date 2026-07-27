@@ -16,3 +16,6 @@
 ## 2026-07-23 - `set-state-in-effect` Performance Gotchas
 **Learning:** Initializing component states via `useEffect` matching incoming props triggers a react-hooks/set-state-in-effect lint failure because calling `setState` inside an effect creates cascading re-renders that damage performance.
 **Action:** Always initialize component state based on incoming props lazily inside the `useState` callback instead of running it through a `useEffect` on mount.
+## 2026-07-23 - Explicit Keys for Form Mount/Unmount
+**Learning:** Component states lazily initialized via `useState` instead of `useEffect` safely avoid `react-hooks/set-state-in-effect` linting errors, but depend heavily on explicit unmounting when transitioning between different items. React's implicit DOM-diffing logic may otherwise keep the component mounted between different entity props, silently rendering stale data.
+**Action:** Always provide a unique `key` prop (e.g., `key={selectedEntity?.id ?? 'new'}`) to complex dialog forms or interactive panels where their internal states are lazily initialized on mount, to guarantee they rebuild explicitly upon data changes.

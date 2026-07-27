@@ -1056,6 +1056,7 @@ function EntityManagementContent() {
             </DialogHeader>
             <div className="py-4">
               <EntityForm
+                key={selectedEntity?.id ?? 'new'}
                 entity={selectedEntity}
                 onSubmit={async (data) => {
                   if (selectedEntity) {
@@ -1129,6 +1130,7 @@ function EntityManagementContent() {
             </DialogHeader>
             <div className="py-4">
               <RelationshipForm
+                key={sourceEntityId ?? 'new'}
                 sourceEntityId={sourceEntityId || undefined}
                 onSubmit={handleCreateRelationship}
                 onCancel={() => {
