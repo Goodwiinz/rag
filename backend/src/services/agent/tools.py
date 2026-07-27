@@ -907,8 +907,16 @@ TOOL_REGISTRY = ToolRegistry(
             name="list_projects",
             tool=list_projects,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 5),),
+            # Writing needs it too: create_project_note / create_draft require a
+            # project_id, and without a way to look one up the writing executor
+            # can only interrogate the user ("which project should I put this
+            # in?") — measured on dev at 5 runs out of 5. Read-only and
+            # untagged, so binding it adds no destructive surface.
+            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.WRITING}),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 5),
+                (AgentSubgraph.WRITING, 7),
+            ),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(

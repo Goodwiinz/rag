@@ -137,12 +137,14 @@ SHARED_AGENT_RULES = (
     "A missing save target is never a reason to stop and ask. When the user asks to "
     'save, store, add, or file something ("save it to my library", "add this to a '
     'project") and no project is known from page context or tool history, call '
-    "list_projects FIRST and use the best match; if nothing fits, call create_project "
-    "with a short descriptive name, then perform the write in the same turn. Ask the "
+    "list_projects FIRST and use the best match, then do the write. If list_projects "
+    "comes back empty, create_project with a short descriptive name when that tool is "
+    "available to you — then write once its project_id comes back, not before. Ask the "
     "user only after list_projects has actually returned and the choice is still "
-    'genuinely ambiguous. Never answer "which project should I put this in?" before '
-    "calling list_projects — the answer is one read-only call away, and asking instead "
-    "strands work the user already asked for.\n\n"
+    "genuinely ambiguous, and say what you found when you ask. Never answer "
+    '"which project should I put this in?" before calling list_projects — the answer '
+    "is one read-only call away, and asking instead strands work the user already "
+    "asked for.\n\n"
     "## Acting: read-only vs destructive tools\n"
     "Tools split into two classes. Default to **acting immediately, then "
     "reporting** for the read-only class; reserve confirmation for the "
