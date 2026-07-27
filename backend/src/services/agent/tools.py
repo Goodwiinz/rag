@@ -939,8 +939,19 @@ TOOL_REGISTRY = ToolRegistry(
             name="list_project_documents",
             tool=list_project_documents,
             intents=frozenset({AgentIntent.RESEARCH, AgentIntent.GENERAL}),
-            subgraphs=frozenset({AgentSubgraph.RESEARCH, AgentSubgraph.DATA}),
-            subgraph_positions=((AgentSubgraph.RESEARCH, 7), (AgentSubgraph.DATA, 6)),
+            # Writing needs it too: summarize_document is bound *only* to
+            # writing, and when it is handed a project id (trace 019f4386) its
+            # recoverable hint tells the model to call list_project_documents —
+            # a tool the writing subgraph did not have, so the suggestion was
+            # unfollowable every time it fired. Read-only and untagged.
+            subgraphs=frozenset(
+                {AgentSubgraph.RESEARCH, AgentSubgraph.DATA, AgentSubgraph.WRITING}
+            ),
+            subgraph_positions=(
+                (AgentSubgraph.RESEARCH, 7),
+                (AgentSubgraph.DATA, 6),
+                (AgentSubgraph.WRITING, 8),
+            ),
             policy_tags=frozenset(),
         ),
         ToolDescriptor(
