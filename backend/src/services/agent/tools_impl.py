@@ -2060,19 +2060,31 @@ async def _tool_list_projects(
         # several.
         search_ignored = False
         if search and not projects:
-            fallback = await service.list_projects(
-                user_id=current_user.id,
-                project_status=status,
-                tag=tag,
-                search=None,
-                skip=0,
-                limit=limit,
-            )
-            fallback_projects = list(fallback.get("projects") or [])
-            if fallback_projects:
-                projects = fallback_projects
-                result = fallback
-                search_ignored = True
+            try:
+                fallback = await service.list_projects(
+                    user_id=current_user.id,
+                    project_status=status,
+                    # ``tag`` is dropped with ``search``: both are free text
+                    # the model derives from the user's phrasing, and a
+                    # hallucinated tag dead-ends exactly like a hallucinated
+                    # name. ``status`` is kept — it is a constrained
+                    # vocabulary and a plausible real intent ("my active
+                    # projects").
+                    tag=None,
+                    search=None,
+                    skip=0,
+                    limit=limit,
+                )
+            except Exception:
+                # The first query succeeded; a failure here must not turn a
+                # usable empty result into an error the model has to handle.
+                logger.warning("list_projects search fallback failed", exc_info=True)
+            else:
+                fallback_projects = list(fallback.get("projects") or [])
+                if fallback_projects:
+                    projects = fallback_projects
+                    result = fallback
+                    search_ignored = True
 
         payload: Dict[str, Any] = {
             "projects": [
@@ -2094,10 +2106,23 @@ async def _tool_list_projects(
             "returned": len(projects),
         }
         if search_ignored:
+            shown = len(projects)
+            total = result.get("total", shown)
             payload["search_ignored"] = search
+            # State the fact; withhold the licence. The model has just shown
+            # it does not know the target's name, and the confirmation card
+            # renders only {name, args} — the user approving a write sees a
+            # project_id UUID, never a project name, so a wrong pick is not
+            # human-catchable. Telling it to "pick the best fit" would trade a
+            # visible failed call for a silent write into the wrong project.
+            #
+            # "every project" would also be false whenever total > limit:
+            # total is an unlimited count, the rows are limited.
             payload["note"] = (
-                f"No project matched '{search}', so every project is listed "
-                "instead. Pick the best fit by name."
+                f"No project name matched '{search}'. The filter was dropped; "
+                f"showing {shown} of {total} projects. If exactly one is an "
+                "obvious fit, use it; otherwise ask the user which one before "
+                "writing."
             )
         return payload
     except Exception as e:

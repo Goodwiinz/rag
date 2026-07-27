@@ -410,7 +410,16 @@ async def create_project_note(
 async def list_projects(
     status: Optional[str] = None,
     tag: Optional[str] = None,
-    search: Optional[str] = None,
+    search: Annotated[
+        Optional[str],
+        Field(
+            description=(
+                "Substring match against project NAMES only. Do not pass the "
+                "user's phrasing — 'my library', 'my notes' and similar are "
+                "not project names. Omit this to list everything."
+            )
+        ),
+    ] = None,
     limit: int = 20,
     config: RunnableConfig = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:

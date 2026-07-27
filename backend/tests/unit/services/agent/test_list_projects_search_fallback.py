@@ -43,17 +43,39 @@ def _project(name: str) -> MagicMock:
 
 
 class _Service:
-    """Stands in for ProjectService, recording each call's search term."""
+    """Stands in for ProjectService.
+
+    The signature is spelled out rather than swallowed by ``**kwargs`` so a
+    renamed keyword fails here instead of passing the fake and blowing up
+    against the real service. ``limit`` is honoured so truncation — where
+    ``total`` exceeds the rows returned — is expressible.
+    """
 
     def __init__(self, by_search: Dict[Any, List[MagicMock]]) -> None:
         self._by_search = by_search
-        self.searches: List[Any] = []
+        self.calls: List[Dict[str, Any]] = []
 
-    async def list_projects(self, **kwargs: Any) -> Dict[str, Any]:
-        search = kwargs.get("search")
-        self.searches.append(search)
+    async def list_projects(
+        self,
+        *,
+        user_id: Any,
+        workspace_id: Any = None,
+        project_status: Any = None,
+        project_type: Any = None,
+        tag: Any = None,
+        search: Any = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        self.calls.append(
+            {"search": search, "tag": tag, "project_status": project_status}
+        )
         found = self._by_search.get(search, [])
-        return {"projects": found, "total": len(found)}
+        return {"projects": found[skip : skip + limit], "total": len(found)}
+
+    @property
+    def searches(self) -> List[Any]:
+        return [c["search"] for c in self.calls]
 
 
 async def _run(monkeypatch: pytest.MonkeyPatch, service: _Service, args: dict) -> dict:
@@ -119,3 +141,70 @@ class TestSearchFallback:
         await _run(monkeypatch, service, {})
 
         assert service.searches == [None]
+
+
+class TestFallbackPayloadIsHonest:
+    async def test_the_note_counts_shown_versus_total(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ "every project is listed" would be false whenever total > limit."""
+        service = _Service(
+            {None: [_project(f"p{i}") for i in range(30)], "library": []}
+        )
+
+        result = await _run(monkeypatch, service, {"search": "library", "limit": 10})
+
+        assert len(result["projects"]) == 10
+        assert "showing 10 of 30" in result["note"]
+
+    async def test_the_note_does_not_licence_an_arbitrary_pick(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The confirmation card shows a project_id, never a name.
+
+        So the user cannot catch a wrong pick, and the note must not tell a
+        model that has just misidentified the target to choose freely.
+        """
+        service = _Service({None: [_project("a"), _project("b")], "library": []})
+
+        note = (await _run(monkeypatch, service, {"search": "library"}))["note"]
+
+        assert "ask the user" in note
+        assert "best fit by name" not in note
+
+    async def test_a_hallucinated_tag_is_dropped_with_the_search(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tag is free text from the same phrasing that produced the search."""
+        service = _Service({None: [_project("real")], "library": []})
+
+        await _run(monkeypatch, service, {"search": "library", "tag": "library"})
+
+        assert service.calls[-1]["tag"] is None
+
+    async def test_status_survives_the_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """status is a constrained vocabulary and a plausible real intent."""
+        service = _Service({None: [_project("real")], "library": []})
+
+        await _run(monkeypatch, service, {"search": "library", "status": "active"})
+
+        assert service.calls[-1]["project_status"] == "active"
+
+    async def test_a_failing_fallback_leaves_the_first_result_intact(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A second-query failure must not break a path that worked before."""
+
+        class _Flaky(_Service):
+            async def list_projects(self, **kwargs: Any) -> Dict[str, Any]:  # type: ignore[override]
+                if kwargs.get("search") is None:
+                    raise RuntimeError("db blip")
+                return {"projects": [], "total": 0}
+
+        result = await _run(monkeypatch, _Flaky({}), {"search": "library"})
+
+        assert result["projects"] == []
+        assert "error" not in result
+        assert "search_ignored" not in result
