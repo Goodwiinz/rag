@@ -50,6 +50,24 @@ if _redis_uses_tls:
 
 celery_app.conf.update(
     **_ssl_conf,
+    # Bound the publish path. Kombu's Redis transport takes its socket
+    # timeouts from broker_transport_options, NOT from
+    # broker_connection_timeout, so without these a blackholed broker (a DO
+    # Managed Redis partition or a hung TLS handshake — not the fast
+    # connection-refused case) falls through to OS TCP retries, ~130s per
+    # attempt. Any request thread that publishes inline would block for
+    # minutes. Paired with a bounded retry policy so a publish fails fast
+    # enough for the caller to be told.
+    broker_transport_options={
+        "socket_connect_timeout": 5,
+        "socket_timeout": 5,
+    },
+    task_publish_retry_policy={
+        "max_retries": 1,
+        "interval_start": 0,
+        "interval_step": 0.2,
+        "interval_max": 0.2,
+    },
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",

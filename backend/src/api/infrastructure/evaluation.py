@@ -6,16 +6,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Body,
-    Depends,
-    HTTPException,
-    Path,
-    Query,
-)
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
+from kombu.exceptions import OperationalError
 from pydantic import BaseModel, Field
 
 from src.core.database import get_db_sync
@@ -118,11 +111,32 @@ class DatasetEvaluationRequest(BaseModel):
     )
 
 
+def _fail_job_quietly(db, job, job_id_str: str) -> None:
+    """Best-effort "the queue rejected this" marker on an already-committed row.
+
+    The sync ``SessionLocal`` leaves ``expire_on_commit=True`` (unlike
+    ``AsyncSessionLocal``), so ``job`` is expired here and ``fail_job`` reads
+    ``started_at`` — a lazy refresh. When the outage is shared infrastructure
+    rather than Redis alone, that refresh (or the commit) raises *inside* the
+    except block, escapes to the outer 500 handler, and the caller loses the
+    503 this path exists to deliver. Swallow it: an unmarked row is a smaller
+    problem than a misreported status.
+    """
+    logger.exception(
+        "evaluation enqueue failed for job %s — marking failed", job_id_str
+    )
+    try:
+        job.fail_job("Evaluation queue unavailable; the job was not started.")
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("could not mark evaluation job %s failed", job_id_str)
+
+
 # Evaluation job endpoints
 @router.post("/jobs", response_model=Dict[str, Any])
 async def create_evaluation_job(
     request: DatasetEvaluationRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -182,8 +196,17 @@ async def create_evaluation_job(
         db.add(dataset)
         db.commit()
 
-        # Start evaluation task in background
-        background_tasks.add_task(run_rag_triad_evaluation.delay, str(job.id))
+        # Enqueue inline so a broker failure reaches the caller — see the note
+        # in create_batch_evaluation_job.
+        job_id_str = str(job.id)
+        try:
+            run_rag_triad_evaluation.delay(job_id_str)
+        except OperationalError:
+            _fail_job_quietly(db, job, job_id_str)
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Created evaluation job {job.id} for user {current_user.id}")
 
@@ -206,7 +229,6 @@ async def create_evaluation_job(
 @router.post("/jobs/batch", response_model=Dict[str, Any])
 async def create_batch_evaluation_job(
     request: BatchEvaluationRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -235,10 +257,22 @@ async def create_batch_evaluation_job(
         db.commit()
         db.refresh(job)
 
-        # Start batch evaluation task in background
-        background_tasks.add_task(
-            run_batch_evaluation.delay, str(job.id), request.queries
-        )
+        # Enqueue LAST, inline, and inside try — the row is durable first, so
+        # the worker's claim always finds it. Going through
+        # ``background_tasks.add_task`` deferred the enqueue until after the
+        # response was sent, so a broker failure could not be reported: the
+        # caller received a job_id for a job that would never run and would
+        # poll a "pending" row forever. Mirrors the dispatch in
+        # ``api/agent/execute.py`` and the sibling ``/real-time`` endpoint.
+        job_id_str = str(job.id)
+        try:
+            run_batch_evaluation.delay(job_id_str, request.queries)
+        except OperationalError:
+            _fail_job_quietly(db, job, job_id_str)
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Created batch evaluation job {job.id} for user {current_user.id}")
 
@@ -269,13 +303,20 @@ async def evaluate_real_time(
     """
     try:
         # Start real-time evaluation task
-        task = run_real_time_evaluation.delay(
-            request.query,
-            request.generated_answer,
-            request.retrieved_context,
-            request.reference_answer,
-            str(current_user.organization_id),
-        )
+        try:
+            task = run_real_time_evaluation.delay(
+                request.query,
+                request.generated_answer,
+                request.retrieved_context,
+                request.reference_answer,
+                str(current_user.organization_id),
+            )
+        except OperationalError:
+            logger.exception("real-time evaluation enqueue failed")
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started real-time evaluation for user {current_user.id}")
 
@@ -448,7 +489,6 @@ async def get_evaluation_metrics(
 @router.post("/comparisons", response_model=Dict[str, Any])
 async def create_evaluation_comparison(
     request: ComparisonRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -485,15 +525,23 @@ async def create_evaluation_comparison(
                 status_code=404, detail="Comparison evaluation job not found"
             )
 
-        # Start comparison task in background
-        background_tasks.add_task(
-            run_comparison_evaluation.delay,
-            request.name,
-            request.baseline_job_id,
-            request.comparison_job_id,
-            str(current_user.id),
-            str(current_user.organization_id),
-        )
+        # Enqueue inline: this endpoint reports "started", so a deferred
+        # enqueue that fails post-response would report a comparison that
+        # never runs. See the note in create_batch_evaluation_job.
+        try:
+            run_comparison_evaluation.delay(
+                request.name,
+                request.baseline_job_id,
+                request.comparison_job_id,
+                str(current_user.id),
+                str(current_user.organization_id),
+            )
+        except OperationalError:
+            logger.exception("comparison enqueue failed for %s", request.name)
+            raise HTTPException(
+                status_code=503,
+                detail="Evaluation queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started evaluation comparison: {request.name}")
 
@@ -565,7 +613,6 @@ async def list_evaluation_comparisons(
 async def trigger_evaluation_report(
     job_id: str,
     report_type: str,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db=Depends(get_db_sync),
 ):
@@ -592,8 +639,18 @@ async def trigger_evaluation_report(
                 detail="Evaluation job must be completed to generate report",
             )
 
-        # Start report generation task in background
-        background_tasks.add_task(generate_evaluation_report.delay, job_id, report_type)
+        # Enqueue inline: the endpoint reports "started". Only broker errors
+        # become 503 — the module-global shadowing hazard noted above raises
+        # AttributeError, which must reach the 500 handler rather than be
+        # reported to the caller as a retryable outage.
+        try:
+            generate_evaluation_report.delay(job_id, report_type)
+        except OperationalError:
+            logger.exception("report enqueue failed for job %s", job_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Report queue unavailable. Please retry.",
+            )
 
         logger.info(f"Started {report_type} report generation for job {job_id}")
 
