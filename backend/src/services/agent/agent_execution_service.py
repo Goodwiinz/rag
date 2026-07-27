@@ -724,14 +724,22 @@ async def _resolve_project_for_thread(
         # Resolve the name via an explicit query rather than the
         # ``source_project`` relationship: not every caller eager-loads it,
         # and an implicit lazy-load raises MissingGreenlet in async context.
-        name = (
+        row = (
             await db.execute(
-                select(Collection.name).where(
+                select(Collection.id, Collection.name).where(
                     Collection.id == scalar, Collection.is_deleted.is_(False)
                 )
             )
-        ).scalar_one_or_none()
-        return str(scalar), name
+        ).first()
+        # Filtering only the *name* would still return the soft-deleted id,
+        # which _resolve_and_bind_project writes into page_context and every
+        # write tool then resolves — rejected as "Project not found or access
+        # denied". Return nothing so the caller falls through to the live-link
+        # fallback and, failing that, runs unscoped rather than bound to a
+        # dead project.
+        if row is None:
+            return None, None
+        return str(row[0]), row[1]
 
     # Fallback: newest live project_threads row
     stmt = (

@@ -127,24 +127,81 @@ class TestNoUnfilteredOwnershipQueries:
     have to be remembered for the tenth copy.
     """
 
-    def test_every_ownership_query_filters_soft_deleted(self) -> None:
+    @staticmethod
+    def _offenders(text: str) -> List[int]:
+        """Ownership queries over Collection that don't exclude deleted rows.
+
+        Anchored on ``Workspace.owner_id ==`` with a window scanned in *both*
+        directions, because a filter written above the id clause is still a
+        filter — an append-only window reports correct code as an offender.
+        The owner is matched regardless of the variable name: ``user_id`` and
+        ``user_uuid`` are both already house style (_nodes_rag, project_service),
+        so keying on ``current_user.id`` would miss them.
+
+        Requires ``Collection.is_deleted`` specifically: a bare ``is_deleted``
+        substring is satisfied by ``ProjectThread.is_deleted`` sitting in the
+        same WHERE, which is exactly how the project_chat unlink query hid.
+        """
         import re
+
+        lines = text.splitlines()
+        offenders: List[int] = []
+        for index, line in enumerate(lines):
+            if "Workspace.owner_id ==" not in line:
+                continue
+            window = "\n".join(lines[max(0, index - 10) : index + 11])
+            touches_collection = (
+                "Collection.id" in window or "Collection.workspace_id" in window
+            )
+            if not touches_collection:
+                continue
+            guarded = re.search(
+                r"Collection\.is_deleted\s*(?:\.is_\(\s*False\s*\)|==\s*False)",
+                window,
+            )
+            if not guarded:
+                offenders.append(index + 1)
+        return offenders
+
+    def test_the_sweep_detects_what_it_claims_to(self) -> None:
+        """A guard nobody has tested is a guard that passes vacuously."""
+        unfiltered = (
+            "select(Collection)\n"
+            ".join(Workspace, Collection.workspace_id == Workspace.id)\n"
+            ".where(and_(Collection.id == pid, Workspace.owner_id == user_id))\n"
+        )
+        assert self._offenders(unfiltered), "must flag an unfiltered query"
+
+        sibling_only = unfiltered.replace(
+            "Collection.id == pid", "Collection.id == pid, ProjectThread.is_deleted"
+        )
+        assert self._offenders(
+            sibling_only
+        ), "ProjectThread.is_deleted must not count as guarding Collection"
+
+        wrong_polarity = unfiltered.replace(
+            "Workspace.owner_id == user_id",
+            "Collection.is_deleted.is_(True), Workspace.owner_id == user_id",
+        )
+        assert self._offenders(wrong_polarity), "is_(True) must not count as guarded"
+
+        filter_first = (
+            "select(Collection)\n"
+            ".where(and_(Collection.is_deleted.is_(False),\n"
+            "Collection.id == pid, Workspace.owner_id == current_user.id))\n"
+        )
+        assert not self._offenders(
+            filter_first
+        ), "a filter written above the id clause is still a filter"
+
+    def test_every_ownership_query_filters_soft_deleted(self) -> None:
         from pathlib import Path
 
         src = Path(__file__).resolve().parents[3] / "src"
-        pattern = re.compile(
-            r"Collection\.id ==[^\n]*\n(?:[^\n]*\n){0,3}?"
-            r"[^\n]*Workspace\.owner_id == current_user\.id"
-        )
-
         offenders = []
         for path in src.rglob("*.py"):
-            text = path.read_text()
-            for match in pattern.finditer(text):
-                window = text[match.start() : match.end() + 220]
-                if "is_deleted" not in window:
-                    line = text[: match.start()].count("\n") + 1
-                    offenders.append(f"{path.relative_to(src)}:{line}")
+            for line in self._offenders(path.read_text()):
+                offenders.append(f"{path.relative_to(src)}:{line}")
 
         assert not offenders, (
             "these ownership queries can hand out soft-deleted projects that "

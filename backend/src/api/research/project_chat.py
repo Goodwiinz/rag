@@ -510,6 +510,11 @@ async def unlink_thread_from_project(
                     ProjectThread.project_id != project_id,
                     ProjectThread.is_deleted == False,
                     Workspace.owner_id == current_user.id,
+                    # The link row can be live while its project is soft
+                    # deleted; without this, unlinking repoints
+                    # thread.source_project_id at a dead project and every
+                    # later agent turn on the thread fails to resolve it.
+                    Collection.is_deleted.is_(False),
                 )
             )
             .order_by(ProjectThread.linked_at.desc(), ProjectThread.id.desc())
