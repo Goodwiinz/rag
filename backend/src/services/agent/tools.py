@@ -184,7 +184,14 @@ def _missing_project_error(tool_name: str) -> Dict[str, Any]:
             "no project page is active. Call list_projects to choose one, "
             "or include project_id explicitly."
         ),
-        "error_type": "user_fixable",
+        # Recoverable, not user_fixable: the message tells the *model* what to
+        # do next and list_projects is bound everywhere this error can fire.
+        # user_fixable means "only the user can resolve this", which would send
+        # the agent back to asking "which project?" — the interrogation #1284
+        # removed. Declarations are now honoured by classify_error_from_payload,
+        # so this label decides real behaviour rather than being decoration.
+        "error_type": "recoverable",
+        "suggestion": "list_projects",
     }
 
 

@@ -4,11 +4,18 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, cast
 
 logger = logging.getLogger(__name__)
 
 ErrorCategory = Literal["transient", "recoverable", "user_fixable", "fatal"]
+
+# Categories a tool may declare for itself in its error payload. Anything
+# else is ignored and falls through to the keyword heuristics, so a typo
+# cannot silently become a category.
+_DECLARABLE_CATEGORIES: frozenset[str] = frozenset(
+    {"transient", "recoverable", "user_fixable", "fatal"}
+)
 
 # Maps (tool_name, error_keyword) -> (category, suggestion)
 TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
@@ -179,6 +186,35 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             category="user_fixable",
             message=error_msg,
             suggestion="You may need different permissions.",
+        )
+
+    # 3.5 The tool's own classification, when it declared one.
+    #
+    # Tools that raise a specific, well-understood error write
+    # ``{"error_type": …, "suggestion": …}`` at the raise site, where the
+    # context is known. That was silently discarded: ``_nodes_tools``
+    # rebuilds the ToolMessage from this function, which read only
+    # ``payload["error"]``. So summarize_document's "'<id>' is a project
+    # id, not a document id" — written as *recoverable* with a concrete next
+    # call — matched no keyword and reached the model as **fatal**, which
+    # tells the agent not to recover at all. Every hand-written hint in
+    # tools_impl.py was dead on arrival the same way.
+    #
+    # Deliberately placed after the credential and permission checks, so a
+    # tool cannot downgrade an auth failure into something the model will
+    # retry, and after TOOL_ERROR_HINTS, so the curated central overrides
+    # still win where they exist.
+    declared = payload.get("error_type")
+    if isinstance(declared, str) and declared in _DECLARABLE_CATEGORIES:
+        # Distinct name: ``suggestion`` is already bound as ``str`` by the
+        # TOOL_ERROR_HINTS loop above.
+        declared_suggestion = payload.get("suggestion")
+        return ToolError(
+            category=cast(ErrorCategory, declared),
+            message=error_msg,
+            suggestion=(
+                declared_suggestion if isinstance(declared_suggestion, str) else ""
+            ),
         )
 
     # 4. Transient infrastructure / rate-limit errors. See
