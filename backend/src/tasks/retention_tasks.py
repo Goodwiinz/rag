@@ -144,7 +144,10 @@ def _count_checkpoint_rows(db, thread_id: str) -> int:
 
 
 def _delete_checkpoint_rows(db, thread_id: str) -> int:
-    """Delete every checkpoint row for *thread_id*; return rows removed."""
+    """Delete every checkpoint row for *thread_id*; return rows removed.
+
+    Table names come from a fixed internal allowlist; built via Core constructs so the identifier is quoted.
+    """
     deleted = 0
     for tbl in _CHECKPOINT_TABLES:
         if not _table_exists(db, tbl):
