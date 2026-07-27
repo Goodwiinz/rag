@@ -162,6 +162,9 @@ function EntityManagementContent() {
     if (types) {
       setSelectedTypes(types.split(',') as EntityType[]);
     }
+    // Note: searchParams is omitted intentionally to avoid cascading renders, as we only
+    // want to initialize state from URL once on mount, rather than continuously syncing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update URL when state changes
