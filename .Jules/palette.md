@@ -16,3 +16,6 @@
 ## 2024-07-20 - Adding Accessible Focus Rings and Labels
 **Learning:** Found several icon-only buttons (like "remove alias", "clear target entity") and interactive raw `<button>` elements in complex forms lacking ARIA labels or clear keyboard focus indicators. This pattern makes navigating dense data-entry forms (like `EntityForm` and `RelationshipForm`) extremely difficult for screen reader and keyboard-only users.
 **Action:** Always verify that every custom `<button>` or icon wrapper element explicitly includes an `aria-label` describing its action and uses standard Tailwind utility classes like `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--nous-sol)]` to ensure consistent, highly-visible keyboard focus states across the application.
+## 2024-07-20 - Adding Key Props to Reset State
+**Learning:** Found an issue where converting `useEffect` prop-syncs into lazy `useState` initializers caused stale state bugs because the forms were not being remounted when selected entities changed.
+**Action:** Always ensure that when using lazy `useState` initializers instead of `useEffect` for syncing props to state, the parent component passes a dynamic `key` (e.g., `key={entity.id}`) to force the component to remount when the underlying data changes, avoiding stale data.
