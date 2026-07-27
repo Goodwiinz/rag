@@ -13,3 +13,7 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2025-02-05 - Added Missing Aria Label and Focus Visible Styles to Entity Form Alias Removal
+
+**Learning:** The `EntityForm` alias removal button was just an X icon with no semantic label or focus indicator, making it difficult to interact with via keyboard or screen reader.
+**Action:** Added an `aria-label` specifying which alias is being removed and standard focus-visible rings using the `focus-visible` Tailwind utilities to improve keyboard accessibility. Ensure all inline dynamic list buttons get explicitly identifiable accessible names and visible focus states in the future.
