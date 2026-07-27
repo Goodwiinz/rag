@@ -297,6 +297,10 @@ class TestProductionToolRegistryParity:
                 "compare_documents",
                 "search_arxiv",
                 "ingest_arxiv_papers",
+                # create_project_note/create_draft need a project_id, and
+                # without this the writing executor could only ask the user
+                # for one — measured on dev at 5 runs out of 5.
+                "list_projects",
             },
             "data": {
                 "extract_entities",
@@ -340,6 +344,8 @@ class TestProductionToolRegistryParity:
             "compare_documents",
             "search_arxiv",
             "ingest_arxiv_papers",
+            # Appended at position 7 so the existing order is untouched.
+            "list_projects",
         ]
         assert [
             item.name for item in TOOL_REGISTRY.descriptors_for_subgraph("data")
