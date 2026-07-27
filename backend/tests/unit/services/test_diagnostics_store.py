@@ -20,13 +20,13 @@ from src.services.diagnostics.diagnostics_store import (
     TRACE_KEY_PREFIX,
     TRACE_TTL_SECONDS,
     DiagnosticsStore,
+    _index_key,
 )
 from src.services.diagnostics.retrieval_diagnostics import (
     ContextDiagnostics,
     RetrievalTrace,
     SourceDiagnostics,
 )
-
 
 # ============================================================================
 # Factories
@@ -144,7 +144,7 @@ class TestStoreTrace:
 
         redis.zadd.assert_called_once()
         call_args = redis.zadd.call_args[0]
-        assert call_args[0] == TRACE_INDEX_KEY
+        assert call_args[0] == _index_key(None)
         # Second arg should be a dict with trace_id as key
         assert "indexed-trace" in call_args[1]
 
@@ -157,14 +157,15 @@ class TestStoreTrace:
 
         await store.store_trace(trace)
 
-        redis.zremrangebyrank.assert_called_once_with(TRACE_INDEX_KEY, 0, -1001)
+        redis.zremrangebyrank.assert_called_once_with(_index_key(None), 0, -1001)
 
     @pytest.mark.asyncio
     async def test_returns_false_when_redis_none(self) -> None:
         """store_trace() should return False when no Redis client is available."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.store_trace(_make_trace())
@@ -245,7 +246,8 @@ class TestGetTrace:
         """get_trace() should return None when no Redis client is available."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_trace("any-id")
@@ -280,7 +282,7 @@ class TestGetRecentTraces:
         store = DiagnosticsStore(redis_client=redis)
         await store.get_recent_traces(limit=10, offset=5)
 
-        redis.zrevrange.assert_called_once_with(TRACE_INDEX_KEY, 5, 14)
+        redis.zrevrange.assert_called_once_with(_index_key(None), 5, 14)
 
     @pytest.mark.asyncio
     async def test_returns_summaries(self) -> None:
@@ -323,7 +325,8 @@ class TestGetRecentTraces:
         """get_recent_traces() should return empty list when Redis is None."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_recent_traces()
@@ -476,7 +479,8 @@ class TestGetAggregateStats:
         """get_aggregate_stats() should return error dict when Redis is None."""
         store = DiagnosticsStore(redis_client=None)
         with patch.object(
-            type(store), "redis",
+            type(store),
+            "redis",
             new_callable=lambda: property(lambda self: None),
         ):
             result = await store.get_aggregate_stats()

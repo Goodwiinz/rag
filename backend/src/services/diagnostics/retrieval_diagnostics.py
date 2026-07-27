@@ -49,7 +49,9 @@ class FusionDiagnostics:
     output_count: int  # Unique docs after fusion
     multi_source_count: int  # Docs appearing in multiple sources
     weights_used: Dict[str, float] = field(default_factory=dict)
-    score_distribution: Dict[str, float] = field(default_factory=dict)  # min, max, mean, median
+    score_distribution: Dict[str, float] = field(
+        default_factory=dict
+    )  # min, max, mean, median
     fusion_time_ms: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -75,7 +77,9 @@ class RerankDiagnostics:
     rerank_time_ms: float = 0.0
     input_count: int = 0
     output_count: int = 0
-    score_deltas: List[Dict[str, Any]] = field(default_factory=list)  # [{doc_id, before, after, delta}]
+    score_deltas: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # [{doc_id, before, after, delta}]
     fallback_used: bool = False
     error: Optional[str] = None
 
@@ -103,7 +107,9 @@ class ContextDiagnostics:
     docs_with_content: int
     total_chars_before_truncation: int
     total_chars_after_truncation: int
-    truncated_docs: List[Dict[str, Any]] = field(default_factory=list)  # [{doc_id, before, after}]
+    truncated_docs: List[Dict[str, Any]] = field(
+        default_factory=list
+    )  # [{doc_id, before, after}]
     truncation_ratio: float = 0.0  # chars_lost / chars_before
     char_limit: int = 3000
 
@@ -129,6 +135,10 @@ class RetrievalTrace:
 
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     query: str = ""
+    # Owning tenant. Traces hold raw user queries, so every read path
+    # must be able to scope by this; a trace without one is unreadable
+    # rather than readable by everyone.
+    organization_id: Optional[str] = None
     timestamp: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -152,6 +162,7 @@ class RetrievalTrace:
         return {
             "trace_id": self.trace_id,
             "query": self.query,
+            "organization_id": self.organization_id,
             "timestamp": self.timestamp,
             "total_time_ms": self.total_time_ms,
             "sources": [s.to_dict() for s in self.sources],
@@ -167,13 +178,22 @@ class RetrievalTrace:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RetrievalTrace":
         sources = [SourceDiagnostics.from_dict(s) for s in data.get("sources", [])]
-        fusion = FusionDiagnostics.from_dict(data["fusion"]) if data.get("fusion") else None
-        rerank = RerankDiagnostics.from_dict(data["rerank"]) if data.get("rerank") else None
-        context = ContextDiagnostics.from_dict(data["context"]) if data.get("context") else None
+        fusion = (
+            FusionDiagnostics.from_dict(data["fusion"]) if data.get("fusion") else None
+        )
+        rerank = (
+            RerankDiagnostics.from_dict(data["rerank"]) if data.get("rerank") else None
+        )
+        context = (
+            ContextDiagnostics.from_dict(data["context"])
+            if data.get("context")
+            else None
+        )
 
         return cls(
             trace_id=data.get("trace_id", str(uuid.uuid4())),
             query=data.get("query", ""),
+            organization_id=data.get("organization_id"),
             timestamp=data.get("timestamp", ""),
             total_time_ms=data.get("total_time_ms", 0.0),
             sources=sources,

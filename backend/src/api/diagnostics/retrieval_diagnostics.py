@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.core.dependencies import require_admin
+from src.core.dependencies import get_current_user, require_admin
+from src.models.user import User
 from src.services.diagnostics.bottleneck_analyzer import BottleneckAnalyzer
 from src.services.diagnostics.diagnostics_store import diagnostics_store
 
@@ -61,9 +62,13 @@ class WeightExperimentResponse(BaseModel):
 
 
 @router.get("/traces/{trace_id}")
-async def get_trace(trace_id: str) -> Dict[str, Any]:
+async def get_trace(
+    trace_id: str, current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
     """Get full diagnostic trace by ID."""
-    trace = await diagnostics_store.get_trace(trace_id)
+    trace = await diagnostics_store.get_trace(
+        trace_id, organization_id=str(current_user.organization_id)
+    )
     if not trace:
         raise HTTPException(status_code=404, detail="Trace not found")
 
@@ -81,23 +86,33 @@ async def get_trace(trace_id: str) -> Dict[str, Any]:
 async def get_recent_traces(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get recent trace summaries."""
-    traces = await diagnostics_store.get_recent_traces(limit=limit, offset=offset)
+    traces = await diagnostics_store.get_recent_traces(
+        limit=limit,
+        offset=offset,
+        organization_id=str(current_user.organization_id),
+    )
     return {"traces": traces, "count": len(traces), "limit": limit, "offset": offset}
 
 
 @router.get("/aggregate")
 async def get_aggregate_stats(
     hours: int = Query(default=24, ge=1, le=168),
+    current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get aggregate statistics over the specified time period."""
-    stats = await diagnostics_store.get_aggregate_stats(hours=hours)
+    stats = await diagnostics_store.get_aggregate_stats(
+        hours=hours, organization_id=str(current_user.organization_id)
+    )
     return stats
 
 
 @router.post("/weight-experiment", response_model=WeightExperimentResponse)
-async def run_weight_experiment(request: WeightExperimentRequest) -> WeightExperimentResponse:
+async def run_weight_experiment(
+    request: WeightExperimentRequest,
+) -> WeightExperimentResponse:
     """
     Run the same query with different weight configurations and compare results.
 
