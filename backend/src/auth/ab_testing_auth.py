@@ -181,12 +181,12 @@ async def get_current_user_from_token(
         return user
 
     except JWTError as e:
-        logger.error(f"JWT decoding error: {e}")
+        logger.warning("JWT decoding error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
     except Exception as e:
-        logger.error(f"Authentication error: {e}")
+        logger.error("Authentication error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication error",
