@@ -4,11 +4,27 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, cast
 
 logger = logging.getLogger(__name__)
 
 ErrorCategory = Literal["transient", "recoverable", "user_fixable", "fatal"]
+
+# Categories a tool may declare for itself in its error payload. Anything
+# else is ignored and falls through to the keyword heuristics, so a typo
+# cannot silently become a category.
+#
+# "transient" is deliberately NOT declarable. This function classifies a
+# payload the tool *returned*, so the call ran to completion — transience is
+# a property of the call, knowable on the raised-exception path
+# (classify_error) rather than here. It also carries teeth: _nodes_tools
+# sets error_increment = 0 for transient, so a tool could zero its own
+# contribution to MAX_ERRORS by writing one string, and reflection skips its
+# response-quality gate for transient failures. Nothing declares it today;
+# keep that door shut.
+_DECLARABLE_CATEGORIES: frozenset[str] = frozenset(
+    {"recoverable", "user_fixable", "fatal"}
+)
 
 # Maps (tool_name, error_keyword) -> (category, suggestion)
 TOOL_ERROR_HINTS: dict[tuple[str, str], tuple[ErrorCategory, str]] = {
@@ -179,6 +195,38 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
             category="user_fixable",
             message=error_msg,
             suggestion="You may need different permissions.",
+        )
+
+    # 3.5 The tool's own classification, when it declared one.
+    #
+    # Tools that raise a specific, well-understood error write
+    # ``{"error_type": …, "suggestion": …}`` at the raise site, where the
+    # context is known. That was silently discarded: ``_nodes_tools``
+    # rebuilds the ToolMessage from this function, which read only
+    # ``payload["error"]``. So summarize_document's "'<id>' is a project
+    # id, not a document id" — written as *recoverable* with a concrete next
+    # call — matched no keyword and reached the model as **fatal**, which
+    # tells the agent not to recover at all. Every hand-written hint in
+    # tools_impl.py was dead on arrival the same way.
+    #
+    # Placed after TOOL_ERROR_HINTS (the curated central overrides keep
+    # winning) and after the credential/permission checks. That last ordering
+    # is conservatism, not a security property: tool payloads are literals in
+    # this repo, the same trust boundary as the hint table, and a tool that
+    # wanted to hide an auth failure controls payload["error"] too. The cost
+    # is that a tool cannot declare "recoverable" for a message containing
+    # the word "permission"; revisit if a real case turns up.
+    declared = payload.get("error_type")
+    if isinstance(declared, str) and declared in _DECLARABLE_CATEGORIES:
+        # Distinct name: ``suggestion`` is already bound as ``str`` by the
+        # TOOL_ERROR_HINTS loop above.
+        declared_suggestion = payload.get("suggestion")
+        return ToolError(
+            category=cast(ErrorCategory, declared),
+            message=error_msg,
+            suggestion=(
+                declared_suggestion if isinstance(declared_suggestion, str) else ""
+            ),
         )
 
     # 4. Transient infrastructure / rate-limit errors. See

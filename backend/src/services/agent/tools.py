@@ -184,7 +184,20 @@ def _missing_project_error(tool_name: str) -> Dict[str, Any]:
             "no project page is active. Call list_projects to choose one, "
             "or include project_id explicitly."
         ),
-        "error_type": "user_fixable",
+        # Declared recoverable, and it now takes effect. The old
+        # "user_fixable" label never applied to anything: this wording
+        # ("requires a project_id") matches no TOOL_ERROR_HINTS key and no
+        # step-5 keyword, so the payload reached the model as *fatal* —
+        # telling the agent not to recover from a situation the message
+        # itself explains how to fix. list_projects is bound to every
+        # subgraph that can raise this, so the suggestion is followable.
+        #
+        # Careful: rewording this to "project_id is required" would hand
+        # create_draft / create_project_note back to TOOL_ERROR_HINTS and
+        # drop the suggestion below. test_missing_project_error_is_recoverable
+        # pins the delivered payload.
+        "error_type": "recoverable",
+        "suggestion": "list_projects",
     }
 
 
@@ -952,9 +965,9 @@ TOOL_REGISTRY = ToolRegistry(
             # error *message* tells the model to call list_project_documents —
             # a tool writing did not have, so make_filtered_tool_node answered
             # that call with "not available in this context".
-            # The payload's own "suggestion" field never reaches the model:
-            # _nodes_tools rebuilds the ToolMessage via
-            # classify_error_from_payload, which drops it. Tracked separately.
+            # (Its "suggestion" field reaches the model as of the change that
+            # made classify_error_from_payload honour tool declarations; the
+            # binding is what makes the advice actionable.)
             # Read-only and untagged.
             subgraphs=frozenset(
                 {AgentSubgraph.RESEARCH, AgentSubgraph.DATA, AgentSubgraph.WRITING}

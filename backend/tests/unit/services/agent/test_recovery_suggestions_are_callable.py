@@ -10,16 +10,14 @@ research and data, never to writing, so ``make_filtered_tool_node`` replied
 Same shape as #1284, where a shared prompt rule told the writing executor to
 call ``list_projects`` before that tool was bound to writing.
 
-**What actually reaches the model.** A tool's own ``error_type`` and
-``suggestion`` keys do *not*: ``_nodes_tools`` rebuilds the ToolMessage from
-``classify_error_from_payload``, which reads only ``payload["error"]`` and
-re-derives the category. Verified against the real payload — the tool returns
-``error_type="recoverable", suggestion="list_project_documents"`` and the model
-receives ``{"error": "…", "error_type": "fatal"}``. So the guard below scans
-**message prose** and the ``TOOL_ERROR_HINTS`` table, which are delivered, and
-not the stripped ``suggestion`` field. (That the classifier discards
-tool-authored hints — and downgrades them to ``fatal``, telling the agent not
-to recover — is a separate bug, tracked on its own.)
+**What reaches the model.** Message prose always does. A tool's own
+``suggestion`` field did *not* until ``classify_error_from_payload`` was
+changed to honour tool declarations — before that, ``_nodes_tools`` rebuilt
+the ToolMessage and the field was dropped (the tool returned
+``error_type="recoverable", suggestion="list_project_documents"`` and the
+model received ``{"error": "…", "error_type": "fatal"}``). Now that declared
+suggestions are delivered, the guards below cover all three channels: message
+prose, the ``TOOL_ERROR_HINTS`` table, and declared ``suggestion`` literals.
 """
 
 from __future__ import annotations
@@ -140,7 +138,38 @@ class TestWritingCanFollowItsOwnAdvice:
         assert "list_projects" not in DESTRUCTIVE_TOOLS
 
 
+def _declared_suggestion_problems() -> List[str]:
+    """``"suggestion": "<tool>"`` literals are delivered now — check them too."""
+    bound = _bindings()
+    problems: List[str] = []
+    for filename in ("tools_impl.py", "tools.py"):
+        source = (_AGENT / filename).read_text()
+        for match in re.finditer(r"(?:async )?def (?:_tool_)?(\w+)\(", source):
+            name = match.group(1)
+            if name not in bound:
+                continue
+            nxt = source.find("\ndef ", match.end())
+            nxt_async = source.find("\nasync def ", match.end())
+            end = min(x for x in (nxt, nxt_async, len(source)) if x > 0)
+            body = source[match.end() : end]
+            for suggested in re.findall(r'"suggestion":\s*"([a-z_]+)"', body):
+                if suggested not in bound:
+                    continue
+                missing = bound[name] - bound[suggested]
+                if missing:
+                    problems.append(
+                        f"{filename}:{name} declares suggestion {suggested}, "
+                        f"unreachable from {sorted(missing)}"
+                    )
+    return problems
+
+
 class TestDeliveredHintsAreReachable:
+    def test_no_declared_suggestion_names_an_unreachable_tool(self) -> None:
+        problems = _declared_suggestion_problems()
+
+        assert not problems, "; ".join(problems)
+
     def test_no_tool_error_hint_names_an_unreachable_tool(self) -> None:
         assert not _hint_problems(), "; ".join(_hint_problems())
 
