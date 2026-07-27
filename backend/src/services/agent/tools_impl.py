@@ -2048,7 +2048,33 @@ async def _tool_list_projects(
         )
 
         projects = list(result.get("projects") or [])
-        return {
+
+        # A search that matches nothing must not look like "you have no
+        # projects". Observed on dev: asked to "save it to my library", the
+        # model called list_projects(search="library"), got [], then called
+        # create_project_note with no project_id — a failed destructive call,
+        # which costs a human confirmation round trip — before retrying
+        # unfiltered and succeeding. The user's phrasing is rarely a project
+        # name, so fall back to the unfiltered list and say the filter was
+        # dropped, rather than reporting an empty library to someone who has
+        # several.
+        search_ignored = False
+        if search and not projects:
+            fallback = await service.list_projects(
+                user_id=current_user.id,
+                project_status=status,
+                tag=tag,
+                search=None,
+                skip=0,
+                limit=limit,
+            )
+            fallback_projects = list(fallback.get("projects") or [])
+            if fallback_projects:
+                projects = fallback_projects
+                result = fallback
+                search_ignored = True
+
+        payload: Dict[str, Any] = {
             "projects": [
                 {
                     "id": str(p.id),
@@ -2067,6 +2093,13 @@ async def _tool_list_projects(
             "total": result.get("total", len(projects)),
             "returned": len(projects),
         }
+        if search_ignored:
+            payload["search_ignored"] = search
+            payload["note"] = (
+                f"No project matched '{search}', so every project is listed "
+                "instead. Pick the best fit by name."
+            )
+        return payload
     except Exception as e:
         logger.error("list_projects tool failed", exc_info=e)
         return {"error": f"Failed to list projects: {str(e)}"}
