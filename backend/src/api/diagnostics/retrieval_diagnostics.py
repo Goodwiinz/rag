@@ -8,7 +8,7 @@ bottleneck analysis, and weight experimentation.
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from src.core.dependencies import get_current_user, require_admin
@@ -58,6 +58,23 @@ class WeightExperimentResponse(BaseModel):
     results: List[WeightExperimentResult]
 
 
+
+def _require_tenant(current_user: User) -> str:
+    """The caller's tenant, or 403.
+
+    ``User.organization_id`` is nullable, so ``str(...)`` would happily yield
+    ``"None"`` and drop every such caller into one shared bucket — rebuilding
+    the cross-tenant leak this module was fixed for. Refuse instead.
+    """
+    organization_id = getattr(current_user, "organization_id", None)
+    if not organization_id or str(organization_id) in {"None", ""}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No organization context",
+        )
+    return str(organization_id)
+
+
 # --- Endpoints ---
 
 
@@ -67,7 +84,7 @@ async def get_trace(
 ) -> Dict[str, Any]:
     """Get full diagnostic trace by ID."""
     trace = await diagnostics_store.get_trace(
-        trace_id, organization_id=str(current_user.organization_id)
+        trace_id, organization_id=_require_tenant(current_user)
     )
     if not trace:
         raise HTTPException(status_code=404, detail="Trace not found")
@@ -92,7 +109,7 @@ async def get_recent_traces(
     traces = await diagnostics_store.get_recent_traces(
         limit=limit,
         offset=offset,
-        organization_id=str(current_user.organization_id),
+        organization_id=_require_tenant(current_user),
     )
     return {"traces": traces, "count": len(traces), "limit": limit, "offset": offset}
 
@@ -104,7 +121,7 @@ async def get_aggregate_stats(
 ) -> Dict[str, Any]:
     """Get aggregate statistics over the specified time period."""
     stats = await diagnostics_store.get_aggregate_stats(
-        hours=hours, organization_id=str(current_user.organization_id)
+        hours=hours, organization_id=_require_tenant(current_user)
     )
     return stats
 
@@ -112,6 +129,7 @@ async def get_aggregate_stats(
 @router.post("/weight-experiment", response_model=WeightExperimentResponse)
 async def run_weight_experiment(
     request: WeightExperimentRequest,
+    current_user: User = Depends(get_current_user),
 ) -> WeightExperimentResponse:
     """
     Run the same query with different weight configurations and compare results.
@@ -135,6 +153,8 @@ async def run_weight_experiment(
     results = []
     loop = asyncio.get_event_loop()
 
+    organization_id = _require_tenant(current_user)
+
     for config in request.configurations:
         search_request = SearchQuery(
             query=request.query, limit=request.max_docs, search_type="hybrid"
@@ -144,11 +164,19 @@ async def run_weight_experiment(
             None,
             lambda cfg=config: hybrid_search_service.search_with_diagnostics(
                 search_request=search_request,
+                user_id=str(current_user.id),
+                # Without this the fulltext leg drops its tenant predicate
+                # entirely (`if organization_id:`) and the experiment searches
+                # every tenant's documents, returning cross-tenant match counts
+                # and relevance scores.
+                organization_id=organization_id,
                 weights_override=cfg,
             ),
         )
 
-        # Store the trace
+        # Stamp before storing, or the trace lands in the unscoped bucket and
+        # the trace_id handed back below is unreadable by its own caller.
+        trace.organization_id = organization_id
         await diagnostics_store.store_trace(trace)
 
         top_scores = sorted(

@@ -201,6 +201,12 @@ class DiagnosticsStore:
             source_failures = 0
             truncation_ratios: List[float] = []
             result_counts: List[int] = []
+            # Count traces actually loaded, not index members: index zsets have
+            # no TTL and trim only at 1000, while trace bodies expire at
+            # TRACE_TTL_SECONDS (24h). With hours up to 168 the index lists ids
+            # whose bodies are gone, so len(trace_ids) over-reports total_traces
+            # and dilutes avg_time_ms toward zero.
+            loaded = 0
 
             for tid in trace_ids:
                 if isinstance(tid, bytes):
@@ -210,6 +216,7 @@ class DiagnosticsStore:
                 if not trace:
                     continue
 
+                loaded += 1
                 total_time += trace.total_time_ms
                 result_counts.append(trace.final_result_count)
 
@@ -223,7 +230,7 @@ class DiagnosticsStore:
                 if trace.context:
                     truncation_ratios.append(trace.context.truncation_ratio)
 
-            count = len(trace_ids)
+            count = loaded
             return {
                 "period_hours": hours,
                 "total_traces": count,
@@ -259,10 +266,11 @@ class DiagnosticsStore:
             return {"error": str(e)}
 
     async def update_trace_evaluation(
-        self, trace_id: str, evaluation_id: str, scores: Dict[str, float]
+        self, trace_id: str, evaluation_id: str, scores: Dict[str, float],
+        organization_id: str,
     ) -> bool:
         """Update a trace with evaluation results (called by background eval)."""
-        trace = await self.get_trace(trace_id)
+        trace = await self.get_trace(trace_id, organization_id=organization_id)
         if not trace:
             return False
 

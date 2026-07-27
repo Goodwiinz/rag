@@ -60,7 +60,7 @@ def _make_trace(**overrides) -> RetrievalTrace:
         "search_type": "hybrid",
     }
     defaults.update(overrides)
-    return RetrievalTrace(**defaults)
+    return RetrievalTrace(organization_id="test-org", **defaults)
 
 
 def _make_sync_redis():
@@ -144,7 +144,8 @@ class TestStoreTrace:
 
         redis.zadd.assert_called_once()
         call_args = redis.zadd.call_args[0]
-        assert call_args[0] == _index_key(None)
+        # The index is per tenant, so it follows the trace's owner.
+        assert call_args[0] == _index_key("test-org")
         # Second arg should be a dict with trace_id as key
         assert "indexed-trace" in call_args[1]
 
@@ -157,7 +158,7 @@ class TestStoreTrace:
 
         await store.store_trace(trace)
 
-        redis.zremrangebyrank.assert_called_once_with(_index_key(None), 0, -1001)
+        redis.zremrangebyrank.assert_called_once_with(_index_key("test-org"), 0, -1001)
 
     @pytest.mark.asyncio
     async def test_returns_false_when_redis_none(self) -> None:
@@ -505,7 +506,12 @@ class TestUpdateTraceEvaluation:
 
         store = DiagnosticsStore(redis_client=redis)
         scores = {"precision_at_3": 0.85, "mrr": 0.92}
-        result = await store.update_trace_evaluation("eval-update", "eval-xyz", scores)
+        result = await store.update_trace_evaluation(
+            "eval-update",
+            "eval-xyz",
+            scores,
+            organization_id="test-org",
+        )
 
         assert result is True
 
@@ -524,7 +530,10 @@ class TestUpdateTraceEvaluation:
 
         store = DiagnosticsStore(redis_client=redis)
         result = await store.update_trace_evaluation(
-            "nonexistent", "eval-1", {"mrr": 0.5}
+            "nonexistent",
+            "eval-1",
+            {"mrr": 0.5},
+            organization_id="test-org",
         )
 
         assert result is False
@@ -537,7 +546,12 @@ class TestUpdateTraceEvaluation:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        await store.update_trace_evaluation("roundtrip", "eval-rt", {"mrr": 0.8})
+        await store.update_trace_evaluation(
+            "roundtrip",
+            "eval-rt",
+            {"mrr": 0.8},
+            organization_id="test-org",
+        )
 
         stored_call = redis.set.call_args[0]
         stored_data = json.loads(stored_call[1])

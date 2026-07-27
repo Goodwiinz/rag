@@ -46,7 +46,15 @@ class _FakeRedis:
         return self.values.get(key)
 
     def zadd(self, key: str, mapping: Dict[str, float]) -> None:
-        self.zsets.setdefault(key, []).extend(mapping.items())
+        # Real ZADD updates an existing member's score in place; appending
+        # would duplicate it, and update_trace_evaluation re-stores traces.
+        members = self.zsets.setdefault(key, [])
+        for member, score in mapping.items():
+            existing = [i for i, (m, _) in enumerate(members) if m == member]
+            if existing:
+                members[existing[0]] = (member, score)
+            else:
+                members.append((member, score))
 
     def zremrangebyrank(self, *_a: Any, **_kw: Any) -> None:
         return None
@@ -55,8 +63,11 @@ class _FakeRedis:
         members = [m for m, _ in sorted(self.zsets.get(key, []), key=lambda x: -x[1])]
         return members[start : end + 1]
 
-    def zrangebyscore(self, key: str, *_a: Any, **_kw: Any) -> List[str]:
-        return [m for m, _ in self.zsets.get(key, [])]
+    def zrangebyscore(self, key: str, min_score: Any = "-inf", *_a: Any) -> List[str]:
+        # Honour the range: get_aggregate_stats passes a cutoff, and a fake
+        # that ignores it cannot show the cutoff working.
+        low = float("-inf") if min_score in ("-inf", None) else float(min_score)
+        return [m for m, score in self.zsets.get(key, []) if score >= low]
 
 
 def _store() -> Any:
@@ -116,10 +127,14 @@ class TestPaginationStaysHonest:
     async def test_limit_counts_your_rows_not_everyones(self) -> None:
         """Filtering a shared index after the fact would under-fill the page."""
         store = _store()
-        for i in range(3):
-            await store.store_trace(_trace(f"b{i}", _ORG_B))
+        # Order matters: A's traces are stored FIRST so they are the oldest.
+        # A shared index would hand zrevrange(0, 2) three of B's rows, and
+        # post-filtering would drop all three, returning an empty page. With
+        # A newest, both designs pass and the test proves nothing.
         for i in range(3):
             await store.store_trace(_trace(f"a{i}", _ORG_A))
+        for i in range(3):
+            await store.store_trace(_trace(f"b{i}", _ORG_B))
 
         page = await store.get_recent_traces(limit=3, organization_id=_ORG_A)
 
@@ -138,3 +153,33 @@ class TestEndpointsPassTheTenant:
             assert (
                 "current_user" in params
             ), f"{name} cannot scope to a tenant without knowing who is asking"
+
+
+class TestAggregateIsScoped:
+    async def test_stats_only_cover_your_own_traces(self) -> None:
+        store = _store()
+        await store.store_trace(_trace("a", _ORG_A))
+        await store.store_trace(_trace("b1", _ORG_B))
+        await store.store_trace(_trace("b2", _ORG_B))
+
+        stats = await store.get_aggregate_stats(organization_id=_ORG_A)
+
+        assert (
+            stats["total_traces"] == 1
+        ), "aggregate stats over another tenant's traffic disclose its volume"
+
+    async def test_count_reflects_loaded_traces_not_index_size(self) -> None:
+        """Index entries outlive trace bodies (no TTL on the index, 24h on bodies).
+
+        Counting index members would over-report total_traces and dilute
+        avg_time_ms toward zero for any window past the body TTL.
+        """
+        store = _store()
+        trace = _trace("a", _ORG_A)
+        await store.store_trace(trace)
+        # Body expires, index entry remains.
+        store.redis.values.pop(f"diag:trace:{trace.trace_id}")
+
+        stats = await store.get_aggregate_stats(organization_id=_ORG_A)
+
+        assert stats["total_traces"] == 0

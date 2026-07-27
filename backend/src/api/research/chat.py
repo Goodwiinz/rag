@@ -248,6 +248,7 @@ async def _background_evaluate_rag(
     answer: str,
     contexts: List[RetrievedContext],
     trace_id: str,
+    organization_id: str,
 ) -> None:
     """Background task: evaluate RAG response quality and link to diagnostics trace."""
     try:
@@ -281,7 +282,10 @@ async def _background_evaluate_rag(
                 "hallucination_rate": metrics.hallucination_rate,
             }
             await diagnostics_store.update_trace_evaluation(
-                trace_id, evaluation_id=f"eval-{trace_id}", scores=scores
+                trace_id,
+                evaluation_id=f"eval-{trace_id}",
+                scores=scores,
+                organization_id=organization_id,
             )
             logger.info(
                 f"Background RAG evaluation completed for trace {trace_id}: "
@@ -524,6 +528,7 @@ async def chat_completions(
                 answer=response["content"],
                 contexts=retrieved_contexts,
                 trace_id=diagnostics_trace_id,
+                organization_id=str(current_user.organization_id),
             )
 
         # Build response
