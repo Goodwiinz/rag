@@ -13,8 +13,17 @@ ErrorCategory = Literal["transient", "recoverable", "user_fixable", "fatal"]
 # Categories a tool may declare for itself in its error payload. Anything
 # else is ignored and falls through to the keyword heuristics, so a typo
 # cannot silently become a category.
+#
+# "transient" is deliberately NOT declarable. This function classifies a
+# payload the tool *returned*, so the call ran to completion — transience is
+# a property of the call, knowable on the raised-exception path
+# (classify_error) rather than here. It also carries teeth: _nodes_tools
+# sets error_increment = 0 for transient, so a tool could zero its own
+# contribution to MAX_ERRORS by writing one string, and reflection skips its
+# response-quality gate for transient failures. Nothing declares it today;
+# keep that door shut.
 _DECLARABLE_CATEGORIES: frozenset[str] = frozenset(
-    {"transient", "recoverable", "user_fixable", "fatal"}
+    {"recoverable", "user_fixable", "fatal"}
 )
 
 # Maps (tool_name, error_keyword) -> (category, suggestion)
@@ -200,10 +209,13 @@ def classify_error_from_payload(tool_name: str, payload: dict) -> ToolError:
     # tells the agent not to recover at all. Every hand-written hint in
     # tools_impl.py was dead on arrival the same way.
     #
-    # Deliberately placed after the credential and permission checks, so a
-    # tool cannot downgrade an auth failure into something the model will
-    # retry, and after TOOL_ERROR_HINTS, so the curated central overrides
-    # still win where they exist.
+    # Placed after TOOL_ERROR_HINTS (the curated central overrides keep
+    # winning) and after the credential/permission checks. That last ordering
+    # is conservatism, not a security property: tool payloads are literals in
+    # this repo, the same trust boundary as the hint table, and a tool that
+    # wanted to hide an auth failure controls payload["error"] too. The cost
+    # is that a tool cannot declare "recoverable" for a message containing
+    # the word "permission"; revisit if a real case turns up.
     declared = payload.get("error_type")
     if isinstance(declared, str) and declared in _DECLARABLE_CATEGORIES:
         # Distinct name: ``suggestion`` is already bound as ``str`` by the

@@ -75,12 +75,19 @@ class TestDeclaredCategorySurvives:
         assert delivered["error_type"] == "recoverable"
         assert delivered["suggestion"] == "ingest_arxiv_papers"
 
-    def test_a_declared_transient_is_kept(self) -> None:
+    def test_transient_is_not_declarable(self) -> None:
+        """It would let a tool zero its own error-ceiling contribution.
+
+        ``_nodes_tools`` sets ``error_increment = 0`` for transient, and
+        reflection skips its response-quality gate for transient failures. A
+        returned payload also means the call completed, so transience is not
+        knowable here — that lives on the raised-exception path.
+        """
         delivered = _delivered(
             "some_tool", {"error": "upstream hiccup", "error_type": "transient"}
         )
 
-        assert delivered["error_type"] == "transient"
+        assert delivered["error_type"] == "fatal"
 
 
 class TestDeclarationCannotWeakenSafety:
@@ -113,15 +120,22 @@ class TestDeclarationCannotWeakenSafety:
 
 class TestGarbageIsIgnored:
     @pytest.mark.parametrize(
-        "declared", ["Recoverable", "retryable", "", None, 42, {"a": 1}]
+        "declared", ["Recoverable", "retryable", "transient", "", None, 42, {"a": 1}]
     )
     def test_unknown_values_fall_through_to_the_heuristics(self, declared) -> None:  # type: ignore[no-untyped-def]
-        """A typo must not become a category."""
+        """A typo must not become a category.
+
+        The message keyword-classifies to *recoverable*, not to the ``fatal``
+        default: asserting the default cannot tell "declaration ignored" from
+        "declaration honoured as fatal", and passes vacuously for "" / None
+        against a naive ``declared or heuristic``.
+        """
         delivered = _delivered(
-            "x", {"error": "segmentation fault in worker", "error_type": declared}
+            "x", {"error": "widget not found", "error_type": declared}
         )
 
-        assert delivered["error_type"] == "fatal"
+        assert delivered["error_type"] == "recoverable"
+        assert delivered["suggestion"] == "Check the input and try again."
 
     def test_a_non_string_suggestion_is_dropped_not_rendered(self) -> None:
         delivered = _delivered(
@@ -139,3 +153,31 @@ class TestNoRegression:
         )
         assert _delivered("x", {"error": "not found"})["error_type"] == "recoverable"
         assert _delivered("x", {"error": "kernel panic"})["error_type"] == "fatal"
+
+
+class TestMissingProjectErrorIsDelivered:
+    """The helper four write-tools use when no project_id resolves."""
+
+    def test_missing_project_error_is_recoverable(self) -> None:
+        from src.services.agent.tools import _missing_project_error
+
+        delivered = _delivered("create_draft", _missing_project_error("create_draft"))
+
+        assert delivered["error_type"] == "recoverable", (
+            "on develop this reached the model as 'fatal' — telling the agent "
+            "not to recover from something the message explains how to fix"
+        )
+        assert delivered["suggestion"] == "list_projects"
+
+    def test_the_wording_still_misses_the_hint_table(self) -> None:
+        """Rewording to "project_id is required" would silently re-route it.
+
+        TOOL_ERROR_HINTS has (create_draft, "project_id is required"), which
+        matches first and would drop the list_projects suggestion.
+        """
+        from src.services.agent.tools import _missing_project_error
+
+        assert (
+            "project_id is required"
+            not in _missing_project_error("create_draft")["error"]
+        )
