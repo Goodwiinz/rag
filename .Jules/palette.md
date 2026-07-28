@@ -13,3 +13,6 @@
 ## 2024-05-19 - Focus-Visible Utility Usage
 **Learning:** Native `<button>` elements, especially those styled as dropdown items, interactive list items, or toggle badges, often lose their default browser outlines due to custom Tailwind styles. When this happens, they become difficult or impossible to navigate via keyboard.
 **Action:** When working with raw `<button>` elements, always explicitly define `type="button"` and add `focus-visible` utility classes (e.g., `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`) to ensure keyboard focus states remain accessible and visible.
+## 2025-02-28 - Missing ARIA Labels on Dynamic List Removal Buttons
+**Learning:** Icon-only remove buttons dynamically added in lists (like aliases or evidence) often lack ARIA labels, making screen readers announce them generically as 'button'.
+**Action:** Always add descriptive `aria-label` attributes to icon-only buttons, especially in dynamic lists where the context (e.g., 'Remove alias XYZ') is critical.
