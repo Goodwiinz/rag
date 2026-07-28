@@ -122,7 +122,7 @@ class TestIndividualNodes:
 
     async def test_intent_classifier_research(self):
         """intent_classifier_node should classify 'search arxiv' as research."""
-        from src.services.agent.graph import intent_classifier_node
+        from src.services.agent._nodes_classify import intent_classifier_node
 
         result = await intent_classifier_node(
             _make_initial_state("search arxiv for transformer papers"),
@@ -132,7 +132,7 @@ class TestIndividualNodes:
 
     async def test_intent_classifier_writing(self):
         """intent_classifier_node should classify 'write a summary' as writing."""
-        from src.services.agent.graph import intent_classifier_node
+        from src.services.agent._nodes_classify import intent_classifier_node
 
         result = await intent_classifier_node(
             _make_initial_state("write a summary of the paper"),
@@ -142,7 +142,7 @@ class TestIndividualNodes:
 
     async def test_intent_classifier_knowledge_graph(self):
         """intent_classifier_node should classify 'extract entities' as knowledge_graph."""
-        from src.services.agent.graph import intent_classifier_node
+        from src.services.agent._nodes_classify import intent_classifier_node
 
         result = await intent_classifier_node(
             _make_initial_state("extract entities from the document"),
@@ -152,7 +152,7 @@ class TestIndividualNodes:
 
     async def test_intent_classifier_general(self):
         """intent_classifier_node should return 'general' for ambiguous queries."""
-        from src.services.agent.graph import intent_classifier_node
+        from src.services.agent._nodes_classify import intent_classifier_node
 
         result = await intent_classifier_node(
             _make_initial_state("hello, how are you?"),
@@ -162,7 +162,7 @@ class TestIndividualNodes:
 
     async def test_intent_classifier_writing_with_paper_keyword(self):
         """'Write a summary of the findings in the paper' should be writing, not research."""
-        from src.services.agent.graph import intent_classifier_node
+        from src.services.agent._nodes_classify import intent_classifier_node
 
         result = await intent_classifier_node(
             _make_initial_state("write a summary of the key findings in the paper"),
@@ -177,7 +177,7 @@ class TestIndividualNodes:
         the rules that prevent duplicate-project creation, lost-project context,
         hallucinated tool completions, and arXiv-ID-as-search-query mistakes.
         """
-        from src.services.agent.graph import llm_node
+        from src.services.agent._nodes_llm import llm_node
 
         system_text = await _capture_system_prompt(
             llm_node, _make_initial_state("hi"), _make_config()
@@ -213,7 +213,7 @@ class TestIndividualNodes:
 
     async def test_rag_node_without_user(self):
         """rag_node should return empty contexts when no current_user."""
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         config = {"configurable": {"thread_id": str(uuid4())}}
         result = await rag_node(
@@ -227,7 +227,7 @@ class TestIndividualNodes:
         page_context.type='project' so llm_node tells the LLM about the active
         project. Previously type='chat' was preserved, so the LLM ignored the
         project_id and replied "I'm not using any project yet"."""
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         config = {
             "configurable": {
@@ -256,7 +256,7 @@ class TestIndividualNodes:
         """If a previous turn already resolved current_project_id, the next
         turn should keep type='project' even when the new message has no UUID
         and the CLI still sends type='chat'."""
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         config = {
             "configurable": {
@@ -281,7 +281,7 @@ class TestIndividualNodes:
 
     async def test_rag_node_with_injected_search(self):
         """rag_node should use injected search_fn when provided."""
-        from src.services.agent.graph import rag_node
+        from src.services.agent._nodes_rag import rag_node
 
         async def mock_search(query: str, user_id: str):
             return [
@@ -314,7 +314,7 @@ class TestIndividualNodes:
 
     async def test_memory_retrieval_node_without_user(self):
         """memory_retrieval_node should return empty when no user in config."""
-        from src.services.agent.graph import memory_retrieval_node
+        from src.services.agent._nodes_memory import memory_retrieval_node
 
         config = {"configurable": {"thread_id": str(uuid4())}}
         result = await memory_retrieval_node(
@@ -325,7 +325,7 @@ class TestIndividualNodes:
 
     async def test_preprocessing_node_merges_all_results(self):
         """preprocessing_node should merge RAG, intent, and memory results."""
-        from src.services.agent.graph import preprocessing_node
+        from src.services.agent._nodes_classify import preprocessing_node
 
         async def mock_search(query: str, user_id: str):
             return [{"document_id": "d1", "title": "T", "content": "c", "score": 0.9}]
@@ -354,7 +354,7 @@ class TestIndividualNodes:
         swallowed into a TypeError via merged.update(<exception>)."""
         import asyncio
 
-        from src.services.agent.graph import preprocessing_node
+        from src.services.agent._nodes_classify import preprocessing_node
 
         async def _cancel(*_a, **_k):
             raise asyncio.CancelledError()
@@ -368,7 +368,7 @@ class TestIndividualNodes:
 
     async def test_memory_save_node_without_user(self):
         """memory_save_node should return empty dict when no user."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
 
@@ -381,7 +381,7 @@ class TestIndividualNodes:
 
     async def test_tool_node_no_tool_calls(self):
         """tool_node should return empty lists when no tool_calls on last message."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
 
@@ -398,7 +398,7 @@ class TestIndividualNodes:
 
     async def test_interrupt_node_no_destructive(self):
         """interrupt_node should pass through when no destructive tools."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
 
@@ -430,7 +430,7 @@ class TestPartialExecution:
 
     async def test_intent_routing_research_path(self):
         """After preprocessing_node, research intent should route to research_subgraph."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -464,7 +464,7 @@ class TestPartialExecution:
 
     async def test_intent_classification_sets_correct_intent(self):
         """preprocessing_node should set intent in state correctly."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -488,7 +488,7 @@ class TestPartialExecution:
 
     async def test_tool_node_executes_and_increments_loop_count(self):
         """tool_node should execute tools and increment tool_loop_count."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -532,7 +532,7 @@ class TestPartialExecution:
 
     async def test_error_count_terminates_graph(self):
         """Graph should terminate when error_count >= MAX_ERRORS."""
-        from src.services.agent.graph import MAX_ERRORS, compile_agent_graph
+        from src.services.agent._builders import MAX_ERRORS, compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -569,7 +569,7 @@ class TestGraphStructure:
     """Verify the compiled graph has the expected structure."""
 
     def test_graph_has_all_expected_nodes(self):
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
 
@@ -594,7 +594,7 @@ class TestGraphStructure:
 
     def test_graph_entry_point_is_preprocessing_node(self):
         """The first node after __start__ should be preprocessing_node."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
         mermaid = graph.get_graph().draw_mermaid()
@@ -603,7 +603,7 @@ class TestGraphStructure:
 
     def test_graph_mermaid_output(self):
         """Graph should produce valid Mermaid diagram."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         graph = compile_agent_graph(checkpointer=MemorySaver())
         mermaid = graph.get_graph().draw_mermaid()
@@ -629,7 +629,7 @@ class TestHumanInTheLoopFlow:
 
     async def test_destructive_tool_triggers_interrupt(self):
         """A destructive tool call should pause the graph with an interrupt."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -677,7 +677,7 @@ class TestHumanInTheLoopFlow:
         """After confirming, the graph should resume and execute the tool."""
         from langgraph.types import Command
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -721,7 +721,9 @@ class TestHumanInTheLoopFlow:
                 return_value=mock_response
             )
             with (
-                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory._build_llm", return_value=mock_llm
+                ),
                 patch(
                     "src.services.agent.llm_factory.build_synthesis_llm",
                     return_value=mock_llm,
@@ -794,7 +796,9 @@ class TestHumanInTheLoopFlow:
                 return_value=mock_response
             )
             with (
-                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory._build_llm", return_value=mock_llm
+                ),
                 patch(
                     "src.services.agent.llm_factory.build_lightweight_llm",
                     return_value=mock_llm,
@@ -822,7 +826,7 @@ class TestHumanInTheLoopFlow:
         """Denying the interrupt should skip tool execution."""
         from langgraph.types import Command
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -872,7 +876,7 @@ class TestHumanInTheLoopFlow:
 
     async def test_non_destructive_tool_skips_interrupt(self):
         """Non-destructive tool calls should bypass the interrupt node entirely."""
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         checkpointer = MemorySaver()
         graph = compile_agent_graph(checkpointer=checkpointer)
@@ -908,7 +912,9 @@ class TestHumanInTheLoopFlow:
             return_value={"results": [], "total": 0},
         ):
             with (
-                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
+                patch(
+                    "src.services.agent.llm_factory._build_llm", return_value=mock_llm
+                ),
                 patch(
                     "src.services.agent.llm_factory.build_synthesis_llm",
                     return_value=mock_llm,

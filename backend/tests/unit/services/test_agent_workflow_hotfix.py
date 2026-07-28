@@ -110,7 +110,7 @@ class TestHitlCheckpointOwnership:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.services.agent.graph.compile_agent_graph",
+                "src.services.agent._builders.compile_agent_graph",
                 return_value=mock_graph,
             ),
             patch(
@@ -170,7 +170,7 @@ class TestStreamingGraphInterrupt:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.services.agent.graph.compile_agent_graph",
+                "src.services.agent._builders.compile_agent_graph",
                 return_value=mock_graph,
             ),
             patch(
@@ -243,7 +243,7 @@ class TestBackgroundTimeout:
                 new_callable=AsyncMock,
             ),
             patch(
-                "src.services.agent.graph.compile_agent_graph",
+                "src.services.agent._builders.compile_agent_graph",
                 return_value=mock_graph,
             ),
             patch(
@@ -255,7 +255,9 @@ class TestBackgroundTimeout:
                 new_callable=AsyncMock,
                 return_value=(None, ""),
             ),
-            patch("src.services.agent.agent_execution_service.asyncio.timeout") as mock_timeout,
+            patch(
+                "src.services.agent.agent_execution_service.asyncio.timeout"
+            ) as mock_timeout,
         ):
             mock_timeout.return_value.__aenter__ = AsyncMock(
                 side_effect=asyncio.TimeoutError()
@@ -302,7 +304,7 @@ class TestFilteredToolNodeErrorInfo:
     async def test_filtered_tool_node_returns_last_error_info(self):
         from langchain_core.messages import AIMessage, ToolMessage
 
-        from src.services.agent.graph import make_filtered_tool_node
+        from src.services.agent._nodes_tools import make_filtered_tool_node
 
         node = make_filtered_tool_node({"search_arxiv"})
         ai_msg = AIMessage(

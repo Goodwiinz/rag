@@ -132,7 +132,7 @@ class TestWritingCanFollowItsOwnAdvice:
         assert {"research", "data"} <= _bindings()["list_project_documents"]
 
     def test_binding_adds_no_destructive_surface(self) -> None:
-        from src.services.agent.graph import DESTRUCTIVE_TOOLS
+        from src.services.agent._nodes_tools import DESTRUCTIVE_TOOLS
 
         assert "list_project_documents" not in DESTRUCTIVE_TOOLS
         assert "list_projects" not in DESTRUCTIVE_TOOLS

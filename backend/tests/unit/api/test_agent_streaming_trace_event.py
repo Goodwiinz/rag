@@ -47,7 +47,7 @@ async def test_stream_event_generator_emits_trace_event_before_workflow_events()
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(),
         ),
         patch(
@@ -87,7 +87,7 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(),
         ),
         patch(
@@ -96,9 +96,7 @@ async def test_stream_confirm_event_generator_emits_trace_event_before_workflow_
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     assert "event: trace\n" in events[0]

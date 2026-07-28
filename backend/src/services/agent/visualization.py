@@ -46,7 +46,7 @@ def _escape_mermaid_label(value: object) -> str:
 
 def get_graph_mermaid() -> str:
     """Generate a Mermaid diagram of the current agent graph structure."""
-    from src.services.agent.graph import build_agent_graph
+    from src.services.agent._builders import build_agent_graph
 
     try:
         graph = build_agent_graph()
@@ -70,8 +70,8 @@ async def get_execution_trace_mermaid(
     is in use, which produces an empty trace for any real thread —
     making debugging silently impossible).
     """
+    from src.services.agent._builders import compile_agent_graph
     from src.services.agent.checkpointer import get_checkpointer
-    from src.services.agent.graph import compile_agent_graph
 
     try:
         checkpointer = await get_checkpointer()

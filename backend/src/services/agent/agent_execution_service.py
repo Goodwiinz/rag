@@ -1421,8 +1421,8 @@ async def _run_agent_graph(
     """Run the LangGraph agent graph in the background and update job status."""
     from langgraph.errors import GraphInterrupt
 
+    from src.services.agent._builders import compile_agent_graph
     from src.services.agent.checkpointer import get_checkpointer
-    from src.services.agent.graph import compile_agent_graph
     from src.services.agent.memory import get_memory_store
 
     schemas = _get_schemas()
@@ -1778,8 +1778,8 @@ async def _resume_agent_graph(
     from langgraph.errors import GraphInterrupt
     from langgraph.types import Command
 
+    from src.services.agent._builders import compile_agent_graph
     from src.services.agent.checkpointer import get_checkpointer
-    from src.services.agent.graph import compile_agent_graph
     from src.services.agent.memory import get_memory_store
 
     schemas = _get_schemas()

@@ -66,7 +66,7 @@ class TestWritingCanActuallyResolveAProject:
 
     def test_binding_adds_no_destructive_surface(self) -> None:
         """list_projects is read-only — it must not start raising interrupts."""
-        from src.services.agent.graph import DESTRUCTIVE_TOOLS
+        from src.services.agent._nodes_tools import DESTRUCTIVE_TOOLS
 
         assert "list_projects" not in DESTRUCTIVE_TOOLS
 

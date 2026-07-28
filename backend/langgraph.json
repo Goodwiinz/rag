@@ -1,7 +1,9 @@
 {
-  "dependencies": ["."],
+  "dependencies": [
+    "."
+  ],
   "graphs": {
-    "agent": "./src/services/agent/graph.py:create_graph"
+    "agent": "./src/services/agent/_builders.py:create_graph"
   },
   "env": "../.env"
 }

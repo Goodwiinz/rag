@@ -119,7 +119,7 @@ def _collect_patches(graph):
     return [
         *_COMMON_PATCHES,
         (
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             graph,
         ),
     ]

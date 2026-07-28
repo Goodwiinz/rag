@@ -19,6 +19,7 @@ pytestmark = pytest.mark.asyncio
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _mock_user(org_id=None):
     user = Mock()
     user.id = uuid4()
@@ -265,7 +266,7 @@ class TestProjectContextAutoFill:
 
     async def test_project_id_auto_filled_from_context(self):
         """_execute_single_tool should inject project_id from page context."""
-        from src.services.agent.graph import _execute_single_tool
+        from src.services.agent._nodes_tools import _execute_single_tool
 
         project_id = str(uuid4())
         page_context = {"type": "project", "project_id": project_id}
@@ -297,7 +298,7 @@ class TestProjectContextAutoFill:
 
     async def test_project_id_not_overwritten_if_provided(self):
         """If LLM already provided project_id, context should not override."""
-        from src.services.agent.graph import _execute_single_tool
+        from src.services.agent._nodes_tools import _execute_single_tool
 
         explicit_id = str(uuid4())
         context_id = str(uuid4())

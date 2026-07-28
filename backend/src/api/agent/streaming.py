@@ -330,7 +330,7 @@ async def stream_event_generator(
     rag_context, plan, reflection, confirmation, done, error.
     """
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
     from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas to avoid circular imports
@@ -996,7 +996,7 @@ async def stream_confirm_event_generator(
     from langgraph.types import Command
 
     from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
     from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas

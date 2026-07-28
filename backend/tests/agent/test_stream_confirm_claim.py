@@ -88,7 +88,7 @@ def stream_confirm_harness(monkeypatch):
         AsyncMock(return_value=object()),
     )
     monkeypatch.setattr(
-        "src.services.agent.graph.compile_agent_graph",
+        "src.services.agent._builders.compile_agent_graph",
         lambda **kwargs: graph,
     )
     monkeypatch.setattr(streaming_mod, "AsyncSessionLocal", lambda: fake_db)
@@ -111,9 +111,7 @@ def stream_confirm_harness(monkeypatch):
         body = SimpleNamespace(thread_id="thread-cx1", confirmed=True, model="gpt-5")
         request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
         current_user = Mock(id="user-1", organization_id="org-1")
-        return streaming_mod.stream_confirm_event_generator(
-            body, request, current_user
-        )
+        return streaming_mod.stream_confirm_event_generator(body, request, current_user)
 
     return SimpleNamespace(
         graph=graph,

@@ -50,9 +50,7 @@ class _FakeGraphWithTool:
 
 def _parse_done(events):
     frame = next(e for e in events if "event: done\n" in e)
-    data_line = next(
-        ln for ln in frame.splitlines() if ln.startswith("data: ")
-    )
+    data_line = next(ln for ln in frame.splitlines() if ln.startswith("data: "))
     return json.loads(data_line[len("data: ") :])
 
 
@@ -79,7 +77,7 @@ async def test_done_frame_carries_tool_executions():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraphWithTool(),
         ),
         patch(

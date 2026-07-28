@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from src.services.agent.graph import _sanitize_messages
+from src.services.agent._sanitize import _sanitize_messages
 
 
 @pytest.mark.unit
