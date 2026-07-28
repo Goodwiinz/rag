@@ -82,7 +82,7 @@ async def _capture_system_prompt(intent: str) -> str:
     # other intents it uses graph._build_llm. Patch both so the fake LLM is
     # returned regardless of intent.
     with (
-        patch("src.services.agent.graph._build_llm", return_value=fake_llm),
+        patch("src.services.agent.llm_factory._build_llm", return_value=fake_llm),
         patch(
             "src.services.agent.llm_factory.build_synthesis_llm",
             return_value=fake_llm,

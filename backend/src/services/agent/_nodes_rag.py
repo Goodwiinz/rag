@@ -558,7 +558,7 @@ def _build_search_query(raw: str) -> str:
 async def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     """Retrieve relevant documents via hybrid search and store in state."""
     # Lazy import — graph.py owns the project-id text extractor.
-    from src.services.agent.graph import _extract_project_id_from_text
+    from src.services.agent._uuid import _extract_project_id_from_text
 
     configurable = config.get("configurable", {})
     # Ids-only configurable (audit B8): retrieval needs the scalar user /

@@ -22,9 +22,9 @@ def _make_langchain_openai_mock():
 
 def _set_chat_settings(monkeypatch, **overrides):
     """Set the Azure chat-related settings on the shared settings instance."""
-    from src.services.agent import graph as graph_module
+    from src.core.config import get_settings
 
-    settings = graph_module.get_settings()
+    settings = get_settings()
     defaults = {
         "AZURE_OPENAI_ENDPOINT": None,
         "AZURE_OPENAI_API_KEY": None,
@@ -42,8 +42,9 @@ def _set_chat_settings(monkeypatch, **overrides):
 
 def _clear_llm_cache():
     """Clear the module-level LLM cache so each test builds a fresh client."""
-    from src.services.agent import graph as graph_module
-    graph_module._LLM_CACHE.clear()
+    from src.services.agent import llm_factory
+
+    llm_factory._LLM_CACHE.clear()
 
 
 def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):

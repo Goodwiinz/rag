@@ -23,7 +23,7 @@ from src.services.agent._sanitize import (  # noqa: F401
     _PROMPT_FIELD_MAX_CHARS,
     _sanitize_prompt_field,
 )
-from src.services.agent.graph import INTENT_KEYWORDS, INTENT_PRIORITY
+from src.services.agent._prompts import INTENT_KEYWORDS, INTENT_PRIORITY
 
 logger = logging.getLogger(__name__)
 

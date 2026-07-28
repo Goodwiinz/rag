@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
-from src.services.agent.graph import _sanitize_messages
+from src.services.agent._sanitize import _sanitize_messages
 from src.services.agent.state import AgentState
 from src.services.agent.subgraphs._factory import make_specialist_subgraph
 from src.services.agent.tools import TOOL_REGISTRY
@@ -47,7 +47,7 @@ def _build_data_system_prompt() -> str:
 
     Imported lazily to avoid circular imports with graph.py.
     """
-    from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent._prompts import SHARED_AGENT_RULES
     from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 
     driver_protocol = load_agents_md("data")
@@ -67,7 +67,7 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
     from langchain_core.messages import ToolMessage
 
     from src.core.config import get_settings
-    from src.services.agent.graph import AGENT_LLM_TIMEOUT_SECONDS
+    from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
 
     sanitized = _sanitize_messages(state["messages"])
     messages = [SystemMessage(content=_build_data_system_prompt())]
@@ -97,7 +97,8 @@ async def data_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Hoisted above the branch: _build_llm is used inside it, so importing
     # after would NameError.
-    from src.services.agent.graph import _build_llm, _merge_run_config
+    from src.services.agent._prompts import _merge_run_config
+    from src.services.agent.llm_factory import _build_llm
 
     if use_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm

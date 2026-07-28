@@ -28,7 +28,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
 from src.services.agent.compactor import make_compactor_node
-from src.services.agent.graph import _sanitize_messages
+from src.services.agent._sanitize import _sanitize_messages
 from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
@@ -200,10 +200,8 @@ def make_specialist_subgraph(
 
         llm_client = build_synthesis_llm(max_tokens=4096)
         # No bind_tools — force a pure text response.
-        from src.services.agent.graph import (
-            AGENT_LLM_TIMEOUT_SECONDS,
-            _merge_run_config,
-        )
+        from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
+        from src.services.agent._prompts import _merge_run_config
 
         # _merge_run_config returns a plain dict; cast for the ainvoke
         # signature (mypy blocks on added files — the historical modules
@@ -361,7 +359,7 @@ def make_specialist_subgraph(
             | [interrupt ->] tool -> compactor -> llm (loop)
             | reflection_gate -> END (or revise -> llm)
         """
-        from src.services.agent.graph import make_filtered_tool_node
+        from src.services.agent._nodes_tools import make_filtered_tool_node
 
         filtered_tool = make_filtered_tool_node(allowed_tool_names)
 

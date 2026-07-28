@@ -71,7 +71,7 @@ async def _capture_system_prompt(node_fn, state, config) -> str:
     # graph._build_llm helper used by the main llm_node — so patch every
     # entry point a node might import.
     with (
-        patch("src.services.agent.graph._build_llm", return_value=fake_llm),
+        patch("src.services.agent.llm_factory._build_llm", return_value=fake_llm),
         patch(
             "src.services.agent.llm_factory.build_lightweight_llm",
             return_value=fake_llm,
@@ -721,7 +721,7 @@ class TestHumanInTheLoopFlow:
                 return_value=mock_response
             )
             with (
-                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
                 patch(
                     "src.services.agent.llm_factory.build_synthesis_llm",
                     return_value=mock_llm,
@@ -794,7 +794,7 @@ class TestHumanInTheLoopFlow:
                 return_value=mock_response
             )
             with (
-                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
                 patch(
                     "src.services.agent.llm_factory.build_lightweight_llm",
                     return_value=mock_llm,
@@ -908,7 +908,7 @@ class TestHumanInTheLoopFlow:
             return_value={"results": [], "total": 0},
         ):
             with (
-                patch("src.services.agent.graph._build_llm", return_value=mock_llm),
+                patch("src.services.agent.llm_factory._build_llm", return_value=mock_llm),
                 patch(
                     "src.services.agent.llm_factory.build_synthesis_llm",
                     return_value=mock_llm,

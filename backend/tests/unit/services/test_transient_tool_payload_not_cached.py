@@ -20,7 +20,7 @@ from src.services.agent._nodes_tools import _execute_single_tool
 async def test_transient_payload_error_marked_failed_not_completed():
     executor = AsyncMock(return_value={"error": "request timeout, please retry"})
 
-    with patch("src.services.agent.graph._get_execute_tool", return_value=executor):
+    with patch("src.services.agent._nodes_tools._get_execute_tool", return_value=executor):
         result = await _execute_single_tool(
             {"name": "document_search", "args": {"q": "x"}, "id": "t1"},
             {"configurable": {"user_id": "u1"}},

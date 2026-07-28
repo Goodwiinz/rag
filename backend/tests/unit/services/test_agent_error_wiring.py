@@ -27,7 +27,7 @@ class TestErrorRecoveryWiring:
         tc = {"name": "search_documents", "args": {"query": "test"}, "id": "tc1"}
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch("src.services.agent._nodes_tools.execute_tool", side_effect=mock_execute_tool):
             result = await _execute_single_tool(tc, config, {})
 
         assert result["error_increment"] == 0  # Transient retry succeeded
@@ -44,7 +44,7 @@ class TestErrorRecoveryWiring:
         tc = {"name": "add_document_to_project", "args": {"document_id": "abc123"}, "id": "tc2"}
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch("src.services.agent._nodes_tools.execute_tool", side_effect=mock_execute_tool):
             result = await _execute_single_tool(tc, config, {})
 
         content = json.loads(result["message"].content)
@@ -72,7 +72,7 @@ class TestErrorRecoveryWiring:
 
         config = {"configurable": {"user_id": "u1"}}
 
-        with patch("src.services.agent.graph.execute_tool", side_effect=mock_execute_tool):
+        with patch("src.services.agent._nodes_tools.execute_tool", side_effect=mock_execute_tool):
             result = await tool_node(state, config)
 
         assert result["error_count"] == 0  # Reset on success

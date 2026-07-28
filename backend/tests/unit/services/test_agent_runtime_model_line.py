@@ -8,9 +8,9 @@ from __future__ import annotations
 
 
 def _set_chat_settings(monkeypatch, **overrides):
-    from src.services.agent import graph as graph_module
+    from src.core.config import get_settings
 
-    settings = graph_module.get_settings()
+    settings = get_settings()
     defaults = {
         "AZURE_OPENAI_DEPLOYMENT_NAME": None,
         "AZURE_OPENAI_CHAT_DEPLOYMENT_NAME": "model-router",

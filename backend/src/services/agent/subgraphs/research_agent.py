@@ -19,7 +19,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
-from src.services.agent.graph import _sanitize_messages
+from src.services.agent._sanitize import _sanitize_messages
 from src.services.agent.observability import track_node_execution
 from src.services.agent.state import AgentState
 from src.services.agent.subgraphs._factory import make_specialist_subgraph
@@ -106,7 +106,7 @@ def _build_research_system_prompt() -> str:
 
     Imported lazily to avoid circular imports with graph.py.
     """
-    from src.services.agent.graph import SHARED_AGENT_RULES
+    from src.services.agent._prompts import SHARED_AGENT_RULES
     from src.services.agent.subgraphs.agents_md_loader import load_agents_md
 
     driver_protocol = load_agents_md("research")
@@ -177,11 +177,9 @@ async def research_llm_node(state: AgentState, config: RunnableConfig) -> dict:
 
     # Hoisted above the branch: _build_llm is used inside it, so importing
     # after would NameError.
-    from src.services.agent.graph import (
-        AGENT_LLM_TIMEOUT_SECONDS,
-        _build_llm,
-        _merge_run_config,
-    )
+    from src.services.agent._nodes_tools import AGENT_LLM_TIMEOUT_SECONDS
+    from src.services.agent._prompts import _merge_run_config
+    from src.services.agent.llm_factory import _build_llm
 
     if use_lightweight_synthesis:
         from src.services.agent.llm_factory import build_synthesis_llm

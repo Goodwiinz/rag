@@ -124,7 +124,7 @@ def _install_recorder(sink: list):
     targets = [
         (llm_factory, "build_lightweight_llm"),
         (llm_factory, "build_synthesis_llm"),
-        (graph, "_build_llm"),
+        (llm_factory, "_build_llm"),
         (reflection, "build_lightweight_llm"),
         (planner, "build_lightweight_llm"),
         (compactor, "build_lightweight_llm"),

@@ -56,7 +56,7 @@ def _install_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 
     monkeypatch.setattr(llm_factory, "build_lightweight_llm", _lightweight)
     monkeypatch.setattr(llm_factory, "build_synthesis_llm", _synthesis)
-    monkeypatch.setattr(graph_mod, "_build_llm", _main)
+    monkeypatch.setattr(llm_factory, "_build_llm", _main)
     return calls
 
 

@@ -30,6 +30,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 import time
 import weakref
 from typing import List
@@ -404,10 +405,8 @@ async def _execute_single_tool(
     page_context: dict,
 ) -> dict:
     """Execute a single tool call with timeout, retry, and structured error recovery."""
-    # Lazy imports avoid circular dep with graph.py (which exposes the
-    # tool executor + the json-safe parser used in tool_executions).
-    from src.services.agent.graph import _get_execute_tool, _safe_json_loads
-
+    # _get_execute_tool / _safe_json_loads live at the bottom of this
+    # module (moved from graph.py — the circular dep is gone).
     tool_executor = _get_execute_tool()
 
     tool_name = tc["name"]
@@ -894,3 +893,49 @@ __all__ = [
     "_execute_single_tool",
     "_get_tool_semaphore",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Tool-executor indirection + JSON helper (moved from graph.py)
+# ---------------------------------------------------------------------------
+
+# Lazy reference for execute_tool (avoids circular import, enables patching)
+execute_tool = None  # type: ignore[assignment]
+_default_execute_tool = None  # type: ignore[assignment]
+_execute_tool_lock = threading.Lock()
+
+
+def _get_execute_tool():
+    """Lazily import execute_tool and keep it patch-friendly.
+
+    The agent tests patch both ``src.services.agent._nodes_tools.execute_tool``
+    and the dispatcher at ``src.services.agent.tools_impl.execute_tool``.
+    Caching the first imported callable caused later source-module patches
+    to be ignored. We only refresh the cached callable when this module is
+    still pointing at the last default import.
+    """
+    global execute_tool, _default_execute_tool  # noqa: PLW0603
+
+    with _execute_tool_lock:
+        if execute_tool is None:
+            from src.services.agent.tools_impl import execute_tool as _et
+
+            execute_tool = _et
+            _default_execute_tool = _et
+            return execute_tool
+
+        from src.services.agent.tools_impl import execute_tool as _et
+
+        if execute_tool is _default_execute_tool:
+            execute_tool = _et
+            _default_execute_tool = _et
+
+        return execute_tool
+
+
+def _safe_json_loads(s: str):
+    """Parse JSON, returning a fallback dict if parsing fails."""
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, TypeError):
+        return {"raw": s}

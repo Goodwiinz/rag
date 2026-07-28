@@ -66,7 +66,7 @@ def _get_tool_llm():
     with _TOOL_LLM_LOCK:
         if _TOOL_LLM is not None:  # re-check inside lock
             return _TOOL_LLM
-        from src.services.agent.graph import _build_llm
+        from src.services.agent.llm_factory import _build_llm
 
         _TOOL_LLM = _build_llm()
     return _TOOL_LLM
