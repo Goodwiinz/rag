@@ -57,6 +57,7 @@ def _capturing_client(calls: List[str]) -> MagicMock:
         ("src.services.connectors.uniprot", "UniProtConnector"),
         ("src.services.connectors.pubchem", "PubChemConnector"),
         ("src.services.connectors.chembl", "ChEMBLConnector"),
+        ("src.services.connectors.clinical_trials", "ClinicalTrialsConnector"),
     ],
 )
 async def test_record_id_is_percent_encoded_into_one_path_segment(
