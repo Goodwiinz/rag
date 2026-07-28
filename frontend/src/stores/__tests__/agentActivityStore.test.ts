@@ -145,6 +145,57 @@ describe('agentActivityStore', () => {
     expect(plan[2].done).toBe(false); // never ran → stays pending
   });
 
+  it('a re-send carries the previous run’s completed plan items forward', () => {
+    const { startRun, setPlan, pushToolStart, pushToolEnd } =
+      useAgentActivityStore.getState();
+    const items = [
+      { text: 'Search arXiv', tool: 'search_arxiv' },
+      { text: 'Ingest papers', tool: 'ingest_arxiv' },
+    ];
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', items);
+    pushToolStart('t1', 'search_arxiv');
+    pushToolEnd('t1', 'search_arxiv', true);
+
+    // Re-send in the same thread: steps reset, but the rail must not report
+    // "0 of 2" for work the transcript still shows as completed.
+    startRun('t1', 'NOUS', 'task again');
+    expect(getRun('t1').steps).toEqual([]);
+    setPlan('t1', items);
+
+    expect(getRun('t1').plan.map((p) => p.done)).toEqual([true, false]);
+  });
+
+  it('carry-forward survives a re-send whose run never received a plan', () => {
+    const { startRun, setPlan, pushToolStart, pushToolEnd } =
+      useAgentActivityStore.getState();
+    const items = [{ text: 'Search arXiv', tool: 'search_arxiv' }];
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', items);
+    pushToolStart('t1', 'search_arxiv');
+    pushToolEnd('t1', 'search_arxiv', true);
+
+    startRun('t1', 'NOUS', 'no plan emitted');
+    startRun('t1', 'NOUS', 'third try');
+    setPlan('t1', items);
+
+    expect(getRun('t1').plan[0].done).toBe(true);
+  });
+
+  it('carry-forward never marks an item that was not done before', () => {
+    const { startRun, setPlan } = useAgentActivityStore.getState();
+    startRun('t1', 'NOUS', 'task');
+    setPlan('t1', [{ text: 'Search arXiv', tool: 'search_arxiv' }]);
+
+    startRun('t1', 'NOUS', 'task again');
+    setPlan('t1', [
+      { text: 'Search arXiv', tool: 'search_arxiv' },
+      { text: 'A brand new step', tool: 'ingest_arxiv' },
+    ]);
+
+    expect(getRun('t1').plan.map((p) => p.done)).toEqual([false, false]);
+  });
+
   it('pushToolStart appends an active step with a mapped label', () => {
     const { startRun, pushToolStart } = useAgentActivityStore.getState();
     startRun('t1', 'NOUS Agent', 'task');
