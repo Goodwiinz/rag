@@ -105,7 +105,16 @@ deliberate change, not a side effect of an unrelated refactor.
 
 ## Commands
 
+Run every blocking gate across the branch before pushing —
+`scripts/ci/run_local_ci.sh` (add `--frontend` for the pnpm checks). It
+ratchets changed files against the base branch the way CI does, which
+`.pre-commit-config.yaml` cannot: pre-commit only sees the files being staged,
+so one formatted in an earlier commit and edited later still fails CI.
+
 ```sh
+scripts/ci/run_local_ci.sh              # blocking gates + unit tests
+scripts/ci/run_local_ci.sh --skip-tests # gates only
+
 ruff check backend/src
 black --check backend/src
 isort --check-only backend/src
