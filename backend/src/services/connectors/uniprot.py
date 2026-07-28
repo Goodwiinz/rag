@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
 import structlog
@@ -42,9 +43,7 @@ def _parse_entry(entry: Dict[str, Any]) -> ConnectorResult:
     accession = entry.get("primaryAccession", "")
     protein_desc = entry.get("proteinDescription", {})
     rec_name = (
-        protein_desc.get("recommendedName", {})
-        .get("fullName", {})
-        .get("value", "")
+        protein_desc.get("recommendedName", {}).get("fullName", {}).get("value", "")
     )
     title = rec_name or accession
 
@@ -120,7 +119,9 @@ class UniProtConnector(ExternalDBConnector):
     async def fetch_by_id(self, record_id: str) -> Optional[ConnectorResult]:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(f"{_FETCH_URL}/{record_id}.json")
+                resp = await client.get(
+                    f"{_FETCH_URL}/{quote(record_id, safe='')}.json"
+                )
                 resp.raise_for_status()
             return _parse_entry(resp.json())
         except Exception as exc:

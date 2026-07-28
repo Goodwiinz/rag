@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
 import structlog
@@ -110,7 +111,9 @@ class ChEMBLConnector(ExternalDBConnector):
     async def fetch_by_id(self, record_id: str) -> Optional[ConnectorResult]:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(f"{_BASE_URL}/molecule/{record_id}.json")
+                resp = await client.get(
+                    f"{_BASE_URL}/molecule/{quote(record_id, safe='')}.json"
+                )
                 resp.raise_for_status()
             return _parse_molecule(resp.json())
         except Exception as exc:
