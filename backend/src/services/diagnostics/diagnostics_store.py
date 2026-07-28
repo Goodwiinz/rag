@@ -87,9 +87,13 @@ class DiagnosticsStore:
             return False
 
     async def get_trace(
-        self, trace_id: str, organization_id: Optional[str] = None
+        self, trace_id: str, *, organization_id: str
     ) -> Optional[RetrievalTrace]:
-        """Retrieve a single trace by ID, scoped to a tenant when given.
+        """Retrieve a single trace by ID, scoped to the caller's tenant.
+
+        ``organization_id`` is required and keyword-only on purpose: an
+        optional one silently disables the boundary for whoever forgets it,
+        which is the shape that produced the leak in #1292.
 
         Returns ``None`` on a tenant mismatch rather than raising, so a
         caller cannot distinguish "another tenant owns this id" from "no such
@@ -113,7 +117,7 @@ class DiagnosticsStore:
                 data = data.decode("utf-8")
 
             trace = RetrievalTrace.from_dict(json.loads(data))
-            if organization_id is not None and trace.organization_id != organization_id:
+            if trace.organization_id != organization_id:
                 # Fail closed, which also hides traces written before the
                 # field existed rather than exposing them to every tenant.
                 return None
@@ -124,9 +128,10 @@ class DiagnosticsStore:
 
     async def get_recent_traces(
         self,
+        *,
+        organization_id: str,
         limit: int = 50,
         offset: int = 0,
-        organization_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get recent trace summaries (trace_id, query, timestamp, total_time_ms)."""
         client = self.redis
@@ -169,7 +174,7 @@ class DiagnosticsStore:
             return []
 
     async def get_aggregate_stats(
-        self, hours: int = 24, organization_id: Optional[str] = None
+        self, *, organization_id: str, hours: int = 24
     ) -> Dict[str, Any]:
         """Compute aggregate statistics over recent traces."""
         client = self.redis
