@@ -190,7 +190,7 @@ class TestStoreTrace:
 
 
 class TestGetTrace:
-    """Tests for DiagnosticsStore.get_trace()."""
+    """Tests for DiagnosticsStore.get_trace(organization_id="test-org")."""
 
     @pytest.mark.asyncio
     async def test_returns_trace_from_json(self) -> None:
@@ -200,7 +200,7 @@ class TestGetTrace:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        result = await store.get_trace("get-test")
+        result = await store.get_trace("get-test", organization_id="test-org")
 
         assert result is not None
         assert result.trace_id == "get-test"
@@ -215,7 +215,7 @@ class TestGetTrace:
         redis.get.return_value = json.dumps(trace.to_dict()).encode("utf-8")
 
         store = DiagnosticsStore(redis_client=redis)
-        result = await store.get_trace("bytes-test")
+        result = await store.get_trace("bytes-test", organization_id="test-org")
 
         assert result is not None
         assert result.trace_id == "bytes-test"
@@ -227,7 +227,7 @@ class TestGetTrace:
         redis.get.return_value = None
 
         store = DiagnosticsStore(redis_client=redis)
-        result = await store.get_trace("nonexistent")
+        result = await store.get_trace("nonexistent", organization_id="test-org")
 
         assert result is None
 
@@ -238,7 +238,7 @@ class TestGetTrace:
         redis.get.return_value = None
 
         store = DiagnosticsStore(redis_client=redis)
-        await store.get_trace("my-trace-id")
+        await store.get_trace("my-trace-id", organization_id="test-org")
 
         redis.get.assert_called_once_with(f"{TRACE_KEY_PREFIX}my-trace-id")
 
@@ -251,7 +251,7 @@ class TestGetTrace:
             "redis",
             new_callable=lambda: property(lambda self: None),
         ):
-            result = await store.get_trace("any-id")
+            result = await store.get_trace("any-id", organization_id="test-org")
             assert result is None
 
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ class TestGetTrace:
         redis.get.side_effect = ConnectionError("Redis unavailable")
         store = DiagnosticsStore(redis_client=redis)
 
-        result = await store.get_trace("error-trace")
+        result = await store.get_trace("error-trace", organization_id="test-org")
 
         assert result is None
 
@@ -272,7 +272,7 @@ class TestGetTrace:
 
 
 class TestGetRecentTraces:
-    """Tests for DiagnosticsStore.get_recent_traces()."""
+    """Tests for DiagnosticsStore.get_recent_traces(organization_id="test-org")."""
 
     @pytest.mark.asyncio
     async def test_uses_zrevrange(self) -> None:
@@ -281,9 +281,9 @@ class TestGetRecentTraces:
         redis.zrevrange.return_value = []
 
         store = DiagnosticsStore(redis_client=redis)
-        await store.get_recent_traces(limit=10, offset=5)
+        await store.get_recent_traces(limit=10, offset=5, organization_id="test-org")
 
-        redis.zrevrange.assert_called_once_with(_index_key(None), 5, 14)
+        redis.zrevrange.assert_called_once_with(_index_key("test-org"), 5, 14)
 
     @pytest.mark.asyncio
     async def test_returns_summaries(self) -> None:
@@ -294,7 +294,7 @@ class TestGetRecentTraces:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        summaries = await store.get_recent_traces(limit=50)
+        summaries = await store.get_recent_traces(limit=50, organization_id="test-org")
 
         assert len(summaries) == 1
         summary = summaries[0]
@@ -316,7 +316,7 @@ class TestGetRecentTraces:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        summaries = await store.get_recent_traces()
+        summaries = await store.get_recent_traces(organization_id="test-org")
 
         assert len(summaries) == 1
         assert summaries[0]["trace_id"] == "bytes-id"
@@ -330,7 +330,7 @@ class TestGetRecentTraces:
             "redis",
             new_callable=lambda: property(lambda self: None),
         ):
-            result = await store.get_recent_traces()
+            result = await store.get_recent_traces(organization_id="test-org")
             assert result == []
 
     @pytest.mark.asyncio
@@ -349,7 +349,7 @@ class TestGetRecentTraces:
         redis.get.side_effect = mock_get
 
         store = DiagnosticsStore(redis_client=redis)
-        summaries = await store.get_recent_traces()
+        summaries = await store.get_recent_traces(organization_id="test-org")
 
         assert len(summaries) == 1
         assert summaries[0]["trace_id"] == "exists"
@@ -363,7 +363,7 @@ class TestGetRecentTraces:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        summaries = await store.get_recent_traces()
+        summaries = await store.get_recent_traces(organization_id="test-org")
 
         assert summaries[0]["has_evaluation"] is True
 
@@ -374,7 +374,7 @@ class TestGetRecentTraces:
 
 
 class TestGetAggregateStats:
-    """Tests for DiagnosticsStore.get_aggregate_stats()."""
+    """Tests for DiagnosticsStore.get_aggregate_stats(organization_id="test-org")."""
 
     @pytest.mark.asyncio
     async def test_computes_averages(self) -> None:
@@ -396,7 +396,7 @@ class TestGetAggregateStats:
         redis.get.side_effect = mock_get
 
         store = DiagnosticsStore(redis_client=redis)
-        stats = await store.get_aggregate_stats(hours=24)
+        stats = await store.get_aggregate_stats(hours=24, organization_id="test-org")
 
         assert stats["total_traces"] == 2
         assert stats["avg_time_ms"] == 150.0  # (100 + 200) / 2
@@ -411,7 +411,7 @@ class TestGetAggregateStats:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        stats = await store.get_aggregate_stats(hours=24)
+        stats = await store.get_aggregate_stats(hours=24, organization_id="test-org")
 
         assert "fulltext" in stats["source_stats"]
         assert "vector" in stats["source_stats"]
@@ -435,7 +435,7 @@ class TestGetAggregateStats:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        stats = await store.get_aggregate_stats(hours=24)
+        stats = await store.get_aggregate_stats(hours=24, organization_id="test-org")
 
         assert stats["truncation_stats"]["avg_ratio"] == 0.3
         assert stats["truncation_stats"]["max_ratio"] == 0.3
@@ -458,7 +458,7 @@ class TestGetAggregateStats:
         redis.get.return_value = json.dumps(trace.to_dict())
 
         store = DiagnosticsStore(redis_client=redis)
-        stats = await store.get_aggregate_stats(hours=24)
+        stats = await store.get_aggregate_stats(hours=24, organization_id="test-org")
 
         assert stats["source_failure_count"] == 1
 
@@ -469,7 +469,7 @@ class TestGetAggregateStats:
         redis.zrangebyscore.return_value = []
 
         store = DiagnosticsStore(redis_client=redis)
-        stats = await store.get_aggregate_stats(hours=24)
+        stats = await store.get_aggregate_stats(hours=24, organization_id="test-org")
 
         assert stats["total_traces"] == 0
         assert stats["avg_time_ms"] == 0
@@ -484,7 +484,7 @@ class TestGetAggregateStats:
             "redis",
             new_callable=lambda: property(lambda self: None),
         ):
-            result = await store.get_aggregate_stats()
+            result = await store.get_aggregate_stats(organization_id="test-org")
             assert "error" in result
 
 

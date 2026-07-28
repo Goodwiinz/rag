@@ -183,3 +183,40 @@ class TestAggregateIsScoped:
         stats = await store.get_aggregate_stats(organization_id=_ORG_A)
 
         assert stats["total_traces"] == 0
+
+
+class TestTheTenantArgumentIsStructural:
+    """An optional tenant silently disables the boundary for whoever omits it.
+
+    That is the exact shape that produced the leak: the store had the filter
+    available and the endpoints simply never passed one. Requiring it turns a
+    forgotten argument into a TypeError at the call site instead of a silent
+    cross-tenant read.
+    """
+
+    @pytest.mark.parametrize(
+        "method", ["get_trace", "get_recent_traces", "get_aggregate_stats"]
+    )
+    def test_reads_require_a_tenant(self, method: str) -> None:
+        import inspect
+
+        from src.services.diagnostics.diagnostics_store import DiagnosticsStore
+
+        param = inspect.signature(getattr(DiagnosticsStore, method)).parameters[
+            "organization_id"
+        ]
+
+        assert param.default is inspect.Parameter.empty, (
+            f"{method} defaults organization_id, so a caller that forgets it "
+            "reads across tenants instead of failing"
+        )
+        assert param.kind is inspect.Parameter.KEYWORD_ONLY, (
+            f"{method} should take organization_id keyword-only so it cannot "
+            "be filled positionally by accident"
+        )
+
+    async def test_omitting_the_tenant_raises(self) -> None:
+        store = _store()
+
+        with pytest.raises(TypeError):
+            await store.get_trace("some-id")  # type: ignore[call-arg]
