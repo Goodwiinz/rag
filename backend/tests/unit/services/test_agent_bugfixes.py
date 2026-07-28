@@ -574,10 +574,10 @@ class TestJobOwnership:
     """1.3 — Job endpoints should enforce user ownership."""
 
     def test_set_job_stores_user_id(self):
-        from src.api.agent.execute import _get_job, _set_job
+        from src.api.agent.execute import get_job, set_job
 
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -585,12 +585,12 @@ class TestJobOwnership:
                 "user_id": "user-abc",
             },
         )
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job is not None
         assert job["user_id"] == "user-abc"
 
     def test_set_job_stores_request(self):
-        from src.api.agent.execute import _get_job, _set_job
+        from src.api.agent.execute import get_job, set_job
 
         job_id = str(uuid4())
         request_data = {
@@ -600,7 +600,7 @@ class TestJobOwnership:
             "use_rag": True,
             "max_context_docs": 5,
         }
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -609,7 +609,7 @@ class TestJobOwnership:
                 "request": request_data,
             },
         )
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job["request"]["messages"][0]["content"] == "hello"
 
 

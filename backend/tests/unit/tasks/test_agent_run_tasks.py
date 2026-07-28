@@ -80,7 +80,7 @@ async def test_first_delivery_claims_and_runs(session_factory):
     runner = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
     ):
         result = await tasks_mod._execute_agent_job(
             job_id, _payload(), str(user_id), lease_owner="celery:w1"
@@ -109,7 +109,7 @@ async def test_duplicate_delivery_noops(session_factory):
     runner = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
     ):
         first = await tasks_mod._execute_agent_job(
             job_id, _payload(), str(user_id), lease_owner="celery:w1"
@@ -134,7 +134,7 @@ async def test_terminal_run_noops(session_factory):
     runner = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
     ):
         result = await tasks_mod._execute_agent_job(
             job_id, _payload(), str(user_id), lease_owner="celery:w1"
@@ -155,7 +155,7 @@ async def test_missing_row_refuses_to_run_and_fails_job(session_factory):
     fail_record = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
         patch.object(tasks_mod, "_fail_job_record", fail_record),
     ):
         result = await tasks_mod._execute_agent_job(
@@ -177,7 +177,7 @@ async def test_unknown_user_fails_job_without_running(session_factory):
     fail_record = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
         patch.object(tasks_mod, "_fail_job_record", fail_record),
     ):
         result = await tasks_mod._execute_agent_job(
@@ -198,7 +198,7 @@ async def test_inactive_user_fails_job_without_running(session_factory):
     runner = AsyncMock()
     with (
         patch("src.core.database.AsyncSessionLocal", session_factory),
-        patch("src.services.agent.agent_execution_service._run_agent_graph", runner),
+        patch("src.services.agent.agent_execution_service.run_agent_graph", runner),
         patch.object(tasks_mod, "_fail_job_record", AsyncMock()),
     ):
         result = await tasks_mod._execute_agent_job(

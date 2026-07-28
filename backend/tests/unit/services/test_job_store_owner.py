@@ -4,7 +4,7 @@
 ``user_id``, which dropped the owner from the record; combined with the old
 fail-open GET guard this leaked completed job results across users. These
 tests pin the carry-forward in both write paths (async ``set_job`` and the
-sync ``_set_job`` wrapper) so an ownerless overwrite can never orphan a job.
+sync ``set_job`` wrapper) so an ownerless overwrite can never orphan a job.
 """
 
 from __future__ import annotations
@@ -48,12 +48,12 @@ async def test_set_job_explicit_user_id_wins(monkeypatch):
 
 @pytest.mark.unit
 def test_sync_set_job_preserves_user_id_on_overwrite():
-    from src.services.agent.agent_execution_service import _get_job, _set_job
+    from src.services.agent.agent_execution_service import get_job, set_job
 
-    _set_job("j2", {"status": "running", "user_id": "u2"})
-    _set_job("j2", {"status": "completed", "result": {}})
+    set_job("j2", {"status": "running", "user_id": "u2"})
+    set_job("j2", {"status": "completed", "result": {}})
 
-    job = _get_job("j2")
+    job = get_job("j2")
     assert job["status"] == "completed"
     assert job["user_id"] == "u2"
 

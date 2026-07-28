@@ -26,13 +26,13 @@ from src.services.agent._builders import RECURSION_LIMIT
 from src.services.agent._errors import client_safe_error, extract_interrupt_confirmation
 from src.services.agent._pii_redact import redact_pii, redact_tool_args
 from src.services.agent.agent_execution_service import (
-    _clear_stale_pending_confirmation,
-    _latest_user_client_message_id,
-    _page_context_to_dict,
-    _persist_assistant_message,
-    _persist_user_message_guarded,
-    _resolve_and_bind_project,
-    _resolve_thread,
+    clear_stale_pending_confirmation,
+    latest_user_client_message_id,
+    page_context_to_dict,
+    persist_assistant_message,
+    persist_user_message_guarded,
+    resolve_and_bind_project,
+    resolve_thread,
 )
 from src.services.agent.observability import record_token_usage
 from src.shared.enums import AgentStreamEvent
@@ -329,8 +329,8 @@ async def stream_event_generator(
     Yields SSE-formatted events: token, tool_start, tool_end,
     rag_context, plan, reflection, confirmation, done, error.
     """
-    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent._builders import compile_agent_graph
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas to avoid circular imports
@@ -362,7 +362,7 @@ async def stream_event_generator(
         # stream completes — Task 4 of docs/plans/2026-05-13-agent-persist-perf.md.
         thread_obj = None
         try:
-            thread_obj, _conversation_id = await _resolve_thread(
+            thread_obj, _conversation_id = await resolve_thread(
                 db, current_user, request_body
             )
             if thread_obj is not None:
@@ -371,7 +371,7 @@ async def stream_event_generator(
                     request_body.thread_id = resolved_thread_id
                 # Retry-once + observable-on-failure so a swallowed persist
                 # can't silently diverge the two stores (audit D3 / P2.6).
-                await _persist_user_message_guarded(db, current_user, request_body)
+                await persist_user_message_guarded(db, current_user, request_body)
         except Exception:
             logger.warning(
                 "Failed to persist user turn before LLM call",
@@ -394,7 +394,7 @@ async def stream_event_generator(
             # turn that works today is never aborted by the opt-in path.
             try:
                 # Seed only from the ownership-verified thread id (set by
-                # _resolve_thread); never the raw client-supplied thread_id.
+                # resolve_thread); never the raw client-supplied thread_id.
                 messages = await _jobs_mod.build_graph_input_messages(
                     db, graph, resolved_thread_id or "", request_body.messages
                 )
@@ -411,8 +411,8 @@ async def stream_event_generator(
                 request_body.messages, request_body.thread_id or ""
             )
 
-        page_context = _page_context_to_dict(request_body.page_context)
-        await _resolve_and_bind_project(db, current_user, thread_obj, page_context)
+        page_context = page_context_to_dict(request_body.page_context)
+        await resolve_and_bind_project(db, current_user, thread_obj, page_context)
 
         # Project-scoped memory recall (best-effort; never blocks a turn).
         project_memories: list = []
@@ -510,7 +510,7 @@ async def stream_event_generator(
         # Drop any stale HITL interrupt left over from a previous turn the
         # user abandoned (e.g. /new in the CLI). A fresh HumanMessage cannot
         # resume an interrupt, so re-firing it would block this turn.
-        await _clear_stale_pending_confirmation(graph, config)
+        await clear_stale_pending_confirmation(graph, config)
 
         # If the checkpointer's pgbouncer/Supabase connection was
         # idle-killed since the singleton was built, the first aget_tuple
@@ -579,10 +579,10 @@ async def stream_event_generator(
             )
             if background_tasks is not None:
                 background_tasks.add_task(
-                    _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                    _jobs_mod.persist_assistant_message_safe, **stop_kwargs
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                await _jobs_mod.persist_assistant_message_safe(**stop_kwargs)
 
         async with asyncio.timeout(300):  # 5 minutes
             while True:
@@ -726,7 +726,7 @@ async def stream_event_generator(
                     await reset_checkpointer()
                     checkpointer = await get_checkpointer()
                     graph = compile_agent_graph(checkpointer=checkpointer, store=store)
-                    await _clear_stale_pending_confirmation(graph, config)
+                    await clear_stale_pending_confirmation(graph, config)
                     event_stream_iter = await _open_event_stream()
                     continue
 
@@ -836,13 +836,11 @@ async def stream_event_generator(
                     # event can carry the persisted ids and the client can
                     # reconcile its optimistic message without a re-fetch.
                     persisted_assistant_id = (
-                        await _jobs_mod._persist_assistant_message_safe(
-                            **persist_kwargs
-                        )
+                        await _jobs_mod.persist_assistant_message_safe(**persist_kwargs)
                     )
                 elif background_tasks is not None:
                     background_tasks.add_task(
-                        _jobs_mod._persist_assistant_message_safe,
+                        _jobs_mod.persist_assistant_message_safe,
                         **persist_kwargs,
                     )
                 else:
@@ -850,7 +848,7 @@ async def stream_event_generator(
                     # tests that directly invoke the generator without
                     # passing one). Run inline through the safe wrapper
                     # so the failure-metric path is still exercised.
-                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                    await _jobs_mod.persist_assistant_message_safe(**persist_kwargs)
                 assistant_persisted = True
         except Exception as e:
             logger.warning("Failed to persist SSE thread messages", exc_info=e)
@@ -995,8 +993,8 @@ async def stream_confirm_event_generator(
     """
     from langgraph.types import Command
 
-    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent._builders import compile_agent_graph
+    from src.services.agent.checkpointer import get_checkpointer, reset_checkpointer
     from src.services.agent.memory import get_memory_store
 
     # Lazy import schemas
@@ -1082,7 +1080,7 @@ async def stream_confirm_event_generator(
             )
             return
 
-        page_context = _page_context_to_dict(
+        page_context = page_context_to_dict(
             current_snapshot.values.get("page_context", {})
         )
         from src.services.agent.runtime_snapshot import resume_runtime_config_fields
@@ -1147,7 +1145,7 @@ async def stream_confirm_event_generator(
             # Fallback (checkpoint id missing): the original latest-user-cmid
             # derivation — imperfect but better than a non-idempotent row.
             try:
-                user_cmid = await _latest_user_client_message_id(
+                user_cmid = await latest_user_client_message_id(
                     db, request_body.thread_id
                 )
                 if user_cmid is not None:
@@ -1242,10 +1240,10 @@ async def stream_confirm_event_generator(
             )
             if background_tasks is not None:
                 background_tasks.add_task(
-                    _jobs_mod._persist_assistant_message_safe, **stop_kwargs
+                    _jobs_mod.persist_assistant_message_safe, **stop_kwargs
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(**stop_kwargs)
+                await _jobs_mod.persist_assistant_message_safe(**stop_kwargs)
 
         # Named iterator so a mid-stream client disconnect can aclose() it and
         # cancel the resumed graph run, instead of leaving it executing into a
@@ -1432,7 +1430,7 @@ async def stream_confirm_event_generator(
 
         # Persist ONLY the assistant row for the resumed turn. The user row
         # that started this turn was already written up-front by the original
-        # /stream request (stream_event_generator → _persist_user_message),
+        # /stream request (stream_event_generator → persist_user_message),
         # so re-persisting it here would insert a SECOND bare
         # user row every confirm (no client_message_id → no dedup), inflated
         # thread.message_count, and confused context assembly.
@@ -1464,22 +1462,22 @@ async def stream_confirm_event_generator(
                 client_message_id=assistant_cmid,
                 latency_ms=int((time.monotonic() - stream_started_at) * 1000),
             )
-            # _persist_assistant_message_safe opens its own session so this
+            # persist_assistant_message_safe opens its own session so this
             # request session can be closed immediately after `done`. Run it
             # inline (not as a background task) in canonical mode so the id
             # is available for the done payload; otherwise fall back to a
             # background task to release the SSE without waiting on the write.
             if _canonical_persistence_enabled():
-                persisted_assistant_id = (
-                    await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                persisted_assistant_id = await _jobs_mod.persist_assistant_message_safe(
+                    **persist_kwargs
                 )
             elif background_tasks is not None:
                 background_tasks.add_task(
-                    _jobs_mod._persist_assistant_message_safe,
+                    _jobs_mod.persist_assistant_message_safe,
                     **persist_kwargs,
                 )
             else:
-                await _jobs_mod._persist_assistant_message_safe(**persist_kwargs)
+                await _jobs_mod.persist_assistant_message_safe(**persist_kwargs)
             assistant_persisted = True
         except Exception as e:
             logger.warning(

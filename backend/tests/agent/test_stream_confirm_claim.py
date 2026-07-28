@@ -93,11 +93,11 @@ def stream_confirm_harness(monkeypatch):
     )
     monkeypatch.setattr(streaming_mod, "AsyncSessionLocal", lambda: fake_db)
     monkeypatch.setattr(
-        "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+        "src.services.agent.agent_execution_service.persist_assistant_message_safe",
         AsyncMock(return_value="assistant-msg-1"),
     )
     monkeypatch.setattr(
-        streaming_mod, "_latest_user_client_message_id", AsyncMock(return_value=None)
+        streaming_mod, "latest_user_client_message_id", AsyncMock(return_value=None)
     )
     # The claim code does a lazy `from src.services.agent.job_store import
     # get_redis` inside the generator, so patching the source attribute is

@@ -169,19 +169,19 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
             return_value=_DisconnectThenHangGraph(),
         ),
         patch(
-            "src.api.agent.streaming._resolve_thread",
+            "src.api.agent.streaming.resolve_thread",
             new=AsyncMock(return_value=(thread_obj, None)),
         ),
         patch(
-            "src.api.agent.streaming._persist_user_message_guarded",
+            "src.api.agent.streaming.persist_user_message_guarded",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.streaming._resolve_and_bind_project",
+            "src.api.agent.streaming.resolve_and_bind_project",
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            "src.api.agent.streaming._jobs_mod.persist_assistant_message_safe",
             new=persist,
         ),
         patch(

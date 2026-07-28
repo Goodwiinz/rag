@@ -62,7 +62,7 @@ class TestAddDocumentToProject:
     async def test_success_writes_via_tool_call_session(self):
         """Tool commits via the per-call session passed in (audit B8) —
         no ad-hoc AsyncSessionLocal of its own."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
         doc = _mock_document(title="Attention Paper")
@@ -108,7 +108,7 @@ class TestAddDocumentToProject:
 
     async def test_document_not_found_returns_error(self):
         """Tool should return a helpful error when document doesn't exist."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
 
@@ -129,7 +129,7 @@ class TestAddDocumentToProject:
 
     async def test_already_linked_returns_status(self):
         """Tool should detect and report already-linked documents."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         user = _mock_user()
         doc = _mock_document()
@@ -162,7 +162,7 @@ class TestAddDocumentToProject:
 
     async def test_missing_document_id_returns_error(self):
         """Tool should reject calls without document_id."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         result = await _tool_add_document_to_project(
             args={"project_id": str(uuid4())},
@@ -174,7 +174,7 @@ class TestAddDocumentToProject:
 
     async def test_no_auth_returns_error(self):
         """Tool should reject unauthenticated calls."""
-        from src.api.agent.execute import _tool_add_document_to_project
+        from src.services.agent.tools_impl import _tool_add_document_to_project
 
         result = await _tool_add_document_to_project(
             args={"document_id": str(uuid4()), "project_id": str(uuid4())},
@@ -448,7 +448,7 @@ class TestIngestArxiv:
 
     async def test_ingest_no_papers_returns_error(self):
         """Should reject empty paper_ids list."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         result = await _tool_ingest_arxiv(
             args={"paper_ids": []},
@@ -461,7 +461,7 @@ class TestIngestArxiv:
 
     async def test_ingest_too_many_papers_returns_error(self):
         """Should reject more than 10 papers."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         result = await _tool_ingest_arxiv(
             args={"paper_ids": [f"id-{i}" for i in range(11)]},
@@ -475,7 +475,7 @@ class TestIngestArxiv:
 
     async def test_ingest_service_failure_returns_error(self):
         """Should catch service exceptions and return an error dict."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         mock_service_ctx = AsyncMock()
         mock_service_ctx.__aenter__ = AsyncMock(
@@ -498,7 +498,7 @@ class TestIngestArxiv:
 
     async def test_ingest_without_user_skips_db_persist(self):
         """Without current_user, should return paper_ids only (no DB writes)."""
-        from src.api.agent.execute import _tool_ingest_arxiv
+        from src.services.agent.tools_impl import _tool_ingest_arxiv
 
         mock_paper = Mock()
         mock_paper.id = "arxiv-id-1"
@@ -642,7 +642,7 @@ class TestCreateProject:
     """Tests for _tool_create_project."""
 
     async def test_missing_user_returns_error(self):
-        from src.api.agent.execute import _tool_create_project
+        from src.services.agent.tools_impl import _tool_create_project
 
         result = await _tool_create_project(
             {"name": "Diffusion Transformers"}, None, None
@@ -651,7 +651,7 @@ class TestCreateProject:
         assert "Authentication" in result["error"]
 
     async def test_missing_name_returns_error(self):
-        from src.api.agent.execute import _tool_create_project
+        from src.services.agent.tools_impl import _tool_create_project
 
         result = await _tool_create_project(
             {"name": "  "}, MockAsyncSession(), _mock_user()
@@ -660,7 +660,7 @@ class TestCreateProject:
         assert "name is required" in result["error"]
 
     async def test_invalid_workspace_id_returns_error(self):
-        from src.api.agent.execute import _tool_create_project
+        from src.services.agent.tools_impl import _tool_create_project
 
         result = await _tool_create_project(
             {"name": "X", "workspace_id": "not-a-uuid"},
@@ -672,7 +672,7 @@ class TestCreateProject:
 
     async def test_success_uses_first_workspace_when_omitted(self):
         """When workspace_id is omitted, the user's first workspace is used."""
-        from src.api.agent.execute import _tool_create_project
+        from src.services.agent.tools_impl import _tool_create_project
 
         user = _mock_user()
         workspace_id = uuid4()
@@ -701,7 +701,7 @@ class TestCreateProject:
 
     async def test_success_no_workspace_returns_error(self):
         """If the user has no workspace, the tool returns a clear error."""
-        from src.api.agent.execute import _tool_create_project
+        from src.services.agent.tools_impl import _tool_create_project
 
         user = _mock_user()
         service = MagicMock()
@@ -721,7 +721,7 @@ class TestListProjects:
     """Tests for _tool_list_projects (user-facing project discovery)."""
 
     async def test_missing_user_returns_error(self):
-        from src.api.agent.execute import _tool_list_projects
+        from src.services.agent.tools_impl import _tool_list_projects
 
         result = await _tool_list_projects({}, None, None)
         assert "error" in result
@@ -731,7 +731,7 @@ class TestListProjects:
         """The tool should call ProjectService.list_projects and flatten the result."""
         from datetime import datetime, timezone
 
-        from src.api.agent.execute import _tool_list_projects
+        from src.services.agent.tools_impl import _tool_list_projects
 
         user = _mock_user()
         project_a = _mock_project(name="Alpha")
@@ -785,7 +785,7 @@ class TestListProjects:
 
     async def test_limit_is_clamped(self):
         """limit must be coerced into the [1, 50] range."""
-        from src.api.agent.execute import _tool_list_projects
+        from src.services.agent.tools_impl import _tool_list_projects
 
         user = _mock_user()
         service = MagicMock()

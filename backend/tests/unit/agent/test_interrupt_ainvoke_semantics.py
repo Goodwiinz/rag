@@ -6,7 +6,7 @@ Three agent-facing code paths need to detect a paused-for-confirmation graph:
   the PRIMARY, correct mechanism; `except GraphInterrupt` around the stream is
   a secondary defensive catch (verifies checkpoint persistence in the rare case
   the exception does fire), not the thing HITL confirmations actually rely on.
-- `jobs.py:_run_agent_graph` (`/execute`) and `scripts/synthetic_traffic.py`
+- `jobs.py:run_agent_graph` (`/execute`) and `scripts/synthetic_traffic.py`
   call plain `graph.ainvoke()` wrapped ONLY in `except GraphInterrupt`, with no
   state-based fallback.
 

@@ -109,7 +109,7 @@ async def test_stream_event_generator_cancels_on_disconnect():
         ),
         patch.object(
             streaming_mod._jobs_mod,
-            "_persist_assistant_message_safe",
+            "persist_assistant_message_safe",
             new=persist,
         ),
         patch(

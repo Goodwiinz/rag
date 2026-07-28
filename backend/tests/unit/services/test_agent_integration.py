@@ -21,9 +21,9 @@ from fastapi.testclient import TestClient
 from src.api.agent.execute import (
     AgentExecuteRequest,
     ConfirmationRequest,
-    _get_job,
-    _set_job,
+    get_job,
     router,
+    set_job,
 )
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ class TestJobOwnershipEndpoints:
     def test_get_job_status_returns_404_for_wrong_user(self, client, mock_user_a):
         """GET /jobs/{id} should return 404 if job belongs to different user."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "completed",
@@ -126,7 +126,7 @@ class TestJobOwnershipEndpoints:
     def test_get_job_status_returns_job_for_owner(self, client, mock_user_a):
         """GET /jobs/{id} should return the job if user owns it."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -148,7 +148,7 @@ class TestJobOwnershipEndpoints:
     def test_confirm_action_returns_404_for_wrong_user(self, client, mock_user_a):
         """POST /confirm/{id} should return 404 if job belongs to different user."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -167,7 +167,7 @@ class TestJobOwnershipEndpoints:
     def test_confirm_action_works_for_owner(self, client, mock_user_a):
         """POST /confirm/{id} should succeed for the job owner."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -178,7 +178,7 @@ class TestJobOwnershipEndpoints:
         )
 
         with patch(
-            "src.api.agent.execute._resume_agent_graph",
+            "src.api.agent.execute.resume_agent_graph",
             new_callable=AsyncMock,
         ):
             response = client.post(
@@ -191,7 +191,7 @@ class TestJobOwnershipEndpoints:
     def test_confirm_action_rejects_non_awaiting_job(self, client, mock_user_a):
         """POST /confirm/{id} should return 409 if job is not awaiting confirmation."""
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -222,7 +222,7 @@ class TestJobOwnershipFailClosed:
         one-time, bounded cost.
         """
         job_id = str(uuid4())
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "running",
@@ -246,7 +246,7 @@ class TestExecuteEndpoint:
     def test_execute_returns_job_id(self, client):
         """POST /execute should return a job_id immediately."""
         with patch(
-            "src.api.agent.execute._run_agent_graph",
+            "src.api.agent.execute.run_agent_graph",
             new_callable=AsyncMock,
         ):
             response = client.post(
@@ -265,7 +265,7 @@ class TestExecuteEndpoint:
     def test_execute_stores_user_id_in_job(self, client, mock_user_a):
         """POST /execute should store user_id in the created job."""
         with patch(
-            "src.api.agent.execute._run_agent_graph",
+            "src.api.agent.execute.run_agent_graph",
             new_callable=AsyncMock,
         ):
             response = client.post(
@@ -276,14 +276,14 @@ class TestExecuteEndpoint:
             )
 
         job_id = response.json()["job_id"]
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job is not None
         assert job["user_id"] == str(mock_user_a.id)
 
     def test_execute_stores_request_in_job(self, client):
         """POST /execute should store the request for later resume persistence."""
         with patch(
-            "src.api.agent.execute._run_agent_graph",
+            "src.api.agent.execute.run_agent_graph",
             new_callable=AsyncMock,
         ):
             response = client.post(
@@ -295,7 +295,7 @@ class TestExecuteEndpoint:
             )
 
         job_id = response.json()["job_id"]
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job.get("request") is not None
         assert job["request"]["messages"][0]["content"] == "find papers on ML"
         assert job["request"]["page_context"]["type"] == "project"
@@ -351,7 +351,7 @@ class TestPageContextValidation:
 
 
 class TestResumePersistence:
-    """Test that _resume_agent_graph persists the resumed assistant turn.
+    """Test that resume_agent_graph persists the resumed assistant turn.
 
     The confirm path persists ONLY the assistant row (the user row was written
     up-front by the initial /execute run). It resolves the thread via
@@ -364,7 +364,7 @@ class TestResumePersistence:
         row is NOT re-persisted on the confirm path."""
         from langchain_core.messages import AIMessage
 
-        from src.api.agent.execute import _resume_agent_graph
+        from src.api.agent.execute import resume_agent_graph
 
         job_id = str(uuid4())
         thread_id = str(uuid4())
@@ -374,7 +374,7 @@ class TestResumePersistence:
             return_value=SimpleNamespace(id=thread_id, conversation_id="conv-1")
         )
 
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -409,12 +409,12 @@ class TestResumePersistence:
                 "src.services.agent._builders.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service.persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ) as mock_persist_assistant,
             patch(
-                "src.services.agent.agent_execution_service._persist_user_message",
+                "src.services.agent.agent_execution_service.persist_user_message",
                 new_callable=AsyncMock,
             ) as mock_persist_user,
             patch(
@@ -427,7 +427,7 @@ class TestResumePersistence:
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user)
+            await resume_agent_graph(job_id, True, user)
 
         mock_persist_assistant.assert_awaited_once()
         assert (
@@ -441,7 +441,7 @@ class TestResumePersistence:
         """Resume should use the stored request thread_id, not the transient job id."""
         from langchain_core.messages import AIMessage
 
-        from src.api.agent.execute import _resume_agent_graph
+        from src.api.agent.execute import resume_agent_graph
 
         job_id = str(uuid4())
         thread_id = str(uuid4())
@@ -451,7 +451,7 @@ class TestResumePersistence:
             return_value=SimpleNamespace(id=thread_id, conversation_id="conv-1")
         )
 
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -486,7 +486,7 @@ class TestResumePersistence:
                 "src.services.agent._builders.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service.persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ),
@@ -500,7 +500,7 @@ class TestResumePersistence:
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user)
+            await resume_agent_graph(job_id, True, user)
 
         config = mock_graph.ainvoke.call_args.kwargs["config"]
         assert config["configurable"]["thread_id"] == thread_id
@@ -510,7 +510,7 @@ class TestResumePersistence:
         from the thread row."""
         from langchain_core.messages import AIMessage
 
-        from src.api.agent.execute import _resume_agent_graph
+        from src.api.agent.execute import resume_agent_graph
 
         job_id = str(uuid4())
         thread_id = str(uuid4())
@@ -520,7 +520,7 @@ class TestResumePersistence:
             return_value=SimpleNamespace(id=thread_id, conversation_id="conv-77")
         )
 
-        _set_job(
+        set_job(
             job_id,
             {
                 "status": "awaiting_confirmation",
@@ -555,7 +555,7 @@ class TestResumePersistence:
                 "src.services.agent._builders.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service.persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-1",
             ),
@@ -569,9 +569,9 @@ class TestResumePersistence:
             mock_graph.aget_state = AsyncMock(return_value=None)
             mock_compile.return_value = mock_graph
 
-            await _resume_agent_graph(job_id, True, user)
+            await resume_agent_graph(job_id, True, user)
 
-        job = _get_job(job_id)
+        job = get_job(job_id)
         assert job["status"] == "completed"
         assert job["result"]["thread_id"] == thread_id
         assert job["result"]["conversation_id"] == "conv-77"
@@ -603,9 +603,9 @@ class TestSSEStreamPersistence:
         from src.api.agent.streaming import stream_event_generator
 
         source = inspect.getsource(stream_event_generator)
-        assert "_resolve_thread" in source
-        assert "_persist_user_message" in source
-        assert "_persist_assistant_message" in source
+        assert "resolve_thread" in source
+        assert "persist_user_message" in source
+        assert "persist_assistant_message" in source
         assert "aget_state" in source
 
     async def test_stream_has_timeout(self):
@@ -621,7 +621,7 @@ class TestSSEStreamPersistence:
         """SSE /stream forwards page context, with project fields fail-closed.
 
         Since the thread-project binding work (#664/#666),
-        _resolve_and_bind_project ownership-verifies any client-sent
+        resolve_and_bind_project ownership-verifies any client-sent
         project_id and DROPS it (None) when no owned project matches — the
         client's claim is never trusted verbatim. With no DB rows behind the
         mocks, the sent proj-123 is unverifiable, so the graph must receive
@@ -736,12 +736,12 @@ class TestSSEStreamPersistence:
                 "src.services.agent._builders.compile_agent_graph",
             ) as mock_compile,
             patch(
-                "src.services.agent.agent_execution_service._persist_assistant_message_safe",
+                "src.services.agent.agent_execution_service.persist_assistant_message_safe",
                 new_callable=AsyncMock,
                 return_value="assistant-row-id",
             ) as mock_persist_assistant,
             patch(
-                "src.services.agent.agent_execution_service._persist_user_message",
+                "src.services.agent.agent_execution_service.persist_user_message",
                 new_callable=AsyncMock,
             ) as mock_persist_user,
         ):

@@ -185,7 +185,7 @@ def _skip_reason() -> Optional[str]:
 def _build_initial_state(scenario: Scenario, *, thread_id: str) -> Dict[str, Any]:
     """Construct the AgentState initial dict for one scenario turn.
 
-    Mirrors the canonical shape built in ``jobs._run_agent_graph`` /
+    Mirrors the canonical shape built in ``jobs.run_agent_graph`` /
     ``tests.eval.test_agent_regression`` so the harness exercises the same
     state the production job path does. ``HumanMessage`` is imported lazily so
     importing this module never pulls langchain into the unit lane.

@@ -1,8 +1,8 @@
 """Unit tests for jobs.py's `_extract_pending_interrupt`.
 
 Proves the fix for the bug found in a LangSmith trace audit (2026-07-01,
-see test_interrupt_ainvoke_semantics.py): `_run_agent_graph` and
-`_resume_agent_graph` relied only on `except GraphInterrupt` around
+see test_interrupt_ainvoke_semantics.py): `run_agent_graph` and
+`resume_agent_graph` relied only on `except GraphInterrupt` around
 `ainvoke()`, which never fires with a checkpointer attached. This is the
 shared helper both now call against `graph.aget_state(config)` — the same
 `snapshot.tasks[*].interrupts` signal streaming.py's SSE path already uses.

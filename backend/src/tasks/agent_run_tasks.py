@@ -6,7 +6,7 @@ Dispatch (flag-gated by ``AGENT_DISPATCH_BACKEND=celery``, default
 ``background``): the API commits the ``agent_runs`` row (+ idempotency key)
 and writes the Redis job record BEFORE publishing (flush-before-external),
 then ``run_agent_job`` claims the row's one-shot execution lease and drives
-``agent_execution_service._run_agent_graph`` — the exact coroutine the
+``agent_execution_service.run_agent_graph`` — the exact coroutine the
 FastAPI BackgroundTasks path runs, so both backends share one runner and one
 status protocol.
 
@@ -55,7 +55,7 @@ from src.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-# The graph run inside _run_agent_graph is bounded by asyncio.timeout(360).
+# The graph run inside run_agent_graph is bounded by asyncio.timeout(360).
 # Give the outer future room for user-load + persistence so the inner timeout
 # always fires first (it is the path that marks the job failed properly).
 _RUN_FUTURE_TIMEOUT_SECONDS = 420
@@ -158,7 +158,7 @@ async def _execute_agent_job(
 ) -> dict:
     """Claim the run, rebuild the request/user, and drive the shared runner.
 
-    ``agent_execution_service._run_agent_graph`` owns every status transition
+    ``agent_execution_service.run_agent_graph`` owns every status transition
     for the run itself (completed / failed / awaiting_confirmation /
     cancelled / timeout); this wrapper only handles what can go wrong BEFORE
     the runner starts.
@@ -208,7 +208,7 @@ async def _execute_agent_job(
         await _fail_job_record(job_id, "Agent run owner unavailable.", user_id=user_id)
         return {"job_id": job_id, "outcome": "user-unavailable"}
 
-    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.services.agent.agent_execution_service import run_agent_graph
     from src.services.agent.schemas import AgentExecuteRequest
 
     try:
@@ -228,7 +228,7 @@ async def _execute_agent_job(
     # timeout/cancel/exception paths), so nothing to do afterwards. The
     # execution lease is intentionally NOT released: terminal status ends the
     # run's lifecycle, and a NULL lease would re-open the one-shot claim.
-    await _run_agent_graph(job_id, request, user)
+    await run_agent_graph(job_id, request, user)
     return {"job_id": job_id, "outcome": "ran"}
 
 

@@ -82,11 +82,11 @@ async def test_confirm_stream_emits_heartbeat_from_keepalive():
             return_value=graph,
         ),
         patch(
-            "src.api.agent.streaming._jobs_mod._persist_assistant_message_safe",
+            "src.api.agent.streaming._jobs_mod.persist_assistant_message_safe",
             new=AsyncMock(return_value="a1"),
         ),
         patch(
-            "src.api.agent.streaming._latest_user_client_message_id",
+            "src.api.agent.streaming.latest_user_client_message_id",
             new=AsyncMock(return_value=None),
         ),
         patch(

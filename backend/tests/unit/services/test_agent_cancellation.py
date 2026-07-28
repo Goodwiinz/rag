@@ -1,5 +1,5 @@
-"""Unit tests for cancellation handling in ``_run_agent_graph`` and
-``_resume_agent_graph``.
+"""Unit tests for cancellation handling in ``run_agent_graph`` and
+``resume_agent_graph``.
 
 CancelledError inherits from BaseException (not Exception) since
 Python 3.8, so the broad ``except Exception`` clauses in these
@@ -50,15 +50,15 @@ async def _async_session_yielding(db):
 
 
 async def test_run_agent_graph_marks_job_cancelled_and_reraises():
-    from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.api.agent.execute import AgentExecuteRequest, get_job, set_job
+    from src.services.agent.agent_execution_service import run_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
     db = _make_mock_db()
 
     # Pre-seed job in "running" state — same as what /execute does.
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "running",
@@ -99,23 +99,23 @@ async def test_run_agent_graph_marks_job_cancelled_and_reraises():
         ),
     ):
         with pytest.raises(asyncio.CancelledError):
-            await _run_agent_graph(job_id, request, user)
+            await run_agent_graph(job_id, request, user)
 
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "cancelled"
     assert job["error"] == "execution cancelled"
 
 
 async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
-    from src.api.agent.execute import _get_job, _set_job
-    from src.services.agent.agent_execution_service import _resume_agent_graph
+    from src.api.agent.execute import get_job, set_job
+    from src.services.agent.agent_execution_service import resume_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
     db = _make_mock_db()
 
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "awaiting_confirmation",
@@ -148,9 +148,9 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
         ),
     ):
         with pytest.raises(asyncio.CancelledError):
-            await _resume_agent_graph(job_id, True, user)
+            await resume_agent_graph(job_id, True, user)
 
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "cancelled"
     assert job["error"] == "resume cancelled"
@@ -159,14 +159,14 @@ async def test_resume_agent_graph_marks_job_cancelled_and_reraises():
 async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
     """Regression check: the new CancelledError handler must not swallow
     plain Exception failures, which still need ``status="failed"``."""
-    from src.api.agent.execute import AgentExecuteRequest, _get_job, _set_job
-    from src.services.agent.agent_execution_service import _run_agent_graph
+    from src.api.agent.execute import AgentExecuteRequest, get_job, set_job
+    from src.services.agent.agent_execution_service import run_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
     db = _make_mock_db()
 
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "running",
@@ -207,9 +207,9 @@ async def test_run_agent_graph_still_marks_failed_for_regular_exceptions():
         ),
     ):
         # Plain Exception is caught — no re-raise.
-        await _run_agent_graph(job_id, request, user)
+        await run_agent_graph(job_id, request, user)
 
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "failed"
     # Error detail is no longer leaked to the client-facing job record.
@@ -221,21 +221,21 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
     """A multi-step destructive flow re-fires interrupt() during resume.
 
     The resume runner must catch GraphInterrupt and re-park the job as
-    ``awaiting_confirmation`` (mirroring _run_agent_graph) rather than letting
+    ``awaiting_confirmation`` (mirroring run_agent_graph) rather than letting
     it fall through to ``except Exception`` and marking the job ``failed`` —
     which would silently drop the second confirmation and break HITL.
     """
     from langgraph.errors import GraphInterrupt
     from langgraph.types import Interrupt
 
-    from src.api.agent.execute import _get_job, _set_job
-    from src.services.agent.agent_execution_service import _resume_agent_graph
+    from src.api.agent.execute import get_job, set_job
+    from src.services.agent.agent_execution_service import resume_agent_graph
 
     job_id = str(uuid4())
     user = _make_mock_user()
     db = _make_mock_db()
 
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "awaiting_confirmation",
@@ -275,9 +275,9 @@ async def test_resume_agent_graph_reparks_on_chained_interrupt():
         ),
     ):
         # GraphInterrupt is control flow — caught, not re-raised.
-        await _resume_agent_graph(job_id, True, user)
+        await resume_agent_graph(job_id, True, user)
 
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "awaiting_confirmation"
     assert job["confirmation"] == confirmation

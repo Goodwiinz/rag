@@ -1,4 +1,4 @@
-"""``create_if_missing`` behavior of ``_resolve_thread``.
+"""``create_if_missing`` behavior of ``resolve_thread``.
 
 Confirm/resume paths pass ``create_if_missing=False`` because their thread
 already exists (ownership verified against the checkpoint snapshot) — a
@@ -46,10 +46,10 @@ def _request(thread_id="11111111-1111-1111-1111-111111111111"):
 
 class TestResolveThreadCreateIfMissing:
     async def test_miss_with_create_if_missing_false_returns_none(self):
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.services.agent.agent_execution_service import resolve_thread
 
         db = _db_with_thread_lookup(thread=None)
-        thread, conversation_id = await _resolve_thread(
+        thread, conversation_id = await resolve_thread(
             db, _mock_user(), _request(), create_if_missing=False
         )
 
@@ -62,13 +62,13 @@ class TestResolveThreadCreateIfMissing:
 
     async def test_miss_with_default_still_creates(self):
         """The default path (initial turns) must keep creating on miss."""
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.services.agent.agent_execution_service import resolve_thread
 
         workspace = Mock()
         workspace.id = "ws-1"
         db = _db_with_thread_lookup(thread=None, workspace=workspace)
 
-        thread, _ = await _resolve_thread(db, _mock_user(), _request())
+        thread, _ = await resolve_thread(db, _mock_user(), _request())
 
         assert thread is not None
         assert db.add.call_count == 2  # Conversation + Thread
@@ -81,7 +81,7 @@ class TestResolveThreadFiltersSoftDeleted:
     otherwise persist a new turn into a deleted thread."""
 
     async def test_lookup_filters_out_soft_deleted_rows(self):
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.services.agent.agent_execution_service import resolve_thread
 
         captured = {}
 
@@ -94,7 +94,7 @@ class TestResolveThreadFiltersSoftDeleted:
         db = AsyncMock()
         db.execute = AsyncMock(side_effect=_capture)
 
-        thread, conversation_id = await _resolve_thread(
+        thread, conversation_id = await resolve_thread(
             db, _mock_user(), _request(), create_if_missing=False
         )
 
@@ -109,7 +109,7 @@ class TestResolveThreadFiltersSoftDeleted:
         workspaces, so a fresh Conversation+Thread is never parented under a
         deleted workspace. With only a soft-deleted workspace present the pick
         finds nothing → thread stays None → returns (None, "")."""
-        from src.services.agent.agent_execution_service import _resolve_thread
+        from src.services.agent.agent_execution_service import resolve_thread
 
         captured = []
 
@@ -124,7 +124,7 @@ class TestResolveThreadFiltersSoftDeleted:
         db.add = Mock()
         db.commit = AsyncMock()
 
-        thread, conversation_id = await _resolve_thread(
+        thread, conversation_id = await resolve_thread(
             db, _mock_user(), _request(), create_if_missing=True
         )
 

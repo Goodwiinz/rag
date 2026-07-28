@@ -36,7 +36,7 @@ def _patch_stores(l1_job=None, redis_job=None):
     when present, else the L1 record.
     """
     return (
-        patch("src.api.agent.execute._get_job", return_value=l1_job),
+        patch("src.api.agent.execute.get_job", return_value=l1_job),
         patch(
             "src.services.agent.job_store.get_job_fresh",
             new=AsyncMock(return_value=redis_job if redis_job is not None else l1_job),

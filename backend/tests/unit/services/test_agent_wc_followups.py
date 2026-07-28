@@ -2,12 +2,12 @@
 
 Covers:
 
-* WC-1: ``_clear_stale_pending_confirmation`` also resets the per-turn
+* WC-1: ``clear_stale_pending_confirmation`` also resets the per-turn
   ephemeral counters (``tool_loop_count``, ``error_count``,
   ``reflection_count``) so stale state from an abandoned turn cannot bleed
   into the next turn even if a future graph refactor stops running
   ``preprocessing_node`` on the resume path.
-* WC-2: ``_resume_agent_graph`` short-circuits when the snapshot no longer
+* WC-2: ``resume_agent_graph`` short-circuits when the snapshot no longer
   contains a ``pending_confirmation`` (the interrupt has already been
   consumed). The existing ``_jobs_lock`` in ``confirm_agent_action`` already
   prevents a double-resume race; this is the in-depth guard for the
@@ -27,10 +27,10 @@ from fastapi.testclient import TestClient
 
 from src.api.agent.execute import router
 from src.services.agent.agent_execution_service import (
-    _clear_stale_pending_confirmation,
-    _get_job,
-    _resume_agent_graph,
-    _set_job,
+    clear_stale_pending_confirmation,
+    get_job,
+    resume_agent_graph,
+    set_job,
 )
 
 # ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ async def _async_session_cm():
 
 
 # ---------------------------------------------------------------------------
-# WC-1: defensive reset in _clear_stale_pending_confirmation
+# WC-1: defensive reset in clear_stale_pending_confirmation
 # ---------------------------------------------------------------------------
 
 
@@ -99,7 +99,7 @@ async def test_clear_stale_pending_confirmation_resets_counters():
     )
     config = {"configurable": {"thread_id": "thread-abc"}}
 
-    cleared = await _clear_stale_pending_confirmation(graph, config)
+    cleared = await clear_stale_pending_confirmation(graph, config)
 
     # Now returns the dropped tool name(s) (truthy) instead of bool True.
     assert cleared
@@ -126,7 +126,7 @@ async def test_clear_stale_pending_confirmation_skips_when_no_interrupt():
     )
     config = {"configurable": {"thread_id": "thread-xyz"}}
 
-    cleared = await _clear_stale_pending_confirmation(graph, config)
+    cleared = await clear_stale_pending_confirmation(graph, config)
 
     # No interrupt → None (was bool False before the Optional[list] return).
     assert cleared is None
@@ -134,7 +134,7 @@ async def test_clear_stale_pending_confirmation_skips_when_no_interrupt():
 
 
 # ---------------------------------------------------------------------------
-# WC-2: idempotency guard in _resume_agent_graph
+# WC-2: idempotency guard in resume_agent_graph
 # ---------------------------------------------------------------------------
 
 
@@ -148,7 +148,7 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
     """
     user = _make_mock_user()
     job_id = str(uuid4())
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "running",
@@ -170,10 +170,10 @@ async def test_resume_short_circuits_when_interrupt_already_consumed():
             return_value=_async_session_cm(),
         ),
     ):
-        await _resume_agent_graph(job_id, confirmed=True, current_user=user)
+        await resume_agent_graph(job_id, confirmed=True, current_user=user)
 
     graph.ainvoke.assert_not_called()
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
     assert "already consumed" in (job.get("error") or "").lower()
@@ -184,7 +184,7 @@ async def test_resume_proceeds_when_interrupt_present():
     """When the snapshot still has pending_confirmation, resume reaches ainvoke."""
     user = _make_mock_user()
     job_id = str(uuid4())
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "running",
@@ -209,7 +209,7 @@ async def test_resume_proceeds_when_interrupt_present():
             return_value=_async_session_cm(),
         ),
     ):
-        await _resume_agent_graph(job_id, confirmed=True, current_user=user)
+        await resume_agent_graph(job_id, confirmed=True, current_user=user)
 
     graph.ainvoke.assert_awaited_once()
 
@@ -219,7 +219,7 @@ async def test_resume_rejects_ownerless_checkpoint():
     """Ownerless legacy checkpoints must not be resumable from a thread id."""
     user = _make_mock_user()
     job_id = str(uuid4())
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "running",
@@ -243,10 +243,10 @@ async def test_resume_rejects_ownerless_checkpoint():
             return_value=_async_session_cm(),
         ),
     ):
-        await _resume_agent_graph(job_id, confirmed=True, current_user=user)
+        await resume_agent_graph(job_id, confirmed=True, current_user=user)
 
     graph.ainvoke.assert_not_called()
-    job = _get_job(job_id)
+    job = get_job(job_id)
     assert job is not None
     assert job["status"] == "failed"  # legacy "error" collapsed (audit C7)
     assert job["error"] == "Thread not found"
@@ -300,7 +300,7 @@ def test_double_confirm_second_request_returns_409(confirm_client):
     """
     client, user = confirm_client
     job_id = str(uuid4())
-    _set_job(
+    set_job(
         job_id,
         {
             "status": "awaiting_confirmation",
@@ -311,7 +311,7 @@ def test_double_confirm_second_request_returns_409(confirm_client):
     )
 
     with (
-        patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock),
+        patch("src.api.agent.execute.resume_agent_graph", new_callable=AsyncMock),
         # Force the in-memory CAS path so the test is deterministic regardless of
         # whether a Redis server is reachable in the test environment.
         patch(
@@ -356,7 +356,7 @@ def test_confirm_falls_back_to_redis_after_l1_eviction(confirm_client):
             "src.services.agent.job_store.set_job",
             new=AsyncMock(),
         ) as mock_set_job,
-        patch("src.api.agent.execute._resume_agent_graph", new_callable=AsyncMock),
+        patch("src.api.agent.execute.resume_agent_graph", new_callable=AsyncMock),
         # Force the in-memory CAS path (store-API level, which this test mocks)
         # so it doesn't depend on a reachable Redis server.
         patch(

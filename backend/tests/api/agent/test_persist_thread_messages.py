@@ -2,12 +2,12 @@
 
 The two helpers under test:
 
-* ``_persist_user_message`` — INSERT ... ON CONFLICT DO NOTHING against the
+* ``persist_user_message`` — INSERT ... ON CONFLICT DO NOTHING against the
   partial unique index on ``chat_messages (thread_id, client_message_id)
   WHERE client_message_id IS NOT NULL AND role = 'user'``. Idempotent: a
   retry with the same ``client_message_id`` must NOT raise and must NOT
   produce a duplicate row.
-* ``_persist_assistant_message`` — straightforward insert + thread bookkeeping
+* ``persist_assistant_message`` — straightforward insert + thread bookkeeping
   (``message_count`` += 1, ``last_message_at`` = now).
 
 Both helpers commit independently. These tests exercise that behavior
@@ -23,8 +23,11 @@ import pytest
 from sqlalchemy import func, select
 
 from src.api.agent.execute import AgentExecuteRequest, AgentMessage
-from src.services.agent.agent_execution_service import _persist_assistant_message, _persist_user_message
 from src.models.chat_message import ChatMessage, MessageRole
+from src.services.agent.agent_execution_service import (
+    persist_assistant_message,
+    persist_user_message,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -42,8 +45,8 @@ async def test_duplicate_user_turn_is_idempotent(
         thread_id=str(thread.id),
     )
 
-    inserted_a = await _persist_user_message(db_session, user, req)
-    inserted_b = await _persist_user_message(db_session, user, req)  # retry
+    inserted_a = await persist_user_message(db_session, user, req)
+    inserted_b = await persist_user_message(db_session, user, req)  # retry
     assert inserted_a is True
     assert inserted_b is False
 
@@ -79,8 +82,8 @@ async def test_user_then_assistant_round_trip(db_session, thread_factory, user_f
         thread_id=str(thread.id),
     )
 
-    await _persist_user_message(db_session, user, req)
-    await _persist_assistant_message(
+    await persist_user_message(db_session, user, req)
+    await persist_assistant_message(
         db_session,
         thread_id=str(thread.id),
         content="pong",
@@ -119,7 +122,7 @@ async def test_user_message_no_op_without_thread_id(db_session, user_factory):
         ],
         thread_id=None,
     )
-    inserted = await _persist_user_message(db_session, user, req)
+    inserted = await persist_user_message(db_session, user, req)
     assert inserted is False
 
 
@@ -147,7 +150,7 @@ async def test_assistant_plan_and_token_usage_round_trip(db_session, thread_fact
     ]
     usage = {"input_tokens": 1200, "output_tokens": 340}
 
-    msg_id = await _persist_assistant_message(
+    msg_id = await persist_assistant_message(
         db_session,
         thread_id=str(thread.id),
         content="answer",
@@ -172,7 +175,7 @@ async def test_assistant_without_provenance_persists_null_columns(
     from uuid import UUID
 
     thread = await thread_factory()
-    msg_id = await _persist_assistant_message(
+    msg_id = await persist_assistant_message(
         db_session,
         thread_id=str(thread.id),
         content="answer",
