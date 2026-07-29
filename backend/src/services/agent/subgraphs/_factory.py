@@ -20,15 +20,15 @@ change and belongs in its own PR, not here.
 
 import asyncio
 import logging
-from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, cast
+from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, TypeVar, cast
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
-from src.services.agent.compactor import make_compactor_node
 from src.services.agent._sanitize import _sanitize_messages
+from src.services.agent.compactor import make_compactor_node
 from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
@@ -59,7 +59,10 @@ class SpecialistParts(NamedTuple):
     build: Callable[[], StateGraph]
 
 
-def _rename(fn, name: str):
+_F = TypeVar("_F", bound=Callable[..., object])
+
+
+def _rename(fn: _F, name: str) -> _F:
     """Stamp the historical function name onto a generated closure.
 
     Cheap insurance for anything that reads ``__name__``/``__qualname__``
