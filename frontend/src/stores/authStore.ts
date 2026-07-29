@@ -5,10 +5,6 @@ import { Organization, RegisterResult, User } from '@/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
-interface SwitchOrganizationResponse {
-  organization: Organization;
-}
-
 interface ProfileResponse {
   user: User;
   organization?: Organization;
@@ -36,7 +32,6 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
-  switchOrganization: (organizationId: string) => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
   initialize: () => Promise<void>;
@@ -300,30 +295,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     const { user } = get();
     if (user) {
       set({ user: { ...user, ...userData } });
-    }
-  },
-
-  switchOrganization: async (organizationId: string) => {
-    set({ isLoading: true, error: null });
-
-    try {
-      const data: SwitchOrganizationResponse = await api.post(
-        '/auth/switch-organization',
-        { organizationId }
-      );
-
-      set({
-        organization: data.organization,
-        isLoading: false,
-      });
-    } catch (error) {
-      set({
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to switch organization',
-        isLoading: false,
-      });
     }
   },
 
