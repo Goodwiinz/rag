@@ -362,6 +362,107 @@ class TestFallbackClassifier:
         mock_llm.assert_called_once()
         assert result.intent == "research"
 
+    async def test_keeps_llm_result_when_keywords_matched_nothing(self):
+        """Sub-threshold LLM result wins over a zero-evidence keyword result.
+
+        Regression for the live trace where "finish the plan" was classified
+        writing/0.62 by the LLM, overridden to the keyword default
+        general/0.0, and routed to the general subgraph — so the agent
+        described the note it should have written instead of writing it.
+        """
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_keywords,
+            classify_intent_with_fallback,
+        )
+
+        query = "finish the plan"
+        # Precondition: the keyword classifier has no evidence for this query.
+        # Without it this test would pass for the wrong reason.
+        assert classify_intent_keywords(query).confidence == 0.0
+
+        llm_result = ClassificationResult(
+            intent="writing",
+            confidence=0.62,
+            reasoning="continuing a draft/plan is a writing task",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(
+                query,
+                {"type": "project", "project_id": "p1", "project_name": "test3"},
+                # Non-empty prior_tool so the short-query shortcut does not
+                # pre-empt the LLM call (matches the live turn).
+                prior_tool={"name": "search_arxiv", "args": {}, "result": "ok"},
+            )
+
+        assert result.intent == "writing"
+        assert result.source == "llm"
+        # Confidence is reported as-is: telemetry should show the weak
+        # classification, not a fabricated 0.0.
+        assert result.confidence == 0.62
+
+    async def test_low_confidence_llm_still_loses_to_keyword_evidence(self):
+        """The new guard must not swallow the original threshold behaviour."""
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_keywords,
+            classify_intent_with_fallback,
+        )
+
+        query = "draft a literature review of these papers"
+        assert classify_intent_keywords(query).confidence > 0.0
+
+        llm_result = ClassificationResult(
+            intent="knowledge_graph",
+            confidence=0.55,
+            reasoning="weak guess",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(query, {"type": "unknown"})
+
+        assert result.source == "keyword"
+        assert result.intent == "writing"
+
+    async def test_zero_evidence_query_routes_to_llm_intent_subgraph(self):
+        """End of the chain that actually broke: intent → subgraph routing."""
+        from src.services.agent._nodes_classify import route_by_intent
+        from src.services.agent.classifier import (
+            ClassificationResult,
+            classify_intent_with_fallback,
+        )
+
+        llm_result = ClassificationResult(
+            intent="writing",
+            confidence=0.62,
+            reasoning="continuing a draft/plan is a writing task",
+            source="llm",
+        )
+
+        with patch(
+            "src.services.agent.classifier.classify_intent_llm",
+            new_callable=AsyncMock,
+            return_value=llm_result,
+        ):
+            result = await classify_intent_with_fallback(
+                "finish the plan",
+                {"type": "unknown"},
+                prior_tool={"name": "search_arxiv", "args": {}, "result": "ok"},
+            )
+
+        assert route_by_intent({"intent": result.intent}) == "writing_subgraph"
+
 
 # ---------------------------------------------------------------------------
 # Prior tool context (retry-routing fix)
