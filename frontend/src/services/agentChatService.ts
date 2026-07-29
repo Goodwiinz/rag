@@ -57,6 +57,10 @@ export interface AgentStreamCallbacks {
     confirmation: Record<string, unknown>
   ) => void;
   onTrace?: (threadId: string) => void;
+  /** Keepalive emitted roughly every 15s during silent planner/LLM phases,
+   * carrying how long the run has been going. Drives the live elapsed-time
+   * readout on the pre-first-token thinking pill. */
+  onHeartbeat?: (elapsedMs: number) => void;
   onUsage?: (inputTokens: number, outputTokens: number) => void;
   /** Fires for every frame carrying an `id: <seq>` line — the resumable-SSE
    * cursor. Persist the latest value to resume after a disconnect. */
@@ -101,10 +105,10 @@ async function readErrorBody(response: Response): Promise<string> {
  *
  * MUST mirror the `case` labels in that switch — the contract test
  * (agentStreamEvents.contract.test.ts) parses the actual switch and asserts it
- * equals this set, and that this set equals every non-heartbeat
- * `AGENT_STREAM_EVENTS` value. `heartbeat` is a keepalive we deliberately drop,
- * so it is absent here. Add a new event to BOTH the switch and this set (and
- * the backend enum) together, or CI fails.
+ * equals this set, and that this set equals every `AGENT_STREAM_EVENTS` value.
+ * `heartbeat` is a keepalive, but it carries the run's elapsed time, so it is
+ * handled too. Add a new event to BOTH the switch and this set (and the
+ * backend enum) together, or CI fails.
  */
 export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
   'token',
@@ -114,6 +118,7 @@ export const HANDLED_STREAM_EVENTS: ReadonlySet<AgentStreamEvent> = new Set([
   'plan',
   'trace',
   'reflection',
+  'heartbeat',
   'confirmation',
   'usage',
   'done',
@@ -157,6 +162,9 @@ async function consumeSse(
           if (data.thread_id) {
             callbacks.onTrace?.(data.thread_id);
           }
+          break;
+        case 'heartbeat':
+          callbacks.onHeartbeat?.(Number(data.elapsed_ms) || 0);
           break;
         case 'reflection':
           callbacks.onReflection?.(

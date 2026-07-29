@@ -40,6 +40,15 @@ export interface Run {
   plan: PlanItem[];
   state: 'running' | 'done' | 'error' | 'stopped';
   startedAt: number;
+  /**
+   * Done-state of the previous run's plan on this thread. A re-send starts a
+   * fresh run, but the work the earlier run actually completed is still real
+   * (and still shown by the in-transcript plan card, which derives status from
+   * the committed message). `setPlan` is set-once per run, so the carry-over
+   * cannot be merged after the new plan lands — it is kept here and consulted
+   * when the new plan arrives.
+   */
+  carriedPlan?: PlanItem[];
   /** Last SSE frame seq seen for this run — the resume cursor. */
   streamSeq?: number;
 }
@@ -68,6 +77,16 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
 
   startRun: (threadId, name, task) =>
     set((s) => {
+      // Re-sending in the same thread must not blank out what already ran:
+      // keep the previous plan's done-state (or the one it was itself
+      // carrying, when this run never received a plan of its own) so the new
+      // plan can restore it.
+      const previous = s.runs[threadId];
+      const carriedPlan = previous
+        ? previous.plan.length > 0
+          ? previous.plan
+          : previous.carriedPlan
+        : undefined;
       const newRuns = {
         ...s.runs,
         [threadId]: {
@@ -76,6 +95,7 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
           task,
           steps: [],
           plan: [],
+          ...(carriedPlan && carriedPlan.length > 0 ? { carriedPlan } : {}),
           state: 'running' as const,
           startedAt: Date.now(),
         },
@@ -171,7 +191,12 @@ export const useAgentActivityStore = create<AgentActivityState>((set) => ({
           rawTool && rawTool.trim().toUpperCase() !== 'N/A'
             ? rawTool.trim()
             : undefined;
-        return { id: `plan-${Date.now()}-${i}`, text, tool, done: false };
+        // Restore the done-state a previous run in this thread reached for the
+        // same item. Nothing is marked done that wasn't done before.
+        const done = (run.carriedPlan ?? []).some(
+          (prev) => prev.text === text && prev.done
+        );
+        return { id: `plan-${Date.now()}-${i}`, text, tool, done };
       });
       return { runs: { ...s.runs, [threadId]: { ...run, plan } } };
     }),

@@ -89,6 +89,13 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   const isNewMessage =
     messages.length > prevMessageCountRef.current &&
     currentLastId !== prevLastIdRef.current;
+  // The user's own send is the one append the "scrolled away" guard must not
+  // suppress: bailing out of the auto-scroll made every send look like it did
+  // nothing (the message stacked below the fold) once the user had scrolled
+  // up. Content the user did NOT initiate — streaming tokens, background
+  // growth — still respects the guard.
+  const isOwnNewMessage =
+    isNewMessage && messages[messages.length - 1]?.role === 'user';
 
   // Prepending an older page grows the content above the viewport; without
   // compensation the messages the user is reading jump down by the added
@@ -130,10 +137,12 @@ export const ChatMessageList = React.memo(function ChatMessageList({
   // answer streams, but the rAF guard coalesces the per-token re-renders into
   // a single scroll per frame — the follow is restored without the per-token
   // jank. Skipped entirely once the user scrolls up (showScrollButton), so we
-  // never fight a user reading history.
+  // never fight a user reading history — except for the user's own new
+  // message, which always pulls the view back down (and clears the guard).
   useEffect(() => {
-    if (showScrollButton) return;
+    if (showScrollButton && !isOwnNewMessage) return;
     if (!activeThreadId || messages.length === 0) return;
+    if (isOwnNewMessage) setShowScrollButton(false);
 
     // A selected thread's first page should appear at its newest message
     // immediately. Smooth-scrolling that initial batch makes the UI visibly
@@ -163,6 +172,7 @@ export const ChatMessageList = React.memo(function ChatMessageList({
     activeThreadId,
     messages.length,
     isNewMessage,
+    isOwnNewMessage,
     storeIsStreaming,
     storeStreamingContent,
     commandOutputs,

@@ -316,6 +316,10 @@ export function useChatStreaming(
   // Threads a resume was already attempted for this mount — guards against
   // double-resume from effect re-runs (StrictMode, dep changes).
   const resumeTriedRef = useRef<Set<string>>(new Set());
+  // Threads already asked whether they hold a parked HITL confirmation —
+  // one probe per thread activation (see the cold-load effect below).
+  const confirmationProbedRef = useRef<Set<string>>(new Set());
+  const probeAbortRef = useRef<AbortController | null>(null);
   const hadPendingApprovalRef = useRef(false);
 
   // ---- Store bindings ----
@@ -491,6 +495,8 @@ export function useChatStreaming(
           streamingSteps: [],
           // Only "retrieving" when RAG is on; cleared on first token / context.
           isRetrievingRag: enableRAG,
+          // Fresh turn — drop the previous turn's heartbeat reading.
+          streamingElapsedMs: null,
           streamingThreadId: turnThreadId,
         });
 
@@ -537,6 +543,11 @@ export function useChatStreaming(
                   }
                 });
               }
+            },
+            onHeartbeat: (elapsedMs) => {
+              // The only progress signal during a long silent planner/LLM
+              // phase — rendered on the thinking pill.
+              useChatStore.setState({ streamingElapsedMs: elapsedMs });
             },
             onSeq: (seq) => {
               if (!currentThreadId) return;
@@ -1201,6 +1212,63 @@ export function useChatStreaming(
     storeIsStreaming,
   ]);
 
+  // ---- Re-deliver a parked HITL confirmation on a cold thread load ----
+  // The activity store is in-memory, so after a reload there is no run record
+  // and the resume effect above can never fire. A thread parked on an
+  // interrupt then rendered the user's message with no reply, no approval
+  // card and an unlocked composer — so the user re-sent and parked a SECOND
+  // interrupt. Ask the server once per thread activation: with no live stream
+  // owning the thread, GET /stream/resume replays the pending confirmation as
+  // a single frame (204 when there is none), which re-arms the gate the P4
+  // effect renders and ChatSurface locks the composer on.
+  useEffect(() => {
+    const threadId = activeThreadId;
+    if (!threadId || isLoading || storeIsStreaming) return;
+    if (pendingConfirmation) return;
+    if (useChatStore.getState().isStreaming) return;
+    // Any run record at all means this session already owns the thread's
+    // lifecycle (running → the resume effect; stopped/done/error → the user
+    // already saw and settled the gate).
+    if (useAgentActivityStore.getState().runs[threadId]) return;
+    if (confirmationProbedRef.current.has(threadId)) return;
+    confirmationProbedRef.current.add(threadId);
+
+    // Abort the previous thread's probe (if it is somehow still open) rather
+    // than aborting in a cleanup: cleanup runs on every dep change and, with
+    // the once-per-thread guard above, would cancel the probe without ever
+    // re-issuing it (React StrictMode's double effect invocation does exactly
+    // that).
+    const probeAbort = new AbortController();
+    probeAbortRef.current?.abort();
+    probeAbortRef.current = probeAbort;
+    void Promise.resolve(
+      agentChatService.resumeStream(
+        threadId,
+        0,
+        {
+          onConfirmation: (agentThreadId, confirmation) => {
+            setPendingConfirmation({
+              threadId: agentThreadId,
+              // Must be the DISPLAYED thread id, or confirmationBelongsToThread
+              // rejects the card and Approve refuses to act.
+              workspaceThreadId: threadId,
+              confirmation,
+            });
+            probeAbort.abort();
+          },
+        },
+        probeAbort.signal
+      )
+    ).catch(() => {
+      // Best-effort: a failed probe must not break the thread view.
+    });
+  }, [activeThreadId, isLoading, storeIsStreaming, pendingConfirmation]);
+
+  // Unmount is the only place the in-flight probe is abandoned.
+  useEffect(() => {
+    return () => probeAbortRef.current?.abort();
+  }, []);
+
   const handleConfirmation = useCallback(
     async (confirmed: boolean) => {
       if (!pendingConfirmation) return;
@@ -1289,6 +1357,7 @@ export function useChatStreaming(
         streamingContent: '',
         streamingSteps: [...confirmSteps],
         streamingCitations: carriedCitations,
+        streamingElapsedMs: null,
         streamingThreadId: pendingConfirmation.workspaceThreadId || null,
       });
 
@@ -1372,6 +1441,9 @@ export function useChatStreaming(
                   }
                 });
               }
+            },
+            onHeartbeat: (elapsedMs) => {
+              useChatStore.setState({ streamingElapsedMs: elapsedMs });
             },
             onToolStart: (tool, args) => {
               useAgentActivityStore

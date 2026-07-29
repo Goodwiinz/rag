@@ -132,11 +132,21 @@ describe('useChatStreaming stream resume on mount', () => {
     );
   });
 
-  it('does not resume when there is no run for the thread', async () => {
+  it('does not resume a stream when there is no run for the thread', async () => {
+    // With no run record the hook still asks ONCE whether the thread is parked
+    // on a HITL interrupt (a cold reload has no in-memory run either) — but
+    // that probe is confirmation-only, from seq 0. It must not turn into a
+    // stream resume: no token/done handling, nothing committed.
+    resumeStreamMock.mockResolvedValue({ resumed: false });
     await act(async () => {
       renderHook(() => useChatStreaming(makeParams()), { wrapper });
     });
-    expect(resumeStreamMock).not.toHaveBeenCalled();
+
+    expect(resumeStreamMock).toHaveBeenCalledTimes(1);
+    const [threadId, afterSeq, callbacks] = resumeStreamMock.mock.calls[0];
+    expect(threadId).toBe('thread-A');
+    expect(afterSeq).toBe(0);
+    expect(Object.keys(callbacks as object)).toEqual(['onConfirmation']);
   });
 
   it('reconciles the owning thread after a resumed stream completes', async () => {
