@@ -528,6 +528,7 @@ async def stream_event_generator(
         first_event_yielded = False
         streamed_token = False
         persisted_assistant_id: Optional[str] = None
+        completed_root_values: Optional[Dict[str, Any]] = None
         # Accumulated user-facing tokens, so a client abort can persist the
         # partial answer server-side (stopped=True) instead of losing it.
         streamed_parts: List[str] = []
@@ -618,6 +619,18 @@ async def stream_event_generator(
                         first_event_yielded = True
                         kind = event.get("event", "")
                         name = event.get("name", "")
+
+                        if kind == "on_chain_end" and not event.get("parent_ids"):
+                            output = event.get("data", {}).get("output")
+                            if isinstance(output, dict):
+                                messages_out = output.get("messages") or []
+                                last_message = (
+                                    messages_out[-1] if messages_out else None
+                                )
+                                if last_message is not None and not getattr(
+                                    last_message, "tool_calls", None
+                                ):
+                                    completed_root_values = output
 
                         if kind == "on_chat_model_stream":
                             if not _is_user_facing_token_event(event):
@@ -754,8 +767,12 @@ async def stream_event_generator(
         # Check graph state after streaming completes
         tool_executions_out: Optional[list] = None
         try:
-            final_snapshot = await graph.aget_state(config)
-            final_values = final_snapshot.values if final_snapshot else {}
+            final_snapshot = None
+            if completed_root_values is not None:
+                final_values = completed_root_values
+            else:
+                final_snapshot = await graph.aget_state(config)
+                final_values = final_snapshot.values if final_snapshot else {}
 
             # Check for pending interrupts (HITL confirmation needed)
             pending_tasks = final_snapshot.tasks if final_snapshot else ()
