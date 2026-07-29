@@ -24,6 +24,19 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   pendingEmailConfirmation: boolean;
+  /**
+   * Address the pending verification mail was sent to. Kept in the store (not
+   * in the register form's local state) so the pending screen survives a
+   * remount — otherwise it renders an empty address and the resend button
+   * calls GoTrue with `email: ''`.
+   */
+  pendingConfirmationEmail: string | null;
+  /**
+   * GoTrue's enumeration protection answers a signup for an already-registered
+   * address with a success payload, so we cannot promise a mail that will
+   * never arrive. Set when that shape is detected.
+   */
+  pendingSignupPossiblyExisting: boolean;
 
   // Actions
   signIn: (email: string, password: string) => Promise<void>;
@@ -39,10 +52,20 @@ interface AuthState {
   fetchProfile: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
   switchOrganization: (organizationId: string) => Promise<void>;
+  clearPendingEmailConfirmation: () => void;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
   initialize: () => Promise<void>;
 }
+
+// Every site that drops the pending-confirmation flag must drop the address
+// and the possibly-existing hint with it, so a shared machine never shows a
+// previous visitor's email.
+const CLEARED_PENDING_CONFIRMATION = {
+  pendingEmailConfirmation: false,
+  pendingConfirmationEmail: null,
+  pendingSignupPossiblyExisting: false,
+} satisfies Partial<AuthState>;
 
 /**
  * Read the HTTP status off an APIErrorClass-shaped rejection. Structural rather
@@ -95,7 +118,7 @@ function getSupabaseClient(): SupabaseClient {
           organization: null,
           isAuthenticated: false,
           error: null,
-          pendingEmailConfirmation: false,
+          ...CLEARED_PENDING_CONFIRMATION,
         });
       }
     });
@@ -113,7 +136,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   error: null,
-  pendingEmailConfirmation: false,
+  ...CLEARED_PENDING_CONFIRMATION,
 
   signIn: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
@@ -149,7 +172,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           organization: profileData.organization ?? null,
           isAuthenticated: true,
           isLoading: false,
-          pendingEmailConfirmation: false,
+          ...CLEARED_PENDING_CONFIRMATION,
         });
       } else {
         set({ isLoading: false });
@@ -174,7 +197,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     last_name: string;
     organization_name?: string;
   }) => {
-    set({ isLoading: true, error: null, pendingEmailConfirmation: false });
+    set({ isLoading: true, error: null, ...CLEARED_PENDING_CONFIRMATION });
 
     try {
       const supabase = getSupabaseClient();
@@ -209,8 +232,28 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return { requiresEmailConfirmation: false };
       }
 
-      // No session = email confirmation required
-      set({ isLoading: false, pendingEmailConfirmation: true });
+      // No session = email confirmation required.
+      //
+      // GoTrue's enumeration protection answers a signup for an
+      // already-registered address with the same success shape, but with an
+      // obfuscated user carrying an EMPTY `identities` array. Telling that
+      // visitor "check your inbox" is a fake success — no mail is ever sent.
+      // `Array.isArray` is load-bearing: `identities` is optional, and a
+      // missing field must NOT be read as "empty".
+      const signupUser = supabaseData.user;
+      const possiblyExistingAccount =
+        !!signupUser &&
+        Array.isArray(signupUser.identities) &&
+        signupUser.identities.length === 0;
+
+      set({
+        isLoading: false,
+        pendingEmailConfirmation: true,
+        pendingConfirmationEmail: userData.email,
+        pendingSignupPossiblyExisting: possiblyExistingAccount,
+      });
+      // The outer flow stays identical for every visitor — the branch only
+      // changes the guidance shown on the pending screen.
       return { requiresEmailConfirmation: true };
     } catch (error) {
       set({
@@ -235,7 +278,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       organization: null,
       isAuthenticated: false,
       error: null,
-      pendingEmailConfirmation: false,
+      ...CLEARED_PENDING_CONFIRMATION,
     });
 
     try {
@@ -346,7 +389,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           organization: profileData.organization ?? null,
           isAuthenticated: true,
           isLoading: false,
-          pendingEmailConfirmation: false,
+          ...CLEARED_PENDING_CONFIRMATION,
         });
       } catch (error) {
         const message =
@@ -414,6 +457,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
     }
   },
+
+  clearPendingEmailConfirmation: () => set({ ...CLEARED_PENDING_CONFIRMATION }),
 
   clearError: () => set({ error: null }),
   setLoading: (loading: boolean) => set({ isLoading: loading }),
