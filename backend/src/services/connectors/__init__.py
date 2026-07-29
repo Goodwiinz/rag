@@ -78,17 +78,17 @@ connector_registry = ConnectorRegistry()
 
 def _register_builtin_connectors() -> None:
     """Lazily import and register all built-in connectors."""
-    from .pubmed import PubMedConnector
-    from .uniprot import UniProtConnector
-    from .chembl import ChEMBLConnector
-    from .pubchem import PubChemConnector
-    from .sec_edgar import SECEdgarConnector
-    from .fred import FREDConnector
     from .alpha_vantage import AlphaVantageConnector
-    from .zinc import ZINCConnector
-    from .cosmic import COSMICConnector
-    from .clinical_trials import ClinicalTrialsConnector
     from .bioservices_bridge import BioServicesBridgeConnector
+    from .chembl import ChEMBLConnector
+    from .clinical_trials import ClinicalTrialsConnector
+    from .cosmic import COSMICConnector
+    from .fred import FREDConnector
+    from .pubchem import PubChemConnector
+    from .pubmed import PubMedConnector
+    from .sec_edgar import SECEdgarConnector
+    from .uniprot import UniProtConnector
+    from .zinc import ZINCConnector
 
     for cls in (
         PubMedConnector,

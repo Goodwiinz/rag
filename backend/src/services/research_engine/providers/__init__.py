@@ -7,8 +7,8 @@ from src.services.research_engine.providers.base import (
     ProviderConfig,
 )
 from src.services.research_engine.providers.claude_provider import ClaudeProvider
-from src.services.research_engine.providers.openai_provider import OpenAIProvider
 from src.services.research_engine.providers.ollama_provider import OllamaProvider
+from src.services.research_engine.providers.openai_provider import OpenAIProvider
 
 __all__ = [
     "LLMProvider",

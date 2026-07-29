@@ -9,7 +9,7 @@ Usage:
         async def complete(self, messages, **kwargs) -> CompletionResponse:
             # Implementation
             pass
-        
+
         def is_available(self) -> bool:
             return True
 

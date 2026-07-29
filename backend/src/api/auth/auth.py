@@ -17,15 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import get_db
 from src.core.dependencies import get_current_user, require_admin
-from src.core.security import (
-    auth_rate_limiter,
-    get_client_ip,
-    get_current_user_token,
-)
+from src.core.security import auth_rate_limiter, get_client_ip, get_current_user_token
 from src.models.user import User, UserRole
 from src.services.security.auth_service import (
-    AuthService,
     AuthenticationError,
+    AuthService,
     RegistrationError,
     get_auth_service,
 )
@@ -101,7 +97,7 @@ async def update_profile(
         logger.error(f"Error in update_profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -117,7 +113,9 @@ async def change_password(
     client_ip = get_client_ip(request)
 
     # IP-layer rate check first (before auth DB query)
-    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(client_ip, prefix="chpw_ip")
+    ip_allowed, ip_retry = await auth_rate_limiter.check_rate_limit(
+        client_ip, prefix="chpw_ip"
+    )
     if not ip_allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -161,7 +159,7 @@ async def change_password(
         logger.error(f"Error in change_password: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -229,7 +227,7 @@ async def update_user_role(
         logger.error(f"Error in update_user_role: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -267,7 +265,7 @@ async def deactivate_user(
         logger.error(f"Error in deactivate_user: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )
 
 
@@ -308,5 +306,5 @@ async def cleanup_inactive_users(
         logger.error(f"Error in cleanup_inactive_users: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An error occurred while processing the request"
+            detail="An error occurred while processing the request",
         )

@@ -68,9 +68,7 @@ class CrossrefConnector(SourceConnector):
                         "doi": item.get("DOI"),
                         "journal": (item.get("container-title") or [None])[0],
                         "citation_count": item.get("is-referenced-by-count"),
-                        "published": item.get("published-print", {}).get(
-                            "date-parts"
-                        ),
+                        "published": item.get("published-print", {}).get("date-parts"),
                     },
                 )
             )

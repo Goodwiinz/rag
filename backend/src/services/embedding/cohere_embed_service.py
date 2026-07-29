@@ -30,7 +30,9 @@ class CohereEmbedService:
     """
 
     def __init__(self):
-        self.endpoint = settings.COHERE_EMBED_ENDPOINT or "https://api.cohere.com/v2/embed"
+        self.endpoint = (
+            settings.COHERE_EMBED_ENDPOINT or "https://api.cohere.com/v2/embed"
+        )
         self.api_key = settings.COHERE_EMBED_API_KEY or settings.COHERE_RERANK_API_KEY
         self.model = settings.COHERE_EMBED_MODEL
         self.dimensions = settings.COHERE_EMBED_DIMENSIONS
@@ -38,7 +40,9 @@ class CohereEmbedService:
         self._enabled = bool(self.api_key)
 
         # Detect Azure AI endpoint (uses OpenAI-compatible API format)
-        self._is_azure = "azure" in self.endpoint.lower() or "services.ai" in self.endpoint.lower()
+        self._is_azure = (
+            "azure" in self.endpoint.lower() or "services.ai" in self.endpoint.lower()
+        )
 
         if self._enabled:
             mode = "Azure AI (OpenAI-compat)" if self._is_azure else "Cohere native"
@@ -139,9 +143,7 @@ class CohereEmbedService:
                         failed_count += 1
                         if breaker:
                             breaker.record_failure()
-                        logger.error(
-                            f"Single text embed failed, aborting: {text[:80]}"
-                        )
+                        logger.error(f"Single text embed failed, aborting: {text[:80]}")
                         raise RuntimeError(
                             "Cohere embedding failed; refusing to emit zero vectors"
                         ) from single_err

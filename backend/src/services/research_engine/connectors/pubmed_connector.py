@@ -47,7 +47,9 @@ class PubMedConnector(SourceConnector):
             try:
                 root = ET.fromstring(search_resp.text)
             except ET.ParseError as exc:
-                raise ValueError(f"PubMedConnector: failed to parse esearch XML: {exc}") from exc
+                raise ValueError(
+                    f"PubMedConnector: failed to parse esearch XML: {exc}"
+                ) from exc
             pmids = [
                 el.text
                 for el in root.findall(".//IdList/Id")
@@ -75,7 +77,9 @@ class PubMedConnector(SourceConnector):
         try:
             root = ET.fromstring(xml_text)
         except ET.ParseError as exc:
-            raise ValueError(f"PubMedConnector: failed to parse efetch XML: {exc}") from exc
+            raise ValueError(
+                f"PubMedConnector: failed to parse efetch XML: {exc}"
+            ) from exc
         documents: List[SourceDocument] = []
 
         for article_el in root.findall(".//PubmedArticle"):

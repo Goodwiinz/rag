@@ -114,21 +114,31 @@ class AudioProcessingService:
                         "sample_rate": getattr(info, "sample_rate", 0),
                         "channels": getattr(info, "channels", 0),
                         "length": getattr(info, "length", 0),
-                        "title": audio_file.tags.get("TIT2", [""])[0]
-                        if "TIT2" in audio_file.tags
-                        else "",
-                        "artist": audio_file.tags.get("TPE1", [""])[0]
-                        if "TPE1" in audio_file.tags
-                        else "",
-                        "album": audio_file.tags.get("TALB", [""])[0]
-                        if "TALB" in audio_file.tags
-                        else "",
-                        "date": audio_file.tags.get("TDRC", [""])[0]
-                        if "TDRC" in audio_file.tags
-                        else "",
-                        "genre": audio_file.tags.get("TCON", [""])[0]
-                        if "TCON" in audio_file.tags
-                        else "",
+                        "title": (
+                            audio_file.tags.get("TIT2", [""])[0]
+                            if "TIT2" in audio_file.tags
+                            else ""
+                        ),
+                        "artist": (
+                            audio_file.tags.get("TPE1", [""])[0]
+                            if "TPE1" in audio_file.tags
+                            else ""
+                        ),
+                        "album": (
+                            audio_file.tags.get("TALB", [""])[0]
+                            if "TALB" in audio_file.tags
+                            else ""
+                        ),
+                        "date": (
+                            audio_file.tags.get("TDRC", [""])[0]
+                            if "TDRC" in audio_file.tags
+                            else ""
+                        ),
+                        "genre": (
+                            audio_file.tags.get("TCON", [""])[0]
+                            if "TCON" in audio_file.tags
+                            else ""
+                        ),
                     }
                 )
 

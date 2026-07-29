@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import logging
 
-from src.core.config import Settings, settings as global_settings
+from src.core.config import Settings
+from src.core.config import settings as global_settings
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +69,8 @@ async def ensure_content_text_for_kb(document) -> bool:
     )
 
     try:
-        from src.services.documents.storage_utils import local_file_for_document
         from src.services.documents.file_service import FileService
+        from src.services.documents.storage_utils import local_file_for_document
 
         file_service = FileService()
         with local_file_for_document(document) as file_path:

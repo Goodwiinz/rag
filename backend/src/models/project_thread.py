@@ -36,7 +36,7 @@ class ProjectThread(BaseModel):
 
     __tablename__ = "project_threads"
     __table_args__ = (
-        UniqueConstraint('project_id', 'thread_id', name='uq_project_thread'),
+        UniqueConstraint("project_id", "thread_id", name="uq_project_thread"),
     )
 
     # Foreign keys

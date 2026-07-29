@@ -86,6 +86,7 @@ async def _resolve_ws_organization_id(
         logger.error("WebSocket org resolution failed for user %s: %s", user_id, e)
     return None
 
+
 router = APIRouter(prefix="/api/v2/ws", tags=["websocket-v2"])
 
 
@@ -370,9 +371,9 @@ async def websocket_connect_v2_secure(
                     type=MessageType.ERROR,
                     data={
                         "error": "Message processing failed",
-                        "details": str(e)
-                        if settings.DEBUG
-                        else "Internal error occurred",
+                        "details": (
+                            str(e) if settings.DEBUG else "Internal error occurred"
+                        ),
                     },
                     timestamp=datetime.now(dt_timezone.utc),
                 )
@@ -436,9 +437,11 @@ async def get_websocket_status():
                     "subscribers": len(
                         connection_manager.channel_subscribers.get(channel.value, set())
                     ),
-                    "message_rate": "realtime"
-                    if channel in [Channel.DOCUMENT_PROCESSING, Channel.JOB_STATUS]
-                    else "periodic",
+                    "message_rate": (
+                        "realtime"
+                        if channel in [Channel.DOCUMENT_PROCESSING, Channel.JOB_STATUS]
+                        else "periodic"
+                    ),
                 }
                 for channel in Channel
             },
@@ -676,15 +679,18 @@ async def websocket_health_check():
             "timestamp": datetime.now(dt_timezone.utc).isoformat(),
             "checks": {
                 "connection_manager": "healthy" if connection_manager else "unhealthy",
-                "status_update_service": "healthy"
-                if status_update_service
-                else "unhealthy",
-                "redis_connection": "healthy"
-                if connection_manager.redis_client
-                else "disabled",
-                "connection_load": "healthy"
-                if conn_stats["total_connections"] < conn_stats["max_connections"] * 0.8
-                else "high",
+                "status_update_service": (
+                    "healthy" if status_update_service else "unhealthy"
+                ),
+                "redis_connection": (
+                    "healthy" if connection_manager.redis_client else "disabled"
+                ),
+                "connection_load": (
+                    "healthy"
+                    if conn_stats["total_connections"]
+                    < conn_stats["max_connections"] * 0.8
+                    else "high"
+                ),
             },
             "metrics": {
                 "active_connections": conn_stats["total_connections"],

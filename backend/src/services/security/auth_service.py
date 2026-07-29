@@ -15,10 +15,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import (
-    check_password_strength,
-    verify_password,
-)
+from src.core.security import check_password_strength, verify_password
 from src.core.supabase_client import get_supabase_client
 from src.models.user import User, UserRole
 
@@ -64,7 +61,9 @@ class AuthService:
         """Legacy authentication flow retained for older unit tests."""
         allowed = await self._maybe_await(self._check_rate_limit(email))
         if allowed is False:
-            raise AuthenticationError("Too many login attempts. Please try again later.")
+            raise AuthenticationError(
+                "Too many login attempts. Please try again later."
+            )
 
         user = await self._maybe_await(self._get_user_by_email(email))
         if user is None:
@@ -100,9 +99,7 @@ class AuthService:
         if is_valid is False:
             raise AuthenticationError("Invalid user data")
 
-        is_available = await self._maybe_await(
-            self._check_email_availability(email)
-        )
+        is_available = await self._maybe_await(self._check_email_availability(email))
         if is_available is False:
             raise AuthenticationError("Email already exists")
 
@@ -207,9 +204,7 @@ class AuthService:
             )
         except Exception as exc:
             logger.error(f"Failed to update Supabase auth password: {exc}")
-            raise AuthenticationError(
-                "Password change failed. Please try again later."
-            )
+            raise AuthenticationError("Password change failed. Please try again later.")
 
         # Update local password hash
         user.set_password(new_password)

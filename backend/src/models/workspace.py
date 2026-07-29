@@ -5,7 +5,17 @@ Workspace model for project containers in Terminal Observatory
 from datetime import datetime
 from enum import Enum as PyEnum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from .base import GUID, BaseModel
@@ -45,9 +55,7 @@ class Workspace(BaseModel):
     organization_id = Column(GUID(), ForeignKey("organizations.id"), nullable=True)
 
     # Database indexes for performance optimization
-    __table_args__ = (
-        Index('idx_workspace_owner_archived', 'owner_id', 'is_archived'),
-    )
+    __table_args__ = (Index("idx_workspace_owner_archived", "owner_id", "is_archived"),)
 
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id])
@@ -139,7 +147,7 @@ class WorkspaceMember(BaseModel):
 
     # Database indexes and constraints
     __table_args__ = (
-        UniqueConstraint('workspace_id', 'user_id', name='uq_workspace_member'),
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_member"),
     )
 
     # Relationships

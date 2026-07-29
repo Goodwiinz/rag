@@ -10,8 +10,8 @@ This module provides comprehensive observability capabilities including:
 """
 
 from .config import ObservabilityConfig, config
+from .instrumentation import instrument_app, instrument_services
 from .logging import configure_logging, correlation_context, get_logger
-from .sentry import init_sentry
 from .metrics import (
     configure_metrics,
     get_meter,
@@ -20,6 +20,7 @@ from .metrics import (
     record_search_metrics,
     track_performance,
 )
+from .sentry import init_sentry
 from .slo_monitoring import (
     AlertSeverity,
     SLOStatus,
@@ -27,7 +28,6 @@ from .slo_monitoring import (
     get_slo_monitor,
     record_slo_metrics,
 )
-from .instrumentation import instrument_app, instrument_services
 from .tracer import configure_tracing, get_tracer, trace_function, trace_span
 
 __all__ = [

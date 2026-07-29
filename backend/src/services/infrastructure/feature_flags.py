@@ -69,7 +69,9 @@ class FeatureFlagService:
         if not sdk_key:
             raise ValueError("LAUNCHDARKLY_SDK_KEY environment variable not set")
 
-        config = ld.Config(sdk_key=sdk_key, offline=os.getenv("ENVIRONMENT") == "development")
+        config = ld.Config(
+            sdk_key=sdk_key, offline=os.getenv("ENVIRONMENT") == "development"
+        )
 
         self._client = ld.LDClient(config)
         self._initialized = True
@@ -306,12 +308,16 @@ def is_multimodal_processing_enabled(
 
 def is_advanced_analytics_enabled(user_context: Optional[UserContext] = None) -> bool:
     """Check if advanced analytics is enabled"""
-    return get_feature_flag_service().is_enabled(FeatureFlag.ADVANCED_ANALYTICS, user_context)
+    return get_feature_flag_service().is_enabled(
+        FeatureFlag.ADVANCED_ANALYTICS, user_context
+    )
 
 
 def is_evaluation_metrics_enabled(user_context: Optional[UserContext] = None) -> bool:
     """Check if evaluation metrics are enabled"""
-    return get_feature_flag_service().is_enabled(FeatureFlag.EVALUATION_METRICS, user_context)
+    return get_feature_flag_service().is_enabled(
+        FeatureFlag.EVALUATION_METRICS, user_context
+    )
 
 
 def is_real_time_processing_enabled(user_context: Optional[UserContext] = None) -> bool:

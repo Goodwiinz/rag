@@ -160,7 +160,11 @@ class ProcessingPipeline:
             job.fail_job(f"Failed to queue job: {str(e)}")
             # Also fail the associated document so it doesn't stay PENDING forever
             if job.document_id:
-                document = self.db.query(Document).filter(Document.id == job.document_id).first()
+                document = (
+                    self.db.query(Document)
+                    .filter(Document.id == job.document_id)
+                    .first()
+                )
                 if document:
                     document.processing_status = ProcessingStatus.FAILED
                     document.processing_error = f"Failed to queue: {str(e)}"
