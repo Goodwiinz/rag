@@ -27,7 +27,10 @@ interface AuthContextType {
   // Legacy aliases for backward compatibility
   login: (email: string, password: string) => Promise<void>;
   register: (userData: RegisterRequest) => Promise<RegisterResult>;
-  logout: () => void;
+  // signOut is async; it resolves even when server-side revocation fails (the
+  // local session is destroyed either way), so bare `logout()` call sites can
+  // never produce an unhandled rejection.
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
