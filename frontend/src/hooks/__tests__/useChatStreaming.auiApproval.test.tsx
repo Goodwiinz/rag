@@ -23,6 +23,9 @@ vi.mock('@/services/agentChatService', () => ({
   agentChatService: {
     streamMessage: (...a: unknown[]) => streamMessageMock(...a),
     streamConfirm: (...a: unknown[]) => streamConfirmMock(...a),
+    // The hook probes for a parked HITL confirmation on thread activation;
+    // nothing is parked in these scenarios.
+    resumeStream: vi.fn().mockResolvedValue({ resumed: false }),
   },
 }));
 

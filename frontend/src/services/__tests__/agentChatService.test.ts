@@ -124,6 +124,25 @@ describe('agentChatService.streamMessage SSE parsing', () => {
     expect(onUsage).toHaveBeenCalledWith(1234, 340);
   });
 
+  it('forwards heartbeat elapsed_ms as live progress', async () => {
+    // The keepalive is the ONLY signal during a silent planner/LLM phase —
+    // dropping it (as the consumer used to) leaves a 60s run with no progress.
+    global.fetch = fetchWith([
+      'event: heartbeat\ndata: {"elapsed_ms":47000}\n\n',
+      'event: done\ndata: {"status":"complete"}\n\n',
+    ]);
+    const onHeartbeat = vi.fn();
+    await agentChatService.streamMessage(request, { onHeartbeat });
+    expect(onHeartbeat).toHaveBeenCalledWith(47000);
+  });
+
+  it('defaults a heartbeat with no elapsed_ms to zero', async () => {
+    global.fetch = fetchWith(['event: heartbeat\ndata: {}\n\n']);
+    const onHeartbeat = vi.fn();
+    await agentChatService.streamMessage(request, { onHeartbeat });
+    expect(onHeartbeat).toHaveBeenCalledWith(0);
+  });
+
   it('defaults missing token counts to zero on the usage event', async () => {
     global.fetch = fetchWith(['event: usage\ndata: {}\n\n']);
     const onUsage = vi.fn();

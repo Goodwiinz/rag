@@ -3,6 +3,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { downloadStoredNousCliAuth } from '@/services/nousCliAuth';
+import { getSafeAuthRedirect } from '@/utils/authRedirect';
 import { motion } from 'framer-motion';
 import { Lock, Mail } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -43,11 +44,15 @@ function resolvePostLoginPath(rawNextPath: string | null): string {
     return '/dashboard';
   }
 
-  if (rawNextPath.startsWith('//')) {
-    return '/dashboard';
-  }
+  // SECURITY: a hand-rolled "starts with / but not //" check is not enough —
+  // `/\evil.com` passes it, and WHATWG URL parsing (what the browser applies
+  // when the router resolves the href) treats `/\` exactly like `//`, so the
+  // push lands off-origin. Delegate to the single shared sanitizer that the
+  // server-side auth callback already uses instead of writing a second one.
+  const origin =
+    typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
 
-  return rawNextPath;
+  return getSafeAuthRedirect(rawNextPath, origin, '/dashboard');
 }
 
 function describeAuthCallbackError(code: string | null): string {

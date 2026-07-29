@@ -22,7 +22,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import PendingEmailConfirmation from '@/components/auth/PendingEmailConfirmation';
-import { useAuthStore } from '@/stores/authStore';
 
 interface RegisterFormData {
   email: string;
@@ -38,8 +37,15 @@ const _PHOSPHOR_GREEN = '#D4A039';
 const _AMBER = '#ffb700';
 
 export default function RegisterPage() {
-  const { register, isAuthenticated, isLoading, pendingEmailConfirmation } =
-    useAuth();
+  const {
+    register,
+    isAuthenticated,
+    isLoading,
+    pendingEmailConfirmation,
+    pendingConfirmationEmail,
+    pendingSignupPossiblyExisting,
+    clearPendingEmailConfirmation,
+  } = useAuth();
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
     email: '',
@@ -59,10 +65,13 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated. '/' is the public marketing landing and
+  // does not bounce authenticated visitors anywhere, so sending them there
+  // would drop them back on the anonymous page; match the login page's
+  // destination instead.
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -95,7 +104,8 @@ export default function RegisterPage() {
 
       const result = await register(registerData);
       if (!result.requiresEmailConfirmation) {
-        router.push('/');
+        // Signup issued a session — land on the app, not the marketing page.
+        router.push('/dashboard');
       }
     } catch (err) {
       setError(
@@ -135,7 +145,7 @@ export default function RegisterPage() {
   const strength = passwordStrength();
 
   const handleResetConfirmation = () => {
-    useAuthStore.setState({ pendingEmailConfirmation: false });
+    clearPendingEmailConfirmation();
     setFormData({
       email: '',
       password: '',
@@ -152,7 +162,10 @@ export default function RegisterPage() {
   if (pendingEmailConfirmation) {
     return (
       <PendingEmailConfirmation
-        email={formData.email}
+        // The store is the source of truth: `formData.email` is local state
+        // that empties on remount, which used to blank the address out.
+        email={pendingConfirmationEmail ?? formData.email}
+        possiblyExisting={pendingSignupPossiblyExisting}
         onReset={handleResetConfirmation}
       />
     );

@@ -5,8 +5,9 @@
  * `AgentStreamEvent` StrEnum. This test enforces three things so the vocabulary
  * cannot silently drift across the wire:
  *   1. `AGENT_STREAM_EVENTS` still equals the exact backend wire values.
- *   2. `HANDLED_STREAM_EVENTS` covers every non-`heartbeat` value (heartbeat is
- *      a keepalive we deliberately drop) and adds nothing extra.
+ *   2. `HANDLED_STREAM_EVENTS` covers every value — including `heartbeat`,
+ *      whose `elapsed_ms` drives the live thinking-pill readout — and adds
+ *      nothing extra.
  *   3. The exported `HANDLED_STREAM_EVENTS` set actually matches the `case`
  *      labels of the real `switch (ev)` in agentChatService.ts — parsed from
  *      source — so a new `case` (or a removed one) that forgets the set fails.
@@ -84,15 +85,12 @@ describe('agent SSE event vocabulary contract', () => {
     expect([...AGENT_STREAM_EVENTS]).toEqual(EXPECTED_WIRE_VALUES);
   });
 
-  it('HANDLED_STREAM_EVENTS covers every non-heartbeat event, nothing extra', () => {
-    const expectedHandled = new Set(
-      AGENT_STREAM_EVENTS.filter((e) => e !== HEARTBEAT_STREAM_EVENT)
-    );
+  it('HANDLED_STREAM_EVENTS covers every event, nothing extra', () => {
+    const expectedHandled = new Set<AgentStreamEvent>(AGENT_STREAM_EVENTS);
     expect(new Set(HANDLED_STREAM_EVENTS)).toEqual(expectedHandled);
-    // heartbeat is intentionally NOT handled (keepalive).
-    expect(HANDLED_STREAM_EVENTS.has('heartbeat' as AgentStreamEvent)).toBe(
-      false
-    );
+    // heartbeat carries elapsed_ms — the only live progress signal during a
+    // silent planner/LLM phase, so it must stay handled.
+    expect(HANDLED_STREAM_EVENTS.has(HEARTBEAT_STREAM_EVENT)).toBe(true);
   });
 
   it('exported HANDLED_STREAM_EVENTS matches the real switch (ev) cases', () => {
