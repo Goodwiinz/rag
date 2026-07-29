@@ -1,9 +1,9 @@
 """
 Authentication service for user management and security.
 
-Supabase handles registration, login, token refresh, and password reset.
-This service provides profile management, password change, admin operations,
-and user statistics.
+Supabase handles registration, login, token refresh, and password change /
+reset. This service provides profile management, admin operations, and user
+statistics.
 """
 
 import inspect
@@ -15,11 +15,6 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import (
-    check_password_strength,
-    verify_password,
-)
-from src.core.supabase_client import get_supabase_client
 from src.models.user import User, UserRole
 
 logger = __import__("logging").getLogger(__name__)
@@ -38,7 +33,7 @@ class AuthorizationError(Exception):
 
 
 class RegistrationError(Exception):
-    """Registration related errors (used by password change validation)"""
+    """Registration related errors (e.g. profile email already in use)"""
 
     pass
 
@@ -46,8 +41,8 @@ class RegistrationError(Exception):
 class AuthService:
     """Authentication service for user management.
 
-    Supabase handles registration, login, and token lifecycle.
-    This service provides profile updates, password changes, and admin operations.
+    Supabase handles registration, login, token lifecycle, and password
+    changes. This service provides profile updates and admin operations.
     """
 
     def __init__(self, db: AsyncSession = None):
@@ -178,44 +173,11 @@ class AuthService:
 
         return user
 
-    async def change_password(
-        self, user: User, current_password: str, new_password: str
-    ) -> bool:
-        """Change user password in both public.users and Supabase auth.users."""
-        # Verify current password
-        if not verify_password(current_password, user.password_hash):
-            raise AuthenticationError("Current password is incorrect")
-
-        # Check new password strength
-        password_check = check_password_strength(new_password)
-        if not password_check["is_valid"]:
-            raise RegistrationError(
-                f"New password does not meet security requirements: {', '.join(password_check['issues'])}"
-            )
-
-        # Sync password to Supabase auth.users first (fail fast if Supabase is down)
-        supabase = get_supabase_client()
-        if not supabase:
-            logger.error("Supabase admin client unavailable for password change")
-            raise AuthenticationError(
-                "Password change unavailable: authentication service is not configured."
-            )
-
-        try:
-            supabase.auth.admin.update_user_by_id(
-                str(user.id), {"password": new_password}
-            )
-        except Exception as exc:
-            logger.error(f"Failed to update Supabase auth password: {exc}")
-            raise AuthenticationError(
-                "Password change failed. Please try again later."
-            )
-
-        # Update local password hash
-        user.set_password(new_password)
-        await self.db.commit()
-
-        return True
+    # NOTE: change_password() was retired along with POST /auth/change-password.
+    # It gated on verify_password(current_password, user.password_hash), and under
+    # hosted GoTrue that hash is only ever the random secret written by JIT
+    # provisioning, so the gate could never pass. Supabase's reset-password email
+    # is the supported flow.
 
     async def update_user_profile(
         self,
