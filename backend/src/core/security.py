@@ -48,6 +48,12 @@ class TokenData(BaseModel):
     # can reject CLI tokens minted before a per-user "revoked before" cutoff.
     issued_at: Optional[datetime] = None
     is_cli: bool = False
+    # Sign-up profile from Supabase ``user_metadata`` (see
+    # ``_extract_signup_metadata``). DISPLAY TEXT ONLY — client-controlled, so
+    # it must never influence role, permissions, org membership or tenant scope.
+    signup_first_name: Optional[str] = None
+    signup_last_name: Optional[str] = None
+    signup_organization_name: Optional[str] = None
 
 
 def _extract_forwarded_ip(headers: Any) -> Optional[str]:
@@ -148,6 +154,54 @@ def _get_supabase_jwks() -> Optional[Dict]:
         return None
 
 
+# Column limits the sign-up metadata has to fit (see src/models/user.py and
+# src/models/organization.py): users.first_name / last_name are String(100),
+# organizations.name is String(255).
+_SIGNUP_NAME_MAX_LENGTH = 100
+_SIGNUP_ORG_NAME_MAX_LENGTH = 255
+
+
+def _clean_metadata_string(value: Any, max_length: int) -> Optional[str]:
+    """Coerce one attacker-controlled metadata value into safe display text.
+
+    Anything that isn't a non-blank string (``None``, numbers, dicts, lists)
+    becomes ``None`` so the caller falls back to a derived value. A pydantic
+    ``TokenData`` field is ``Optional[str]`` and pydantic v2 does NOT coerce,
+    so letting a non-string through here would raise during token extraction
+    and 401 the user.
+    """
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned[:max_length] or None
+
+
+def _extract_signup_metadata(payload: dict) -> Dict[str, Optional[str]]:
+    """Whitelist the sign-up fields the frontend writes to ``user_metadata``.
+
+    Supabase copies the client-supplied ``options.data`` of ``auth.signUp()``
+    verbatim into the ``user_metadata`` JWT claim, so ANY key in there is
+    attacker-controlled — a user can set ``role``/``organization_id`` at will.
+    We therefore take only the three display fields, truncated to their column
+    limits, and drop the rest at the boundary: nothing else can ride in.
+    Authorization keeps coming exclusively from ``app_metadata``.
+    """
+    user_metadata = payload.get("user_metadata")
+    if not isinstance(user_metadata, dict):
+        return {}
+    return {
+        "signup_first_name": _clean_metadata_string(
+            user_metadata.get("first_name"), _SIGNUP_NAME_MAX_LENGTH
+        ),
+        "signup_last_name": _clean_metadata_string(
+            user_metadata.get("last_name"), _SIGNUP_NAME_MAX_LENGTH
+        ),
+        "signup_organization_name": _clean_metadata_string(
+            user_metadata.get("organization_name"), _SIGNUP_ORG_NAME_MAX_LENGTH
+        ),
+    }
+
+
 def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
     """Extract TokenData from a decoded Supabase JWT payload."""
     user_id = payload.get("sub")
@@ -164,6 +218,7 @@ def _extract_supabase_token_data(payload: dict) -> Optional[TokenData]:
             organization_id=app_metadata.get("organization_id"),
             role=role,
             exp=datetime.utcfromtimestamp(exp) if exp else None,
+            **_extract_signup_metadata(payload),
         )
     return None
 
