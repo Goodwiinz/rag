@@ -702,8 +702,8 @@ async def _pending_confirmation_frame(
     import json as _json
 
     try:
-        from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent._builders import compile_agent_graph
+        from src.services.agent.checkpointer import get_checkpointer
         from src.services.agent.memory import get_memory_store
 
         checkpointer = await get_checkpointer()
