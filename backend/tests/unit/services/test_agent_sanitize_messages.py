@@ -29,7 +29,7 @@ def _ids(tool_calls: list[str]) -> list[dict]:
 def test_already_valid_sequence_passes_through_unchanged():
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         HumanMessage(content="hi"),
@@ -48,7 +48,7 @@ def test_already_valid_sequence_passes_through_unchanged():
 def test_unanswered_tool_call_gets_placeholder():
     from langchain_core.messages import AIMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         AIMessage(content="", tool_calls=_ids(["c1", "c2"])),
@@ -71,7 +71,7 @@ def test_human_message_between_ai_and_tool_message_is_repaired():
     HumanMessage / ToolMessage interleaved — sanitizer must re-anchor."""
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         AIMessage(content="", tool_calls=_ids(["c1"])),
@@ -95,7 +95,7 @@ def test_orphan_tool_message_without_parent_is_dropped():
     OpenAI rejects orphans."""
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         HumanMessage(content="hi"),
@@ -113,7 +113,7 @@ def test_orphan_tool_message_without_parent_is_dropped():
 def test_tool_message_attaches_to_correct_parent_when_two_ais():
     from langchain_core.messages import AIMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         AIMessage(content="", tool_calls=_ids(["c1"])),
@@ -140,7 +140,7 @@ def test_consecutive_human_messages_supersede():
     """
     from langchain_core.messages import HumanMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [HumanMessage(content="part 1"), HumanMessage(content="part 2")]
 
@@ -154,7 +154,7 @@ def test_tool_call_without_id_does_not_crash():
     """Some non-OpenAI providers emit tool_calls without explicit ids."""
     from langchain_core.messages import AIMessage, HumanMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     ai = AIMessage(content="", tool_calls=[{"id": "", "name": "noop", "args": {}}])
     raw = [ai, HumanMessage(content="hi")]
@@ -172,7 +172,7 @@ def test_duplicate_tool_message_ids_keep_only_one():
     Sanitizer should keep one (last wins) and not append twice."""
     from langchain_core.messages import AIMessage, ToolMessage
 
-    from src.services.agent.graph import _sanitize_messages
+    from src.services.agent._sanitize import _sanitize_messages
 
     raw = [
         AIMessage(content="", tool_calls=_ids(["c1"])),

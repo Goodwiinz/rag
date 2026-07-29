@@ -83,7 +83,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=graph,
         ),
         patch(
@@ -97,10 +97,7 @@ async def test_confirm_stream_acloses_graph_on_disconnect():
 
     assert graph.aclosed is True  # resumed run cancelled
     # Early-returned before the post-loop snapshot/emit path.
-    assert not any(
-        "event: done" in e or "event: confirmation" in e
-        for e in events
-    )
+    assert not any("event: done" in e or "event: confirmation" in e for e in events)
 
 
 @pytest.mark.asyncio
@@ -146,7 +143,7 @@ async def test_confirm_stream_persists_partial_on_disconnect():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=graph,
         ),
         patch(

@@ -1,10 +1,10 @@
 """Tool execution + interrupt nodes for the agent graph.
 
-Extracted from ``graph.py`` so the orchestration module stays under the
-800-line house rule. ``graph.py`` re-exports every public name so legacy
-imports (``from src.services.agent.graph import tool_node, interrupt_node,
-make_filtered_tool_node, DESTRUCTIVE_TOOLS, AGENT_LLM_TIMEOUT_SECONDS,
-TOOL_TIMEOUT_SECONDS``) keep working without rewriting subgraphs/tests.
+Extracted from the old ``graph.py`` so the orchestration module stays
+under the 800-line house rule; every public name (``tool_node``,
+``interrupt_node``, ``make_filtered_tool_node``, ``DESTRUCTIVE_TOOLS``,
+``AGENT_LLM_TIMEOUT_SECONDS``, ``TOOL_TIMEOUT_SECONDS``) now imports from
+here directly.
 
 Contracts:
 - ``tool_node`` / ``filtered_tool_node`` execute pending tool_calls in

@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
-
 from langchain_core.messages import AIMessage, HumanMessage
 
 pytestmark = pytest.mark.asyncio
@@ -64,7 +63,7 @@ def _make_config() -> dict:
 
 async def _capture_system_prompt(intent: str) -> str:
     """Run llm_node with a stub LLM and return its system prompt content."""
-    from src.services.agent.graph import llm_node
+    from src.services.agent._nodes_llm import llm_node
 
     captured: dict = {"messages": None}
 

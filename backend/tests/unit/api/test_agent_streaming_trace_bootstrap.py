@@ -34,7 +34,9 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
     # generator must emit `done`. Disconnect now cancels early without a `done`
     # — covered by test_stream_event_generator_cancels_on_disconnect below.
     request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
-    body = SimpleNamespace(messages=[], page_context={"type": "general"}, thread_id="", model=None)
+    body = SimpleNamespace(
+        messages=[], page_context={"type": "general"}, thread_id="", model=None
+    )
     current_user = Mock(id="user-1", organization_id="org-1")
 
     with (
@@ -53,7 +55,7 @@ async def test_stream_event_generator_bootstraps_langsmith_before_compile():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             side_effect=fake_compile_agent_graph,
         ),
         patch(
@@ -102,7 +104,7 @@ async def test_stream_event_generator_cancels_on_disconnect():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             side_effect=fake_compile_agent_graph,
         ),
         patch.object(
@@ -166,7 +168,7 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             side_effect=fake_compile_agent_graph,
         ),
         patch(
@@ -175,9 +177,7 @@ async def test_stream_confirm_event_generator_bootstraps_langsmith_before_compil
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     assert configured is True

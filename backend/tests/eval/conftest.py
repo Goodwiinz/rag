@@ -79,7 +79,6 @@ def _golden_replay(monkeypatch, request):
         _nodes_tools,
         classifier,
         compactor,
-        graph,
         llm_factory,
         planner,
         reflection,
@@ -88,7 +87,7 @@ def _golden_replay(monkeypatch, request):
     # Clear all build + result caches so the fake is actually constructed
     # (4.2 in the design — otherwise a previously-built real client leaks).
     llm_factory.reset_llm_caches()
-    graph._LLM_CACHE.clear()
+    llm_factory._LLM_CACHE.clear()
     monkeypatch.setattr(classifier, "_CLASSIFIER_LLM", None, raising=False)
     monkeypatch.setattr(reflection, "_REFLECTION_LLM", None, raising=False)
     monkeypatch.setattr(compactor, "_COMPACTOR_LLM", None, raising=False)

@@ -276,7 +276,7 @@ async def _build_graph() -> Any:
     reachable, so the harness still produces latency numbers in a thin dev
     environment. All imports are lazy to keep collection infra-free.
     """
-    from src.services.agent.graph import compile_agent_graph
+    from src.services.agent._builders import compile_agent_graph
 
     checkpointer = None
     store = None

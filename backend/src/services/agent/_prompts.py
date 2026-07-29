@@ -3,7 +3,7 @@
 Extracted from ``graph.py`` to keep that module under the 800-line house
 rule and to give prompt content a single canonical home. ``graph.py``
 re-exports everything here so legacy imports
-(``from src.services.agent.graph import SHARED_AGENT_RULES``) keep
+(``from src.services.agent._prompts import SHARED_AGENT_RULES``) keep
 working without churn.
 
 Three groups live here:

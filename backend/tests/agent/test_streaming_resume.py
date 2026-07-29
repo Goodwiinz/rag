@@ -88,7 +88,7 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(),
         ),
         patch(
@@ -109,9 +109,7 @@ async def test_stream_frames_carry_ids_and_are_buffered(monkeypatch):
 
     # Every frame was appended to the buffer (no heartbeats in this run),
     # with matching seq numbers.
-    assert [(seq, frame) for _, seq, frame in buf.appends] == list(
-        zip(ids, events)
-    )
+    assert [(seq, frame) for _, seq, frame in buf.appends] == list(zip(ids, events))
     assert buf.appends[0][0] == "sid-thread-123"
 
     # done is the terminal frame and finish_stream was called after it.
@@ -167,7 +165,7 @@ async def test_drain_timeout_after_disconnect_persists_partial(monkeypatch):
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_DisconnectThenHangGraph(),
         ),
         patch(
@@ -246,7 +244,7 @@ def _frames():
     return [
         BufferedFrame(seq=1, frame='id: 1\nevent: token\ndata: {"c": "a"}\n\n'),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "b"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
 
@@ -309,7 +307,7 @@ def test_resume_token_containing_terminal_text_does_not_stop_replay(monkeypatch)
             frame='id: 1\nevent: token\ndata: {"c": "the SSE frame is event: done"}\n\n',
         ),
         BufferedFrame(seq=2, frame='id: 2\nevent: token\ndata: {"c": "more"}\n\n'),
-        BufferedFrame(seq=3, frame='id: 3\nevent: done\ndata: {}\n\n'),
+        BufferedFrame(seq=3, frame="id: 3\nevent: done\ndata: {}\n\n"),
     ]
 
     async def read_after(sid, after_seq):

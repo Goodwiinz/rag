@@ -99,7 +99,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(snapshot),
         ),
         patch(
@@ -115,9 +115,7 @@ async def test_confirm_persists_only_assistant_row_not_user_row():
             new=AsyncMock(return_value=None),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     persist_mock.assert_awaited_once()
@@ -137,9 +135,9 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
     """A double-confirm must hit the assistant partial unique index. The
     resumed turn has no fresh cmid, so the assistant key is derived (uuid5)
     from the original user row's client_message_id."""
-    from src.api.agent.streaming import stream_confirm_event_generator
-
     import uuid as _uuid
+
+    from src.api.agent.streaming import stream_confirm_event_generator
 
     user_cmid = "22222222-2222-2222-2222-222222222222"
     expected_assistant_cmid = str(
@@ -181,7 +179,7 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(snapshot),
         ),
         patch(
@@ -197,9 +195,7 @@ async def test_confirm_derives_idempotent_assistant_cmid_from_user_row():
             new=AsyncMock(return_value=user_cmid),
         ),
     ):
-        async for _ in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for _ in stream_confirm_event_generator(body, request, current_user):
             pass
 
     kwargs = persist_mock.await_args.kwargs
@@ -248,7 +244,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=_FakeGraph(snapshot),
         ),
         patch(
@@ -269,9 +265,7 @@ async def test_confirm_done_carries_assistant_message_id_in_canonical_mode():
         ),
     ):
         events = []
-        async for event in stream_confirm_event_generator(
-            body, request, current_user
-        ):
+        async for event in stream_confirm_event_generator(body, request, current_user):
             events.append(event)
 
     done_events = [e for e in events if "event: done" in e]

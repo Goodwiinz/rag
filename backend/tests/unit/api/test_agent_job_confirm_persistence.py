@@ -110,7 +110,7 @@ async def test_job_confirm_persists_assistant_only_with_checkpoint_cmid():
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             return_value=graph,
         ),
         patch(

@@ -15,10 +15,10 @@ These tests are skipped by default unless credentials are present.
 """
 
 import os
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -47,6 +47,7 @@ pytestmark = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_state(user_msg: str) -> dict:
     return {
@@ -104,23 +105,29 @@ def _mock_infra():
         with (
             # Mock RAG search (needs Qdrant/Neo4j)
             patch(
-                "src.services.agent.graph.rag_node",
+                "src.services.agent._nodes_classify.rag_node",
                 new=AsyncMock(return_value={"retrieved_contexts": []}),
             ),
             # Mock memory retrieval (needs store)
             patch(
-                "src.services.agent.graph.memory_retrieval_node",
+                "src.services.agent._nodes_classify.memory_retrieval_node",
                 new=AsyncMock(return_value={"user_memories": []}),
             ),
             # Mock memory save (needs store)
             patch(
-                "src.services.agent.graph.memory_save_node",
+                "src.services.agent._builders.memory_save_node",
                 new=AsyncMock(return_value={}),
             ),
             # Mock tool execution (needs DB, external APIs)
             patch(
                 "src.services.agent.tools_impl.execute_tool",
-                new=AsyncMock(return_value={"results": [], "total": 0, "message": "Mocked tool result"}),
+                new=AsyncMock(
+                    return_value={
+                        "results": [],
+                        "total": 0,
+                        "message": "Mocked tool result",
+                    }
+                ),
             ),
         ):
             yield
@@ -140,7 +147,7 @@ class TestAgentResearchFlow:
         """Agent should call search_arxiv when asked to find papers."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         query = "Search arxiv for recent papers on retrieval augmented generation"
         t.log_inputs({"query": query})
@@ -154,16 +161,18 @@ class TestAgentResearchFlow:
         tool_calls = _extract_tool_calls(result)
         final_answer = _extract_final_answer(result)
 
-        t.log_outputs({
-            "tool_calls": tool_calls,
-            "final_answer": final_answer[:500],
-            "num_messages": len(result["messages"]),
-        })
+        t.log_outputs(
+            {
+                "tool_calls": tool_calls,
+                "final_answer": final_answer[:500],
+                "num_messages": len(result["messages"]),
+            }
+        )
         t.log_feedback(key="num_steps", score=len(result["messages"]))
 
-        assert "search_arxiv" in tool_calls, (
-            f"Expected search_arxiv in tool calls, got: {tool_calls}"
-        )
+        assert (
+            "search_arxiv" in tool_calls
+        ), f"Expected search_arxiv in tool calls, got: {tool_calls}"
         assert final_answer, "Agent should produce a text response"
 
 
@@ -174,7 +183,7 @@ class TestAgentGeneralConversation:
         """Agent should NOT use tools for a simple greeting."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         query = "Hello! How are you?"
         t.log_inputs({"query": query})
@@ -188,14 +197,16 @@ class TestAgentGeneralConversation:
         tool_calls = _extract_tool_calls(result)
         final_answer = _extract_final_answer(result)
 
-        t.log_outputs({
-            "tool_calls": tool_calls,
-            "final_answer": final_answer[:500],
-        })
-
-        assert len(tool_calls) == 0, (
-            f"Expected no tool calls for greeting, got: {tool_calls}"
+        t.log_outputs(
+            {
+                "tool_calls": tool_calls,
+                "final_answer": final_answer[:500],
+            }
         )
+
+        assert (
+            len(tool_calls) == 0
+        ), f"Expected no tool calls for greeting, got: {tool_calls}"
         assert final_answer, "Agent should produce a greeting response"
 
 
@@ -206,7 +217,7 @@ class TestAgentIntentRouting:
         """Research query should be classified with research intent."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         query = "Find papers about attention mechanisms in deep learning"
         t.log_inputs({"query": query})
@@ -221,10 +232,12 @@ class TestAgentIntentRouting:
 
         intent = snapshot.values.get("intent", "")
 
-        t.log_outputs({
-            "actual_intent": intent,
-            "tool_calls": _extract_tool_calls(result),
-        })
+        t.log_outputs(
+            {
+                "actual_intent": intent,
+                "tool_calls": _extract_tool_calls(result),
+            }
+        )
         t.log_feedback(key="correct_intent", score=1.0 if intent == "research" else 0.0)
 
         assert intent == "research", f"Expected research intent, got: {intent}"
@@ -233,7 +246,7 @@ class TestAgentIntentRouting:
         """Writing query should be classified with writing intent."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         query = "Write a draft literature review and summarize the main themes"
         t.log_inputs({"query": query})
@@ -261,22 +274,22 @@ class TestAgentErrorResilience:
         """Agent should produce a response even when tools fail."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import compile_agent_graph
+        from src.services.agent._builders import compile_agent_graph
 
         query = "Search arxiv for papers about quantum computing"
         t.log_inputs({"query": query})
 
         with (
             patch(
-                "src.services.agent.graph.rag_node",
+                "src.services.agent._nodes_classify.rag_node",
                 new=AsyncMock(return_value={"retrieved_contexts": []}),
             ),
             patch(
-                "src.services.agent.graph.memory_retrieval_node",
+                "src.services.agent._nodes_classify.memory_retrieval_node",
                 new=AsyncMock(return_value={"user_memories": []}),
             ),
             patch(
-                "src.services.agent.graph.memory_save_node",
+                "src.services.agent._builders.memory_save_node",
                 new=AsyncMock(return_value={}),
             ),
             patch(
@@ -291,11 +304,13 @@ class TestAgentErrorResilience:
         final_answer = _extract_final_answer(result)
         error_count = result.get("error_count", 0)
 
-        t.log_outputs({
-            "final_answer": final_answer[:500],
-            "error_count": error_count,
-            "num_messages": len(result["messages"]),
-        })
+        t.log_outputs(
+            {
+                "final_answer": final_answer[:500],
+                "error_count": error_count,
+                "num_messages": len(result["messages"]),
+            }
+        )
         t.log_feedback(key="graceful_error", score=1.0 if final_answer else 0.0)
 
         assert len(result["messages"]) > 1, "Agent should have multiple messages"
@@ -308,7 +323,7 @@ class TestAgentMaxLoopProtection:
         """Agent execution should not exceed MAX_TOOL_LOOPS."""
         from langsmith import testing as t
 
-        from src.services.agent.graph import MAX_TOOL_LOOPS, compile_agent_graph
+        from src.services.agent._builders import MAX_TOOL_LOOPS, compile_agent_graph
 
         query = "Search for papers on transformers and list all project documents"
         t.log_inputs({"query": query, "max_tool_loops": MAX_TOOL_LOOPS})
@@ -321,16 +336,18 @@ class TestAgentMaxLoopProtection:
         tool_loop_count = result.get("tool_loop_count", 0)
         tool_calls = _extract_tool_calls(result)
 
-        t.log_outputs({
-            "tool_loop_count": tool_loop_count,
-            "tool_calls": tool_calls,
-            "num_messages": len(result["messages"]),
-        })
+        t.log_outputs(
+            {
+                "tool_loop_count": tool_loop_count,
+                "tool_calls": tool_calls,
+                "num_messages": len(result["messages"]),
+            }
+        )
         t.log_feedback(
             key="within_loop_limit",
             score=1.0 if tool_loop_count <= MAX_TOOL_LOOPS else 0.0,
         )
 
-        assert tool_loop_count <= MAX_TOOL_LOOPS, (
-            f"tool_loop_count {tool_loop_count} exceeds MAX_TOOL_LOOPS {MAX_TOOL_LOOPS}"
-        )
+        assert (
+            tool_loop_count <= MAX_TOOL_LOOPS
+        ), f"tool_loop_count {tool_loop_count} exceeds MAX_TOOL_LOOPS {MAX_TOOL_LOOPS}"

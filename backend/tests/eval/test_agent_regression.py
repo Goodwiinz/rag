@@ -12,6 +12,7 @@ Activate with:
 The suite is auto-skipped when ``LANGCHAIN_API_KEY`` is unset (see
 ``conftest.py``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,8 +22,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import add_messages
 
-from src.services.agent.graph import compile_agent_graph
-
+from src.services.agent._builders import compile_agent_graph
 from tests.eval.golden_examples import LOCAL_CASES, GoldenCase
 
 # NOTE: do NOT put a module-level langsmith mark here. The two suites have
@@ -102,7 +102,11 @@ def _extract_tool_calls(messages: list[Any]) -> list[str]:
     for msg in messages:
         if isinstance(msg, AIMessage):
             for call in getattr(msg, "tool_calls", []) or []:
-                name = call.get("name") if isinstance(call, dict) else getattr(call, "name", None)
+                name = (
+                    call.get("name")
+                    if isinstance(call, dict)
+                    else getattr(call, "name", None)
+                )
                 if name:
                     names.append(name)
     return names
@@ -145,9 +149,7 @@ async def _run_agent(inputs: dict[str, Any]) -> dict[str, Any]:
                     final_state["messages"] = add_messages(
                         final_state.get("messages", []), update["messages"]
                     )
-                final_state.update(
-                    {k: v for k, v in update.items() if k != "messages"}
-                )
+                final_state.update({k: v for k, v in update.items() if k != "messages"})
 
     tool_calls = _extract_tool_calls(final_state.get("messages", []))
     for name in interrupted_tool_calls:
@@ -169,7 +171,9 @@ def _target(inputs: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def intent_match(outputs: dict[str, Any], reference_outputs: dict[str, Any]) -> dict[str, Any]:
+def intent_match(
+    outputs: dict[str, Any], reference_outputs: dict[str, Any]
+) -> dict[str, Any]:
     """Score 1 iff the run's intent is acceptable for the reference row.
 
     Acceptable = equals the exact ``intent`` OR is a member of
@@ -285,7 +289,11 @@ def test_agent_regression_against_dataset(
             else getattr(result, "example", None)
         )
         example_id = (
-            (example.get("id") if isinstance(example, dict) else getattr(example, "id", "?"))
+            (
+                example.get("id")
+                if isinstance(example, dict)
+                else getattr(example, "id", "?")
+            )
             if example is not None
             else "?"
         )
@@ -320,12 +328,8 @@ async def test_local_golden_case(case: GoldenCase) -> None:
         inputs["question"] = case.question
     outputs = await _run_agent(inputs)
 
-    intent_result = intent_match(
-        outputs, {"intent": case.expected_intent}
-    )
-    tool_result = tool_subset_match(
-        outputs, {"expected_tools": case.expected_tools}
-    )
+    intent_result = intent_match(outputs, {"intent": case.expected_intent})
+    tool_result = tool_subset_match(outputs, {"expected_tools": case.expected_tools})
 
     assert intent_result["score"] == 1, (
         f"intent mismatch: expected={case.expected_intent} "

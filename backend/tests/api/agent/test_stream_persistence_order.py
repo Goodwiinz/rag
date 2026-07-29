@@ -91,7 +91,7 @@ async def test_user_message_persists_before_llm_call(
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             new=lambda **_kwargs: _FakeGraph(),
         ),
     ):
@@ -165,8 +165,8 @@ async def test_connected_client_error_persists_partial_assistant_row(
 
     TestSessionLocal = async_sessionmaker(_engine, expire_on_commit=False)
 
-    from src.services.agent import agent_execution_service as jobs_mod
     from src.api.agent import streaming as streaming_mod
+    from src.services.agent import agent_execution_service as jobs_mod
 
     with (
         patch.object(streaming_mod, "AsyncSessionLocal", TestSessionLocal),
@@ -187,7 +187,7 @@ async def test_connected_client_error_persists_partial_assistant_row(
             new=AsyncMock(return_value=object()),
         ),
         patch(
-            "src.services.agent.graph.compile_agent_graph",
+            "src.services.agent._builders.compile_agent_graph",
             new=lambda **_kwargs: _FakeGraphTokenThenError(),
         ),
     ):

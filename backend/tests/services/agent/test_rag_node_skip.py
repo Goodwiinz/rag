@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import HumanMessage
 
-from src.services.agent.graph import rag_node
+from src.services.agent._nodes_rag import rag_node
 
 
 def _state(query: str, project_id: str | None = None) -> dict:
@@ -34,12 +34,15 @@ async def test_skip_for_hi_with_active_project():
     user.id = "user-1"
     project_id = "5ed25258-5ad2-4b06-9678-4a4abe5ecac1"
 
-    with patch(
-        "src.services.agent._nodes_rag._try_primary_do_kb_read",
-        new=AsyncMock(side_effect=AssertionError("retrieval should be skipped")),
-    ), patch(
-        "src.services.agent._nodes_rag._legacy_hybrid_search_fallback",
-        new=AsyncMock(side_effect=AssertionError("fallback should be skipped")),
+    with (
+        patch(
+            "src.services.agent._nodes_rag._try_primary_do_kb_read",
+            new=AsyncMock(side_effect=AssertionError("retrieval should be skipped")),
+        ),
+        patch(
+            "src.services.agent._nodes_rag._legacy_hybrid_search_fallback",
+            new=AsyncMock(side_effect=AssertionError("fallback should be skipped")),
+        ),
     ):
         result = await rag_node(
             _state("hi", project_id=project_id),
