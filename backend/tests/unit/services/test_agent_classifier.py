@@ -137,9 +137,7 @@ class TestLLMClassifier:
 
         mock_chain = AsyncMock(return_value=mock_classification)
 
-        with patch(
-            "src.services.agent.classifier._build_classifier_llm"
-        ) as mock_build:
+        with patch("src.services.agent.classifier._build_classifier_llm") as mock_build:
             mock_llm = MagicMock()
             mock_llm.with_structured_output.return_value = MagicMock(
                 ainvoke=mock_chain,
@@ -166,9 +164,7 @@ class TestLLMClassifier:
             captured_messages.extend(messages)
             return mock_classification
 
-        with patch(
-            "src.services.agent.classifier._build_classifier_llm"
-        ) as mock_build:
+        with patch("src.services.agent.classifier._build_classifier_llm") as mock_build:
             mock_llm = MagicMock()
             mock_chain = MagicMock()
             mock_chain.ainvoke = capture_ainvoke
@@ -198,9 +194,7 @@ class TestLLMClassifier:
             captured_messages.extend(messages)
             return mock_classification
 
-        with patch(
-            "src.services.agent.classifier._build_classifier_llm"
-        ) as mock_build:
+        with patch("src.services.agent.classifier._build_classifier_llm") as mock_build:
             mock_llm = MagicMock()
             mock_chain = MagicMock()
             mock_chain.ainvoke = capture_ainvoke
@@ -521,9 +515,7 @@ class TestPriorToolContext:
             captured.extend(messages)
             return mock_classification
 
-        with patch(
-            "src.services.agent.classifier._build_classifier_llm"
-        ) as mock_build:
+        with patch("src.services.agent.classifier._build_classifier_llm") as mock_build:
             mock_llm = MagicMock()
             mock_chain = MagicMock()
             mock_chain.ainvoke = capture_ainvoke
