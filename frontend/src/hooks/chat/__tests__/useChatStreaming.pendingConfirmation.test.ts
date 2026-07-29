@@ -4,14 +4,22 @@
 // reply, no Approve/Deny card and an unlocked composer, re-sent, and parked a
 // SECOND interrupt.
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import {
+  renderHook,
+  waitFor,
+  type RenderHookResult,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createElement, type ReactNode } from 'react';
+import { createElement, type ReactElement, type ReactNode } from 'react';
 import type { ChatPageMessage } from '@/components/chat/shared/cloudMessageView';
+import type {
+  UseChatStreamingParams,
+  UseChatStreamingReturn,
+} from '@/hooks/chat/useChatStreaming';
 import { useChatStore } from '@/store/chat-store';
 import { useAgentActivityStore } from '@/stores/agentActivityStore';
 
-function wrapper({ children }: { children: ReactNode }) {
+function wrapper({ children }: { children: ReactNode }): ReactElement {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -45,7 +53,7 @@ const CONFIRMATION = {
 };
 
 /** Server holds a parked interrupt: resume replays a single confirmation. */
-function parkedInterrupt() {
+function parkedInterrupt(): void {
   resumeStreamMock.mockImplementation(
     async (
       threadId: string,
@@ -60,7 +68,7 @@ function parkedInterrupt() {
   );
 }
 
-function makeParams() {
+function makeParams(): UseChatStreamingParams {
   return {
     messages: [] as ChatPageMessage[],
     displayedMessages: [] as ChatPageMessage[],
@@ -72,7 +80,9 @@ function makeParams() {
   };
 }
 
-async function renderStreaming() {
+async function renderStreaming(): Promise<
+  RenderHookResult<UseChatStreamingReturn, unknown>
+> {
   const { useChatStreaming } = await import('@/hooks/chat/useChatStreaming');
   const params = makeParams();
   return renderHook(() => useChatStreaming(params), { wrapper });

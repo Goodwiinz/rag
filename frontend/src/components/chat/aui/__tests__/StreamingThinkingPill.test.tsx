@@ -4,7 +4,7 @@
  * progress at all, which reads as a hung UI.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, type RenderResult } from '@testing-library/react';
 
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 import { useChatStore } from '@/store/chat-store';
@@ -15,7 +15,7 @@ vi.mock('@/components/chat/shared/InlineAgentSummary', () => ({
   InlineAgentSummary: () => null,
 }));
 
-function renderStreamingTurn() {
+function renderStreamingTurn(): RenderResult {
   const messages = [
     makeChatPageMessage({ id: 'u1', role: 'user', content: 'go', timestamp: 1 }),
     makeChatPageMessage({

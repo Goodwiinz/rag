@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, waitFor, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 
 import { ChatMessageList } from '../ChatMessageList';
 import { ChatRuntimeProvider } from '../aui/ChatRuntimeProvider';
@@ -13,14 +14,17 @@ import type { ChatPageMessage } from '../shared/cloudMessageView';
 import { makeChatPageMessage } from '@/test/chatMessageFactory';
 
 vi.mock('../shared/ChatBubble', () => ({
-  ChatBubble: ({ message }: any) => <div>{message.content}</div>,
+  ChatBubble: ({ message }: { message: ChatPageMessage }): ReactElement => (
+    <div>{message.content}</div>
+  ),
 }));
 vi.mock('../shared/InlineAgentSummary', () => ({
   InlineAgentSummary: () => null,
 }));
 vi.mock('../CommandOutputBubble', () => ({ CommandOutputBubble: () => null }));
 vi.mock('@/store/chat-store', () => ({
-  useChatStore: (selector: any) => selector({ streamingCitations: [] }),
+  useChatStore: (selector: (state: { streamingCitations: [] }) => unknown) =>
+    selector({ streamingCitations: [] }),
 }));
 
 const scrollIntoView = vi.fn();
@@ -38,7 +42,7 @@ const history: ChatPageMessage[] = [
   makeChatPageMessage({ role: 'assistant', content: 'answer', timestamp: 2 }),
 ];
 
-function tree(messages: ChatPageMessage[]) {
+function tree(messages: ChatPageMessage[]): ReactElement {
   return (
     <ChatRuntimeProvider
       messages={messages}
@@ -58,7 +62,7 @@ function tree(messages: ChatPageMessage[]) {
 /** Put the transcript in the "user scrolled up" state the guard reacts to.
  * Queries are scoped to this render's own container — a global `screen` lookup
  * picks up DOM left behind by other suites when files share an environment. */
-async function scrollAway(view: ReturnType<typeof render>) {
+async function scrollAway(view: ReturnType<typeof render>): Promise<void> {
   const container = view.getByRole('region', {
     name: 'Conversation transcript',
   });
