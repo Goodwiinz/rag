@@ -20,7 +20,7 @@ change and belongs in its own PR, not here.
 
 import asyncio
 import logging
-from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, cast
+from typing import Awaitable, Callable, Hashable, NamedTuple, Optional, TypeVar, cast
 
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -59,7 +59,10 @@ class SpecialistParts(NamedTuple):
     build: Callable[[], StateGraph]
 
 
-def _rename(fn, name: str):
+_F = TypeVar("_F", bound=Callable[..., object])
+
+
+def _rename(fn: _F, name: str) -> _F:
     """Stamp the historical function name onto a generated closure.
 
     Cheap insurance for anything that reads ``__name__``/``__qualname__``
