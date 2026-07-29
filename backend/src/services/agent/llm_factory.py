@@ -78,6 +78,7 @@ def _build_chat_llm(
     role_label: str,
     temperature: float = 0,
     max_tokens: int = 512,
+    streaming: bool = False,
     request_timeout: float | None = None,
     use_responses_api: bool | None = None,
     reasoning_effort: str | None = None,
@@ -122,6 +123,7 @@ def _build_chat_llm(
     extra: dict[str, Any] = {
         "request_timeout": request_timeout,
         "max_retries": max_retries,
+        "streaming": streaming,
     }
     if _accepts_temperature:
         extra["temperature"] = temperature
@@ -185,6 +187,7 @@ def build_lightweight_llm(
         role_label="Lightweight",
         temperature=temperature,
         max_tokens=max_tokens,
+        streaming=False,
         request_timeout=request_timeout,
         use_responses_api=use_responses_api,
         reasoning_effort=settings.AGENT_LIGHTWEIGHT_REASONING_EFFORT or None,
@@ -225,6 +228,7 @@ def build_synthesis_llm(
         role_label="Synthesis",
         temperature=temperature,
         max_tokens=max_tokens,
+        streaming=True,
         request_timeout=resolved_timeout,
         use_responses_api=use_responses_api,
         # Shares AGENT_LIGHTWEIGHT_REASONING_EFFORT ("minimal") with the

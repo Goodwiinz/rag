@@ -43,11 +43,12 @@ def _set_chat_settings(monkeypatch, **overrides):
 def _clear_llm_cache():
     """Clear the module-level LLM cache so each test builds a fresh client."""
     from src.services.agent import graph as graph_module
+
     graph_module._LLM_CACHE.clear()
 
 
 def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
-    """No override → falls back to the configured deployment."""
+    """The main agent model streams while preserving ``ainvoke`` aggregation."""
     from src.services.agent.graph import _build_llm
 
     _clear_llm_cache()
@@ -59,6 +60,7 @@ def test_build_llm_uses_configured_deployment_when_no_override(monkeypatch):
     mock_lc.ChatOpenAI.assert_called_once()
     kwargs = mock_lc.ChatOpenAI.call_args.kwargs
     assert kwargs["model"] == "model-router"
+    assert kwargs["streaming"] is True
 
 
 def test_build_llm_override_wins_over_settings(monkeypatch):
@@ -108,3 +110,4 @@ def test_build_llm_override_threads_through_azure_client(monkeypatch):
     mock_lc.AzureChatOpenAI.assert_called_once()
     kwargs = mock_lc.AzureChatOpenAI.call_args.kwargs
     assert kwargs["azure_deployment"] == "gpt-5"
+    assert kwargs["streaming"] is True

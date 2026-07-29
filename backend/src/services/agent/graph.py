@@ -42,7 +42,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
-
 _TOOL_PLACEHOLDER_CONTENT = '{"status": "skipped"}'
 
 
@@ -104,9 +103,7 @@ def _sanitize_messages(raw: list) -> list:
                 continue
             tm = tm_by_id.get(tc_id)
             if tm is None:
-                tm = ToolMessage(
-                    content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id
-                )
+                tm = ToolMessage(content=_TOOL_PLACEHOLDER_CONTENT, tool_call_id=tc_id)
             rebuilt.append(tm)
             placed_tm_ids.add(tc_id)
 
@@ -199,7 +196,6 @@ def _safe_json_loads(s: str) -> Any:
         return {"raw": s}
 
 
-
 # ---------------------------------------------------------------------------
 # LLM construction
 # ---------------------------------------------------------------------------
@@ -278,6 +274,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             base_url=endpoint,
             max_tokens=4096,
+            streaming=True,
             use_responses_api=False,
             request_timeout=request_timeout,
             max_retries=max_retries,
@@ -296,6 +293,7 @@ def _build_llm(model_override: str | None = None):
             api_key=api_key,
             api_version=api_version,
             max_tokens=4096,
+            streaming=True,
             use_responses_api=False,
             request_timeout=request_timeout,
             max_retries=max_retries,
@@ -323,7 +321,6 @@ from src.services.agent._nodes_memory import (  # noqa: E402
     memory_save_node,
 )
 
-
 # ---------------------------------------------------------------------------
 # Graph nodes
 # ---------------------------------------------------------------------------
@@ -341,7 +338,6 @@ from src.services.agent._nodes_rag import (  # noqa: E402
     rag_node,
 )
 
-
 # ---------------------------------------------------------------------------
 # Intent classification
 # ---------------------------------------------------------------------------
@@ -355,9 +351,6 @@ from src.services.agent._prompts import (  # noqa: E402  (re-export)
     INTENT_KEYWORDS,
     INTENT_PRIORITY,
 )
-
-
-
 
 # ---------------------------------------------------------------------------
 # Intent-specific tool subsets + main LLM node — moved to _nodes_llm.
@@ -387,7 +380,6 @@ from src.services.agent._prompts import (  # noqa: E402
     _runtime_model_line,
 )
 
-
 # Tool execution + interrupt + concurrency constants now live in
 # _nodes_tools. Re-export so legacy imports
 # (`from src.services.agent.graph import tool_node, interrupt_node,
@@ -407,7 +399,6 @@ from src.services.agent._nodes_tools import (  # noqa: E402
     tool_node,
 )
 
-
 # ---------------------------------------------------------------------------
 # Intent classification + parallel preprocessing — moved to _nodes_classify.
 # Re-export for callers (`from src.services.agent.graph import
@@ -422,7 +413,6 @@ from src.services.agent._nodes_classify import (  # noqa: E402
     preprocessing_node,
     route_by_intent,
 )
-
 
 # ---------------------------------------------------------------------------
 # Graph builders + conditional edges — moved to _builders. Re-export so
