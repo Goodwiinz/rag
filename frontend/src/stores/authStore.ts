@@ -2,6 +2,7 @@ import { createClient as createSupabaseBrowserClient } from '@/lib/supabase/clie
 import { api } from '@/services/api-client';
 import { clearWorkspaceServiceCache } from '@/services/workspaceService';
 import { Organization, RegisterResult, User } from '@/types';
+import { supabaseAuthErrorMessage } from '@/utils/supabaseAuthError';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
@@ -98,7 +99,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
 
       if (supabaseError) {
-        throw new Error(supabaseError.message);
+        throw new Error(
+          supabaseAuthErrorMessage(
+            supabaseError,
+            'Could not sign you in. Please try again.'
+          )
+        );
       }
 
       // Use the session from signIn directly — getSession() may return null
@@ -159,7 +165,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
 
       if (supabaseError) {
-        throw new Error(supabaseError.message);
+        throw new Error(
+          supabaseAuthErrorMessage(
+            supabaseError,
+            'Could not create your account. Please try again.'
+          )
+        );
       }
 
       if (supabaseData.session) {
@@ -221,7 +232,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
 
       if (supabaseError) {
-        throw new Error(supabaseError.message);
+        throw new Error(
+          supabaseAuthErrorMessage(
+            supabaseError,
+            'Could not send the reset email. Please try again.'
+          )
+        );
       }
 
       set({ isLoading: false });
