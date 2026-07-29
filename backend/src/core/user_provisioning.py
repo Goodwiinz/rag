@@ -14,6 +14,18 @@ logger = logging.getLogger(__name__)
 
 _FREE_STORAGE = Organization.get_default_storage_limit(StorageTier.FREE)
 
+# Org names the provisioner mints itself and then RESOLVES BY NAME. A
+# client-supplied sign-up name that squatted one of these could hand a later
+# user another tenant's organization, so those prefixes are never usable as a
+# sign-up org name.
+_RESERVED_ORG_NAME_PREFIXES = ("user-", "org-")
+
+# Second line of defense behind ``security._clean_metadata_string``: whatever
+# reaches here still gets clamped to the column widths (users.first_name /
+# last_name String(100), organizations.name String(255)).
+_NAME_MAX_LENGTH = 100
+_ORG_NAME_MAX_LENGTH = 255
+
 
 async def ensure_user_and_org(
     db: AsyncSession,
@@ -55,6 +67,16 @@ async def _resolve_or_create_org(
             is_active=True,
             is_deleted=False,
         )
+        db.add(org)
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            result = await db.execute(
+                select(Organization).where(Organization.id == org_id)
+            )
+            org = result.scalars().first()
+        return org
     else:
         # Fail-closed: no org claim on the token. Give this org-less user
         # their OWN organization instead of funneling everyone into one
@@ -67,38 +89,54 @@ async def _resolve_or_create_org(
         # (~54 chars) fits Organization.name (String(255), unique). Name is
         # deterministic on user_id so re-provisioning (or a concurrent
         # duplicate) resolves back to the same org.
-        org_name = f"user-{token_data.user_id} Organization"
+        fallback_name = f"user-{token_data.user_id} Organization"
         result = await db.execute(
-            select(Organization).where(Organization.name == org_name)
+            select(Organization).where(Organization.name == fallback_name)
         )
         org = result.scalars().first()
         if org:
             return org
-        org = Organization(
-            name=org_name,
-            storage_tier=StorageTier.FREE,
-            storage_used_bytes=0,
-            storage_limit_bytes=_FREE_STORAGE,
-            is_active=True,
-            is_deleted=False,
-        )
 
-    db.add(org)
-    try:
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        if org_id:
-            result = await db.execute(
-                select(Organization).where(Organization.id == org_id)
+        # The org the user typed at sign-up is a LABEL for the org we are
+        # about to create, never a lookup key: resolving an existing org by a
+        # client-supplied name would let anyone join another tenant just by
+        # typing that tenant's name. If the name is already taken (or is a
+        # reserved one) we silently fall back to the deterministic name — a
+        # cosmetic loss, versus a tenant breach.
+        for candidate in _org_name_candidates(token_data, fallback_name):
+            org = Organization(
+                name=candidate,
+                storage_tier=StorageTier.FREE,
+                storage_used_bytes=0,
+                storage_limit_bytes=_FREE_STORAGE,
+                is_active=True,
+                is_deleted=False,
             )
-        else:
-            result = await db.execute(
-                select(Organization).where(Organization.name == org_name)
-            )
-        org = result.scalars().first()
+            db.add(org)
+            try:
+                await db.flush()
+                return org
+            except IntegrityError:
+                # Either a concurrent request created THIS user's org, or the
+                # sign-up name belongs to somebody else. Only the deterministic
+                # name may be refetched.
+                await db.rollback()
+                result = await db.execute(
+                    select(Organization).where(Organization.name == fallback_name)
+                )
+                existing = result.scalars().first()
+                if existing:
+                    return existing
 
-    return org
+        return None
+
+
+def _org_name_candidates(token_data: TokenData, fallback_name: str) -> list[str]:
+    """Org names to try, best first: the signed-up label, then the fallback."""
+    desired = token_data.signup_organization_name
+    if desired and not desired.lower().startswith(_RESERVED_ORG_NAME_PREFIXES):
+        return [desired[:_ORG_NAME_MAX_LENGTH], fallback_name]
+    return [fallback_name]
 
 
 async def _create_user(
@@ -109,8 +147,15 @@ async def _create_user(
     email = token_data.email or f"{token_data.user_id}@provisioned.local"
     prefix = email.split("@")[0]
     parts = prefix.split(".")
-    first_name = parts[0].capitalize()
-    last_name = parts[-1].capitalize() if len(parts) > 1 else "User"
+    # Names the user typed at sign-up (Supabase user_metadata) win; guessing
+    # from the email local-part stays the fallback when they're absent/blank.
+    first_name = (token_data.signup_first_name or parts[0].capitalize())[
+        :_NAME_MAX_LENGTH
+    ]
+    last_name = (
+        token_data.signup_last_name
+        or (parts[-1].capitalize() if len(parts) > 1 else "User")
+    )[:_NAME_MAX_LENGTH]
 
     user = User(
         id=token_data.user_id,
