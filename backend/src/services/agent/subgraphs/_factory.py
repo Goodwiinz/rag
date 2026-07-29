@@ -27,8 +27,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
-from src.services.agent.compactor import make_compactor_node
 from src.services.agent._sanitize import _sanitize_messages
+from src.services.agent.compactor import make_compactor_node
 from src.services.agent.observability import track_node_execution
 from src.services.agent.planner import make_planner_node
 from src.services.agent.reflection import make_reflection_gate
