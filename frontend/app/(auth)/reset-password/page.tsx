@@ -15,7 +15,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
-const SESSION_TIMEOUT_MS = 5000;
+// Last-resort guard only: the recovery session is resolved from getSession()
+// below, so this fires only if that promise never settles at all.
+const SESSION_TIMEOUT_MS = 20000;
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -34,15 +36,45 @@ export default function ResetPasswordPage() {
     setMounted(true);
 
     const supabase = createClient();
+    let cancelled = false;
+
+    const markSessionReady = () => {
+      sessionDetected.current = true;
+      // A late PASSWORD_RECOVERY must win: without this, a recovery event that
+      // arrives after the timeout left "This link has expired" on screen for a
+      // link that is perfectly valid.
+      setSessionExpired(false);
+      setSessionReady(true);
+    };
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        sessionDetected.current = true;
-        setSessionReady(true);
+        markSessionReady();
       }
     });
+
+    // Drive the decision off the actual outcome instead of racing a clock:
+    // getSession() awaits the client's initialize step, which is what parses
+    // the recovery token out of the URL and stores the session. So a slow
+    // connection can no longer be reported as an expired link, and a
+    // PASSWORD_RECOVERY emitted before this component subscribed (the client
+    // is a shared singleton, created by AuthProvider on first paint) is no
+    // longer missed either.
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        if (session) {
+          markSessionReady();
+        } else {
+          setSessionExpired(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSessionExpired(true);
+      });
 
     const timeout = setTimeout(() => {
       if (!sessionDetected.current) {
@@ -51,6 +83,7 @@ export default function ResetPasswordPage() {
     }, SESSION_TIMEOUT_MS);
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
@@ -93,7 +126,9 @@ export default function ResetPasswordPage() {
 
   if (!mounted) return null;
 
-  if (sessionExpired) {
+  // sessionReady wins over sessionExpired: a recovery session that resolved
+  // late must not be masked by an earlier timeout verdict.
+  if (sessionExpired && !sessionReady) {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-6"

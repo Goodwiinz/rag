@@ -52,5 +52,6 @@ export const initialState: ChatState = {
   streamingDiagnosticsTraceId: null,
   isRetrievingRag: false,
   streamingSteps: [],
+  streamingElapsedMs: null,
   streamingThreadId: null,
 };

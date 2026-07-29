@@ -28,6 +28,7 @@ vi.mock('@/services/apiClient', () => ({
 
 import { useAuthStore } from '@/stores/authStore';
 import type { RegisterResult } from '@/types';
+import { AUTH_SERVICE_UNAVAILABLE } from '@/utils/supabaseAuthError';
 
 describe('useAuthStore signUp', () => {
   beforeEach(() => {
@@ -142,5 +143,51 @@ describe('useAuthStore signUp', () => {
     await signUpAda();
 
     expect(useAuthStore.getState().pendingSignupPossiblyExisting).toBe(false);
+  });
+
+  it('never surfaces the "{}" message auth-js builds from a gateway 5xx', async () => {
+    // auth-js stringifies the raw Response for 502/503/504/52x, and a Response
+    // has no enumerable own properties — so `message` arrives as "{}".
+    mockSignUp.mockResolvedValue({
+      data: { session: null },
+      error: {
+        name: 'AuthRetryableFetchError',
+        status: 503,
+        message: '{}',
+      },
+    });
+
+    await expect(
+      useAuthStore.getState().signUp({
+        email: 'ada@example.com',
+        password: 'SecurePass123!',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+      })
+    ).rejects.toThrow(AUTH_SERVICE_UNAVAILABLE);
+
+    expect(useAuthStore.getState().error).toBe(AUTH_SERVICE_UNAVAILABLE);
+  });
+
+  it('keeps a real GoTrue message', async () => {
+    mockSignUp.mockResolvedValue({
+      data: { session: null },
+      error: {
+        name: 'AuthApiError',
+        status: 422,
+        message: 'User already registered',
+      },
+    });
+
+    await expect(
+      useAuthStore.getState().signUp({
+        email: 'ada@example.com',
+        password: 'SecurePass123!',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+      })
+    ).rejects.toThrow('User already registered');
+
+    expect(useAuthStore.getState().error).toBe('User already registered');
   });
 });

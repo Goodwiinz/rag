@@ -65,10 +65,13 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated. '/' is the public marketing landing and
+  // does not bounce authenticated visitors anywhere, so sending them there
+  // would drop them back on the anonymous page; match the login page's
+  // destination instead.
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, isLoading, router]);
 
@@ -101,7 +104,8 @@ export default function RegisterPage() {
 
       const result = await register(registerData);
       if (!result.requiresEmailConfirmation) {
-        router.push('/');
+        // Signup issued a session — land on the app, not the marketing page.
+        router.push('/dashboard');
       }
     } catch (err) {
       setError(

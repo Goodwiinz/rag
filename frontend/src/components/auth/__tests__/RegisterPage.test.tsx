@@ -38,6 +38,8 @@ describe('RegisterPage', () => {
     mockedAuth.pendingEmailConfirmation = false;
     mockedAuth.pendingConfirmationEmail = null;
     mockedAuth.pendingSignupPossiblyExisting = false;
+    mockedAuth.isAuthenticated = false;
+    mockedAuth.isLoading = false;
   });
 
   it('does not redirect when registration requires email confirmation', async () => {
@@ -117,5 +119,46 @@ describe('RegisterPage', () => {
     expect(
       screen.queryByRole('button', { name: /resend verification/i })
     ).not.toBeInTheDocument();
+  });
+
+  it('sends a session-issuing signup to the dashboard, not the marketing landing', async () => {
+    mockRegister.mockResolvedValue({ requiresEmailConfirmation: false });
+
+    render(<RegisterPage />);
+
+    fireEvent.change(await screen.findByLabelText(/first name/i), {
+      target: { value: 'Ada' },
+    });
+    fireEvent.change(screen.getByLabelText(/last name/i), {
+      target: { value: 'Lovelace' },
+    });
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: 'ada@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: 'SecurePass123!' },
+    });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), {
+      target: { value: 'SecurePass123!' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+    expect(mockPush).not.toHaveBeenCalledWith('/');
+  });
+
+  it('sends an already-authenticated visitor to the dashboard', async () => {
+    mockedAuth.isAuthenticated = true;
+    mockedAuth.isLoading = false;
+
+    render(<RegisterPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+    expect(mockPush).not.toHaveBeenCalledWith('/');
   });
 });
